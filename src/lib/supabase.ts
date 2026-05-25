@@ -619,6 +619,96 @@ export async function respondToInterest(id: string, status: 'accepted' | 'declin
   return { error };
 }
 
+// ─── SESSION TRACKING ──────────────────────────────
+
+// Parse device info from User-Agent string
+export function parseDeviceInfo(ua: string = navigator.userAgent) {
+  let device = 'Desktop';
+  let os = 'Unknown';
+  let browser = 'Unknown';
+
+  // OS detection
+  if (/Android/.test(ua)) {
+    const match = ua.match(/Android\s([\d.]+)/);
+    os = match ? `Android ${match[1]}` : 'Android';
+    const deviceMatch = ua.match(/;\s*([^)]+)\s*Build/);
+    device = deviceMatch ? deviceMatch[1].trim() : 'Android Device';
+  } else if (/iPhone/.test(ua)) {
+    os = 'iOS';
+    device = 'iPhone';
+  } else if (/iPad/.test(ua)) {
+    os = 'iPadOS';
+    device = 'iPad';
+  } else if (/Windows NT/.test(ua)) {
+    os = 'Windows';
+  } else if (/Mac OS/.test(ua)) {
+    os = 'macOS';
+  } else if (/Linux/.test(ua)) {
+    os = 'Linux';
+  }
+
+  // Browser detection
+  if (/Chrome/.test(ua) && !/Edg/.test(ua) && !/OPR/.test(ua)) {
+    const match = ua.match(/Chrome\/([\d.]+)/);
+    browser = match ? `Chrome ${match[1].split('.')[0]}` : 'Chrome';
+  } else if (/Edg/.test(ua)) {
+    browser = 'Edge';
+  } else if (/Firefox/.test(ua)) {
+    browser = 'Firefox';
+  } else if (/Safari/.test(ua) && !/Chrome/.test(ua)) {
+    browser = 'Safari';
+  } else if (/OPR/.test(ua)) {
+    browser = 'Opera';
+  }
+
+  return { device, os, browser };
+}
+
+// Track a session start event
+export async function trackSession(userId: string, authId: string) {
+  const { device, os, browser } = parseDeviceInfo();
+  const { error } = await supabase.from('user_activity').insert({
+    user_id: userId,
+    auth_id: authId,
+    action_type: 'session_start',
+    details: { device, os, browser, source: 'login' },
+  });
+  return { error };
+}
+
+// Track a session end event
+export async function endSession(userId: string, authId: string) {
+  const { error } = await supabase.from('user_activity').insert({
+    user_id: userId,
+    auth_id: authId,
+    action_type: 'session_end',
+    details: { source: 'logout' },
+  });
+  return { error };
+}
+
+// Get recent session history for a user
+export async function getSessionHistory(userId: string, limit: number = 20) {
+  const { data, error } = await supabase
+    .from('user_activity')
+    .select('*')
+    .eq('user_id', userId)
+    .or('action_type.eq.session_start,action_type.eq.session_end')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return { sessions: data || [], error };
+}
+
+// Get recent login count
+export async function getLoginCount(userId: string) {
+  const { count, error } = await supabase
+    .from('user_activity')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('action_type', 'session_start');
+  return { count: count || 0, error };
+}
+
 // ─── RECENTLY VIEWED ───────────────────────────────
 
 export async function trackView(userId: string, itemId: string, itemType: string = 'listing') {

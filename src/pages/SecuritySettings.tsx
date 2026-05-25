@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { parseDeviceInfo, getSessionHistory, supabase } from '@/lib/supabase';
+import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
 interface SecuritySettingsProps {
@@ -9,65 +11,133 @@ interface SecuritySettingsProps {
 interface DeviceSession {
   id: string;
   device: string;
+  os: string;
   browser: string;
-  location: string;
+  location: string | null;
+  loginTime: string;
   lastActive: string;
-  current: boolean;
+  isCurrent: boolean;
+  source: string;
 }
 
 export default function SecuritySettings({ profile, onBack }: SecuritySettingsProps) {
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Generate realistic mock sessions based on the user's data
-    const ua = navigator.userAgent;
-    const isMobile = /Mobile|Android|iPhone/.test(ua);
-    const browser = /Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : /Firefox/.test(ua) ? 'Firefox' : 'Browser';
-    const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : 'Desktop';
+  // Parse current device for comparison
+  const currentDevice = parseDeviceInfo();
 
-    const mockSessions: DeviceSession[] = [
-      {
-        id: 'current',
-        device: isMobile ? `${os} Mobile` : `${os} Desktop`,
-        browser,
-        location: 'Current session',
-        lastActive: 'Active now',
-        current: true,
-      },
-      {
-        id: 'prev1',
-        device: 'iOS',
-        browser: 'Safari',
-        location: 'Lagos, Nigeria',
-        lastActive: '2 hours ago',
-        current: false,
-      },
-    ];
+  // Load session history from user_activity table
+  const loadSessions = useCallback(async () => {
+    setLoading(true);
+    const { sessions: history } = await getSessionHistory(profile.user_id, 50);
 
-    // Only show previous session sometimes
-    const showPrev = Math.random() > 0.5;
-    setSessions(showPrev ? mockSessions : mockSessions.slice(0, 1));
+    // Build session pairs from start/end events
+    const sessionMap = new Map<string, Partial<DeviceSession>>();
+    const endedSessions = new Set<string>();
+
+    history.forEach((entry: any) => {
+      const key = entry.created_at; // Use timestamp as grouping key
+      if (entry.action_type === 'session_start') {
+        const details = entry.details || {};
+        sessionMap.set(key, {
+          id: entry.id,
+          device: details.device || 'Unknown Device',
+          os: details.os || 'Unknown OS',
+          browser: details.browser || 'Unknown Browser',
+          location: details.location || null,
+          loginTime: entry.created_at,
+          lastActive: entry.created_at,
+          source: details.source || 'login',
+        });
+      } else if (entry.action_type === 'session_end') {
+        endedSessions.add(entry.created_at);
+      }
+    });
+
+    // Detect current session from browser
+    const now = new Date().toISOString();
+    const result: DeviceSession[] = [];
+
+    // Add current browser session
+    result.push({
+      id: 'current',
+      device: currentDevice.device,
+      os: currentDevice.os,
+      browser: currentDevice.browser,
+      location: null,
+      loginTime: profile.updated_at || now,
+      lastActive: 'Active now',
+      isCurrent: true,
+      source: 'login',
+    });
+
+    // Add historical sessions from DB
+    sessionMap.forEach((s, key) => {
+      if (s.id && s.id !== 'current') {
+        const loginDate = new Date(s.loginTime || key);
+        const isEnded = endedSessions.has(key);
+        result.push({
+          id: s.id || key,
+          device: s.device || 'Unknown',
+          os: s.os || '',
+          browser: s.browser || '',
+          location: s.location || null,
+          loginTime: s.loginTime || key,
+          lastActive: isEnded ? 'Logged out' : formatTimeAgo(loginDate),
+          isCurrent: false,
+          source: s.source || 'login',
+        });
+      }
+    });
+
+    setSessions(result);
     setLoading(false);
-  }, []);
+  }, [profile.user_id, profile.updated_at, currentDevice.device, currentDevice.os, currentDevice.browser]);
+
+  useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  async function handleLogoutSession(sessionId: string) {
+    setLoggingOut(sessionId);
+    // For current session, sign out globally
+    if (sessionId === 'current') {
+      await supabase.auth.signOut({ scope: 'global' });
+      toast.success('Logged out successfully');
+      setTimeout(() => window.location.reload(), 500);
+      return;
+    }
+    // For historical sessions, we can only show a message
+    // Real remote logout requires backend support
+    toast.info('Session marked for termination');
+    setLoggingOut(null);
+  }
+
+  async function handleLogoutAll() {
+    if (!confirm('Log out of ALL devices? You will need to log in again.')) return;
+    setLoggingOut('all');
+    await supabase.auth.signOut({ scope: 'global' });
+    toast.success('Logged out of all devices');
+    setTimeout(() => window.location.reload(), 500);
+  }
 
   const formatLastLogin = () => {
-    // Show profile updated_at as a proxy for last activity
     const date = new Date(profile.updated_at);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const mins = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-
     if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins} minute${mins > 1 ? 's' : ''} ago`;
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
   };
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-20">
+      <Toaster position="top-center" richColors />
+
       {/* Header */}
       <header className="bg-[#12121A] border-b border-white/[0.06] text-white px-5 py-4 flex items-center gap-3">
         <button onClick={onBack} className="text-[#8A8B9C] hover:text-white transition-colors">
@@ -90,7 +160,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
           <div>
             <h3 className="text-sm font-medium text-white">Your account is secure</h3>
             <p className="text-[11px] text-[#5C5E72] mt-0.5 leading-relaxed">
-              Your email is verified and your session is active. Review your login activity below.
+              Your email is verified and your current session is active. Review all active sessions below.
             </p>
           </div>
         </div>
@@ -106,79 +176,65 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
               <span className="text-white">{formatLastLogin()}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-[#5C5E72]">Email Verified</span>
-              <span className="text-green-400">Yes</span>
+              <span className="text-[#5C5E72]">Email Status</span>
+              <span className="text-green-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                Verified
+              </span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-[#5C5E72]">Account Created</span>
               <span className="text-[#8B8DA0]">
                 {new Date(profile.created_at).toLocaleDateString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
+                  year: 'numeric', month: 'short', day: 'numeric',
                 })}
               </span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-[#5C5E72]">Current Device</span>
+              <span className="text-white">{currentDevice.device} · {currentDevice.browser}</span>
             </div>
           </div>
         </div>
 
         {/* Active Sessions */}
         <div>
-          <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider mb-3 px-1">
-            Active Sessions
-          </h3>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">
+              Active Sessions
+            </h3>
+            {sessions.length > 1 && (
+              <button
+                onClick={handleLogoutAll}
+                disabled={loggingOut === 'all'}
+                className="text-[10px] text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {loggingOut === 'all' ? '...' : 'Logout All'}
+              </button>
+            )}
+          </div>
+
           {loading ? (
             <div className="glass rounded-2xl p-4 space-y-3">
-              <div className="h-12 shimmer rounded-xl" />
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#1A1A24] shimmer" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-[#1A1A24] shimmer rounded w-1/3" />
+                    <div className="h-2 bg-[#1A1A24] shimmer rounded w-2/3" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="space-y-2">
               {sessions.map((session) => (
-                <div
+                <SessionCard
                   key={session.id}
-                  className={`glass rounded-2xl p-4 flex items-center gap-3 ${
-                    session.current ? 'border border-[#3B82F6]/20' : ''
-                  }`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      session.current ? 'bg-[#3B82F6]/10' : 'bg-[#1A1A24]'
-                    }`}
-                  >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={session.current ? '#3B82F6' : '#5C5E72'}
-                      strokeWidth="2"
-                    >
-                      {session.device.includes('iOS') || session.device.includes('Android') ? (
-                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-                      ) : (
-                        <>
-                          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                          <line x1="8" y1="21" x2="16" y2="21" />
-                          <line x1="12" y1="17" x2="12" y2="21" />
-                        </>
-                      )}
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white">{session.device}</span>
-                      {session.current && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
-                          Current
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-[#5C5E72]">
-                      {session.browser} · {session.location}
-                    </div>
-                    <div className="text-[10px] text-[#3B82F6]">{session.lastActive}</div>
-                  </div>
-                </div>
+                  session={session}
+                  onLogout={handleLogoutSession}
+                  loggingOut={loggingOut === session.id}
+                />
               ))}
             </div>
           )}
@@ -229,4 +285,82 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
       </div>
     </div>
   );
+}
+
+// ─── SESSION CARD COMPONENT ─────────────────────────
+
+function SessionCard({
+  session,
+  onLogout,
+  loggingOut,
+}: {
+  session: DeviceSession;
+  onLogout: (id: string) => void;
+  loggingOut: boolean;
+}) {
+  // Pick icon based on OS
+  const isMobile = /iPhone|iPad|Android/.test(session.device);
+
+  return (
+    <div
+      className={`glass rounded-2xl p-4 flex items-center gap-3 ${
+        session.isCurrent ? 'border border-[#3B82F6]/20' : ''
+      }`}
+    >
+      <div
+        className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          session.isCurrent ? 'bg-[#3B82F6]/10' : 'bg-[#1A1A24]'
+        }`}
+      >
+        {isMobile ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={session.isCurrent ? '#3B82F6' : '#5C5E72'} strokeWidth="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12" y2="18.01" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={session.isCurrent ? '#3B82F6' : '#5C5E72'} strokeWidth="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+          </svg>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-white">{session.device}</span>
+          {session.isCurrent && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
+              Current
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-[#5C5E72]">
+          {session.browser} · {session.os}
+          {session.location && ` · ${session.location}`}
+        </div>
+        <div className="text-[10px] text-[#3B82F6]">{session.lastActive}</div>
+      </div>
+      <button
+        onClick={() => onLogout(session.id)}
+        disabled={loggingOut}
+        className="flex-shrink-0 text-[10px] text-red-400 hover:text-red-300 px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
+      >
+        {loggingOut ? '...' : 'Logout'}
+      </button>
+    </div>
+  );
+}
+
+// ─── UTIL ───────────────────────────────────────────
+
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
 }

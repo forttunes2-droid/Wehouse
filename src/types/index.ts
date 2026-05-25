@@ -111,6 +111,37 @@ export interface RoommateMatch {
 
 // ─── PHASE 4 ADMIN TYPES ───────────────────────────
 
+// ─── ROLE HIERARCHY ────────────────────────────────
+// Higher number = more power. Used for permission checks.
+export const ROLE_RANK: Record<UserRole, number> = {
+  user: 0,
+  worker: 0,   // same level as user
+  staff: 1,
+  admin: 2,
+  creator: 3,  // highest — cannot be changed/deleted
+};
+
+export function roleRank(role: string): number {
+  return ROLE_RANK[role as UserRole] ?? 0;
+}
+
+// ─── USER SESSION TRACKING ─────────────────────────
+export interface UserSession {
+  id: string;
+  user_id: string;
+  auth_id: string;
+  device: string;       // e.g. "iPhone 14"
+  browser: string;      // e.g. "Chrome 120"
+  os: string;           // e.g. "iOS 17"
+  ip_address: string | null;
+  location: string | null;  // e.g. "Lagos, Nigeria"
+  login_time: string;
+  last_seen: string;
+  logout_time: string | null;
+  is_current: boolean;
+  created_at: string;
+}
+
 export interface UserActivity {
   id: string;
   user_id: string;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, getProfile, getProfileByEmail, linkProfileToAuth, createProfile } from '@/lib/supabase';
+import { supabase, getProfile, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -29,6 +29,26 @@ const ADMIN_ROLES = new Set(['creator', 'admin', 'staff']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
+}
+
+// Creator = highest rank. Protected from changes/deletion.
+export function isCreator(role: string): boolean {
+  return role === 'creator';
+}
+
+// Compare two roles — returns true if a can modify b
+export function canModifyRole(modifierRole: string, targetRole: string): boolean {
+  // Creator can modify anyone (including other admins)
+  if (modifierRole === 'creator') return true;
+  // Admin can modify staff and users only
+  if (modifierRole === 'admin') {
+    return targetRole !== 'creator' && targetRole !== 'admin';
+  }
+  // Staff can only modify users
+  if (modifierRole === 'staff') {
+    return targetRole === 'user' || targetRole === 'worker';
+  }
+  return false;
 }
 
 export function useAuth() {
@@ -130,6 +150,7 @@ export function useAuth() {
       }
       if (byAuth) {
         setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' });
+        trackSession(byAuth.user_id, authId).catch(() => {});
         return;
       }
 
@@ -142,6 +163,7 @@ export function useAuth() {
           return;
         }
         setState({ profile: linked, page: determinePage(linked), isLoading: false, error: '' });
+        trackSession(linked.user_id, authId).catch(() => {});
         return;
       }
 
@@ -152,6 +174,7 @@ export function useAuth() {
         return;
       }
       setState({ profile: newProfile, page: 'setup', isLoading: false, error: '' });
+      trackSession(newProfile.user_id, authId).catch(() => {});
     },
     [determinePage]
   );
@@ -164,11 +187,17 @@ export function useAuth() {
   );
 
   const logout = useCallback(async () => {
+    // Track session end before signing out
+    const userId = state.profile?.user_id;
+    const authId = state.profile?.auth_id;
+    if (userId && authId) {
+      await endSession(userId, authId).catch(() => {});
+    }
     await supabase.auth.signOut({ scope: 'global' });
     wipeOnLogout();
     setState({ page: 'login', profile: null, isLoading: false, error: '' });
     setTimeout(() => window.location.reload(), 100);
-  }, []);
+  }, [state.profile]);
 
   const clearError = useCallback(() => {
     setState((s) => ({ ...s, error: '' }));
