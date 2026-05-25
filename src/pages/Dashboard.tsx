@@ -114,9 +114,17 @@ export default function Dashboard({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold text-white truncate">@{displayName}</h2>
-                  {profile.role === 'creator_admin' && (
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/30">
-                      CREATOR
+                  {profile.role !== 'user' && (
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                      profile.role === 'creator'
+                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                        : profile.role === 'admin'
+                        ? 'bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/30'
+                        : profile.role === 'staff'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        : 'bg-white/[0.02] text-[#5C5E72] border-white/5'
+                    }`}>
+                      {profile.role === 'worker' ? 'WORKER' : profile.role.toUpperCase()}
                     </span>
                   )}
                 </div>
@@ -260,7 +268,7 @@ export default function Dashboard({
         )}
 
         {/* Creator Link */}
-        {profile.role === 'creator_admin' && onNavigate && (
+        {((profile.role === 'creator') || (profile.role === 'admin') || (profile.role === 'staff')) && onNavigate && (
           <button
             onClick={() => onNavigate('creator')}
             className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
@@ -273,7 +281,9 @@ export default function Dashboard({
                 </svg>
               </div>
               <div className="text-left">
-                <div className="text-sm font-semibold text-white">Creator Dashboard</div>
+                <div className="text-sm font-semibold text-white">
+                  {profile.role === 'creator' ? 'Creator' : profile.role === 'admin' ? 'Admin' : 'Staff'} Dashboard
+                </div>
                 <div className="text-[10px] text-[#5C5E72]">Manage users, listings, analytics</div>
               </div>
             </div>
@@ -298,7 +308,7 @@ export default function Dashboard({
             {[
               { label: 'User ID', value: profile.user_id },
               { label: 'Email', value: profile.email },
-              { label: 'Role', value: profile.role === 'creator_admin' ? 'Creator Admin' : 'Member' },
+              { label: 'Role', value: profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
               {
                 label: 'Joined',
                 value: new Date(profile.created_at).toLocaleDateString(undefined, {

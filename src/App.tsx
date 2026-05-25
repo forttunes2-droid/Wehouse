@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, hasAdminAccess } from '@/hooks/useAuth';
 import { getSavedListings, saveListing, unsaveListing, getRoommatePreferences } from '@/lib/supabase';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
@@ -63,7 +63,7 @@ export default function App() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [roommateMode, setRoommateMode] = useState<'setup' | 'matches'>('setup');
   const [error, setError] = useState<Error | null>(null);
-  const isCreator = auth.profile?.role === 'creator_admin';
+  const isAdmin = hasAdminAccess(auth.profile?.role || '');
 
   // Error boundary
   useEffect(() => {
@@ -177,8 +177,8 @@ export default function App() {
     { id: 'search' as NavPage, label: 'Search', icon: SearchSvg },
     { id: 'saved' as NavPage, label: 'Saved', icon: HeartSvg },
     { id: 'roommate' as NavPage, label: 'Roommate', icon: UsersSvg },
-    ...(isCreator
-      ? [{ id: 'creator' as NavPage, label: 'Creator', icon: CreatorSvg }]
+    ...(isAdmin
+      ? [{ id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }]
       : [{ id: 'profile' as NavPage, label: 'Profile', icon: UserSvg }]),
   ];
 
@@ -253,7 +253,7 @@ function UserSvg({ size, active }: { size: number; active: boolean }) {
     </svg>
   );
 }
-function CreatorSvg({ size, active }: { size: number; active: boolean }) {
+function AdminSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />

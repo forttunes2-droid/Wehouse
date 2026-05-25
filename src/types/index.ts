@@ -1,9 +1,26 @@
+// ─── ROLE SYSTEM ───────────────────────────────────
+// USER    = student, tenant, regular user (all same account type)
+// CREATOR = platform creator / owner
+// ADMIN   = full admin access
+// STAFF   = limited admin access
+// WORKER  = FUTURE — service provider (electrician, plumber, etc.)
+//           Architecture prepared. No UI built yet.
+
+export type UserRole = 'user' | 'creator' | 'admin' | 'staff' | 'worker';
+
+// Future worker occupations — used when worker system is built
+export const WORKER_OCCUPATIONS = [
+  'electrician', 'plumber', 'cleaner', 'carpenter',
+  'generator_repair', 'ac_technician', 'internet_installer',
+  'moving_service', 'security', 'water_supply',
+] as const;
+
 export interface Profile {
   id: string;
   auth_id: string;
   email: string;
   username: string | null;
-  role: 'user' | 'creator_admin';
+  role: UserRole;
   user_id: string;
   profile_complete: boolean;
   avatar_url: string | null;
@@ -25,6 +42,11 @@ export interface Profile {
   privacy_profile_visible: boolean;
   privacy_search_visible: boolean;
   privacy_activity_visible: boolean;
+  // ── WORKER ARCHITECTURE (future) ─────────────────
+  worker_occupation: string | null;   // e.g. "electrician"
+  worker_verified: boolean;            // approved by platform
+  worker_bio: string | null;           // service description
+  // ─────────────────────────────────────────────────
   created_at: string;
   updated_at: string;
 }

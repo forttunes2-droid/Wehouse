@@ -22,6 +22,15 @@ function wipeOnLogout() {
   } catch { /* ignore */ }
 }
 
+// ─── ROLE HELPERS (module-level) ───────────────────
+// Role hierarchy: creator = admin = staff → admin dashboard
+//                 user = worker → regular dashboard
+const ADMIN_ROLES = new Set(['creator', 'admin', 'staff']);
+
+export function hasAdminAccess(role: string): boolean {
+  return ADMIN_ROLES.has(role);
+}
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     page: 'loading',
@@ -33,7 +42,7 @@ export function useAuth() {
   const determinePage = useCallback((profile: Profile | null): Page => {
     if (!profile) return 'login';
     if (!profile.profile_complete) return 'setup';
-    if (profile.role === 'creator_admin') return 'creator';
+    if (hasAdminAccess(profile.role)) return 'creator';
     return 'dashboard';
   }, []);
 

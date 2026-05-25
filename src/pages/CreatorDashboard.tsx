@@ -189,12 +189,10 @@ function UsersTab({ profile }: { profile: Profile }) {
               <div className="flex gap-2 mt-2.5">
                 <select value={u.role} onChange={(e) => handleRole(u.user_id, e.target.value)} className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white">
                   <option value="user">User</option>
-                  <option value="student">Student</option>
-                  <option value="landlord">Landlord</option>
-                  <option value="agent">Agent</option>
-                  <option value="moderator">Moderator</option>
+                  <option value="staff">Staff</option>
                   <option value="admin">Admin</option>
-                  <option value="creator_admin">Creator</option>
+                  <option value="creator">Creator</option>
+                  <option value="worker">Worker (future)</option>
                 </select>
                 <button onClick={() => handleDelete(u.user_id)} className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Delete</button>
               </div>
@@ -384,7 +382,7 @@ function SettingsTab({ profile }: { profile: Profile }) {
       {[
         { key: 'platform_name', label: 'Platform Name', type: 'text' },
         { key: 'listing_approval_required', label: 'Require Listing Approval', type: 'select', options: [['false', 'No'], ['true', 'Yes']] },
-        { key: 'default_user_role', label: 'Default User Role', type: 'select', options: [['user', 'User'], ['student', 'Student'], ['landlord', 'Landlord']] },
+        { key: 'default_user_role', label: 'Default User Role', type: 'select', options: [['user', 'User'], ['staff', 'Staff'], ['admin', 'Admin']] },
         { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'select', options: [['false', 'Off'], ['true', 'On']] },
       ].map(setting => (
         <div key={setting.key} className="glass rounded-2xl p-4">

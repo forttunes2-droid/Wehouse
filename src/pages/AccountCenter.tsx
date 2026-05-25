@@ -130,7 +130,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[9px] text-[#5C5E72]">{profile.user_id}</span>
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
-                {profile.role === 'creator_admin' ? 'Creator' : 'Member'}
+                {profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
               </span>
             </div>
           </div>
@@ -187,7 +187,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
             {[
               { label: 'User ID', value: profile.user_id },
               { label: 'Auth ID', value: `${profile.auth_id.slice(0, 8)}...` },
-              { label: 'Role', value: profile.role === 'creator_admin' ? 'Creator Admin' : 'Member' },
+              { label: 'Role', value: profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
               {
                 label: 'Joined',
                 value: new Date(profile.created_at).toLocaleDateString(undefined, {
