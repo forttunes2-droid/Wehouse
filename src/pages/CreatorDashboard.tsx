@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getAllUsers, getUserCount, updateUserRole, deleteUser,
-  getAllListingsAdmin, approveListing, deleteListing, getReports,
+  getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction,
 } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import type { Profile, Listing } from '@/types';
 import { Toaster, toast } from 'sonner';
 
@@ -21,62 +19,67 @@ interface CreatorDashboardProps {
 export default function CreatorDashboard({ profile, onLogout }: CreatorDashboardProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
-  const tabs: { id: AdminTab; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'users', label: 'Users' },
-    { id: 'listings', label: 'Listings' },
-    { id: 'reports', label: 'Reports' },
-    { id: 'audit', label: 'Audit Log' },
-    { id: 'settings', label: 'Settings' },
+  const tabs = [
+    { id: 'overview' as AdminTab, label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
+    { id: 'users' as AdminTab, label: 'Users', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+    { id: 'listings' as AdminTab, label: 'Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
+    { id: 'reports' as AdminTab, label: 'Reports', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01' },
+    { id: 'audit' as AdminTab, label: 'Audit', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
+    { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5]">
-      <Toaster position="top-center" richColors />
+    <div className="min-h-screen bg-[#0A0A0F] pb-6">
+      <Toaster position="top-center" richColors theme="dark" />
 
       {/* Header */}
-      <header className="bg-[#0F1724] text-white px-5 py-4">
+      <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#C8A45A] flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F1724" strokeWidth="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center glow-blue-sm">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
             </div>
             <div>
-              <div className="text-sm font-semibold">Creator Dashboard</div>
-              <div className="text-[10px] text-white/50">@{profile.username}</div>
+              <h1 className="text-sm font-bold text-white">Creator Dashboard</h1>
+              <p className="text-[10px] text-[#5C5E72]">@{profile.username}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="text-xs text-white/50 hover:text-white">Logout</button>
+          <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
+            Logout
+          </button>
         </div>
       </header>
 
       {/* Tabs */}
-      <nav className="bg-white border-b border-[#e5e2dd] overflow-x-auto">
-        <div className="flex max-w-lg mx-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-[70px] py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-[#C8A45A] text-[#C8A45A]'
-                  : 'border-transparent text-[#8B8680]'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <nav className="border-b border-[#1E1E2C] overflow-x-auto scrollbar-hide mb-4">
+        <div className="flex px-5 gap-1">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-t-lg transition-all ${
+                  isActive
+                    ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
+                    : 'text-[#5C5E72] hover:text-[#8B8DA0]'
+                }`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={tab.icon} />
+                </svg>
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </nav>
 
       {/* Content */}
-      <main className="max-w-lg mx-auto px-5 py-4 pb-24">
+      <main className="max-w-lg mx-auto px-5 pb-6">
         {activeTab === 'overview' && <OverviewTab profile={profile} />}
         {activeTab === 'users' && <UsersTab profile={profile} />}
-        {activeTab === 'listings' && <ListingsAdminTab profile={profile} />}
+        {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'audit' && <AuditTab />}
         {activeTab === 'settings' && <SettingsTab profile={profile} />}
@@ -85,9 +88,7 @@ export default function CreatorDashboard({ profile, onLogout }: CreatorDashboard
   );
 }
 
-// ═══════════════════════════════════════════════════
-// OVERVIEW TAB
-// ═══════════════════════════════════════════════════
+// ─── OVERVIEW ──────────────────────────────────────
 function OverviewTab({ profile }: { profile: Profile }) {
   const [stats, setStats] = useState({ users: 0, listings: 0, reports: 0, today: 0 });
 
@@ -101,31 +102,32 @@ function OverviewTab({ profile }: { profile: Profile }) {
     load();
   }, []);
 
-  const cards = [
-    { label: 'Total Users', value: stats.users, color: 'bg-[#0F1724]' },
-    { label: 'Listings', value: stats.listings, color: 'bg-[#C8A45A]' },
-    { label: 'Pending Reports', value: stats.reports, color: stats.reports > 0 ? 'bg-red-500' : 'bg-green-500' },
-    { label: 'New Today', value: stats.today, color: 'bg-blue-500' },
-  ];
-
   return (
     <div className="space-y-4">
+      {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3">
-        {cards.map((c) => (
-          <div key={c.label} className={`${c.color} text-white rounded-2xl p-4`}>
-            <div className="text-2xl font-bold">{c.value}</div>
-            <div className="text-[10px] opacity-80">{c.label}</div>
+        {[
+          { label: 'Total Users', value: stats.users, color: 'from-[#3B82F6] to-[#2563EB]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' },
+          { label: 'Listings', value: stats.listings, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
+          { label: 'Pending Reports', value: stats.reports, color: stats.reports > 0 ? 'from-[#EF4444] to-[#DC2626]' : 'from-[#6B7280] to-[#4B5563]', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' },
+          { label: 'New Today', value: stats.today, color: 'from-[#8B5CF6] to-[#7C3AED]', icon: 'M12 5v14M5 12h14' },
+        ].map(c => (
+          <div key={c.label} className={`bg-gradient-to-br ${c.color} rounded-2xl p-4 relative overflow-hidden`}>
+            <svg className="absolute top-3 right-3 w-8 h-8 text-white/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
+            <div className="text-2xl font-bold text-white relative z-10">{c.value}</div>
+            <div className="text-[10px] text-white/70 relative z-10">{c.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl p-5">
-        <h3 className="text-sm font-semibold text-[#0F1724] mb-3">Creator Info</h3>
-        <div className="space-y-2">
-          {[{ l: 'User ID', v: profile.user_id }, { l: 'Username', v: `@${profile.username}` }, { l: 'Email', v: profile.email }, { l: 'Role', v: profile.role }].map(i => (
-            <div key={i.l} className="flex justify-between py-2 border-b border-[#f0eeea] last:border-0">
-              <span className="text-xs text-[#8B8680]">{i.l}</span>
-              <span className="text-xs font-medium text-[#0F1724]">{i.v}</span>
+      {/* Creator Info */}
+      <div className="glass rounded-2xl p-5">
+        <h3 className="text-sm font-semibold text-white mb-3">Creator Info</h3>
+        <div className="space-y-2.5">
+          {[{ l: 'User ID', v: profile.user_id }, { l: 'Username', v: `@${profile.username}` }, { l: 'Email', v: profile.email }, { l: 'Role', v: 'Creator Admin' }].map(i => (
+            <div key={i.l} className="flex justify-between text-xs">
+              <span className="text-[#5C5E72]">{i.l}</span>
+              <span className="text-[#8B8DA0]">{i.v}</span>
             </div>
           ))}
         </div>
@@ -134,9 +136,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// USERS TAB
-// ═══════════════════════════════════════════════════
+// ─── USERS ─────────────────────────────────────────
 function UsersTab({ profile }: { profile: Profile }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,37 +159,35 @@ function UsersTab({ profile }: { profile: Profile }) {
   }
 
   async function handleDelete(userId: string) {
-    if (!confirm('Delete this user?')) return;
+    if (!confirm('Delete this user permanently?')) return;
     await deleteUser(userId);
     await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User deleted');
     toast.success('User deleted');
     load();
   }
 
-  const filtered = users.filter(u =>
-    !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = users.filter(u => !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-3">
-      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl text-sm" />
+      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
 
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#C8A45A] border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <div className="space-y-2">
-          <div className="text-xs text-[#8B8680]">{filtered.length} user{filtered.length !== 1 ? 's' : ''}</div>
+          <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{filtered.length} Users</div>
           {filtered.map(u => (
-            <div key={u.id} className="bg-white rounded-xl p-3">
+            <div key={u.id} className="glass rounded-xl p-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#0F1724] flex items-center justify-center text-[#C8A45A] text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold truncate">@{u.username || '...'}</div>
-                  <div className="text-[10px] text-[#8B8680] truncate">{u.email}</div>
+                  <div className="text-xs font-semibold text-white truncate">@{u.username || '...'}</div>
+                  <div className="text-[10px] text-[#5C5E72] truncate">{u.email}</div>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
-                <select value={u.role} onChange={(e) => handleRole(u.user_id, e.target.value)} className="flex-1 h-7 rounded-lg border border-[#e5e2dd] text-[10px] px-2 bg-white">
+              <div className="flex gap-2 mt-2.5">
+                <select value={u.role} onChange={(e) => handleRole(u.user_id, e.target.value)} className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white">
                   <option value="user">User</option>
                   <option value="student">Student</option>
                   <option value="landlord">Landlord</option>
@@ -198,7 +196,7 @@ function UsersTab({ profile }: { profile: Profile }) {
                   <option value="admin">Admin</option>
                   <option value="creator_admin">Creator</option>
                 </select>
-                <button onClick={() => handleDelete(u.user_id)} className="h-7 px-2 rounded-lg border border-red-200 text-red-500 text-[10px]">Delete</button>
+                <button onClick={() => handleDelete(u.user_id)} className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Delete</button>
               </div>
             </div>
           ))}
@@ -208,10 +206,8 @@ function UsersTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// LISTINGS ADMIN TAB
-// ═══════════════════════════════════════════════════
-function ListingsAdminTab({ profile }: { profile: Profile }) {
+// ─── LISTINGS ──────────────────────────────────────
+function ListingsTab({ profile }: { profile: Profile }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -225,13 +221,6 @@ function ListingsAdminTab({ profile }: { profile: Profile }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleApprove(id: string) {
-    await approveListing(id);
-    await logAuditAction(profile.user_id, profile.email, 'approve_listing', 'listing', id, 'Listing approved');
-    toast.success('Listing approved');
-    load();
-  }
-
   async function handleDeleteL(id: string) {
     if (!confirm('Remove this listing?')) return;
     await deleteListing(id);
@@ -244,44 +233,37 @@ function ListingsAdminTab({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {['all', 'available', 'reserved', 'occupied', 'hidden'].map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 rounded-lg text-[10px] font-medium capitalize whitespace-nowrap ${filter === f ? 'bg-[#0F1724] text-white' : 'bg-white border border-[#e5e2dd] text-[#8B8680]'}`}>{f}</button>
+          <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 rounded-lg text-[10px] font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'}`}>{f}</button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#C8A45A] border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <div className="space-y-2">
           {filtered.map(l => (
-            <div key={l.id} className="bg-white rounded-xl p-3">
+            <div key={l.id} className="glass rounded-xl p-3">
               <div className="flex gap-3">
-                <img src={l.images?.[0] || 'https://placehold.co/80x80/e5e2dd/8B8680?text=No+Image'} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                <img src={l.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold truncate">{l.title}</div>
-                  <div className="text-[10px] text-[#C8A45A] font-bold">₦{l.price.toLocaleString()}</div>
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full ${l.availability_status === 'available' ? 'bg-green-100 text-green-700' : l.availability_status === 'occupied' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>{l.availability_status}</span>
+                  <div className="text-xs font-semibold text-white truncate">{l.title}</div>
+                  <div className="text-[10px] text-[#3B82F6] font-bold">₦{l.price.toLocaleString()}</div>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${l.availability_status === 'available' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{l.availability_status}</span>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
-                {l.availability_status !== 'available' && (
-                  <button onClick={() => handleApprove(l.id)} className="flex-1 h-7 rounded-lg bg-green-500 text-white text-[10px] font-medium">Approve</button>
-                )}
-                <button onClick={() => handleDeleteL(l.id)} className="flex-1 h-7 rounded-lg bg-red-500 text-white text-[10px] font-medium">Remove</button>
-              </div>
+              <button onClick={() => handleDeleteL(l.id)} className="mt-2 w-full h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Remove</button>
             </div>
           ))}
-          {filtered.length === 0 && <div className="text-center py-10 text-xs text-[#8B8680]">No listings</div>}
+          {filtered.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No listings</div>}
         </div>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════
-// REPORTS TAB
-// ═══════════════════════════════════════════════════
+// ─── REPORTS ───────────────────────────────────────
 function ReportsTab({ profile }: { profile: Profile }) {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -297,37 +279,37 @@ function ReportsTab({ profile }: { profile: Profile }) {
 
   async function handleResolve(id: string) {
     await resolveReport(id, profile.user_id);
-    await logAuditAction(profile.user_id, profile.email, 'resolve_report', 'report', id, 'Report resolved');
-    toast.success('Report resolved');
+    await logAuditAction(profile.user_id, profile.email, 'resolve_report', 'report', id, 'Resolved');
+    toast.success('Resolved');
     load();
   }
 
   async function handleDismiss(id: string) {
     await dismissReport(id, profile.user_id);
-    await logAuditAction(profile.user_id, profile.email, 'dismiss_report', 'report', id, 'Report dismissed');
-    toast.success('Report dismissed');
+    await logAuditAction(profile.user_id, profile.email, 'dismiss_report', 'report', id, 'Dismissed');
+    toast.success('Dismissed');
     load();
   }
 
   return (
     <div className="space-y-3">
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#C8A45A] border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : reports.length === 0 ? (
-        <div className="text-center py-16 text-xs text-[#8B8680]">No reports</div>
+        <div className="text-center py-16 text-xs text-[#5C5E72]">No reports yet</div>
       ) : (
         reports.map(r => (
-          <div key={r.id} className="bg-white rounded-xl p-4">
+          <div key={r.id} className="glass rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${r.status === 'pending' ? 'bg-amber-100 text-amber-700' : r.status === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{r.status}</span>
-              <span className="text-[10px] text-[#8B8680]">{new Date(r.created_at).toLocaleDateString()}</span>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${r.status === 'pending' ? 'bg-amber-500/10 text-amber-400' : r.status === 'resolved' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{r.status}</span>
+              <span className="text-[10px] text-[#5C5E72]">{new Date(r.created_at).toLocaleDateString()}</span>
             </div>
-            <p className="text-xs text-[#0F1724] font-medium mb-1">{r.reason}</p>
-            <p className="text-[10px] text-[#8B8680] mb-3">Listing: {r.listing_id}</p>
+            <p className="text-xs text-white font-medium mb-1">{r.reason}</p>
+            <p className="text-[10px] text-[#5C5E72] mb-3">Listing: {r.listing_id}</p>
             {r.status === 'pending' && (
               <div className="flex gap-2">
-                <button onClick={() => handleResolve(r.id)} className="flex-1 h-8 rounded-lg bg-green-500 text-white text-[10px] font-medium">Resolve</button>
-                <button onClick={() => handleDismiss(r.id)} className="flex-1 h-8 rounded-lg bg-gray-500 text-white text-[10px] font-medium">Dismiss</button>
+                <button onClick={() => handleResolve(r.id)} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Resolve</button>
+                <button onClick={() => handleDismiss(r.id)} className="flex-1 h-8 rounded-lg bg-gray-500/10 border border-gray-500/20 text-gray-400 text-[10px] hover:bg-gray-500/20 transition-colors">Dismiss</button>
               </div>
             )}
           </div>
@@ -337,9 +319,7 @@ function ReportsTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// AUDIT TAB
-// ═══════════════════════════════════════════════════
+// ─── AUDIT ─────────────────────────────────────────
 function AuditTab() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -356,18 +336,18 @@ function AuditTab() {
   return (
     <div className="space-y-2">
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#C8A45A] border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : logs.length === 0 ? (
-        <div className="text-center py-16 text-xs text-[#8B8680]">No audit logs</div>
+        <div className="text-center py-16 text-xs text-[#5C5E72]">No audit logs yet</div>
       ) : (
         logs.map(l => (
-          <div key={l.id} className="bg-white rounded-xl p-3">
+          <div key={l.id} className="glass rounded-xl p-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#0F1724] text-white">{l.action}</span>
-              <span className="text-[10px] text-[#8B8680]">{new Date(l.created_at).toLocaleString()}</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{l.action}</span>
+              <span className="text-[10px] text-[#5C5E72]">{new Date(l.created_at).toLocaleString()}</span>
             </div>
-            <p className="text-xs text-[#0F1724]">{l.admin_email}</p>
-            {l.details && <p className="text-[10px] text-[#8B8680]">{l.details}</p>}
+            <p className="text-xs text-white">{l.admin_email}</p>
+            {l.details && <p className="text-[10px] text-[#5C5E72] mt-0.5">{l.details}</p>}
           </div>
         ))
       )}
@@ -375,9 +355,7 @@ function AuditTab() {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// SETTINGS TAB
-// ═══════════════════════════════════════════════════
+// ─── SETTINGS ──────────────────────────────────────
 function SettingsTab({ profile }: { profile: Profile }) {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -395,70 +373,42 @@ function SettingsTab({ profile }: { profile: Profile }) {
 
   async function handleUpdate(key: string, value: string) {
     await updateSystemSetting(key, value, profile.user_id);
-    await logAuditAction(profile.user_id, profile.email, 'update_setting', 'setting', key, `Updated ${key} to ${value}`);
+    await logAuditAction(profile.user_id, profile.email, 'update_setting', 'setting', key, `${key} = ${value}`);
     toast.success('Setting updated');
   }
 
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#C8A45A] border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-[#0F1724]">Platform Settings</h3>
-
-        <div>
-          <Label className="text-[10px] text-[#8B8680] mb-1 block">Platform Name</Label>
-          <div className="flex gap-2">
-            <Input value={settings['platform_name'] || 'WeHouse'} onChange={(e) => setSettings({ ...settings, platform_name: e.target.value })} className="h-10 rounded-xl text-sm flex-1" />
-            <Button onClick={() => handleUpdate('platform_name', settings['platform_name'] || 'WeHouse')} className="h-10 px-4 rounded-xl bg-[#0F1724] text-white text-xs">Save</Button>
-          </div>
+      {[
+        { key: 'platform_name', label: 'Platform Name', type: 'text' },
+        { key: 'listing_approval_required', label: 'Require Listing Approval', type: 'select', options: [['false', 'No'], ['true', 'Yes']] },
+        { key: 'default_user_role', label: 'Default User Role', type: 'select', options: [['user', 'User'], ['student', 'Student'], ['landlord', 'Landlord']] },
+        { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'select', options: [['false', 'Off'], ['true', 'On']] },
+      ].map(setting => (
+        <div key={setting.key} className="glass rounded-2xl p-4">
+          <label className="text-xs text-[#8B8DA0] font-medium mb-2 block">{setting.label}</label>
+          {setting.type === 'text' ? (
+            <div className="flex gap-2">
+              <input
+                value={settings[setting.key] || ''}
+                onChange={(e) => setSettings({ ...settings, [setting.key]: e.target.value })}
+                className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 focus:border-[#3B82F6] focus:ring-[#3B82F6]/20 outline-none"
+              />
+              <button onClick={() => handleUpdate(setting.key, settings[setting.key] || '')} className="h-10 px-4 rounded-xl bg-[#3B82F6] text-white text-xs font-medium hover:bg-[#2563EB] transition-colors">Save</button>
+            </div>
+          ) : (
+            <select
+              value={settings[setting.key] || ''}
+              onChange={(e) => { setSettings({ ...settings, [setting.key]: e.target.value }); handleUpdate(setting.key, e.target.value); }}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 focus:border-[#3B82F6] outline-none"
+            >
+              {setting.options?.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          )}
         </div>
-
-        <div>
-          <Label className="text-[10px] text-[#8B8680] mb-1 block">Listing Approval Required</Label>
-          <select
-            value={settings['listing_approval_required'] || 'false'}
-            onChange={(e) => { setSettings({ ...settings, listing_approval_required: e.target.value }); handleUpdate('listing_approval_required', e.target.value); }}
-            className="w-full h-10 rounded-xl border border-[#e5e2dd] px-3 text-sm bg-white"
-          >
-            <option value="false">No — Listings go live immediately</option>
-            <option value="true">Yes — Require approval before publishing</option>
-          </select>
-        </div>
-
-        <div>
-          <Label className="text-[10px] text-[#8B8680] mb-1 block">Default User Role</Label>
-          <select
-            value={settings['default_user_role'] || 'user'}
-            onChange={(e) => { setSettings({ ...settings, default_user_role: e.target.value }); handleUpdate('default_user_role', e.target.value); }}
-            className="w-full h-10 rounded-xl border border-[#e5e2dd] px-3 text-sm bg-white"
-          >
-            <option value="user">User</option>
-            <option value="student">Student</option>
-            <option value="landlord">Landlord</option>
-          </select>
-        </div>
-
-        <div>
-          <Label className="text-[10px] text-[#8B8680] mb-1 block">Maintenance Mode</Label>
-          <select
-            value={settings['maintenance_mode'] || 'false'}
-            onChange={(e) => { setSettings({ ...settings, maintenance_mode: e.target.value }); handleUpdate('maintenance_mode', e.target.value); }}
-            className="w-full h-10 rounded-xl border border-[#e5e2dd] px-3 text-sm bg-white"
-          >
-            <option value="false">Off</option>
-            <option value="true">On</option>
-          </select>
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
-
-// ─── LISTING FORM MODAL (kept from before) ────────
-// (already defined above or imported)
-// ═══════════════════════════════════════════════════
-// RE-ADD MISSING: ListingFormModal + ListingsTab for creator's own listings
-// ═══════════════════════════════════════════════════
-
-
