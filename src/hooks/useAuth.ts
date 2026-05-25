@@ -11,6 +11,14 @@ interface AuthState {
 
 const AUTH_STATE_KEY = 'wh_auth_page';
 
+// ─── TIMEOUT WRAPPER ───────────────────────────────
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms)),
+  ]);
+}
+
 // ─── FULL AUTH CLEANUP ─────────────────────────────
 function wipeAllAuthData() {
   try {
@@ -25,38 +33,39 @@ function wipeAllAuthData() {
       }
     });
   } catch { /* ignore */ }
-  try {
-    sessionStorage.clear();
-  } catch { /* ignore */ }
-  // Remove all cookies
-  document.cookie.split(';').forEach((c) => {
-    const [name] = c.split('=');
-    if (name) {
-      document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-    }
-  });
+  try { sessionStorage.clear(); } catch { /* ignore */ }
 }
 
-// ─── SAFE SESSION CHECK ────────────────────────────
-async function safeGetSession() {
+// ─── SAFE SESSION CHECK (with timeout) ────────────
+async function safeGetSession(): Promise<{ user: { id: string } } | null> {
   try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session?.user) return null;
+    // Step 1: Get session from storage (3s timeout)
+    const { data: sessionData } = await withTimeout(
+      supabase.auth.getSession(),
+      3000
+    );
+    if (!sessionData?.session?.user) return null;
 
-    // Validate: try refresh to confirm session is still valid
-    const { data: refresh, error: refreshErr } = await supabase.auth.refreshSession();
-    if (refreshErr || !refresh.session?.user) return null;
+    // Step 2: Validate by refresh (5s timeout)
+    const { data: refreshData } = await withTimeout(
+      supabase.auth.refreshSession(),
+      5000
+    );
+    if (!refreshData?.session?.user) return null;
 
-    return refresh.session;
+    return { user: { id: refreshData.session.user.id } };
   } catch {
+    // Timeout or error = no valid session
     return null;
   }
 }
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>(() => {
-    // Start from loading state
-    return { page: 'loading', profile: null, isLoading: true, error: '' };
+  const [state, setState] = useState<AuthState>({
+    page: 'loading',
+    profile: null,
+    isLoading: true,
+    error: '',
   });
 
   const determinePage = useCallback((profile: Profile | null): Page => {
@@ -66,19 +75,20 @@ export function useAuth() {
     return 'dashboard';
   }, []);
 
-  // ─── Load profile ─────────────────────────────────
+  // ─── Load profile (with timeout) ──────────────────
   const loadProfile = useCallback(
     async (authId: string) => {
-      const { profile, error } = await getProfile(authId);
-      if (error) {
-        setState({ page: 'login', profile: null, isLoading: false, error: error.message });
-        return;
-      }
-      if (profile) {
+      try {
+        const { profile, error } = await withTimeout(getProfile(authId), 8000);
+        if (error || !profile) {
+          setState({ page: 'login', profile: null, isLoading: false, error: '' });
+          return;
+        }
         setState({ profile, page: determinePage(profile), isLoading: false, error: '' });
-        return;
+      } catch {
+        // Timeout on profile load
+        setState({ page: 'login', profile: null, isLoading: false, error: 'Connection slow. Please try again.' });
       }
-      setState({ page: 'login', profile: null, isLoading: false, error: '' });
     },
     [determinePage]
   );
@@ -86,23 +96,36 @@ export function useAuth() {
   // ─── Initialize on mount ──────────────────────────
   useEffect(() => {
     let mounted = true;
+    let safetyTimer: ReturnType<typeof setTimeout>;
 
     async function init() {
-      // Wait a tick to let StrictMode settle
-      await new Promise((r) => setTimeout(r, 0));
+      // MASTER SAFETY: if init takes >10s, force login page
+      safetyTimer = setTimeout(() => {
+        if (mounted) {
+          setState({ page: 'login', profile: null, isLoading: false, error: '' });
+        }
+      }, 10000);
+
+      // Small delay for StrictMode
+      await new Promise((r) => setTimeout(r, 50));
       if (!mounted) return;
 
-      const session = await safeGetSession();
+      // Check session (with internal timeouts)
+      const result = await safeGetSession();
       if (!mounted) return;
 
-      if (!session) {
+      if (!result) {
+        // No valid session
         await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
         wipeAllAuthData();
+        clearTimeout(safetyTimer);
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
         return;
       }
 
-      await loadProfile(session.user.id);
+      // Valid session → load profile
+      await loadProfile(result.user.id);
+      clearTimeout(safetyTimer);
     }
 
     init();
@@ -122,22 +145,27 @@ export function useAuth() {
       }
     });
 
-    // Window focus: validate session still exists
+    // Window focus: check session (with timeout)
     const onFocus = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session && mounted) {
-        setState((s) => {
-          if (s.page !== 'login') {
-            return { page: 'login', profile: null, isLoading: false, error: '' };
-          }
-          return s;
-        });
+      try {
+        const { data } = await withTimeout(supabase.auth.getSession(), 3000);
+        if (!data?.session && mounted) {
+          setState((s) => {
+            if (s.page !== 'login') {
+              return { page: 'login', profile: null, isLoading: false, error: '' };
+            }
+            return s;
+          });
+        }
+      } catch {
+        // Timeout on focus check
       }
     };
     window.addEventListener('focus', onFocus);
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimer);
       listener.subscription.unsubscribe();
       window.removeEventListener('focus', onFocus);
     };
@@ -148,39 +176,46 @@ export function useAuth() {
     async (authId: string, email: string) => {
       setState((s) => ({ ...s, isLoading: true, error: '' }));
 
-      const { profile: byAuth, error: authErr } = await getProfile(authId);
-      if (authErr) {
-        setState((s) => ({ ...s, isLoading: false, error: authErr.message }));
-        return;
-      }
-      if (byAuth) {
-        setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' });
-        return;
-      }
-
-      // Account linking by email
-      const { profile: byEmail, error: emailErr } = await getProfileByEmail(email);
-      if (emailErr) {
-        setState((s) => ({ ...s, isLoading: false, error: emailErr.message }));
-        return;
-      }
-      if (byEmail) {
-        const { profile: linked, error: linkErr } = await linkProfileToAuth(byEmail.user_id, authId);
-        if (linkErr || !linked) {
-          setState((s) => ({ ...s, isLoading: false, error: linkErr?.message || 'Account linking failed' }));
+      try {
+        const { profile: byAuth, error: authErr } = await withTimeout(getProfile(authId), 8000);
+        if (authErr) {
+          setState({ page: 'login', profile: null, isLoading: false, error: authErr.message });
           return;
         }
-        setState({ profile: linked, page: determinePage(linked), isLoading: false, error: '' });
-        return;
-      }
+        if (byAuth) {
+          setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' });
+          return;
+        }
 
-      // Create new
-      const { profile: newProfile, error: createError } = await createProfile(authId, email);
-      if (createError || !newProfile) {
-        setState((s) => ({ ...s, isLoading: false, error: createError?.message || 'Failed to create profile' }));
-        return;
+        // Account linking by email
+        const { profile: byEmail, error: emailErr } = await withTimeout(getProfileByEmail(email), 5000);
+        if (emailErr) {
+          setState({ page: 'login', profile: null, isLoading: false, error: emailErr.message });
+          return;
+        }
+        if (byEmail) {
+          const { profile: linked, error: linkErr } = await withTimeout(
+            linkProfileToAuth(byEmail.user_id, authId),
+            5000
+          );
+          if (linkErr || !linked) {
+            setState({ page: 'login', profile: null, isLoading: false, error: linkErr?.message || 'Account linking failed' });
+            return;
+          }
+          setState({ profile: linked, page: determinePage(linked), isLoading: false, error: '' });
+          return;
+        }
+
+        // Create new
+        const { profile: newProfile, error: createError } = await withTimeout(createProfile(authId, email), 5000);
+        if (createError || !newProfile) {
+          setState({ page: 'login', profile: null, isLoading: false, error: createError?.message || 'Failed to create profile' });
+          return;
+        }
+        setState({ profile: newProfile, page: 'setup', isLoading: false, error: '' });
+      } catch {
+        setState({ page: 'login', profile: null, isLoading: false, error: 'Connection timeout. Please try again.' });
       }
-      setState({ profile: newProfile, page: 'setup', isLoading: false, error: '' });
     },
     [determinePage]
   );
@@ -195,19 +230,12 @@ export function useAuth() {
 
   // ─── LOGOUT ───────────────────────────────────────
   const logout = useCallback(async () => {
-    // Step 1: Sign out from Supabase
     await supabase.auth.signOut({ scope: 'global' });
-    // Step 2: Wipe everything
     wipeAllAuthData();
-    // Step 3: Reset state immediately
     setState({ page: 'login', profile: null, isLoading: false, error: '' });
-    // Step 4: Hard reload after a brief delay to let state settle
-    setTimeout(() => {
-      window.location.reload();
-    }, 100);
+    setTimeout(() => window.location.reload(), 100);
   }, []);
 
-  // ─── Clear error ──────────────────────────────────
   const clearError = useCallback(() => {
     setState((s) => ({ ...s, error: '' }));
   }, []);
