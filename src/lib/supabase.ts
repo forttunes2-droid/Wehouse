@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Profile } from '@/types';
+import type { Profile, Listing } from '@/types';
 
 const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
@@ -148,4 +148,126 @@ export async function isUsernameTaken(username: string) {
     .eq('username', username)
     .maybeSingle();
   return !!data;
+}
+
+// ─── LISTING HELPERS ───────────────────────────────
+
+export async function getNextListingId() {
+  const { data } = await supabase
+    .from('listings')
+    .select('listing_id')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (!data || data.length === 0) return 'LST-0001';
+  const match = data[0].listing_id.match(/LST-(\d+)/);
+  const lastNum = match ? parseInt(match[1], 10) : 0;
+  return `LST-${(lastNum + 1).toString().padStart(4, '0')}`;
+}
+
+export async function createListing(listing: Partial<Listing>) {
+  const listingId = await getNextListingId();
+  const { data, error } = await supabase
+    .from('listings')
+    .insert({ ...listing, listing_id: listingId })
+    .select()
+    .single();
+  return { listing: data as Listing | null, error };
+}
+
+export async function updateListing(id: string, updates: Partial<Listing>) {
+  const { data, error } = await supabase
+    .from('listings')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  return { listing: data as Listing | null, error };
+}
+
+export async function deleteListing(id: string) {
+  const { error } = await supabase.from('listings').delete().eq('id', id);
+  return { error };
+}
+
+export async function getListingById(id: string) {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('id', id)
+    .single();
+  return { listing: data as Listing | null, error };
+}
+
+export async function getAllListings() {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('availability_status', 'available')
+    .order('created_at', { ascending: false });
+  return { listings: data as Listing[] | null, error };
+}
+
+export async function getCreatorListings(ownerId: string) {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false });
+  return { listings: data as Listing[] | null, error };
+}
+
+// ─── SAVED LISTINGS ────────────────────────────────
+
+export async function saveListing(userId: string, listingId: string) {
+  const { error } = await supabase
+    .from('saved_listings')
+    .insert({ user_id: userId, listing_id: listingId });
+  return { error };
+}
+
+export async function unsaveListing(userId: string, listingId: string) {
+  const { error } = await supabase
+    .from('saved_listings')
+    .delete()
+    .eq('user_id', userId)
+    .eq('listing_id', listingId);
+  return { error };
+}
+
+export async function getSavedListings(userId: string) {
+  const { data, error } = await supabase
+    .from('saved_listings')
+    .select('listing_id')
+    .eq('user_id', userId);
+  return { saved: data as { listing_id: string }[] | null, error };
+}
+
+export async function isListingSaved(userId: string, listingId: string) {
+  const { data } = await supabase
+    .from('saved_listings')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('listing_id', listingId)
+    .maybeSingle();
+  return !!data;
+}
+
+// ─── STORAGE HELPERS ───────────────────────────────
+
+export async function uploadListingImage(file: File, listingId: string) {
+  const fileName = `${listingId}/${Date.now()}-${file.name}`;
+  const { error: uploadError } = await supabase.storage
+    .from('listings')
+    .upload(fileName, file, { upsert: false });
+
+  if (uploadError) return { url: null, error: uploadError };
+
+  const { data: urlData } = supabase.storage.from('listings').getPublicUrl(fileName);
+  return { url: urlData.publicUrl, error: null };
+}
+
+export async function deleteListingImage(path: string) {
+  const { error } = await supabase.storage.from('listings').remove([path]);
+  return { error };
 }
