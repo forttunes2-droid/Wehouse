@@ -34,6 +34,14 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
     setPassword('');
   }
 
+  // Timeout wrapper for login operations
+  function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), ms)),
+    ]);
+  }
+
   async function handleSubmit(e: React.FormEvent, isSignup: boolean) {
     e.preventDefault();
     setError('');
@@ -50,31 +58,33 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
 
     setWorking(true);
 
-    if (isSignup) {
-      const { data, error: err } = await signUpWithEmail(email.trim(), password);
-      if (err) {
-        setError(err.message);
-      } else if (data.session?.user) {
-        // Signed up and logged in (email confirm off)
-        onLoginSuccess(data.session.user.id, data.session.user.email || email);
-      } else if (data.user) {
-        // Signed up but needs email confirmation
-        setInfo('Account created! Please check your email and click the confirmation link.');
+    try {
+      if (isSignup) {
+        const { data, error: err } = await withTimeout(signUpWithEmail(email.trim(), password), 12000);
+        if (err) {
+          setError(err.message);
+        } else if (data.session?.user) {
+          onLoginSuccess(data.session.user.id, data.session.user.email || email);
+        } else if (data.user) {
+          setInfo('Account created! Please check your email and click the confirmation link.');
+        } else {
+          setError('Signup incomplete. Please try again.');
+        }
       } else {
-        setError('Signup incomplete. Please try again.');
+        const { data, error: err } = await withTimeout(signInWithEmail(email.trim(), password), 12000);
+        if (err) {
+          setError(err.message);
+        } else if (data.session?.user) {
+          onLoginSuccess(data.session.user.id, data.session.user.email || email);
+        } else {
+          setError('Login failed. Please try again.');
+        }
       }
-    } else {
-      const { data, error: err } = await signInWithEmail(email.trim(), password);
-      if (err) {
-        setError(err.message);
-      } else if (data.session?.user) {
-        onLoginSuccess(data.session.user.id, data.session.user.email || email);
-      } else {
-        setError('Login failed. Please try again.');
-      }
+    } catch (err: any) {
+      setError(err?.message || 'Connection timeout. Please check your internet and try again.');
+    } finally {
+      setWorking(false);
     }
-
-    setWorking(false);
   }
 
   async function handleGoogle() {

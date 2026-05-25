@@ -177,7 +177,7 @@ export function useAuth() {
       setState((s) => ({ ...s, isLoading: true, error: '' }));
 
       try {
-        const { profile: byAuth, error: authErr } = await withTimeout(getProfile(authId), 8000);
+        const { profile: byAuth, error: authErr } = await withTimeout(getProfile(authId), 15000);
         if (authErr) {
           setState({ page: 'login', profile: null, isLoading: false, error: authErr.message });
           return;
@@ -188,7 +188,7 @@ export function useAuth() {
         }
 
         // Account linking by email
-        const { profile: byEmail, error: emailErr } = await withTimeout(getProfileByEmail(email), 5000);
+        const { profile: byEmail, error: emailErr } = await withTimeout(getProfileByEmail(email), 10000);
         if (emailErr) {
           setState({ page: 'login', profile: null, isLoading: false, error: emailErr.message });
           return;
@@ -196,7 +196,7 @@ export function useAuth() {
         if (byEmail) {
           const { profile: linked, error: linkErr } = await withTimeout(
             linkProfileToAuth(byEmail.user_id, authId),
-            5000
+            10000
           );
           if (linkErr || !linked) {
             setState({ page: 'login', profile: null, isLoading: false, error: linkErr?.message || 'Account linking failed' });
@@ -207,7 +207,7 @@ export function useAuth() {
         }
 
         // Create new
-        const { profile: newProfile, error: createError } = await withTimeout(createProfile(authId, email), 5000);
+        const { profile: newProfile, error: createError } = await withTimeout(createProfile(authId, email), 10000);
         if (createError || !newProfile) {
           setState({ page: 'login', profile: null, isLoading: false, error: createError?.message || 'Failed to create profile' });
           return;
