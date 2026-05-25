@@ -56,46 +56,54 @@ export function useAuth() {
 
   // ─── Initialize: check session on mount ───────────
   useEffect(() => {
-    let mounted = true;
+    let done = false;
 
-    // Safety: if stuck >8s, show login
-    const safetyTimer = setTimeout(() => {
-      if (mounted) setState({ page: 'login', profile: null, isLoading: false, error: '' });
-    }, 8000);
-
-    // Initialize
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) { clearTimeout(safetyTimer); return; }
-
-      if (data.session?.user) {
-        // Session found → load profile (supersedes safety timer)
-        loadProfile(data.session.user.id).then(() => clearTimeout(safetyTimer));
-      } else {
-        // No session → login page
-        clearTimeout(safetyTimer);
+    // Hard timeout: if getSession hangs, force login after 6s
+    const forceLogin = () => {
+      if (!done) {
+        done = true;
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
       }
-    }).catch(() => {
-      if (mounted) {
-        clearTimeout(safetyTimer);
-        setState({ page: 'login', profile: null, isLoading: false, error: '' });
-      }
-    });
+    };
+    const timeoutId = setTimeout(forceLogin, 6000);
+
+    // Race getSession against timeout
+    Promise.race([
+      supabase.auth.getSession(),
+      new Promise<{ data: { session: null } }>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      ),
+    ])
+      .then(({ data }) => {
+        if (done) return;
+        clearTimeout(timeoutId);
+
+        if (data.session?.user) {
+          // Load profile with its own timeout
+          loadProfile(data.session.user.id).catch(forceLogin);
+        } else {
+          forceLogin();
+        }
+      })
+      .catch(() => {
+        clearTimeout(timeoutId);
+        forceLogin();
+      });
 
     // Auth state listener
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
       if (event === 'SIGNED_IN' && session?.user) {
         loadProfile(session.user.id);
       }
       if (event === 'SIGNED_OUT') {
+        wipeOnLogout();
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
       }
     });
 
     return () => {
-      mounted = false;
-      clearTimeout(safetyTimer);
+      done = true;
+      clearTimeout(timeoutId);
       listener.subscription.unsubscribe();
     };
   }, [loadProfile]);

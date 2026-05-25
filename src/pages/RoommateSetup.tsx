@@ -37,6 +37,7 @@ export default function RoommateSetup({ profile, onComplete }: RoommateSetupProp
     setSaving(true);
     const { error } = await saveRoommatePreferences({
       user_id: profile.user_id,
+      auth_id: profile.auth_id,
       gender: form.gender,
       gender_preference: form.gender_preference,
       budget_min: Number(form.budget_min),

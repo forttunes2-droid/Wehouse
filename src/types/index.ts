@@ -41,6 +41,7 @@ export interface SavedListing {
 export interface RoommatePreferences {
   id: string;
   user_id: string;
+  auth_id: string;
   gender: 'male' | 'female';
   gender_preference: 'male' | 'female' | 'no_preference';
   budget_min: number;
