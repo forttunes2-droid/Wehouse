@@ -69,6 +69,28 @@ export async function getProfile(authId: string) {
   return { profile: data as Profile | null, error };
 }
 
+export async function getProfileByEmail(email: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+  return { profile: data as Profile | null, error };
+}
+
+export async function linkProfileToAuth(userId: string, newAuthId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      auth_id: newAuthId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
+}
+
 export async function getNextUserId() {
   // Get the highest existing user_id number
   const { data, error } = await supabase

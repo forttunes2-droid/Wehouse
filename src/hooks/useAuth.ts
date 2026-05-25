@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, getCurrentSession, getProfile, createProfile } from '@/lib/supabase';
+import { supabase, getCurrentSession, getProfile, getProfileByEmail, linkProfileToAuth, createProfile } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -95,30 +95,60 @@ export function useAuth() {
   }, [loadProfile]);
 
   // ─── Handle successful login ──────────────────────
+  // Supports account linking: email + Google with same email = same profile
   const handleLoginSuccess = useCallback(
     async (authId: string, email: string) => {
       setState((s) => ({ ...s, isLoading: true, error: '' }));
 
-      // Check if profile exists
-      const { profile, error: fetchError } = await getProfile(authId);
-
-      if (fetchError) {
-        setState((s) => ({ ...s, isLoading: false, error: fetchError.message }));
+      // STEP 1: Check if profile exists for this auth_id
+      const { profile: byAuth, error: authErr } = await getProfile(authId);
+      if (authErr) {
+        setState((s) => ({ ...s, isLoading: false, error: authErr.message }));
         return;
       }
-
-      if (profile) {
+      if (byAuth) {
         setState((s) => ({
           ...s,
-          profile,
-          page: determinePage(profile),
+          profile: byAuth,
+          page: determinePage(byAuth),
           isLoading: false,
           error: '',
         }));
         return;
       }
 
-      // Create new profile
+      // STEP 2: Account linking — check if profile exists for this EMAIL
+      // (e.g., user signed up with email, now logging in with Google)
+      const { profile: byEmail, error: emailErr } = await getProfileByEmail(email);
+      if (emailErr) {
+        setState((s) => ({ ...s, isLoading: false, error: emailErr.message }));
+        return;
+      }
+      if (byEmail) {
+        // Link: update auth_id to the new provider's auth_id
+        const { profile: linked, error: linkErr } = await linkProfileToAuth(
+          byEmail.user_id,
+          authId
+        );
+        if (linkErr || !linked) {
+          setState((s) => ({
+            ...s,
+            isLoading: false,
+            error: linkErr?.message || 'Account linking failed',
+          }));
+          return;
+        }
+        setState((s) => ({
+          ...s,
+          profile: linked,
+          page: determinePage(linked),
+          isLoading: false,
+          error: '',
+        }));
+        return;
+      }
+
+      // STEP 3: No profile found — create new profile
       const { profile: newProfile, error: createError } = await createProfile(authId, email);
 
       if (createError || !newProfile) {
