@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, getCurrentSession, getProfile, getProfileByEmail, linkProfileToAuth, createProfile } from '@/lib/supabase';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase, getProfile, getProfileByEmail, linkProfileToAuth, createProfile } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -9,52 +9,56 @@ interface AuthState {
   error: string;
 }
 
-// ─── STALE DATA CLEANUP ────────────────────────────
-// Remove old/broken auth data from previous app versions
-function cleanupStaleAuth() {
+const AUTH_STATE_KEY = 'wh_auth_page';
+
+// ─── FULL AUTH CLEANUP ─────────────────────────────
+function wipeAllAuthData() {
   try {
-    const prefix = 'sb-rkrhnkhppeihvmuwvsvn-auth-token';
-    // Remove old Supabase auth keys that aren't the current one
+    const keys: string[] = [];
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      if (key && key.includes('supabase') && key !== prefix) {
-        // Keep current valid token, remove everything else
-        if (key.includes('code-verifier') || key.includes('-pkce-') || key.includes('expires_at')) {
-          localStorage.removeItem(key);
-        }
-      }
+      if (key) keys.push(key);
     }
-  } catch {
-    // localStorage might be blocked
-  }
+    keys.forEach((k) => {
+      if (k.includes('sb-') || k.includes('supabase') || k === AUTH_STATE_KEY) {
+        localStorage.removeItem(k);
+      }
+    });
+  } catch { /* ignore */ }
+  try {
+    sessionStorage.clear();
+  } catch { /* ignore */ }
+  // Remove all cookies
+  document.cookie.split(';').forEach((c) => {
+    const [name] = c.split('=');
+    if (name) {
+      document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    }
+  });
 }
 
-// ─── FULL AUTH CLEANUP (on logout) ─────────────────
-function clearAllAuthData() {
+// ─── SAFE SESSION CHECK ────────────────────────────
+async function safeGetSession() {
   try {
-    const keysToRemove: string[] = [];
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('supabase') || key.includes('sb-'))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.user) return null;
+
+    // Validate: try refresh to confirm session is still valid
+    const { data: refresh, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr || !refresh.session?.user) return null;
+
+    return refresh.session;
   } catch {
-    // Ignore
+    return null;
   }
 }
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({
-    page: 'loading',
-    profile: null,
-    isLoading: true,
-    error: '',
+  const [state, setState] = useState<AuthState>(() => {
+    // Start from loading state
+    return { page: 'loading', profile: null, isLoading: true, error: '' };
   });
-  const initDone = useRef(false);
 
-  // ─── Determine which page to show ─────────────────
   const determinePage = useCallback((profile: Profile | null): Page => {
     if (!profile) return 'login';
     if (!profile.profile_complete) return 'setup';
@@ -62,110 +66,66 @@ export function useAuth() {
     return 'dashboard';
   }, []);
 
-  // ─── Load profile from auth user ──────────────────
+  // ─── Load profile ─────────────────────────────────
   const loadProfile = useCallback(
     async (authId: string) => {
       const { profile, error } = await getProfile(authId);
-
       if (error) {
-        setState((s) => ({ ...s, isLoading: false, error: error.message }));
+        setState({ page: 'login', profile: null, isLoading: false, error: error.message });
         return;
       }
-
       if (profile) {
-        setState((s) => ({
-          ...s,
-          profile,
-          page: determinePage(profile),
-          isLoading: false,
-          error: '',
-        }));
+        setState({ profile, page: determinePage(profile), isLoading: false, error: '' });
         return;
       }
-
-      setState((s) => ({ ...s, page: 'login', isLoading: false }));
+      setState({ page: 'login', profile: null, isLoading: false, error: '' });
     },
     [determinePage]
   );
 
-  // ─── Initialize session ───────────────────────────
+  // ─── Initialize on mount ──────────────────────────
   useEffect(() => {
-    // Prevent double-init in StrictMode
-    if (initDone.current) return;
-    initDone.current = true;
-
-    let cancelled = false;
+    let mounted = true;
 
     async function init() {
-      // Step 1: Clean stale data from old versions
-      cleanupStaleAuth();
+      // Wait a tick to let StrictMode settle
+      await new Promise((r) => setTimeout(r, 0));
+      if (!mounted) return;
 
-      // Step 2: Get current session
-      const { session, error } = await getCurrentSession();
+      const session = await safeGetSession();
+      if (!mounted) return;
 
-      if (cancelled) return;
-
-      // No session → login page
-      if (error || !session?.user) {
-        // Clean any leftover auth state
-        clearAllAuthData();
+      if (!session) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        wipeAllAuthData();
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
         return;
       }
 
-      // Step 3: Session exists → validate it by refreshing
-      const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
-
-      if (cancelled) return;
-
-      if (refreshErr || !refreshData.session?.user) {
-        // Session is expired/invalid → clear and go to login
-        await supabase.auth.signOut({ scope: 'local' });
-        clearAllAuthData();
-        setState({ page: 'login', profile: null, isLoading: false, error: '' });
-        return;
-      }
-
-      // Step 4: Valid session → load profile
-      await loadProfile(refreshData.session.user.id);
+      await loadProfile(session.user.id);
     }
 
     init();
 
-    // Listen for auth state changes
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (cancelled) return;
+    // Auth state listener
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          setState((s) => ({ ...s, isLoading: true }));
-          await loadProfile(session.user.id);
-        }
-
-        if (event === 'SIGNED_OUT') {
-          clearAllAuthData();
-          setState({ page: 'login', profile: null, isLoading: false, error: '' });
-        }
-
-        if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // Session refreshed silently, ensure profile is still loaded
-          setState((s) => {
-            if (!s.profile) {
-              // Profile missing but session valid → reload
-              loadProfile(session.user.id);
-              return { ...s, isLoading: true };
-            }
-            return s;
-          });
-        }
+      if (event === 'SIGNED_IN' && session?.user) {
+        setState((s) => ({ ...s, isLoading: true }));
+        await loadProfile(session.user.id);
       }
-    );
 
-    // Step 5: Refresh session when user returns to tab
-    const handleFocus = async () => {
+      if (event === 'SIGNED_OUT') {
+        wipeAllAuthData();
+        setState({ page: 'login', profile: null, isLoading: false, error: '' });
+      }
+    });
+
+    // Window focus: validate session still exists
+    const onFocus = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        // Session expired while tab was inactive
+      if (!data.session && mounted) {
         setState((s) => {
           if (s.page !== 'login') {
             return { page: 'login', profile: null, isLoading: false, error: '' };
@@ -174,108 +134,77 @@ export function useAuth() {
         });
       }
     };
-    window.addEventListener('focus', handleFocus);
+    window.addEventListener('focus', onFocus);
 
     return () => {
-      cancelled = true;
+      mounted = false;
       listener.subscription.unsubscribe();
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('focus', onFocus);
     };
   }, [loadProfile]);
 
-  // ─── Handle successful login ──────────────────────
+  // ─── Login handler ────────────────────────────────
   const handleLoginSuccess = useCallback(
     async (authId: string, email: string) => {
       setState((s) => ({ ...s, isLoading: true, error: '' }));
 
-      // STEP 1: Check profile by auth_id
       const { profile: byAuth, error: authErr } = await getProfile(authId);
       if (authErr) {
         setState((s) => ({ ...s, isLoading: false, error: authErr.message }));
         return;
       }
       if (byAuth) {
-        setState((s) => ({
-          ...s,
-          profile: byAuth,
-          page: determinePage(byAuth),
-          isLoading: false,
-          error: '',
-        }));
+        setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' });
         return;
       }
 
-      // STEP 2: Account linking — check by email
+      // Account linking by email
       const { profile: byEmail, error: emailErr } = await getProfileByEmail(email);
       if (emailErr) {
         setState((s) => ({ ...s, isLoading: false, error: emailErr.message }));
         return;
       }
       if (byEmail) {
-        const { profile: linked, error: linkErr } = await linkProfileToAuth(
-          byEmail.user_id,
-          authId
-        );
+        const { profile: linked, error: linkErr } = await linkProfileToAuth(byEmail.user_id, authId);
         if (linkErr || !linked) {
-          setState((s) => ({
-            ...s,
-            isLoading: false,
-            error: linkErr?.message || 'Account linking failed',
-          }));
+          setState((s) => ({ ...s, isLoading: false, error: linkErr?.message || 'Account linking failed' }));
           return;
         }
-        setState((s) => ({
-          ...s,
-          profile: linked,
-          page: determinePage(linked),
-          isLoading: false,
-          error: '',
-        }));
+        setState({ profile: linked, page: determinePage(linked), isLoading: false, error: '' });
         return;
       }
 
-      // STEP 3: Create new profile
+      // Create new
       const { profile: newProfile, error: createError } = await createProfile(authId, email);
-
       if (createError || !newProfile) {
-        setState((s) => ({
-          ...s,
-          isLoading: false,
-          error: createError?.message || 'Failed to create profile',
-        }));
+        setState((s) => ({ ...s, isLoading: false, error: createError?.message || 'Failed to create profile' }));
         return;
       }
-
-      setState((s) => ({
-        ...s,
-        profile: newProfile,
-        page: 'setup',
-        isLoading: false,
-        error: '',
-      }));
+      setState({ profile: newProfile, page: 'setup', isLoading: false, error: '' });
     },
     [determinePage]
   );
 
-  // ─── Handle profile setup complete ────────────────
+  // ─── Setup complete ───────────────────────────────
   const handleSetupComplete = useCallback(
     (updatedProfile: Profile) => {
-      setState((s) => ({
-        ...s,
-        profile: updatedProfile,
-        page: determinePage(updatedProfile),
-        error: '',
-      }));
+      setState({ profile: updatedProfile, page: determinePage(updatedProfile), isLoading: false, error: '' });
     },
     [determinePage]
   );
 
-  // ─── Logout (full cleanup) ────────────────────────
+  // ─── LOGOUT ───────────────────────────────────────
   const logout = useCallback(async () => {
+    // Step 1: Sign out from Supabase
     await supabase.auth.signOut({ scope: 'global' });
-    clearAllAuthData();
-    // Force page reload to ensure clean state
-    window.location.reload();
+    // Step 2: Wipe everything
+    wipeAllAuthData();
+    // Step 3: Reset state immediately
+    setState({ page: 'login', profile: null, isLoading: false, error: '' });
+    // Step 4: Hard reload after a brief delay to let state settle
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   }, []);
 
   // ─── Clear error ──────────────────────────────────
