@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Profile, Listing, RoommatePreferences } from '@/types';
+import type { Profile, Listing, RoommatePreferences, ListingReport, AdminAuditLog, SystemSetting, Notification } from '@/types';
 
 const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
@@ -386,4 +386,122 @@ export async function getMatchStats() {
     .from('roommate_matches')
     .select('*', { count: 'exact', head: true });
   return { totalUsers: totalUsers || 0, totalMatches: totalMatches || 0 };
+}
+
+// ─── PHASE 4 ADMIN HELPERS ─────────────────────────
+
+export async function getAllUsers() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { users: data as Profile[] | null, error };
+}
+
+export async function getUserCount() {
+  const { count: total, error: err1 } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+  const { count: today, error: err2 } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 86400000).toISOString());
+  return { total: total || 0, today: today || 0, error: err1 || err2 };
+}
+
+export async function updateUserRole(userId: string, role: string) {
+  const { error } = await supabase.from('profiles').update({ role }).eq('user_id', userId);
+  return { error };
+}
+
+export async function deleteUser(userId: string) {
+  const { error } = await supabase.from('profiles').delete().eq('user_id', userId);
+  return { error };
+}
+
+export async function getAllListingsAdmin() {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { listings: data as Listing[] | null, error };
+}
+
+export async function approveListing(id: string) {
+  const { error } = await supabase.from('listings').update({ availability_status: 'available' }).eq('id', id);
+  return { error };
+}
+
+export async function getReports() {
+  const { data, error } = await supabase
+    .from('listing_reports')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { reports: data as ListingReport[] | null, error };
+}
+
+export async function resolveReport(id: string, adminId: string) {
+  const { error } = await supabase.from('listing_reports').update({ status: 'resolved', resolved_by: adminId, resolved_at: new Date().toISOString() }).eq('id', id);
+  return { error };
+}
+
+export async function dismissReport(id: string, adminId: string) {
+  const { error } = await supabase.from('listing_reports').update({ status: 'dismissed', resolved_by: adminId, resolved_at: new Date().toISOString() }).eq('id', id);
+  return { error };
+}
+
+export async function createReport(report: Partial<ListingReport>) {
+  const { error } = await supabase.from('listing_reports').insert(report);
+  return { error };
+}
+
+export async function logAuditAction(adminId: string, adminEmail: string, action: string, targetType: string, targetId?: string, details?: string) {
+  const { error } = await supabase.from('admin_audit_log').insert({
+    admin_id: adminId,
+    admin_email: adminEmail,
+    action,
+    target_type: targetType,
+    target_id: targetId || null,
+    details: details || null,
+  });
+  return { error };
+}
+
+export async function getAuditLogs() {
+  const { data, error } = await supabase
+    .from('admin_audit_log')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  return { logs: data as AdminAuditLog[] | null, error };
+}
+
+export async function getNotifications(userId: string) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('recipient_id', userId)
+    .eq('read', false)
+    .order('created_at', { ascending: false });
+  return { notifications: data as Notification[] | null, error };
+}
+
+export async function markNotificationRead(id: string) {
+  const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+  return { error };
+}
+
+export async function getSystemSettings() {
+  const { data, error } = await supabase.from('system_settings').select('*');
+  return { settings: data as SystemSetting[] | null, error };
+}
+
+export async function updateSystemSetting(key: string, value: string, adminId: string) {
+  const { error } = await supabase.from('system_settings').update({ value, updated_by: adminId, updated_at: new Date().toISOString() }).eq('key', key);
+  return { error };
+}
+
+export async function trackActivity(userId: string, authId: string, actionType: string, details?: Record<string, any>) {
+  const { error } = await supabase.from('user_activity').insert({
+    user_id: userId,
+    auth_id: authId,
+    action_type: actionType,
+    details: details || {},
+  });
+  return { error };
 }

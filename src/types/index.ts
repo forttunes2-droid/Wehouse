@@ -67,3 +67,55 @@ export interface RoommateMatch {
   status: 'pending' | 'accepted' | 'declined';
   created_at: string;
 }
+
+// ─── PHASE 4 ADMIN TYPES ───────────────────────────
+
+export interface UserActivity {
+  id: string;
+  user_id: string;
+  auth_id: string | null;
+  action_type: string;
+  details: Record<string, any>;
+  created_at: string;
+}
+
+export interface ListingReport {
+  id: string;
+  reporter_id: string;
+  listing_id: string;
+  reason: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  resolved_by: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  admin_id: string;
+  admin_email: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  details: string | null;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  recipient_id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  read: boolean;
+  related_id: string | null;
+  created_at: string;
+}
+
+export interface SystemSetting {
+  id: string;
+  key: string;
+  value: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
