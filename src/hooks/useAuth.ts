@@ -36,26 +36,16 @@ function wipeAllAuthData() {
   try { sessionStorage.clear(); } catch { /* ignore */ }
 }
 
-// ─── SAFE SESSION CHECK (with timeout) ────────────
+// ─── SAFE SESSION CHECK ───────────────────────────
+// Just reads from localStorage — no network call on init.
+// Supabase autoRefreshToken handles token refresh in background.
 async function safeGetSession(): Promise<{ user: { id: string } } | null> {
   try {
-    // Step 1: Get session from storage (3s timeout)
-    const { data: sessionData } = await withTimeout(
-      supabase.auth.getSession(),
-      3000
-    );
-    if (!sessionData?.session?.user) return null;
-
-    // Step 2: Validate by refresh (5s timeout)
-    const { data: refreshData } = await withTimeout(
-      supabase.auth.refreshSession(),
-      5000
-    );
-    if (!refreshData?.session?.user) return null;
-
-    return { user: { id: refreshData.session.user.id } };
+    // 10s timeout — generous for slow mobile
+    const { data } = await withTimeout(supabase.auth.getSession(), 10000);
+    if (!data?.session?.user) return null;
+    return { user: { id: data.session.user.id } };
   } catch {
-    // Timeout or error = no valid session
     return null;
   }
 }
@@ -99,12 +89,12 @@ export function useAuth() {
     let safetyTimer: ReturnType<typeof setTimeout>;
 
     async function init() {
-      // MASTER SAFETY: if init takes >10s, force login page
+      // MASTER SAFETY: if init takes >20s, force login page
       safetyTimer = setTimeout(() => {
         if (mounted) {
           setState({ page: 'login', profile: null, isLoading: false, error: '' });
         }
-      }, 10000);
+      }, 20000);
 
       // Small delay for StrictMode
       await new Promise((r) => setTimeout(r, 50));
