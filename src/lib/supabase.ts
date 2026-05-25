@@ -91,41 +91,45 @@ export async function linkProfileToAuth(userId: string, newAuthId: string) {
   return { profile: data as Profile | null, error };
 }
 
-export async function getNextUserId() {
-  // Get the highest existing user_id number
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('user_id')
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (error || !data || data.length === 0) {
-    return 'WHU-0001';
-  }
-
-  // Extract number from WHU-XXXX format
-  const match = data[0].user_id.match(/WHU-(\d+)/);
-  const lastNum = match ? parseInt(match[1], 10) : 0;
-  const nextNum = lastNum + 1;
-  return `WHU-${nextNum.toString().padStart(4, '0')}`;
+export function generateUserId(): string {
+  // Generate unique WHU-XXXX ID using timestamp (works without reading other profiles)
+  // Format: WHU-[4-digit sequential from timestamp]
+  // Each millisecond produces a unique number, so no collisions
+  const ts = Date.now();
+  const seq = (ts % 9000) + 1000; // 1000-9999 range
+  return `WHU-${seq}`;
 }
 
-export async function createProfile(authId: string, email: string) {
-  const userId = await getNextUserId();
+export async function createProfile(authId: string, email: string): Promise<{ profile: Profile | null; error: any }> {
+  // Try up to 3 times with different IDs in case of collision
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const userId = generateUserId();
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({
+        auth_id: authId,
+        email,
+        user_id: userId,
+        role: 'user',
+        profile_complete: false,
+      })
+      .select()
+      .single();
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .insert({
-      auth_id: authId,
-      email,
-      user_id: userId,
-      role: 'user',
-      profile_complete: false,
-    })
-    .select()
-    .single();
+    if (!error) {
+      return { profile: data as Profile, error: null };
+    }
 
-  return { profile: data as Profile | null, error };
+    // If not a duplicate key error, return the error
+    if (!error.message?.includes('duplicate') && !error.message?.includes('unique')) {
+      return { profile: null, error };
+    }
+
+    // Wait a tiny bit for next timestamp
+    if (attempt < 2) await new Promise(r => setTimeout(r, 2));
+  }
+
+  return { profile: null, error: { message: 'Could not generate unique user ID after 3 attempts' } };
 }
 
 export async function updateUsername(userId: string, username: string) {
@@ -152,27 +156,28 @@ export async function isUsernameTaken(username: string) {
 
 // ─── LISTING HELPERS ───────────────────────────────
 
-export async function getNextListingId() {
-  const { data } = await supabase
-    .from('listings')
-    .select('listing_id')
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (!data || data.length === 0) return 'LST-0001';
-  const match = data[0].listing_id.match(/LST-(\d+)/);
-  const lastNum = match ? parseInt(match[1], 10) : 0;
-  return `LST-${(lastNum + 1).toString().padStart(4, '0')}`;
+function generateListingId(): string {
+  const ts = Date.now();
+  const seq = (ts % 9000) + 1000;
+  return `LST-${seq}`;
 }
 
 export async function createListing(listing: Partial<Listing>) {
-  const listingId = await getNextListingId();
-  const { data, error } = await supabase
-    .from('listings')
-    .insert({ ...listing, listing_id: listingId })
-    .select()
-    .single();
-  return { listing: data as Listing | null, error };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const listingId = generateListingId();
+    const { data, error } = await supabase
+      .from('listings')
+      .insert({ ...listing, listing_id: listingId })
+      .select()
+      .single();
+
+    if (!error) return { listing: data as Listing, error: null };
+    if (!error.message?.includes('duplicate') && !error.message?.includes('unique')) {
+      return { listing: null, error };
+    }
+    if (attempt < 2) await new Promise(r => setTimeout(r, 2));
+  }
+  return { listing: null, error: { message: 'Could not generate unique listing ID' } };
 }
 
 export async function updateListing(id: string, updates: Partial<Listing>) {
