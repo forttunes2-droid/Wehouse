@@ -19,6 +19,7 @@ const ProfileEdit = lazy(() => import('@/pages/ProfileEdit'));
 const AccountCenter = lazy(() => import('@/pages/AccountCenter'));
 const PrivacySettings = lazy(() => import('@/pages/PrivacySettings'));
 const SecuritySettings = lazy(() => import('@/pages/SecuritySettings'));
+const CreateListing = lazy(() => import('@/pages/CreateListing'));
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -112,6 +113,7 @@ export default function App() {
   const goToAccount = useCallback(() => setNavPage('account'), []);
   const goToPrivacy = useCallback(() => setNavPage('privacy'), []);
   const goToSecurity = useCallback(() => setNavPage('security'), []);
+  const goToNewListing = useCallback(() => setNavPage('new_listing'), []);
 
   // ─── LOADING ──────────────────────────────────────
   if (auth.isLoading) {
@@ -141,7 +143,7 @@ export default function App() {
     const props = { profile, savedIds, onToggleSave: handleToggleSave };
     switch (navPage) {
       case 'home':
-        return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
+        return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={isAdmin} onGoToNewListing={goToNewListing} />;
       case 'search':
         return <Search onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} savedIds={savedIds} onToggleSave={handleToggleSave} />;
       case 'saved':
@@ -151,9 +153,9 @@ export default function App() {
           ? <RoommateSetup profile={profile} onComplete={() => setRoommateMode('matches')} />
           : <RoommateMatches profile={profile} />;
       case 'profile':
-        return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} />;
+        return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={isAdmin} onGoToNewListing={goToNewListing} />;
       case 'creator':
-        return <CreatorDashboard profile={profile} onLogout={auth.logout} />;
+        return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} /> : null;
       case 'chat':
@@ -166,6 +168,8 @@ export default function App() {
         return <PrivacySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('account')} />;
       case 'security':
         return <SecuritySettings profile={profile} onBack={() => goTo('account')} />;
+      case 'new_listing':
+        return <CreateListing profile={profile} onBack={() => goTo('home')} onSuccess={() => goTo('home')} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
@@ -189,7 +193,7 @@ export default function App() {
       </div>
 
       {/* Bottom Nav */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {

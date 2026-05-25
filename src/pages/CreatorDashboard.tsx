@@ -15,6 +15,7 @@ type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'setti
 interface CreatorDashboardProps {
   profile: Profile;
   onLogout: () => void;
+  onGoToNewListing?: () => void;
 }
 
 // ─── ROLE CONFIG ───────────────────────────────────
@@ -27,7 +28,7 @@ const ROLE_COLORS: Record<string, string> = {
   worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
 };
 
-export default function CreatorDashboard({ profile, onLogout }: CreatorDashboardProps) {
+export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }: CreatorDashboardProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const isCreatorAccount = isCreator(profile.role);
 
@@ -103,7 +104,7 @@ export default function CreatorDashboard({ profile, onLogout }: CreatorDashboard
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 pb-6">
-        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} />}
         {activeTab === 'users' && <UsersTab profile={profile} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
@@ -115,7 +116,7 @@ export default function CreatorDashboard({ profile, onLogout }: CreatorDashboard
 }
 
 // ─── OVERVIEW ──────────────────────────────────────
-function OverviewTab({ profile, isCreator }: { profile: Profile; isCreator: boolean }) {
+function OverviewTab({ profile, isCreator, onGoToNewListing }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void }) {
   const [stats, setStats] = useState({ users: 0, listings: 0, reports: 0, today: 0 });
 
   useEffect(() => {
@@ -145,6 +146,30 @@ function OverviewTab({ profile, isCreator }: { profile: Profile; isCreator: bool
           </div>
         ))}
       </div>
+
+      {/* Quick Actions */}
+      {onGoToNewListing && (
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={onGoToNewListing} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-green-500/10">
+            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Add Listing</div>
+              <div className="text-[10px] text-[#5C5E72]">Post new property</div>
+            </div>
+          </button>
+          <button className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-[#3B82F6]/10">
+            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">All Users</div>
+              <div className="text-[10px] text-[#5C5E72]">Manage users</div>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Identity Card — Creator gets purple accent */}
       <div className={`glass rounded-2xl p-5 ${isCreator ? 'border border-purple-500/10' : ''}`}>
@@ -221,7 +246,7 @@ function UsersTab({ profile }: { profile: Profile }) {
 
     // ─── CREATOR PROTECTION ──────────────────────────
     // Cannot modify creator accounts
-    if (target.role === 'creator') {
+    if (isCreator(target.role)) {
       toast.error('Creator accounts cannot be modified');
       return;
     }
@@ -253,7 +278,7 @@ function UsersTab({ profile }: { profile: Profile }) {
 
     // ─── CREATOR PROTECTION ──────────────────────────
     // Cannot delete creator
-    if (target.role === 'creator') {
+    if (isCreator(target.role)) {
       toast.error('Creator accounts cannot be deleted');
       return;
     }
@@ -307,7 +332,7 @@ function UsersTab({ profile }: { profile: Profile }) {
                   <select
                     value={u.role}
                     onChange={(e) => handleRole(u.user_id, e.target.value)}
-                    disabled={u.role === 'creator'}
+                    disabled={isCreator(u.role)}
                     className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white disabled:opacity-50"
                   >
                     <option value="user">User</option>
@@ -319,7 +344,7 @@ function UsersTab({ profile }: { profile: Profile }) {
                   {/* Delete — creator protected */}
                   <button
                     onClick={() => handleDelete(u.user_id)}
-                    disabled={u.role === 'creator'}
+                    disabled={isCreator(u.role)}
                     className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     Delete

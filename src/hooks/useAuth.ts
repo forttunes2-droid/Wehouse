@@ -25,26 +25,29 @@ function wipeOnLogout() {
 // ─── ROLE HELPERS (module-level) ───────────────────
 // Role hierarchy: creator = admin = staff → admin dashboard
 //                 user = worker → regular dashboard
-const ADMIN_ROLES = new Set(['creator', 'admin', 'staff']);
+const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'admin', 'staff']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
 }
 
 // Creator = highest rank. Protected from changes/deletion.
+// Supports both 'creator' (new) and 'creator_admin' (legacy)
 export function isCreator(role: string): boolean {
-  return role === 'creator';
+  return role === 'creator' || role === 'creator_admin';
 }
 
 // Compare two roles — returns true if a can modify b
 export function canModifyRole(modifierRole: string, targetRole: string): boolean {
+  const modIsCreator = isCreator(modifierRole);
+  const targetIsCreator = isCreator(targetRole);
   // Creator can modify anyone (including other admins)
-  if (modifierRole === 'creator') return true;
+  if (modIsCreator) return true;
   // Admin can modify staff and users only
   if (modifierRole === 'admin') {
-    return targetRole !== 'creator' && targetRole !== 'admin';
+    return !targetIsCreator && targetRole !== 'admin';
   }
-  // Staff can only modify users
+  // Staff can only modify users/workers
   if (modifierRole === 'staff') {
     return targetRole === 'user' || targetRole === 'worker';
   }

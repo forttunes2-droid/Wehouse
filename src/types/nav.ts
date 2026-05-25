@@ -10,4 +10,5 @@ export type NavPage =
   | 'profile_edit'
   | 'account'
   | 'privacy'
-  | 'security';
+  | 'security'
+  | 'new_listing';

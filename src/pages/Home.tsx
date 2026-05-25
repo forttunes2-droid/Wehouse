@@ -8,9 +8,11 @@ interface HomeProps {
   onNavigate: (page: string, listingId?: string) => void;
   savedIds: Set<string>;
   onToggleSave: (listingId: string) => void;
+  isAdmin?: boolean;
+  onGoToNewListing?: () => void;
 }
 
-export default function Home({ profile, onNavigate, savedIds, onToggleSave }: HomeProps) {
+export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAdmin, onGoToNewListing }: HomeProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -115,8 +117,30 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave }: Ho
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           </div>
           <p className="text-sm text-[#5C5E72]">No listings yet</p>
-          <p className="text-xs text-[#5C5E72] mt-1">Check back soon for available properties</p>
+          <p className="text-xs text-[#5C5E72] mt-1">
+            {isAdmin ? 'Be the first to post a listing' : 'Check back soon for available properties'}
+          </p>
+          {isAdmin && onGoToNewListing && (
+            <button
+              onClick={onGoToNewListing}
+              className="mt-4 h-10 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-blue-500/20 inline-flex items-center gap-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+              Post a Listing
+            </button>
+          )}
         </div>
+      )}
+
+      {/* Add Listing FAB for admins */}
+      {isAdmin && onGoToNewListing && listings.length > 0 && (
+        <button
+          onClick={onGoToNewListing}
+          className="fixed bottom-20 right-5 w-12 h-12 rounded-full bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform z-40"
+          aria-label="Add listing"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
       )}
     </div>
   );
