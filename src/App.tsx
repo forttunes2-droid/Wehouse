@@ -11,8 +11,10 @@ import Dashboard from '@/pages/Dashboard';
 import CreatorDashboard from '@/pages/CreatorDashboard';
 import RoommateSetup from '@/pages/RoommateSetup';
 import RoommateMatches from '@/pages/RoommateMatches';
+import Chat from '@/pages/Chat';
+import ProfileEdit from '@/pages/ProfileEdit';
 
-type NavPage = 'home' | 'search' | 'saved' | 'roommate' | 'profile' | 'detail' | 'creator';
+type NavPage = 'home' | 'search' | 'saved' | 'roommate' | 'profile' | 'detail' | 'creator' | 'chat' | 'profile_edit';
 
 export default function App() {
   const auth = useAuth();
@@ -72,6 +74,16 @@ export default function App() {
     setNavPage('home');
   }, []);
 
+  // Go to chat
+  const goToChat = useCallback(() => {
+    setNavPage('chat');
+  }, []);
+
+  // Go to profile edit
+  const goToProfileEdit = useCallback(() => {
+    setNavPage('profile_edit');
+  }, []);
+
   // ─── Loading ──────────────────────────────────────
   if (auth.isLoading) {
     return (
@@ -109,13 +121,17 @@ export default function App() {
           ? <RoommateSetup profile={profile} onComplete={() => setRoommateMode('matches')} />
           : <RoommateMatches profile={profile} />;
       case 'profile':
-        return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+        return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} />;
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} />;
       case 'detail':
         return detailId
           ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} />
           : null;
+      case 'chat':
+        return <Chat profile={profile} onNavigate={(p) => goTo(p as NavPage)} />;
+      case 'profile_edit':
+        return <ProfileEdit profile={profile} onUpdate={(updated) => auth.handleSetupComplete(updated)} onBack={() => goTo('profile')} />;
       default:
         return <Home profile={profile} onNavigate={(p, id) => id ? goToDetail(id) : goTo(p as NavPage)} savedIds={savedIds} onToggleSave={handleToggleSave} />;
     }

@@ -4,9 +4,11 @@ interface DashboardProps {
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
+  onGoToChat?: () => void;
+  onGoToProfileEdit?: () => void;
 }
 
-export default function Dashboard({ profile, onLogout, onNavigate }: DashboardProps) {
+export default function Dashboard({ profile, onLogout, onNavigate, onGoToChat, onGoToProfileEdit }: DashboardProps) {
   return (
     <div className="min-h-screen bg-[#FAF8F5]">
       {/* Header */}
@@ -60,6 +62,74 @@ export default function Dashboard({ profile, onLogout, onNavigate }: DashboardPr
             </div>
           </div>
         </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 gap-3">
+          {onGoToChat && (
+            <button onClick={onGoToChat} className="bg-white rounded-2xl p-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
+              <div className="w-10 h-10 rounded-xl bg-[#0F1724] flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A45A" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-semibold text-[#0F1724]">Messages</div>
+                <div className="text-[10px] text-[#8B8680]">Chat with users</div>
+              </div>
+            </button>
+          )}
+          {onGoToProfileEdit && (
+            <button onClick={onGoToProfileEdit} className="bg-white rounded-2xl p-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
+              <div className="w-10 h-10 rounded-xl bg-[#0F1724] flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A45A" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-semibold text-[#0F1724]">Edit Profile</div>
+                <div className="text-[10px] text-[#8B8680]">Update your info</div>
+              </div>
+            </button>
+          )}
+        </div>
+
+        {/* Trust Badges */}
+        <div className="bg-white rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-[#0F1724] mb-3">Trust & Verification</h3>
+          <div className="flex flex-wrap gap-2">
+            {profile.email_verified && (
+              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                Email Verified
+              </span>
+            )}
+            {profile.phone_verified && (
+              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                Phone Verified
+              </span>
+            )}
+            {profile.id_verified && (
+              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 flex items-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                ID Verified
+              </span>
+            )}
+            {!profile.email_verified && !profile.phone_verified && !profile.id_verified && (
+              <span className="text-[10px] text-[#8B8680]">No verifications yet</span>
+            )}
+          </div>
+        </div>
+
+        {/* Bio & Details */}
+        {(profile.bio || profile.occupation || profile.school || profile.preferred_location) && (
+          <div className="bg-white rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-[#0F1724] mb-3">About</h3>
+            {profile.bio && <p className="text-xs text-[#8B8680] mb-2">{profile.bio}</p>}
+            <div className="space-y-2">
+              {profile.occupation && <div className="text-xs"><span className="text-[#8B8680]">Occupation:</span> <span className="text-[#0F1724] font-medium">{profile.occupation}</span></div>}
+              {profile.is_student && profile.school && <div className="text-xs"><span className="text-[#8B8680]">School:</span> <span className="text-[#0F1724] font-medium">{profile.school}</span></div>}
+              {profile.preferred_location && <div className="text-xs"><span className="text-[#8B8680]">Location:</span> <span className="text-[#0F1724] font-medium">{profile.preferred_location}</span></div>}
+              {profile.budget_max > 0 && <div className="text-xs"><span className="text-[#8B8680]">Budget:</span> <span className="text-[#0F1724] font-medium">₦{profile.budget_min.toLocaleString()} - ₦{profile.budget_max.toLocaleString()}</span></div>}
+            </div>
+          </div>
+        )}
 
         {/* Creator Dashboard Link */}
         {profile.role === 'creator_admin' && onNavigate && (

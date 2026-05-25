@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Profile, Listing, RoommatePreferences, ListingReport, AdminAuditLog, SystemSetting, Notification } from '@/types';
+import type { Profile, Listing, RoommatePreferences, ListingReport, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest } from '@/types';
 
 const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
@@ -504,4 +504,140 @@ export async function trackActivity(userId: string, authId: string, actionType: 
     details: details || {},
   });
   return { error };
+}
+
+// ─── PHASE 5 CHAT HELPERS ──────────────────────────
+
+export async function getConversations(userId: string) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('*')
+    .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
+    .order('last_message_at', { ascending: false });
+  return { conversations: data as Conversation[] | null, error };
+}
+
+export async function getOrCreateConversation(userA: string, userB: string) {
+  const { data: existing } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('participant_a', userA)
+    .eq('participant_b', userB)
+    .maybeSingle();
+  if (existing) return { conversation: existing as Conversation, error: null };
+
+  const { data: existing2 } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('participant_a', userB)
+    .eq('participant_b', userA)
+    .maybeSingle();
+  if (existing2) return { conversation: existing2 as Conversation, error: null };
+
+  const { data, error } = await supabase.from('conversations').insert({ participant_a: userA, participant_b: userB }).select().single();
+  return { conversation: data as Conversation | null, error };
+}
+
+export async function getMessages(conversationId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+  return { messages: data as Message[] | null, error };
+}
+
+export async function sendMessage(conversationId: string, senderId: string, content: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ conversation_id: conversationId, sender_id: senderId, content })
+    .select()
+    .single();
+  if (!error && data) {
+    await supabase.from('conversations').update({
+      last_message: content,
+      last_message_at: new Date().toISOString(),
+    }).eq('id', conversationId);
+  }
+  return { message: data as Message | null, error };
+}
+
+export async function markMessagesSeen(conversationId: string, userId: string) {
+  const { error } = await supabase
+    .from('messages')
+    .update({ seen: true })
+    .eq('conversation_id', conversationId)
+    .neq('sender_id', userId);
+  return { error };
+}
+
+// ─── REVIEWS ───────────────────────────────────────
+
+export async function getReviews(revieweeId: string) {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('*')
+    .eq('reviewee_id', revieweeId)
+    .order('created_at', { ascending: false });
+  return { reviews: data as Review[] | null, error };
+}
+
+export async function createReview(review: Partial<Review>) {
+  const { data, error } = await supabase.from('reviews').insert(review).select().single();
+  return { review: data as Review | null, error };
+}
+
+export async function getAverageRating(revieweeId: string) {
+  const { data } = await supabase.from('reviews').select('rating').eq('reviewee_id', revieweeId);
+  if (!data || data.length === 0) return { average: 0, count: 0 };
+  const avg = data.reduce((sum: number, r: any) => sum + r.rating, 0) / data.length;
+  return { average: Math.round(avg * 10) / 10, count: data.length };
+}
+
+// ─── ROOM INTERESTS ────────────────────────────────
+
+export async function sendRoomInterest(senderId: string, receiverId: string, message?: string) {
+  const { error } = await supabase.from('room_interests').insert({
+    sender_id: senderId,
+    receiver_id: receiverId,
+    message: message || null,
+  });
+  return { error };
+}
+
+export async function getRoomInterests(userId: string) {
+  const { data, error } = await supabase
+    .from('room_interests')
+    .select('*')
+    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    .order('created_at', { ascending: false });
+  return { interests: data as RoomInterest[] | null, error };
+}
+
+export async function respondToInterest(id: string, status: 'accepted' | 'declined') {
+  const { error } = await supabase.from('room_interests').update({ status }).eq('id', id);
+  return { error };
+}
+
+// ─── RECENTLY VIEWED ───────────────────────────────
+
+export async function trackView(userId: string, itemId: string, itemType: string = 'listing') {
+  const { error } = await supabase.from('recently_viewed').insert({
+    user_id: userId,
+    item_id: itemId,
+    item_type: itemType,
+  });
+  return { error };
+}
+
+// ─── PROFILE UPDATE ────────────────────────────────
+
+export async function updateProfile(userId: string, updates: Partial<Profile>) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
 }
