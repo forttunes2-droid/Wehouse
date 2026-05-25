@@ -630,12 +630,99 @@ export async function trackView(userId: string, itemId: string, itemType: string
   return { error };
 }
 
+// ─── AVATAR UPLOAD ─────────────────────────────────
+
+const RESERVED_USERNAMES = ['admin', 'creator', 'support', 'system', 'api', 'wehouse', 'mod', 'moderator', 'owner', 'staff', 'help', 'info', 'null', 'undefined'];
+
+export async function uploadAvatar(file: File, userId: string) {
+  // Compress image client-side by drawing to canvas
+  const compressImage = (f: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(f);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxDim = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > maxDim) { h = (h / w) * maxDim; w = maxDim; }
+        else if (h > maxDim) { w = (w / h) * maxDim; h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('No canvas context')); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Compression failed'));
+        }, 'image/jpeg', 0.8);
+      };
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = url;
+    });
+  };
+
+  try {
+    const compressed = await compressImage(file);
+    const fileName = `avatars/${userId}-${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, compressed, { contentType: 'image/jpeg', upsert: true });
+    if (uploadError) return { url: null, error: uploadError };
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+    return { url: urlData.publicUrl, error: null };
+  } catch (err: any) {
+    return { url: null, error: { message: err.message || 'Upload failed' } };
+  }
+}
+
+// ─── USERNAME VALIDATION ───────────────────────────
+
+export function validateUsername(username: string): { valid: boolean; error?: string } {
+  const trimmed = username.trim().toLowerCase();
+  if (!trimmed) return { valid: false, error: 'Username is required' };
+  if (trimmed.length < 3) return { valid: false, error: 'Minimum 3 characters' };
+  if (trimmed.length > 20) return { valid: false, error: 'Maximum 20 characters' };
+  if (!/^[a-z0-9_]+$/.test(trimmed)) return { valid: false, error: 'Letters, numbers, underscores only' };
+  if (RESERVED_USERNAMES.includes(trimmed)) return { valid: false, error: 'This username is reserved' };
+  return { valid: true };
+}
+
+export async function checkUsernameAvailable(username: string, currentUserId?: string) {
+  const trimmed = username.trim().toLowerCase();
+  const { data } = await supabase
+    .from('profiles')
+    .select('user_id')
+    .eq('username', trimmed)
+    .maybeSingle();
+  // Available if no result or it's the current user
+  const available = !data || (currentUserId && data.user_id === currentUserId);
+  return { available, taken: !available };
+}
+
 // ─── PROFILE UPDATE ────────────────────────────────
 
 export async function updateProfile(userId: string, updates: Partial<Profile>) {
   const { data, error } = await supabase
     .from('profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
+}
+
+// ─── PRIVACY SETTINGS ──────────────────────────────
+
+export async function updatePrivacySettings(userId: string, settings: {
+  privacy_profile_visible?: boolean;
+  privacy_search_visible?: boolean;
+  privacy_activity_visible?: boolean;
+}) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ ...settings, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
     .select()
     .single();

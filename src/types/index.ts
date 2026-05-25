@@ -21,6 +21,10 @@ export interface Profile {
   id_verified: boolean;
   is_online: boolean;
   last_seen: string | null;
+  // Privacy settings
+  privacy_profile_visible: boolean;
+  privacy_search_visible: boolean;
+  privacy_activity_visible: boolean;
   created_at: string;
   updated_at: string;
 }
