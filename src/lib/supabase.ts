@@ -213,11 +213,11 @@ export async function getAllListings() {
   return { listings: data as Listing[] | null, error };
 }
 
-export async function getCreatorListings(ownerId: string) {
+export async function getCreatorListings(authId: string) {
   const { data, error } = await supabase
     .from('listings')
     .select('*')
-    .eq('owner_id', ownerId)
+    .eq('owner_id', authId)
     .order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }

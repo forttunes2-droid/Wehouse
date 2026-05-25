@@ -31,13 +31,13 @@ export default function CreatorDashboard({ profile, onLogout }: CreatorDashboard
 
   const loadListings = useCallback(async () => {
     setLoading(true);
-    const { listings: data, error } = await getCreatorListings(profile.user_id);
+    const { listings: data, error } = await getCreatorListings(profile.auth_id);
     if (error) {
       toast.error('Failed to load listings: ' + error.message);
     }
     setListings(data || []);
     setLoading(false);
-  }, [profile.user_id]);
+  }, [profile.auth_id]);
 
   useEffect(() => {
     loadListings();
@@ -135,7 +135,7 @@ export default function CreatorDashboard({ profile, onLogout }: CreatorDashboard
       {showForm && (
         <ListingFormModal
           listing={editing}
-          ownerId={profile.user_id}
+          ownerId={profile.auth_id}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSuccess={() => { loadListings(); setShowForm(false); setEditing(null); }}
         />
