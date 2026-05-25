@@ -37,3 +37,32 @@ export interface SavedListing {
   listing_id: string;
   created_at: string;
 }
+
+export interface RoommatePreferences {
+  id: string;
+  user_id: string;
+  gender: 'male' | 'female';
+  gender_preference: 'male' | 'female' | 'no_preference';
+  budget_min: number;
+  budget_max: number;
+  study_level: string;
+  noise_level: 'quiet' | 'moderate' | 'loud';
+  cleanliness: 'neat' | 'moderate' | 'relaxed';
+  sleep_time: string;
+  visitors: 'rarely' | 'sometimes' | 'often';
+  stay_duration: string;
+  area_preference: string;
+  bio: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface RoommateMatch {
+  id: string;
+  user_a_id: string;
+  user_b_id: string;
+  match_score: number;
+  match_level: 'low' | 'medium' | 'high';
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+}

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Profile, Listing } from '@/types';
+import type { Profile, Listing, RoommatePreferences } from '@/types';
 
 const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
@@ -275,4 +275,115 @@ export async function uploadListingImage(file: File, listingId: string) {
 export async function deleteListingImage(path: string) {
   const { error } = await supabase.storage.from('listings').remove([path]);
   return { error };
+}
+
+// ─── ROOMMATE HELPERS ──────────────────────────────
+
+export async function getRoommatePreferences(userId: string) {
+  const { data, error } = await supabase
+    .from('roommate_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return { prefs: data as RoommatePreferences | null, error };
+}
+
+export async function getAllRoommatePreferences() {
+  const { data, error } = await supabase
+    .from('roommate_preferences')
+    .select('*')
+    .eq('active', true);
+  return { prefs: data as RoommatePreferences[] | null, error };
+}
+
+export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences>) {
+  const { data, error } = await supabase
+    .from('roommate_preferences')
+    .upsert({ ...prefs, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+  return { prefs: data as RoommatePreferences | null, error };
+}
+
+export async function findMatches(userId: string) {
+  // Get current user's preferences
+  const { data: myPrefs } = await supabase
+    .from('roommate_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (!myPrefs) return { matches: [], error: null };
+
+  // Get all other active preferences
+  const { data: allPrefs } = await supabase
+    .from('roommate_preferences')
+    .select('*, profiles:user_id(auth_id, username, email, user_id)')
+    .eq('active', true)
+    .neq('user_id', userId);
+
+  if (!allPrefs) return { matches: [], error: null };
+
+  // Filter by gender rules and calculate scores
+  const scored = allPrefs
+    .filter((other: any) => {
+      // Gender matching rules
+      if (myPrefs.gender_preference === 'male' && other.gender !== 'male') return false;
+      if (myPrefs.gender_preference === 'female' && other.gender !== 'female') return false;
+      if (other.gender_preference === 'male' && myPrefs.gender !== 'male') return false;
+      if (other.gender_preference === 'female' && myPrefs.gender !== 'female') return false;
+      return true;
+    })
+    .map((other: any) => {
+      let score = 0;
+      // Budget overlap (max 30 points)
+      const budgetOverlap = Math.max(0, Math.min(myPrefs.budget_max, other.budget_max) - Math.max(myPrefs.budget_min, other.budget_min));
+      const budgetRange = Math.max(myPrefs.budget_max - myPrefs.budget_min, 1);
+      score += Math.round((budgetOverlap / budgetRange) * 30);
+
+      // Lifestyle matches (10 points each, max 50)
+      if (myPrefs.noise_level === other.noise_level) score += 10;
+      if (myPrefs.cleanliness === other.cleanliness) score += 10;
+      if (myPrefs.sleep_time === other.sleep_time) score += 10;
+      if (myPrefs.visitors === other.visitors) score += 10;
+      if (myPrefs.area_preference === other.area_preference) score += 10;
+
+      // Study level match (20 points)
+      if (myPrefs.study_level === other.study_level) score += 20;
+
+      score = Math.min(100, score);
+
+      return {
+        ...other,
+        match_score: score,
+        match_level: score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low' as 'low' | 'medium' | 'high',
+      };
+    })
+    .filter((m: any) => m.match_score > 0)
+    .sort((a: any, b: any) => b.match_score - a.match_score);
+
+  return { matches: scored, error: null };
+}
+
+export async function saveMatch(userA: string, userB: string, score: number, level: string) {
+  const { error } = await supabase
+    .from('roommate_matches')
+    .upsert({
+      user_a_id: userA,
+      user_b_id: userB,
+      match_score: score,
+      match_level: level,
+      status: 'pending',
+    });
+  return { error };
+}
+
+export async function getMatchStats() {
+  const { count: totalUsers } = await supabase
+    .from('roommate_preferences')
+    .select('*', { count: 'exact', head: true });
+  const { count: totalMatches } = await supabase
+    .from('roommate_matches')
+    .select('*', { count: 'exact', head: true });
+  return { totalUsers: totalUsers || 0, totalMatches: totalMatches || 0 };
 }

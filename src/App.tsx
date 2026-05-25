@@ -9,8 +9,10 @@ import ListingDetail from '@/pages/ListingDetail';
 import Saved from '@/pages/Saved';
 import Dashboard from '@/pages/Dashboard';
 import CreatorDashboard from '@/pages/CreatorDashboard';
+import RoommateSetup from '@/pages/RoommateSetup';
+import RoommateMatches from '@/pages/RoommateMatches';
 
-type NavPage = 'home' | 'search' | 'saved' | 'profile' | 'detail' | 'creator';
+type NavPage = 'home' | 'search' | 'saved' | 'roommate' | 'profile' | 'detail' | 'creator';
 
 export default function App() {
   const auth = useAuth();
@@ -18,6 +20,7 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [, setSavedLoading] = useState(false);
+  const [roommateMode, setRoommateMode] = useState<'setup' | 'matches'>('setup');
 
   // Load saved listings when logged in
   useEffect(() => {
@@ -64,7 +67,7 @@ export default function App() {
       if (page === 'detail' && listingId) {
         setDetailId(listingId);
         setNavPage('detail');
-      } else if (['home', 'search', 'saved', 'profile', 'creator'].includes(page)) {
+      } else if (['home', 'search', 'saved', 'roommate', 'profile', 'creator'].includes(page)) {
         setNavPage(page as NavPage);
       }
     },
@@ -116,6 +119,13 @@ export default function App() {
       {navPage === 'saved' && (
         <Saved profile={profile} onNavigate={handleNavigate} savedIds={savedIds} onToggleSave={handleToggleSave} />
       )}
+      {navPage === 'roommate' && (
+        roommateMode === 'setup' ? (
+          <RoommateSetup profile={profile} onComplete={() => setRoommateMode('matches')} />
+        ) : (
+          <RoommateMatches profile={profile} />
+        )
+      )}
       {navPage === 'profile' && (
         <Dashboard profile={profile} onLogout={auth.logout} onNavigate={handleNavigate} />
       )}
@@ -150,6 +160,7 @@ function BottomNav({
     { id: 'home', label: 'Home', icon: HomeIcon },
     { id: 'search', label: 'Search', icon: SearchIcon },
     { id: 'saved', label: 'Saved', icon: HeartIcon },
+    { id: 'roommate', label: 'Roommate', icon: UsersIcon },
     { id: isCreator ? 'creator' : 'profile', label: isCreator ? 'Creator' : 'Profile', icon: UserIcon },
   ];
 
@@ -208,6 +219,17 @@ function UserIcon({ size, active }: { size: number; active: boolean }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#C8A45A' : '#8B8680'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function UsersIcon({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#C8A45A' : '#8B8680'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }
