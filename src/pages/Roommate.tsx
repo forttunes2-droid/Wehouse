@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { saveRoommatePreferences, getRoommatePreferences, findMatches } from '@/lib/supabase';
-import SchoolSelector from '@/components/SchoolSelector';
+import InstitutionSelector from '@/components/InstitutionSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -10,10 +10,22 @@ interface RoommateProps {
 
 type View = 'preview' | 'edit' | 'matches';
 
-// ─── PREFERENCE CONFIG ─────────────────────────────
+const GENDER_PREF_OPTIONS = [
+  { value: 'no_preference', label: 'Any' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+];
+
+const BUDGET_PRESETS = [
+  { min: 50000, max: 100000, label: '₦50k – ₦100k' },
+  { min: 100000, max: 200000, label: '₦100k – ₦200k' },
+  { min: 200000, max: 350000, label: '₦200k – ₦350k' },
+  { min: 350000, max: 500000, label: '₦350k – ₦500k' },
+  { min: 500000, max: 1000000, label: '₦500k+' },
+];
 
 const CLEANLINESS_OPTIONS = [
-  { value: 'neat', label: 'Neat Freak', icon: '✨' },
+  { value: 'neat', label: 'Neat', icon: '✨' },
   { value: 'moderate', label: 'Moderate', icon: '👍' },
   { value: 'relaxed', label: 'Relaxed', icon: '😎' },
 ];
@@ -25,11 +37,10 @@ const NOISE_OPTIONS = [
 ];
 
 const SLEEP_OPTIONS = [
-  { value: '9pm-10pm', label: 'Early (9-10pm)' },
-  { value: '10pm-11pm', label: 'Normal (10-11pm)' },
-  { value: '11pm-12am', label: 'Late (11-12am)' },
-  { value: '12am-1am', label: 'Night Owl (12-1am)' },
-  { value: '1am+', label: 'Very Late (1am+)' },
+  { value: '9pm-10pm', label: 'Early' },
+  { value: '10pm-11pm', label: 'Normal' },
+  { value: '11pm-12am', label: 'Late' },
+  { value: '12am-1am', label: 'Night Owl' },
 ];
 
 const VISITOR_OPTIONS = [
@@ -39,19 +50,13 @@ const VISITOR_OPTIONS = [
 ];
 
 const DURATION_OPTIONS = [
-  { value: '3_months', label: '3 Months' },
-  { value: '6_months', label: '6 Months' },
-  { value: '1_year', label: '1 Year' },
-  { value: '1_year+', label: '1+ Years' },
+  { value: '3_months', label: '3 Mo' },
+  { value: '6_months', label: '6 Mo' },
+  { value: '1_year', label: '1 Yr' },
+  { value: '1_year+', label: '1+ Yrs' },
 ];
 
-const GENDER_PREF_OPTIONS = [
-  { value: 'no_preference', label: 'No Preference' },
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-];
-
-// ─── MAIN COMPONENT ────────────────────────────────
+// ─── MAIN COMPONENT ────────────────────────────────────
 
 export default function Roommate({ profile }: RoommateProps) {
   const [view, setView] = useState<View>('preview');
@@ -88,7 +93,7 @@ export default function Roommate({ profile }: RoommateProps) {
       toast.error('Save failed: ' + error.message);
       return;
     }
-    toast.success('Preferences updated!');
+    toast.success('Preferences saved!');
     await loadPrefs();
     setView('preview');
   };
@@ -97,7 +102,6 @@ export default function Roommate({ profile }: RoommateProps) {
     return <RoommateSkeleton />;
   }
 
-  // No prefs yet → force edit view
   if (!prefs && view !== 'edit') {
     return <EditView onSave={handleSave} onCancel={() => {}} isFirstTime />;
   }
@@ -105,7 +109,6 @@ export default function Roommate({ profile }: RoommateProps) {
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-20">
       <Toaster position="top-center" richColors />
-
       {view === 'preview' && <PreviewView profile={profile} prefs={prefs} onChangeView={setView} />}
       {view === 'edit' && <EditView existingPrefs={prefs} onSave={handleSave} onCancel={() => setView('preview')} />}
       {view === 'matches' && <MatchesView matches={matches} loading={loading} onChangeView={setView} onRefresh={loadMatches} />}
@@ -113,33 +116,35 @@ export default function Roommate({ profile }: RoommateProps) {
   );
 }
 
-// ─── PREVIEW VIEW ──────────────────────────────────
+// ─── PREVIEW VIEW ──────────────────────────────────────
 
 function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs: any; onChangeView: (v: View) => void }) {
-  const budget = prefs ? `N${prefs.budget_min?.toLocaleString()} - N${prefs.budget_max?.toLocaleString()}` : 'Not set';
+  const budget = prefs ? `₦${prefs.budget_min?.toLocaleString()} – ₦${prefs.budget_max?.toLocaleString()}` : 'Not set';
 
-  const preferenceCards = [
-    { label: 'Budget', value: budget, icon: 'N' },
+  // Group cards into categories
+  const essentialCards = [
+    { label: 'Budget', value: budget, icon: '💰' },
     { label: 'Location', value: prefs?.area_preference || 'Not set', icon: '📍' },
     { label: 'Gender', value: prefs?.gender ? prefs.gender.charAt(0).toUpperCase() + prefs.gender.slice(1) : 'Not set', icon: '👤' },
-    { label: 'Preference', value: GENDER_PREF_OPTIONS.find(o => o.value === prefs?.gender_preference)?.label || 'Not set', icon: '🔍' },
-    // ── SCHOOL FIELDS ─────────────────────────────────
-    { label: 'School', value: prefs?.school_name || 'Not set', icon: '🎓' },
-    { label: 'Campus', value: prefs?.campus || 'Not set', icon: '🏫' },
-    { label: 'Level', value: prefs?.level ? `${prefs.level}L` : 'Not set', icon: '📚' },
-    { label: 'Department', value: prefs?.department || 'Not set', icon: '🔬' },
-    // ─────────────────────────────────────────────────
-    { label: 'Cleanliness', value: CLEANLINESS_OPTIONS.find(o => o.value === prefs?.cleanliness)?.label || 'Not set', icon: '✨' },
-    { label: 'Noise Level', value: NOISE_OPTIONS.find(o => o.value === prefs?.noise_level)?.label || 'Not set', icon: '🔊' },
-    { label: 'Sleep', value: SLEEP_OPTIONS.find(o => o.value === prefs?.sleep_time)?.label || 'Not set', icon: '🌙' },
-    { label: 'Visitors', value: VISITOR_OPTIONS.find(o => o.value === prefs?.visitors)?.label || 'Not set', icon: '🚪' },
-    { label: 'Duration', value: DURATION_OPTIONS.find(o => o.value === prefs?.stay_duration)?.label || 'Not set', icon: '📅' },
-    { label: 'Occupation', value: prefs?.study_level || 'Not set', icon: '💼' },
+    { label: 'Roommate', value: GENDER_PREF_OPTIONS.find(o => o.value === prefs?.gender_preference)?.label || 'Any', icon: '🔍' },
+  ];
+
+  const studentCards = prefs?.school_name ? [
+    { label: 'School', value: prefs.school_name, icon: '🎓' },
+    { label: 'Campus', value: prefs.campus || 'Main', icon: '🏫' },
+    { label: 'Level', value: prefs.level ? `${prefs.level}L` : 'Not set', icon: '📚' },
+    { label: 'Department', value: prefs.department || 'Not set', icon: '🔬' },
+  ] : [];
+
+  const lifestyleCards = [
+    { label: 'Cleanliness', value: CLEANLINESS_OPTIONS.find(o => o.value === prefs?.cleanliness)?.label || 'Moderate', icon: '✨' },
+    { label: 'Noise', value: NOISE_OPTIONS.find(o => o.value === prefs?.noise_level)?.label || 'Moderate', icon: '🔊' },
+    { label: 'Sleep', value: SLEEP_OPTIONS.find(o => o.value === prefs?.sleep_time)?.label || 'Normal', icon: '🌙' },
+    { label: 'Visitors', value: VISITOR_OPTIONS.find(o => o.value === prefs?.visitors)?.label || 'Sometimes', icon: '🚪' },
   ];
 
   return (
     <>
-      {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
         <div className="max-w-lg mx-auto">
           <h1 className="text-lg font-bold text-white mb-1">Roommate</h1>
@@ -148,13 +153,13 @@ function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs
       </header>
 
       <div className="max-w-lg mx-auto px-5 space-y-4">
-        {/* My Profile Card */}
+        {/* Profile Card */}
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white">Your Roommate Profile</h2>
+            <h2 className="text-sm font-bold text-white">Your Profile</h2>
             <button
               onClick={() => onChangeView('edit')}
-              className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] font-medium px-2.5 py-1 rounded-lg bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-colors"
+              className="text-[10px] text-[#3B82F6] font-semibold px-3 py-1.5 rounded-lg bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-colors"
             >
               Edit
             </button>
@@ -168,8 +173,7 @@ function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs
               <div className="text-sm font-semibold text-white">@{profile.username || 'user'}</div>
               <div className="text-[10px] text-[#5C5E72] flex items-center gap-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                {profile.city || prefs?.area_preference || 'No location set'}
-                {profile.state && `, ${profile.state}`}
+                {profile.city || prefs?.area_preference || 'No location'}
               </div>
             </div>
           </div>
@@ -178,12 +182,34 @@ function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs
             <p className="text-xs text-[#8A8B9C] mb-4 leading-relaxed italic">&ldquo;{prefs.bio}&rdquo;</p>
           )}
 
-          {/* Preferences Grid */}
-          <div className="grid grid-cols-2 gap-2">
-            {preferenceCards.map((card) => (
+          {/* Essential */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {essentialCards.map(card => (
               <div key={card.label} className="bg-[#1A1A24] rounded-xl p-3">
                 <div className="text-[10px] text-[#5C5E72] mb-0.5">{card.label}</div>
                 <div className="text-xs text-white font-medium truncate">{card.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Student (if set) */}
+          {studentCards.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {studentCards.map(card => (
+                <div key={card.label} className="bg-[#1A1A24] rounded-xl p-3 border border-[#3B82F6]/10">
+                  <div className="text-[10px] text-[#3B82F6] mb-0.5">{card.label}</div>
+                  <div className="text-xs text-white font-medium truncate">{card.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Lifestyle */}
+          <div className="grid grid-cols-2 gap-2">
+            {lifestyleCards.map(card => (
+              <div key={card.label} className="bg-[#1A1A24] rounded-xl p-3">
+                <div className="text-[10px] text-[#5C5E72] mb-0.5">{card.label}</div>
+                <div className="text-xs text-white font-medium">{card.value}</div>
               </div>
             ))}
           </div>
@@ -202,7 +228,40 @@ function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs
   );
 }
 
-// ─── EDIT VIEW ─────────────────────────────────────
+// ─── COLLAPSIBLE SECTION HELPER ────────────────────────
+
+function CollapsibleSection({ title, subtitle, children, defaultOpen = false }: {
+  title: string; subtitle?: string; children: React.ReactNode; defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="glass rounded-2xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
+      >
+        <div>
+          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          {subtitle && <p className="text-[10px] text-[#5C5E72] mt-0.5">{subtitle}</p>}
+        </div>
+        <svg
+          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"
+          className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 animate-fadeIn">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── EDIT VIEW (REDESIGNED — SHORT & ORGANIZED) ────────
 
 function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
   existingPrefs?: any;
@@ -211,12 +270,13 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
   isFirstTime?: boolean;
 }) {
   const [saving, setSaving] = useState(false);
+  const [showStudent, setShowStudent] = useState(!!existingPrefs?.school_name);
 
   const [form, setForm] = useState({
     gender: existingPrefs?.gender || '',
     gender_preference: existingPrefs?.gender_preference || 'no_preference',
-    budget_min: existingPrefs?.budget_min ? String(existingPrefs.budget_min) : '',
-    budget_max: existingPrefs?.budget_max ? String(existingPrefs.budget_max) : '',
+    budget_min: existingPrefs?.budget_min || 0,
+    budget_max: existingPrefs?.budget_max || 0,
     study_level: existingPrefs?.study_level || '',
     noise_level: existingPrefs?.noise_level || 'moderate',
     cleanliness: existingPrefs?.cleanliness || 'moderate',
@@ -225,7 +285,6 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
     stay_duration: existingPrefs?.stay_duration || '1_year',
     area_preference: existingPrefs?.area_preference || '',
     bio: existingPrefs?.bio || '',
-    // ── SCHOOL FIELDS ─────────────────────────────────
     school_name: existingPrefs?.school_name || '',
     campus: existingPrefs?.campus || '',
     faculty: existingPrefs?.faculty || '',
@@ -238,7 +297,7 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.budget_min || !form.budget_max) {
-      toast.error('Set your budget range');
+      toast.error('Select your budget range');
       return;
     }
     setSaving(true);
@@ -255,24 +314,23 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
       stay_duration: form.stay_duration,
       area_preference: form.area_preference,
       bio: form.bio,
-      // ── SCHOOL FIELDS ─────────────────────────────────
-      school_name: form.school_name || null,
-      campus: form.campus || null,
-      faculty: form.faculty || null,
-      department: form.department || null,
-      level: form.level || null,
-      school_match: form.school_match,
-      campus_match: form.campus_match,
+      school_name: showStudent ? (form.school_name || null) : null,
+      campus: showStudent ? (form.campus || null) : null,
+      faculty: showStudent ? (form.faculty || null) : null,
+      department: showStudent ? (form.department || null) : null,
+      level: showStudent ? (form.level || null) : null,
+      school_match: showStudent ? form.school_match : false,
+      campus_match: showStudent ? form.campus_match : false,
     });
     setSaving(false);
   }
 
-  const update = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
+  const update = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
 
   return (
     <>
       {/* Header */}
-      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4 flex items-center justify-between">
+      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
           {!isFirstTime && (
             <button onClick={onCancel} className="text-[#8A8B9C] hover:text-white transition-colors">
@@ -281,186 +339,245 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
           )}
           <div>
             <h1 className="text-base font-semibold text-white">{isFirstTime ? 'Roommate Setup' : 'Edit Preferences'}</h1>
-            <p className="text-[10px] text-[#5C5E72]">{isFirstTime ? 'Quick setup — edit anytime later' : 'Update your preferences'}</p>
+            <p className="text-[10px] text-[#5C5E72]">{isFirstTime ? 'Quick setup — 3 steps' : 'Update your preferences'}</p>
           </div>
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 py-5 space-y-5">
-        {/* Budget — Required */}
-        <SectionCard title="Budget Range *" desc="Your monthly rent budget">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-[#5C5E72] mb-1 block">Min (N)</label>
-              <input
-                type="number"
-                value={form.budget_min}
-                onChange={(e) => update('budget_min', e.target.value)}
-                placeholder="50000"
-                className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-              />
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 py-5 space-y-4">
+
+        {/* ═════ STEP 1: ESSENTIALS (always visible) ═════ */}
+        <div className="glass rounded-2xl p-4">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-white">Essentials</h3>
+            <p className="text-[10px] text-[#5C5E72] mt-0.5">Required for matching</p>
+          </div>
+
+          {/* Budget — Preset chips */}
+          <div className="mb-4">
+            <label className="text-[10px] text-[#5C5E72] mb-2 block font-medium">Budget Range *</label>
+            <div className="flex flex-wrap gap-2">
+              {BUDGET_PRESETS.map(preset => {
+                const selected = form.budget_min === preset.min && form.budget_max === preset.max;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => { update('budget_min', preset.min); update('budget_max', preset.max); }}
+                    className={`h-9 px-3 rounded-xl text-[11px] font-medium transition-all ${
+                      selected
+                        ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/20'
+                        : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <label className="text-[10px] text-[#5C5E72] mb-1 block">Max (N)</label>
-              <input
-                type="number"
-                value={form.budget_max}
-                onChange={(e) => update('budget_max', e.target.value)}
-                placeholder="200000"
-                className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-              />
+            {/* Custom budget */}
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="text-[9px] text-[#5C5E72] mb-1 block">Min (₦)</label>
+                <input
+                  type="number"
+                  value={form.budget_min || ''}
+                  onChange={(e) => update('budget_min', Number(e.target.value))}
+                  placeholder="50000"
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] text-[#5C5E72] mb-1 block">Max (₦)</label>
+                <input
+                  type="number"
+                  value={form.budget_max || ''}
+                  onChange={(e) => update('budget_max', Number(e.target.value))}
+                  placeholder="200000"
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+                />
+              </div>
             </div>
           </div>
-        </SectionCard>
 
-        {/* School / Institution Info — OPTIONAL */}
-        <SectionCard title="Education & Institution" desc="Students: add your school. Workers: add workplace. Helps find better matches." optional>
-          <SchoolSelector
-            value={{
-              school_name: form.school_name,
-              campus: form.campus,
-              faculty: form.faculty,
-              department: form.department,
-              level: form.level,
-            }}
-            onChange={(v) => {
-              setForm(f => ({ ...f, ...v }));
-            }}
-          />
-          {/* Match preferences */}
-          {form.school_name && (
-            <div className="mt-3 space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.school_match}
-                  onChange={(e) => setForm(f => ({ ...f, school_match: e.target.checked }))}
-                  className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6] focus:ring-[#3B82F6]/20"
+          {/* Location */}
+          <div className="mb-4">
+            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Preferred Location *</label>
+            <input
+              value={form.area_preference}
+              onChange={(e) => update('area_preference', e.target.value)}
+              placeholder="e.g. Ikeja, Yaba, Lekki Phase 1"
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+            />
+          </div>
+
+          {/* Gender */}
+          <div className="mb-4">
+            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Your Gender *</label>
+            <div className="flex gap-2">
+              {(['male', 'female'] as const).map(g => (
+                <Chip key={g} selected={form.gender === g} onClick={() => update('gender', g)}>
+                  {g === 'male' ? '👨' : '👩'} {g.charAt(0).toUpperCase() + g.slice(1)}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {/* Roommate Gender Preference */}
+          <div>
+            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Roommate Gender</label>
+            <div className="flex gap-2 flex-wrap">
+              {GENDER_PREF_OPTIONS.map(opt => (
+                <Chip key={opt.value} selected={form.gender_preference === opt.value} onClick={() => update('gender_preference', opt.value)}>
+                  {opt.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ═════ STEP 2: STUDENT INFO (collapsible) ═════ */}
+        <div className="glass rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowStudent(!showStudent)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c0 1.66 4 3 9 3s9-1.34 9-3v-5" /></svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Student Info</h3>
+                <p className="text-[10px] text-[#5C5E72]">{showStudent ? 'Tap to hide' : 'Add school for better matches'}</p>
+              </div>
+            </div>
+            <div className={`w-10 h-6 rounded-full transition-colors relative ${showStudent ? 'bg-[#3B82F6]' : 'bg-[#2A2A3A]'}`}>
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${showStudent ? 'translate-x-4.5 left-0' : 'left-0.5'}`} style={{ transform: showStudent ? 'translateX(16px)' : 'translateX(0)' }} />
+            </div>
+          </button>
+
+          {showStudent && (
+            <div className="px-4 pb-4 animate-fadeIn">
+              <div className="border-t border-[#1E1E2C] pt-4">
+                <InstitutionSelector
+                  value={{
+                    school_name: form.school_name,
+                    campus: form.campus,
+                    faculty: form.faculty,
+                    department: form.department,
+                    level: form.level,
+                  }}
+                  onChange={(v) => setForm(f => ({ ...f, ...v }))}
                 />
-                <span className="text-xs text-[#8A8B9C]">Prefer same school</span>
-              </label>
-              {form.campus && (
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.campus_match}
-                    onChange={(e) => setForm(f => ({ ...f, campus_match: e.target.checked }))}
-                    className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6] focus:ring-[#3B82F6]/20"
-                  />
-                  <span className="text-xs text-[#8A8B9C]">Prefer same campus</span>
-                </label>
-              )}
+                {/* Match preferences */}
+                {form.school_name && (
+                  <div className="mt-3 pt-3 border-t border-[#1E1E2C] space-y-2">
+                    <p className="text-[10px] text-[#5C5E72] font-medium">Match Preferences</p>
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.school_match}
+                        onChange={(e) => update('school_match', e.target.checked)}
+                        className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6]"
+                      />
+                      <span className="text-xs text-[#8A8B9C]">Prefer same school</span>
+                    </label>
+                    {form.campus && (
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.campus_match}
+                          onChange={(e) => update('campus_match', e.target.checked)}
+                          className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6]"
+                        />
+                        <span className="text-xs text-[#8A8B9C]">Prefer same campus</span>
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </SectionCard>
+        </div>
 
-        {/* Location */}
-        <SectionCard title="Preferred Location" desc="Where do you want to live?" optional>
-          <input
-            value={form.area_preference}
-            onChange={(e) => update('area_preference', e.target.value)}
-            placeholder="e.g. Ikeja, Yaba, Lekki"
-            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-          />
-        </SectionCard>
+        {/* ═════ STEP 3: LIFESTYLE (collapsible) ═════ */}
+        <CollapsibleSection title="Lifestyle Preferences" subtitle="Cleanliness, sleep, visitors, duration">
+          <div className="space-y-4">
+            {/* Cleanliness */}
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Cleanliness</label>
+              <div className="flex gap-2">
+                {CLEANLINESS_OPTIONS.map(opt => (
+                  <Chip key={opt.value} selected={form.cleanliness === opt.value} onClick={() => update('cleanliness', opt.value)}>
+                    {opt.icon} {opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
 
-        {/* Your Gender */}
-        <SectionCard title="Your Gender" desc="Used for matching preferences" optional>
-          <div className="flex gap-2">
-            {(['male', 'female'] as const).map((g) => (
-              <ChipButton key={g} selected={form.gender === g} onClick={() => update('gender', g)}>
-                {g.charAt(0).toUpperCase() + g.slice(1)}
-              </ChipButton>
-            ))}
+            {/* Noise */}
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Noise Level</label>
+              <div className="flex gap-2">
+                {NOISE_OPTIONS.map(opt => (
+                  <Chip key={opt.value} selected={form.noise_level === opt.value} onClick={() => update('noise_level', opt.value)}>
+                    {opt.icon} {opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            {/* Sleep */}
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Sleep Schedule</label>
+              <div className="flex gap-2 flex-wrap">
+                {SLEEP_OPTIONS.map(opt => (
+                  <Chip key={opt.value} selected={form.sleep_time === opt.value} onClick={() => update('sleep_time', opt.value)}>
+                    {opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            {/* Visitors */}
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Visitors</label>
+              <div className="flex gap-2">
+                {VISITOR_OPTIONS.map(opt => (
+                  <Chip key={opt.value} selected={form.visitors === opt.value} onClick={() => update('visitors', opt.value)}>
+                    {opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Stay Duration</label>
+              <div className="flex gap-2">
+                {DURATION_OPTIONS.map(opt => (
+                  <Chip key={opt.value} selected={form.stay_duration === opt.value} onClick={() => update('stay_duration', opt.value)}>
+                    {opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
           </div>
-        </SectionCard>
+        </CollapsibleSection>
 
-        {/* Gender Preference */}
-        <SectionCard title="Roommate Gender" desc="Who would you prefer to live with?" optional>
-          <div className="flex gap-2 flex-wrap">
-            {GENDER_PREF_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} selected={form.gender_preference === opt.value} onClick={() => update('gender_preference', opt.value)}>
-                {opt.label}
-              </ChipButton>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Cleanliness */}
-        <SectionCard title="Cleanliness" desc="How tidy are you?" optional>
-          <div className="flex gap-2 flex-wrap">
-            {CLEANLINESS_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} selected={form.cleanliness === opt.value} onClick={() => update('cleanliness', opt.value)}>
-                <span className="mr-1">{opt.icon}</span>{opt.label}
-              </ChipButton>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Noise Level */}
-        <SectionCard title="Noise Level" desc="Your living style" optional>
-          <div className="flex gap-2 flex-wrap">
-            {NOISE_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} selected={form.noise_level === opt.value} onClick={() => update('noise_level', opt.value)}>
-                <span className="mr-1">{opt.icon}</span>{opt.label}
-              </ChipButton>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Sleep Schedule */}
-        <SectionCard title="Sleep Schedule" desc="When do you usually sleep?" optional>
-          <div className="flex gap-2 flex-wrap">
-            {SLEEP_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} selected={form.sleep_time === opt.value} onClick={() => update('sleep_time', opt.value)}>
-                {opt.label}
-              </ChipButton>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Visitors */}
-        <SectionCard title="Visitors" desc="How often do you have guests?" optional>
-          <div className="flex gap-2 flex-wrap">
-            {VISITOR_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} selected={form.visitors === opt.value} onClick={() => update('visitors', opt.value)}>
-                {opt.label}
-              </ChipButton>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Duration */}
-        <SectionCard title="Move-in Duration" desc="How long are you looking to stay?" optional>
-          <div className="flex gap-2 flex-wrap">
-            {DURATION_OPTIONS.map((opt) => (
-              <ChipButton key={opt.value} selected={form.stay_duration === opt.value} onClick={() => update('stay_duration', opt.value)}>
-                {opt.label}
-              </ChipButton>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Occupation */}
-        <SectionCard title="Occupation / Study" desc="What do you do?" optional>
-          <input
-            value={form.study_level}
-            onChange={(e) => update('study_level', e.target.value)}
-            placeholder="e.g. Software Developer, Student"
-            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-          />
-        </SectionCard>
-
-        {/* Bio */}
-        <SectionCard title="About You" desc="Tell potential roommates about yourself" optional>
+        {/* Bio (always visible, compact) */}
+        <div className="glass rounded-2xl p-4">
+          <label className="text-sm font-semibold text-white mb-1 block">About You</label>
+          <p className="text-[10px] text-[#5C5E72] mb-3">Brief intro for potential roommates</p>
           <textarea
             value={form.bio}
             onChange={(e) => update('bio', e.target.value)}
             placeholder="Your habits, hobbies, what you're looking for..."
-            rows={3}
+            rows={2}
             className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none"
           />
-        </SectionCard>
+        </div>
 
         {/* Submit */}
         <button
@@ -485,7 +602,7 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
   );
 }
 
-// ─── MATCHES VIEW ──────────────────────────────────
+// ─── MATCHES VIEW ──────────────────────────────────────
 
 function MatchesView({ matches, loading, onChangeView, onRefresh }: {
   matches: any[];
@@ -493,26 +610,14 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
   onChangeView: (v: View) => void;
   onRefresh: () => void;
 }) {
-  useEffect(() => {
-    onRefresh();
-  }, [onRefresh]);
+  useEffect(() => { onRefresh(); }, [onRefresh]);
 
-  function getScoreColor(score: number) {
-    if (score >= 70) return 'bg-green-500';
-    if (score >= 40) return 'bg-amber-500';
-    return 'bg-red-400';
-  }
-
-  function getScoreLabel(score: number) {
-    if (score >= 70) return 'High Match';
-    if (score >= 40) return 'Medium Match';
-    return 'Low Match';
-  }
+  const scoreColor = (s: number) => s >= 70 ? 'bg-green-500' : s >= 40 ? 'bg-amber-500' : 'bg-red-400';
+  const scoreLabel = (s: number) => s >= 70 ? 'High' : s >= 40 ? 'Good' : 'Low';
 
   return (
     <>
-      {/* Header */}
-      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4 flex items-center justify-between">
+      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <button onClick={() => onChangeView('preview')} className="text-[#8A8B9C] hover:text-white transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
@@ -524,7 +629,7 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
         </div>
         <button
           onClick={() => onChangeView('edit')}
-          className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] font-medium px-2.5 py-1.5 rounded-lg bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-colors"
+          className="text-[10px] text-[#3B82F6] font-medium px-2.5 py-1.5 rounded-lg bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-colors"
         >
           Edit Filters
         </button>
@@ -533,8 +638,8 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
       <div className="max-w-lg mx-auto px-5 py-4">
         {loading ? (
           <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-[#12121A] border border-white/[0.04] rounded-2xl p-4 space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-[#12121A] border border-white/[0.04] rounded-2xl p-4">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-[#1A1A24] shimmer" />
                   <div className="flex-1 space-y-2">
@@ -542,7 +647,6 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
                     <div className="h-2.5 bg-[#1A1A24] shimmer rounded w-1/2" />
                   </div>
                 </div>
-                <div className="h-2 bg-[#1A1A24] shimmer rounded w-full" />
               </div>
             ))}
           </div>
@@ -552,11 +656,8 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </div>
             <p className="text-sm text-[#8A8B9C]">No matches yet</p>
-            <p className="text-xs text-[#8A8B9C]/70 mt-1 mb-4">Update your preferences for better matches</p>
-            <button
-              onClick={() => onChangeView('edit')}
-              className="h-9 px-4 rounded-xl bg-[#3B82F6]/10 text-[#3B82F6] text-xs font-medium hover:bg-[#3B82F6]/20 transition-colors"
-            >
+            <p className="text-xs text-[#8A8B9C]/70 mt-1 mb-4">Update preferences for better matches</p>
+            <button onClick={() => onChangeView('edit')} className="h-9 px-4 rounded-xl bg-[#3B82F6]/10 text-[#3B82F6] text-xs font-medium hover:bg-[#3B82F6]/20 transition-colors">
               Update Preferences
             </button>
           </div>
@@ -572,25 +673,23 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
                     <div className="text-sm font-semibold text-white">@{m.profiles?.username || 'user'}</div>
                     <div className="text-[10px] text-[#8A8B9C] capitalize">{m.gender} · {m.study_level || 'Student'}</div>
                   </div>
-                  <div className={`text-white text-[10px] font-bold px-2 py-1 rounded-full ${getScoreColor(m.match_score)}`}>
+                  <div className={`text-white text-[10px] font-bold px-2 py-1 rounded-full ${scoreColor(m.match_score)}`}>
                     {m.match_score}%
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex-1 h-2 rounded-full bg-[#1A1A24] overflow-hidden">
-                    <div className={`h-full rounded-full ${getScoreColor(m.match_score)}`} style={{ width: `${m.match_score}%` }} />
+                    <div className={`h-full rounded-full ${scoreColor(m.match_score)}`} style={{ width: `${m.match_score}%` }} />
                   </div>
-                  <span className="text-[10px] text-[#8A8B9C]">{getScoreLabel(m.match_score)}</span>
+                  <span className="text-[10px] text-[#8A8B9C]">{scoreLabel(m.match_score)}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-[#8A8B9C]">
-                  <div><span className="text-white font-medium">Budget:</span> N{m.budget_min?.toLocaleString()}-N{m.budget_max?.toLocaleString()}</div>
+                  <div><span className="text-white font-medium">Budget:</span> ₦{m.budget_min?.toLocaleString()}-₦{m.budget_max?.toLocaleString()}</div>
                   <div><span className="text-white font-medium">Area:</span> {m.area_preference || 'Any'}</div>
                   <div><span className="text-white font-medium">Clean:</span> {m.cleanliness}</div>
                   <div><span className="text-white font-medium">Noise:</span> {m.noise_level}</div>
-                  <div><span className="text-white font-medium">Sleep:</span> {m.sleep_time}</div>
-                  <div><span className="text-white font-medium">Visitors:</span> {m.visitors}</div>
                 </div>
 
                 {m.bio && <p className="text-[10px] text-[#8A8B9C] mt-2 italic">&ldquo;{m.bio}&rdquo;</p>}
@@ -603,24 +702,9 @@ function MatchesView({ matches, loading, onChangeView, onRefresh }: {
   );
 }
 
-// ─── UI COMPONENTS ─────────────────────────────────
+// ─── UI COMPONENTS ─────────────────────────────────────
 
-function SectionCard({ title, desc, optional, children }: { title: string; desc: string; optional?: boolean; children: React.ReactNode }) {
-  return (
-    <div className="glass rounded-2xl p-4">
-      <div className="mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          {optional && <span className="text-[9px] text-[#5C5E72] bg-[#1A1A24] px-1.5 py-0.5 rounded-full">Optional</span>}
-        </div>
-        <p className="text-[11px] text-[#5C5E72] mt-0.5">{desc}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ChipButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -647,10 +731,7 @@ function RoommateSkeleton() {
       </header>
       <div className="max-w-lg mx-auto px-5 space-y-4">
         <div className="glass rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="h-5 w-40 rounded shimmer" />
-            <div className="h-6 w-12 rounded-lg shimmer" />
-          </div>
+          <div className="h-5 w-40 rounded shimmer" />
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl shimmer" />
             <div className="space-y-2">
