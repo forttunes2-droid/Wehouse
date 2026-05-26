@@ -3,11 +3,11 @@ import { signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runD
 import { Input } from '@/components/ui/input';
 
 interface LoginProps {
-  onLoginSuccess: (authId: string, email: string) => void;
+  onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker') => void;
   serverError: string;
 }
 
-type Mode = 'choose' | 'signin' | 'signup' | 'forgot';
+type Mode = 'choose' | 'choose_role' | 'signin' | 'signup' | 'forgot';
 
 // ─── ERROR TRANSLATION ─────────────────────────────
 function friendlyError(raw: string): string {
@@ -73,6 +73,7 @@ function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }
 
 export default function Login({ onLoginSuccess, serverError }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
+  const [signupRole, setSignupRole] = useState<'user' | 'worker'>('user');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -114,7 +115,7 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
           console.error('[WeHouse SignUp Error]', err.message);
           setError(friendlyError(err.message));
         } else if (data.session?.user) {
-          onLoginSuccess(data.session.user.id, data.session.user.email || email);
+          onLoginSuccess(data.session.user.id, data.session.user.email || email, signupRole);
         } else if (data.user) {
           setInfo('Account created! Check your email to confirm.');
         } else {
@@ -215,8 +216,41 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
             <button onClick={() => { setMode('signin'); setError(''); }} className="w-full h-12 rounded-xl bg-[#1A1A24] text-white font-medium text-sm border border-[#232330] hover:border-[#3B82F6]/50 hover:bg-[#1E1E2C] transition-all">
               Sign In with Email
             </button>
-            <button onClick={() => { setMode('signup'); setError(''); }} className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-medium text-sm hover:bg-[#2563EB] transition-colors glow-blue-sm">
+            <button onClick={() => { setMode('choose_role'); setError(''); }} className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-medium text-sm hover:bg-[#2563EB] transition-colors glow-blue-sm">
               Create Account
+            </button>
+          </div>
+        )}
+
+        {/* Choose Role */}
+        {mode === 'choose_role' && (
+          <div className="space-y-3">
+            <p className="text-xs text-[#5C5E72] text-center mb-2">I want to...</p>
+
+            <button onClick={() => { setSignupRole('user'); setMode('signup'); setError(''); }}
+              className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
+              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Find Housing</div>
+                <div className="text-[10px] text-[#5C5E72]">Browse listings, roommates, services</div>
+              </div>
+            </button>
+
+            <button onClick={() => { setSignupRole('worker'); setMode('signup'); setError(''); }}
+              className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
+              <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Offer Services</div>
+                <div className="text-[10px] text-[#5C5E72]">Register as a service provider</div>
+              </div>
+            </button>
+
+            <button type="button" onClick={() => { setMode('choose'); setError(''); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#8B8DA0] transition-colors pt-2">
+              Back
             </button>
           </div>
         )}

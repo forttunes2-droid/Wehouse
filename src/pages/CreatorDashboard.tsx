@@ -3,14 +3,15 @@ import {
   getAllUsers, getUserCount, updateUserRole, deleteUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
-  updateSystemSetting, logAuditAction,
+  updateSystemSetting, logAuditAction, getPendingWorkers, updateWorkerStatus,
 } from '@/lib/supabase';
+import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, canModifyRole } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing } from '@/types';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -38,7 +39,8 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
     { id: 'listings' as AdminTab, label: 'Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
     { id: 'reports' as AdminTab, label: 'Reports', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01' },
     { id: 'audit' as AdminTab, label: 'Audit', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
-    { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
+    { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
+    { id: 'workers' as AdminTab, label: 'Workers', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z' },
   ];
 
   return (
@@ -110,6 +112,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'audit' && <AuditTab />}
         {activeTab === 'settings' && <SettingsTab profile={profile} isCreator={isCreatorAccount} />}
+        {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
       </main>
     </div>
   );
@@ -603,6 +606,80 @@ function SettingsTab({ profile, isCreator }: { profile: Profile; isCreator: bool
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── WORKER APPLICATIONS TAB ───────────────────────
+
+function WorkerApplicationsTab({ profile }: { profile: Profile }) {
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'suspended' | 'rejected'>('all');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { workers: data } = await getPendingWorkers();
+    setWorkers(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleStatus(userId: string, status: 'verified' | 'suspended' | 'rejected') {
+    await updateWorkerStatus(userId, status);
+    await logAuditAction(profile.user_id, profile.email, `worker_${status}`, 'worker', userId, `Worker ${status}`);
+    toast.success(`Worker ${status}`);
+    load();
+  }
+
+  const filtered = filter === 'all' ? workers : workers.filter(w => w.worker_status === filter);
+
+  return (
+    <div className="space-y-3">
+      {/* Filter tabs */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+        {(['all', 'pending', 'verified', 'suspended', 'rejected'] as const).map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`flex-shrink-0 h-8 px-3 rounded-lg text-[10px] font-medium capitalize transition-colors ${
+              filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'
+            }`}>{f}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-xs text-[#5C5E72]">No worker applications</div>
+      ) : (
+        filtered.map(w => (
+          <div key={w.user_id} className="glass rounded-2xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                {w.avatar_url ? <img src={w.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : (w.full_name || w.username || 'W').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-white truncate">{w.full_name || w.username || '...'}</span>
+                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${
+                    w.worker_status === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    w.worker_status === 'verified' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                    w.worker_status === 'suspended' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                    'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                  }`}>{w.worker_status}</span>
+                </div>
+                <div className="text-[10px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[w.worker_occupation] || w.worker_occupation} · {w.city || 'No location'}</div>
+              </div>
+            </div>
+            {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mb-3 italic">{w.worker_bio}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
+              <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
+              <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

@@ -3,17 +3,31 @@
 // CREATOR = platform creator / owner
 // ADMIN   = full admin access
 // STAFF   = limited admin access
-// WORKER  = FUTURE — service provider (electrician, plumber, etc.)
-//           Architecture prepared. No UI built yet.
+// WORKER  = service provider (electrician, plumber, etc.)
 
 export type UserRole = 'user' | 'creator' | 'admin' | 'staff' | 'worker';
 
-// Future worker occupations — used when worker system is built
+export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
+
 export const WORKER_OCCUPATIONS = [
   'electrician', 'plumber', 'cleaner', 'carpenter',
   'generator_repair', 'ac_technician', 'internet_installer',
-  'moving_service', 'security', 'water_supply',
+  'moving_service', 'security', 'water_supply', 'handyman',
 ] as const;
+
+export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
+  electrician: 'Electrician',
+  plumber: 'Plumber',
+  cleaner: 'Cleaner',
+  carpenter: 'Carpenter',
+  generator_repair: 'Generator Repair',
+  ac_technician: 'AC Technician',
+  internet_installer: 'Internet Installer',
+  moving_service: 'Moving Service',
+  security: 'Security',
+  water_supply: 'Water Supply',
+  handyman: 'Handyman',
+};
 
 export interface Profile {
   id: string;
@@ -47,16 +61,18 @@ export interface Profile {
   privacy_profile_visible: boolean;
   privacy_search_visible: boolean;
   privacy_activity_visible: boolean;
-  // ── WORKER ARCHITECTURE (future) ─────────────────
+  // ── WORKER FIELDS ─────────────────────────────────
+  worker_status: WorkerStatus | null;  // pending | verified | suspended | rejected
   worker_occupation: string | null;   // e.g. "electrician"
   worker_verified: boolean;            // approved by platform
   worker_bio: string | null;           // service description
+  full_name: string | null;            // worker's real name
   // ─────────────────────────────────────────────────
   created_at: string;
   updated_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'dashboard' | 'creator';
+export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator';
 
 export interface Listing {
   id: string;

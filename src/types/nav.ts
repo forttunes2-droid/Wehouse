@@ -11,4 +11,7 @@ export type NavPage =
   | 'account'
   | 'privacy'
   | 'security'
-  | 'new_listing';
+  | 'new_listing'
+  | 'worker_setup'
+  | 'worker_dashboard'
+  | 'worker_discovery';

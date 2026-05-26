@@ -19,6 +19,9 @@ const AccountCenter = lazy(() => import('@/pages/AccountCenter'));
 const PrivacySettings = lazy(() => import('@/pages/PrivacySettings'));
 const SecuritySettings = lazy(() => import('@/pages/SecuritySettings'));
 const CreateListing = lazy(() => import('@/pages/CreateListing'));
+const WorkerSetup = lazy(() => import('@/pages/WorkerSetup'));
+const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
+const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -64,6 +67,8 @@ export default function App() {
   // Roommate is now a unified page — no mode state needed
   const [error, setError] = useState<Error | null>(null);
   const isAdmin = hasAdminAccess(auth.profile?.role || '');
+  const isWorker = auth.profile?.role === 'worker';
+  const isUser = !isAdmin && !isWorker;
 
   // Error boundary
   useEffect(() => {
@@ -127,6 +132,11 @@ export default function App() {
     return <Setup profile={auth.profile} onSetupComplete={auth.handleSetupComplete} />;
   }
 
+  // ─── WORKER SETUP ─────────────────────────────────
+  if (auth.page === 'worker_setup' && auth.profile) {
+    return <WorkerSetup profile={auth.profile} onComplete={() => { auth.handleSetupComplete(auth.profile!); }} />;
+  }
+
   const profile = auth.profile;
   if (!profile) return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;
 
@@ -160,20 +170,28 @@ export default function App() {
         return <SecuritySettings profile={profile} onBack={() => goTo('account')} />;
       case 'new_listing':
         return <CreateListing profile={profile} onBack={() => goTo('home')} onSuccess={() => goTo('home')} />;
+      case 'worker_dashboard':
+        return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} />;
+      case 'worker_discovery':
+        return <WorkerDiscovery userCity={profile.city} />;
+      case 'worker_setup':
+        return <WorkerSetup profile={profile} onComplete={() => goTo('worker_dashboard')} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
   };
 
-  // Bottom nav tabs
+  // Bottom nav tabs — different for each role
   const tabs = [
     { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
     { id: 'search' as NavPage, label: 'Search', icon: SearchSvg },
     { id: 'saved' as NavPage, label: 'Saved', icon: HeartSvg },
     { id: 'roommate' as NavPage, label: 'Roommate', icon: UsersSvg },
+    ...(isUser ? [{ id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg }] : []),
+    ...(isWorker ? [{ id: 'worker_dashboard' as NavPage, label: 'Dashboard', icon: BriefcaseSvg }] : []),
     ...(isAdmin
       ? [{ id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }]
-      : [{ id: 'profile' as NavPage, label: 'Profile', icon: UserSvg }]),
+      : isUser ? [{ id: 'profile' as NavPage, label: 'Profile', icon: UserSvg }] : []),
   ];
 
   return (
@@ -183,7 +201,7 @@ export default function App() {
       </div>
 
       {/* Bottom Nav */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {
@@ -251,6 +269,23 @@ function AdminSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+
+function WrenchSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  );
+}
+
+function BriefcaseSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
     </svg>
   );
 }

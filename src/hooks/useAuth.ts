@@ -64,6 +64,7 @@ export function useAuth() {
 
   const determinePage = useCallback((profile: Profile | null): Page => {
     if (!profile) return 'login';
+    if (!profile.profile_complete && profile.role === 'worker') return 'worker_setup';
     if (!profile.profile_complete) return 'setup';
     if (hasAdminAccess(profile.role)) return 'creator';
     return 'dashboard';
@@ -143,7 +144,7 @@ export function useAuth() {
 
   // ─── Login success handler ────────────────────────
   const handleLoginSuccess = useCallback(
-    async (authId: string, email: string) => {
+    async (authId: string, email: string, role?: 'user' | 'worker') => {
       setState((s) => ({ ...s, isLoading: true, error: '' }));
 
       // Check by auth_id
@@ -171,12 +172,29 @@ export function useAuth() {
         return;
       }
 
-      // Create new profile
+      // Create new profile — with role for workers
+      const isWorker = role === 'worker';
       const { profile: newProfile, error: createError } = await createProfile(authId, email);
       if (createError || !newProfile) {
         setState({ page: 'login', profile: null, isLoading: false, error: createError?.message || 'Create failed' });
         return;
       }
+
+      // If worker, update with worker role and status
+      if (isWorker) {
+        await supabase
+          .from('profiles')
+          .update({ role: 'worker', worker_status: 'pending' })
+          .eq('user_id', newProfile.user_id);
+        // Refresh profile
+        const { data: updated } = await supabase.from('profiles').select('*').eq('user_id', newProfile.user_id).single();
+        if (updated) {
+          setState({ profile: updated as Profile, page: 'worker_setup', isLoading: false, error: '' });
+          trackSession(updated.user_id, authId).catch(() => {});
+          return;
+        }
+      }
+
       setState({ profile: newProfile, page: 'setup', isLoading: false, error: '' });
       trackSession(newProfile.user_id, authId).catch(() => {});
     },

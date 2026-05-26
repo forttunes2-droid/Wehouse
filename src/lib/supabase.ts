@@ -425,6 +425,38 @@ export async function findMatches(userId: string) {
   return { matches: data || [], error };
 }
 
+// ─── WORKER HELPERS ────────────────────────────────
+
+export async function getWorkers(filters?: { city?: string; occupation?: string; status?: string }) {
+  let query = supabase.from('profiles').select('*').eq('role', 'worker');
+  if (filters?.city) query = query.eq('city', filters.city);
+  if (filters?.occupation) query = query.eq('worker_occupation', filters.occupation);
+  if (filters?.status) query = query.eq('worker_status', filters.status);
+  else query = query.eq('worker_status', 'verified'); // default: only verified
+  const { data, error } = await query.order('created_at', { ascending: false });
+  return { workers: data as Profile[] | null, error };
+}
+
+export async function getPendingWorkers() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'worker')
+    .eq('worker_status', 'pending')
+    .order('created_at', { ascending: false });
+  return { workers: data as Profile[] | null, error };
+}
+
+export async function updateWorkerStatus(userId: string, status: 'pending' | 'verified' | 'suspended' | 'rejected') {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ worker_status: status, worker_verified: status === 'verified', updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
+}
+
 // ─── CHAT HELPERS ──────────────────────────────────
 
 export async function getConversations(userId: string) {
