@@ -70,6 +70,20 @@ export interface Profile {
   // ─────────────────────────────────────────────────
   created_at: string;
   updated_at: string;
+  // ── SOFT DELETE ───────────────────────────────────
+  deleted: boolean;
+  deleted_at: string | null;
+}
+
+export interface RoleChangeHistory {
+  id: string;
+  user_id: string;
+  user_email: string;
+  old_role: UserRole;
+  new_role: UserRole;
+  changed_by: string;
+  changed_by_email: string;
+  created_at: string;
 }
 
 export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator';

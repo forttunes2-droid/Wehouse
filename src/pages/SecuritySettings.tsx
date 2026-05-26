@@ -28,6 +28,10 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [deleteInput, setDeleteInput] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  // Only USER and WORKER can delete their own account
+  const canDeleteAccount = profile.role === 'user' || profile.role === 'worker';
+  const isCreator = profile.role === 'creator';
+
   // Parse current device for comparison
   const currentDevice = parseDeviceInfo();
 
@@ -310,8 +314,8 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
           </div>
         </div>
 
-        {/* Delete Account — Modern Modal Pattern */}
-        <div className="pt-4 border-t border-white/[0.04]">
+        {/* Delete Account — USER and WORKER only */}
+        {canDeleteAccount && <div className="pt-4 border-t border-white/[0.04]">
           <h3 className="text-[10px] font-semibold text-[#5C5E72] uppercase tracking-widest mb-4 px-1">
             Account Removal
           </h3>
@@ -398,7 +402,57 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
               </div>
             </div>
           )}
-        </div>
+        </div>}
+
+        {/* Creator safety notice */}
+        {isCreator && (
+          <div className="pt-4 border-t border-white/[0.04]">
+            <h3 className="text-[10px] font-semibold text-purple-400 uppercase tracking-widest mb-4 px-1">
+              Creator Account
+            </h3>
+            <div className="glass rounded-2xl p-4 border border-purple-500/10">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M9 12l2 2 4-4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">Protected Account</p>
+                  <p className="text-[11px] text-[#5C5E72] mt-0.5">
+                    Creator accounts cannot be deleted through settings. Contact platform support for account changes.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Staff/Admin notice */}
+        {!canDeleteAccount && !isCreator && (
+          <div className="pt-4 border-t border-white/[0.04]">
+            <h3 className="text-[10px] font-semibold text-[#5C5E72] uppercase tracking-widest mb-4 px-1">
+              Account
+            </h3>
+            <div className="glass rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M12 8v4M12 16h.01" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">Account Managed</p>
+                  <p className="text-[11px] text-[#5C5E72] mt-0.5">
+                    {profile.role === 'staff' ? 'Staff' : 'Admin'} accounts cannot be self-deleted. Contact the creator to remove your account.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

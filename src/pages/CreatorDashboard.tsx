@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  getAllUsers, getUserCount, updateUserRole, deleteUser,
+  getAllUsers, getUserCount, updateUserRole, deleteUser, restoreUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
-import { isCreator, canModifyRole } from '@/hooks/useAuth';
+import { isCreator } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -243,84 +243,49 @@ function UsersTab({ profile }: { profile: Profile }) {
   useEffect(() => { load(); }, [load]);
 
   async function handleRole(userId: string, newRole: string) {
-    // Find target user
     const target = users.find(u => u.user_id === userId);
     if (!target) { toast.error('User not found'); return; }
 
     // ─── STRICT ROLE RULES ───────────────────────────
-    // Creator: untouchable
-    if (isCreator(target.role)) {
-      toast.error('Creator accounts cannot be modified');
-      return;
-    }
-    // Worker: signed up as worker, role is locked
-    if (target.role === 'worker') {
-      toast.error('Workers signed up as workers. Their role cannot be changed.');
-      return;
-    }
-    // Cannot assign creator role (only one creator exists)
-    if (newRole === 'creator') {
-      toast.error('Only one creator exists. Creator role cannot be assigned.');
-      return;
-    }
-    // Cannot assign worker role (workers must sign up as workers)
-    if (newRole === 'worker') {
-      toast.error('Workers must sign up via the worker registration. You cannot promote a user to worker.');
-      return;
-    }
-    // Only users can be promoted (to staff or admin)
-    // Staff and admin can be swapped between each other
-    if (target.role !== 'user' && target.role !== 'staff' && target.role !== 'admin') {
-      toast.error('This role cannot be modified');
-      return;
-    }
-    // Permission check
-    if (!canModifyRole(profile.role, target.role)) {
-      toast.error('You cannot modify this user\'s role');
-      return;
-    }
-    // Cannot change your own role
-    if (userId === profile.user_id && newRole !== profile.role) {
-      toast.error('You cannot change your own role');
-      return;
-    }
+    if (isCreator(target.role)) { toast.error('Creator accounts cannot be modified'); return; }
+    if (target.role === 'worker') { toast.error('Workers signed up as workers. Role cannot be changed.'); return; }
+    if (newRole === 'creator') { toast.error('Creator role cannot be assigned.'); return; }
+    if (newRole === 'worker') { toast.error('Workers must sign up via worker registration.'); return; }
+    if (userId === profile.user_id) { toast.error('You cannot change your own role'); return; }
 
-    const { error } = await updateUserRole(userId, newRole);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role to ${newRole}`);
-    toast.success('Role updated');
+    // Use the new updateUserRole with validation + history logging
+    const { error } = await updateUserRole(
+      userId, newRole, target.role,
+      profile.user_id, profile.email,
+      target.email
+    );
+    if (error) { toast.error(error.message || 'Failed'); return; }
+
+    await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role from ${target.role} to ${newRole}`);
+    toast.success(`Role changed: ${target.role} → ${newRole}`);
     load();
   }
 
   async function handleDelete(userId: string) {
     const target = users.find(u => u.user_id === userId);
     if (!target) { toast.error('User not found'); return; }
+    if (isCreator(target.role)) { toast.error('Creator accounts cannot be deleted'); return; }
+    if (userId === profile.user_id) { toast.error('You cannot delete your own account from here'); return; }
 
-    // ─── CREATOR PROTECTION ──────────────────────────
-    // Cannot delete creator
-    if (isCreator(target.role)) {
-      toast.error('Creator accounts cannot be deleted');
-      return;
-    }
-    // Cannot delete yourself
-    if (userId === profile.user_id) {
-      toast.error('You cannot delete your own account');
-      return;
-    }
-    // Permission check
-    if (!canModifyRole(profile.role, target.role)) {
-      toast.error('You cannot delete this user');
-      return;
-    }
-
-    if (!confirm('Delete this user permanently?')) return;
+    if (!confirm('Soft-delete this user? They can be restored later.')) return;
     const { error } = await deleteUser(userId);
-    if (error) {
-      toast.error('Delete failed: ' + error.message);
-      return;
-    }
-    await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User deleted');
+    if (error) { toast.error('Delete failed: ' + error.message); return; }
+    await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User soft-deleted');
     toast.success('User deleted');
+    load();
+  }
+
+  async function handleRestore(userId: string) {
+    if (!confirm('Restore this user?')) return;
+    const { error } = await restoreUser(userId);
+    if (error) { toast.error('Restore failed: ' + error.message); return; }
+    await logAuditAction(profile.user_id, profile.email, 'restore_user', 'user', userId, 'User restored');
+    toast.success('User restored');
     load();
   }
 
@@ -337,33 +302,40 @@ function UsersTab({ profile }: { profile: Profile }) {
           <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{filtered.length} Users</div>
           {filtered.map(u => {
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
-            // Role control logic:
-            // - Creator: locked, no controls
-            // - Worker: locked, workers sign up as workers, can't be changed
-            // - User: can be promoted to staff or admin
-            // - Staff/Admin: can be changed between staff/admin
             const isCreatorAccount = isCreator(u.role);
             const isWorkerAccount = u.role === 'worker';
             const isUserAccount = u.role === 'user';
             const canDelete = !isCreatorAccount && u.user_id !== profile.user_id;
+            const isDeleted = u.deleted;
 
             return (
-              <div key={u.id} className="glass rounded-xl p-3">
+              <div key={u.id} className={`glass rounded-xl p-3 ${isDeleted ? 'opacity-50 border-red-500/10' : ''}`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold relative">
+                    {(u.username || 'U').charAt(0).toUpperCase()}
+                    {isDeleted && <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-[#12121A]" />}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="text-xs font-semibold text-white truncate">@{u.username || '...'}</div>
                       <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${roleBadge}`}>
                         {u.role}
                       </span>
+                      {isDeleted && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">DELETED</span>}
                     </div>
                     <div className="text-[10px] text-[#5C5E72] truncate">{u.email}</div>
                   </div>
                 </div>
+
                 <div className="flex gap-2 mt-2.5">
-                  {/* Role: locked for creator and worker */}
-                  {isCreatorAccount ? (
+                  {isDeleted ? (
+                    <button
+                      onClick={() => handleRestore(u.user_id)}
+                      className="flex-1 h-7 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
+                    >
+                      Restore
+                    </button>
+                  ) : isCreatorAccount ? (
                     <div className="flex-1 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
                       Creator — cannot be changed
                     </div>
@@ -382,14 +354,16 @@ function UsersTab({ profile }: { profile: Profile }) {
                       <option value="admin">Admin</option>
                     </select>
                   )}
-                  {/* Delete — creator protected, can't delete self */}
-                  <button
-                    onClick={() => handleDelete(u.user_id)}
-                    disabled={!canDelete}
-                    className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Delete
-                  </button>
+
+                  {!isDeleted && (
+                    <button
+                      onClick={() => handleDelete(u.user_id)}
+                      disabled={!canDelete}
+                      className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -462,6 +436,7 @@ function ReportsTab({ profile }: { profile: Profile }) {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'resolved' | 'dismissed'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -482,18 +457,28 @@ function ReportsTab({ profile }: { profile: Profile }) {
   useEffect(() => { load(); }, [load]);
 
   async function handleResolve(id: string) {
-    await resolveReport(id, profile.user_id);
+    const { error } = await resolveReport(id, profile.user_id);
+    if (error) { toast.error('Failed: ' + error.message); return; }
     await logAuditAction(profile.user_id, profile.email, 'resolve_report', 'report', id, 'Resolved');
     toast.success('Resolved');
     load();
   }
 
   async function handleDismiss(id: string) {
-    await dismissReport(id, profile.user_id);
+    const { error } = await dismissReport(id, profile.user_id);
+    if (error) { toast.error('Failed: ' + error.message); return; }
     await logAuditAction(profile.user_id, profile.email, 'dismiss_report', 'report', id, 'Dismissed');
     toast.success('Dismissed');
     load();
   }
+
+  const filtered = filter === 'all' ? reports : reports.filter(r => r.status === filter);
+  const tabs: Array<{ id: typeof filter; label: string; color: string }> = [
+    { id: 'all', label: `All (${reports.length})`, color: 'text-white' },
+    { id: 'pending', label: `Pending (${reports.filter(r => r.status === 'pending').length})`, color: 'text-amber-400' },
+    { id: 'resolved', label: `Resolved (${reports.filter(r => r.status === 'resolved').length})`, color: 'text-green-400' },
+    { id: 'dismissed', label: `Dismissed (${reports.filter(r => r.status === 'dismissed').length})`, color: 'text-gray-400' },
+  ];
 
   return (
     <div className="space-y-3">
@@ -505,23 +490,47 @@ function ReportsTab({ profile }: { profile: Profile }) {
           <div>
             <p className="text-sm font-medium text-red-400">Access Denied</p>
             <p className="text-[11px] text-[#5C5E72] mt-0.5">{error}</p>
-            <p className="text-[10px] text-[#5C5E72] mt-1">Run the SQL migration in Supabase to enable admin access.</p>
           </div>
         </div>
       )}
+
+      {/* Filter Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setFilter(t.id)}
+            className={`h-8 px-3 rounded-xl text-[11px] font-medium whitespace-nowrap transition-all ${
+              filter === t.id ? 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20' : 'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
-      ) : reports.length === 0 ? (
-        <div className="text-center py-16 text-xs text-[#5C5E72]">No reports yet</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-xs text-[#5C5E72]">No reports</div>
       ) : (
-        reports.map(r => (
+        filtered.map(r => (
           <div key={r.id} className="glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${r.status === 'pending' ? 'bg-amber-500/10 text-amber-400' : r.status === 'resolved' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{r.status}</span>
-              <span className="text-[10px] text-[#5C5E72]">{new Date(r.created_at).toLocaleDateString()}</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                  r.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
+                  r.status === 'resolved' ? 'bg-green-500/10 text-green-400' :
+                  'bg-gray-500/10 text-gray-400'
+                }`}>{r.status}</span>
+                <span className="text-[10px] text-[#5C5E72]">{new Date(r.created_at).toLocaleDateString()}</span>
+              </div>
+              {r.reporter_id && (
+                <span className="text-[9px] text-[#5C5E72]">Reporter: {r.reporter_id.slice(0, 8)}...</span>
+              )}
             </div>
             <p className="text-xs text-white font-medium mb-1">{r.reason}</p>
-            <p className="text-[10px] text-[#5C5E72] mb-3">Listing: {r.listing_id}</p>
+            <div className="flex gap-3 mb-3">
+              {r.listing_id && <span className="text-[9px] text-[#5C5E72] bg-[#1A1A24] px-2 py-0.5 rounded-md">Listing: {r.listing_id.slice(0, 12)}</span>}
+              {r.reported_user_id && <span className="text-[9px] text-[#5C5E72] bg-[#1A1A24] px-2 py-0.5 rounded-md">User: {r.reported_user_id.slice(0, 12)}</span>}
+            </div>
             {r.status === 'pending' && (
               <div className="flex gap-2">
                 <button onClick={() => handleResolve(r.id)} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Resolve</button>

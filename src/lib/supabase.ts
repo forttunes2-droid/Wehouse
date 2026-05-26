@@ -595,48 +595,111 @@ export async function createRoomInterest(userId: string, listingId: string, mess
 
 // ─── ADMIN HELPERS ─────────────────────────────────
 
+// ── USERS (with soft-delete filtering) ─────────────
+
 export async function getAllUsers() {
-  const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('deleted', false)
+    .order('created_at', { ascending: false });
   return { users: data as Profile[] | null, error };
 }
 
 export async function getUserCount() {
-  const { count, error } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+  const { count, error } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('deleted', false);
   const { count: today } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
+    .eq('deleted', false)
     .gte('created_at', new Date(Date.now() - 86400000).toISOString());
   return { total: count || 0, today: today || 0, error };
 }
 
-export async function updateUserRole(userId: string, role: string) {
-  const { error } = await supabase.from('profiles').update({ role }).eq('user_id', userId);
+// ── ROLE MANAGEMENT ────────────────────────────────
+
+// Valid role transitions (bidirectional):
+// user ↔ staff, user ↔ admin, staff ↔ admin
+// worker is locked (must sign up as worker)
+// creator is locked (only one creator)
+const VALID_ROLE_TRANSITIONS: Record<string, string[]> = {
+  user: ['staff', 'admin'],
+  staff: ['user', 'admin'],
+  admin: ['user', 'staff'],
+  worker: [],
+  creator: [],
+};
+
+export function canChangeRole(currentRole: string, newRole: string): { allowed: boolean; reason?: string } {
+  const allowed = VALID_ROLE_TRANSITIONS[currentRole] || [];
+  if (!allowed.includes(newRole)) {
+    if (currentRole === 'worker') return { allowed: false, reason: 'Workers signed up as workers. Role cannot be changed.' };
+    if (currentRole === 'creator') return { allowed: false, reason: 'Creator role cannot be changed.' };
+    if (newRole === 'creator') return { allowed: false, reason: 'Creator role cannot be assigned.' };
+    if (newRole === 'worker') return { allowed: false, reason: 'Workers must sign up via worker registration.' };
+    return { allowed: false, reason: `Cannot change ${currentRole} to ${newRole}.` };
+  }
+  return { allowed: true };
+}
+
+export async function updateUserRole(
+  userId: string,
+  newRole: string,
+  currentRole: string,
+  changedBy: string,
+  changedByEmail: string,
+  userEmail: string
+) {
+  // 1. Validate transition
+  const validation = canChangeRole(currentRole, newRole);
+  if (!validation.allowed) return { error: { message: validation.reason } as any };
+
+  // 2. Update role
+  const { error } = await supabase.from('profiles').update({ role: newRole }).eq('user_id', userId);
+  if (error) return { error };
+
+  // 3. Log to role_change_history
+  await supabase.from('role_change_history').insert({
+    user_id: userId,
+    user_email: userEmail,
+    old_role: currentRole,
+    new_role: newRole,
+    changed_by: changedBy,
+    changed_by_email: changedByEmail,
+  });
+
+  return { error: null };
+}
+
+export async function getRoleChangeHistory(userId?: string) {
+  let query = supabase.from('role_change_history').select('*').order('created_at', { ascending: false });
+  if (userId) query = query.eq('user_id', userId);
+  const { data, error } = await query;
+  return { history: data as any[] | null, error };
+}
+
+// ── SOFT DELETE ────────────────────────────────────
+
+export async function deleteUser(userId: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ deleted: true, deleted_at: new Date().toISOString() })
+    .eq('user_id', userId);
   return { error };
 }
 
-export async function deleteUser(userId: string) {
-  // Try direct delete first — WITH row verification
-  let result = await supabase.from('profiles').delete().eq('user_id', userId).select();
-  if (!result.error && result.data && result.data.length > 0) return { error: null };
-
-  // FK violation — cascade delete related records one by one
-  await supabase.from('saved_listings').delete().eq('user_id', userId);
-  await supabase.from('roommate_preferences').delete().eq('user_id', userId);
-  await supabase.from('roommate_matches').delete().or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
-  await supabase.from('user_activity').delete().eq('user_id', userId);
-  await supabase.from('reviews').delete().or(`reviewer_id.eq.${userId},reviewee_id.eq.${userId}`);
-  await supabase.from('conversations').delete().or(`participant_a.eq.${userId},participant_b.eq.${userId}`);
-
-  // Retry profile delete — WITH row verification
-  result = await supabase.from('profiles').delete().eq('user_id', userId).select();
-  if (!result.error && (!result.data || result.data.length === 0)) {
-    return { error: { message: 'Delete returned 0 rows — user may not exist or RLS blocked' } as any };
-  }
-  return { error: result.error };
+export async function deleteOwnAccount(userId: string, _authId: string) {
+  return await deleteUser(userId);
 }
 
-export async function deleteOwnAccount(userId: string, _authId: string) {
-  const { error } = await deleteUser(userId);
+export async function restoreUser(userId: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ deleted: false, deleted_at: null })
+    .eq('user_id', userId);
   return { error };
 }
 
@@ -650,14 +713,29 @@ export async function getReports() {
   return { reports: data as any[] | null, error };
 }
 
+export async function createReport(reporterId: string, reason: string, listingId?: string, reportedUserId?: string) {
+  const { data, error } = await supabase.from('listing_reports').insert({
+    reporter_id: reporterId,
+    listing_id: listingId || null,
+    reported_user_id: reportedUserId || null,
+    reason,
+    status: 'pending',
+  }).select();
+  return { report: data?.[0] || null, error };
+}
+
 export async function resolveReport(reportId: string, adminId: string) {
-  const { error } = await supabase.from('listing_reports').update({ status: 'resolved', resolved_by: adminId }).eq('id', reportId);
+  const { error } = await supabase.from('listing_reports').update({ status: 'resolved', resolved_by: adminId, resolved_at: new Date().toISOString() }).eq('id', reportId);
   return { error };
 }
 
 export async function dismissReport(reportId: string, adminId: string) {
-  const { error } = await supabase.from('listing_reports').update({ status: 'dismissed', resolved_by: adminId }).eq('id', reportId);
+  const { error } = await supabase.from('listing_reports').update({ status: 'dismissed', resolved_by: adminId, resolved_at: new Date().toISOString() }).eq('id', reportId);
   return { error };
+}
+
+export async function suspendUser(userId: string) {
+  return await updateWorkerStatus(userId, 'suspended');
 }
 
 export async function getAuditLogs() {
