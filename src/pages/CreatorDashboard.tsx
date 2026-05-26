@@ -342,7 +342,7 @@ function UsersTab({ profile }: { profile: Profile }) {
                     <option value="staff">Staff</option>
                     <option value="admin">Admin</option>
                     <option value="creator">Creator</option>
-                    <option value="worker">Worker (future)</option>
+                    <option value="worker">Worker</option>
                   </select>
                   {/* Delete — creator protected */}
                   <button
