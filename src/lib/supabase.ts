@@ -1,12 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Profile, Listing, RoommatePreferences, ListingReport, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest } from '@/types';
 
-// Prefer environment variables, fallback to config for client-side deployment.
-// The anon key is a PUBLIC client key — safe in bundles. Security = RLS policies.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
+// ─── SUPABASE CONFIG ───────────────────────────────
+// The anon key is a PUBLIC client key — safe in client bundles.
+// Real security = Row Level Security (RLS) policies in Supabase.
+// Env vars can override for local dev; production uses defaults below.
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+let SUPABASE_URL: string;
+let SUPABASE_ANON_KEY: string;
+
+try {
+  // Vite replaces import.meta.env at build time
+  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+  SUPABASE_URL = envUrl || 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
+  SUPABASE_ANON_KEY = envKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
+} catch {
+  // Fallback if import.meta.env is not available
+  SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
+  SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
+}
+
+// Validate config before creating client
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL === 'undefined' || SUPABASE_ANON_KEY === 'undefined') {
+  console.error('[WeHouse] Supabase configuration missing. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY env vars.');
+}
+
+export const supabase = createClient(SUPABASE_URL || '', SUPABASE_ANON_KEY || '', {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
@@ -14,6 +34,25 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     flowType: 'pkce',
   },
 });
+
+// ─── AUTH HEALTH CHECK ─────────────────────────────
+
+export async function checkAuthHealth(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    // Quick ping — getSession is the cheapest auth call
+    const { error } = await supabase.auth.getSession();
+    if (error) {
+      const msg = error.message?.toLowerCase() || '';
+      if (msg.includes('api key') || msg.includes('invalid')) {
+        return { ok: false, error: 'auth_config_error' };
+      }
+      return { ok: false, error: 'auth_unavailable' };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'network_error' };
+  }
+}
 
 // ─── AUTH HELPERS ──────────────────────────────────
 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, checkAuthHealth } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
 
 interface LoginProps {
@@ -9,13 +9,95 @@ interface LoginProps {
 
 type Mode = 'choose' | 'signin' | 'signup' | 'forgot';
 
+// ─── ERROR TRANSLATION ─────────────────────────────
+// Map raw Supabase errors to friendly messages
+function friendlyError(raw: string): string {
+  const msg = raw.toLowerCase();
+  if (msg.includes('api key') || msg.includes('invalid key')) {
+    return 'Authentication service unavailable. Please try again later.';
+  }
+  if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+    return 'Invalid email or password. Please check and try again.';
+  }
+  if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
+    return 'Please confirm your email address before signing in.';
+  }
+  if (msg.includes('user already registered') || msg.includes('already registered')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  if (msg.includes('user not found')) {
+    return 'No account found with this email. Please sign up first.';
+  }
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
+    return 'Connection failed. Please check your internet and try again.';
+  }
+  if (msg.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  if (msg.includes('password') && msg.includes('weak')) {
+    return 'Password is too weak. Use at least 6 characters.';
+  }
+  if (msg.includes('for security')) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+  // Return a cleaned version of unknown errors
+  return raw.length > 120 ? 'Something went wrong. Please try again.' : raw;
+}
+
+// ─── PASSWORD VISIBILITY ICON ──────────────────────
+
+function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      tabIndex={-1}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5C5E72] hover:text-[#8B8DA0] transition-colors p-1"
+      aria-label={visible ? 'Hide password' : 'Show password'}
+    >
+      {visible ? (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M9.88 9.88l4.24 4.24M14.12 9.88l-4.24 4.24" />
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ─── MAIN COMPONENT ────────────────────────────────
+
 export default function Login({ onLoginSuccess, serverError }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [authReady, setAuthReady] = useState(true);
+
+  // Check auth health on mount
+  useEffect(() => {
+    checkAuthHealth().then(({ ok, error: healthErr }) => {
+      if (!ok) {
+        setAuthReady(false);
+        if (healthErr === 'auth_config_error') {
+          setError('Authentication service is not configured. Please contact support.');
+        } else if (healthErr === 'auth_unavailable') {
+          setError('Authentication service temporarily unavailable. Please try again later.');
+        } else {
+          setError('Network issue detected. Please check your connection.');
+        }
+      }
+    });
+  }, []);
 
   const displayError = error || serverError;
 
@@ -28,7 +110,12 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
     setError('');
     setInfo('');
 
-    if (!email.includes('@')) { setError('Enter a valid email'); return; }
+    if (!authReady) {
+      setError('Authentication service is currently unavailable. Please try again later.');
+      return;
+    }
+
+    if (!email.includes('@')) { setError('Enter a valid email address'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
 
     setWorking(true);
@@ -36,36 +123,44 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
     try {
       if (isSignup) {
         const { data, error: err } = await withTimeout(signUpWithEmail(email.trim(), password), 12000);
-        if (err) { setError(err.message); }
+        if (err) { setError(friendlyError(err.message)); }
         else if (data.session?.user) { onLoginSuccess(data.session.user.id, data.session.user.email || email); }
         else if (data.user) { setInfo('Account created! Check your email to confirm.'); }
-        else { setError('Signup incomplete'); }
+        else { setError('Signup incomplete. Please try again.'); }
       } else {
         const { data, error: err } = await withTimeout(signInWithEmail(email.trim(), password), 12000);
-        if (err) { setError(err.message); }
+        if (err) { setError(friendlyError(err.message)); }
         else if (data.session?.user) { onLoginSuccess(data.session.user.id, data.session.user.email || email); }
-        else { setError('Login failed'); }
+        else { setError('Login failed. Please try again.'); }
       }
     } catch (err: any) {
-      setError(err?.message || 'Connection timeout. Try again.');
+      setError(friendlyError(err?.message || 'Connection timeout'));
     } finally {
       setWorking(false);
     }
   }
 
   async function handleGoogle() {
+    if (!authReady) {
+      setError('Authentication service is currently unavailable. Please try again later.');
+      return;
+    }
     setWorking(true);
     const { error: err } = await signInWithGoogle();
-    if (err) { setError(err.message); setWorking(false); }
+    if (err) { setError(friendlyError(err.message)); setWorking(false); }
   }
 
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.includes('@')) { setError('Enter a valid email'); return; }
+    if (!authReady) {
+      setError('Authentication service is currently unavailable. Please try again later.');
+      return;
+    }
+    if (!email.includes('@')) { setError('Enter a valid email address'); return; }
     setWorking(true);
     const { error: err } = await resetPassword(email.trim());
-    if (err) setError(err.message);
-    else setInfo('Reset link sent! Check your email.');
+    if (err) setError(friendlyError(err.message));
+    else setInfo('Reset link sent! Check your email inbox.');
     setWorking(false);
   }
 
@@ -85,12 +180,12 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
 
         {/* Messages */}
         {displayError && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center">
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center leading-relaxed">
             {displayError}
           </div>
         )}
         {info && (
-          <div className="mb-4 p-3 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs text-center">
+          <div className="mb-4 p-3 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs text-center leading-relaxed">
             {info}
           </div>
         )}
@@ -98,7 +193,7 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
         {/* Choose */}
         {mode === 'choose' && (
           <div className="space-y-3">
-            <button onClick={handleGoogle} disabled={working} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors">
+            <button onClick={handleGoogle} disabled={working || !authReady} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors disabled:opacity-50">
               <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
               Continue with Google
             </button>
@@ -122,15 +217,35 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
           <form onSubmit={(e) => handleSubmit(e, mode === 'signup')} className="space-y-4">
             <div>
               <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20"
+              />
             </div>
-            <div>
+            <div className="relative">
               <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Password</label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" required minLength={6} className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min 6 characters"
+                required
+                minLength={6}
+                className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20 pr-10"
+              />
+              <EyeIcon visible={showPassword} onClick={() => setShowPassword(!showPassword)} />
             </div>
-            <button type="submit" disabled={working} className={`w-full h-12 rounded-xl font-medium text-sm btn-press transition-all ${
-              mode === 'signup' ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] glow-blue-sm' : 'bg-[#1A1A24] text-white border border-[#232330] hover:border-[#3B82F6]/50'
-            } disabled:opacity-50`}>
+            <button
+              type="submit"
+              disabled={working}
+              className={`w-full h-12 rounded-xl font-medium text-sm btn-press transition-all ${
+                mode === 'signup' ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] glow-blue-sm' : 'bg-[#1A1A24] text-white border border-[#232330] hover:border-[#3B82F6]/50'
+              } disabled:opacity-50`}
+            >
               {working ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
             </button>
             {mode === 'signin' && (
