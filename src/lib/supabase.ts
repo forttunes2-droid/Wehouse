@@ -3,42 +3,11 @@ import type { Profile, Listing, RoommatePreferences, AdminAuditLog, SystemSettin
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // These are PUBLIC client credentials — safe in browser bundles.
-// Security comes from Row Level Security (RLS) policies, not key secrecy.
-// Env vars can override for local development or project migration.
+// Real security = Row Level Security (RLS) policies, not key secrecy.
+const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
 
-const PROD_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
-const PROD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
-
-function getConfig(): { url: string; key: string; source: string } {
-  // Try env vars first (for local dev or Vercel env)
-  try {
-    const env = (import.meta as any).env;
-    if (env) {
-      const url = env.VITE_SUPABASE_URL;
-      const key = env.VITE_SUPABASE_ANON_KEY;
-      // Vite replaces missing env vars with empty string or "undefined" string
-      if (url && key && url !== 'undefined' && key !== 'undefined' && url !== '' && key !== '') {
-        return { url, key, source: 'env' };
-      }
-    }
-  } catch (e) {
-    // import.meta.env not available — expected in some build targets
-  }
-  // Production fallback — hardcoded values that match the project
-  return { url: PROD_URL, key: PROD_KEY, source: 'fallback' };
-}
-
-const config = getConfig();
-
-// Diagnostics — log config source (not the key itself)
-if (typeof window !== 'undefined') {
-  console.log('[WeHouse] Supabase config source:', config.source);
-  console.log('[WeHouse] Supabase URL:', config.url);
-  console.log('[WeHouse] Key present:', config.key.length > 0);
-  console.log('[WeHouse] Key prefix:', config.key.substring(0, 20) + '...');
-}
-
-export const supabase = createClient(config.url, config.key, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
@@ -51,7 +20,6 @@ export const supabase = createClient(config.url, config.key, {
 
 export interface DiagnosticsResult {
   supabaseUrl: string;
-  configSource: string;
   keyPresent: boolean;
   keyLength: number;
   authTest: 'ok' | 'error' | 'network_error';
@@ -75,30 +43,13 @@ export async function runDiagnostics(): Promise<DiagnosticsResult> {
   }
 
   return {
-    supabaseUrl: config.url,
-    configSource: config.source,
-    keyPresent: config.key.length > 0,
-    keyLength: config.key.length,
+    supabaseUrl: SUPABASE_URL,
+    keyPresent: SUPABASE_ANON_KEY.length > 0,
+    keyLength: SUPABASE_ANON_KEY.length,
     authTest,
     authError,
     timestamp: new Date().toISOString(),
   };
-}
-
-export async function checkAuthHealth(): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const { error } = await supabase.auth.getSession();
-    if (error) {
-      const msg = error.message?.toLowerCase() || '';
-      if (msg.includes('api key') || msg.includes('invalid')) {
-        return { ok: false, error: 'auth_config_error' };
-      }
-      return { ok: false, error: 'auth_unavailable' };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: 'network_error' };
-  }
 }
 
 // ─── AUTH HELPERS ──────────────────────────────────
@@ -136,8 +87,6 @@ export async function getSession() {
   return supabase.auth.getSession();
 }
 
-// ─── PROFILE HELPERS ───────────────────────────────
-
 // ─── SETUP HELPERS ─────────────────────────────────
 
 export async function isUsernameTaken(username: string): Promise<boolean> {
@@ -156,6 +105,8 @@ export async function updateUsername(userId: string, username: string) {
     .eq('user_id', userId);
   return { error };
 }
+
+// ─── PROFILE HELPERS ───────────────────────────────
 
 export async function getProfile(userId: string) {
   const { data, error } = await supabase
@@ -184,9 +135,20 @@ export async function getProfileByEmail(email: string) {
   return { profile: data as Profile | null, error };
 }
 
-// 2-arg version called from useAuth.ts (auto-generates userId and username)
+export async function linkProfileToAuth(userId: string, authId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ auth_id: authId })
+    .eq('user_id', userId)
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
+}
+
+// createProfile has two signatures:
+//   createProfile(authId, email)        — called from useAuth.ts
+//   createProfile(userId, email, username, authId)  — direct calls
 export async function createProfile(authId: string, email: string): Promise<{ profile: Profile | null; error: any }>;
-// 4-arg version for direct calls
 export async function createProfile(userId: string, email: string, username: string, authId: string): Promise<{ profile: Profile | null; error: any }>;
 export async function createProfile(a: string, b: string, c?: string, d?: string) {
   const authId = c === undefined ? a : d!;
@@ -203,21 +165,6 @@ export async function createProfile(a: string, b: string, c?: string, d?: string
       role: 'user',
       profile_complete: false,
     })
-    .select()
-    .single();
-  return { profile: data as Profile | null, error };
-}
-
-// Alias for ListingDetail which uses getListingById
-export async function getListingById(id: string) {
-  return getListing(id);
-}
-
-export async function linkProfileToAuth(userId: string, authId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ auth_id: authId })
-    .eq('user_id', userId)
     .select()
     .single();
   return { profile: data as Profile | null, error };
@@ -394,26 +341,6 @@ export async function getSessionHistory(userId: string, limit: number = 20) {
   return { sessions: data || [], error };
 }
 
-export async function getLoginCount(userId: string) {
-  const { count, error } = await supabase
-    .from('user_activity')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('action_type', 'session_start');
-  return { count: count || 0, error };
-}
-
-// ─── RECENTLY VIEWED ───────────────────────────────
-
-export async function trackView(userId: string, itemId: string, itemType: string = 'listing') {
-  const { error } = await supabase.from('recently_viewed').insert({
-    user_id: userId,
-    item_id: itemId,
-    item_type: itemType,
-  });
-  return { error };
-}
-
 // ─── LISTING HELPERS ───────────────────────────────
 
 export async function getAllListings() {
@@ -422,17 +349,12 @@ export async function getAllListings() {
 }
 
 export async function getListing(id: string) {
-  const { data, error } = await supabase.from('listings').select('*').eq('id', id).single();
+  const { data, error } = await supabase.from('listings').select('*').eq('listing_id', id).single();
   return { listing: data as Listing | null, error };
 }
 
-export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase.from('listings').insert({
-    ...listing,
-    listing_id: crypto.randomUUID(),
-  }).select().single();
-  return { listing: data as Listing | null, error };
-}
+// Alias used by ListingDetail.tsx
+export { getListing as getListingById };
 
 export async function getCreatorListings(userId: string) {
   const { data, error } = await supabase.from('listings').select('*').eq('owner_id', userId).order('created_at', { ascending: false });
@@ -448,12 +370,8 @@ export async function uploadListingImage(file: File, listingId: string) {
 }
 
 export async function deleteListing(listingId: string) {
-  // Try listing_id first, fall back to id
   const { error } = await supabase.from('listings').delete().eq('listing_id', listingId);
-  if (error) {
-    return { error };
-  }
-  return { error: null };
+  return { error };
 }
 
 // ─── SAVED LISTINGS ────────────────────────────────
@@ -471,6 +389,16 @@ export async function unsaveListing(userId: string, listingId: string) {
 export async function getSavedListings(userId: string) {
   const { data, error } = await supabase.from('saved_listings').select('listing_id').eq('user_id', userId);
   return { saved: data || [], savedIds: (data || []).map((r: any) => r.listing_id) as string[], error };
+}
+
+// ─── LISTING CREATION ──────────────────────────────
+
+export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await supabase.from('listings').insert({
+    ...listing,
+    listing_id: crypto.randomUUID(),
+  }).select().single();
+  return { listing: data as Listing | null, error };
 }
 
 // ─── ROOMMATE HELPERS ──────────────────────────────
