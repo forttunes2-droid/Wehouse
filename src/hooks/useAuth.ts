@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, getProfile, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession } from '@/lib/supabase';
+import { supabase, getProfile, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession, runDiagnostics } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -90,6 +90,11 @@ export function useAuth() {
   useEffect(() => {
     let done = false;
 
+    // Log diagnostics on init
+    runDiagnostics().then((d) => {
+      console.log('[WeHouse Auth Init] Diagnostics:', d);
+    }).catch(() => {});
+
     // Hard timeout: if getSession hangs, force login after 6s
     const forceLogin = () => {
       if (!done) {
@@ -117,7 +122,8 @@ export function useAuth() {
           forceLogin();
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[WeHouse Auth Init] getSession failed:', err?.message || err);
         clearTimeout(timeoutId);
         forceLogin();
       });
