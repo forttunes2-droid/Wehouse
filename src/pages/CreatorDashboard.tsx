@@ -6,7 +6,7 @@ import {
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
-import { isCreator } from '@/hooks/useAuth';
+import { isCreator, validateRoleTransition } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -246,14 +246,17 @@ function UsersTab({ profile }: { profile: Profile }) {
     const target = users.find(u => u.user_id === userId);
     if (!target) { toast.error('User not found'); return; }
 
-    // ─── STRICT ROLE RULES ───────────────────────────
-    if (isCreator(target.role)) { toast.error('Creator accounts cannot be modified'); return; }
-    if (target.role === 'worker') { toast.error('Workers signed up as workers. Role cannot be changed.'); return; }
-    if (newRole === 'creator') { toast.error('Creator role cannot be assigned.'); return; }
-    if (newRole === 'worker') { toast.error('Workers must sign up via worker registration.'); return; }
+    // Cannot change own role
     if (userId === profile.user_id) { toast.error('You cannot change your own role'); return; }
 
-    // Use the new updateUserRole with validation + history logging
+    // Validate using the permission matrix
+    const validation = validateRoleTransition(profile.role, target.role, newRole);
+    if (!validation.allowed) {
+      toast.error(validation.reason || 'Role change not allowed');
+      return;
+    }
+
+    // Execute the change
     const { error } = await updateUserRole(
       userId, newRole, target.role,
       profile.user_id, profile.email,
@@ -304,7 +307,6 @@ function UsersTab({ profile }: { profile: Profile }) {
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
             const isCreatorAccount = isCreator(u.role);
             const isWorkerAccount = u.role === 'worker';
-            const isUserAccount = u.role === 'user';
             const canDelete = !isCreatorAccount && u.user_id !== profile.user_id;
             const isDeleted = u.deleted;
 
@@ -349,7 +351,7 @@ function UsersTab({ profile }: { profile: Profile }) {
                       onChange={(e) => handleRole(u.user_id, e.target.value)}
                       className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
                     >
-                      {isUserAccount && <option value="user">User</option>}
+                      <option value="user">User</option>
                       <option value="staff">Staff</option>
                       <option value="admin">Admin</option>
                     </select>

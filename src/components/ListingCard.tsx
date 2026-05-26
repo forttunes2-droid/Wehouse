@@ -1,4 +1,5 @@
-import type { Listing } from '@/types';
+import type { Listing, ListingStatus } from '@/types';
+import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 
 interface ListingCardProps {
   listing: Listing;
@@ -10,12 +11,10 @@ interface ListingCardProps {
 export default function ListingCard({ listing, onClick, isSaved, onToggleSave }: ListingCardProps) {
   const imageUrl = listing.images?.[0] || 'https://placehold.co/600x400/1A1A24/5C5E72?text=No+Image';
 
-  const statusColors: Record<string, string> = {
-    available: 'bg-green-500/90 text-white',
-    reserved: 'bg-amber-500/90 text-white',
-    occupied: 'bg-gray-600/90 text-white',
-    hidden: 'bg-red-500/90 text-white',
-  };
+  // Use the new status field (ListingStatus)
+  const listingStatus: ListingStatus = listing.status || 'available';
+  const statusColor = LISTING_STATUS_COLORS[listingStatus] || LISTING_STATUS_COLORS.available;
+  const statusLabel = LISTING_STATUS_LABELS[listingStatus] || 'Available';
 
   return (
     <div onClick={onClick} className="bg-[#12121A] rounded-2xl overflow-hidden border border-[#1E1E2C] cursor-pointer card-hover group">
@@ -26,8 +25,8 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave }:
 
         {/* Status badge */}
         <div className="absolute top-3 left-3">
-          <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full uppercase backdrop-blur-sm ${statusColors[listing.availability_status] || 'bg-gray-600/90 text-white'}`}>
-            {listing.availability_status}
+          <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full uppercase backdrop-blur-sm border ${statusColor}`}>
+            {statusLabel}
           </span>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { useAuth, hasAdminAccess } from '@/hooks/useAuth';
+import { useAuth, hasAdminAccess, canCreateListings } from '@/hooks/useAuth';
 import { getSavedListings, saveListing, unsaveListing } from '@/lib/supabase';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
@@ -68,7 +68,9 @@ export default function App() {
   const [error, setError] = useState<Error | null>(null);
   const isAdmin = hasAdminAccess(auth.profile?.role || '');
   const isWorker = auth.profile?.role === 'worker';
-  const isUser = !isAdmin && !isWorker;
+  const isStaff = auth.profile?.role === 'staff';
+  const canList = canCreateListings(auth.profile?.role || '');
+  const isUser = !isAdmin && !isWorker && !isStaff;
 
   // Error boundary
   useEffect(() => {
@@ -145,7 +147,7 @@ export default function App() {
     const props = { profile, savedIds, onToggleSave: handleToggleSave };
     switch (navPage) {
       case 'home':
-        return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={isAdmin} onGoToNewListing={goToNewListing} />;
+        return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'search':
         return <Search onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} savedIds={savedIds} onToggleSave={handleToggleSave} />;
       case 'saved':
@@ -153,11 +155,11 @@ export default function App() {
       case 'roommate':
         return <Roommate profile={profile} />;
       case 'profile':
-        return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={isAdmin} onGoToNewListing={goToNewListing} />;
+        return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
       case 'detail':
-        return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} /> : null;
+        return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} /> : null;
       case 'chat':
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
       case 'profile_edit':
@@ -169,8 +171,8 @@ export default function App() {
       case 'security':
         return <SecuritySettings profile={profile} onBack={() => goTo('account')} />;
       case 'new_listing':
-        // Only staff and admin can create listings
-        if (!isAdmin) {
+        // Only staff, admin, creator can create listings
+        if (!canList) {
           setNavPage('home');
           return null;
         }

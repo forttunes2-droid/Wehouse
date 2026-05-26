@@ -813,3 +813,109 @@ export async function createNotification(userId: string, title: string, body: st
   const { error } = await supabase.from('notifications').insert({ user_id: userId, title, body, type });
   return { error };
 }
+
+
+// ─── LISTING STATUS ───────────────────────────────
+
+export async function updateListingStatus(listingId: string, status: string, updates?: Record<string, any>) {
+  const payload = { status, ...updates, updated_at: new Date().toISOString() };
+  const { error } = await supabase.from('listings').update(payload).eq('listing_id', listingId);
+  return { error };
+}
+
+// ─── ENQUIRIES ────────────────────────────────────
+
+export async function createEnquiry(listingId: string, userId: string, message: string) {
+  const { data, error } = await supabase.from('enquiries').insert({
+    listing_id: listingId,
+    user_id: userId,
+    message,
+    status: 'pending',
+  }).select();
+  return { enquiry: data?.[0] || null, error };
+}
+
+export async function getEnquiriesForListing(listingId: string) {
+  const { data, error } = await supabase
+    .from('enquiries')
+    .select('*')
+    .eq('listing_id', listingId)
+    .order('created_at', { ascending: false });
+  return { enquiries: data as any[] | null, error };
+}
+
+export async function getEnquiriesForUser(userId: string) {
+  const { data, error } = await supabase
+    .from('enquiries')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return { enquiries: data as any[] | null, error };
+}
+
+export async function replyToEnquiry(enquiryId: string, staffId: string, reply: string) {
+  const { error } = await supabase.from('enquiries').update({
+    reply,
+    staff_id: staffId,
+    status: 'replied',
+    replied_at: new Date().toISOString(),
+  }).eq('id', enquiryId);
+  return { error };
+}
+
+// ─── RESERVATIONS ─────────────────────────────────
+
+export async function createReservation(listingId: string, userId: string) {
+  // Check if already reserved
+  const { data: existing } = await supabase
+    .from('reservations')
+    .select('*')
+    .eq('listing_id', listingId)
+    .eq('user_id', userId)
+    .in('status', ['pending', 'confirmed'])
+    .maybeSingle();
+
+  if (existing) {
+    return { reservation: existing as any, error: null, alreadyExists: true };
+  }
+
+  const { data, error } = await supabase.from('reservations').insert({
+    listing_id: listingId,
+    user_id: userId,
+    status: 'pending',
+    fee_paid: false,
+    amount: 10000,
+    currency: 'NGN',
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+  }).select();
+
+  return { reservation: data?.[0] as any || null, error, alreadyExists: false };
+}
+
+export async function getReservationForListing(listingId: string, userId: string) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('*')
+    .eq('listing_id', listingId)
+    .eq('user_id', userId)
+    .in('status', ['pending', 'confirmed'])
+    .maybeSingle();
+  return { reservation: data as any, error };
+}
+
+export async function getReservationsForUser(userId: string) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return { reservations: data as any[] | null, error };
+}
+
+export async function cancelReservation(reservationId: string) {
+  const { error } = await supabase
+    .from('reservations')
+    .update({ status: 'cancelled' })
+    .eq('id', reservationId);
+  return { error };
+}

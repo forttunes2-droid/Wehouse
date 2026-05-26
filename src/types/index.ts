@@ -88,6 +88,24 @@ export interface RoleChangeHistory {
 
 export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator';
 
+export type ListingStatus = 'available' | 'reserved' | 'viewed' | 'occupied' | 'closed';
+
+export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  available: 'Available',
+  reserved: 'Reserved',
+  viewed: 'Viewed',
+  occupied: 'Occupied',
+  closed: 'Closed',
+};
+
+export const LISTING_STATUS_COLORS: Record<ListingStatus, string> = {
+  available: 'bg-green-500/10 text-green-400 border-green-500/20',
+  reserved: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  viewed: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  occupied: 'bg-red-500/10 text-red-400 border-red-500/20',
+  closed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+};
+
 export interface Listing {
   id: string;
   listing_id: string;
@@ -105,6 +123,38 @@ export interface Listing {
   owner_id: string | null;
   created_at: string;
   updated_at: string;
+  // ── RESERVATION FIELDS ────────────────────────────
+  status: ListingStatus;
+  reserved_by: string | null;
+  reservation_expiry: string | null;
+  reservation_fee_paid: boolean;
+  chat_unlocked: boolean;
+}
+
+export interface Enquiry {
+  id: string;
+  listing_id: string;
+  user_id: string;
+  staff_id: string | null;
+  message: string;
+  reply: string | null;
+  replied_at: string | null;
+  status: 'pending' | 'replied' | 'closed';
+  created_at: string;
+}
+
+export interface Reservation {
+  id: string;
+  listing_id: string;
+  user_id: string;
+  staff_id: string | null;
+  status: 'pending' | 'confirmed' | 'expired' | 'cancelled';
+  fee_paid: boolean;
+  amount: number;
+  currency: string;
+  created_at: string;
+  expires_at: string | null;
+  paid_at: string | null;
 }
 
 export interface SavedListing {

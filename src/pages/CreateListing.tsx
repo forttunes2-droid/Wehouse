@@ -28,6 +28,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     bedrooms: '1',
     bathrooms: '1',
     availability_status: 'available' as 'available' | 'reserved' | 'occupied',
+    status: 'available' as 'available' | 'reserved' | 'viewed' | 'occupied' | 'closed',
   });
 
   const [location, setLocation] = useState({
@@ -89,6 +90,11 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       bedrooms: Number(form.bedrooms) || 1,
       bathrooms: Number(form.bathrooms) || 1,
       availability_status: form.availability_status,
+      status: form.status,
+      reserved_by: null,
+      reservation_expiry: null,
+      reservation_fee_paid: false,
+      chat_unlocked: false,
       owner_id: profile.auth_id,
     });
     setSaving(false);
@@ -104,7 +110,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const statusOptions = [
     { value: 'available', label: 'Available', color: 'text-green-400 bg-green-500/10 border-green-500/20' },
     { value: 'reserved', label: 'Reserved', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+    { value: 'viewed', label: 'Viewed', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
     { value: 'occupied', label: 'Occupied', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+    { value: 'closed', label: 'Closed', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' },
   ];
 
   return (
@@ -245,9 +253,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setForm({ ...form, availability_status: opt.value as any })}
+                onClick={() => setForm({ ...form, status: opt.value as any })}
                 className={`flex-1 h-10 rounded-xl text-xs font-medium border transition-all ${
-                  form.availability_status === opt.value
+                  form.status === opt.value
                     ? opt.color
                     : 'bg-[#1A1A24] border-[#2A2A3A] text-[#5C5E72]'
                 }`}

@@ -23,12 +23,22 @@ function wipeOnLogout() {
 }
 
 // ─── ROLE HELPERS (module-level) ───────────────────
-// Role hierarchy: creator = admin = staff → admin dashboard
-//                 user = worker → regular dashboard
-const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'admin', 'staff']);
+// ONLY creator and admin get the creator dashboard
+// Staff is a listing manager only — NO admin access
+const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'admin']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
+}
+
+// Staff check — for listing creation permission only
+export function isStaff(role: string): boolean {
+  return role === 'staff';
+}
+
+// Can create listings (staff, admin, creator)
+export function canCreateListings(role: string): boolean {
+  return role === 'staff' || role === 'admin' || role === 'creator' || role === 'creator_admin';
 }
 
 // Creator = highest rank. Protected from changes/deletion.
@@ -37,21 +47,78 @@ export function isCreator(role: string): boolean {
   return role === 'creator' || role === 'creator_admin';
 }
 
-// Compare two roles — returns true if a can modify b
+// ─── ROLE HIERARCHY ───────────────────────────────
+// Creator > Admin > Staff > User
+// Worker is a separate signup-only role (locked)
+
+// Returns true if modifier can change target's role
 export function canModifyRole(modifierRole: string, targetRole: string): boolean {
-  const modIsCreator = isCreator(modifierRole);
-  const targetIsCreator = isCreator(targetRole);
-  // Creator can modify anyone (including other admins)
-  if (modIsCreator) return true;
-  // Admin can modify staff and users only
+  // Creator can modify anyone except themselves (handled separately)
+  if (isCreator(modifierRole)) return !isCreator(targetRole);
+  // Admin can modify staff and users only (not other admins, not creator)
   if (modifierRole === 'admin') {
-    return !targetIsCreator && targetRole !== 'admin';
+    return targetRole === 'staff' || targetRole === 'user';
   }
-  // Staff can only modify users/workers
-  if (modifierRole === 'staff') {
-    return targetRole === 'user' || targetRole === 'worker';
-  }
+  // Staff cannot modify anyone's role
   return false;
+}
+
+// Validate if a role transition is allowed
+// Returns { allowed, reason? }
+export function validateRoleTransition(
+  modifierRole: string,
+  targetCurrentRole: string,
+  targetNewRole: string
+): { allowed: boolean; reason?: string } {
+  // Cannot change own role
+  // (checked at call site with userId comparison)
+
+  // Creator is locked
+  if (isCreator(targetCurrentRole)) {
+    return { allowed: false, reason: 'Creator role cannot be modified' };
+  }
+
+  // Cannot assign creator
+  if (isCreator(targetNewRole)) {
+    return { allowed: false, reason: 'Creator role cannot be assigned' };
+  }
+
+  // Worker is locked (must sign up as worker)
+  if (targetCurrentRole === 'worker') {
+    return { allowed: false, reason: 'Worker role is locked. Workers must sign up via worker registration.' };
+  }
+  if (targetNewRole === 'worker') {
+    return { allowed: false, reason: 'Cannot assign worker role. Workers must sign up via worker registration.' };
+  }
+
+  // Creator can do any valid transition
+  if (isCreator(modifierRole)) {
+    // User ↔ Staff, User ↔ Admin, Staff ↔ Admin all allowed
+    const validCreatorTransitions: Record<string, string[]> = {
+      user: ['staff', 'admin'],
+      staff: ['user', 'admin'],
+      admin: ['user', 'staff'],
+    };
+    if (validCreatorTransitions[targetCurrentRole]?.includes(targetNewRole)) {
+      return { allowed: true };
+    }
+    return { allowed: false, reason: `Cannot change ${targetCurrentRole} to ${targetNewRole}` };
+  }
+
+  // Admin can only do: Staff ↔ User
+  if (modifierRole === 'admin') {
+    const validAdminTransitions: Record<string, string[]> = {
+      staff: ['user'],
+      user: ['staff'],
+    };
+    if (validAdminTransitions[targetCurrentRole]?.includes(targetNewRole)) {
+      return { allowed: true };
+    }
+    return { allowed: false, reason: 'Admin can only change Staff ↔ User. Cannot modify other admins or non-staff/non-user accounts.' };
+  }
+
+  // Staff cannot change any roles
+  return { allowed: false, reason: 'Staff cannot change roles' };
 }
 
 export function useAuth() {
@@ -66,7 +133,9 @@ export function useAuth() {
     if (!profile) return 'login';
     if (!profile.profile_complete && profile.role === 'worker') return 'worker_setup';
     if (!profile.profile_complete) return 'setup';
-    if (hasAdminAccess(profile.role)) return 'creator';
+    // ONLY creator and admin get the creator dashboard
+    // Staff goes to regular dashboard (they just get listing creation tools)
+    if (isCreator(profile.role) || profile.role === 'admin') return 'creator';
     return 'dashboard';
   }, []);
 
