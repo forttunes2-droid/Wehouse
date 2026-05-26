@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, getProfile, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession, runDiagnostics } from '@/lib/supabase';
+import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -73,7 +73,7 @@ export function useAuth() {
   const loadProfile = useCallback(
     async (authId: string) => {
       try {
-        const { profile, error } = await getProfile(authId);
+        const { profile, error } = await getProfileByAuthId(authId);
         if (error || !profile) {
           setState({ page: 'login', profile: null, isLoading: false, error: '' });
           return;
@@ -89,11 +89,6 @@ export function useAuth() {
   // ─── Initialize: check session on mount ───────────
   useEffect(() => {
     let done = false;
-
-    // Log diagnostics on init
-    runDiagnostics().then((d) => {
-      console.log('[WeHouse Auth Init] Diagnostics:', d);
-    }).catch(() => {});
 
     // Hard timeout: if getSession hangs, force login after 6s
     const forceLogin = () => {
@@ -152,7 +147,7 @@ export function useAuth() {
       setState((s) => ({ ...s, isLoading: true, error: '' }));
 
       // Check by auth_id
-      const { profile: byAuth, error: authErr } = await getProfile(authId);
+      const { profile: byAuth, error: authErr } = await getProfileByAuthId(authId);
       if (authErr) {
         setState({ page: 'login', profile: null, isLoading: false, error: authErr.message });
         return;
