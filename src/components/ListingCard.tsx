@@ -56,6 +56,16 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave }:
           </button>
         )}
 
+        {/* Video indicator — top right (below save if both exist) */}
+        {listing.videos && listing.videos.length > 0 && (
+          <div className="absolute top-2.5 right-12 z-10">
+            <span className="flex items-center gap-1 text-[8px] font-bold px-2 py-1 rounded-full bg-purple-500/80 text-white backdrop-blur-sm">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              {listing.videos.length}
+            </span>
+          </div>
+        )}
+
         {/* Price badge — bottom left on image */}
         <div className="absolute bottom-2.5 left-2.5 z-10">
           <div className="flex items-baseline gap-1.5">

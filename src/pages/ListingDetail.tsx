@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getListingById, createEnquiry, createReservation } from '@/lib/supabase';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 import type { Listing, Profile, ListingStatus } from '@/types';
@@ -119,7 +119,32 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
             ))}
           </div>
         )}
+
+        {/* Video badge */}
+        {listing.videos && listing.videos.length > 0 && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2">
+            <span className="text-[9px] font-bold px-2.5 py-1 rounded-full bg-purple-500/80 text-white backdrop-blur-sm flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              {listing.videos.length} Video{listing.videos.length > 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Video Section */}
+      {listing.videos && listing.videos.length > 0 && (
+        <div className="px-5 -mt-2 mb-4">
+          <h3 className="text-xs font-semibold text-white mb-2 flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" strokeWidth="2"><path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z" /></svg>
+            Property Videos
+          </h3>
+          <div className="space-y-2">
+            {listing.videos.map((url, i) => (
+              <VideoPlayer key={i} url={url} index={i} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Info */}
       <div className="px-5 py-5">
@@ -332,6 +357,54 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Inline video player component
+function VideoPlayer({ url, index }: { url: string; index: number }) {
+  const [playing, setPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setPlaying(false);
+    }
+  };
+
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-[#12121A] border border-[#1E1E2C]">
+      <video
+        ref={videoRef}
+        src={url}
+        className="w-full aspect-video object-cover"
+        preload="metadata"
+        playsInline
+        onClick={togglePlay}
+        onEnded={() => setPlaying(false)}
+      />
+      {/* Play overlay when paused */}
+      {!playing && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer"
+          onClick={togglePlay}
+        >
+          <div className="w-14 h-14 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-white/25 transition-all active:scale-90">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
+          </div>
+        </div>
+      )}
+      {/* Video label */}
+      <div className="absolute bottom-2 left-2.5 z-10">
+        <span className="text-[9px] font-medium text-white/80 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-md">
+          Video {index + 1}
+        </span>
+      </div>
     </div>
   );
 }

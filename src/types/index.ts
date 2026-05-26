@@ -123,6 +123,7 @@ export interface Listing {
   city: string | null;
   address: string | null;
   images: string[];
+  videos: string[];
   bedrooms: number;
   bathrooms: number;
   availability_status: 'available' | 'reserved' | 'occupied' | 'hidden';

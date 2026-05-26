@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { createListing, uploadListingImage } from '@/lib/supabase';
+import { createListing, uploadListingImage, uploadListingVideo } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,9 +15,12 @@ interface CreateListingProps {
 
 export default function CreateListing({ profile, onBack, onSuccess }: CreateListingProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [images, setImages] = useState<string[]>([]);
+  const [videos, setVideos] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     title: '',
@@ -71,6 +74,47 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Video upload handler
+  const handleVideoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Limit to 3 videos total
+    if (videos.length >= 3) {
+      toast.error('Maximum 3 videos');
+      return;
+    }
+
+    const file = files[0];
+    const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Only MP4, MOV, or WebM videos');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Max 50MB per video');
+      return;
+    }
+
+    setUploadingVideo(true);
+    toast.loading('Uploading video...', { id: 'video-upload' });
+    const tempId = `temp-${profile.user_id}-${Date.now()}`;
+    const { url, error } = await uploadListingVideo(file, tempId);
+    setUploadingVideo(false);
+    toast.dismiss('video-upload');
+
+    if (error || !url) {
+      toast.error('Upload failed: ' + (error?.message || 'Unknown'));
+      return;
+    }
+    setVideos(prev => [...prev, url]);
+    toast.success('Video added');
+  }, [videos.length, profile.user_id]);
+
+  const removeVideo = (index: number) => {
+    setVideos(prev => prev.filter((_, i) => i !== index));
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { toast.error('Title is required'); return; }
@@ -87,6 +131,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       city: location.city,
       address: form.address.trim() || location.area || null,
       images,
+      videos,
       bedrooms: Number(form.bedrooms) || 1,
       bathrooms: Number(form.bathrooms) || 1,
       availability_status: form.availability_status,
@@ -165,6 +210,59 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
             )}
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
           </div>
+        </div>
+
+        {/* Videos */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">
+            Videos {videos.length > 0 && <span className="text-[#5C5E72]">({videos.length}/3)</span>}
+          </label>
+          <div className="flex gap-2 flex-wrap">
+            {/* Video thumbnails */}
+            {videos.map((url, i) => (
+              <div key={i} className="relative w-32 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[#1A1A24]">
+                <video src={url} className="w-full h-full object-cover" preload="metadata" />
+                {/* Play overlay */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
+                  </div>
+                </div>
+                {/* Remove button */}
+                <button
+                  type="button"
+                  onClick={() => removeVideo(i)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500/80 text-white flex items-center justify-center text-[10px] z-10"
+                >
+                  ×
+                </button>
+                {/* Video label */}
+                <div className="absolute bottom-1 left-1.5 z-10">
+                  <span className="text-[8px] text-white/80 font-medium">Video {i + 1}</span>
+                </div>
+              </div>
+            ))}
+            {/* Add video button */}
+            {videos.length < 3 && (
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={uploadingVideo}
+                className="w-32 h-20 rounded-xl border border-dashed border-[#2A2A3A] flex flex-col items-center justify-center text-[#5C5E72] hover:border-purple-500/50 hover:text-purple-400 transition-colors disabled:opacity-50"
+              >
+                {uploadingVideo ? (
+                  <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z" /></svg>
+                    <span className="text-[9px] mt-1">Add Video</span>
+                  </>
+                )}
+              </button>
+            )}
+            <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={handleVideoUpload} />
+          </div>
+          <p className="text-[9px] text-[#5C5E72] mt-1">MP4, MOV, WebM · Max 50MB · Max 3 videos</p>
         </div>
 
         {/* Title */}

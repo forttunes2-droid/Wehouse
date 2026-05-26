@@ -379,6 +379,33 @@ export async function uploadListingImage(file: File, listingId: string) {
   return { url: urlData.publicUrl, error: null };
 }
 
+export async function uploadListingVideo(file: File, listingId: string) {
+  // Validate file type
+  const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+  if (!validTypes.includes(file.type)) {
+    return { url: null, error: { message: 'Only MP4, MOV, and WebM videos are allowed' } as any };
+  }
+  // Validate file size (50MB max)
+  if (file.size > 50 * 1024 * 1024) {
+    return { url: null, error: { message: 'Video must be under 50MB' } as any };
+  }
+
+  const fileName = `listings/${listingId}/${Date.now()}-${file.name}`;
+  const { error: uploadError } = await supabase.storage
+    .from('listing-videos')
+    .upload(fileName, file, { contentType: file.type });
+
+  if (uploadError) {
+    if (uploadError.message?.includes('bucket')) {
+      return { url: null, error: { message: 'Video storage not configured. Run the SQL migration.' } as any };
+    }
+    return { url: null, error: uploadError };
+  }
+
+  const { data: urlData } = supabase.storage.from('listing-videos').getPublicUrl(fileName);
+  return { url: urlData.publicUrl, error: null };
+}
+
 export async function deleteListing(listingId: string) {
   const { error } = await supabase.from('listings').delete().eq('listing_id', listingId);
   return { error };
