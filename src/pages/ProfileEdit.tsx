@@ -218,7 +218,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
               </svg>
             </div>
           </div>
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg" capture="user" className="hidden" onChange={handleAvatarChange} />
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg" className="hidden" onChange={handleAvatarChange} />
           <button
             type="button"
             onClick={handleAvatarTap}

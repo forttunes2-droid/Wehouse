@@ -163,7 +163,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
                 )}
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpload} />
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
           </div>
         </div>
 

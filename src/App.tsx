@@ -161,7 +161,7 @@ export default function App() {
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
       case 'admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} onBack={() => goTo('home')} />;
+        return <AdminDashboard profile={profile} onLogout={auth.logout} />;
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} /> : null;
       case 'chat':
