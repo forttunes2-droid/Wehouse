@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAuth, hasAdminAccess } from '@/hooks/useAuth';
-import { getSavedListings, saveListing, unsaveListing, getRoommatePreferences } from '@/lib/supabase';
+import { getSavedListings, saveListing, unsaveListing } from '@/lib/supabase';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
 import type { NavPage } from '@/types/nav';
@@ -12,8 +12,7 @@ const Saved = lazy(() => import('@/pages/Saved'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetail'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const CreatorDashboard = lazy(() => import('@/pages/CreatorDashboard'));
-const RoommateSetup = lazy(() => import('@/pages/RoommateSetup'));
-const RoommateMatches = lazy(() => import('@/pages/RoommateMatches'));
+const Roommate = lazy(() => import('@/pages/Roommate'));
 const Chat = lazy(() => import('@/pages/Chat'));
 const ProfileEdit = lazy(() => import('@/pages/ProfileEdit'));
 const AccountCenter = lazy(() => import('@/pages/AccountCenter'));
@@ -62,7 +61,7 @@ export default function App() {
   const [navPage, setNavPage] = useState<NavPage>('home');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [roommateMode, setRoommateMode] = useState<'setup' | 'matches'>('setup');
+  // Roommate is now a unified page — no mode state needed
   const [error, setError] = useState<Error | null>(null);
   const isAdmin = hasAdminAccess(auth.profile?.role || '');
 
@@ -84,14 +83,7 @@ export default function App() {
     }
   }, [auth.profile?.user_id]);
 
-  // Check roommate profile
-  useEffect(() => {
-    if (navPage === 'roommate' && auth.profile?.user_id) {
-      getRoommatePreferences(auth.profile.user_id).then(({ prefs }) => {
-        setRoommateMode(prefs ? 'matches' : 'setup');
-      }).catch(() => {});
-    }
-  }, [navPage, auth.profile?.user_id]);
+  // Roommate page handles its own state internally
 
   const handleToggleSave = useCallback(async (listingId: string) => {
     if (!auth.profile) return;
@@ -149,9 +141,7 @@ export default function App() {
       case 'saved':
         return <Saved {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
       case 'roommate':
-        return roommateMode === 'setup'
-          ? <RoommateSetup profile={profile} onComplete={() => setRoommateMode('matches')} />
-          : <RoommateMatches profile={profile} />;
+        return <Roommate profile={profile} />;
       case 'profile':
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={isAdmin} onGoToNewListing={goToNewListing} />;
       case 'creator':
