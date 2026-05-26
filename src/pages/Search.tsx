@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getAllListings } from '@/lib/supabase';
+import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import ListingCard from '@/components/ListingCard';
 import type { Listing } from '@/types';
 
@@ -15,6 +16,8 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
   const [query, setQuery] = useState('');
   const [priceMax, setPriceMax] = useState<number | ''>('');
   const [bedrooms, setBedrooms] = useState<number | ''>('');
+  const [filterState, setFilterState] = useState('');
+  const [filterCity, setFilterCity] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -26,15 +29,19 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
     load();
   }, []);
 
+  const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
+
   const filtered = useMemo(() => {
     return listings.filter(l => {
       const q = query.toLowerCase();
       const matchesQuery = !q || l.title.toLowerCase().includes(q) || l.city?.toLowerCase().includes(q) || l.state?.toLowerCase().includes(q);
       const matchesPrice = !priceMax || l.price <= priceMax;
       const matchesBed = !bedrooms || l.bedrooms >= bedrooms;
-      return matchesQuery && matchesPrice && matchesBed;
+      const matchesState = !filterState || l.state === filterState;
+      const matchesCity = !filterCity || l.city === filterCity;
+      return matchesQuery && matchesPrice && matchesBed && matchesState && matchesCity;
     });
-  }, [listings, query, priceMax, bedrooms]);
+  }, [listings, query, priceMax, bedrooms, filterState, filterCity]);
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-24">
@@ -64,7 +71,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
           <div className="mt-3 glass rounded-xl p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Price (₦)</label>
+                <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Price (N)</label>
                 <input type="number" value={priceMax} onChange={(e) => setPriceMax(e.target.value ? Number(e.target.value) : '')} placeholder="Any" className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
               </div>
               <div>
@@ -78,7 +85,23 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
                 </select>
               </div>
             </div>
-            <button onClick={() => { setPriceMax(''); setBedrooms(''); }} className="text-[10px] text-[#3B82F6] font-medium">Clear filters</button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-[#5C5E72] mb-1 block">State</label>
+                <select value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterCity(''); }} className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
+                  <option value="">All States</option>
+                  {NIGERIA_STATES.map((s) => <option key={s.state} value={s.state}>{s.state}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-[#5C5E72] mb-1 block">City</label>
+                <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} disabled={!filterState} className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6] disabled:opacity-50">
+                  <option value="">All Cities</option>
+                  {citiesForState.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <button onClick={() => { setPriceMax(''); setBedrooms(''); setFilterState(''); setFilterCity(''); }} className="text-[10px] text-[#3B82F6] font-medium">Clear all filters</button>
           </div>
         )}
       </header>

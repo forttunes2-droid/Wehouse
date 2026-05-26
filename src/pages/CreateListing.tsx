@@ -3,6 +3,7 @@ import { createListing, uploadListingImage } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import LocationSelector from '@/components/LocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -23,12 +24,17 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     description: '',
     price: '',
     currency: 'NGN',
-    state: '',
-    city: '',
     address: '',
     bedrooms: '1',
     bathrooms: '1',
     availability_status: 'available' as 'available' | 'reserved' | 'occupied',
+  });
+
+  const [location, setLocation] = useState({
+    country: profile.country || 'Nigeria',
+    state: profile.state || '',
+    city: profile.city || '',
+    area: profile.area || '',
   });
 
   // Image upload handler
@@ -68,7 +74,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     e.preventDefault();
     if (!form.title.trim()) { toast.error('Title is required'); return; }
     if (!form.price || Number(form.price) <= 0) { toast.error('Valid price is required'); return; }
-    if (!form.city.trim()) { toast.error('City is required'); return; }
+    if (!location.city) { toast.error('City is required'); return; }
 
     setSaving(true);
     const { listing, error } = await createListing({
@@ -76,9 +82,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       description: form.description.trim() || null,
       price: Number(form.price),
       currency: form.currency,
-      state: form.state.trim() || null,
-      city: form.city.trim(),
-      address: form.address.trim() || null,
+      state: location.state || null,
+      city: location.city,
+      address: form.address.trim() || location.area || null,
       images,
       bedrooms: Number(form.bedrooms) || 1,
       bathrooms: Number(form.bathrooms) || 1,
@@ -191,26 +197,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
         </div>
 
         {/* Location */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">City *</label>
-            <Input
-              value={form.city}
-              onChange={(e) => setForm({ ...form, city: e.target.value })}
-              className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
-              placeholder="e.g. Ikeja"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">State</label>
-            <Input
-              value={form.state}
-              onChange={(e) => setForm({ ...form, state: e.target.value })}
-              className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
-              placeholder="e.g. Lagos"
-            />
-          </div>
+        <div className="glass rounded-2xl p-4">
+          <label className="text-xs text-[#8A8B9C] font-medium mb-3 block">Location *</label>
+          <LocationSelector value={location} onChange={setLocation} />
         </div>
 
         {/* Address */}

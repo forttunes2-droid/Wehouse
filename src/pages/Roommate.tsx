@@ -80,6 +80,7 @@ export default function Roommate({ profile }: RoommateProps) {
       user_id: profile.user_id,
       auth_id: profile.auth_id,
       ...formData,
+      area_preference: formData.area_preference || profile.city || '',
       active: true,
     });
     if (error) {
@@ -158,7 +159,11 @@ function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs
             </div>
             <div>
               <div className="text-sm font-semibold text-white">@{profile.username || 'user'}</div>
-              <div className="text-[10px] text-[#5C5E72]">{profile.preferred_location || prefs?.area_preference || 'No location set'}</div>
+              <div className="text-[10px] text-[#5C5E72] flex items-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                {profile.city || prefs?.area_preference || 'No location set'}
+                {profile.state && `, ${profile.state}`}
+              </div>
             </div>
           </div>
 

@@ -33,6 +33,11 @@ export interface Profile {
   budget_min: number;
   budget_max: number;
   preferred_location: string | null;
+  // ── LOCATION ──────────────────────────────────────
+  country: string | null;
+  state: string | null;
+  city: string | null;
+  area: string | null;
   email_verified: boolean;
   phone_verified: boolean;
   id_verified: boolean;

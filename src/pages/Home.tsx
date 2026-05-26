@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getAllListings } from '@/lib/supabase';
+// Location filtering is done inline via city comparison
 import ListingCard from '@/components/ListingCard';
 import type { Listing, Profile } from '@/types';
 
@@ -15,6 +16,7 @@ interface HomeProps {
 export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAdmin, onGoToNewListing }: HomeProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cityFilter, setCityFilter] = useState<string | null>(profile.city || null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,8 +34,28 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
     return () => { cancelled = true; };
   }, []);
 
-  const featured = listings.slice(0, 5);
-  const recent = listings.slice(0, 8);
+  // Location-aware filtering: prioritize user's city
+  const cityListings = useMemo(() => {
+    if (!cityFilter) return listings;
+    // Sort: same city first, then others
+    return [...listings].sort((a, b) => {
+      const aMatch = a.city === cityFilter;
+      const bMatch = b.city === cityFilter;
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return 0;
+    });
+  }, [listings, cityFilter]);
+
+  const featured = cityListings.slice(0, 5);
+  const recent = cityListings.slice(0, 8);
+
+  // Unique cities from listings for filter
+  const availableCities = useMemo(() => {
+    const cities = new Set<string>();
+    listings.forEach((l) => { if (l.city) cities.add(l.city); });
+    return Array.from(cities).sort();
+  }, [listings]);
 
   if (loading) {
     return (
@@ -60,12 +82,20 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
     <div className="min-h-screen bg-[#0A0A0F] pb-24">
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5 sticky top-0 z-30">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center glow-blue-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
             </div>
-            <span className="font-semibold text-sm text-white">WeHouse</span>
+            <div>
+              <span className="font-semibold text-sm text-white block leading-tight">WeHouse</span>
+              {profile.city && (
+                <span className="text-[9px] text-[#5C5E72] flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                  {profile.city}{profile.state ? `, ${profile.state}` : ''}
+                </span>
+              )}
+            </div>
           </div>
           <span className="text-[10px] text-[#5C5E72]">@{profile.username}</span>
         </div>
@@ -75,6 +105,35 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
           Search houses, locations...
         </button>
+
+        {/* City filter chips */}
+        {availableCities.length > 0 && (
+          <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setCityFilter(null)}
+              className={`flex-shrink-0 h-7 px-3 rounded-full text-[10px] font-medium transition-all ${
+                cityFilter === null
+                  ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white'
+                  : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
+              }`}
+            >
+              All
+            </button>
+            {availableCities.map((city) => (
+              <button
+                key={city}
+                onClick={() => setCityFilter(cityFilter === city ? null : city)}
+                className={`flex-shrink-0 h-7 px-3 rounded-full text-[10px] font-medium transition-all ${
+                  cityFilter === city
+                    ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white'
+                    : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
+                }`}
+              >
+                {city}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* Featured */}

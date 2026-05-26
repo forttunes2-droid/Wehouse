@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import LocationSelector from '@/components/LocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -34,7 +35,13 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
     gender: profile.gender || '',
     budget_min: profile.budget_min || 50000,
     budget_max: profile.budget_max || 500000,
-    preferred_location: profile.preferred_location || '',
+  });
+
+  const [location, setLocation] = useState({
+    country: profile.country || 'Nigeria',
+    state: profile.state || '',
+    city: profile.city || '',
+    area: profile.area || '',
   });
 
   const initials = (username || profile.email[0]).toUpperCase();
@@ -118,6 +125,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
       ...form,
       username: username.trim() || profile.username,
       profile_complete: true,
+      ...location,
+      preferred_location: [location.city, location.state].filter(Boolean).join(', ') || null,
     };
     const { profile: updated, error } = await updateProfile(profile.user_id, updates);
     setSaving(false);
@@ -291,15 +300,10 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
           </div>
         </div>
 
-        {/* Preferred Location */}
-        <div>
-          <Label className="text-xs text-[#8A8B9C] mb-1.5 block">Preferred Location</Label>
-          <Input
-            value={form.preferred_location}
-            onChange={(e) => setForm({ ...form, preferred_location: e.target.value })}
-            className="h-10 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#8A8B9C] focus:border-[#3B82F6]/50"
-            placeholder="e.g. Ikeja, Lagos"
-          />
+        {/* Location */}
+        <div className="glass rounded-2xl p-4">
+          <Label className="text-xs text-[#8A8B9C] mb-3 block font-medium">Your Location</Label>
+          <LocationSelector value={location} onChange={setLocation} />
         </div>
 
         <Button
