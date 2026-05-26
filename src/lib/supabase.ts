@@ -1,13 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Profile, Listing, RoommatePreferences, ListingReport, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest } from '@/types';
 
-// Environment variables only — never hardcode secrets
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables');
-}
+// Prefer environment variables, fallback to config for client-side deployment.
+// The anon key is a PUBLIC client key — safe in bundles. Security = RLS policies.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
