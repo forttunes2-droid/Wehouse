@@ -313,8 +313,8 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
           </div>
         </SectionCard>
 
-        {/* School Info */}
-        <SectionCard title="School Information" desc="Help find roommates from your school" optional>
+        {/* School / Institution Info — OPTIONAL */}
+        <SectionCard title="Education & Institution" desc="Students: add your school. Workers: add workplace. Helps find better matches." optional>
           <SchoolSelector
             value={{
               school_name: form.school_name,
