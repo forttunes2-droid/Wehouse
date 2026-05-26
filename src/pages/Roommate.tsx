@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { saveRoommatePreferences, getRoommatePreferences, findMatches } from '@/lib/supabase';
 import InstitutionSelector from '@/components/InstitutionSelector';
 import RoommateLocationSelector from '@/components/RoommateLocationSelector';
+import DualRangeSlider from '@/components/DualRangeSlider';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -17,13 +18,10 @@ const GENDER_PREF_OPTIONS = [
   { value: 'female', label: 'Female' },
 ];
 
-const BUDGET_PRESETS = [
-  { min: 50000, max: 100000, label: '₦50k – ₦100k' },
-  { min: 100000, max: 200000, label: '₦100k – ₦200k' },
-  { min: 200000, max: 350000, label: '₦200k – ₦350k' },
-  { min: 350000, max: 500000, label: '₦350k – ₦500k' },
-  { min: 500000, max: 1000000, label: '₦500k+' },
-];
+// Budget slider config
+const BUDGET_FLOOR = 180000;
+const BUDGET_CEILING = 5000000;
+const BUDGET_STEP = 10000;
 
 const CLEANLINESS_OPTIONS = [
   { value: 'neat', label: 'Neat', icon: '✨' },
@@ -276,8 +274,8 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
   const [form, setForm] = useState({
     gender: existingPrefs?.gender || '',
     gender_preference: existingPrefs?.gender_preference || 'no_preference',
-    budget_min: existingPrefs?.budget_min || 0,
-    budget_max: existingPrefs?.budget_max || 0,
+    budget_min: existingPrefs?.budget_min || BUDGET_FLOOR,
+    budget_max: existingPrefs?.budget_max || 1000000,
     study_level: existingPrefs?.study_level || '',
     noise_level: existingPrefs?.noise_level || 'moderate',
     cleanliness: existingPrefs?.cleanliness || 'moderate',
@@ -301,7 +299,15 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.budget_min || !form.budget_max) {
-      toast.error('Select your budget range');
+      toast.error('Set your budget range');
+      return;
+    }
+    if (form.budget_min < BUDGET_FLOOR) {
+      toast.error(`Minimum budget is ₦${BUDGET_FLOOR.toLocaleString()}`);
+      return;
+    }
+    if (form.budget_max <= form.budget_min) {
+      toast.error('Maximum budget must be greater than minimum');
       return;
     }
     setSaving(true);
@@ -360,51 +366,20 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
             <p className="text-[10px] text-[#5C5E72] mt-0.5">Required for matching</p>
           </div>
 
-          {/* Budget — Preset chips */}
+          {/* Budget — Dual Range Slider */}
           <div className="mb-4">
-            <label className="text-[10px] text-[#5C5E72] mb-2 block font-medium">Budget Range *</label>
-            <div className="flex flex-wrap gap-2">
-              {BUDGET_PRESETS.map(preset => {
-                const selected = form.budget_min === preset.min && form.budget_max === preset.max;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => { update('budget_min', preset.min); update('budget_max', preset.max); }}
-                    className={`h-9 px-3 rounded-xl text-[11px] font-medium transition-all ${
-                      selected
-                        ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/20'
-                        : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Custom budget */}
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className="text-[9px] text-[#5C5E72] mb-1 block">Min (₦)</label>
-                <input
-                  type="number"
-                  value={form.budget_min || ''}
-                  onChange={(e) => update('budget_min', Number(e.target.value))}
-                  placeholder="50000"
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[9px] text-[#5C5E72] mb-1 block">Max (₦)</label>
-                <input
-                  type="number"
-                  value={form.budget_max || ''}
-                  onChange={(e) => update('budget_max', Number(e.target.value))}
-                  placeholder="200000"
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-                />
-              </div>
-            </div>
+            <label className="text-[10px] text-[#5C5E72] mb-1 block font-medium">Budget Range *</label>
+            <DualRangeSlider
+              min={form.budget_min}
+              max={form.budget_max}
+              floor={BUDGET_FLOOR}
+              ceiling={BUDGET_CEILING}
+              step={BUDGET_STEP}
+              onChange={(newMin, newMax) => {
+                update('budget_min', newMin);
+                update('budget_max', newMax);
+              }}
+            />
           </div>
 
           {/* Structured Location — State → LGA → Area */}
