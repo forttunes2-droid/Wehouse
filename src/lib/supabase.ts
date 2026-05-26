@@ -122,7 +122,7 @@ export async function getProfileByAuthId(authId: string) {
     .from('profiles')
     .select('*')
     .eq('auth_id', authId)
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }
 

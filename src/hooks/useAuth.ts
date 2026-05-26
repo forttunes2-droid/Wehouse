@@ -187,7 +187,7 @@ export function useAuth() {
           .update({ role: 'worker', worker_status: 'pending' })
           .eq('user_id', newProfile.user_id);
         // Refresh profile
-        const { data: updated } = await supabase.from('profiles').select('*').eq('user_id', newProfile.user_id).single();
+        const { data: updated } = await supabase.from('profiles').select('*').eq('user_id', newProfile.user_id).maybeSingle();
         if (updated) {
           setState({ profile: updated as Profile, page: 'worker_setup', isLoading: false, error: '' });
           trackSession(updated.user_id, authId).catch(() => {});
