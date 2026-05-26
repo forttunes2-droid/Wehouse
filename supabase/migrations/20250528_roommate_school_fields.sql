@@ -1,0 +1,16 @@
+-- Add school fields to roommate_preferences table
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS school_name TEXT DEFAULT NULL;
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS campus TEXT DEFAULT NULL;
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS faculty TEXT DEFAULT NULL;
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS department TEXT DEFAULT NULL;
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS level TEXT DEFAULT NULL;
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS school_match BOOLEAN DEFAULT TRUE;
+ALTER TABLE roommate_preferences ADD COLUMN IF NOT EXISTS campus_match BOOLEAN DEFAULT TRUE;
+
+-- Add school fields to profiles table (for quick access without joining)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS school_name TEXT DEFAULT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS campus TEXT DEFAULT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS faculty TEXT DEFAULT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS department TEXT DEFAULT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS level TEXT DEFAULT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_student BOOLEAN DEFAULT FALSE;

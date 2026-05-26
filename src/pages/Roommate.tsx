@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { saveRoommatePreferences, getRoommatePreferences, findMatches } from '@/lib/supabase';
+import SchoolSelector from '@/components/SchoolSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -122,6 +123,12 @@ function PreviewView({ profile, prefs, onChangeView }: { profile: Profile; prefs
     { label: 'Location', value: prefs?.area_preference || 'Not set', icon: '📍' },
     { label: 'Gender', value: prefs?.gender ? prefs.gender.charAt(0).toUpperCase() + prefs.gender.slice(1) : 'Not set', icon: '👤' },
     { label: 'Preference', value: GENDER_PREF_OPTIONS.find(o => o.value === prefs?.gender_preference)?.label || 'Not set', icon: '🔍' },
+    // ── SCHOOL FIELDS ─────────────────────────────────
+    { label: 'School', value: prefs?.school_name || 'Not set', icon: '🎓' },
+    { label: 'Campus', value: prefs?.campus || 'Not set', icon: '🏫' },
+    { label: 'Level', value: prefs?.level ? `${prefs.level}L` : 'Not set', icon: '📚' },
+    { label: 'Department', value: prefs?.department || 'Not set', icon: '🔬' },
+    // ─────────────────────────────────────────────────
     { label: 'Cleanliness', value: CLEANLINESS_OPTIONS.find(o => o.value === prefs?.cleanliness)?.label || 'Not set', icon: '✨' },
     { label: 'Noise Level', value: NOISE_OPTIONS.find(o => o.value === prefs?.noise_level)?.label || 'Not set', icon: '🔊' },
     { label: 'Sleep', value: SLEEP_OPTIONS.find(o => o.value === prefs?.sleep_time)?.label || 'Not set', icon: '🌙' },
@@ -218,6 +225,14 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
     stay_duration: existingPrefs?.stay_duration || '1_year',
     area_preference: existingPrefs?.area_preference || '',
     bio: existingPrefs?.bio || '',
+    // ── SCHOOL FIELDS ─────────────────────────────────
+    school_name: existingPrefs?.school_name || '',
+    campus: existingPrefs?.campus || '',
+    faculty: existingPrefs?.faculty || '',
+    department: existingPrefs?.department || '',
+    level: existingPrefs?.level || '',
+    school_match: existingPrefs?.school_match ?? true,
+    campus_match: existingPrefs?.campus_match ?? true,
   });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -240,6 +255,14 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
       stay_duration: form.stay_duration,
       area_preference: form.area_preference,
       bio: form.bio,
+      // ── SCHOOL FIELDS ─────────────────────────────────
+      school_name: form.school_name || null,
+      campus: form.campus || null,
+      faculty: form.faculty || null,
+      department: form.department || null,
+      level: form.level || null,
+      school_match: form.school_match,
+      campus_match: form.campus_match,
     });
     setSaving(false);
   }
@@ -288,6 +311,47 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
               />
             </div>
           </div>
+        </SectionCard>
+
+        {/* School Info */}
+        <SectionCard title="School Information" desc="Help find roommates from your school" optional>
+          <SchoolSelector
+            value={{
+              school_name: form.school_name,
+              campus: form.campus,
+              faculty: form.faculty,
+              department: form.department,
+              level: form.level,
+            }}
+            onChange={(v) => {
+              setForm(f => ({ ...f, ...v }));
+            }}
+          />
+          {/* Match preferences */}
+          {form.school_name && (
+            <div className="mt-3 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.school_match}
+                  onChange={(e) => setForm(f => ({ ...f, school_match: e.target.checked }))}
+                  className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6] focus:ring-[#3B82F6]/20"
+                />
+                <span className="text-xs text-[#8A8B9C]">Prefer same school</span>
+              </label>
+              {form.campus && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.campus_match}
+                    onChange={(e) => setForm(f => ({ ...f, campus_match: e.target.checked }))}
+                    className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6] focus:ring-[#3B82F6]/20"
+                  />
+                  <span className="text-xs text-[#8A8B9C]">Prefer same campus</span>
+                </label>
+              )}
+            </div>
+          )}
         </SectionCard>
 
         {/* Location */}

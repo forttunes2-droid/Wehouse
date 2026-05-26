@@ -187,6 +187,15 @@ export interface RoommatePreferences {
   area_preference: string;
   bio: string;
   active: boolean;
+  // ── SCHOOL FIELDS (Phase 5) ───────────────────────
+  school_name: string | null;
+  campus: string | null;
+  faculty: string | null;
+  department: string | null;
+  level: string | null; // 100, 200, 300, 400, 500
+  school_match: boolean;
+  campus_match: boolean;
+  // ─────────────────────────────────────────────────
   created_at: string;
 }
 
