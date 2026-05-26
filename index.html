@@ -2,8 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0A0A0F" />
+    <meta name="background-color" content="#0A0A0F" />
+    <meta name="description" content="WeHouse - Find houses, connect with roommates, hire verified workers" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WeHouse" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="WeHouse" />
+    <meta name="msapplication-TileColor" content="#0A0A0F" />
+    <meta name="msapplication-tap-highlight" content="no" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="mask-icon" href="/icon-192.png" color="#3B82F6" />
+
+    <!-- Preconnect to Supabase -->
+    <link rel="preconnect" href="https://btpqlxmqaqfttmtllegx.supabase.co" />
+
     <title>WeHouse</title>
+
+    <style>
+      /* Prevent flash of white on load */
+      html, body { background: #0A0A0F; }
+      /* Safe area padding for notched devices */
+      .safe-area-top { padding-top: env(safe-area-inset-top); }
+      .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
   </head>
   <body>
     <div id="root"></div>

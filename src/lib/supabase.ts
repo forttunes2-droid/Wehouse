@@ -173,13 +173,17 @@ export async function createProfile(a: string, b: string, c?: string, d?: string
 // ─── AVATAR UPLOAD ─────────────────────────────────
 
 export async function uploadAvatar(file: File, userId: string) {
+  // Validate
+  if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image (JPG, PNG)' } as any };
+  if (file.size > 5 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 5MB' } as any };
+
   const compressImage = (f: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(f);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const maxDim = 400;
+        const maxDim = 600; // Higher quality for profile photos
         let w = img.width;
         let h = img.height;
         if (w > h && w > maxDim) { h = (h / w) * maxDim; w = maxDim; }
@@ -193,7 +197,7 @@ export async function uploadAvatar(file: File, userId: string) {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject(new Error('Compression failed'));
-        }, 'image/jpeg', 0.8);
+        }, 'image/jpeg', 0.85);
       };
       img.onerror = () => reject(new Error('Image load failed'));
       img.src = url;
@@ -206,7 +210,13 @@ export async function uploadAvatar(file: File, userId: string) {
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(fileName, compressed, { contentType: 'image/jpeg', upsert: true });
-    if (uploadError) return { url: null, error: uploadError };
+    if (uploadError) {
+      // Check if bucket doesn't exist
+      if (uploadError.message?.includes('bucket') || uploadError.message?.includes('Bucket')) {
+        return { url: null, error: { message: 'Storage not configured. Ask admin to run storage setup SQL.' } as any };
+      }
+      return { url: null, error: uploadError };
+    }
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
     return { url: urlData.publicUrl, error: null };
   } catch (err: any) {

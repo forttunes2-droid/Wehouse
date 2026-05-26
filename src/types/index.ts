@@ -73,6 +73,12 @@ export interface Profile {
   // ── SOFT DELETE ───────────────────────────────────
   deleted: boolean;
   deleted_at: string | null;
+  // ── ROLE + SCOPE ──────────────────────────────────
+  assigned_state: string | null;  // Admin/Staff: assigned state
+  assigned_lga: string | null;    // Admin/Staff: assigned LGA
+  scope: 'global' | 'local' | null;  // global=creator, local=admin/staff
+  created_by: string | null;      // Who created this account
+  updated_by: string | null;      // Who last updated
 }
 
 export interface RoleChangeHistory {
@@ -86,7 +92,7 @@ export interface RoleChangeHistory {
   created_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator';
+export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin';
 
 export type ListingStatus = 'available' | 'reserved' | 'viewed' | 'occupied' | 'closed';
 

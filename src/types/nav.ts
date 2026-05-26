@@ -14,4 +14,5 @@ export type NavPage =
   | 'new_listing'
   | 'worker_setup'
   | 'worker_dashboard'
-  | 'worker_discovery';
+  | 'worker_discovery'
+  | 'admin';

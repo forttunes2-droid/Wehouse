@@ -95,19 +95,49 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (!file.type.startsWith('image/')) { toast.error('Please select an image'); return; }
-      if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+
+      // Validate
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please select a JPG or PNG image');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be under 5MB');
+        return;
+      }
 
       setUploadingAvatar(true);
-      const { url, error } = await uploadAvatar(file, profile.user_id);
-      setUploadingAvatar(false);
-      if (error || !url) { toast.error('Upload failed: ' + (error?.message || 'Unknown')); return; }
+      toast.loading('Uploading photo...', { id: 'avatar-upload' });
 
+      const { url, error } = await uploadAvatar(file, profile.user_id);
+
+      if (error || !url) {
+        setUploadingAvatar(false);
+        toast.dismiss('avatar-upload');
+        const msg = error?.message || 'Upload failed';
+        if (msg.includes('Storage') || msg.includes('bucket') || msg.includes('configured')) {
+          toast.error('Photo upload is not configured yet. Contact the creator.');
+        } else if (msg.includes('RLS') || msg.includes('policy')) {
+          toast.error('Upload blocked by security policy. Run the storage SQL setup.');
+        } else {
+          toast.error('Upload failed: ' + msg);
+        }
+        return;
+      }
+
+      // Save URL to profile
       const { error: updateErr } = await updateProfile(profile.user_id, { avatar_url: url });
-      if (updateErr) { toast.error('Failed to save'); return; }
+      setUploadingAvatar(false);
+      toast.dismiss('avatar-upload');
+
+      if (updateErr) {
+        toast.error('Photo uploaded but failed to save to profile');
+        return;
+      }
 
       setLocalAvatar(url);
-      toast.success('Photo updated!');
+      toast.success('Profile photo updated!');
     },
     [profile.user_id]
   );
@@ -158,28 +188,45 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 py-5 space-y-5">
         {/* Avatar Upload */}
         <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleAvatarTap}
+              disabled={uploadingAvatar}
+              className="relative w-24 h-24 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-3xl font-bold flex-shrink-0 overflow-hidden disabled:opacity-60 active:scale-95 transition-all ring-4 ring-[#3B82F6]/10"
+            >
+              {uploadingAvatar ? (
+                <div className="w-8 h-8 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : localAvatar ? (
+                <img src={localAvatar} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="drop-shadow-lg">{initials[0]}</span>
+              )}
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                <span className="text-[9px] text-white mt-1 font-medium">Change</span>
+              </div>
+            </button>
+            {/* Online indicator */}
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-green-500 border-3 border-[#0A0A0F] flex items-center justify-center">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg" capture="user" className="hidden" onChange={handleAvatarChange} />
           <button
             type="button"
             onClick={handleAvatarTap}
-            disabled={uploadingAvatar}
-            className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 glow-blue-sm overflow-hidden disabled:opacity-60 active:scale-95 transition-all"
+            className="h-8 px-4 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs font-medium hover:border-[#3B82F6]/30 hover:text-[#3B82F6] transition-all"
           >
-            {uploadingAvatar ? (
-              <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : localAvatar ? (
-              <img src={localAvatar} alt="" className="w-full h-full object-cover" />
-            ) : (
-              initials[0]
-            )}
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
-            </div>
+            {uploadingAvatar ? 'Uploading...' : localAvatar ? 'Change Photo' : 'Add Photo'}
           </button>
-          <input ref={fileInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleAvatarChange} />
-          <p className="text-[10px] text-[#5C5E72]">Tap to change photo</p>
+          <p className="text-[9px] text-[#5C5E72]">JPG or PNG, max 5MB</p>
         </div>
 
         {/* Username with validation */}

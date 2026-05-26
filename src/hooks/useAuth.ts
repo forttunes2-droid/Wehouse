@@ -47,13 +47,53 @@ export function isCreator(role: string): boolean {
   return role === 'creator' || role === 'creator_admin';
 }
 
+// ─── SCOPE HELPERS ────────────────────────────────
+// Creator = global scope (all data)
+// Admin/Staff = local scope (assigned LGA only)
+// User/Worker = no scope (browsing only)
+
+export function getScope(role: string): 'global' | 'local' | null {
+  if (isCreator(role)) return 'global';
+  if (role === 'admin' || role === 'staff') return 'local';
+  return null;
+}
+
+export function isGlobal(role: string): boolean {
+  return getScope(role) === 'global';
+}
+
+export function isLocal(role: string): boolean {
+  return getScope(role) === 'local';
+}
+
+// Check if a user can access data for a specific location
+export function canAccessLocation(
+  userRole: string,
+  userState: string | null,
+  userLga: string | null,
+  targetState: string | null,
+  targetLga: string | null
+): boolean {
+  // Global (creator) can access everything
+  if (isGlobal(userRole)) return true;
+  // Local (admin/staff) can only access their assigned location
+  if (isLocal(userRole)) {
+    // Must have assigned location
+    if (!userState || !userLga) return false;
+    // Must match target location
+    return userState === targetState && userLga === targetLga;
+  }
+  // Users/workers can browse (access check handled elsewhere)
+  return true;
+}
+
 // ─── ROLE HIERARCHY ───────────────────────────────
 // Creator > Admin > Staff > User
 // Worker is a separate signup-only role (locked)
 
 // Returns true if modifier can change target's role
 export function canModifyRole(modifierRole: string, targetRole: string): boolean {
-  // Creator can modify anyone except themselves (handled separately)
+  // Creator can modify anyone except themselves and other creators
   if (isCreator(modifierRole)) return !isCreator(targetRole);
   // Admin can modify staff and users only (not other admins, not creator)
   if (modifierRole === 'admin') {
@@ -133,9 +173,11 @@ export function useAuth() {
     if (!profile) return 'login';
     if (!profile.profile_complete && profile.role === 'worker') return 'worker_setup';
     if (!profile.profile_complete) return 'setup';
-    // ONLY creator and admin get the creator dashboard
-    // Staff goes to regular dashboard (they just get listing creation tools)
-    if (isCreator(profile.role) || profile.role === 'admin') return 'creator';
+    // CREATOR → global creator dashboard (full control)
+    if (isCreator(profile.role)) return 'creator';
+    // ADMIN → scoped admin dashboard (assigned LGA only)
+    if (profile.role === 'admin') return 'admin';
+    // STAFF, USER, WORKER → regular dashboard
     return 'dashboard';
   }, []);
 

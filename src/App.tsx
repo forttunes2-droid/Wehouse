@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { useAuth, hasAdminAccess, canCreateListings } from '@/hooks/useAuth';
+import { useAuth, hasAdminAccess, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { getSavedListings, saveListing, unsaveListing } from '@/lib/supabase';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
@@ -12,6 +12,7 @@ const Saved = lazy(() => import('@/pages/Saved'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetail'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const CreatorDashboard = lazy(() => import('@/pages/CreatorDashboard'));
+const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 const Roommate = lazy(() => import('@/pages/Roommate'));
 const Chat = lazy(() => import('@/pages/Chat'));
 const ProfileEdit = lazy(() => import('@/pages/ProfileEdit'));
@@ -70,6 +71,7 @@ export default function App() {
   const isWorker = auth.profile?.role === 'worker';
   const isStaff = auth.profile?.role === 'staff';
   const canList = canCreateListings(auth.profile?.role || '');
+  const isCreator = checkCreator(auth.profile?.role || '');
   const isUser = !isAdmin && !isWorker && !isStaff;
 
   // Error boundary
@@ -158,6 +160,8 @@ export default function App() {
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
+      case 'admin':
+        return <AdminDashboard profile={profile} onLogout={auth.logout} onBack={() => goTo('home')} />;
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} /> : null;
       case 'chat':
@@ -196,7 +200,7 @@ export default function App() {
     { id: 'roommate' as NavPage, label: 'Roommate', icon: UsersSvg },
     ...(isUser ? [{ id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg }] : []),
     ...(isWorker ? [{ id: 'worker_dashboard' as NavPage, label: 'Dashboard', icon: BriefcaseSvg }] : []),
-    ...(isAdmin
+    ...(isCreator
       ? [{ id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }]
       : isUser ? [{ id: 'profile' as NavPage, label: 'Profile', icon: UserSvg }] : []),
   ];
@@ -207,8 +211,8 @@ export default function App() {
         {renderPage()}
       </div>
 
-      {/* Bottom Nav */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && (
+      {/* Bottom Nav — hidden on admin dashboard */}
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {
