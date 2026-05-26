@@ -186,6 +186,11 @@ export interface RoommatePreferences {
   visitors: 'rarely' | 'sometimes' | 'often';
   stay_duration: string;
   area_preference: string;
+  // ── STRUCTURED LOCATION ───────────────────────────
+  preferred_state: string | null;
+  preferred_lga: string | null;
+  preferred_area: string | null;
+  // ─────────────────────────────────────────────────
   bio: string;
   active: boolean;
   // ── SCHOOL FIELDS (Phase 5) ───────────────────────

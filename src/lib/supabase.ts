@@ -438,6 +438,40 @@ export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' |
   return { listing: data as Listing | null, error };
 }
 
+// ─── PASSWORD CHANGE ───────────────────────────────
+
+export async function changePassword(currentPassword: string, newPassword: string, email: string) {
+  // Step 1: Verify current password by re-authenticating
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+  if (signInError) {
+    return { error: { message: 'Current password is incorrect' } };
+  }
+
+  // Step 2: Update password
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+  if (updateError) {
+    return { error: { message: updateError.message || 'Failed to update password' } };
+  }
+
+  return { error: null };
+}
+
+export async function logPasswordChange(userId: string, authId: string) {
+  const { device, os, browser } = parseDeviceInfo();
+  const { error } = await supabase.from('user_activity').insert({
+    user_id: userId,
+    auth_id: authId,
+    action_type: 'password_change',
+    details: { device, os, browser, source: 'security_settings' },
+  });
+  return { error };
+}
+
 // ─── ROOMMATE HELPERS ──────────────────────────────
 
 export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences>) {

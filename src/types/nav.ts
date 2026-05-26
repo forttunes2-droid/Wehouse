@@ -4,6 +4,7 @@ export type NavPage =
   | 'saved'
   | 'roommate'
   | 'profile'
+  | 'activity'
   | 'detail'
   | 'creator'
   | 'chat'

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { saveRoommatePreferences, getRoommatePreferences, findMatches } from '@/lib/supabase';
 import InstitutionSelector from '@/components/InstitutionSelector';
+import RoommateLocationSelector from '@/components/RoommateLocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -284,6 +285,9 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
     visitors: existingPrefs?.visitors || 'sometimes',
     stay_duration: existingPrefs?.stay_duration || '1_year',
     area_preference: existingPrefs?.area_preference || '',
+    preferred_state: existingPrefs?.preferred_state || '',
+    preferred_lga: existingPrefs?.preferred_lga || '',
+    preferred_area: existingPrefs?.preferred_area || '',
     bio: existingPrefs?.bio || '',
     school_name: existingPrefs?.school_name || '',
     campus: existingPrefs?.campus || '',
@@ -312,7 +316,10 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
       sleep_time: form.sleep_time,
       visitors: form.visitors,
       stay_duration: form.stay_duration,
-      area_preference: form.area_preference,
+      area_preference: form.preferred_lga || form.area_preference,
+      preferred_state: form.preferred_state || null,
+      preferred_lga: form.preferred_lga || null,
+      preferred_area: form.preferred_area || null,
       bio: form.bio,
       school_name: showStudent ? (form.school_name || null) : null,
       campus: showStudent ? (form.campus || null) : null,
@@ -400,14 +407,16 @@ function EditView({ existingPrefs, onSave, onCancel, isFirstTime }: {
             </div>
           </div>
 
-          {/* Location */}
+          {/* Structured Location — State → LGA → Area */}
           <div className="mb-4">
-            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Preferred Location *</label>
-            <input
-              value={form.area_preference}
-              onChange={(e) => update('area_preference', e.target.value)}
-              placeholder="e.g. Ikeja, Yaba, Lekki Phase 1"
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Location *</label>
+            <RoommateLocationSelector
+              value={{
+                preferred_state: form.preferred_state,
+                preferred_lga: form.preferred_lga,
+                preferred_area: form.preferred_area,
+              }}
+              onChange={(v) => setForm(f => ({ ...f, ...v }))}
             />
           </div>
 

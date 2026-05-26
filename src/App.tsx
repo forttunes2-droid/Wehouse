@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { useAuth, hasAdminAccess, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
+import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { getSavedListings, saveListing, unsaveListing } from '@/lib/supabase';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
@@ -23,6 +23,7 @@ const CreateListing = lazy(() => import('@/pages/CreateListing'));
 const WorkerSetup = lazy(() => import('@/pages/WorkerSetup'));
 const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
 const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
+const Activity = lazy(() => import('@/pages/Activity'));
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -67,12 +68,10 @@ export default function App() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   // Roommate is now a unified page — no mode state needed
   const [error, setError] = useState<Error | null>(null);
-  const isAdmin = hasAdminAccess(auth.profile?.role || '');
   const isWorker = auth.profile?.role === 'worker';
-  const isStaff = auth.profile?.role === 'staff';
   const canList = canCreateListings(auth.profile?.role || '');
   const isCreator = checkCreator(auth.profile?.role || '');
-  const isUser = !isAdmin && !isWorker && !isStaff;
+  // Note: isUser is not needed since we use role-specific tab assignments
 
   // Error boundary
   useEffect(() => {
@@ -156,6 +155,8 @@ export default function App() {
         return <Saved {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
       case 'roommate':
         return <Roommate profile={profile} />;
+      case 'activity':
+        return <Activity profile={profile} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} savedIds={savedIds} onToggleSave={handleToggleSave} />;
       case 'profile':
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
@@ -192,18 +193,21 @@ export default function App() {
     }
   };
 
-  // Bottom nav tabs — different for each role
-  const tabs = [
+  // Bottom nav — Modern Real Estate: Home, Listings, Roommates, Activity, Profile
+  const baseTabs = [
     { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-    { id: 'search' as NavPage, label: 'Search', icon: SearchSvg },
-    { id: 'saved' as NavPage, label: 'Saved', icon: HeartSvg },
-    { id: 'roommate' as NavPage, label: 'Roommate', icon: UsersSvg },
-    ...(isUser ? [{ id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg }] : []),
-    ...(isWorker ? [{ id: 'worker_dashboard' as NavPage, label: 'Dashboard', icon: BriefcaseSvg }] : []),
-    ...(isCreator
-      ? [{ id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }]
-      : isUser ? [{ id: 'profile' as NavPage, label: 'Profile', icon: UserSvg }] : []),
+    { id: 'search' as NavPage, label: 'Listings', icon: ListingsSvg },
+    { id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg },
+    { id: 'activity' as NavPage, label: 'Activity', icon: ActivitySvg },
   ];
+
+  const roleTab = isWorker
+    ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
+    : isCreator
+    ? { id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }
+    : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
+
+  const tabs = [...baseTabs, roleTab];
 
   return (
     <Suspense fallback={<PageSkeleton />}>
@@ -211,8 +215,8 @@ export default function App() {
         {renderPage()}
       </div>
 
-      {/* Bottom Nav — hidden on admin dashboard */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && (
+      {/* Bottom Nav — hidden on detail/sub-pages */}
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'saved' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {
@@ -248,17 +252,10 @@ function HomeSvg({ size, active }: { size: number; active: boolean }) {
     </svg>
   );
 }
-function SearchSvg({ size, active }: { size: number; active: boolean }) {
+function ListingsSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-}
-function HeartSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={active ? '#3B82F6' : 'none'} stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
     </svg>
   );
 }
@@ -269,7 +266,14 @@ function UsersSvg({ size, active }: { size: number; active: boolean }) {
     </svg>
   );
 }
-function UserSvg({ size, active }: { size: number; active: boolean }) {
+function ActivitySvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+function ProfileSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
@@ -279,24 +283,7 @@ function UserSvg({ size, active }: { size: number; active: boolean }) {
 function AdminSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  );
-}
-
-function WrenchSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-    </svg>
-  );
-}
-
-function BriefcaseSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" />
     </svg>
   );
 }
