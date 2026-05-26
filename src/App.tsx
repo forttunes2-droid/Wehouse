@@ -169,6 +169,11 @@ export default function App() {
       case 'security':
         return <SecuritySettings profile={profile} onBack={() => goTo('account')} />;
       case 'new_listing':
+        // Only staff and admin can create listings
+        if (!isAdmin) {
+          setNavPage('home');
+          return null;
+        }
         return <CreateListing profile={profile} onBack={() => goTo('home')} onSuccess={() => goTo('home')} />;
       case 'worker_dashboard':
         return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} />;

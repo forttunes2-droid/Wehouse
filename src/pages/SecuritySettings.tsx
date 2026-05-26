@@ -25,6 +25,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   // Parse current device for comparison
@@ -125,27 +126,26 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
 
   async function handleDeleteAccount() {
     setDeleting(true);
-    // Delete profile data first
     const { error } = await deleteOwnAccount(profile.user_id, profile.auth_id);
     if (error) {
-      toast.error('Delete failed: ' + error.message);
+      toast.error('Delete failed: ' + (error.message || JSON.stringify(error)));
+      console.error('[Delete Account Error]', error);
       setDeleting(false);
       return;
     }
-    // Sign out
+    // Wipe auth data
     await supabase.auth.signOut({ scope: 'global' });
-    // Clear all local storage
     try {
-      const keys = [];
+      const keys: string[] = [];
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
-        if (key && (key.includes('sb-') || key.includes('supabase'))) keys.push(key);
+        if (key && (key.startsWith('sb-') || key.includes('supabase'))) keys.push(key);
       }
       keys.forEach(k => localStorage.removeItem(k));
       sessionStorage.clear();
     } catch { /* ignore */ }
     toast.success('Account deleted');
-    setTimeout(() => window.location.reload(), 800);
+    setTimeout(() => window.location.reload(), 1000);
   }
 
   const formatLastLogin = () => {
@@ -310,57 +310,94 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
           </div>
         </div>
 
-        {/* Delete Account — Danger Zone */}
-        <div>
-          <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3 px-1">
-            Danger Zone
+        {/* Delete Account — Modern Modal Pattern */}
+        <div className="pt-4 border-t border-white/[0.04]">
+          <h3 className="text-[10px] font-semibold text-[#5C5E72] uppercase tracking-widest mb-4 px-1">
+            Account Removal
           </h3>
-          <div className="glass rounded-2xl p-4 border border-red-500/10">
-            {!showDeleteConfirm ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-white">Delete Account</div>
-                  <div className="text-[11px] text-[#5C5E72]">Permanently delete your account and all data</div>
-                </div>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="h-8 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20 transition-colors"
-                >
-                  Delete
-                </button>
+
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full glass rounded-2xl p-4 flex items-center gap-4 text-left group hover:border-red-500/20 transition-all duration-300"
+            >
+              <div className="w-11 h-11 rounded-xl bg-red-500/[0.08] flex items-center justify-center flex-shrink-0 group-hover:bg-red-500/[0.15] transition-colors">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
               </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-start gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white group-hover:text-red-400 transition-colors">Delete Account</p>
+                <p className="text-[11px] text-[#5C5E72] mt-0.5">Remove your account and all associated data permanently</p>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0 group-hover:translate-x-0.5 transition-transform">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          ) : (
+            <div className="glass rounded-2xl border border-red-500/15 overflow-hidden">
+              {/* Header */}
+              <div className="px-5 pt-5 pb-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
+                </div>
+                <h4 className="text-base font-semibold text-white mb-1">Delete your account?</h4>
+                <p className="text-xs text-[#5C5E72] leading-relaxed">
+                  This will permanently erase your profile, listings, saved items, messages, and all activity. This action <span className="text-red-400 font-medium">cannot be undone</span>.
+                </p>
+              </div>
+
+              {/* Data summary */}
+              <div className="mx-5 mb-4 p-3 rounded-xl bg-[#1A1A24] border border-[#2A2A3A]">
+                <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2 font-medium">Account to delete</p>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">
+                    {(profile.username || profile.email[0]).charAt(0).toUpperCase()}
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-red-400">This cannot be undone</p>
-                    <p className="text-[11px] text-[#5C5E72] mt-0.5">
-                      All your data including listings, saved items, messages, and profile will be permanently deleted.
-                    </p>
+                    <p className="text-xs text-white font-medium">@{profile.username || 'user'}</p>
+                    <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleDeleteAccount}
-                    disabled={deleting}
-                    className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
-                  >
-                    {deleting ? 'Deleting...' : 'Yes, delete my account'}
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    disabled={deleting}
-                    className="flex-1 h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs hover:bg-[#2A2A3A] transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
-            )}
-          </div>
+
+              {/* Type DELETE confirmation */}
+              <div className="mx-5 mb-4">
+                <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">
+                  Type <span className="text-red-400 font-bold">DELETE</span> to confirm
+                </label>
+                <input
+                  value={deleteInput}
+                  onChange={e => setDeleteInput(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-red-500/50 focus:ring-red-500/20 outline-none uppercase tracking-widest font-medium"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="px-5 pb-5 flex gap-2.5">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); }}
+                  disabled={deleting}
+                  className="flex-1 h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm font-medium hover:bg-[#232330] transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting || deleteInput !== 'DELETE'}
+                  className="flex-1 h-11 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 active:scale-[0.98] transition-all disabled:opacity-30 flex items-center justify-center gap-2"
+                >
+                  {deleting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {deleting ? 'Deleting...' : 'Permanently Delete'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

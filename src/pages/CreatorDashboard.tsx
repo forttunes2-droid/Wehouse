@@ -3,7 +3,7 @@ import {
   getAllUsers, getUserCount, updateUserRole, deleteUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
-  updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus,
+  updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, canModifyRole } from '@/hooks/useAuth';
@@ -106,7 +106,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 pb-6">
-        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => setActiveTab('users')} />}
         {activeTab === 'users' && <UsersTab profile={profile} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
@@ -119,7 +119,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 }
 
 // ─── OVERVIEW ──────────────────────────────────────
-function OverviewTab({ profile, isCreator, onGoToNewListing }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void }) {
+function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void; onGoToUsers?: () => void }) {
   const [stats, setStats] = useState({ users: 0, listings: 0, reports: 0, today: 0 });
 
   useEffect(() => {
@@ -162,7 +162,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing }: { profile: Profil
               <div className="text-[10px] text-[#5C5E72]">Post new property</div>
             </div>
           </button>
-          <button className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-[#3B82F6]/10">
+          <button onClick={onGoToUsers} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-[#3B82F6]/10">
             <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </div>
@@ -247,29 +247,46 @@ function UsersTab({ profile }: { profile: Profile }) {
     const target = users.find(u => u.user_id === userId);
     if (!target) { toast.error('User not found'); return; }
 
-    // ─── CREATOR PROTECTION ──────────────────────────
-    // Cannot modify creator accounts
+    // ─── STRICT ROLE RULES ───────────────────────────
+    // Creator: untouchable
     if (isCreator(target.role)) {
       toast.error('Creator accounts cannot be modified');
       return;
     }
-    // Check permission hierarchy
+    // Worker: signed up as worker, role is locked
+    if (target.role === 'worker') {
+      toast.error('Workers signed up as workers. Their role cannot be changed.');
+      return;
+    }
+    // Cannot assign creator role (only one creator exists)
+    if (newRole === 'creator') {
+      toast.error('Only one creator exists. Creator role cannot be assigned.');
+      return;
+    }
+    // Cannot assign worker role (workers must sign up as workers)
+    if (newRole === 'worker') {
+      toast.error('Workers must sign up via the worker registration. You cannot promote a user to worker.');
+      return;
+    }
+    // Only users can be promoted (to staff or admin)
+    // Staff and admin can be swapped between each other
+    if (target.role !== 'user' && target.role !== 'staff' && target.role !== 'admin') {
+      toast.error('This role cannot be modified');
+      return;
+    }
+    // Permission check
     if (!canModifyRole(profile.role, target.role)) {
       toast.error('You cannot modify this user\'s role');
       return;
     }
-    // Cannot downgrade yourself
+    // Cannot change your own role
     if (userId === profile.user_id && newRole !== profile.role) {
       toast.error('You cannot change your own role');
       return;
     }
-    // Cannot assign creator role (only one creator)
-    if (newRole === 'creator' && profile.role !== 'creator') {
-      toast.error('Only the creator can assign creator role');
-      return;
-    }
 
-    await updateUserRole(userId, newRole);
+    const { error } = await updateUserRole(userId, newRole);
+    if (error) { toast.error('Failed: ' + error.message); return; }
     await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role to ${newRole}`);
     toast.success('Role updated');
     load();
@@ -320,6 +337,16 @@ function UsersTab({ profile }: { profile: Profile }) {
           <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{filtered.length} Users</div>
           {filtered.map(u => {
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
+            // Role control logic:
+            // - Creator: locked, no controls
+            // - Worker: locked, workers sign up as workers, can't be changed
+            // - User: can be promoted to staff or admin
+            // - Staff/Admin: can be changed between staff/admin
+            const isCreatorAccount = isCreator(u.role);
+            const isWorkerAccount = u.role === 'worker';
+            const isUserAccount = u.role === 'user';
+            const canDelete = !isCreatorAccount && u.user_id !== profile.user_id;
+
             return (
               <div key={u.id} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-3">
@@ -335,23 +362,30 @@ function UsersTab({ profile }: { profile: Profile }) {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2.5">
-                  {/* Role select — creator protected */}
-                  <select
-                    value={u.role}
-                    onChange={(e) => handleRole(u.user_id, e.target.value)}
-                    disabled={isCreator(u.role)}
-                    className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white disabled:opacity-50"
-                  >
-                    <option value="user">User</option>
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
-                    <option value="creator">Creator</option>
-                    <option value="worker">Worker</option>
-                  </select>
-                  {/* Delete — creator protected */}
+                  {/* Role: locked for creator and worker */}
+                  {isCreatorAccount ? (
+                    <div className="flex-1 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
+                      Creator — cannot be changed
+                    </div>
+                  ) : isWorkerAccount ? (
+                    <div className="flex-1 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400 text-[10px] px-2 flex items-center font-medium">
+                      Worker — signed up as worker
+                    </div>
+                  ) : (
+                    <select
+                      value={u.role}
+                      onChange={(e) => handleRole(u.user_id, e.target.value)}
+                      className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
+                    >
+                      {isUserAccount && <option value="user">User</option>}
+                      <option value="staff">Staff</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  )}
+                  {/* Delete — creator protected, can't delete self */}
                   <button
                     onClick={() => handleDelete(u.user_id)}
-                    disabled={isCreator(u.role)}
+                    disabled={!canDelete}
                     className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     Delete
@@ -427,11 +461,21 @@ function ListingsTab({ profile }: { profile: Profile }) {
 function ReportsTab({ profile }: { profile: Profile }) {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { reports: data } = await getReports();
-    setReports(data || []);
+    setError('');
+    try {
+      const { reports: data, error: err } = await getReports();
+      if (err) {
+        setError('Unable to load reports: ' + (err.message || 'Permission denied'));
+      } else {
+        setReports(data || []);
+      }
+    } catch {
+      setError('Unable to load reports. Admin access required.');
+    }
     setLoading(false);
   }, []);
 
@@ -453,6 +497,18 @@ function ReportsTab({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="glass rounded-2xl p-4 border border-red-500/10 flex items-start gap-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-red-400">Access Denied</p>
+            <p className="text-[11px] text-[#5C5E72] mt-0.5">{error}</p>
+            <p className="text-[10px] text-[#5C5E72] mt-1">Run the SQL migration in Supabase to enable admin access.</p>
+          </div>
+        </div>
+      )}
       {loading ? (
         <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : reports.length === 0 ? (
@@ -522,9 +578,20 @@ function SettingsTab({ profile, isCreator }: { profile: Profile; isCreator: bool
 
   useEffect(() => {
     async function load() {
-      const { settings: data } = await getSystemSettings();
+      const { settings: data, error } = await getSystemSettings();
       const map: Record<string, string> = {};
-      data?.forEach(s => { if (s.value) map[s.key] = s.value; });
+      if (data) {
+        data.forEach(s => { if (s.value !== null && s.value !== undefined) map[s.key] = s.value; });
+      }
+      // Defaults are already merged in getSystemSettings, but ensure all keys exist
+      if (Object.keys(map).length === 0 || error) {
+        map.platform_name = 'WeHouse';
+        map.listing_approval_required = 'false';
+        map.default_user_role = 'user';
+        map.maintenance_mode = 'false';
+        map.registration_open = 'true';
+        map.max_listings_per_user = '5';
+      }
       setSettings(map);
       setLoading(false);
     }
@@ -532,9 +599,21 @@ function SettingsTab({ profile, isCreator }: { profile: Profile; isCreator: bool
   }, []);
 
   async function handleUpdate(key: string, value: string) {
-    await updateSystemSetting(key, value, profile.user_id);
+    const { error } = await updateSystemSetting(key, value, profile.user_id);
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('relation') || msg.includes('does not exist')) {
+        toast.error('Settings table not found. Run the SQL migration in Supabase.');
+      } else if (msg.includes('violates row-level')) {
+        toast.error('Permission denied. Admin RLS not configured.');
+      } else {
+        toast.error('Save failed: ' + msg);
+      }
+      console.error('[Settings Error]', error);
+      return;
+    }
     await logAuditAction(profile.user_id, profile.email, 'update_setting', 'setting', key, `${key} = ${value}`);
-    toast.success('Setting updated');
+    toast.success('Setting saved');
   }
 
   if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
@@ -633,7 +712,8 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
   async function handleStatus(userId: string, status: 'verified' | 'suspended' | 'rejected') {
     const { error } = await updateWorkerStatus(userId, status);
     if (error) {
-      toast.error('Failed: ' + error.message);
+      toast.error('Save failed: ' + (error.message || 'Unknown error'));
+      console.error('[Worker Status Error]', JSON.stringify(error));
       return;
     }
     await logAuditAction(profile.user_id, profile.email, `worker_${status}`, 'worker', userId, `Worker ${status}`);
@@ -641,7 +721,7 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
     load();
   }
 
-  const filtered = filter === 'all' ? workers : workers.filter(w => w.worker_status === filter);
+  const filtered = filter === 'all' ? workers : workers.filter(w => parseWorkerStatus(w) === filter);
 
   return (
     <div className="space-y-3">
@@ -670,11 +750,11 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-white truncate">{w.full_name || w.username || '...'}</span>
                   <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${
-                    w.worker_status === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    w.worker_status === 'verified' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                    w.worker_status === 'suspended' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                    parseWorkerStatus(w) === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    parseWorkerStatus(w) === 'verified' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                    parseWorkerStatus(w) === 'suspended' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                     'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                  }`}>{w.worker_status}</span>
+                  }`}>{parseWorkerStatus(w)}</span>
                 </div>
                 <div className="text-[10px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[w.worker_occupation] || w.worker_occupation} · {w.city || 'No location'}</div>
               </div>

@@ -113,7 +113,7 @@ export async function getProfile(userId: string) {
     .from('profiles')
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }
 
@@ -437,6 +437,16 @@ export async function getWorkers(filters?: { city?: string; occupation?: string;
   return { workers: data as Profile[] | null, error };
 }
 
+// Parse worker status from profile — checks bio marker FIRST (source of truth), falls back to column
+export function parseWorkerStatus(profile: Profile): string {
+  // Bio marker is the source of truth — we always write here
+  const match = profile.bio?.match(/🛠️STATUS:(\w+)🛠️/);
+  if (match) return match[1];
+  // Fallback to column (for pre-existing data)
+  if (profile.worker_status) return profile.worker_status;
+  return 'pending';
+}
+
 export async function getAllWorkers() {
   const { data, error } = await supabase
     .from('profiles')
@@ -457,10 +467,42 @@ export async function getPendingWorkers() {
 }
 
 export async function updateWorkerStatus(userId: string, status: 'pending' | 'verified' | 'suspended' | 'rejected') {
-  const { error } = await supabase
+  // Strategy: Update bio marker (always works) + try column (best effort)
+  // Bio marker is the SOURCE OF TRUTH — parseWorkerStatus reads it first
+
+  // 1. Read current bio
+  const { data: row } = await supabase
     .from('profiles')
-    .update({ worker_status: status, worker_verified: status === 'verified', updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
+    .select('bio')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const bio = row?.bio || '';
+  const cleanBio = bio.replace(/🛠️STATUS:\w+🛠️/g, '').trim();
+  const newBio = `🛠️STATUS:${status}🛠️ ${cleanBio}`.trim();
+
+  // 2. Update bio (this column always exists) — this is the PRIMARY write
+  const { data: updated, error } = await supabase
+    .from('profiles')
+    .update({ bio: newBio })
+    .eq('user_id', userId)
+    .select();
+
+  // Verify rows were actually updated
+  if (!error && (!updated || updated.length === 0)) {
+    return { error: { message: `Update succeeded but 0 rows changed for user ${userId}` } as any };
+  }
+
+  // 3. Also update the proper columns (best effort, may fail if columns don't exist)
+  if (!error) {
+    try {
+      await supabase
+        .from('profiles')
+        .update({ worker_status: status, worker_verified: status === 'verified', updated_at: new Date().toISOString() })
+        .eq('user_id', userId);
+    } catch { /* columns may not exist, bio is the source of truth */ }
+  }
+
   return { error };
 }
 
@@ -573,29 +615,29 @@ export async function updateUserRole(userId: string, role: string) {
 }
 
 export async function deleteUser(userId: string) {
-  // Try to delete the profile directly first
-  let { error } = await supabase.from('profiles').delete().eq('user_id', userId);
-  if (!error) return { error: null };
+  // Try direct delete first — WITH row verification
+  let result = await supabase.from('profiles').delete().eq('user_id', userId).select();
+  if (!result.error && result.data && result.data.length > 0) return { error: null };
 
-  // If FK constraint blocked it, cascade from known related tables
-  try { await supabase.from('saved_listings').delete().eq('user_id', userId); } catch { /* ignore */ }
-  try { await supabase.from('roommate_preferences').delete().eq('user_id', userId); } catch { /* ignore */ }
-  try { await supabase.from('roommate_matches').delete().or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`); } catch { /* ignore */ }
-  try { await supabase.from('user_activity').delete().eq('user_id', userId); } catch { /* ignore */ }
-  try { await supabase.from('reviews').delete().or(`reviewer_id.eq.${userId},reviewee_id.eq.${userId}`); } catch { /* ignore */ }
-  try { await supabase.from('conversations').delete().or(`participant_a.eq.${userId},participant_b.eq.${userId}`); } catch { /* ignore */ }
+  // FK violation — cascade delete related records one by one
+  await supabase.from('saved_listings').delete().eq('user_id', userId);
+  await supabase.from('roommate_preferences').delete().eq('user_id', userId);
+  await supabase.from('roommate_matches').delete().or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
+  await supabase.from('user_activity').delete().eq('user_id', userId);
+  await supabase.from('reviews').delete().or(`reviewer_id.eq.${userId},reviewee_id.eq.${userId}`);
+  await supabase.from('conversations').delete().or(`participant_a.eq.${userId},participant_b.eq.${userId}`);
 
-  // Try profile delete again
-  ({ error } = await supabase.from('profiles').delete().eq('user_id', userId));
-  return { error };
+  // Retry profile delete — WITH row verification
+  result = await supabase.from('profiles').delete().eq('user_id', userId).select();
+  if (!result.error && (!result.data || result.data.length === 0)) {
+    return { error: { message: 'Delete returned 0 rows — user may not exist or RLS blocked' } as any };
+  }
+  return { error: result.error };
 }
 
-export async function deleteOwnAccount(userId: string, authId: string) {
+export async function deleteOwnAccount(userId: string, _authId: string) {
   const { error } = await deleteUser(userId);
-  if (error) return { error };
-  // Attempt auth deletion (may fail without service_role, profile is already gone)
-  await supabase.auth.admin.deleteUser(authId).catch(() => {});
-  return { error: null };
+  return { error };
 }
 
 export async function getAllListingsAdmin() {
@@ -635,13 +677,41 @@ export async function logAuditAction(adminId: string, email: string, action: str
   return { error };
 }
 
+// Settings table: platform_settings
+// Reads with fallback defaults if table doesn't exist
+const DEFAULT_SETTINGS: Record<string, string> = {
+  platform_name: 'WeHouse',
+  listing_approval_required: 'false',
+  default_user_role: 'user',
+  maintenance_mode: 'false',
+  registration_open: 'true',
+  max_listings_per_user: '5',
+};
+
 export async function getSystemSettings() {
-  const { data, error } = await supabase.from('system_settings').select('*');
-  return { settings: data as SystemSetting[] | null, error };
+  const { data, error } = await supabase.from('platform_settings').select('*');
+  // Merge DB values with defaults (DB wins if exists)
+  const merged: SystemSetting[] = Object.entries(DEFAULT_SETTINGS).map(([key, value]) => {
+    const dbRow = data?.find((d: any) => d.key === key);
+    return {
+      id: dbRow?.id || key,
+      key,
+      value: dbRow?.value ?? value,
+      updated_by: dbRow?.updated_by || null,
+      updated_at: dbRow?.updated_at || new Date().toISOString(),
+    };
+  });
+  return { settings: merged, error };
 }
 
 export async function updateSystemSetting(key: string, value: string, updatedBy: string) {
-  const { error } = await supabase.from('system_settings').update({ value, updated_by: updatedBy }).eq('key', key);
+  // Try upsert — insert if not exists, update if exists
+  const { error } = await supabase
+    .from('platform_settings')
+    .upsert(
+      { key, value, updated_by: updatedBy, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
   return { error };
 }
 
