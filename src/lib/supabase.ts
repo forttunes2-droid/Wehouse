@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Profile, Listing, RoommatePreferences, ListingReport, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest } from '@/types';
 
-const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
+// Environment variables only — never hardcode secrets
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -299,7 +304,10 @@ export async function getAllRoommatePreferences() {
 export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences>) {
   const { data, error } = await supabase
     .from('roommate_preferences')
-    .upsert({ ...prefs, updated_at: new Date().toISOString() })
+    .upsert(
+      { ...prefs, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
     .select()
     .single();
   return { prefs: data as RoommatePreferences | null, error };
