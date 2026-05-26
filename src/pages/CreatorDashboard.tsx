@@ -3,7 +3,7 @@ import {
   getAllUsers, getUserCount, updateUserRole, deleteUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
-  updateSystemSetting, logAuditAction, getPendingWorkers, updateWorkerStatus,
+  updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, canModifyRole } from '@/hooks/useAuth';
@@ -297,7 +297,11 @@ function UsersTab({ profile }: { profile: Profile }) {
     }
 
     if (!confirm('Delete this user permanently?')) return;
-    await deleteUser(userId);
+    const { error } = await deleteUser(userId);
+    if (error) {
+      toast.error('Delete failed: ' + error.message);
+      return;
+    }
     await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User deleted');
     toast.success('User deleted');
     load();
@@ -619,7 +623,7 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { workers: data } = await getPendingWorkers();
+    const { workers: data } = await getAllWorkers();
     setWorkers(data || []);
     setLoading(false);
   }, []);
@@ -627,7 +631,11 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
   useEffect(() => { load(); }, [load]);
 
   async function handleStatus(userId: string, status: 'verified' | 'suspended' | 'rejected') {
-    await updateWorkerStatus(userId, status);
+    const { error } = await updateWorkerStatus(userId, status);
+    if (error) {
+      toast.error('Failed: ' + error.message);
+      return;
+    }
     await logAuditAction(profile.user_id, profile.email, `worker_${status}`, 'worker', userId, `Worker ${status}`);
     toast.success(`Worker ${status}`);
     load();

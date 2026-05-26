@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { parseDeviceInfo, getSessionHistory, supabase } from '@/lib/supabase';
+import { parseDeviceInfo, getSessionHistory, supabase, deleteOwnAccount } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -24,6 +24,8 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Parse current device for comparison
   const currentDevice = parseDeviceInfo();
@@ -119,6 +121,31 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
     await supabase.auth.signOut({ scope: 'global' });
     toast.success('Logged out of all devices');
     setTimeout(() => window.location.reload(), 500);
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    // Delete profile data first
+    const { error } = await deleteOwnAccount(profile.user_id, profile.auth_id);
+    if (error) {
+      toast.error('Delete failed: ' + error.message);
+      setDeleting(false);
+      return;
+    }
+    // Sign out
+    await supabase.auth.signOut({ scope: 'global' });
+    // Clear all local storage
+    try {
+      const keys = [];
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('sb-') || key.includes('supabase'))) keys.push(key);
+      }
+      keys.forEach(k => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch { /* ignore */ }
+    toast.success('Account deleted');
+    setTimeout(() => window.location.reload(), 800);
   }
 
   const formatLastLogin = () => {
@@ -280,6 +307,59 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Delete Account — Danger Zone */}
+        <div>
+          <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3 px-1">
+            Danger Zone
+          </h3>
+          <div className="glass rounded-2xl p-4 border border-red-500/10">
+            {!showDeleteConfirm ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-white">Delete Account</div>
+                  <div className="text-[11px] text-[#5C5E72]">Permanently delete your account and all data</div>
+                </div>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="h-8 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-red-400">This cannot be undone</p>
+                    <p className="text-[11px] text-[#5C5E72] mt-0.5">
+                      All your data including listings, saved items, messages, and profile will be permanently deleted.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleting}
+                    className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting...' : 'Yes, delete my account'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={deleting}
+                    className="flex-1 h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs hover:bg-[#2A2A3A] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

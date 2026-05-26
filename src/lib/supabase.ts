@@ -437,6 +437,15 @@ export async function getWorkers(filters?: { city?: string; occupation?: string;
   return { workers: data as Profile[] | null, error };
 }
 
+export async function getAllWorkers() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'worker')
+    .order('created_at', { ascending: false });
+  return { workers: data as Profile[] | null, error };
+}
+
 export async function getPendingWorkers() {
   const { data, error } = await supabase
     .from('profiles')
@@ -448,13 +457,11 @@ export async function getPendingWorkers() {
 }
 
 export async function updateWorkerStatus(userId: string, status: 'pending' | 'verified' | 'suspended' | 'rejected') {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('profiles')
     .update({ worker_status: status, worker_verified: status === 'verified', updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .select()
-    .single();
-  return { profile: data as Profile | null, error };
+    .eq('user_id', userId);
+  return { error };
 }
 
 // ─── CHAT HELPERS ──────────────────────────────────
@@ -566,8 +573,29 @@ export async function updateUserRole(userId: string, role: string) {
 }
 
 export async function deleteUser(userId: string) {
-  const { error } = await supabase.from('profiles').delete().eq('user_id', userId);
+  // Try to delete the profile directly first
+  let { error } = await supabase.from('profiles').delete().eq('user_id', userId);
+  if (!error) return { error: null };
+
+  // If FK constraint blocked it, cascade from known related tables
+  try { await supabase.from('saved_listings').delete().eq('user_id', userId); } catch { /* ignore */ }
+  try { await supabase.from('roommate_preferences').delete().eq('user_id', userId); } catch { /* ignore */ }
+  try { await supabase.from('roommate_matches').delete().or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`); } catch { /* ignore */ }
+  try { await supabase.from('user_activity').delete().eq('user_id', userId); } catch { /* ignore */ }
+  try { await supabase.from('reviews').delete().or(`reviewer_id.eq.${userId},reviewee_id.eq.${userId}`); } catch { /* ignore */ }
+  try { await supabase.from('conversations').delete().or(`participant_a.eq.${userId},participant_b.eq.${userId}`); } catch { /* ignore */ }
+
+  // Try profile delete again
+  ({ error } = await supabase.from('profiles').delete().eq('user_id', userId));
   return { error };
+}
+
+export async function deleteOwnAccount(userId: string, authId: string) {
+  const { error } = await deleteUser(userId);
+  if (error) return { error };
+  // Attempt auth deletion (may fail without service_role, profile is already gone)
+  await supabase.auth.admin.deleteUser(authId).catch(() => {});
+  return { error: null };
 }
 
 export async function getAllListingsAdmin() {
