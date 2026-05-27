@@ -4,7 +4,7 @@ import {
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
-  getFilteredRecipientCount, checkAnnouncementTables,
+  getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -127,7 +127,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 pb-6">
-        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => handleSetTab('users')} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => handleSetTab('users')} onGoToTab={handleSetTab} />}
         {activeTab === 'users' && <UsersTab profile={profile} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
@@ -141,7 +141,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 }
 
 // ─── OVERVIEW ──────────────────────────────────────
-function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void; onGoToUsers?: () => void }) {
+function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoToTab }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void; onGoToUsers?: () => void; onGoToTab?: (tab: AdminTab) => void }) {
   const [stats, setStats] = useState({ users: 0, listings: 0, reports: 0, today: 0 });
 
   useEffect(() => {
@@ -154,21 +154,27 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers }: { pr
     load();
   }, []);
 
+  const statCards = [
+    { label: 'Total Users', value: stats.users, tab: 'users' as AdminTab, color: isCreator ? 'from-purple-500 to-[#7C3AED]' : 'from-[#3B82F6] to-[#2563EB]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' },
+    { label: 'Listings', value: stats.listings, tab: 'listings' as AdminTab, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
+    { label: 'Pending Reports', value: stats.reports, tab: 'reports' as AdminTab, color: stats.reports > 0 ? 'from-[#EF4444] to-[#DC2626]' : 'from-[#6B7280] to-[#4B5563]', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' },
+    { label: 'New Today', value: stats.today, tab: 'users' as AdminTab, color: isCreator ? 'from-purple-400 to-purple-600' : 'from-[#8B5CF6] to-[#7C3AED]', icon: 'M12 5v14M5 12h14' },
+  ];
+
   return (
     <div className="space-y-4">
-      {/* Stats Grid */}
+      {/* Stats Grid — clickable, navigates to respective tabs */}
       <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: 'Total Users', value: stats.users, color: isCreator ? 'from-purple-500 to-[#7C3AED]' : 'from-[#3B82F6] to-[#2563EB]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' },
-          { label: 'Listings', value: stats.listings, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
-          { label: 'Pending Reports', value: stats.reports, color: stats.reports > 0 ? 'from-[#EF4444] to-[#DC2626]' : 'from-[#6B7280] to-[#4B5563]', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' },
-          { label: 'New Today', value: stats.today, color: isCreator ? 'from-purple-400 to-purple-600' : 'from-[#8B5CF6] to-[#7C3AED]', icon: 'M12 5v14M5 12h14' },
-        ].map(c => (
-          <div key={c.label} className={`bg-gradient-to-br ${c.color} rounded-2xl p-4 relative overflow-hidden`}>
+        {statCards.map(c => (
+          <button
+            key={c.label}
+            onClick={() => onGoToTab?.(c.tab)}
+            className={`bg-gradient-to-br ${c.color} rounded-2xl p-4 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
+          >
             <svg className="absolute top-3 right-3 w-8 h-8 text-white/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
             <div className="text-2xl font-bold text-white relative z-10">{c.value}</div>
             <div className="text-[10px] text-white/70 relative z-10">{c.label}</div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -317,6 +323,13 @@ function UsersTab({ profile }: { profile: Profile }) {
     load();
   }
 
+  async function handleExemptToggle(userId: string, currentExempt: boolean) {
+    const { error } = await toggleMaintenanceExempt(userId, !currentExempt);
+    if (error) { toast.error('Failed to update exemption'); return; }
+    toast.success(currentExempt ? 'Removed maintenance exemption' : 'User can now login during maintenance');
+    load();
+  }
+
   const filtered = users.filter(u => !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -383,6 +396,20 @@ function UsersTab({ profile }: { profile: Profile }) {
                       <option value="assistant_state_admin">Assistant State Admin</option>
                       <option value="state_admin">State Admin</option>
                     </select>
+                  )}
+
+                  {!isDeleted && !isCreatorAccount && (
+                    <button
+                      onClick={() => handleExemptToggle(u.user_id, !!u.maintenance_exempt)}
+                      title={u.maintenance_exempt ? 'Can login during maintenance' : 'Allow login during maintenance'}
+                      className={`h-7 px-2 rounded-lg border text-[10px] font-medium transition-colors ${
+                        u.maintenance_exempt
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                          : 'bg-[#1A1A24] border-[#232330] text-[#5C5E72] hover:text-amber-400 hover:border-amber-500/30'
+                      }`}
+                    >
+                      {u.maintenance_exempt ? 'Exempt' : 'Exempt'}
+                    </button>
                   )}
 
                   {!isDeleted && (

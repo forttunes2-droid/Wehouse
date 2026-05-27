@@ -700,7 +700,7 @@ export async function sendAnnouncement(
         query = query.eq('role', 'worker');
         break;
       case 'verified_workers':
-        query = query.eq('role', 'worker').eq('is_verified', true);
+        query = query.eq('role', 'worker').eq('worker_verified', true);
         break;
       case 'admins':
         query = query.in('role', ['admin', 'state_admin', 'assistant_state_admin']);
@@ -1050,6 +1050,17 @@ export async function restoreUser(userId: string) {
     .update({ deleted: false, deleted_at: null })
     .eq('user_id', userId);
   return { error };
+}
+
+// Toggle maintenance exemption (creator can whitelist accounts for testing during upgrades)
+export async function toggleMaintenanceExempt(userId: string, exempt: boolean) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ maintenance_exempt: exempt })
+    .eq('user_id', userId)
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
 }
 
 export async function getAllListingsAdmin() {

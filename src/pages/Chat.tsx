@@ -65,24 +65,23 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   async function loadOfficial() {
     const { messages: data } = await getOfficialMessagesForUser(profile.user_id);
     setOfficialMessages(data || []);
-    const unread = (data || []).filter((m: any) => !m.read).length;
+    const unread = (data || []).filter((m: any) => !m.read_status).length;
     setOfficialUnread(unread);
   }
 
-  // ── Real-time subscription for official messages ──
+  // ── Real-time subscription for announcements ──
   useEffect(() => {
     const channel = supabase
-      .channel('official-notifications')
+      .channel('announcement-notifications')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'official_message_recipients',
-          filter: `recipient_id=eq.${profile.user_id}`,
+          table: 'announcement_recipients',
+          filter: `user_id=eq.${profile.user_id}`,
         },
         () => {
-          // New official message received!
           loadOfficial();
         }
       )
@@ -276,7 +275,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                 </div>
                 <p className="text-xs text-[#8A8B9C] truncate">
                   {officialMessages.length > 0
-                    ? officialMessages[0].message?.content?.slice(0, 50) || 'Announcements & Updates'
+                    ? (officialMessages[0].announcement?.title || officialMessages[0].announcements?.title || 'Announcements & Updates')
                     : 'Announcements & Updates'}
                 </p>
               </div>

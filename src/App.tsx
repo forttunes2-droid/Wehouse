@@ -168,12 +168,12 @@ export default function App() {
         chatUnread += c.participant_a === userId ? (c.unread_a || 0) : (c.unread_b || 0);
       });
 
-      // Count official message unreads
+      // Count announcement unreads
       const { count: officialUnread } = await supabase
-        .from('official_message_recipients')
+        .from('announcement_recipients')
         .select('*', { count: 'exact', head: true })
-        .eq('recipient_id', userId)
-        .eq('read', false);
+        .eq('user_id', userId)
+        .eq('read_status', false);
 
       setUnreadCount(chatUnread + (officialUnread || 0));
     }
@@ -187,12 +187,12 @@ export default function App() {
       })
       .subscribe();
 
-    // Subscribe to official message recipient updates
+    // Subscribe to announcement recipient updates
     const officialChannel = supabase
       .channel('global-unread-official')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'official_message_recipients', filter: `recipient_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'announcement_recipients', filter: `user_id=eq.${userId}` },
         () => {
           countAllUnread();
         }

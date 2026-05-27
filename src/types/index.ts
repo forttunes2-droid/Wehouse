@@ -77,6 +77,8 @@ export interface Profile {
   scope: 'global' | 'local' | null;  // global=creator, local=admin/staff
   created_by: string | null;      // Who created this account
   updated_by: string | null;      // Who last updated
+  // ── MAINTENANCE ───────────────────────────────────
+  maintenance_exempt: boolean;     // Can login during maintenance mode (for testing)
 }
 
 export interface RoleChangeHistory {
