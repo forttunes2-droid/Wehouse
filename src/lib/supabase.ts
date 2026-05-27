@@ -632,6 +632,22 @@ export async function createConversation(userA: string, userB: string) {
   return { conversation: data as Conversation | null, error };
 }
 
+export async function getOrCreateConversation(userA: string, userB: string) {
+  // Check if conversation already exists (either direction)
+  const { data: existing } = await supabase
+    .from('conversations')
+    .select('*')
+    .or(`and(participant_a.eq.${userA},participant_b.eq.${userB}),and(participant_a.eq.${userB},participant_b.eq.${userA})`)
+    .maybeSingle();
+
+  if (existing) {
+    return { conversation: existing as Conversation, error: null };
+  }
+
+  // Create new conversation
+  return createConversation(userA, userB);
+}
+
 // ─── PERSONAL ACTIVITY ─────────────────────────────
 
 export interface UserActivityItem {

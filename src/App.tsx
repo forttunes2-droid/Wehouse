@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
-import { getSavedListings, saveListing, unsaveListing } from '@/lib/supabase';
+import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
 import type { NavPage } from '@/types/nav';
@@ -65,7 +65,9 @@ export default function App() {
   const auth = useAuth();
   const [navPage, setNavPage] = useState<NavPage>('home');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [chatConvId, setChatConvId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
   // Roommate is now a unified page — no mode state needed
   const [error, setError] = useState<Error | null>(null);
   const isWorker = auth.profile?.role === 'worker';
@@ -91,6 +93,35 @@ export default function App() {
     }
   }, [auth.profile?.user_id]);
 
+  // Global unread message count
+  useEffect(() => {
+    if (!auth.profile?.user_id) return;
+    const userId = auth.profile.user_id;
+
+    async function countUnread() {
+      const { data } = await supabase
+        .from('conversations')
+        .select('unread_a, unread_b')
+        .or(`participant_a.eq.${userId},participant_b.eq.${userId}`);
+      let total = 0;
+      (data || []).forEach((c: any) => {
+        total += c.participant_a === userId ? (c.unread_a || 0) : (c.unread_b || 0);
+      });
+      setUnreadCount(total);
+    }
+    countUnread();
+
+    // Subscribe to conversation updates
+    const channel = supabase
+      .channel('global-unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        countUnread();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [auth.profile?.user_id]);
+
   // Roommate page handles its own state internally
 
   const handleToggleSave = useCallback(async (listingId: string) => {
@@ -108,7 +139,7 @@ export default function App() {
   const goTo = useCallback((page: NavPage) => setNavPage(page), []);
   const goToDetail = useCallback((id: string) => { setDetailId(id); setNavPage('detail'); }, []);
   const goBack = useCallback(() => { setDetailId(null); setNavPage('home'); }, []);
-  const goToChat = useCallback(() => setNavPage('chat'), []);
+  const goToChat = useCallback((convId?: string) => { setChatConvId(convId || null); setNavPage('chat'); }, []);
   const goToProfileEdit = useCallback(() => setNavPage('profile_edit'), []);
   const goToAccount = useCallback(() => setNavPage('account'), []);
   const goToPrivacy = useCallback(() => setNavPage('privacy'), []);
@@ -156,7 +187,7 @@ export default function App() {
       case 'roommate':
         return <Roommate profile={profile} />;
       case 'activity':
-        return <Activity profile={profile} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
+        return <Activity profile={profile} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} onGoToChat={goToChat} />;
       case 'profile':
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
@@ -166,7 +197,7 @@ export default function App() {
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} /> : null;
       case 'chat':
-        return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
+        return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} conversationId={chatConvId} />;
       case 'profile_edit':
         return <ProfileEdit profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('profile')} />;
       case 'account':
@@ -225,7 +256,7 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => goTo(tab.id)}
-                  className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-[56px] rounded-xl transition-all duration-200 ${
+                  className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-[56px] rounded-xl transition-all duration-200 relative ${
                     isActive
                       ? 'text-[#3B82F6]'
                       : 'text-[#5C5E72] hover:text-[#8B8DA0]'
@@ -234,6 +265,12 @@ export default function App() {
                   <tab.icon size={22} active={isActive} />
                   <span className="text-[9px] font-medium leading-none">{tab.label}</span>
                   {isActive && <span className="w-1 h-1 rounded-full bg-[#3B82F6] mt-0.5" />}
+                  {/* Unread badge on Profile tab */}
+                  {tab.id === 'profile' && unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </button>
               );
             })}

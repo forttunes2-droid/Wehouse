@@ -5,15 +5,42 @@ import type { Profile, Conversation, Message } from '@/types';
 interface ChatProps {
   profile: Profile;
   onNavigate: (page: string) => void;
+  conversationId?: string | null;
 }
 
-export default function Chat({ profile, onNavigate }: ChatProps) {
+export default function Chat({ profile, onNavigate, conversationId }: ChatProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [usernames, setUsernames] = useState<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Fetch usernames for conversation participants
+  useEffect(() => {
+    async function loadUsernames() {
+      const userIds = conversations
+        .map(c => c.participant_a === profile.user_id ? c.participant_b : c.participant_a)
+        .filter((id, i, arr) => arr.indexOf(id) === i);
+      if (userIds.length === 0) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, username')
+        .in('user_id', userIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((u: any) => { map[u.user_id] = u.username; });
+      setUsernames(map);
+    }
+    if (conversations.length > 0) loadUsernames();
+  }, [conversations, profile.user_id]);
+
+  // Auto-open conversation from prop
+  useEffect(() => {
+    if (!conversationId || conversations.length === 0) return;
+    const conv = conversations.find(c => c.id === conversationId);
+    if (conv) setActiveConv(conv);
+  }, [conversationId, conversations]);
 
   // Load conversations
   useEffect(() => {
@@ -110,7 +137,7 @@ export default function Chat({ profile, onNavigate }: ChatProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-white truncate">User {otherId.slice(-4)}</span>
+                      <span className="text-sm font-semibold text-white truncate">@{usernames[otherId] || `User ${otherId.slice(-4)}`}</span>
                       {isUnread && <span className="w-2 h-2 rounded-full bg-[#3B82F6] flex-shrink-0" />}
                     </div>
                     <p className="text-xs text-[#8A8B9C] truncate">{conv.last_message || 'No messages yet'}</p>
@@ -137,7 +164,7 @@ export default function Chat({ profile, onNavigate }: ChatProps) {
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-xs font-bold">
           {otherId.slice(0, 2).toUpperCase()}
         </div>
-        <span className="text-sm font-semibold">User {otherId.slice(-4)}</span>
+        <span className="text-sm font-semibold">@{usernames[otherId] || `User ${otherId.slice(-4)}`}</span>
       </header>
 
       {/* Messages */}

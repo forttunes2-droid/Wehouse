@@ -5,12 +5,15 @@ import {
   getSavedListingsWithData,
   getUserRoomInterests,
   getUserActivity,
+  getOrCreateConversation,
 } from '@/lib/supabase';
+import { Toaster, toast } from 'sonner';
 import type { Profile, Conversation, RoomInterest } from '@/types';
 
 interface ActivityProps {
   profile: Profile;
   onNavigate: (page: string, listingId?: string) => void;
+  onGoToChat?: (convId: string) => void;
 }
 
 // ─── ACTIVITY ITEM TYPE ─────────────────────────────
@@ -35,6 +38,7 @@ interface TimelineItem {
   time: string;
   icon: string;
   navTarget?: { page: string; id?: string };
+  otherUserId?: string;
   read: boolean;
 }
 
@@ -88,7 +92,7 @@ function activityColor(type: ActivityItemType): string {
 
 // ─── MAIN COMPONENT ─────────────────────────────────
 
-export default function Activity({ profile, onNavigate }: ActivityProps) {
+export default function Activity({ profile, onNavigate, onGoToChat }: ActivityProps) {
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,6 +106,7 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
       (matches || []).forEach((m: any) => {
         const otherUser = m.user_a_id === profile.user_id ? m.user_b : m.user_a;
         const otherName = otherUser?.username || 'someone';
+        const otherUserId = m.user_a_id === profile.user_id ? m.user_b_id : m.user_a_id;
         timeline.push({
           id: `match-${m.id}`,
           type: 'roommate_match',
@@ -110,6 +115,7 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
           time: m.created_at,
           icon: activityIcon('roommate_match'),
           navTarget: { page: 'chat' },
+          otherUserId,
           read: true,
         });
       });
@@ -259,6 +265,16 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
     onNavigate(item.navTarget.page, item.navTarget.id);
   };
 
+  const handleMessage = async (otherUserId: string) => {
+    if (!onGoToChat) return;
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, otherUserId);
+    if (error || !conversation) {
+      toast.error('Could not start chat');
+      return;
+    }
+    onGoToChat(conversation.id);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0A0F] pb-24">
@@ -283,6 +299,7 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-24">
+      <Toaster position="top-center" richColors />
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
         <div className="flex items-center justify-between">
@@ -357,6 +374,16 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
                     </div>
                     <p className="text-[11px] text-[#5C5E72] truncate mt-0.5">{item.subtitle}</p>
                     <p className="text-[9px] text-[#5C5E72]/60 mt-1">{timeAgo(item.time)}</p>
+                    {/* Message button for roommate matches */}
+                    {item.type === 'roommate_match' && item.otherUserId && onGoToChat && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleMessage(item.otherUserId!); }}
+                        className="mt-2 h-7 px-3 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] text-[10px] font-semibold hover:bg-[#3B82F6]/20 transition-colors inline-flex items-center gap-1.5"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                        Message
+                      </button>
+                    )}
                   </div>
 
                   {/* Arrow for clickable */}
