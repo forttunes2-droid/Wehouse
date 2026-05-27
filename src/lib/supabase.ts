@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Profile, Listing, RoommatePreferences, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest, OfficialMessage } from '@/types';
+import type { Profile, Listing, RoommatePreferences, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest, Announcement, AnnouncementTargetType } from '@/types';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // These are PUBLIC client credentials — safe in browser bundles.
@@ -648,315 +648,206 @@ export async function getOrCreateConversation(userA: string, userB: string) {
   return createConversation(userA, userB);
 }
 
-// ─── OFFICIAL MESSAGE DIAGNOSTICS ──────────────────
+// ─── ANNOUNCEMENT SYSTEM v2 ────────────────────────
 
-export async function checkOfficialMessageTables() {
+export async function checkAnnouncementTables() {
   try {
-    // Check if tables exist by doing a minimal query
-    const { error: msgErr } = await supabase
-      .from('official_messages')
-      .select('id')
-      .limit(1);
-
-    const { error: recipErr } = await supabase
-      .from('official_message_recipients')
-      .select('id')
-      .limit(1);
-
+    const { error: msgErr } = await supabase.from('announcements').select('id').limit(1);
+    const { error: recipErr } = await supabase.from('announcement_recipients').select('id').limit(1);
     const issues: string[] = [];
-    if (msgErr && msgErr.message.includes('does not exist')) issues.push('official_messages table missing');
-    if (recipErr && recipErr.message.includes('does not exist')) issues.push('official_message_recipients table missing');
-
-    return {
-      ok: issues.length === 0 && !msgErr && !recipErr,
-      issues,
-      officialMessagesError: msgErr?.message || null,
-      recipientsError: recipErr?.message || null,
-    };
+    if (msgErr && msgErr.message.includes('does not exist')) issues.push('announcements table missing');
+    if (recipErr && recipErr.message.includes('does not exist')) issues.push('announcement_recipients table missing');
+    return { ok: issues.length === 0 && !msgErr && !recipErr, issues, announcementsError: msgErr?.message || null, recipientsError: recipErr?.message || null };
   } catch (e: any) {
-    return { ok: false, issues: ['Diagnostic failed'], officialMessagesError: e.message, recipientsError: null };
+    return { ok: false, issues: ['Diagnostic failed'], announcementsError: e.message, recipientsError: null };
   }
 }
 
-// ─── OFFICIAL MESSAGES (Broadcast System) ──────────
-
-export async function sendOfficialMessage(
+export async function sendAnnouncement(
   senderId: string,
-  senderRole: 'creator' | 'state_admin' | 'admin',
+  senderRole: string,
   senderName: string,
-  content: string,
-  options: {
-    recipientIds?: string[];
-    includeWorkers?: boolean;
-    includeStaff?: boolean;
-    scopeState?: string;
-    scopeLga?: string;
-  } = {}
+  title: string,
+  message: string,
+  targetType: AnnouncementTargetType,
+  options: { recipientIds?: string[]; scopeState?: string; scopeLga?: string } = {}
 ) {
-  const { recipientIds, includeWorkers = false, includeStaff = false, scopeState, scopeLga } = options;
+  const { recipientIds, scopeState, scopeLga } = options;
 
-  // Step 1: Insert the message
-  const { data: msg, error: msgError } = await supabase
-    .from('official_messages')
-    .insert({
-      sender_id: senderId,
-      sender_role: senderRole,
-      sender_name: senderName,
-      content,
-      sent_to_all: !recipientIds || recipientIds.length === 0,
-    })
+  // Step 1: Insert the announcement
+  const { data: announcement, error: insertErr } = await supabase
+    .from('announcements')
+    .insert({ title, message, created_by: senderId, sender_name: senderName, sender_role: senderRole, target_type: targetType, target_state: scopeState || null, target_lga: scopeLga || null })
     .select()
     .single();
 
-  if (msgError) {
-    console.error('[sendOfficialMessage] insert failed:', msgError);
-    return { error: { message: `Message insert failed: ${msgError.message}` } };
-  }
-  if (!msg) {
-    return { error: { message: 'Message insert returned no data' } };
+  if (insertErr || !announcement) {
+    console.error('[sendAnnouncement] insert failed:', insertErr);
+    return { error: { message: `Insert failed: ${insertErr?.message || 'unknown'}` } };
   }
 
-  // Step 2: Determine target recipients
-  let targetUserIds: string[];
+  // Step 2: Determine target users based on target_type
+  let targetUserIds: string[] = [];
 
-  if (recipientIds && recipientIds.length > 0) {
-    // Send to specific user(s) — direct mode, ignore role filters
+  if (targetType === 'specific_user' && recipientIds && recipientIds.length > 0) {
     targetUserIds = recipientIds;
   } else {
-    // Broadcast mode — build role-based filter
-    // Default: users only. Workers and staff excluded unless toggled.
-    const allowedRoles: string[] = ['user'];
-    if (includeWorkers) allowedRoles.push('worker');
-    if (includeStaff) allowedRoles.push('staff', 'assistant_state_admin', 'admin');
+    // Build query based on target_type
+    let query = supabase.from('profiles').select('user_id').eq('deleted', false);
 
-    // State admin and creator sending to all should not send to other high-rank admins
-    // unless explicitly intended. Keep it simple: roles determine reception.
-
-    let query = supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('deleted', false)
-      .in('role', allowedRoles);
-
-    // Apply scope filters
-    if (scopeState) {
-      query = query.eq('state', scopeState);
-    }
-    if (scopeLga) {
-      query = query.eq('city', scopeLga);
+    switch (targetType) {
+      case 'all_workers':
+        query = query.eq('role', 'worker');
+        break;
+      case 'verified_workers':
+        query = query.eq('role', 'worker').eq('is_verified', true);
+        break;
+      case 'admins':
+        query = query.in('role', ['admin', 'state_admin', 'assistant_state_admin']);
+        break;
+      case 'all_users':
+      default:
+        query = query.eq('role', 'user');
+        break;
     }
 
-    const { data: users, error: usersError } = await query;
+    // Apply scope
+    if (scopeState) query = query.eq('state', scopeState);
+    if (scopeLga) query = query.eq('city', scopeLga);
 
-    if (usersError) {
-      console.error('[sendOfficialMessage] fetch users failed:', usersError);
-      return { error: { message: `Failed to fetch user list: ${usersError.message}` } };
+    const { data: users, error: userErr } = await query;
+    if (userErr) {
+      console.error('[sendAnnouncement] fetch users failed:', userErr);
+      return { error: { message: `Failed to fetch users: ${userErr.message}` } };
     }
-
-    targetUserIds = (users || [])
-      .map((u: any) => u.user_id)
-      .filter((id: string) => id && id !== senderId);
-
-    if (targetUserIds.length === 0) {
-      return { error: { message: 'No users match the selected filters' } };
-    }
+    targetUserIds = (users || []).map((u: any) => u.user_id).filter((id: string) => id && id !== senderId);
   }
 
-  // Step 3: Create recipient rows
-  const rows = targetUserIds.map((rid) => ({
-    message_id: Number(msg.id),
-    recipient_id: String(rid),
-  }));
-
-  // Debug log
-  console.log('[sendOfficialMessage] inserting recipients:', {
-    messageId: msg.id,
-    recipientCount: rows.length,
-    sampleRecipient: rows[0]?.recipient_id,
-  });
-
-  // Insert in batches of 100
-  for (let i = 0; i < rows.length; i += 100) {
-    const batch = rows.slice(i, i + 100);
-    const { error: recipError } = await supabase
-      .from('official_message_recipients')
-      .insert(batch);
-
-    if (recipError) {
-      console.error(`[sendOfficialMessage] recipient insert batch ${i} failed:`, recipError);
-      if (recipError.message?.includes('invalid input syntax for type integer')) {
-        return { error: { message: 'Database column type mismatch. Run SQL fix in Supabase.' } };
-      }
-      if (recipError.message?.includes('new row violates row-level security policy') || recipError.code === '42501') {
-        return { error: { message: 'Permission denied: RLS policy blocks insert. Run SQL fix in Supabase.' } };
-      }
-      return { error: { message: `Failed to deliver: ${recipError.message}` } };
-    }
+  if (targetUserIds.length === 0) {
+    return { error: { message: 'No users match the selected target' } };
   }
 
-  // Step 4: Update recipient_count on the message row (so sender can read it)
-  const { error: updateErr } = await supabase
-    .from('official_messages')
-    .update({ recipient_count: rows.length })
-    .eq('id', msg.id);
-
-  if (updateErr) {
-    console.warn('[sendOfficialMessage] failed to update recipient_count:', updateErr);
-    // Don't fail the whole operation - recipients were already inserted
+  // Step 3: Insert recipient rows
+  const rows = targetUserIds.map((uid) => ({ announcement_id: announcement.id, user_id: uid }));
+  for (let i = 0; i < rows.length; i += 500) {
+    const batch = rows.slice(i, i + 500);
+    const { error: batchErr } = await supabase.from('announcement_recipients').insert(batch);
+    if (batchErr) console.error(`[sendAnnouncement] batch ${i} failed:`, batchErr);
   }
 
-  return { error: null, message: { ...msg, recipient_count: rows.length } as OfficialMessage, recipientCount: rows.length };
+  // Step 4: Update recipient_count
+  await supabase.from('announcements').update({ recipient_count: rows.length }).eq('id', announcement.id);
+
+  return { error: null, announcement: { ...announcement, recipient_count: rows.length } as Announcement, recipientCount: rows.length };
 }
 
-export async function getOfficialMessagesForUser(userId: string) {
+export async function getAnnouncementsForUser(userId: string) {
   try {
-    console.log('[getOfficialMessages] fetching for userId:', userId);
+    // Join announcement_recipients with announcements
+    const { data, error } = await supabase
+      .from('announcement_recipients')
+      .select('id, announcement_id, read_status, delivered_at, announcements(*)')
+      .eq('user_id', userId)
+      .order('delivered_at', { ascending: false });
 
-    // Step 1: Get recipient rows for this user
-    const { data: recipRows, error: recipError } = await supabase
-      .from('official_message_recipients')
-      .select('id, message_id, read, created_at')
-      .eq('recipient_id', userId)
-      .order('created_at', { ascending: false });
-
-    console.log('[getOfficialMessages] recipRows:', recipRows?.length || 0, 'error:', recipError?.message || 'none');
-
-    // If tables don't exist or no rows, return empty (don't show error)
-    if (recipError) {
-      if (recipError.message?.includes('does not exist') || recipError.message?.includes('relation')) {
-        console.warn('[getOfficialMessages] Tables not set up yet');
-        return { messages: [], error: null };
-      }
-      console.error('[getOfficialMessages] recipError:', recipError);
-      return { messages: [], error: recipError };
+    if (error) {
+      if (error.message?.includes('does not exist')) return { messages: [], error: null };
+      return { messages: [], error };
     }
 
-    if (!recipRows || recipRows.length === 0) {
-      console.log('[getOfficialMessages] no recipient rows found');
-      return { messages: [], error: null };
-    }
+    const messages = (data || []).map((row: any) => ({
+      ...row,
+      message: row.announcements,
+    }));
 
-    // Step 2: Get the actual message content for each
-    const messageIds = recipRows.map((r: any) => r.message_id);
-    console.log('[getOfficialMessages] messageIds:', messageIds);
-
-    const { data: messages, error: msgError } = await supabase
-      .from('official_messages')
-      .select('*')
-      .in('id', messageIds);
-
-    console.log('[getOfficialMessages] messages:', messages?.length || 0, 'error:', msgError?.message || 'none');
-
-    if (msgError || !messages) {
-      if (msgError?.message?.includes('does not exist')) {
-        return { messages: [], error: null };
-      }
-      return { messages: [], error: msgError };
-    }
-
-    // Step 3: Combine them
-    const combined = recipRows.map((r: any) => {
-      const msg = messages.find((m: any) => m.id === r.message_id);
-      return { ...r, message: msg || null };
-    }).filter((c: any) => c.message !== null);
-
-    console.log('[getOfficialMessages] combined:', combined.length);
-    return { messages: combined, error: null };
+    return { messages, error: null };
   } catch (e: any) {
-    console.error('[getOfficialMessages] unexpected error:', e);
     return { messages: [], error: null };
   }
 }
 
-export async function markOfficialMessageRead(recipientRowId: string) {
-  const { error } = await supabase
-    .from('official_message_recipients')
-    .update({ read: true })
-    .eq('id', recipientRowId);
-  return { error };
-}
+export async function markAnnouncementRead(announcementId: number, userId: string) {
+  // Update recipient row
+  const { error: updateErr } = await supabase
+    .from('announcement_recipients')
+    .update({ read_status: true })
+    .eq('announcement_id', announcementId)
+    .eq('user_id', userId);
 
-export async function deleteOfficialMessage(messageId: string) {
-  const { error } = await supabase.from('official_messages').delete().eq('id', messageId);
-  return { error };
-}
-
-export async function getOfficialMessagesSentBy(senderId: string) {
-  const { data, error } = await supabase
-    .from('official_messages')
-    .select('*')
-    .eq('sender_id', senderId)
-    .order('created_at', { ascending: false });
-  return { messages: data as OfficialMessage[] | null, error };
-}
-
-export async function getAllOfficialMessages() {
-  const { data, error } = await supabase
-    .from('official_messages')
-    .select('*')
-    .order('created_at', { ascending: false });
-  return { messages: data as OfficialMessage[] | null, error };
-}
-
-export async function getMessageRecipientCount(messageId: string | number) {
-  try {
-    const { count, error } = await supabase
-      .from('official_message_recipients')
-      .select('*', { count: 'exact', head: true })
-      .eq('message_id', Number(messageId));
-
-    if (error) {
-      // If table doesn't exist or column type mismatch, return -1 to indicate unknown
-      if (error.message?.includes('does not exist') || error.message?.includes('invalid input')) {
-        console.warn('[getMessageRecipientCount] table/column issue:', error.message);
-        return { count: -1, error: null };
-      }
-      return { count: 0, error };
-    }
-
-    return { count: count ?? 0, error: null };
-  } catch (e: any) {
-    console.warn('[getMessageRecipientCount] unexpected error:', e.message);
-    return { count: -1, error: null };
-  }
-}
-
-export async function getUnreadOfficialCount(userId: string) {
-  const { count, error } = await supabase
-    .from('official_message_recipients')
+  // Update read count on announcement
+  const { count } = await supabase
+    .from('announcement_recipients')
     .select('*', { count: 'exact', head: true })
-    .eq('recipient_id', userId)
-    .eq('read', false);
+    .eq('announcement_id', announcementId)
+    .eq('read_status', true);
+
+  await supabase.from('announcements').update({ read_count: count || 0 }).eq('id', announcementId);
+
+  return { error: updateErr };
+}
+
+export async function deleteAnnouncement(announcementId: number) {
+  const { error } = await supabase.from('announcements').delete().eq('id', announcementId);
+  return { error };
+}
+
+export async function getAnnouncementsSentBy(senderId: string) {
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*')
+    .eq('created_by', senderId)
+    .order('created_at', { ascending: false });
+  return { messages: data as Announcement[] | null, error };
+}
+
+export async function getAllAnnouncements() {
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { messages: data as Announcement[] | null, error };
+}
+
+export async function getUnreadAnnouncementCount(userId: string) {
+  const { count, error } = await supabase
+    .from('announcement_recipients')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('read_status', false);
   return { count: count || 0, error };
 }
 
-// Get count of users matching role + scope filters (for live recipient count in UI)
-export async function getFilteredRecipientCount(
-  includeWorkers: boolean,
-  includeStaff: boolean,
-  scopeState?: string,
-  scopeLga?: string
-) {
+export async function getAnnouncementStats(announcementId: number) {
+  const { data: announcement, error } = await supabase
+    .from('announcements')
+    .select('recipient_count, read_count')
+    .eq('id', announcementId)
+    .single();
+  return { stats: announcement || { recipient_count: 0, read_count: 0 }, error };
+}
+
+// Legacy aliases for backward compatibility
+export const getOfficialMessagesForUser = getAnnouncementsForUser;
+export const markOfficialMessageRead = (rowId: string) => markAnnouncementRead(Number(rowId), '');
+export const deleteOfficialMessage = (id: string) => deleteAnnouncement(Number(id));
+export const getOfficialMessagesSentBy = getAnnouncementsSentBy;
+export const getAllOfficialMessages = getAllAnnouncements;
+export const getUnreadOfficialCount = getUnreadAnnouncementCount;
+export const checkOfficialMessageTables = checkAnnouncementTables;
+export const getMessageRecipientCount = async (id: string | number) => {
+  const { stats } = await getAnnouncementStats(Number(id));
+  return { count: stats.recipient_count, error: null };
+};
+export const getFilteredRecipientCount = async (includeWorkers: boolean, includeStaff: boolean, scopeState?: string, scopeLga?: string) => {
   const allowedRoles: string[] = ['user'];
   if (includeWorkers) allowedRoles.push('worker');
   if (includeStaff) allowedRoles.push('staff', 'assistant_state_admin', 'admin');
-
-  let query = supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('deleted', false)
-    .in('role', allowedRoles);
-
-  if (scopeState) {
-    query = query.eq('state', scopeState);
-  }
-  if (scopeLga) {
-    query = query.eq('city', scopeLga);
-  }
-
+  let query = supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('deleted', false).in('role', allowedRoles);
+  if (scopeState) query = query.eq('state', scopeState);
+  if (scopeLga) query = query.eq('city', scopeLga);
   const { count, error } = await query;
   return { count: count || 0, error };
-}
+};
 
 // ─── PERSONAL ACTIVITY ─────────────────────────────
 

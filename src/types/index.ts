@@ -340,23 +340,33 @@ export interface RoomInterest {
 
 // ─── OFFICIAL MESSAGES (Creator/Admin Broadcasts) ──
 
-export interface OfficialMessage {
+// --- NEW ANNOUNCEMENT SYSTEM v2 ---
+
+export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_workers' | 'admins' | 'specific_user';
+
+export interface Announcement {
   id: number;
-  sender_id: string;
-  sender_role: 'creator' | 'state_admin' | 'admin';
+  title: string;
+  message: string;
+  created_by: string;
   sender_name: string;
-  content: string;
-  sent_to_all: boolean;
+  sender_role: string;
+  target_type: AnnouncementTargetType;
   target_state?: string | null;
   target_lga?: string | null;
   recipient_count: number;
+  read_count: number;
   created_at: string;
 }
 
-export interface OfficialMessageRecipient {
+export interface AnnouncementRecipient {
   id: number;
-  message_id: number;
-  recipient_id: string;
-  read: boolean;
-  created_at: string;
+  announcement_id: number;
+  user_id: string;
+  read_status: boolean;
+  delivered_at: string;
 }
+
+// Legacy aliases for backward compatibility
+export type OfficialMessage = Announcement;
+export type OfficialMessageRecipient = AnnouncementRecipient;

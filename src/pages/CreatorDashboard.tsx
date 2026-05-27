@@ -4,13 +4,13 @@ import {
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
-  sendOfficialMessage, deleteOfficialMessage, getOfficialMessagesSentBy, getAllOfficialMessages,
-  getFilteredRecipientCount, checkOfficialMessageTables,
+  sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
+  getFilteredRecipientCount, checkAnnouncementTables,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
-import type { Profile, Listing } from '@/types';
+import type { Profile, Listing, AnnouncementTargetType } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
@@ -847,7 +847,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   // ── Check database tables on mount ──
   useEffect(() => {
     if (canSend) {
-      checkOfficialMessageTables().then((status) => {
+      checkAnnouncementTables().then((status) => {
         setDbStatus(status);
         if (!status.ok) {
           toast.error('Announcement tables not set up. Run SQL in Supabase.', { duration: 8000 });
@@ -914,8 +914,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   async function loadSentMessages() {
     const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
     const { messages } = isCreator
-      ? await getAllOfficialMessages()
-      : await getOfficialMessagesSentBy(profile.user_id);
+      ? await getAllAnnouncements()
+      : await getAnnouncementsSentBy(profile.user_id);
     const msgs = messages || [];
     setSentMessages(msgs);
     // Use recipient_count stored on the message row (sender owns the message, can always read it)
@@ -930,7 +930,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     const ok = await ask({ title: 'Delete this message?', confirmLabel: 'Delete', variant: 'danger' });
     if (!ok) return;
     toast.loading('Deleting...', { id: 'del-msg' });
-    const { error } = await deleteOfficialMessage(messageId);
+    const { error } = await deleteAnnouncement(Number(messageId));
     toast.dismiss('del-msg');
     if (error) { toast.error('Failed to delete'); return; }
     toast.success('Message deleted');
@@ -964,18 +964,28 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
     const senderRole = profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'state_admin';
 
-    // Build options
-    const options = sendMode === 'select'
-      ? { recipientIds: selectedUsers }
-      : {
-          includeWorkers,
-          includeStaff,
-          scopeState: isStateScope ? scope.state : undefined,
-          scopeLga: isStateScope ? scope.lga : undefined,
-        };
+    // Build target type and options
+    let targetType: AnnouncementTargetType;
+    let options: any = {};
+    
+    if (sendMode === 'select') {
+      targetType = 'specific_user';
+      options = { recipientIds: selectedUsers };
+    } else if (includeWorkers && includeStaff) {
+      targetType = 'all_users'; // users + workers + staff = everyone
+      options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
+    } else if (includeWorkers) {
+      targetType = 'all_workers';
+      options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
+    } else {
+      targetType = 'all_users';
+      options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
+    }
 
-    const { error, recipientCount } = await sendOfficialMessage(
-      profile.user_id, senderRole, profile.username || 'Admin', message.trim(), options
+    const title = message.trim().substring(0, 50) + (message.trim().length > 50 ? '...' : '');
+
+    const { error, recipientCount } = await sendAnnouncement(
+      profile.user_id, senderRole, profile.username || 'Admin', title, message.trim(), targetType, options
     );
 
     toast.dismiss('send-announce');

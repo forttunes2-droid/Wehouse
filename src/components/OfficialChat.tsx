@@ -55,7 +55,7 @@ export default function OfficialChat({ profile, onBack }: OfficialChatProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] flex flex-col">
+    <div className="min-h-screen bg-transparent flex flex-col">
       {/* Header */}
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-3 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={onBack} className="text-[#8A8B9C] hover:text-white transition-colors">
