@@ -218,6 +218,14 @@ export function useAuth() {
           setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
           return;
         }
+        // Check maintenance mode on session restore
+        const { data: maintSetting } = await supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').maybeSingle();
+        if (maintSetting?.value === 'true' && !isCreator(profile.role)) {
+          await supabase.auth.signOut();
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
+          return;
+        }
         setState({ profile, page: determinePage(profile), isLoading: false, error: '' });
       } catch {
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
@@ -300,6 +308,14 @@ export function useAuth() {
           setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
           return;
         }
+        // Check maintenance mode (only blocks non-creators)
+        const { data: maintSetting } = await supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').maybeSingle();
+        if (maintSetting?.value === 'true' && !isCreator(byAuth.role)) {
+          await supabase.auth.signOut();
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
+          return;
+        }
         setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' });
         trackSession(byAuth.user_id, authId).catch(() => {});
         return;
@@ -313,6 +329,14 @@ export function useAuth() {
           await supabase.auth.signOut();
           wipeOnLogout();
           setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
+          return;
+        }
+        // Check maintenance mode for linked accounts
+        const { data: maintSetting2 } = await supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').maybeSingle();
+        if (maintSetting2?.value === 'true' && !isCreator(byEmail.role)) {
+          await supabase.auth.signOut();
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
           return;
         }
         const { profile: linked, error: linkErr } = await linkProfileToAuth(byEmail.user_id, authId);
