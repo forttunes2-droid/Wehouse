@@ -9,6 +9,8 @@ import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing } from '@/types';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
 
 type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers';
@@ -229,6 +231,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers }: { pr
 
 // ─── USERS ─────────────────────────────────────────
 function UsersTab({ profile }: { profile: Profile }) {
+  const { ask, dialogProps } = useConfirm();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -275,7 +278,8 @@ function UsersTab({ profile }: { profile: Profile }) {
     if (isCreator(target.role)) { toast.error('Creator accounts cannot be deleted'); return; }
     if (userId === profile.user_id) { toast.error('You cannot delete your own account from here'); return; }
 
-    if (!confirm('Soft-delete this user? They can be restored later.')) return;
+    const sdOk = await ask({ title: 'Soft Delete User', message: 'This user will be deactivated but can be restored later.', confirmLabel: 'Delete', cancelLabel: 'Cancel', variant: 'warning' });
+    if (!sdOk) return;
     const { error } = await deleteUser(userId);
     if (error) { toast.error('Delete failed: ' + error.message); return; }
     await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User soft-deleted');
@@ -284,7 +288,8 @@ function UsersTab({ profile }: { profile: Profile }) {
   }
 
   async function handleRestore(userId: string) {
-    if (!confirm('Restore this user?')) return;
+    const restoreOk = await ask({ title: 'Restore User', message: 'This user account will be reactivated.', confirmLabel: 'Restore', cancelLabel: 'Cancel', variant: 'info' });
+    if (!restoreOk) return;
     const { error } = await restoreUser(userId);
     if (error) { toast.error('Restore failed: ' + error.message); return; }
     await logAuditAction(profile.user_id, profile.email, 'restore_user', 'user', userId, 'User restored');
@@ -296,6 +301,7 @@ function UsersTab({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialogProps} />
       <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
 
       {loading ? (
@@ -378,6 +384,7 @@ function UsersTab({ profile }: { profile: Profile }) {
 
 // ─── LISTINGS ──────────────────────────────────────
 function ListingsTab({ profile }: { profile: Profile }) {
+  const { ask, dialogProps } = useConfirm();
   const [listings, setListings] = useState<Listing[]>([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -392,7 +399,8 @@ function ListingsTab({ profile }: { profile: Profile }) {
   useEffect(() => { load(); }, [load]);
 
   async function handleDeleteL(id: string) {
-    if (!confirm('Remove this listing?')) return;
+    const rmOk = await ask({ title: 'Remove Listing', message: 'This listing will be permanently deleted.', confirmLabel: 'Remove', cancelLabel: 'Cancel', variant: 'danger' });
+    if (!rmOk) return;
     await deleteListing(id);
     await logAuditAction(profile.user_id, profile.email, 'delete_listing', 'listing', id, 'Listing removed');
     toast.success('Listing removed');
@@ -403,6 +411,7 @@ function ListingsTab({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialogProps} />
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {['all', 'available', 'reserved', 'occupied', 'hidden'].map(f => (
           <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 rounded-lg text-[10px] font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'}`}>{f}</button>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { parseDeviceInfo, getSessionHistory, supabase, deleteOwnAccount, changePassword, logPasswordChange } from '@/lib/supabase';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -22,6 +24,7 @@ interface DeviceSession {
 
 export default function SecuritySettings({ profile, onBack }: SecuritySettingsProps) {
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
+  const { ask, dialogProps } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -131,7 +134,8 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   }
 
   async function handleLogoutAll() {
-    if (!confirm('Log out of ALL devices? You will need to log in again.')) return;
+    const ok = await ask({ title: 'Logout All Devices', message: 'You will be logged out of all devices and need to sign in again.', confirmLabel: 'Logout All', cancelLabel: 'Cancel', variant: 'warning' });
+    if (!ok) return;
     setLoggingOut('all');
     await supabase.auth.signOut({ scope: 'global' });
     toast.success('Logged out of all devices');
@@ -220,6 +224,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-20">
+      <ConfirmDialog {...dialogProps} />
       <Toaster position="top-center" richColors />
 
       {/* Header */}

@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import LocationSelector from '@/components/LocationSelector';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -36,6 +38,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
     budget_min: profile.budget_min || 50000,
     budget_max: profile.budget_max || 500000,
   });
+
+  const { ask, dialogProps } = useConfirm();
 
   const [location, setLocation] = useState({
     country: profile.country || 'Nigeria',
@@ -144,7 +148,14 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
 
   // Remove avatar
   const handleRemoveAvatar = useCallback(async () => {
-    if (!confirm('Remove your profile photo?')) return;
+    const ok = await ask({
+      title: 'Remove Photo',
+      message: 'Your profile photo will be removed. You can upload a new one anytime.',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Keep',
+      variant: 'danger',
+    });
+    if (!ok) return;
     toast.loading('Removing...', { id: 'avatar-remove' });
     const { error } = await removeAvatar(profile.user_id);
     toast.dismiss('avatar-remove');
@@ -190,6 +201,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-20">
       <Toaster position="top-center" richColors />
+      <ConfirmDialog {...dialogProps} />
       <header className="bg-[#12121A] border-b border-white/[0.06] text-white px-5 py-4 flex items-center gap-3">
         <button onClick={onBack} className="text-[#8A8B9C] hover:text-white transition-colors">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

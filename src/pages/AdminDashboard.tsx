@@ -6,6 +6,8 @@ import {
   updateUserRole, deleteListing,
 } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
@@ -162,6 +164,7 @@ function OverviewTab({ stats, scope }: { stats: any; scope: { state: string; lga
 
 // ─── STAFF TAB ────────────────────────────────────
 function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
+  const { ask, dialogProps } = useConfirm();
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -176,7 +179,8 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
   useEffect(() => { load(); }, [load]);
 
   async function handleDemote(userId: string, email: string) {
-    if (!confirm('Demote this staff to user? They will lose listing management access.')) return;
+    const demoteOk = await ask({ title: 'Demote Staff', message: 'This staff member will lose all listing management access.', confirmLabel: 'Demote', cancelLabel: 'Cancel', variant: 'warning' });
+    if (!demoteOk) return;
     const { error } = await updateUserRole(userId, 'user', 'staff', profile.user_id, profile.email, email);
     if (error) { toast.error(error.message || 'Failed'); return; }
     toast.success('Staff demoted to user');
@@ -188,6 +192,7 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialogProps} />
       <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{staff.length} Staff in {scope.lga}</div>
       {staff.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No staff in this area</div>}
       {staff.map(s => (
@@ -218,6 +223,7 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
 
 // ─── USERS TAB ────────────────────────────────────
 function UsersTab({ scope, profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
+  const { ask, dialogProps } = useConfirm();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -233,7 +239,8 @@ function UsersTab({ scope, profile, refresh }: { scope: { state: string; lga: st
   useEffect(() => { load(); }, [load]);
 
   async function handlePromote(userId: string, email: string) {
-    if (!confirm('Promote this user to staff? They will be able to create and manage listings.')) return;
+    const promoteOk = await ask({ title: 'Promote to Staff', message: 'This user will gain access to create and manage listings for your LGA.', confirmLabel: 'Promote', cancelLabel: 'Cancel', variant: 'info' });
+    if (!promoteOk) return;
     const { error } = await updateUserRole(userId, 'staff', 'user', profile.user_id, profile.email, email);
     if (error) { toast.error(error.message || 'Failed'); return; }
     toast.success('User promoted to staff');
@@ -247,6 +254,7 @@ function UsersTab({ scope, profile, refresh }: { scope: { state: string; lga: st
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialogProps} />
       <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72]" />
       <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{filtered.length} Users in {scope.lga}</div>
       {filtered.length === 0 ? (
@@ -276,6 +284,7 @@ function UsersTab({ scope, profile, refresh }: { scope: { state: string; lga: st
 
 // ─── LISTINGS TAB ─────────────────────────────────
 function ListingsTab({ scope, profile: _profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
+  const { ask, dialogProps } = useConfirm();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -290,7 +299,8 @@ function ListingsTab({ scope, profile: _profile, refresh }: { scope: { state: st
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(listingId: string) {
-    if (!confirm('Delete this listing?')) return;
+    const delOk = await ask({ title: 'Delete Listing', message: 'This listing will be permanently deleted.', confirmLabel: 'Delete', cancelLabel: 'Cancel', variant: 'danger' });
+    if (!delOk) return;
     const { error } = await deleteListing(listingId);
     if (error) { toast.error('Delete failed'); return; }
     toast.success('Listing deleted');
@@ -301,6 +311,7 @@ function ListingsTab({ scope, profile: _profile, refresh }: { scope: { state: st
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog {...dialogProps} />
       <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{listings.length} Listings in {scope.lga}</div>
       {listings.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No listings in this area</div>}
       {listings.map(l => (

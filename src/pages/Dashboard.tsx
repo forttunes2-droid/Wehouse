@@ -1,5 +1,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { uploadAvatar, updateProfile, removeAvatar } from '@/lib/supabase';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -26,6 +28,7 @@ export default function Dashboard({
 }: DashboardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const { ask, dialogProps } = useConfirm();
   const [localAvatar, setLocalAvatar] = useState<string | null>(profile.avatar_url);
 
   const initials = (profile.username || profile.email[0]).toUpperCase();
@@ -67,7 +70,14 @@ export default function Dashboard({
   );
 
   const handleRemoveAvatar = async () => {
-    if (!confirm('Remove your profile photo?')) return;
+    const ok = await ask({
+      title: 'Remove Photo',
+      message: 'Your profile photo will be removed. You can upload a new one anytime.',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Keep',
+      variant: 'danger',
+    });
+    if (!ok) return;
     toast.loading('Removing...', { id: 'avatar-rm' });
     const { error } = await removeAvatar(profile.user_id);
     toast.dismiss('avatar-rm');
@@ -82,6 +92,7 @@ export default function Dashboard({
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-24">
       <Toaster position="top-center" richColors />
+      <ConfirmDialog {...dialogProps} />
 
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-6">
