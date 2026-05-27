@@ -60,6 +60,17 @@ function ErrorFallback({ reset }: { reset: () => void }) {
   );
 }
 
+// Key for persisting navigation page across refreshes
+const NAV_STORAGE_KEY = 'wh_navpage';
+const DETAIL_STORAGE_KEY = 'wh_detailid';
+
+// Pages that can be safely restored after refresh
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'creator', 'admin', 'worker_dashboard', 'worker_discovery'];
+
+function isRestorable(page: string): page is NavPage {
+  return RESTORABLE_PAGES.includes(page as NavPage);
+}
+
 // ─── MAIN APP ─────────────────────────────────────
 export default function App() {
   const auth = useAuth();
@@ -68,12 +79,54 @@ export default function App() {
   const [chatConvId, setChatConvId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [unreadCount, setUnreadCount] = useState(0);
-  // Roommate is now a unified page — no mode state needed
   const [error, setError] = useState<Error | null>(null);
   const isWorker = auth.profile?.role === 'worker';
   const canList = canCreateListings(auth.profile?.role || '');
   const isCreator = checkCreator(auth.profile?.role || '');
-  // Note: isUser is not needed since we use role-specific tab assignments
+
+  // ─── Restore nav page from localStorage on login ──
+  useEffect(() => {
+    if (auth.isLoading || !auth.profile) return;
+
+    const savedPage = localStorage.getItem(NAV_STORAGE_KEY);
+    const savedDetail = localStorage.getItem(DETAIL_STORAGE_KEY);
+
+    if (savedPage && isRestorable(savedPage)) {
+      // Validate the saved page is appropriate for the user's role
+      const role = auth.profile.role;
+      let valid = true;
+
+      if (savedPage === 'creator' && !checkCreator(role)) valid = false;
+      if (savedPage === 'admin' && role !== 'admin' && role !== 'assistant_admin') valid = false;
+      if (savedPage === 'worker_dashboard' && role !== 'worker') valid = false;
+      if (savedPage === 'profile' && (role === 'worker' || checkCreator(role))) valid = false;
+
+      if (valid) {
+        setNavPage(savedPage);
+        if (savedPage === 'detail' && savedDetail) {
+          setDetailId(savedDetail);
+        }
+      }
+    }
+  }, [auth.isLoading, auth.profile]);
+
+  // ─── Persist nav page to localStorage ─────────────
+  useEffect(() => {
+    if (isRestorable(navPage)) {
+      localStorage.setItem(NAV_STORAGE_KEY, navPage);
+    }
+    if (detailId) {
+      localStorage.setItem(DETAIL_STORAGE_KEY, detailId);
+    }
+  }, [navPage, detailId]);
+
+  // ─── Clear stored nav on logout ───────────────────
+  const handleSetNavPage = useCallback((page: NavPage) => {
+    setNavPage(page);
+    if (isRestorable(page)) {
+      localStorage.setItem(NAV_STORAGE_KEY, page);
+    }
+  }, []);
 
   // Error boundary
   useEffect(() => {
@@ -136,9 +189,9 @@ export default function App() {
     }
   }, [auth.profile, savedIds]);
 
-  const goTo = useCallback((page: NavPage) => setNavPage(page), []);
+  const goTo = useCallback((page: NavPage) => handleSetNavPage(page), [handleSetNavPage]);
   const goToDetail = useCallback((id: string) => { setDetailId(id); setNavPage('detail'); }, []);
-  const goBack = useCallback(() => { setDetailId(null); setNavPage('home'); }, []);
+  const goBack = useCallback(() => { setDetailId(null); handleSetNavPage('home'); }, [handleSetNavPage]);
   const goToChat = useCallback((convId?: string) => { setChatConvId(convId || null); setNavPage('chat'); }, []);
   const goToProfileEdit = useCallback(() => setNavPage('profile_edit'), []);
   const goToAccount = useCallback(() => setNavPage('account'), []);

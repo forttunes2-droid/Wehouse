@@ -15,7 +15,7 @@ function wipeOnLogout() {
     const keys: string[] = [];
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      if (key && (key.includes('sb-') || key.includes('supabase'))) keys.push(key);
+      if (key && (key.includes('sb-') || key.includes('supabase') || key.startsWith('wh_'))) keys.push(key);
     }
     keys.forEach((k) => localStorage.removeItem(k));
     sessionStorage.clear();
