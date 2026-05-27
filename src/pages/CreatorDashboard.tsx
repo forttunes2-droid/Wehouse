@@ -34,7 +34,20 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }: CreatorDashboardProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  // Persist dashboard sub-tab across refreshes
+  const DASHBOARD_TAB_KEY = profile.role === 'creator' || profile.role === 'creator_admin' ? 'wh_creator_tab' : 'wh_admin_tab';
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    try {
+      const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
+      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements'].includes(saved) ? saved as AdminTab : 'overview';
+    } catch { return 'overview'; }
+  });
+
+  // Save tab change to localStorage
+  const handleSetTab = useCallback((tab: AdminTab) => {
+    setActiveTab(tab);
+    localStorage.setItem(DASHBOARD_TAB_KEY, tab);
+  }, [DASHBOARD_TAB_KEY]);
   const isCreatorAccount = isCreator(profile.role);
 
   const tabs = [
@@ -49,7 +62,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-6">
+    <div className="min-h-screen bg-transparent pb-6">
       <Toaster position="top-center" richColors theme="dark" />
 
       {/* Creator Header — Differentiated from user profile */}
@@ -92,7 +105,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleSetTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-t-lg transition-all ${
                   isActive
                     ? isCreatorAccount ? 'text-purple-400 border-b-2 border-purple-400' : 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
@@ -111,7 +124,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 pb-6">
-        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => setActiveTab('users')} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => handleSetTab('users')} />}
         {activeTab === 'users' && <UsersTab profile={profile} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
@@ -900,6 +913,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       : await getOfficialMessagesSentBy(profile.user_id);
     const msgs = messages || [];
     setSentMessages(msgs);
+    // Fetch recipient counts (sender can now read recipient rows via RLS)
     const counts: Record<string, number> = {};
     await Promise.all(
       msgs.map(async (m: any) => {
@@ -927,6 +941,12 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     // Validate: if selecting users, must have selected at least one
     if (sendMode === 'select' && selectedUsers.length === 0) {
       toast.error('Select at least one user');
+      return;
+    }
+
+    // Warn if broadcast mode but no regular users exist
+    if (sendMode === 'all' && users.length === 0 && !includeWorkers && !includeStaff) {
+      toast.error('No regular users in the system. Create a user account first.', { duration: 5000 });
       return;
     }
 
@@ -1137,6 +1157,21 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
             {sendMode === 'all' && (
               <div className="mb-3 space-y-2">
                 <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Recipients</p>
+
+                {/* Show warning if no regular users exist */}
+                {users.length === 0 && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <div className="flex items-start gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                        <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+                      </svg>
+                      <div>
+                        <p className="text-[11px] text-amber-400 font-medium">No regular users found</p>
+                        <p className="text-[10px] text-amber-400/70">Announcements only reach users with role='user'. Create a test user account to verify delivery.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Base: Users always included */}
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/10">

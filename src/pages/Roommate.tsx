@@ -106,7 +106,7 @@ export default function Roommate({ profile }: RoommateProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
       {view === 'preview' && <PreviewView profile={profile} prefs={prefs} onChangeView={setView} />}
       {view === 'edit' && <EditView existingPrefs={prefs} onSave={handleSave} onCancel={() => setView('preview')} />}
@@ -706,7 +706,7 @@ function Chip({ selected, onClick, children }: { selected: boolean; onClick: () 
 
 function RoommateSkeleton() {
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
         <div className="max-w-lg mx-auto">
           <div className="h-7 w-32 rounded-lg shimmer mb-2" />

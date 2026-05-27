@@ -88,7 +88,7 @@ export default function Dashboard({
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       <Toaster position="top-center" richColors />
       <ConfirmDialog {...dialogProps} />
 

@@ -25,7 +25,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave }: S
   }, [savedIds]);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
         <h1 className="text-lg font-bold text-white">Saved Homes</h1>
         <p className="text-[10px] text-[#5C5E72] mt-0.5">@{profile.username}</p>

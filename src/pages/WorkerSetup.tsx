@@ -74,7 +74,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
   const initials = (form.full_name || profile.email[0]).charAt(0).toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">

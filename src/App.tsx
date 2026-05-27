@@ -329,7 +329,7 @@ export default function App() {
 
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <div className="page-transition">
+      <div className="page-transition bg-housing min-h-screen">
         {renderPage()}
       </div>
 

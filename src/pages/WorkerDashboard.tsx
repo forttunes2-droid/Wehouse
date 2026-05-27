@@ -38,7 +38,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout }: Work
   const occupationLabel = profile.worker_occupation ? (WORKER_OCCUPATION_LABELS[profile.worker_occupation] || profile.worker_occupation) : 'Not set';
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">

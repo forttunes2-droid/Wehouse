@@ -168,7 +168,7 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center px-5">
+    <div className="min-h-screen bg-transparent flex items-center justify-center px-5">
       <div className="w-full max-w-[360px]">
         {/* Logo */}
         <div className="text-center mb-8">

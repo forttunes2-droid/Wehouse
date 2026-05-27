@@ -71,7 +71,7 @@ export default function PrivacySettings({ profile, onUpdate, onBack }: PrivacySe
   );
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       {/* Header */}

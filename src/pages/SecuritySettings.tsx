@@ -223,7 +223,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <ConfirmDialog {...dialogProps} />
       <Toaster position="top-center" richColors />
 

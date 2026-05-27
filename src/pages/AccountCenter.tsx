@@ -101,7 +101,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       {/* Header */}

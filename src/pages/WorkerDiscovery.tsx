@@ -39,7 +39,7 @@ export default function WorkerDiscovery({ userCity }: WorkerDiscoveryProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
         <div className="max-w-lg mx-auto">
           <h1 className="text-lg font-bold text-white mb-1">Find Workers</h1>

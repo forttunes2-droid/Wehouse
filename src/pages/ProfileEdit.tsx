@@ -195,7 +195,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
   }[usernameStatus];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
       <ConfirmDialog {...dialogProps} />
       <header className="bg-[#12121A] border-b border-white/[0.06] text-white px-5 py-4 flex items-center gap-3">

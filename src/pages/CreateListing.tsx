@@ -161,7 +161,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       {/* Header */}

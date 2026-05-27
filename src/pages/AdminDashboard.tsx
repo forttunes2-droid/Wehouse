@@ -20,7 +20,21 @@ interface AdminDashboardProps {
 type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports' | 'announcements';
 
 export default function AdminDashboard({ profile, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  // Persist dashboard sub-tab across refreshes
+  const ADMIN_TAB_KEY = 'wh_admin_tab';
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_TAB_KEY);
+      return saved && ['overview','staff','users','listings','reports','announcements'].includes(saved) ? saved as AdminTab : 'overview';
+    } catch { return 'overview'; }
+  });
+
+  // Save tab change to localStorage
+  const handleSetTab = useCallback((tab: AdminTab) => {
+    setActiveTab(tab);
+    localStorage.setItem(ADMIN_TAB_KEY, tab);
+  }, []);
+
   const [stats, setStats] = useState({ users: 0, staff: 0, listings: 0, workers: 0, reports: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -66,7 +80,7 @@ export default function AdminDashboard({ profile, onLogout }: AdminDashboardProp
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       {/* Header */}
@@ -89,7 +103,7 @@ export default function AdminDashboard({ profile, onLogout }: AdminDashboardProp
       <div className="sticky top-0 z-30 bg-[#0A0A0F]/95 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex gap-0 overflow-x-auto px-2 no-scrollbar">
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => handleSetTab(tab.id)}
               className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-3 text-[10px] font-medium transition-colors border-b-2 whitespace-nowrap ${
                 activeTab === tab.id ? 'text-blue-400 border-blue-400' : 'text-[#5C5E72] border-transparent'
               }`}>

@@ -65,7 +65,7 @@ export default function Setup({ profile, onSetupComplete }: SetupProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] flex items-start justify-center px-5 pt-10 pb-10 overflow-y-auto">
+    <div className="min-h-screen bg-transparent flex items-start justify-center px-5 pt-10 pb-10 overflow-y-auto">
       <div className="w-full max-w-[360px]">
         <div className="text-center mb-6">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center mx-auto mb-4 glow-blue">

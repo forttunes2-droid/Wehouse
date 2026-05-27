@@ -64,7 +64,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
+      <div className="min-h-screen bg-transparent flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -72,7 +72,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
 
   if (!listing) {
     return (
-      <div className="min-h-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-3">
+      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center gap-3">
         <p className="text-sm text-[#5C5E72]">Listing not found</p>
         <button onClick={onNavigate} className="text-xs text-[#3B82F6]">Go back</button>
       </div>
@@ -86,7 +86,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
   const isAvailable = listingStatus === 'available';
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-6">
+    <div className="min-h-screen bg-transparent pb-6">
       <Toaster position="top-center" richColors />
 
       {/* Image Gallery */}

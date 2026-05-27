@@ -56,7 +56,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
   }, [listings]);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">

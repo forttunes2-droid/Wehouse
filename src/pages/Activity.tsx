@@ -277,7 +277,7 @@ export default function Activity({ profile, onNavigate, onGoToChat }: ActivityPr
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0F] pb-24">
+      <div className="min-h-screen bg-transparent pb-24">
         <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
           <div className="h-7 w-32 rounded-lg shimmer mb-2" />
           <div className="h-4 w-48 rounded shimmer" />
@@ -298,7 +298,7 @@ export default function Activity({ profile, onNavigate, onGoToChat }: ActivityPr
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       <Toaster position="top-center" richColors />
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">

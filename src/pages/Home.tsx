@@ -104,7 +104,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0F] pb-24">
+      <div className="min-h-screen bg-transparent pb-24">
         {/* Hero shimmer */}
         <div className="h-[320px] w-full shimmer" />
         <div className="px-5 mt-6 space-y-6">
@@ -122,7 +122,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       {/* ═══════════════════════════════════════════════════
           HERO SECTION — Full-width property imagery
           ═══════════════════════════════════════════════════ */}
