@@ -149,10 +149,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
   // Remove avatar
   const handleRemoveAvatar = useCallback(async () => {
     const ok = await ask({
-      title: 'Remove Photo',
-      message: 'Your profile photo will be removed. You can upload a new one anytime.',
+      title: 'Remove this photo?',
       confirmLabel: 'Remove',
-      cancelLabel: 'Keep',
       variant: 'danger',
     });
     if (!ok) return;

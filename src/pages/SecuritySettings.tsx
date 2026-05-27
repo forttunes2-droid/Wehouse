@@ -134,7 +134,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   }
 
   async function handleLogoutAll() {
-    const ok = await ask({ title: 'Logout All Devices', message: 'You will be logged out of all devices and need to sign in again.', confirmLabel: 'Logout All', cancelLabel: 'Cancel', variant: 'warning' });
+    const ok = await ask({ title: 'Log out of all devices?', confirmLabel: 'Log Out', variant: 'warning' });
     if (!ok) return;
     setLoggingOut('all');
     await supabase.auth.signOut({ scope: 'global' });

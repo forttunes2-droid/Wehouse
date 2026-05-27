@@ -179,7 +179,7 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
   useEffect(() => { load(); }, [load]);
 
   async function handleDemote(userId: string, email: string) {
-    const demoteOk = await ask({ title: 'Demote Staff', message: 'This staff member will lose all listing management access.', confirmLabel: 'Demote', cancelLabel: 'Cancel', variant: 'warning' });
+    const demoteOk = await ask({ title: 'Demote this staff?', confirmLabel: 'Demote', variant: 'warning' });
     if (!demoteOk) return;
     const { error } = await updateUserRole(userId, 'user', 'staff', profile.user_id, profile.email, email);
     if (error) { toast.error(error.message || 'Failed'); return; }
@@ -239,7 +239,7 @@ function UsersTab({ scope, profile, refresh }: { scope: { state: string; lga: st
   useEffect(() => { load(); }, [load]);
 
   async function handlePromote(userId: string, email: string) {
-    const promoteOk = await ask({ title: 'Promote to Staff', message: 'This user will gain access to create and manage listings for your LGA.', confirmLabel: 'Promote', cancelLabel: 'Cancel', variant: 'info' });
+    const promoteOk = await ask({ title: 'Promote to staff?', confirmLabel: 'Promote', variant: 'info' });
     if (!promoteOk) return;
     const { error } = await updateUserRole(userId, 'staff', 'user', profile.user_id, profile.email, email);
     if (error) { toast.error(error.message || 'Failed'); return; }
@@ -299,7 +299,7 @@ function ListingsTab({ scope, profile: _profile, refresh }: { scope: { state: st
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(listingId: string) {
-    const delOk = await ask({ title: 'Delete Listing', message: 'This listing will be permanently deleted.', confirmLabel: 'Delete', cancelLabel: 'Cancel', variant: 'danger' });
+    const delOk = await ask({ title: 'Delete this listing?', confirmLabel: 'Delete', variant: 'danger' });
     if (!delOk) return;
     const { error } = await deleteListing(listingId);
     if (error) { toast.error('Delete failed'); return; }

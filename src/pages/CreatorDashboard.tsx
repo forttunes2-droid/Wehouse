@@ -278,7 +278,7 @@ function UsersTab({ profile }: { profile: Profile }) {
     if (isCreator(target.role)) { toast.error('Creator accounts cannot be deleted'); return; }
     if (userId === profile.user_id) { toast.error('You cannot delete your own account from here'); return; }
 
-    const sdOk = await ask({ title: 'Soft Delete User', message: 'This user will be deactivated but can be restored later.', confirmLabel: 'Delete', cancelLabel: 'Cancel', variant: 'warning' });
+    const sdOk = await ask({ title: 'Delete this user?', confirmLabel: 'Delete', variant: 'danger' });
     if (!sdOk) return;
     const { error } = await deleteUser(userId);
     if (error) { toast.error('Delete failed: ' + error.message); return; }
@@ -288,7 +288,7 @@ function UsersTab({ profile }: { profile: Profile }) {
   }
 
   async function handleRestore(userId: string) {
-    const restoreOk = await ask({ title: 'Restore User', message: 'This user account will be reactivated.', confirmLabel: 'Restore', cancelLabel: 'Cancel', variant: 'info' });
+    const restoreOk = await ask({ title: 'Restore this user?', confirmLabel: 'Restore', variant: 'info' });
     if (!restoreOk) return;
     const { error } = await restoreUser(userId);
     if (error) { toast.error('Restore failed: ' + error.message); return; }
@@ -399,7 +399,7 @@ function ListingsTab({ profile }: { profile: Profile }) {
   useEffect(() => { load(); }, [load]);
 
   async function handleDeleteL(id: string) {
-    const rmOk = await ask({ title: 'Remove Listing', message: 'This listing will be permanently deleted.', confirmLabel: 'Remove', cancelLabel: 'Cancel', variant: 'danger' });
+    const rmOk = await ask({ title: 'Delete this listing?', confirmLabel: 'Delete', variant: 'danger' });
     if (!rmOk) return;
     await deleteListing(id);
     await logAuditAction(profile.user_id, profile.email, 'delete_listing', 'listing', id, 'Listing removed');

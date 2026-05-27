@@ -6,6 +6,9 @@
     <meta name="theme-color" content="#0A0A0F" />
     <meta name="background-color" content="#0A0A0F" />
     <meta name="description" content="WeHouse - Find houses, connect with roommates, hire verified workers" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
@@ -38,5 +41,22 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Force-clear old service workers and cache
+      (function() {
+        // Unregister ALL old service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(reg) { reg.unregister(); });
+          });
+        }
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) { caches.delete(name); });
+          });
+        }
+      })();
+    </script>
   </body>
 </html>

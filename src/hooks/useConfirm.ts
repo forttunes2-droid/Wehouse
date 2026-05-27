@@ -10,7 +10,6 @@ export function useConfirm() {
   const [state, setState] = useState<ConfirmState>({
     isOpen: false,
     title: '',
-    message: '',
     confirmLabel: 'Confirm',
     cancelLabel: 'Cancel',
     variant: 'danger',
@@ -45,7 +44,6 @@ export function useConfirm() {
     dialogProps: {
       isOpen: state.isOpen,
       title: state.title,
-      message: state.message,
       confirmLabel: state.confirmLabel,
       cancelLabel: state.cancelLabel,
       variant: state.variant,
