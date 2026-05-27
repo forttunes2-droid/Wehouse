@@ -65,7 +65,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -106,6 +106,8 @@ export default function App() {
     if (navPage === 'assistant_state_admin' && role !== 'assistant_state_admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
     if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'state_admin' || role === 'assistant_state_admin')) valid = false;
+    // Profile sub-pages (account, privacy, security) same rules as profile
+    if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'state_admin' || role === 'assistant_state_admin')) valid = false;
     if (navPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
 
     if (!valid) {
