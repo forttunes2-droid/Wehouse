@@ -100,6 +100,8 @@ export default function App() {
       if (savedPage === 'admin' && role !== 'admin' && role !== 'assistant_admin') valid = false;
       if (savedPage === 'worker_dashboard' && role !== 'worker') valid = false;
       if (savedPage === 'profile' && (role === 'worker' || checkCreator(role))) valid = false;
+      // Only regular users and workers can access roommate matching
+      if (savedPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
 
       if (valid) {
         setNavPage(savedPage);
@@ -238,6 +240,11 @@ export default function App() {
       case 'saved':
         return <Saved {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
       case 'roommate':
+        // Only users and workers can access roommate matching
+        if (!canAccessRoommate) {
+          setNavPage('home');
+          return null;
+        }
         return <Roommate profile={profile} />;
       case 'activity':
         return <Activity profile={profile} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} onGoToChat={goToChat} />;
@@ -277,11 +284,14 @@ export default function App() {
     }
   };
 
-  // Bottom nav — Home, Listings, Roommates, Workers, Profile
+  // ── Roommate access: only regular users and workers ──
+  const canAccessRoommate = profile.role === 'user' || profile.role === 'worker';
+
+  // Bottom nav — dynamically built per role
   const baseTabs = [
     { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
     { id: 'search' as NavPage, label: 'Listings', icon: ListingsSvg },
-    { id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg },
+    ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
     { id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg },
   ];
 
