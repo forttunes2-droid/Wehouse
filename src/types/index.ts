@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'state_admin' | 'admin' | 'assistant_admin' | 'staff' | 'worker';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -221,11 +221,13 @@ export interface RoommateMatch {
 // Higher number = more power. Used for permission checks.
 export const ROLE_RANK: Record<UserRole, number> = {
   user: 0,
-  worker: 0,   // same level as user
+  worker: 0,          // same level as user
   staff: 1,
-  admin: 2,
-  creator: 3,  // highest — cannot be changed/deleted
-  creator_admin: 3, // legacy alias for creator
+  assistant_admin: 2, // helps local admin, same powers except announcements
+  admin: 3,           // local admin — manages one LGA
+  state_admin: 4,     // state admin — manages all in their state
+  creator: 5,         // highest — manages entire platform
+  creator_admin: 5,   // legacy alias for creator
 };
 
 export function roleRank(role: string): number {
@@ -343,7 +345,7 @@ export interface RoomInterest {
 export interface OfficialMessage {
   id: string;
   sender_id: string;
-  sender_role: 'creator' | 'admin';
+  sender_role: 'creator' | 'state_admin' | 'admin';
   sender_name: string;
   content: string;
   sent_to_all: boolean;

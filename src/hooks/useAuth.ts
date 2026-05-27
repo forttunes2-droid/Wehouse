@@ -23,9 +23,9 @@ function wipeOnLogout() {
 }
 
 // ─── ROLE HELPERS (module-level) ───────────────────
-// ONLY creator and admin get the creator dashboard
+// Creator + State Admin + Local Admin + Assistant Admin get admin dashboards
 // Staff is a listing manager only — NO admin access
-const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'admin']);
+const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'state_admin', 'admin', 'assistant_admin']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
@@ -36,9 +36,24 @@ export function isStaff(role: string): boolean {
   return role === 'staff';
 }
 
-// Can create listings (staff, admin, creator)
+// Can create listings (staff, admin, assistant_admin, state_admin, creator)
 export function canCreateListings(role: string): boolean {
-  return role === 'staff' || role === 'admin' || role === 'creator' || role === 'creator_admin';
+  return role === 'staff' || role === 'admin' || role === 'assistant_admin' || role === 'state_admin' || role === 'creator' || role === 'creator_admin';
+}
+
+// State Admin — manages all in their state
+export function isStateAdmin(role: string): boolean {
+  return role === 'state_admin';
+}
+
+// Assistant Admin — helps local admin, no announcement access
+export function isAssistantAdmin(role: string): boolean {
+  return role === 'assistant_admin';
+}
+
+// Only Creator and State Admin can send announcements
+export function canSendAnnouncements(role: string): boolean {
+  return role === 'creator' || role === 'creator_admin' || role === 'state_admin';
 }
 
 // Creator = highest rank. Protected from changes/deletion.
@@ -49,17 +64,23 @@ export function isCreator(role: string): boolean {
 
 // ─── SCOPE HELPERS ────────────────────────────────
 // Creator = global scope (all data)
+// State Admin = state scope (all in their state)
 // Admin/Staff = local scope (assigned LGA only)
 // User/Worker = no scope (browsing only)
 
-export function getScope(role: string): 'global' | 'local' | null {
+export function getScope(role: string): 'global' | 'state' | 'local' | null {
   if (isCreator(role)) return 'global';
-  if (role === 'admin' || role === 'staff') return 'local';
+  if (role === 'state_admin') return 'state';
+  if (role === 'admin' || role === 'assistant_admin' || role === 'staff') return 'local';
   return null;
 }
 
 export function isGlobal(role: string): boolean {
   return getScope(role) === 'global';
+}
+
+export function isStateScope(role: string): boolean {
+  return getScope(role) === 'state';
 }
 
 export function isLocal(role: string): boolean {
@@ -76,14 +97,15 @@ export function canAccessLocation(
 ): boolean {
   // Global (creator) can access everything
   if (isGlobal(userRole)) return true;
-  // Local (admin/staff) can only access their assigned location
+  // State admin can access any LGA in their state
+  if (isStateScope(userRole)) {
+    return userState === targetState;
+  }
+  // Local (admin/staff) can only access their assigned LGA
   if (isLocal(userRole)) {
-    // Must have assigned location
     if (!userState || !userLga) return false;
-    // Must match target location
     return userState === targetState && userLga === targetLga;
   }
-  // Users/workers can browse (access check handled elsewhere)
   return true;
 }
 

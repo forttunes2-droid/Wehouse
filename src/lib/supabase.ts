@@ -652,7 +652,7 @@ export async function getOrCreateConversation(userA: string, userB: string) {
 
 export async function sendOfficialMessage(
   senderId: string,
-  senderRole: 'creator' | 'admin',
+  senderRole: 'creator' | 'state_admin' | 'admin',
   senderName: string,
   content: string,
   recipientIds: string[]

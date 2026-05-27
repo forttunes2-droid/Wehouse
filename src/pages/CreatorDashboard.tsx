@@ -8,7 +8,7 @@ import {
   getMessageRecipientCount,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
-import { isCreator, validateRoleTransition } from '@/hooks/useAuth';
+import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -800,54 +800,39 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
 // ─── ANNOUNCEMENTS TAB ─────────────────────────────
 
 export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 'all' | { state: string; lga: string } }) {
+  const canSend = canSendAnnouncements(profile.role);
+  const isCreatorScope = scope === 'all';
+  const isStateScope = !isCreatorScope && typeof scope === 'object';
+
   const [users, setUsers] = useState<any[]>([]);
-  const [filtered, setFiltered] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
-  const [sendToAll, setSendToAll] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<any[]>([]);
   const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>({});
+  const [activeView, setActiveView] = useState<'compose' | 'history'>('compose');
   const { ask, dialogProps } = useConfirm();
 
   useEffect(() => {
-    loadUsers();
     loadSentMessages();
+    if (canSend) loadUsers();
   }, []);
-
-  useEffect(() => {
-    if (!search.trim()) {
-      setFiltered(users);
-      return;
-    }
-    const q = search.toLowerCase();
-    setFiltered(users.filter((u) => (u.username || '').toLowerCase().includes(q)));
-  }, [search, users]);
 
   async function loadUsers() {
     const { users: data } = await getAllUsers();
     let list = (data || []).filter((u: any) => !u.deleted && u.user_id !== profile.user_id);
-
-    // Scope filter for admin
-    if (scope !== 'all' && typeof scope === 'object') {
-      list = list.filter((u: any) => u.state === scope.state && u.city === scope.lga);
+    if (isStateScope) {
+      list = list.filter((u: any) => u.state === scope.state);
     }
-
     setUsers(list);
-    setFiltered(list);
   }
 
   async function loadSentMessages() {
-    // Creator sees ALL official messages, admin sees only their own
     const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
     const { messages } = isCreator
       ? await getAllOfficialMessages()
       : await getOfficialMessagesSentBy(profile.user_id);
     const msgs = messages || [];
     setSentMessages(msgs);
-
-    // Fetch recipient counts for each message
     const counts: Record<string, number> = {};
     await Promise.all(
       msgs.map(async (m: any) => {
@@ -859,219 +844,144 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   }
 
   async function handleDeleteMessage(messageId: string) {
-    const ok = await ask({
-      title: 'Delete this message?',
-      confirmLabel: 'Delete',
-      variant: 'danger',
-    });
+    const ok = await ask({ title: 'Delete this message?', confirmLabel: 'Delete', variant: 'danger' });
     if (!ok) return;
-
     toast.loading('Deleting...', { id: 'del-msg' });
     const { error } = await deleteOfficialMessage(messageId);
     toast.dismiss('del-msg');
-
-    if (error) {
-      toast.error('Failed to delete');
-      return;
-    }
-
+    if (error) { toast.error('Failed to delete'); return; }
     toast.success('Message deleted');
     setSentMessages((prev) => prev.filter((m) => m.id !== messageId));
   }
 
   async function handleSend() {
-    if (!message.trim()) {
-      toast.error('Type a message');
-      return;
-    }
-
-    const ok = await ask({
-      title: sendToAll ? `Send to all ${users.length} users?` : 'Send this message?',
-      confirmLabel: 'Send',
-      variant: 'info',
-    });
+    if (!message.trim()) { toast.error('Type a message'); return; }
+    const scopeLabel = isStateScope ? `all users in ${scope.state}` : 'all users';
+    const ok = await ask({ title: `Send to ${scopeLabel}?`, confirmLabel: 'Send', variant: 'info' });
     if (!ok) return;
 
     setSending(true);
     toast.loading('Sending...', { id: 'send-announce' });
 
-    const recipientIds = sendToAll ? [] : selectedUser ? [selectedUser] : [];
-    if (!sendToAll && !selectedUser) {
-      toast.error('Select a user or check Send to All');
-      setSending(false);
-      return;
-    }
+    const senderRole = profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'state_admin';
 
     const { error, recipientCount } = await sendOfficialMessage(
-      profile.user_id,
-      profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'admin',
-      profile.username || 'Admin',
-      message.trim(),
-      recipientIds
+      profile.user_id, senderRole, profile.username || 'Admin', message.trim(), []
     );
 
     toast.dismiss('send-announce');
     setSending(false);
 
-    if (error) {
-      toast.error(error.message || 'Failed to send');
-      return;
-    }
+    if (error) { toast.error(error.message || 'Failed to send'); return; }
 
-    toast.success(
-      recipientCount
-        ? `Sent to ${recipientCount} user${recipientCount > 1 ? 's' : ''}!`
-        : 'Message sent!'
-    );
+    toast.success(`Sent to ${recipientCount || 0} user${(recipientCount || 0) > 1 ? 's' : ''}!`);
     setMessage('');
-    setSelectedUser(null);
-    await loadSentMessages(); // refresh sent messages list
+    setActiveView('history');
+    await loadSentMessages();
   }
 
   return (
     <div className="space-y-4">
       <ConfirmDialog {...dialogProps} />
 
-      {/* Message input */}
-      <div className="glass rounded-2xl p-4">
-        <h3 className="text-sm font-bold text-white mb-3">Send Announcement</h3>
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type your announcement..."
-          rows={3}
-          className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3"
-        />
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={sendToAll}
-              onChange={(e) => {
-                setSendToAll(e.target.checked);
-                setSelectedUser(null);
-              }}
-              className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6]"
-            />
-            <span className="text-xs text-[#8A8B9C]">Send to all {users.length} users</span>
-          </label>
-          <button
-            onClick={handleSend}
-            disabled={sending || !message.trim()}
-            className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-1.5"
-          >
-            {sending && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            {sending ? 'Sending...' : 'Send'}
+      {/* Navigation tabs */}
+      {canSend && (
+        <div className="flex gap-1 bg-[#1A1A24] rounded-xl p-1">
+          <button onClick={() => setActiveView('compose')} className={`flex-1 h-8 rounded-lg text-xs font-semibold transition-all ${activeView === 'compose' ? 'bg-[#3B82F6] text-white' : 'text-[#8A8B9C] hover:text-white'}`}>
+            New Message
+          </button>
+          <button onClick={() => setActiveView('history')} className={`flex-1 h-8 rounded-lg text-xs font-semibold transition-all ${activeView === 'history' ? 'bg-[#3B82F6] text-white' : 'text-[#8A8B9C] hover:text-white'}`}>
+            Sent ({sentMessages.length})
           </button>
         </div>
-      </div>
+      )}
 
-      {/* User list (hidden when send to all is checked) */}
-      {!sendToAll && (
+      {/* Compose View */}
+      {canSend && activeView === 'compose' && (
         <div className="glass rounded-2xl overflow-hidden">
           <div className="p-4 border-b border-[#1E1E2C]">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by @username..."
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-            />
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">WeHouse Official</p>
+                <p className="text-[10px] text-[#5C5E72]">
+                  {isStateScope ? `Broadcast to all users in ${scope.state}` : 'Broadcast to all users on the platform'}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="max-h-[300px] overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="text-xs text-[#5C5E72] text-center py-6">No users found</p>
+          <div className="p-4">
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your announcement..." rows={4} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#5C5E72]">{users.length} recipients</span>
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Broadcast</span>
+              </div>
+              <button onClick={handleSend} disabled={sending || !message.trim()} className="h-9 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-2">
+                {sending && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+                {sending ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History View */}
+      {(!canSend || activeView === 'history') && (
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="p-4 border-b border-[#1E1E2C] flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white">
+              {canSend
+                ? (profile.role === 'creator' || profile.role === 'creator_admin' ? 'All Official Messages' : 'Your Sent Messages')
+                : 'Official Messages'}
+            </h3>
+            <span className="text-[10px] text-[#5C5E72]">{sentMessages.length} total</span>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto">
+            {sentMessages.length === 0 ? (
+              <div className="text-center py-10">
+                <div className="w-12 h-12 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                </div>
+                <p className="text-xs text-[#5C5E72]">No official messages yet</p>
+              </div>
             ) : (
-              filtered.map((u: any) => (
-                <button
-                  key={u.user_id}
-                  onClick={() => setSelectedUser(selectedUser === u.user_id ? null : u.user_id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-[#1E1E2C]/50 transition-colors ${
-                    selectedUser === u.user_id ? 'bg-[#3B82F6]/10' : 'hover:bg-[#12121A]'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {(u.username || 'U').charAt(0).toUpperCase()}
+              sentMessages.map((m: any) => {
+                const count = recipientCounts[m.id] || 0;
+                return (
+                  <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50 hover:bg-[#12121A] transition-colors">
+                    <p className="text-xs text-white leading-relaxed">{m.content}</p>
+                    <div className="flex items-center flex-wrap gap-2 mt-2">
+                      <span className="text-[9px] text-[#3B82F6] font-medium">{m.sender_name}</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] uppercase tracking-wider">{m.sender_role}</span>
+                      <span className="text-[9px] text-[#5C5E72]">{new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400">{count > 0 ? `${count} reached` : 'No data'}</span>
+                      {canSend && (
+                        <button onClick={() => handleDeleteMessage(m.id)} className="ml-auto text-[#5C5E72] hover:text-red-400 transition-colors p-0.5" title="Delete">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white truncate">@{u.username || 'user'}</p>
-                    <p className="text-[10px] text-[#5C5E72]">{u.city}{u.state ? `, ${u.state}` : ''}</p>
-                  </div>
-                  {selectedUser === u.user_id && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5">
-                      <path d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              ))
+                );
+              })
             )}
           </div>
         </div>
       )}
 
-      {/* Sent Messages */}
-      <div className="glass rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-[#1E1E2C] flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">
-            {profile.role === 'creator' || profile.role === 'creator_admin'
-              ? 'All Official Messages'
-              : 'Your Sent Messages'}
-          </h3>
-          <span className="text-[10px] text-[#5C5E72]">{sentMessages.length} total</span>
+      {/* Read-only notice for non-senders */}
+      {!canSend && (
+        <div className="glass rounded-2xl p-4 text-center">
+          <div className="w-10 h-10 rounded-full bg-[#3B82F6]/10 flex items-center justify-center mx-auto mb-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+          </div>
+          <p className="text-xs text-[#8A8B9C]">Only the Creator and State Admins can send announcements.</p>
         </div>
-        <div className="max-h-[350px] overflow-y-auto">
-          {sentMessages.length === 0 ? (
-            <p className="text-xs text-[#5C5E72] text-center py-6">No messages yet</p>
-          ) : (
-            sentMessages.map((m: any) => {
-              const count = recipientCounts[m.id] || 0;
-              return (
-                <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 min-w-0">
-                      {/* Message content */}
-                      <p className="text-xs text-white leading-relaxed">{m.content}</p>
-
-                      {/* Meta row */}
-                      <div className="flex items-center flex-wrap gap-2 mt-2">
-                        {/* Date */}
-                        <span className="text-[9px] text-[#5C5E72]">
-                          {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-
-                        {/* Sender role badge */}
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] capitalize">
-                          {m.sender_role}
-                        </span>
-
-                        {/* Recipient count */}
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400">
-                          {count > 0 ? `Sent to ${count} user${count > 1 ? 's' : ''}` : 'No recipients'}
-                        </span>
-
-                        {/* For creator: show who sent it if not self */}
-                        {(profile.role === 'creator' || profile.role === 'creator_admin') && m.sender_id !== profile.user_id && (
-                          <span className="text-[9px] text-[#5C5E72]">by {m.sender_name}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Delete button */}
-                    <button
-                      onClick={() => handleDeleteMessage(m.id)}
-                      className="text-[#5C5E72] hover:text-red-400 transition-colors flex-shrink-0 mt-0.5 p-1"
-                      title="Delete message"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
