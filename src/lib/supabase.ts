@@ -717,6 +717,28 @@ export async function markOfficialMessageRead(recipientRowId: string) {
   return { error };
 }
 
+export async function deleteOfficialMessage(messageId: string) {
+  const { error } = await supabase.from('official_messages').delete().eq('id', messageId);
+  return { error };
+}
+
+export async function getOfficialMessagesSentBy(senderId: string) {
+  const { data, error } = await supabase
+    .from('official_messages')
+    .select('*')
+    .eq('sender_id', senderId)
+    .order('created_at', { ascending: false });
+  return { messages: data as OfficialMessage[] | null, error };
+}
+
+export async function getAllOfficialMessages() {
+  const { data, error } = await supabase
+    .from('official_messages')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return { messages: data as OfficialMessage[] | null, error };
+}
+
 export async function getUnreadOfficialCount(userId: string) {
   const { count, error } = await supabase
     .from('official_message_recipients')

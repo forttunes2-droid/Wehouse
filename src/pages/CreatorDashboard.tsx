@@ -4,7 +4,7 @@ import {
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
-  sendOfficialMessage,
+  sendOfficialMessage, deleteOfficialMessage, getOfficialMessagesSentBy, getAllOfficialMessages,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition } from '@/hooks/useAuth';
@@ -806,10 +806,12 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const [sendToAll, setSendToAll] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [sentMessages, setSentMessages] = useState<any[]>([]);
   const { ask, dialogProps } = useConfirm();
 
   useEffect(() => {
     loadUsers();
+    loadSentMessages();
   }, []);
 
   useEffect(() => {
@@ -832,6 +834,36 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
     setUsers(list);
     setFiltered(list);
+  }
+
+  async function loadSentMessages() {
+    // Creator sees ALL official messages, admin sees only their own
+    const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
+    const { messages } = isCreator
+      ? await getAllOfficialMessages()
+      : await getOfficialMessagesSentBy(profile.user_id);
+    setSentMessages(messages || []);
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    const ok = await ask({
+      title: 'Delete this message?',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    toast.loading('Deleting...', { id: 'del-msg' });
+    const { error } = await deleteOfficialMessage(messageId);
+    toast.dismiss('del-msg');
+
+    if (error) {
+      toast.error('Failed to delete');
+      return;
+    }
+
+    toast.success('Message deleted');
+    setSentMessages((prev) => prev.filter((m) => m.id !== messageId));
   }
 
   async function handleSend() {
@@ -876,6 +908,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     toast.success(sendToAll ? 'Sent to all users!' : 'Message sent!');
     setMessage('');
     setSelectedUser(null);
+    loadSentMessages(); // refresh sent messages list
   }
 
   return (
@@ -957,6 +990,53 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
           </div>
         </div>
       )}
+
+      {/* Sent Messages */}
+      <div className="glass rounded-2xl overflow-hidden">
+        <div className="p-4 border-b border-[#1E1E2C] flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white">
+            {profile.role === 'creator' || profile.role === 'creator_admin'
+              ? 'All Official Messages'
+              : 'Your Sent Messages'}
+          </h3>
+          <span className="text-[10px] text-[#5C5E72]">{sentMessages.length} total</span>
+        </div>
+        <div className="max-h-[350px] overflow-y-auto">
+          {sentMessages.length === 0 ? (
+            <p className="text-xs text-[#5C5E72] text-center py-6">No messages yet</p>
+          ) : (
+            sentMessages.map((m: any) => (
+              <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white leading-relaxed">{m.content}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[9px] text-[#5C5E72]">
+                        {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] capitalize">
+                        {m.sender_role}
+                      </span>
+                      {(profile.role === 'creator' || profile.role === 'creator_admin') && m.sender_id !== profile.user_id && (
+                        <span className="text-[9px] text-[#5C5E72]">by {m.sender_name}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteMessage(m.id)}
+                    className="text-[#5C5E72] hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                    title="Delete message"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
