@@ -6,6 +6,7 @@ import {
   updateUserRole, deleteListing,
 } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import { AnnouncementsTab } from './CreatorDashboard';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
@@ -16,7 +17,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports';
+type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports' | 'announcements';
 
 export default function AdminDashboard({ profile, onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -61,6 +62,7 @@ export default function AdminDashboard({ profile, onLogout }: AdminDashboardProp
     { id: 'users', label: 'Users', icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z' },
     { id: 'listings', label: 'Listings', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
     { id: 'reports', label: 'Reports', icon: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z' },
+    { id: 'announcements', label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
   ];
 
   return (
@@ -104,6 +106,7 @@ export default function AdminDashboard({ profile, onLogout }: AdminDashboardProp
         {activeTab === 'users' && <UsersTab scope={scope} profile={profile} refresh={refresh} />}
         {activeTab === 'listings' && <ListingsTab scope={scope} profile={profile} refresh={refresh} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
+        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={scope} />}
       </div>
     </div>
   );

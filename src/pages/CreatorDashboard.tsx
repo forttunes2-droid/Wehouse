@@ -4,6 +4,7 @@ import {
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
+  sendOfficialMessage,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition } from '@/hooks/useAuth';
@@ -13,7 +14,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -43,6 +44,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
     { id: 'audit' as AdminTab, label: 'Audit', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
     { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
     { id: 'workers' as AdminTab, label: 'Workers', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z' },
+    { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
   ];
 
   return (
@@ -115,6 +117,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
         {activeTab === 'audit' && <AuditTab />}
         {activeTab === 'settings' && <SettingsTab profile={profile} isCreator={isCreatorAccount} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
+        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
       </main>
     </div>
   );
@@ -787,6 +790,172 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
             </div>
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+
+// ─── ANNOUNCEMENTS TAB ─────────────────────────────
+
+export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 'all' | { state: string; lga: string } }) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [filtered, setFiltered] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [message, setMessage] = useState('');
+  const [sendToAll, setSendToAll] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const { ask, dialogProps } = useConfirm();
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
+    if (!search.trim()) {
+      setFiltered(users);
+      return;
+    }
+    const q = search.toLowerCase();
+    setFiltered(users.filter((u) => (u.username || '').toLowerCase().includes(q)));
+  }, [search, users]);
+
+  async function loadUsers() {
+    const { users: data } = await getAllUsers();
+    let list = (data || []).filter((u: any) => !u.deleted && u.user_id !== profile.user_id);
+
+    // Scope filter for admin
+    if (scope !== 'all' && typeof scope === 'object') {
+      list = list.filter((u: any) => u.state === scope.state && u.city === scope.lga);
+    }
+
+    setUsers(list);
+    setFiltered(list);
+  }
+
+  async function handleSend() {
+    if (!message.trim()) {
+      toast.error('Type a message');
+      return;
+    }
+
+    const ok = await ask({
+      title: sendToAll ? `Send to all ${users.length} users?` : 'Send this message?',
+      confirmLabel: 'Send',
+      variant: 'info',
+    });
+    if (!ok) return;
+
+    setSending(true);
+    toast.loading('Sending...', { id: 'send-announce' });
+
+    const recipientIds = sendToAll ? [] : selectedUser ? [selectedUser] : [];
+    if (!sendToAll && !selectedUser) {
+      toast.error('Select a user or check Send to All');
+      setSending(false);
+      return;
+    }
+
+    const { error } = await sendOfficialMessage(
+      profile.user_id,
+      profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'admin',
+      profile.username || 'Admin',
+      message.trim(),
+      recipientIds
+    );
+
+    toast.dismiss('send-announce');
+    setSending(false);
+
+    if (error) {
+      toast.error('Failed to send');
+      return;
+    }
+
+    toast.success(sendToAll ? 'Sent to all users!' : 'Message sent!');
+    setMessage('');
+    setSelectedUser(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      <ConfirmDialog {...dialogProps} />
+
+      {/* Message input */}
+      <div className="glass rounded-2xl p-4">
+        <h3 className="text-sm font-bold text-white mb-3">Send Announcement</h3>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Type your announcement..."
+          rows={3}
+          className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3"
+        />
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={sendToAll}
+              onChange={(e) => {
+                setSendToAll(e.target.checked);
+                setSelectedUser(null);
+              }}
+              className="w-4 h-4 rounded border-[#2A2A3A] bg-[#1A1A24] text-[#3B82F6]"
+            />
+            <span className="text-xs text-[#8A8B9C]">Send to all {users.length} users</span>
+          </label>
+          <button
+            onClick={handleSend}
+            disabled={sending || !message.trim()}
+            className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-1.5"
+          >
+            {sending && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </div>
+
+      {/* User list (hidden when send to all is checked) */}
+      {!sendToAll && (
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="p-4 border-b border-[#1E1E2C]">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by @username..."
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+            />
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-[#5C5E72] text-center py-6">No users found</p>
+            ) : (
+              filtered.map((u: any) => (
+                <button
+                  key={u.user_id}
+                  onClick={() => setSelectedUser(selectedUser === u.user_id ? null : u.user_id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-[#1E1E2C]/50 transition-colors ${
+                    selectedUser === u.user_id ? 'bg-[#3B82F6]/10' : 'hover:bg-[#12121A]'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                    {(u.username || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white truncate">@{u.username || 'user'}</p>
+                    <p className="text-[10px] text-[#5C5E72]">{u.city}{u.state ? `, ${u.state}` : ''}</p>
+                  </div>
+                  {selectedUser === u.user_id && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

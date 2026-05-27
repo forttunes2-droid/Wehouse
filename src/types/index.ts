@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'admin' | 'staff' | 'worker';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -225,6 +225,7 @@ export const ROLE_RANK: Record<UserRole, number> = {
   staff: 1,
   admin: 2,
   creator: 3,  // highest — cannot be changed/deleted
+  creator_admin: 3, // legacy alias for creator
 };
 
 export function roleRank(role: string): number {
@@ -334,5 +335,27 @@ export interface RoomInterest {
   receiver_id: string;
   status: 'pending' | 'accepted' | 'declined';
   message: string | null;
+  created_at: string;
+}
+
+// ─── OFFICIAL MESSAGES (Creator/Admin Broadcasts) ──
+
+export interface OfficialMessage {
+  id: string;
+  sender_id: string;
+  sender_role: 'creator' | 'admin';
+  sender_name: string;
+  content: string;
+  sent_to_all: boolean;
+  target_state?: string | null;
+  target_lga?: string | null;
+  created_at: string;
+}
+
+export interface OfficialMessageRecipient {
+  id: string;
+  message_id: string;
+  recipient_id: string;
+  read: boolean;
   created_at: string;
 }

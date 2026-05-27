@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Profile, Listing, RoommatePreferences, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest } from '@/types';
+import type { Profile, Listing, RoommatePreferences, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest, OfficialMessage } from '@/types';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // These are PUBLIC client credentials — safe in browser bundles.
@@ -646,6 +646,84 @@ export async function getOrCreateConversation(userA: string, userB: string) {
 
   // Create new conversation
   return createConversation(userA, userB);
+}
+
+// ─── OFFICIAL MESSAGES (Broadcast System) ──────────
+
+export async function sendOfficialMessage(
+  senderId: string,
+  senderRole: 'creator' | 'admin',
+  senderName: string,
+  content: string,
+  recipientIds: string[]
+) {
+  // Insert the message
+  const { data: msg, error: msgError } = await supabase
+    .from('official_messages')
+    .insert({
+      sender_id: senderId,
+      sender_role: senderRole,
+      sender_name: senderName,
+      content,
+      sent_to_all: recipientIds.length === 0,
+    })
+    .select()
+    .single();
+
+  if (msgError || !msg) return { error: msgError };
+
+  // Insert recipients
+  if (recipientIds.length > 0) {
+    const rows = recipientIds.map((rid) => ({
+      message_id: msg.id,
+      recipient_id: rid,
+    }));
+    await supabase.from('official_message_recipients').insert(rows);
+  } else {
+    // Send to all — get all user IDs
+    const { data: users } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('deleted', false);
+    if (users && users.length > 0) {
+      const rows = users.map((u: any) => ({
+        message_id: msg.id,
+        recipient_id: u.user_id,
+      }));
+      // Batch insert in chunks of 100
+      for (let i = 0; i < rows.length; i += 100) {
+        await supabase.from('official_message_recipients').insert(rows.slice(i, i + 100));
+      }
+    }
+  }
+
+  return { error: null, message: msg as OfficialMessage };
+}
+
+export async function getOfficialMessagesForUser(userId: string) {
+  const { data, error } = await supabase
+    .from('official_message_recipients')
+    .select('*, message:official_messages(*)')
+    .eq('recipient_id', userId)
+    .order('created_at', { ascending: false });
+  return { messages: data || [], error };
+}
+
+export async function markOfficialMessageRead(recipientRowId: string) {
+  const { error } = await supabase
+    .from('official_message_recipients')
+    .update({ read: true })
+    .eq('id', recipientRowId);
+  return { error };
+}
+
+export async function getUnreadOfficialCount(userId: string) {
+  const { count, error } = await supabase
+    .from('official_message_recipients')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', userId)
+    .eq('read', false);
+  return { count: count || 0, error };
 }
 
 // ─── PERSONAL ACTIVITY ─────────────────────────────
