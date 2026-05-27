@@ -74,7 +74,16 @@ function isRestorable(page: string): page is NavPage {
 // ─── MAIN APP ─────────────────────────────────────
 export default function App() {
   const auth = useAuth();
-  const [navPage, setNavPage] = useState<NavPage>('home');
+
+  // Read saved page from localStorage BEFORE first render
+  const savedPageInit = (() => {
+    try {
+      const saved = localStorage.getItem(NAV_STORAGE_KEY);
+      return saved && isRestorable(saved) ? saved : null;
+    } catch { return null; }
+  })();
+
+  const [navPage, setNavPage] = useState<NavPage>(savedPageInit || 'home');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [chatConvId, setChatConvId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -84,31 +93,22 @@ export default function App() {
   const canList = canCreateListings(auth.profile?.role || '');
   const isCreator = checkCreator(auth.profile?.role || '');
 
-  // ─── Restore nav page from localStorage on login ──
+  // ─── Validate restored page against user role ─────
   useEffect(() => {
     if (auth.isLoading || !auth.profile) return;
 
-    const savedPage = localStorage.getItem(NAV_STORAGE_KEY);
-    const savedDetail = localStorage.getItem(DETAIL_STORAGE_KEY);
+    const role = auth.profile.role;
+    let valid = true;
 
-    if (savedPage && isRestorable(savedPage)) {
-      // Validate the saved page is appropriate for the user's role
-      const role = auth.profile.role;
-      let valid = true;
+    if (navPage === 'creator' && !checkCreator(role)) valid = false;
+    if (navPage === 'admin' && role !== 'admin' && role !== 'assistant_admin') valid = false;
+    if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
+    if (navPage === 'profile' && (role === 'worker' || checkCreator(role))) valid = false;
+    if (navPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
 
-      if (savedPage === 'creator' && !checkCreator(role)) valid = false;
-      if (savedPage === 'admin' && role !== 'admin' && role !== 'assistant_admin') valid = false;
-      if (savedPage === 'worker_dashboard' && role !== 'worker') valid = false;
-      if (savedPage === 'profile' && (role === 'worker' || checkCreator(role))) valid = false;
-      // Only regular users and workers can access roommate matching
-      if (savedPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
-
-      if (valid) {
-        setNavPage(savedPage);
-        if (savedPage === 'detail' && savedDetail) {
-          setDetailId(savedDetail);
-        }
-      }
+    if (!valid) {
+      setNavPage('home');
+      localStorage.setItem(NAV_STORAGE_KEY, 'home');
     }
   }, [auth.isLoading, auth.profile]);
 

@@ -786,11 +786,14 @@ export async function sendOfficialMessage(
 
     if (recipError) {
       console.error(`[sendOfficialMessage] recipient insert batch ${i} failed:`, recipError);
-      // Check for the specific column type error
+      // Check for specific errors
       if (recipError.message?.includes('invalid input syntax for type integer')) {
-        return { error: { message: 'Database column type mismatch. Please run the SQL fix in Supabase (see admin guide).' } };
+        return { error: { message: 'Database column type mismatch. Run SQL fix in Supabase.' } };
       }
-      return { error: { message: `Failed to deliver to recipients: ${recipError.message}` } };
+      if (recipError.message?.includes('new row violates row-level security policy') || recipError.code === '42501') {
+        return { error: { message: 'Permission denied: RLS policy blocks insert. Run SQL fix in Supabase.' } };
+      }
+      return { error: { message: `Failed to deliver: ${recipError.message}` } };
     }
   }
 
@@ -876,12 +879,12 @@ export async function getAllOfficialMessages() {
   return { messages: data as OfficialMessage[] | null, error };
 }
 
-export async function getMessageRecipientCount(messageId: string) {
+export async function getMessageRecipientCount(messageId: string | number) {
   try {
     const { count, error } = await supabase
       .from('official_message_recipients')
       .select('*', { count: 'exact', head: true })
-      .eq('message_id', messageId);
+      .eq('message_id', Number(messageId));
 
     if (error) {
       // If table doesn't exist or column type mismatch, return -1 to indicate unknown
@@ -892,7 +895,7 @@ export async function getMessageRecipientCount(messageId: string) {
       return { count: 0, error };
     }
 
-    return { count: count || 0, error: null };
+    return { count: count ?? 0, error: null };
   } catch (e: any) {
     console.warn('[getMessageRecipientCount] unexpected error:', e.message);
     return { count: -1, error: null };
