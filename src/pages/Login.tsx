@@ -15,6 +15,9 @@ function friendlyError(raw: string): string {
   if (msg.includes('api key') || msg.includes('invalid key')) {
     return 'Authentication service not configured. Please contact support.';
   }
+  if (msg.includes('deleted') || msg.includes('this account has been deleted')) {
+    return 'This account has been deleted. Please contact support if you believe this is an error.';
+  }
   if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
     return 'Invalid email or password. Please check and try again.';
   }

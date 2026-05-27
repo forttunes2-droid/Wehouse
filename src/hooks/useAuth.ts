@@ -212,6 +212,13 @@ export function useAuth() {
           setState({ page: 'login', profile: null, isLoading: false, error: '' });
           return;
         }
+        // Block deleted accounts
+        if (profile.deleted) {
+          await supabase.auth.signOut();
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
+          return;
+        }
         setState({ profile, page: determinePage(profile), isLoading: false, error: '' });
       } catch {
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
@@ -287,6 +294,13 @@ export function useAuth() {
         return;
       }
       if (byAuth) {
+        // Block deleted accounts
+        if (byAuth.deleted) {
+          await supabase.auth.signOut();
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
+          return;
+        }
         setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' });
         trackSession(byAuth.user_id, authId).catch(() => {});
         return;
@@ -295,6 +309,13 @@ export function useAuth() {
       // Account linking by email
       const { profile: byEmail } = await getProfileByEmail(email);
       if (byEmail) {
+        // Block deleted accounts
+        if (byEmail.deleted) {
+          await supabase.auth.signOut();
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
+          return;
+        }
         const { profile: linked, error: linkErr } = await linkProfileToAuth(byEmail.user_id, authId);
         if (linkErr || !linked) {
           setState({ page: 'login', profile: null, isLoading: false, error: linkErr?.message || 'Link failed' });
