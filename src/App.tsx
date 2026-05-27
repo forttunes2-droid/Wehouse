@@ -101,7 +101,7 @@ export default function App() {
     let valid = true;
 
     if (navPage === 'creator' && !checkCreator(role)) valid = false;
-    if (navPage === 'admin' && role !== 'admin' && role !== 'assistant_admin') valid = false;
+    if (navPage === 'admin' && role !== 'admin' && role !== 'assistant_state_admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
     if (navPage === 'profile' && (role === 'worker' || checkCreator(role))) valid = false;
     if (navPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;

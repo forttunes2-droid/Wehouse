@@ -25,7 +25,7 @@ function wipeOnLogout() {
 // ─── ROLE HELPERS (module-level) ───────────────────
 // Creator + State Admin + Local Admin + Assistant Admin get admin dashboards
 // Staff is a listing manager only — NO admin access
-const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'state_admin', 'admin', 'assistant_admin']);
+const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'state_admin', 'admin', 'assistant_state_admin']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
@@ -36,9 +36,9 @@ export function isStaff(role: string): boolean {
   return role === 'staff';
 }
 
-// Can create listings (staff, admin, assistant_admin, state_admin, creator)
+// Can create listings (staff, admin, assistant_state_admin, state_admin, creator)
 export function canCreateListings(role: string): boolean {
-  return role === 'staff' || role === 'admin' || role === 'assistant_admin' || role === 'state_admin' || role === 'creator' || role === 'creator_admin';
+  return role === 'staff' || role === 'admin' || role === 'assistant_state_admin' || role === 'state_admin' || role === 'creator' || role === 'creator_admin';
 }
 
 // State Admin — manages all in their state
@@ -48,7 +48,7 @@ export function isStateAdmin(role: string): boolean {
 
 // Assistant Admin — helps local admin, no announcement access
 export function isAssistantAdmin(role: string): boolean {
-  return role === 'assistant_admin';
+  return role === 'assistant_state_admin';
 }
 
 // Only Creator and State Admin can send announcements
@@ -71,7 +71,7 @@ export function isCreator(role: string): boolean {
 export function getScope(role: string): 'global' | 'state' | 'local' | null {
   if (isCreator(role)) return 'global';
   if (role === 'state_admin') return 'state';
-  if (role === 'admin' || role === 'assistant_admin' || role === 'staff') return 'local';
+  if (role === 'admin' || role === 'assistant_state_admin' || role === 'staff') return 'local';
   return null;
 }
 
@@ -153,15 +153,10 @@ export function validateRoleTransition(
     return { allowed: false, reason: 'Cannot assign worker role. Workers must sign up via worker registration.' };
   }
 
-  // Creator can do any valid transition
+  // Creator can do ANY valid transition (except assigning creator)
   if (isCreator(modifierRole)) {
-    // User ↔ Staff, User ↔ Admin, Staff ↔ Admin all allowed
-    const validCreatorTransitions: Record<string, string[]> = {
-      user: ['staff', 'admin'],
-      staff: ['user', 'admin'],
-      admin: ['user', 'staff'],
-    };
-    if (validCreatorTransitions[targetCurrentRole]?.includes(targetNewRole)) {
+    const allRoles = ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'];
+    if (allRoles.includes(targetCurrentRole) && allRoles.includes(targetNewRole)) {
       return { allowed: true };
     }
     return { allowed: false, reason: `Cannot change ${targetCurrentRole} to ${targetNewRole}` };

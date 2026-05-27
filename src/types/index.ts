@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'state_admin' | 'admin' | 'assistant_admin' | 'staff' | 'worker';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -221,8 +221,8 @@ export const ROLE_RANK: Record<UserRole, number> = {
   user: 0,
   worker: 0,          // same level as user
   staff: 1,
-  assistant_admin: 2, // helps local admin, same powers except announcements
-  admin: 3,           // local admin — manages one LGA
+  admin: 2,           // local admin — manages one LGA
+  assistant_state_admin: 3, // helps state admin
   state_admin: 4,     // state admin — manages all in their state
   creator: 5,         // highest — manages entire platform
   creator_admin: 5,   // legacy alias for creator

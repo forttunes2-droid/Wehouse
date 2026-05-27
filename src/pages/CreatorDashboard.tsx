@@ -27,6 +27,9 @@ interface CreatorDashboardProps {
 
 const ROLE_COLORS: Record<string, string> = {
   creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+  creator_admin: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+  state_admin: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  assistant_state_admin: 'text-teal-400 bg-teal-500/10 border-teal-500/20',
   admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
   staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
@@ -377,6 +380,8 @@ function UsersTab({ profile }: { profile: Profile }) {
                       <option value="user">User</option>
                       <option value="staff">Staff</option>
                       <option value="admin">Admin</option>
+                      <option value="assistant_state_admin">Assistant State Admin</option>
+                      <option value="state_admin">State Admin</option>
                     </select>
                   )}
 

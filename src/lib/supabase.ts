@@ -727,7 +727,7 @@ export async function sendOfficialMessage(
     // Default: users only. Workers and staff excluded unless toggled.
     const allowedRoles: string[] = ['user'];
     if (includeWorkers) allowedRoles.push('worker');
-    if (includeStaff) allowedRoles.push('staff', 'assistant_admin', 'admin');
+    if (includeStaff) allowedRoles.push('staff', 'assistant_state_admin', 'admin');
 
     // State admin and creator sending to all should not send to other high-rank admins
     // unless explicitly intended. Keep it simple: roles determine reception.
@@ -939,7 +939,7 @@ export async function getFilteredRecipientCount(
 ) {
   const allowedRoles: string[] = ['user'];
   if (includeWorkers) allowedRoles.push('worker');
-  if (includeStaff) allowedRoles.push('staff', 'assistant_admin', 'admin');
+  if (includeStaff) allowedRoles.push('staff', 'assistant_state_admin', 'admin');
 
   let query = supabase
     .from('profiles')
