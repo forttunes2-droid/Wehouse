@@ -803,13 +803,14 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const canSend = canSendAnnouncements(profile.role);
   const isCreatorScope = scope === 'all';
   const isStateScope = !isCreatorScope && typeof scope === 'object';
+  const isCreatorAccount = profile.role === 'creator' || profile.role === 'creator_admin';
 
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
   const [message, setMessage] = useState('');
-  const [sendMode, setSendMode] = useState<'all' | 'one'>('all');
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [sendMode, setSendMode] = useState<'all' | 'select'>('all');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<any[]>([]);
   const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>({});
@@ -831,7 +832,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
   // Live recipient count updates when toggles change
   useEffect(() => {
-    if (!canSend || sendMode === 'one') return;
+    if (!canSend || sendMode === 'select') return;
     let cancelled = false;
     async function updateCount() {
       setCountLoading(true);
@@ -852,7 +853,12 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
   async function loadUsers() {
     const { users: data } = await getAllUsers();
-    let list = (data || []).filter((u: any) => !u.deleted && u.user_id !== profile.user_id);
+    // ONLY regular users (role='user') — no workers, staff, or admins
+    let list = (data || []).filter((u: any) =>
+      !u.deleted &&
+      u.user_id !== profile.user_id &&
+      u.role === 'user'
+    );
     if (isStateScope) {
       list = list.filter((u: any) => u.state === scope.state);
     }
@@ -860,14 +866,19 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     setFilteredUsers(list);
   }
 
-  // Filter users when searching
+  // Filter users when searching (username, state, LGA/city)
   useEffect(() => {
     if (!userSearch.trim()) {
       setFilteredUsers(users);
       return;
     }
     const q = userSearch.toLowerCase();
-    setFilteredUsers(users.filter((u: any) => (u.username || '').toLowerCase().includes(q)));
+    setFilteredUsers(users.filter((u: any) => {
+      const username = (u.username || '').toLowerCase();
+      const state = (u.state || '').toLowerCase();
+      const city = (u.city || '').toLowerCase();
+      return username.includes(q) || state.includes(q) || city.includes(q);
+    }));
   }, [userSearch, users]);
 
   async function loadSentMessages() {
@@ -901,17 +912,17 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   async function handleSend() {
     if (!message.trim()) { toast.error('Type a message'); return; }
 
-    // Validate: if sending to one user, must have selected one
-    if (sendMode === 'one' && !selectedUser) {
-      toast.error('Select a user to send to');
+    // Validate: if selecting users, must have selected at least one
+    if (sendMode === 'select' && selectedUsers.length === 0) {
+      toast.error('Select at least one user');
       return;
     }
 
     const targetLabel = sendMode === 'all'
       ? (isStateScope ? `all users in ${scope.state}` : 'all users')
-      : `to @${users.find((u: any) => u.user_id === selectedUser)?.username || 'user'}`;
+      : `${selectedUsers.length} selected user${selectedUsers.length > 1 ? 's' : ''}`;
 
-    const ok = await ask({ title: `Send ${targetLabel}?`, confirmLabel: 'Send', variant: 'info' });
+    const ok = await ask({ title: `Send to ${targetLabel}?`, confirmLabel: 'Send', variant: 'info' });
     if (!ok) return;
 
     setSending(true);
@@ -920,9 +931,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     const senderRole = profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'state_admin';
 
     // Build options
-    const recipientIds = sendMode === 'one' && selectedUser ? [selectedUser] : undefined;
-    const options = recipientIds
-      ? { recipientIds }
+    const options = sendMode === 'select'
+      ? { recipientIds: selectedUsers }
       : {
           includeWorkers,
           includeStaff,
@@ -941,7 +951,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
     toast.success(`Sent to ${recipientCount || 0} recipient${(recipientCount || 0) > 1 ? 's' : ''}!`);
     setMessage('');
-    setSelectedUser(null);
+    setSelectedUsers([]);
     setIncludeWorkers(false);
     setIncludeStaff(false);
     setActiveView('history');
@@ -989,56 +999,109 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
             </div>
           </div>
           <div className="p-4">
-            {/* Send mode toggle */}
+            {/* Send mode toggle — Creator sees both, State Admin sees Broadcast only */}
             <div className="flex gap-1 bg-[#1A1A24] rounded-lg p-1 mb-3">
               <button
-                onClick={() => { setSendMode('all'); setSelectedUser(null); }}
+                onClick={() => { setSendMode('all'); setSelectedUsers([]); }}
                 className={`flex-1 h-8 rounded-md text-xs font-medium transition-all ${
                   sendMode === 'all' ? 'bg-[#2A2A3A] text-white' : 'text-[#5C5E72] hover:text-white'
                 }`}
               >
                 Broadcast
               </button>
-              <button
-                onClick={() => setSendMode('one')}
-                className={`flex-1 h-8 rounded-md text-xs font-medium transition-all ${
-                  sendMode === 'one' ? 'bg-[#2A2A3A] text-white' : 'text-[#5C5E72] hover:text-white'
-                }`}
-              >
-                One User
-              </button>
+              {isCreatorAccount && (
+                <button
+                  onClick={() => setSendMode('select')}
+                  className={`flex-1 h-8 rounded-md text-xs font-medium transition-all ${
+                    sendMode === 'select' ? 'bg-[#2A2A3A] text-white' : 'text-[#5C5E72] hover:text-white'
+                  }`}
+                >
+                  Select Users
+                </button>
+              )}
             </div>
 
-            {/* User selector when in "one" mode */}
-            {sendMode === 'one' && (
+            {/* Multi-user selector — Creator only, regular users only */}
+            {sendMode === 'select' && isCreatorAccount && (
               <div className="mb-3">
-                <input
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Search @username..."
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none mb-2"
-                />
-                <div className="max-h-[150px] overflow-y-auto rounded-xl border border-[#2A2A3A]">
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Search by @username, state, or LGA..."
+                    className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+                  />
+                  {selectedUsers.length > 0 && (
+                    <button
+                      onClick={() => setSelectedUsers([])}
+                      className="h-10 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-medium hover:bg-red-500/20 transition-colors whitespace-nowrap"
+                    >
+                      Clear ({selectedUsers.length})
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected count */}
+                {selectedUsers.length > 0 && (
+                  <div className="flex items-center gap-1.5 mb-2 px-1">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] font-medium">
+                      {selectedUsers.length} selected
+                    </span>
+                    <span className="text-[10px] text-[#5C5E72]">
+                      {filteredUsers.length} total users
+                    </span>
+                  </div>
+                )}
+
+                <div className="max-h-[200px] overflow-y-auto rounded-xl border border-[#2A2A3A]">
                   {filteredUsers.length === 0 ? (
-                    <p className="text-xs text-[#5C5E72] text-center py-3">No users found</p>
+                    <div className="text-center py-4">
+                      <p className="text-xs text-[#5C5E72]">No users found</p>
+                      <p className="text-[10px] text-[#5C5E72]/60 mt-0.5">Try a different search term</p>
+                    </div>
                   ) : (
-                    filteredUsers.map((u: any) => (
-                      <button
-                        key={u.user_id}
-                        onClick={() => setSelectedUser(selectedUser === u.user_id ? null : u.user_id)}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                          selectedUser === u.user_id ? 'bg-[#3B82F6]/10' : 'hover:bg-[#12121A]'
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                          {(u.username || 'U').charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-xs text-white truncate flex-1">@{u.username || 'user'}</span>
-                        {selectedUser === u.user_id && (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5"><path d="M5 13l4 4L19 7" /></svg>
-                        )}
-                      </button>
-                    ))
+                    filteredUsers.map((u: any) => {
+                      const isSelected = selectedUsers.includes(u.user_id);
+                      return (
+                        <button
+                          key={u.user_id}
+                          onClick={() => {
+                            setSelectedUsers(prev =>
+                              isSelected
+                                ? prev.filter(id => id !== u.user_id)
+                                : [...prev, u.user_id]
+                            );
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                            isSelected ? 'bg-[#3B82F6]/10' : 'hover:bg-[#12121A]'
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                            isSelected
+                              ? 'bg-[#3B82F6] border-[#3B82F6]'
+                              : 'border-[#3A3A4A] bg-[#1A1A24]'
+                          }`}>
+                            {isSelected && (
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          {/* Avatar */}
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                            {(u.username || 'U').charAt(0).toUpperCase()}
+                          </div>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs text-white truncate block">@{u.username || 'user'}</span>
+                            <span className="text-[9px] text-[#5C5E72] truncate block">
+                              {u.state || 'No state'}{u.city ? ` · ${u.city}` : ''}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1112,11 +1175,13 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                   </>
                 ) : (
                   <span className="text-xs text-[#5C5E72]">
-                    {selectedUser ? `Sending to @${users.find((u: any) => u.user_id === selectedUser)?.username || 'user'}` : 'Select a user above'}
+                    {selectedUsers.length > 0
+                      ? `${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''} selected`
+                      : 'Select users above'}
                   </span>
                 )}
               </div>
-              <button onClick={handleSend} disabled={sending || !message.trim() || (sendMode === 'one' && !selectedUser)} className="h-9 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-2">
+              <button onClick={handleSend} disabled={sending || !message.trim() || (sendMode === 'select' && selectedUsers.length === 0)} className="h-9 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-2">
                 {sending && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
                 {sending ? 'Sending...' : 'Send'}

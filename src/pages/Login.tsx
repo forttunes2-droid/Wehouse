@@ -193,8 +193,30 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
 
         {/* Messages */}
         {displayError && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center leading-relaxed">
-            {displayError}
+          <div className={`mb-4 p-3 rounded-xl border text-xs text-center leading-relaxed ${
+            displayError.toLowerCase().includes('deleted')
+              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}>
+            <p className="mb-2">{displayError}</p>
+            {displayError.toLowerCase().includes('deleted') && (
+              <div className="flex gap-2 justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setMode('choose_role'); setError(''); setEmail(''); setPassword(''); }}
+                  className="px-3 py-1.5 rounded-lg bg-[#3B82F6] text-white text-[10px] font-medium hover:bg-[#2563EB] transition-colors"
+                >
+                  Create New Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setError('')}
+                  className="px-3 py-1.5 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] text-[10px] font-medium hover:text-white transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
           </div>
         )}
         {info && (
