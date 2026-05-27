@@ -281,10 +281,15 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
 
   useEffect(() => { load(); }, [load]);
 
-  // Filter: today mode shows only users created today
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  // Filter: today mode shows only users created since midnight UTC today
+  // Must match getUserCount() in supabase.ts exactly
+  function getTodayStartUTC() {
+    const now = new Date();
+    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}T00:00:00.000Z`;
+  }
+  const todayStartISO = getTodayStartUTC();
   const displayUsers = isToday
-    ? users.filter(u => { const d = new Date(u.created_at); return d >= todayStart; })
+    ? users.filter(u => u.created_at >= todayStartISO)
     : users;
 
   const searchedUsers = displayUsers.filter(u =>

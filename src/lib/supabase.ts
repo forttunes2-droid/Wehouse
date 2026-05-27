@@ -955,16 +955,23 @@ export async function getAllUsers() {
   return { users: data as Profile[] | null, error };
 }
 
+// Get start of today in UTC ISO format (yyyy-mm-ddT00:00:00.000Z)
+function getTodayStartUTC(): string {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}T00:00:00.000Z`;
+}
+
 export async function getUserCount() {
   const { count, error } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
     .eq('deleted', false);
+  // Count users created since midnight UTC today (actual "today", not last 24h)
   const { count: today } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
     .eq('deleted', false)
-    .gte('created_at', new Date(Date.now() - 86400000).toISOString());
+    .gte('created_at', getTodayStartUTC());
   return { total: count || 0, today: today || 0, error };
 }
 
