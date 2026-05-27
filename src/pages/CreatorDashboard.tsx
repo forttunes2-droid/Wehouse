@@ -38,7 +38,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }: CreatorDashboardProps) {
   // Persist dashboard sub-tab across refreshes
-  const DASHBOARD_TAB_KEY = profile.role === 'creator' || profile.role === 'creator_admin' ? 'wh_creator_tab' : 'wh_admin_tab';
+  const DASHBOARD_TAB_KEY = isCreator(profile.role) ? 'wh_creator_tab' : 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
@@ -821,7 +821,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const canSend = canSendAnnouncements(profile.role);
   const isCreatorScope = scope === 'all';
   const isStateScope = !isCreatorScope && typeof scope === 'object';
-  const isCreatorAccount = profile.role === 'creator' || profile.role === 'creator_admin';
+  const isCreatorAccount = isCreator(profile.role);
 
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
@@ -835,8 +835,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const { ask, dialogProps } = useConfirm();
 
   // ── Role filter toggles ──
-  const canIncludeWorkers = profile.role === 'creator' || profile.role === 'creator_admin' || profile.role === 'state_admin';
-  const canIncludeStaff = profile.role === 'creator' || profile.role === 'creator_admin' || profile.role === 'state_admin' || profile.role === 'admin';
+  const canIncludeWorkers = isCreator(profile.role) || profile.role === 'state_admin';
+  const canIncludeStaff = isCreator(profile.role) || profile.role === 'state_admin' || profile.role === 'admin';
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
   const [liveCount, setLiveCount] = useState(0);
@@ -911,8 +911,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   }, [userSearch, users]);
 
   async function loadSentMessages() {
-    const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
-    const { messages } = isCreator
+    const isCreatorRole = isCreator(profile.role);
+    const { messages } = isCreatorRole
       ? await getAllAnnouncements()
       : await getAnnouncementsSentBy(profile.user_id);
     const msgs = messages || [];
@@ -955,7 +955,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     setSending(true);
     toast.loading('Sending...', { id: 'send-announce' });
 
-    const senderRole = profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'state_admin';
+    const senderRole = isCreator(profile.role) ? 'creator' : 'state_admin';
 
     // Build target type and options
     let targetType: AnnouncementTargetType;
@@ -1263,7 +1263,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
           <div className="p-4 border-b border-[#1E1E2C] flex items-center justify-between">
             <h3 className="text-sm font-bold text-white">
               {canSend
-                ? (profile.role === 'creator' || profile.role === 'creator_admin' ? 'All Official Messages' : 'Your Sent Messages')
+                ? (isCreator(profile.role) ? 'All Official Messages' : 'Your Sent Messages')
                 : 'Official Messages'}
             </h3>
             <span className="text-[10px] text-[#5C5E72]">{sentMessages.length} total</span>
@@ -1280,7 +1280,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
               sentMessages.map((m: any) => {
                 const count = m.recipient_count ?? 0;
                 const readCount = m.read_count ?? 0;
-                const isCreatorView = profile.role === 'creator' || profile.role === 'creator_admin';
+                const isCreatorView = isCreator(profile.role);
                 return (
                   <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50 hover:bg-[#12121A] transition-colors">
                     {/* Title */}

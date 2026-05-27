@@ -7,6 +7,7 @@ import {
 } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import { AnnouncementsTab } from './CreatorDashboard';
+import { isCreator } from '@/hooks/useAuth';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
@@ -200,7 +201,7 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
     const target = users.find(u => u.user_id === userId);
     if (!target) return;
     if (userId === profile.user_id) { toast.error('Cannot change own role'); return; }
-    if (target.role === 'creator' || target.role === 'creator_admin') { toast.error('Creator cannot be changed'); return; }
+    if (isCreator(target.role)) { toast.error('Creator cannot be changed'); return; }
     if (target.role === 'worker') { toast.error('Worker role is locked'); return; }
     if (target.role === 'state_admin' && !isStateAdmin) { toast.error('Only Creator can change State Admin'); return; }
 
@@ -268,7 +269,7 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
                   value={u.role}
                   onChange={e => handleRole(u.user_id, e.target.value)}
                   className="mt-2 w-full h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
-                  disabled={u.role === 'creator' || u.role === 'creator_admin' || u.role === 'worker' || u.role === 'state_admin'}
+                  disabled={isCreator(u.role) || u.role === 'worker' || u.role === 'state_admin'}
                 >
                   <option value="user">User</option>
                   <option value="staff">Staff</option>

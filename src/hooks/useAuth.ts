@@ -53,7 +53,7 @@ export function isAssistantAdmin(role: string): boolean {
 
 // Only Creator and State Admin can send announcements
 export function canSendAnnouncements(role: string): boolean {
-  return role === 'creator' || role === 'creator_admin' || role === 'state_admin';
+  return isCreator(role) || role === 'state_admin';
 }
 
 // Creator = highest rank. Protected from changes/deletion.
