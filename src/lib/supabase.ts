@@ -955,10 +955,13 @@ export async function getAllUsers() {
   return { users: data as Profile[] | null, error };
 }
 
-// Get start of today in UTC ISO format (yyyy-mm-ddT00:00:00.000Z)
-function getTodayStartUTC(): string {
+// Get start of TODAY in the user's LOCAL timezone, returned as UTC ISO string.
+// E.g. Nigeria (UTC+1) at 8am → returns "2026-05-27T23:00:00.000Z" (midnight local = 11pm UTC prev day)
+function getLocalMidnightISO(): string {
   const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}T00:00:00.000Z`;
+  // Create a date at local midnight (year, month, day, 0, 0, 0)
+  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  return localMidnight.toISOString();
 }
 
 export async function getUserCount() {
@@ -971,7 +974,7 @@ export async function getUserCount() {
     .from('profiles')
     .select('*', { count: 'exact', head: true })
     .eq('deleted', false)
-    .gte('created_at', getTodayStartUTC());
+    .gte('created_at', getLocalMidnightISO());
   return { total: count || 0, today: today || 0, error };
 }
 
