@@ -251,6 +251,14 @@ export async function checkUsernameAvailable(username: string, currentUserId?: s
 
 // ─── PROFILE UPDATE ────────────────────────────────
 
+export async function removeAvatar(userId: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ avatar_url: null, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  return { error };
+}
+
 export async function updateProfile(userId: string, updates: Partial<Profile>) {
   const { data, error } = await supabase
     .from('profiles')

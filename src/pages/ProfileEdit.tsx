@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { updateProfile, uploadAvatar, validateUsername, checkUsernameAvailable } from '@/lib/supabase';
+import { updateProfile, uploadAvatar, removeAvatar, validateUsername, checkUsernameAvailable } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -142,6 +142,20 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
     [profile.user_id]
   );
 
+  // Remove avatar
+  const handleRemoveAvatar = useCallback(async () => {
+    if (!confirm('Remove your profile photo?')) return;
+    toast.loading('Removing...', { id: 'avatar-remove' });
+    const { error } = await removeAvatar(profile.user_id);
+    toast.dismiss('avatar-remove');
+    if (error) {
+      toast.error('Failed to remove photo');
+      return;
+    }
+    setLocalAvatar(null);
+    toast.success('Photo removed');
+  }, [profile.user_id]);
+
   // Form submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -219,13 +233,24 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
             </div>
           </div>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg" className="hidden" onChange={handleAvatarChange} />
-          <button
-            type="button"
-            onClick={handleAvatarTap}
-            className="h-8 px-4 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs font-medium hover:border-[#3B82F6]/30 hover:text-[#3B82F6] transition-all"
-          >
-            {uploadingAvatar ? 'Uploading...' : localAvatar ? 'Change Photo' : 'Add Photo'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAvatarTap}
+              className="h-8 px-4 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs font-medium hover:border-[#3B82F6]/30 hover:text-[#3B82F6] transition-all"
+            >
+              {uploadingAvatar ? 'Uploading...' : localAvatar ? 'Change Photo' : 'Add Photo'}
+            </button>
+            {localAvatar && (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                className="h-8 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all"
+              >
+                Remove Photo
+              </button>
+            )}
+          </div>
           <p className="text-[9px] text-[#5C5E72]">JPG or PNG, max 5MB</p>
         </div>
 

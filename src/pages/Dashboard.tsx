@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { uploadAvatar, updateProfile } from '@/lib/supabase';
+import { uploadAvatar, updateProfile, removeAvatar } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -65,6 +65,19 @@ export default function Dashboard({
     },
     [profile.user_id]
   );
+
+  const handleRemoveAvatar = async () => {
+    if (!confirm('Remove your profile photo?')) return;
+    toast.loading('Removing...', { id: 'avatar-rm' });
+    const { error } = await removeAvatar(profile.user_id);
+    toast.dismiss('avatar-rm');
+    if (error) {
+      toast.error('Failed to remove photo');
+      return;
+    }
+    setLocalAvatar(null);
+    toast.success('Photo removed');
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-24">
@@ -134,6 +147,14 @@ export default function Dashboard({
                 </div>
                 <p className="text-xs text-[#5C5E72] truncate">{profile.email}</p>
                 <p className="text-[10px] text-[#5C5E72] mt-0.5">ID: {profile.user_id}</p>
+                {localAvatar && (
+                  <button
+                    onClick={handleRemoveAvatar}
+                    className="text-[10px] text-red-400/70 hover:text-red-400 mt-1 transition-colors"
+                  >
+                    Remove photo
+                  </button>
+                )}
               </div>
             </div>
 
