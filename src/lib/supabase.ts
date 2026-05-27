@@ -648,6 +648,36 @@ export async function getOrCreateConversation(userA: string, userB: string) {
   return createConversation(userA, userB);
 }
 
+// ─── OFFICIAL MESSAGE DIAGNOSTICS ──────────────────
+
+export async function checkOfficialMessageTables() {
+  try {
+    // Check if tables exist by doing a minimal query
+    const { error: msgErr } = await supabase
+      .from('official_messages')
+      .select('id')
+      .limit(1);
+
+    const { error: recipErr } = await supabase
+      .from('official_message_recipients')
+      .select('id')
+      .limit(1);
+
+    const issues: string[] = [];
+    if (msgErr && msgErr.message.includes('does not exist')) issues.push('official_messages table missing');
+    if (recipErr && recipErr.message.includes('does not exist')) issues.push('official_message_recipients table missing');
+
+    return {
+      ok: issues.length === 0 && !msgErr && !recipErr,
+      issues,
+      officialMessagesError: msgErr?.message || null,
+      recipientsError: recipErr?.message || null,
+    };
+  } catch (e: any) {
+    return { ok: false, issues: ['Diagnostic failed'], officialMessagesError: e.message, recipientsError: null };
+  }
+}
+
 // ─── OFFICIAL MESSAGES (Broadcast System) ──────────
 
 export async function sendOfficialMessage(
@@ -734,9 +764,18 @@ export async function sendOfficialMessage(
 
   // Step 3: Create recipient rows
   const rows = targetUserIds.map((rid) => ({
-    message_id: msg.id,
-    recipient_id: rid,
+    message_id: Number(msg.id),
+    recipient_id: String(rid),
   }));
+
+  // Debug log
+  console.log('[sendOfficialMessage] inserting recipients:', {
+    messageId: msg.id,
+    messageIdType: typeof msg.id,
+    recipientCount: rows.length,
+    sampleRecipient: rows[0]?.recipient_id,
+    sampleRecipientType: typeof rows[0]?.recipient_id,
+  });
 
   // Insert in batches of 100
   for (let i = 0; i < rows.length; i += 100) {
@@ -747,6 +786,10 @@ export async function sendOfficialMessage(
 
     if (recipError) {
       console.error(`[sendOfficialMessage] recipient insert batch ${i} failed:`, recipError);
+      // Check for the specific column type error
+      if (recipError.message?.includes('invalid input syntax for type integer')) {
+        return { error: { message: 'Database column type mismatch. Please run the SQL fix in Supabase (see admin guide).' } };
+      }
       return { error: { message: `Failed to deliver to recipients: ${recipError.message}` } };
     }
   }

@@ -5,7 +5,7 @@ import {
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendOfficialMessage, deleteOfficialMessage, getOfficialMessagesSentBy, getAllOfficialMessages,
-  getMessageRecipientCount, getFilteredRecipientCount,
+  getMessageRecipientCount, getFilteredRecipientCount, checkOfficialMessageTables,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -824,10 +824,22 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const [includeStaff, setIncludeStaff] = useState(false);
   const [liveCount, setLiveCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
+  const [dbStatus, setDbStatus] = useState<{ok: boolean; issues: string[]}>({ok: true, issues: []});
 
+  // ── Check database tables on mount ──
   useEffect(() => {
-    loadSentMessages();
-    if (canSend) loadUsers();
+    if (canSend) {
+      checkOfficialMessageTables().then((status) => {
+        setDbStatus(status);
+        if (!status.ok) {
+          toast.error('Announcement tables not set up. Run SQL in Supabase.', { duration: 8000 });
+        }
+      });
+      loadSentMessages();
+      loadUsers();
+    } else {
+      loadSentMessages();
+    }
   }, []);
 
   // Live recipient count updates when toggles change
@@ -985,6 +997,20 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       {/* Compose View */}
       {canSend && activeView === 'compose' && (
         <div className="glass rounded-2xl overflow-hidden">
+          {/* DB Status Warning */}
+          {!dbStatus.ok && (
+            <div className="p-3 bg-red-500/10 border-b border-red-500/20">
+              <div className="flex items-start gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+                </svg>
+                <div>
+                  <p className="text-[11px] text-red-400 font-medium">Database tables not configured</p>
+                  <p className="text-[10px] text-red-400/70">{dbStatus.issues.join(', ')}</p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="p-4 border-b border-[#1E1E2C]">
             <div className="flex items-center gap-2 mb-1">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
