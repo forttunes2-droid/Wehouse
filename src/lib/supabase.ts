@@ -771,10 +771,8 @@ export async function sendOfficialMessage(
   // Debug log
   console.log('[sendOfficialMessage] inserting recipients:', {
     messageId: msg.id,
-    messageIdType: typeof msg.id,
     recipientCount: rows.length,
     sampleRecipient: rows[0]?.recipient_id,
-    sampleRecipientType: typeof rows[0]?.recipient_id,
   });
 
   // Insert in batches of 100
@@ -786,7 +784,6 @@ export async function sendOfficialMessage(
 
     if (recipError) {
       console.error(`[sendOfficialMessage] recipient insert batch ${i} failed:`, recipError);
-      // Check for specific errors
       if (recipError.message?.includes('invalid input syntax for type integer')) {
         return { error: { message: 'Database column type mismatch. Run SQL fix in Supabase.' } };
       }
@@ -797,7 +794,18 @@ export async function sendOfficialMessage(
     }
   }
 
-  return { error: null, message: msg as OfficialMessage, recipientCount: targetUserIds.length };
+  // Step 4: Update recipient_count on the message row (so sender can read it)
+  const { error: updateErr } = await supabase
+    .from('official_messages')
+    .update({ recipient_count: rows.length })
+    .eq('id', msg.id);
+
+  if (updateErr) {
+    console.warn('[sendOfficialMessage] failed to update recipient_count:', updateErr);
+    // Don't fail the whole operation - recipients were already inserted
+  }
+
+  return { error: null, message: { ...msg, recipient_count: rows.length } as OfficialMessage, recipientCount: rows.length };
 }
 
 export async function getOfficialMessagesForUser(userId: string) {

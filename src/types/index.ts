@@ -349,6 +349,7 @@ export interface OfficialMessage {
   sent_to_all: boolean;
   target_state?: string | null;
   target_lga?: string | null;
+  recipient_count: number;
   created_at: string;
 }
 
