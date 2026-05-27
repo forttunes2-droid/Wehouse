@@ -7,7 +7,7 @@ import {
   markMessagesSeen,
   getOfficialMessagesForUser,
 } from '@/lib/supabase';
-import OfficialChat from '@/components/OfficialChat';
+import OfficialChannel from '@/components/OfficialChannel';
 import VerifiedBadge from '@/components/VerifiedBadge';
 import type { Profile, Conversation, Message } from '@/types';
 
@@ -142,7 +142,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
 
   // Show official chat
   if (showOfficial) {
-    return <OfficialChat profile={profile} onBack={() => { setShowOfficial(false); loadOfficial(); }} />;
+    return <OfficialChannel profile={profile} onBack={() => { setShowOfficial(false); loadOfficial(); }} />;
   }
 
   // Show regular chat room

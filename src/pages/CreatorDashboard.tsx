@@ -831,7 +831,6 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<any[]>([]);
-  const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>({});
   const [activeView, setActiveView] = useState<'compose' | 'history'>('compose');
   const { ask, dialogProps } = useConfirm();
 
@@ -918,12 +917,6 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       : await getAnnouncementsSentBy(profile.user_id);
     const msgs = messages || [];
     setSentMessages(msgs);
-    // Use recipient_count stored on the message row (sender owns the message, can always read it)
-    const counts: Record<string, number> = {};
-    msgs.forEach((m: any) => {
-      counts[m.id] = m.recipient_count ?? 0;
-    });
-    setRecipientCounts(counts);
   }
 
   async function handleDeleteMessage(messageId: string) {
@@ -1285,23 +1278,36 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
               </div>
             ) : (
               sentMessages.map((m: any) => {
-                const count = recipientCounts[m.id] || 0;
+                const count = m.recipient_count ?? 0;
+                const readCount = m.read_count ?? 0;
+                const isCreatorView = profile.role === 'creator' || profile.role === 'creator_admin';
                 return (
                   <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50 hover:bg-[#12121A] transition-colors">
-                    <p className="text-xs text-white leading-relaxed">{m.content}</p>
+                    {/* Title */}
+                    <h4 className="text-sm font-semibold text-white mb-1">{m.title}</h4>
+                    {/* Message preview */}
+                    <p className="text-xs text-[#8A8B9C] leading-relaxed line-clamp-2">{m.message}</p>
+                    {/* Analytics row */}
                     <div className="flex items-center flex-wrap gap-2 mt-2">
-                      <span className="text-[9px] text-[#3B82F6] font-medium">{m.sender_name}</span>
-                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] uppercase tracking-wider">{m.sender_role}</span>
-                      <span className="text-[9px] text-[#5C5E72]">{new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                        count === -1
-                          ? 'bg-amber-500/10 text-amber-400'
-                          : count > 0
-                          ? 'bg-green-500/10 text-green-400'
-                          : 'bg-gray-500/10 text-gray-400'
-                      }`}>
-                        {count === -1 ? 'DB check needed' : count > 0 ? `${count} reached` : 'No recipients'}
+                      {/* Sent count */}
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 font-medium">
+                        {count} sent
                       </span>
+                      {/* Read count */}
+                      {readCount > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] font-medium">
+                          {readCount} read
+                        </span>
+                      )}
+                      {/* Target type */}
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 uppercase tracking-wider">{m.target_type?.replace(/_/g, ' ')}</span>
+                      {/* Timestamp */}
+                      <span className="text-[9px] text-[#5C5E72]">{new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      {/* Sender info - ONLY visible to creator */}
+                      {isCreatorView && (
+                        <span className="text-[9px] text-amber-400/70">by {m.sender_name}</span>
+                      )}
+                      {/* Delete button */}
                       {canSend && (
                         <button onClick={() => handleDeleteMessage(m.id)} className="ml-auto text-[#5C5E72] hover:text-red-400 transition-colors p-0.5" title="Delete">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
