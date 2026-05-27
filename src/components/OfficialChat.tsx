@@ -11,6 +11,7 @@ interface OfficialChatProps {
 export default function OfficialChat({ profile, onBack }: OfficialChatProps) {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadMessages();
@@ -18,13 +19,30 @@ export default function OfficialChat({ profile, onBack }: OfficialChatProps) {
 
   async function loadMessages() {
     setLoading(true);
-    const { messages: data } = await getOfficialMessagesForUser(profile.user_id);
-    setMessages(data || []);
-    setLoading(false);
-    // Mark all as read
-    (data || []).forEach((m: any) => {
-      if (!m.read) markOfficialMessageRead(m.id);
-    });
+    setError(null);
+    try {
+      const { messages: data, error: loadError } = await getOfficialMessagesForUser(profile.user_id);
+
+      if (loadError) {
+        console.error('[OfficialChat] load error:', loadError);
+        setError('Failed to load messages. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      const msgs = data || [];
+      setMessages(msgs);
+      setLoading(false);
+
+      // Mark all as read
+      msgs.forEach((m: any) => {
+        if (!m.read && m.id) markOfficialMessageRead(m.id);
+      });
+    } catch (err: any) {
+      console.error('[OfficialChat] unexpected error:', err);
+      setError('Something went wrong. Please try again.');
+      setLoading(false);
+    }
   }
 
   const formatTime = (date: string) => {
@@ -45,7 +63,7 @@ export default function OfficialChat({ profile, onBack }: OfficialChatProps) {
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </button>
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center shadow-lg shadow-blue-500/20">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
@@ -73,6 +91,21 @@ export default function OfficialChat({ profile, onBack }: OfficialChatProps) {
               </div>
             ))}
           </div>
+        ) : error ? (
+          <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-3">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <p className="text-sm text-red-400 mb-2">{error}</p>
+            <button
+              onClick={loadMessages}
+              className="text-xs text-[#3B82F6] hover:text-white transition-colors"
+            >
+              Tap to retry
+            </button>
+          </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
@@ -81,32 +114,37 @@ export default function OfficialChat({ profile, onBack }: OfficialChatProps) {
               </svg>
             </div>
             <p className="text-sm text-[#8A8B9C]">No official messages yet</p>
-            <p className="text-xs text-[#5C5E72] mt-1">Announcements will appear here</p>
+            <p className="text-xs text-[#5C5E72] mt-1">Announcements from the team will appear here</p>
           </div>
         ) : (
-          messages.map((m: any) => (
-            <div key={m.id} className="flex gap-3">
-              {/* Sender avatar */}
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center flex-shrink-0">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-              </div>
-              {/* Bubble */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-xs font-semibold text-[#3B82F6]">
-                    {m.message?.sender_name || 'WeHouse Team'}
-                  </span>
-                  <VerifiedBadge size={11} />
-                  <span className="text-[9px] text-[#5C5E72]">{formatTime(m.message?.created_at)}</span>
+          <>
+            {/* Message count */}
+            <p className="text-[10px] text-[#5C5E72] text-center uppercase tracking-wider">
+              {messages.length} announcement{messages.length > 1 ? 's' : ''}
+            </p>
+
+            {messages.map((m: any) => (
+              <div key={m.id} className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/20">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
                 </div>
-                <div className="bg-[#12121A] border border-[#3B82F6]/15 rounded-2xl rounded-tl-md px-4 py-3">
-                  <p className="text-sm text-white leading-relaxed">{m.message?.content}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-xs font-semibold text-[#3B82F6]">
+                      {m.message?.sender_name || 'WeHouse Team'}
+                    </span>
+                    <VerifiedBadge size={11} />
+                    <span className="text-[9px] text-[#5C5E72]">{formatTime(m.message?.created_at)}</span>
+                  </div>
+                  <div className="bg-[#12121A] border border-[#3B82F6]/15 rounded-2xl rounded-tl-md px-4 py-3">
+                    <p className="text-sm text-white leading-relaxed">{m.message?.content}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+          </>
         )}
       </div>
 

@@ -5,6 +5,7 @@ import {
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendOfficialMessage, deleteOfficialMessage, getOfficialMessagesSentBy, getAllOfficialMessages,
+  getMessageRecipientCount,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition } from '@/hooks/useAuth';
@@ -807,6 +808,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<any[]>([]);
+  const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>({});
   const { ask, dialogProps } = useConfirm();
 
   useEffect(() => {
@@ -842,7 +844,18 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     const { messages } = isCreator
       ? await getAllOfficialMessages()
       : await getOfficialMessagesSentBy(profile.user_id);
-    setSentMessages(messages || []);
+    const msgs = messages || [];
+    setSentMessages(msgs);
+
+    // Fetch recipient counts for each message
+    const counts: Record<string, number> = {};
+    await Promise.all(
+      msgs.map(async (m: any) => {
+        const { count } = await getMessageRecipientCount(m.id);
+        counts[m.id] = count;
+      })
+    );
+    setRecipientCounts(counts);
   }
 
   async function handleDeleteMessage(messageId: string) {
@@ -889,7 +902,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       return;
     }
 
-    const { error } = await sendOfficialMessage(
+    const { error, recipientCount } = await sendOfficialMessage(
       profile.user_id,
       profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'admin',
       profile.username || 'Admin',
@@ -901,14 +914,18 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     setSending(false);
 
     if (error) {
-      toast.error('Failed to send');
+      toast.error(error.message || 'Failed to send');
       return;
     }
 
-    toast.success(sendToAll ? 'Sent to all users!' : 'Message sent!');
+    toast.success(
+      recipientCount
+        ? `Sent to ${recipientCount} user${recipientCount > 1 ? 's' : ''}!`
+        : 'Message sent!'
+    );
     setMessage('');
     setSelectedUser(null);
-    loadSentMessages(); // refresh sent messages list
+    await loadSentMessages(); // refresh sent messages list
   }
 
   return (
@@ -1005,35 +1022,53 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
           {sentMessages.length === 0 ? (
             <p className="text-xs text-[#5C5E72] text-center py-6">No messages yet</p>
           ) : (
-            sentMessages.map((m: any) => (
-              <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50">
-                <div className="flex items-start gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white leading-relaxed">{m.content}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[9px] text-[#5C5E72]">
-                        {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] capitalize">
-                        {m.sender_role}
-                      </span>
-                      {(profile.role === 'creator' || profile.role === 'creator_admin') && m.sender_id !== profile.user_id && (
-                        <span className="text-[9px] text-[#5C5E72]">by {m.sender_name}</span>
-                      )}
+            sentMessages.map((m: any) => {
+              const count = recipientCounts[m.id] || 0;
+              return (
+                <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      {/* Message content */}
+                      <p className="text-xs text-white leading-relaxed">{m.content}</p>
+
+                      {/* Meta row */}
+                      <div className="flex items-center flex-wrap gap-2 mt-2">
+                        {/* Date */}
+                        <span className="text-[9px] text-[#5C5E72]">
+                          {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+
+                        {/* Sender role badge */}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] capitalize">
+                          {m.sender_role}
+                        </span>
+
+                        {/* Recipient count */}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400">
+                          {count > 0 ? `Sent to ${count} user${count > 1 ? 's' : ''}` : 'No recipients'}
+                        </span>
+
+                        {/* For creator: show who sent it if not self */}
+                        {(profile.role === 'creator' || profile.role === 'creator_admin') && m.sender_id !== profile.user_id && (
+                          <span className="text-[9px] text-[#5C5E72]">by {m.sender_name}</span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={() => handleDeleteMessage(m.id)}
+                      className="text-[#5C5E72] hover:text-red-400 transition-colors flex-shrink-0 mt-0.5 p-1"
+                      title="Delete message"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleDeleteMessage(m.id)}
-                    className="text-[#5C5E72] hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
-                    title="Delete message"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

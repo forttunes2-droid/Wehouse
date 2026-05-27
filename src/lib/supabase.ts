@@ -657,7 +657,7 @@ export async function sendOfficialMessage(
   content: string,
   recipientIds: string[]
 ) {
-  // Insert the message
+  // Step 1: Insert the message
   const { data: msg, error: msgError } = await supabase
     .from('official_messages')
     .insert({
@@ -670,34 +670,59 @@ export async function sendOfficialMessage(
     .select()
     .single();
 
-  if (msgError || !msg) return { error: msgError };
+  if (msgError) {
+    console.error('[sendOfficialMessage] insert failed:', msgError);
+    return { error: { message: `Message insert failed: ${msgError.message}` } };
+  }
+  if (!msg) {
+    return { error: { message: 'Message insert returned no data' } };
+  }
 
-  // Insert recipients
+  // Step 2: Insert recipients
+  let targetUserIds: string[];
+
   if (recipientIds.length > 0) {
-    const rows = recipientIds.map((rid) => ({
-      message_id: msg.id,
-      recipient_id: rid,
-    }));
-    await supabase.from('official_message_recipients').insert(rows);
+    // Send to specific users
+    targetUserIds = recipientIds;
   } else {
-    // Send to all — get all user IDs
-    const { data: users } = await supabase
+    // Send to ALL users — fetch from profiles
+    const { data: users, error: usersError } = await supabase
       .from('profiles')
       .select('user_id')
       .eq('deleted', false);
-    if (users && users.length > 0) {
-      const rows = users.map((u: any) => ({
-        message_id: msg.id,
-        recipient_id: u.user_id,
-      }));
-      // Batch insert in chunks of 100
-      for (let i = 0; i < rows.length; i += 100) {
-        await supabase.from('official_message_recipients').insert(rows.slice(i, i + 100));
-      }
+
+    if (usersError) {
+      console.error('[sendOfficialMessage] fetch users failed:', usersError);
+      return { error: { message: `Failed to fetch user list: ${usersError.message}` } };
+    }
+
+    targetUserIds = (users || []).map((u: any) => u.user_id).filter((id: string) => id && id !== senderId);
+
+    if (targetUserIds.length === 0) {
+      return { error: { message: 'No users found to send to' } };
     }
   }
 
-  return { error: null, message: msg as OfficialMessage };
+  // Create recipient rows
+  const rows = targetUserIds.map((rid) => ({
+    message_id: msg.id,
+    recipient_id: rid,
+  }));
+
+  // Insert in batches of 100
+  for (let i = 0; i < rows.length; i += 100) {
+    const batch = rows.slice(i, i + 100);
+    const { error: recipError } = await supabase
+      .from('official_message_recipients')
+      .insert(batch);
+
+    if (recipError) {
+      console.error(`[sendOfficialMessage] recipient insert batch ${i} failed:`, recipError);
+      return { error: { message: `Failed to deliver to recipients: ${recipError.message}` } };
+    }
+  }
+
+  return { error: null, message: msg as OfficialMessage, recipientCount: targetUserIds.length };
 }
 
 export async function getOfficialMessagesForUser(userId: string) {
@@ -737,6 +762,14 @@ export async function getAllOfficialMessages() {
     .select('*')
     .order('created_at', { ascending: false });
   return { messages: data as OfficialMessage[] | null, error };
+}
+
+export async function getMessageRecipientCount(messageId: string) {
+  const { count, error } = await supabase
+    .from('official_message_recipients')
+    .select('*', { count: 'exact', head: true })
+    .eq('message_id', messageId);
+  return { count: count || 0, error };
 }
 
 export async function getUnreadOfficialCount(userId: string) {
