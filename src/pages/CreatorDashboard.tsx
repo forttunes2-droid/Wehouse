@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getAllUsers, getUserCount, updateUserRole, deleteUser, restoreUser,
   getAllListingsAdmin, deleteListing, getReports,
-  resolveReport, dismissReport, getAuditLogs, getSystemSettings,
-  updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
+  resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
   getFilteredRecipientCount, checkAnnouncementTables,
 } from '@/lib/supabase';
@@ -13,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import type { Profile, Listing, AnnouncementTargetType } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
+import SettingsTab from './SettingsTab';
 import { Toaster, toast } from 'sonner';
 
 type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements';
@@ -614,127 +614,6 @@ function AuditTab() {
 }
 
 // ─── SETTINGS ──────────────────────────────────────
-function SettingsTab({ profile, isCreator }: { profile: Profile; isCreator: boolean }) {
-  const [settings, setSettings] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const { settings: data, error } = await getSystemSettings();
-      const map: Record<string, string> = {};
-      if (data) {
-        data.forEach(s => { if (s.value !== null && s.value !== undefined) map[s.key] = s.value; });
-      }
-      // Defaults are already merged in getSystemSettings, but ensure all keys exist
-      if (Object.keys(map).length === 0 || error) {
-        map.platform_name = 'WeHouse';
-        map.listing_approval_required = 'false';
-        map.default_user_role = 'user';
-        map.maintenance_mode = 'false';
-        map.registration_open = 'true';
-        map.max_listings_per_user = '5';
-      }
-      setSettings(map);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  async function handleUpdate(key: string, value: string) {
-    const { error } = await updateSystemSetting(key, value, profile.user_id);
-    if (error) {
-      const msg = error.message || '';
-      if (msg.includes('relation') || msg.includes('does not exist')) {
-        toast.error('Settings table not found. Run the SQL migration in Supabase.');
-      } else if (msg.includes('violates row-level')) {
-        toast.error('Permission denied. Admin RLS not configured.');
-      } else {
-        toast.error('Save failed: ' + msg);
-      }
-      console.error('[Settings Error]', error);
-      return;
-    }
-    await logAuditAction(profile.user_id, profile.email, 'update_setting', 'setting', key, `${key} = ${value}`);
-    toast.success('Setting saved');
-  }
-
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
-
-  // Settings available to all admins
-  const baseSettings = [
-    { key: 'platform_name', label: 'Platform Name', type: 'text' as const },
-    { key: 'listing_approval_required', label: 'Require Listing Approval', type: 'select' as const, options: [['false', 'No'], ['true', 'Yes']] },
-    { key: 'default_user_role', label: 'Default User Role', type: 'select' as const, options: [['user', 'User'], ['staff', 'Staff'], ['admin', 'Admin']] },
-  ];
-
-  // Creator-only settings (critical system controls)
-  const creatorOnlySettings = [
-    { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'select' as const, options: [['false', 'Off'], ['true', 'On']] },
-    { key: 'registration_open', label: 'Allow New Registrations', type: 'select' as const, options: [['true', 'Yes'], ['false', 'No']] },
-    { key: 'max_listings_per_user', label: 'Max Listings Per User', type: 'select' as const, options: [['5', '5'], ['10', '10'], ['20', '20'], ['unlimited', 'Unlimited']] },
-  ];
-
-  const allSettings = isCreator ? [...baseSettings, ...creatorOnlySettings] : baseSettings;
-
-  return (
-    <div className="space-y-4">
-      {/* Permission banner */}
-      {!isCreator && (
-        <div className="glass rounded-2xl p-3 flex items-start gap-2 border border-amber-500/10">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-            <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
-          </svg>
-          <p className="text-[11px] text-amber-400">
-            Some settings are restricted to the creator only.
-          </p>
-        </div>
-      )}
-
-      {isCreator && (
-        <div className="glass rounded-2xl p-3 flex items-start gap-2 border border-purple-500/10">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-          <p className="text-[11px] text-purple-400">
-            Full system control enabled. You have access to all platform settings.
-          </p>
-        </div>
-      )}
-
-      {allSettings.map(setting => (
-        <div key={setting.key} className={`glass rounded-2xl p-4 ${
-          creatorOnlySettings.find(s => s.key === setting.key) ? 'border border-purple-500/10' : ''
-        }`}>
-          <label className="text-xs text-[#8B8DA0] font-medium mb-2 block">
-            {setting.label}
-            {creatorOnlySettings.find(s => s.key === setting.key) && (
-              <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">CREATOR</span>
-            )}
-          </label>
-          {setting.type === 'text' ? (
-            <div className="flex gap-2">
-              <input
-                value={settings[setting.key] || ''}
-                onChange={(e) => setSettings({ ...settings, [setting.key]: e.target.value })}
-                className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 focus:border-[#3B82F6] focus:ring-[#3B82F6]/20 outline-none"
-              />
-              <button onClick={() => handleUpdate(setting.key, settings[setting.key] || '')} className="h-10 px-4 rounded-xl bg-[#3B82F6] text-white text-xs font-medium hover:bg-[#2563EB] transition-colors">Save</button>
-            </div>
-          ) : (
-            <select
-              value={settings[setting.key] || ''}
-              onChange={(e) => { setSettings({ ...settings, [setting.key]: e.target.value }); handleUpdate(setting.key, e.target.value); }}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 focus:border-[#3B82F6] outline-none"
-            >
-              {setting.options?.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── WORKER APPLICATIONS TAB ───────────────────────
 
 function WorkerApplicationsTab({ profile }: { profile: Profile }) {
