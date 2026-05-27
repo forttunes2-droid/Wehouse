@@ -45,6 +45,8 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
       return saved && ['overview','users','listings','reports','audit','settings','workers','announcements'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
+  // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
+  const [usersViewMode, setUsersViewMode] = useState<'manage' | 'view' | 'today'>('manage');
 
   // Save tab change to localStorage
   const handleSetTab = useCallback((tab: AdminTab) => {
@@ -52,6 +54,11 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
     localStorage.setItem(DASHBOARD_TAB_KEY, tab);
   }, [DASHBOARD_TAB_KEY]);
   const isCreatorAccount = isCreator(profile.role);
+
+  const goToUsers = useCallback((mode: 'manage' | 'view' | 'today') => {
+    setUsersViewMode(mode);
+    handleSetTab('users');
+  }, [handleSetTab]);
 
   const tabs = [
     { id: 'overview' as AdminTab, label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
@@ -127,8 +134,8 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 pb-6">
-        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => handleSetTab('users')} onGoToTab={handleSetTab} />}
-        {activeTab === 'users' && <UsersTab profile={profile} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => goToUsers('manage')} onGoToUsersView={() => goToUsers('view')} onGoToUsersToday={() => goToUsers('today')} onGoToTab={handleSetTab} />}
+        {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'audit' && <AuditTab />}
@@ -141,7 +148,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
 }
 
 // ─── OVERVIEW ──────────────────────────────────────
-function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoToTab }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void; onGoToUsers?: () => void; onGoToTab?: (tab: AdminTab) => void }) {
+function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoToUsersView, onGoToUsersToday, onGoToTab }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void; onGoToUsers?: () => void; onGoToUsersView?: () => void; onGoToUsersToday?: () => void; onGoToTab?: (tab: AdminTab) => void }) {
   const [stats, setStats] = useState({ users: 0, listings: 0, reports: 0, today: 0 });
 
   useEffect(() => {
@@ -155,10 +162,10 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
   }, []);
 
   const statCards = [
-    { label: 'Total Users', value: stats.users, tab: 'users' as AdminTab, color: isCreator ? 'from-purple-500 to-[#7C3AED]' : 'from-[#3B82F6] to-[#2563EB]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' },
-    { label: 'Listings', value: stats.listings, tab: 'listings' as AdminTab, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
-    { label: 'Pending Reports', value: stats.reports, tab: 'reports' as AdminTab, color: stats.reports > 0 ? 'from-[#EF4444] to-[#DC2626]' : 'from-[#6B7280] to-[#4B5563]', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' },
-    { label: 'New Today', value: stats.today, tab: 'users' as AdminTab, color: isCreator ? 'from-purple-400 to-purple-600' : 'from-[#8B5CF6] to-[#7C3AED]', icon: 'M12 5v14M5 12h14' },
+    { label: 'Total Users', value: stats.users, color: isCreator ? 'from-purple-500 to-[#7C3AED]' : 'from-[#3B82F6] to-[#2563EB]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', onClick: onGoToUsersView },
+    { label: 'Listings', value: stats.listings, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', onClick: () => onGoToTab?.('listings') },
+    { label: 'Pending Reports', value: stats.reports, color: stats.reports > 0 ? 'from-[#EF4444] to-[#DC2626]' : 'from-[#6B7280] to-[#4B5563]', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', onClick: () => onGoToTab?.('reports') },
+    { label: 'New Today', value: stats.today, color: isCreator ? 'from-purple-400 to-purple-600' : 'from-[#8B5CF6] to-[#7C3AED]', icon: 'M12 5v14M5 12h14', onClick: onGoToUsersToday },
   ];
 
   return (
@@ -168,7 +175,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
         {statCards.map(c => (
           <button
             key={c.label}
-            onClick={() => onGoToTab?.(c.tab)}
+            onClick={c.onClick}
             className={`bg-gradient-to-br ${c.color} rounded-2xl p-4 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
           >
             <svg className="absolute top-3 right-3 w-8 h-8 text-white/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
@@ -256,11 +263,14 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 }
 
 // ─── USERS ─────────────────────────────────────────
-function UsersTab({ profile }: { profile: Profile }) {
+function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode?: 'manage' | 'view' | 'today' }) {
   const { ask, dialogProps } = useConfirm();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  const isManage = viewMode === 'manage';
+  const isToday = viewMode === 'today';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -270,6 +280,18 @@ function UsersTab({ profile }: { profile: Profile }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Filter: today mode shows only users created today
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const displayUsers = isToday
+    ? users.filter(u => { const d = new Date(u.created_at); return d >= todayStart; })
+    : users;
+
+  const searchedUsers = displayUsers.filter(u =>
+    !search ||
+    u.email?.toLowerCase().includes(search.toLowerCase()) ||
+    u.username?.toLowerCase().includes(search.toLowerCase())
+  );
 
   async function handleRole(userId: string, newRole: string) {
     const target = users.find(u => u.user_id === userId);
@@ -330,19 +352,35 @@ function UsersTab({ profile }: { profile: Profile }) {
     load();
   }
 
-  const filtered = users.filter(u => !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
-
   return (
     <div className="space-y-3">
       <ConfirmDialog {...dialogProps} />
+
+      {/* View mode header */}
+      {viewMode !== 'manage' && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            className="text-[10px] text-[#5C5E72] hover:text-white transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          </button>
+          <span className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium">
+            {isToday ? "Today's New Users" : 'All Users (View Only)'}
+          </span>
+        </div>
+      )}
+
       <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
 
       {loading ? (
         <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <div className="space-y-2">
-          <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{filtered.length} Users</div>
-          {filtered.map(u => {
+          <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">
+            {searchedUsers.length}{isToday ? " joined today" : " users"}{isManage ? '' : ' — view only'}
+          </div>
+          {searchedUsers.map(u => {
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
             const isCreatorAccount = isCreator(u.role);
             const isWorkerAccount = u.role === 'worker';
@@ -368,60 +406,62 @@ function UsersTab({ profile }: { profile: Profile }) {
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-2.5">
-                  {isDeleted ? (
-                    <button
-                      onClick={() => handleRestore(u.user_id)}
-                      className="flex-1 h-7 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
-                    >
-                      Restore
-                    </button>
-                  ) : isCreatorAccount ? (
-                    <div className="flex-1 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
-                      Creator — cannot be changed
-                    </div>
-                  ) : isWorkerAccount ? (
-                    <div className="flex-1 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400 text-[10px] px-2 flex items-center font-medium">
-                      Worker — signed up as worker
-                    </div>
-                  ) : (
-                    <select
-                      value={u.role}
-                      onChange={(e) => handleRole(u.user_id, e.target.value)}
-                      className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
-                    >
-                      <option value="user">User</option>
-                      <option value="staff">Staff</option>
-                      <option value="admin">Admin</option>
-                      <option value="assistant_state_admin">Assistant State Admin</option>
-                      <option value="state_admin">State Admin</option>
-                    </select>
-                  )}
+                {isManage && (
+                  <div className="flex gap-2 mt-2.5">
+                    {isDeleted ? (
+                      <button
+                        onClick={() => handleRestore(u.user_id)}
+                        className="flex-1 h-7 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
+                      >
+                        Restore
+                      </button>
+                    ) : isCreatorAccount ? (
+                      <div className="flex-1 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
+                        Creator — cannot be changed
+                      </div>
+                    ) : isWorkerAccount ? (
+                      <div className="flex-1 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400 text-[10px] px-2 flex items-center font-medium">
+                        Worker — signed up as worker
+                      </div>
+                    ) : (
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleRole(u.user_id, e.target.value)}
+                        className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
+                      >
+                        <option value="user">User</option>
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                        <option value="assistant_state_admin">Assistant State Admin</option>
+                        <option value="state_admin">State Admin</option>
+                      </select>
+                    )}
 
-                  {!isDeleted && !isCreatorAccount && (
-                    <button
-                      onClick={() => handleExemptToggle(u.user_id, !!u.maintenance_exempt)}
-                      title={u.maintenance_exempt ? 'Can login during maintenance' : 'Allow login during maintenance'}
-                      className={`h-7 px-2 rounded-lg border text-[10px] font-medium transition-colors ${
-                        u.maintenance_exempt
-                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
-                          : 'bg-[#1A1A24] border-[#232330] text-[#5C5E72] hover:text-amber-400 hover:border-amber-500/30'
-                      }`}
-                    >
-                      {u.maintenance_exempt ? 'Exempt' : 'Exempt'}
-                    </button>
-                  )}
+                    {!isDeleted && !isCreatorAccount && (
+                      <button
+                        onClick={() => handleExemptToggle(u.user_id, !!u.maintenance_exempt)}
+                        title={u.maintenance_exempt ? 'Can login during maintenance' : 'Allow login during maintenance'}
+                        className={`h-7 px-2 rounded-lg border text-[10px] font-medium transition-colors ${
+                          u.maintenance_exempt
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                            : 'bg-[#1A1A24] border-[#232330] text-[#5C5E72] hover:text-amber-400 hover:border-amber-500/30'
+                        }`}
+                      >
+                        {u.maintenance_exempt ? 'Exempt' : 'Exempt'}
+                      </button>
+                    )}
 
-                  {!isDeleted && (
-                    <button
-                      onClick={() => handleDelete(u.user_id)}
-                      disabled={!canDelete}
-                      className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
+                    {!isDeleted && (
+                      <button
+                        onClick={() => handleDelete(u.user_id)}
+                        disabled={!canDelete}
+                        className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
