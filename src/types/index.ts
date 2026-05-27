@@ -44,8 +44,6 @@ export interface Profile {
   is_student: boolean;
   school: string | null;
   gender: string | null;
-  budget_min: number;
-  budget_max: number;
   preferred_location: string | null;
   // ── LOCATION ──────────────────────────────────────
   country: string | null;

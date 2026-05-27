@@ -302,15 +302,6 @@ export default function Dashboard({
                   <span className="text-white">{profile.preferred_location}</span>
                 </div>
               )}
-              {profile.budget_max > 0 && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#5C5E72]">Budget</span>
-                  <span className="text-white">
-                    {profile.budget_min > 0 ? `N${profile.budget_min.toLocaleString()} - ` : ''}N
-                    {profile.budget_max.toLocaleString()}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         )}

@@ -35,8 +35,6 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
     is_student: profile.is_student || false,
     school: profile.school || '',
     gender: profile.gender || '',
-    budget_min: profile.budget_min || 50000,
-    budget_max: profile.budget_max || 500000,
   });
 
   const { ask, dialogProps } = useConfirm();
@@ -358,28 +356,6 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
             <option value="male">Male</option>
             <option value="female">Female</option>
           </select>
-        </div>
-
-        {/* Budget */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs text-[#8A8B9C] mb-1.5 block">Budget Min (N)</Label>
-            <Input
-              type="number"
-              value={form.budget_min}
-              onChange={(e) => setForm({ ...form, budget_min: Number(e.target.value) })}
-              className="h-10 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white focus:border-[#3B82F6]/50"
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-[#8A8B9C] mb-1.5 block">Budget Max (N)</Label>
-            <Input
-              type="number"
-              value={form.budget_max}
-              onChange={(e) => setForm({ ...form, budget_max: Number(e.target.value) })}
-              className="h-10 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white focus:border-[#3B82F6]/50"
-            />
-          </div>
         </div>
 
         {/* Location */}
