@@ -112,11 +112,12 @@ export function validateRoleTransition(
 }
 
 // ─── PLATFORM SETTINGS READERS ────────────────────
+// Uses .limit(1) to avoid potential issues, reads from both tables.
 async function readSettingFrom(table: string, key: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase.from(table).select('value').eq('key', key).maybeSingle();
-    if (error) { console.warn(`[Settings] ${table}.${key} error:`, error.message); return null; }
-    if (data?.value == null) { console.warn(`[Settings] ${table}.${key} returned null`); return null; }
+    const { data, error } = await supabase.from(table).select('value').eq('key', key).limit(1).maybeSingle();
+    if (error) { console.warn(`[Settings] ${table}.${key} error:`, error.message, error.code); return null; }
+    if (data?.value == null) { console.warn(`[Settings] ${table}.${key} no data`); return null; }
     return String(data.value);
   } catch (e: any) { console.warn(`[Settings] ${table}.${key} exception:`, e?.message); return null; }
 }
@@ -126,7 +127,7 @@ async function getSettingValue(key: string): Promise<string | null> {
   if (fromPlatform !== null) return fromPlatform;
   const fromSystem = await readSettingFrom('system_settings', key);
   if (fromSystem !== null) return fromSystem;
-  console.warn(`[Settings] Could not read "${key}" from any table. Defaulting to null (feature OFF).`);
+  console.warn(`[Settings] Could not read "${key}" from any table.`);
   return null;
 }
 
@@ -146,11 +147,12 @@ async function isRegistrationClosed(): Promise<boolean> {
 
 // ─── MAINTENANCE BLOCK HELPER ─────────────────────
 async function shouldBlockForMaintenance(profile: Profile | null): Promise<boolean> {
-  if (!profile) { console.log('[Maintenance] No profile — blocking.'); return true; }
-  if (isCreator(profile.role)) { console.log('[Maintenance] Creator — allowed.'); return false; }
-  if ((profile as any).maintenance_exempt === true) { console.log('[Maintenance] Exempt — allowed.'); return false; }
+  if (!profile) { console.log('[Maint] No profile — BLOCK'); return true; }
+  if (isCreator(profile.role)) { console.log('[Maint] Creator — ALLOW'); return false; }
+  if ((profile as any).maintenance_exempt === true) { console.log('[Maint] Exempt — ALLOW'); return false; }
   const maintOn = await isMaintenanceModeOn();
-  if (maintOn) { console.log('[Maintenance] Mode ON — blocking.'); return true; }
+  if (maintOn) { console.log('[Maint] ON — BLOCK'); return true; }
+  console.log('[Maint] OFF — ALLOW');
   return false;
 }
 
@@ -160,8 +162,11 @@ export function useAuth() {
 
   // Prevent auth listener from racing with handleLoginSuccess
   const handlingLoginRef = useRef(false);
-  // Prevent loadProfile from running twice for same authId
+  // Track auth IDs we've processed (resets on page load)
   const processedAuthIdRef = useRef<string | null>(null);
+  // TRUE when we triggered signOut programmatically (maintenance block, deleted account)
+  // Prevents the SIGNED_OUT listener from overwriting our error message
+  const weTriggeredSignOutRef = useRef(false);
 
   const determinePage = useCallback((profile: Profile | null): Page => {
     if (!profile) return 'login';
@@ -174,15 +179,19 @@ export function useAuth() {
     return 'dashboard';
   }, []);
 
-  // Centralized entry-point guard: every path into the app goes through here
+  // ─── Centralized entry-point guard ────────────────
   const allowEntry = useCallback(async (profile: Profile): Promise<boolean> => {
+    // Deleted check
     if (profile.deleted) {
+      weTriggeredSignOutRef.current = true;
       await supabase.auth.signOut(); wipeOnLogout();
       setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
       return false;
     }
+    // Maintenance check
     const blocked = await shouldBlockForMaintenance(profile);
     if (blocked) {
+      weTriggeredSignOutRef.current = true;
       await supabase.auth.signOut(); wipeOnLogout();
       setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
       return false;
@@ -221,10 +230,19 @@ export function useAuth() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        if (handlingLoginRef.current) { console.log('[Auth] SIGNED_IN skipped — handleLoginSuccess handling it'); return; }
+        if (handlingLoginRef.current) { console.log('[Auth] SIGNED_IN skipped'); return; }
         loadProfile(session.user.id);
       }
-      if (event === 'SIGNED_OUT') { wipeOnLogout(); setState({ page: 'login', profile: null, isLoading: false, error: '' }); }
+      // If WE triggered the signOut (maintenance block / deleted), DON'T overwrite the error
+      if (event === 'SIGNED_OUT') {
+        if (weTriggeredSignOutRef.current) {
+          console.log('[Auth] SIGNED_OUT — we triggered it, preserving error');
+          weTriggeredSignOutRef.current = false;
+          return;
+        }
+        wipeOnLogout();
+        setState({ page: 'login', profile: null, isLoading: false, error: '' });
+      }
     });
 
     return () => { done = true; clearTimeout(timeoutId); listener.subscription.unsubscribe(); };
@@ -237,18 +255,15 @@ export function useAuth() {
     setState((s) => ({ ...s, isLoading: true, error: '' }));
 
     try {
-      // STEP 1: Look up existing profile
       const { profile: byAuth } = await getProfileByAuthId(authId);
       const { profile: byEmail } = !byAuth ? await getProfileByEmail(email) : { profile: null };
 
-      // STEP 2: Existing profile by auth_id
       if (byAuth) {
         const allowed = await allowEntry(byAuth);
         if (allowed) { setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' }); trackSession(byAuth.user_id, authId).catch(() => {}); }
         return;
       }
 
-      // STEP 3: Account linking by email
       if (byEmail) {
         const allowed = await allowEntry(byEmail);
         if (!allowed) return;
@@ -259,21 +274,21 @@ export function useAuth() {
         return;
       }
 
-      // STEP 4: New account — check maintenance + registration
       const maintOn = await isMaintenanceModeOn();
       if (maintOn) {
+        weTriggeredSignOutRef.current = true;
         await supabase.auth.signOut(); wipeOnLogout();
         setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
         return;
       }
       const regClosed = await isRegistrationClosed();
       if (regClosed) {
+        weTriggeredSignOutRef.current = true;
         await supabase.auth.signOut(); wipeOnLogout();
         setState({ page: 'login', profile: null, isLoading: false, error: 'New registrations are currently closed. Please check back later.' });
         return;
       }
 
-      // STEP 5: Create new profile
       const isWorker = role === 'worker';
       const { profile: newProfile, error: createError } = await createProfile(authId, email);
       if (createError || !newProfile) { setState({ page: 'login', profile: null, isLoading: false, error: createError?.message || 'Create failed' }); return; }
