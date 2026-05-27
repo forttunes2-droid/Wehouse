@@ -655,8 +655,16 @@ export async function sendOfficialMessage(
   senderRole: 'creator' | 'state_admin' | 'admin',
   senderName: string,
   content: string,
-  recipientIds: string[]
+  options: {
+    recipientIds?: string[];
+    includeWorkers?: boolean;
+    includeStaff?: boolean;
+    scopeState?: string;
+    scopeLga?: string;
+  } = {}
 ) {
+  const { recipientIds, includeWorkers = false, includeStaff = false, scopeState, scopeLga } = options;
+
   // Step 1: Insert the message
   const { data: msg, error: msgError } = await supabase
     .from('official_messages')
@@ -665,7 +673,7 @@ export async function sendOfficialMessage(
       sender_role: senderRole,
       sender_name: senderName,
       content,
-      sent_to_all: recipientIds.length === 0,
+      sent_to_all: !recipientIds || recipientIds.length === 0,
     })
     .select()
     .single();
@@ -678,32 +686,53 @@ export async function sendOfficialMessage(
     return { error: { message: 'Message insert returned no data' } };
   }
 
-  // Step 2: Insert recipients
+  // Step 2: Determine target recipients
   let targetUserIds: string[];
 
-  if (recipientIds.length > 0) {
-    // Send to specific users
+  if (recipientIds && recipientIds.length > 0) {
+    // Send to specific user(s) — direct mode, ignore role filters
     targetUserIds = recipientIds;
   } else {
-    // Send to ALL users — fetch from profiles
-    const { data: users, error: usersError } = await supabase
+    // Broadcast mode — build role-based filter
+    // Default: users only. Workers and staff excluded unless toggled.
+    const allowedRoles: string[] = ['user'];
+    if (includeWorkers) allowedRoles.push('worker');
+    if (includeStaff) allowedRoles.push('staff', 'assistant_admin', 'admin');
+
+    // State admin and creator sending to all should not send to other high-rank admins
+    // unless explicitly intended. Keep it simple: roles determine reception.
+
+    let query = supabase
       .from('profiles')
       .select('user_id')
-      .eq('deleted', false);
+      .eq('deleted', false)
+      .in('role', allowedRoles);
+
+    // Apply scope filters
+    if (scopeState) {
+      query = query.eq('state', scopeState);
+    }
+    if (scopeLga) {
+      query = query.eq('city', scopeLga);
+    }
+
+    const { data: users, error: usersError } = await query;
 
     if (usersError) {
       console.error('[sendOfficialMessage] fetch users failed:', usersError);
       return { error: { message: `Failed to fetch user list: ${usersError.message}` } };
     }
 
-    targetUserIds = (users || []).map((u: any) => u.user_id).filter((id: string) => id && id !== senderId);
+    targetUserIds = (users || [])
+      .map((u: any) => u.user_id)
+      .filter((id: string) => id && id !== senderId);
 
     if (targetUserIds.length === 0) {
-      return { error: { message: 'No users found to send to' } };
+      return { error: { message: 'No users match the selected filters' } };
     }
   }
 
-  // Create recipient rows
+  // Step 3: Create recipient rows
   const rows = targetUserIds.map((rid) => ({
     message_id: msg.id,
     recipient_id: rid,
@@ -726,12 +755,35 @@ export async function sendOfficialMessage(
 }
 
 export async function getOfficialMessagesForUser(userId: string) {
-  const { data, error } = await supabase
+  // Step 1: Get recipient rows for this user
+  const { data: recipRows, error: recipError } = await supabase
     .from('official_message_recipients')
-    .select('*, message:official_messages(*)')
+    .select('id, message_id, read, created_at')
     .eq('recipient_id', userId)
     .order('created_at', { ascending: false });
-  return { messages: data || [], error };
+
+  if (recipError || !recipRows || recipRows.length === 0) {
+    return { messages: [], error: recipError };
+  }
+
+  // Step 2: Get the actual message content for each
+  const messageIds = recipRows.map((r: any) => r.message_id);
+  const { data: messages, error: msgError } = await supabase
+    .from('official_messages')
+    .select('*')
+    .in('id', messageIds);
+
+  if (msgError || !messages) {
+    return { messages: [], error: msgError };
+  }
+
+  // Step 3: Combine them
+  const combined = recipRows.map((r: any) => {
+    const msg = messages.find((m: any) => m.id === r.message_id);
+    return { ...r, message: msg || null };
+  }).filter((c: any) => c.message !== null);
+
+  return { messages: combined, error: null };
 }
 
 export async function markOfficialMessageRead(recipientRowId: string) {
@@ -778,6 +830,34 @@ export async function getUnreadOfficialCount(userId: string) {
     .select('*', { count: 'exact', head: true })
     .eq('recipient_id', userId)
     .eq('read', false);
+  return { count: count || 0, error };
+}
+
+// Get count of users matching role + scope filters (for live recipient count in UI)
+export async function getFilteredRecipientCount(
+  includeWorkers: boolean,
+  includeStaff: boolean,
+  scopeState?: string,
+  scopeLga?: string
+) {
+  const allowedRoles: string[] = ['user'];
+  if (includeWorkers) allowedRoles.push('worker');
+  if (includeStaff) allowedRoles.push('staff', 'assistant_admin', 'admin');
+
+  let query = supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('deleted', false)
+    .in('role', allowedRoles);
+
+  if (scopeState) {
+    query = query.eq('state', scopeState);
+  }
+  if (scopeLga) {
+    query = query.eq('city', scopeLga);
+  }
+
+  const { count, error } = await query;
   return { count: count || 0, error };
 }
 

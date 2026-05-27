@@ -343,7 +343,7 @@ export interface RoomInterest {
 // ─── OFFICIAL MESSAGES (Creator/Admin Broadcasts) ──
 
 export interface OfficialMessage {
-  id: string;
+  id: number;
   sender_id: string;
   sender_role: 'creator' | 'state_admin' | 'admin';
   sender_name: string;
@@ -355,8 +355,8 @@ export interface OfficialMessage {
 }
 
 export interface OfficialMessageRecipient {
-  id: string;
-  message_id: string;
+  id: number;
+  message_id: number;
   recipient_id: string;
   read: boolean;
   created_at: string;

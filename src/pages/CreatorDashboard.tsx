@@ -5,7 +5,7 @@ import {
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendOfficialMessage, deleteOfficialMessage, getOfficialMessagesSentBy, getAllOfficialMessages,
-  getMessageRecipientCount,
+  getMessageRecipientCount, getFilteredRecipientCount,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -805,17 +805,50 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const isStateScope = !isCreatorScope && typeof scope === 'object';
 
   const [users, setUsers] = useState<any[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
+  const [userSearch, setUserSearch] = useState('');
   const [message, setMessage] = useState('');
+  const [sendMode, setSendMode] = useState<'all' | 'one'>('all');
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<any[]>([]);
   const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>({});
   const [activeView, setActiveView] = useState<'compose' | 'history'>('compose');
   const { ask, dialogProps } = useConfirm();
 
+  // ── Role filter toggles ──
+  const canIncludeWorkers = profile.role === 'creator' || profile.role === 'creator_admin' || profile.role === 'state_admin';
+  const canIncludeStaff = profile.role === 'creator' || profile.role === 'creator_admin' || profile.role === 'state_admin' || profile.role === 'admin';
+  const [includeWorkers, setIncludeWorkers] = useState(false);
+  const [includeStaff, setIncludeStaff] = useState(false);
+  const [liveCount, setLiveCount] = useState(0);
+  const [countLoading, setCountLoading] = useState(false);
+
   useEffect(() => {
     loadSentMessages();
     if (canSend) loadUsers();
   }, []);
+
+  // Live recipient count updates when toggles change
+  useEffect(() => {
+    if (!canSend || sendMode === 'one') return;
+    let cancelled = false;
+    async function updateCount() {
+      setCountLoading(true);
+      const { count } = await getFilteredRecipientCount(
+        includeWorkers,
+        includeStaff,
+        isStateScope ? scope.state : undefined,
+        isStateScope ? scope.lga : undefined
+      );
+      if (!cancelled) {
+        setLiveCount(count);
+        setCountLoading(false);
+      }
+    }
+    updateCount();
+    return () => { cancelled = true; };
+  }, [includeWorkers, includeStaff, sendMode, canSend, isStateScope]);
 
   async function loadUsers() {
     const { users: data } = await getAllUsers();
@@ -824,7 +857,18 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       list = list.filter((u: any) => u.state === scope.state);
     }
     setUsers(list);
+    setFilteredUsers(list);
   }
+
+  // Filter users when searching
+  useEffect(() => {
+    if (!userSearch.trim()) {
+      setFilteredUsers(users);
+      return;
+    }
+    const q = userSearch.toLowerCase();
+    setFilteredUsers(users.filter((u: any) => (u.username || '').toLowerCase().includes(q)));
+  }, [userSearch, users]);
 
   async function loadSentMessages() {
     const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
@@ -856,8 +900,18 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
   async function handleSend() {
     if (!message.trim()) { toast.error('Type a message'); return; }
-    const scopeLabel = isStateScope ? `all users in ${scope.state}` : 'all users';
-    const ok = await ask({ title: `Send to ${scopeLabel}?`, confirmLabel: 'Send', variant: 'info' });
+
+    // Validate: if sending to one user, must have selected one
+    if (sendMode === 'one' && !selectedUser) {
+      toast.error('Select a user to send to');
+      return;
+    }
+
+    const targetLabel = sendMode === 'all'
+      ? (isStateScope ? `all users in ${scope.state}` : 'all users')
+      : `to @${users.find((u: any) => u.user_id === selectedUser)?.username || 'user'}`;
+
+    const ok = await ask({ title: `Send ${targetLabel}?`, confirmLabel: 'Send', variant: 'info' });
     if (!ok) return;
 
     setSending(true);
@@ -865,8 +919,19 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
     const senderRole = profile.role === 'creator' || profile.role === 'creator_admin' ? 'creator' : 'state_admin';
 
+    // Build options
+    const recipientIds = sendMode === 'one' && selectedUser ? [selectedUser] : undefined;
+    const options = recipientIds
+      ? { recipientIds }
+      : {
+          includeWorkers,
+          includeStaff,
+          scopeState: isStateScope ? scope.state : undefined,
+          scopeLga: isStateScope ? scope.lga : undefined,
+        };
+
     const { error, recipientCount } = await sendOfficialMessage(
-      profile.user_id, senderRole, profile.username || 'Admin', message.trim(), []
+      profile.user_id, senderRole, profile.username || 'Admin', message.trim(), options
     );
 
     toast.dismiss('send-announce');
@@ -874,11 +939,22 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
     if (error) { toast.error(error.message || 'Failed to send'); return; }
 
-    toast.success(`Sent to ${recipientCount || 0} user${(recipientCount || 0) > 1 ? 's' : ''}!`);
+    toast.success(`Sent to ${recipientCount || 0} recipient${(recipientCount || 0) > 1 ? 's' : ''}!`);
     setMessage('');
+    setSelectedUser(null);
+    setIncludeWorkers(false);
+    setIncludeStaff(false);
     setActiveView('history');
     await loadSentMessages();
   }
+
+  // Recipient breakdown label
+  const getRecipientBreakdown = () => {
+    const parts: string[] = ['Users'];
+    if (includeWorkers) parts.push('Workers');
+    if (includeStaff) parts.push('Staff');
+    return parts.join(' + ');
+  };
 
   return (
     <div className="space-y-4">
@@ -913,13 +989,134 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
             </div>
           </div>
           <div className="p-4">
+            {/* Send mode toggle */}
+            <div className="flex gap-1 bg-[#1A1A24] rounded-lg p-1 mb-3">
+              <button
+                onClick={() => { setSendMode('all'); setSelectedUser(null); }}
+                className={`flex-1 h-8 rounded-md text-xs font-medium transition-all ${
+                  sendMode === 'all' ? 'bg-[#2A2A3A] text-white' : 'text-[#5C5E72] hover:text-white'
+                }`}
+              >
+                Broadcast
+              </button>
+              <button
+                onClick={() => setSendMode('one')}
+                className={`flex-1 h-8 rounded-md text-xs font-medium transition-all ${
+                  sendMode === 'one' ? 'bg-[#2A2A3A] text-white' : 'text-[#5C5E72] hover:text-white'
+                }`}
+              >
+                One User
+              </button>
+            </div>
+
+            {/* User selector when in "one" mode */}
+            {sendMode === 'one' && (
+              <div className="mb-3">
+                <input
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search @username..."
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none mb-2"
+                />
+                <div className="max-h-[150px] overflow-y-auto rounded-xl border border-[#2A2A3A]">
+                  {filteredUsers.length === 0 ? (
+                    <p className="text-xs text-[#5C5E72] text-center py-3">No users found</p>
+                  ) : (
+                    filteredUsers.map((u: any) => (
+                      <button
+                        key={u.user_id}
+                        onClick={() => setSelectedUser(selectedUser === u.user_id ? null : u.user_id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                          selectedUser === u.user_id ? 'bg-[#3B82F6]/10' : 'hover:bg-[#12121A]'
+                        }`}
+                      >
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                          {(u.username || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-xs text-white truncate flex-1">@{u.username || 'user'}</span>
+                        {selectedUser === u.user_id && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5"><path d="M5 13l4 4L19 7" /></svg>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Role filter toggles — only in broadcast mode */}
+            {sendMode === 'all' && (
+              <div className="mb-3 space-y-2">
+                <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Recipients</p>
+
+                {/* Base: Users always included */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/10">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+                  <span className="text-xs text-green-400 flex-1">Users</span>
+                  <span className="text-[9px] text-green-400/60">Always included</span>
+                </div>
+
+                {/* Include Workers toggle */}
+                {canIncludeWorkers && (
+                  <button
+                    onClick={() => setIncludeWorkers(!includeWorkers)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                      includeWorkers
+                        ? 'bg-pink-500/10 border-pink-500/30'
+                        : 'bg-[#1A1A24] border-[#2A2A3A] hover:border-[#3A3A4A]'
+                    }`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={includeWorkers ? '#EC4899' : '#5C5E72'} strokeWidth="2"><path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z" /></svg>
+                    <span className={`text-xs flex-1 text-left ${includeWorkers ? 'text-pink-400' : 'text-[#8A8B9C]'}`}>Include Workers</span>
+                    <div className={`w-8 h-4 rounded-full transition-colors relative ${includeWorkers ? 'bg-pink-500' : 'bg-[#2A2A3A]'}`}>
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${includeWorkers ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </div>
+                  </button>
+                )}
+
+                {/* Include Staff toggle */}
+                {canIncludeStaff && (
+                  <button
+                    onClick={() => setIncludeStaff(!includeStaff)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                      includeStaff
+                        ? 'bg-amber-500/10 border-amber-500/30'
+                        : 'bg-[#1A1A24] border-[#2A2A3A] hover:border-[#3A3A4A]'
+                    }`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={includeStaff ? '#F59E0B' : '#5C5E72'} strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+                    <span className={`text-xs flex-1 text-left ${includeStaff ? 'text-amber-400' : 'text-[#8A8B9C]'}`}>Include Staff</span>
+                    <div className={`w-8 h-4 rounded-full transition-colors relative ${includeStaff ? 'bg-amber-500' : 'bg-[#2A2A3A]'}`}>
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${includeStaff ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </div>
+                  </button>
+                )}
+
+                {/* Live count */}
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-[10px] text-[#5C5E72]">
+                    {countLoading ? 'Counting...' : `${liveCount.toLocaleString()} ${getRecipientBreakdown().toLowerCase()} will receive this`}
+                  </span>
+                  {countLoading && <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />}
+                </div>
+              </div>
+            )}
+
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your announcement..." rows={4} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[#5C5E72]">{users.length} recipients</span>
-                <span className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Broadcast</span>
+                {sendMode === 'all' ? (
+                  <>
+                    <span className="text-xs text-[#5C5E72]">{countLoading ? '...' : `${liveCount.toLocaleString()} recipients`}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">{getRecipientBreakdown()}</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-[#5C5E72]">
+                    {selectedUser ? `Sending to @${users.find((u: any) => u.user_id === selectedUser)?.username || 'user'}` : 'Select a user above'}
+                  </span>
+                )}
               </div>
-              <button onClick={handleSend} disabled={sending || !message.trim()} className="h-9 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-2">
+              <button onClick={handleSend} disabled={sending || !message.trim() || (sendMode === 'one' && !selectedUser)} className="h-9 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center gap-2">
                 {sending && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
                 {sending ? 'Sending...' : 'Send'}
