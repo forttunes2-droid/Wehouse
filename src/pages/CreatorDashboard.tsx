@@ -1246,7 +1246,15 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                       <span className="text-[9px] text-[#3B82F6] font-medium">{m.sender_name}</span>
                       <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] uppercase tracking-wider">{m.sender_role}</span>
                       <span className="text-[9px] text-[#5C5E72]">{new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400">{count > 0 ? `${count} reached` : 'No data'}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                        count === -1
+                          ? 'bg-amber-500/10 text-amber-400'
+                          : count > 0
+                          ? 'bg-green-500/10 text-green-400'
+                          : 'bg-gray-500/10 text-gray-400'
+                      }`}>
+                        {count === -1 ? 'DB check needed' : count > 0 ? `${count} reached` : 'No recipients'}
+                      </span>
                       {canSend && (
                         <button onClick={() => handleDeleteMessage(m.id)} className="ml-auto text-[#5C5E72] hover:text-red-400 transition-colors p-0.5" title="Delete">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>

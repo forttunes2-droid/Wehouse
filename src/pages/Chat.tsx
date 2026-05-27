@@ -69,6 +69,30 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     setOfficialUnread(unread);
   }
 
+  // ── Real-time subscription for official messages ──
+  useEffect(() => {
+    const channel = supabase
+      .channel('official-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'official_message_recipients',
+          filter: `recipient_id=eq.${profile.user_id}`,
+        },
+        () => {
+          // New official message received!
+          loadOfficial();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile.user_id]);
+
   // Auto-open conversation from prop
   useEffect(() => {
     if (!conversationId || conversations.length === 0) return;

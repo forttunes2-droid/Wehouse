@@ -148,33 +148,57 @@ export default function App() {
     }
   }, [auth.profile?.user_id]);
 
-  // Global unread message count
+  // Global unread message count (conversations + official)
   useEffect(() => {
     if (!auth.profile?.user_id) return;
     const userId = auth.profile.user_id;
 
-    async function countUnread() {
-      const { data } = await supabase
+    async function countAllUnread() {
+      // Count conversation unreads
+      const { data: convs } = await supabase
         .from('conversations')
         .select('unread_a, unread_b')
         .or(`participant_a.eq.${userId},participant_b.eq.${userId}`);
-      let total = 0;
-      (data || []).forEach((c: any) => {
-        total += c.participant_a === userId ? (c.unread_a || 0) : (c.unread_b || 0);
+      let chatUnread = 0;
+      (convs || []).forEach((c: any) => {
+        chatUnread += c.participant_a === userId ? (c.unread_a || 0) : (c.unread_b || 0);
       });
-      setUnreadCount(total);
+
+      // Count official message unreads
+      const { count: officialUnread } = await supabase
+        .from('official_message_recipients')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', userId)
+        .eq('read', false);
+
+      setUnreadCount(chatUnread + (officialUnread || 0));
     }
-    countUnread();
+    countAllUnread();
 
     // Subscribe to conversation updates
-    const channel = supabase
-      .channel('global-unread')
+    const convChannel = supabase
+      .channel('global-unread-conv')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-        countUnread();
+        countAllUnread();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Subscribe to official message recipient updates
+    const officialChannel = supabase
+      .channel('global-unread-official')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'official_message_recipients', filter: `recipient_id=eq.${userId}` },
+        () => {
+          countAllUnread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(convChannel);
+      supabase.removeChannel(officialChannel);
+    };
   }, [auth.profile?.user_id]);
 
   // Roommate page handles its own state internally

@@ -877,11 +877,26 @@ export async function getAllOfficialMessages() {
 }
 
 export async function getMessageRecipientCount(messageId: string) {
-  const { count, error } = await supabase
-    .from('official_message_recipients')
-    .select('*', { count: 'exact', head: true })
-    .eq('message_id', messageId);
-  return { count: count || 0, error };
+  try {
+    const { count, error } = await supabase
+      .from('official_message_recipients')
+      .select('*', { count: 'exact', head: true })
+      .eq('message_id', messageId);
+
+    if (error) {
+      // If table doesn't exist or column type mismatch, return -1 to indicate unknown
+      if (error.message?.includes('does not exist') || error.message?.includes('invalid input')) {
+        console.warn('[getMessageRecipientCount] table/column issue:', error.message);
+        return { count: -1, error: null };
+      }
+      return { count: 0, error };
+    }
+
+    return { count: count || 0, error: null };
+  } catch (e: any) {
+    console.warn('[getMessageRecipientCount] unexpected error:', e.message);
+    return { count: -1, error: null };
+  }
 }
 
 export async function getUnreadOfficialCount(userId: string) {
