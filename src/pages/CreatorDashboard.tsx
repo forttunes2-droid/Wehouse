@@ -5,7 +5,7 @@ import {
   resolveReport, dismissReport, getAuditLogs, getSystemSettings,
   updateSystemSetting, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendOfficialMessage, deleteOfficialMessage, getOfficialMessagesSentBy, getAllOfficialMessages,
-  getMessageRecipientCount, getFilteredRecipientCount, checkOfficialMessageTables,
+  getFilteredRecipientCount, checkOfficialMessageTables,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -913,14 +913,11 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       : await getOfficialMessagesSentBy(profile.user_id);
     const msgs = messages || [];
     setSentMessages(msgs);
-    // Fetch recipient counts (sender can now read recipient rows via RLS)
+    // Use recipient_count stored on the message row (sender owns the message, can always read it)
     const counts: Record<string, number> = {};
-    await Promise.all(
-      msgs.map(async (m: any) => {
-        const { count } = await getMessageRecipientCount(m.id);
-        counts[m.id] = count;
-      })
-    );
+    msgs.forEach((m: any) => {
+      counts[m.id] = m.recipient_count ?? 0;
+    });
     setRecipientCounts(counts);
   }
 

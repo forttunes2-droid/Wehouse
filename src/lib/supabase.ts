@@ -810,6 +810,8 @@ export async function sendOfficialMessage(
 
 export async function getOfficialMessagesForUser(userId: string) {
   try {
+    console.log('[getOfficialMessages] fetching for userId:', userId);
+
     // Step 1: Get recipient rows for this user
     const { data: recipRows, error: recipError } = await supabase
       .from('official_message_recipients')
@@ -817,25 +819,33 @@ export async function getOfficialMessagesForUser(userId: string) {
       .eq('recipient_id', userId)
       .order('created_at', { ascending: false });
 
+    console.log('[getOfficialMessages] recipRows:', recipRows?.length || 0, 'error:', recipError?.message || 'none');
+
     // If tables don't exist or no rows, return empty (don't show error)
     if (recipError) {
       if (recipError.message?.includes('does not exist') || recipError.message?.includes('relation')) {
         console.warn('[getOfficialMessages] Tables not set up yet');
         return { messages: [], error: null };
       }
+      console.error('[getOfficialMessages] recipError:', recipError);
       return { messages: [], error: recipError };
     }
 
     if (!recipRows || recipRows.length === 0) {
+      console.log('[getOfficialMessages] no recipient rows found');
       return { messages: [], error: null };
     }
 
     // Step 2: Get the actual message content for each
     const messageIds = recipRows.map((r: any) => r.message_id);
+    console.log('[getOfficialMessages] messageIds:', messageIds);
+
     const { data: messages, error: msgError } = await supabase
       .from('official_messages')
       .select('*')
       .in('id', messageIds);
+
+    console.log('[getOfficialMessages] messages:', messages?.length || 0, 'error:', msgError?.message || 'none');
 
     if (msgError || !messages) {
       if (msgError?.message?.includes('does not exist')) {
@@ -850,6 +860,7 @@ export async function getOfficialMessagesForUser(userId: string) {
       return { ...r, message: msg || null };
     }).filter((c: any) => c.message !== null);
 
+    console.log('[getOfficialMessages] combined:', combined.length);
     return { messages: combined, error: null };
   } catch (e: any) {
     console.error('[getOfficialMessages] unexpected error:', e);
