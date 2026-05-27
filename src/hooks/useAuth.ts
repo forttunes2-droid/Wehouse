@@ -192,7 +192,11 @@ export function useAuth() {
     if (!profile.profile_complete) return 'setup';
     // CREATOR → global creator dashboard (full control)
     if (isCreator(profile.role)) return 'creator';
-    // ADMIN → scoped admin dashboard (assigned LGA only)
+    // STATE ADMIN → state-scoped admin dashboard
+    if (profile.role === 'state_admin') return 'state_admin';
+    // ASSISTANT STATE ADMIN → state-scoped dashboard (read-only management)
+    if (profile.role === 'assistant_state_admin') return 'assistant_state_admin';
+    // ADMIN → local admin dashboard (assigned LGA only)
     if (profile.role === 'admin') return 'admin';
     // STAFF, USER, WORKER → regular dashboard
     return 'dashboard';

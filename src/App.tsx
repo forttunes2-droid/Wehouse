@@ -65,7 +65,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'creator', 'admin', 'worker_dashboard', 'worker_discovery'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -101,9 +101,11 @@ export default function App() {
     let valid = true;
 
     if (navPage === 'creator' && !checkCreator(role)) valid = false;
-    if (navPage === 'admin' && role !== 'admin' && role !== 'assistant_state_admin') valid = false;
+    if (navPage === 'admin' && role !== 'admin') valid = false;
+    if (navPage === 'state_admin' && role !== 'state_admin') valid = false;
+    if (navPage === 'assistant_state_admin' && role !== 'assistant_state_admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
-    if (navPage === 'profile' && (role === 'worker' || checkCreator(role))) valid = false;
+    if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'state_admin' || role === 'assistant_state_admin')) valid = false;
     if (navPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
 
     if (!valid) {
@@ -278,6 +280,10 @@ export default function App() {
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
       case 'admin':
         return <AdminDashboard profile={profile} onLogout={auth.logout} />;
+      case 'state_admin':
+        return <AdminDashboard profile={profile} onLogout={auth.logout} isStateAdmin />;
+      case 'assistant_state_admin':
+        return <AdminDashboard profile={profile} onLogout={auth.logout} isAssistant />;
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} /> : null;
       case 'chat':
@@ -319,10 +325,17 @@ export default function App() {
     { id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg },
   ];
 
+  const isStateAdminRole = profile.role === 'state_admin';
+  const isAssistantRole = profile.role === 'assistant_state_admin';
+
   const roleTab = isWorker
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
     : isCreator
     ? { id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }
+    : isStateAdminRole
+    ? { id: 'state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
+    : isAssistantRole
+    ? { id: 'assistant_state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
     : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
 
   const tabs = [...baseTabs, roleTab];
@@ -334,7 +347,7 @@ export default function App() {
       </div>
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'saved' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {

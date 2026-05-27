@@ -15,32 +15,38 @@ import { Input } from '@/components/ui/input';
 interface AdminDashboardProps {
   profile: Profile;
   onLogout: () => void;
+  isStateAdmin?: boolean;
+  isAssistant?: boolean;
 }
 
 type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports' | 'announcements';
 
-export default function AdminDashboard({ profile, onLogout }: AdminDashboardProps) {
+export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssistant }: AdminDashboardProps) {
+  const dashboardLabel = isStateAdmin ? 'State Admin' : isAssistant ? 'Assistant' : 'Admin';
+  const headerGradient = isStateAdmin ? 'from-emerald-600 to-emerald-800' : isAssistant ? 'from-teal-600 to-teal-800' : 'from-[#3B82F6] to-[#2563EB]';
+  const badgeClass = isStateAdmin ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : isAssistant ? 'text-teal-400 bg-teal-500/10 border-teal-500/20' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20';
+
   // Persist dashboard sub-tab across refreshes
-  const ADMIN_TAB_KEY = 'wh_admin_tab';
+  const TAB_KEY = isStateAdmin ? 'wh_state_admin_tab' : isAssistant ? 'wh_assistant_tab' : 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
-      const saved = localStorage.getItem(ADMIN_TAB_KEY);
+      const saved = localStorage.getItem(TAB_KEY);
       return saved && ['overview','staff','users','listings','reports','announcements'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
 
-  // Save tab change to localStorage
   const handleSetTab = useCallback((tab: AdminTab) => {
     setActiveTab(tab);
-    localStorage.setItem(ADMIN_TAB_KEY, tab);
-  }, []);
+    localStorage.setItem(TAB_KEY, tab);
+  }, [TAB_KEY]);
 
   const [stats, setStats] = useState({ users: 0, staff: 0, listings: 0, workers: 0, reports: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // State Admin sees entire state; Local Admin sees only their LGA
   const scope = {
     state: profile.assigned_state || profile.state || '',
-    lga: profile.assigned_lga || profile.city || '',
+    lga: isStateAdmin || isAssistant ? '' : (profile.assigned_lga || profile.city || ''),
   };
 
   const refresh = () => setRefreshKey(k => k + 1);
@@ -52,73 +58,95 @@ export default function AdminDashboard({ profile, onLogout }: AdminDashboardProp
         getAllUsers(), getAllListingsAdmin(), getAllWorkers(), getReports()
       ]);
 
-      const inScope = (u: any) => u.state === scope.state && u.city === scope.lga && !u.deleted;
+      // State Admin: match state only; Local Admin: match state + lga
+      const inScope = (item: any) => {
+        const matchesState = item.state === scope.state;
+        const matchesLga = scope.lga ? item.city === scope.lga : true;
+        return matchesState && matchesLga && !item.deleted;
+      };
 
       const scopedUsers = (users || []).filter(inScope);
-      const scopedStaff = scopedUsers.filter(u => u.role === 'staff');
+      const scopedStaff = scopedUsers.filter((u: any) => u.role === 'staff');
       const scopedListings = (listings || []).filter(inScope);
       const scopedWorkers = (workers || []).filter(inScope);
 
       setStats({
-        users: scopedUsers.filter(u => u.role === 'user').length,
+        users: scopedUsers.filter((u: any) => u.role === 'user').length,
         staff: scopedStaff.length,
         listings: scopedListings.length,
         workers: scopedWorkers.length,
-        reports: (reports || []).filter(r => r.status === 'pending').length,
+        reports: (reports || []).filter((r: any) => r.status === 'pending').length,
       });
     }
-    if (scope.state && scope.lga) load();
+    if (scope.state) load();
   }, [scope.state, scope.lga, refreshKey]);
 
   const tabs: Array<{ id: AdminTab; label: string; icon: string }> = [
     { id: 'overview', label: 'Overview', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' },
-    { id: 'staff', label: 'Staff', icon: 'M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4z' },
-    { id: 'users', label: 'Users', icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z' },
-    { id: 'listings', label: 'Listings', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
-    { id: 'reports', label: 'Reports', icon: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z' },
-    { id: 'announcements', label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
+    { id: 'users', label: 'Users', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+    { id: 'listings', label: 'Listings', icon: 'M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zm0-6v2h18V3H3z' },
+    { id: 'reports', label: 'Reports', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
+    { id: 'announcements', label: 'Announce', icon: 'M11 5.882V19.24a1.4 1.4 0 0 1-2.338.995l-3.867-3.43a1.4 1.4 0 0 0-.93-.338H2a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1.865a1.4 1.4 0 0 0 .93-.338l3.867-3.43A1.4 1.4 0 0 1 11 5.882z' },
   ];
 
   return (
-    <div className="min-h-screen bg-transparent pb-20">
-      <Toaster position="top-center" richColors />
+    <div className="min-h-screen bg-transparent pb-6">
+      <Toaster position="top-center" toastOptions={{ style: { background: '#1A1A24', color: '#fff', border: '1px solid #232330' } }} />
 
       {/* Header */}
-      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
+      <header className={`bg-gradient-to-r ${headerGradient} px-5 pt-6 pb-8`}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-semibold text-white">Local Dashboard</h1>
-            <p className="text-[10px] text-blue-400 mt-0.5">{scope.lga || 'Unassigned'} · {scope.state || 'Unassigned'}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg font-bold text-white">{dashboardLabel} Dashboard</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>{profile.role}</span>
+            </div>
+            <p className="text-xs text-white/60">
+              {scope.state}{scope.lga ? ` · ${scope.lga}` : ' (State-wide)'}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">ADMIN</span>
-            <button onClick={onLogout} className="text-red-400 hover:text-red-300 transition-colors p-1">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
-            </button>
-          </div>
+          <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-2 mt-4">
+          {[
+            { label: 'Users', value: stats.users },
+            { label: 'Staff', value: stats.staff },
+            { label: 'Listings', value: stats.listings },
+            { label: 'Pending', value: stats.reports },
+          ].map(s => (
+            <div key={s.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-2 text-center">
+              <div className="text-lg font-bold text-white">{s.value}</div>
+              <div className="text-[9px] text-white/60">{s.label}</div>
+            </div>
+          ))}
         </div>
       </header>
 
       {/* Tabs */}
-      <div className="sticky top-0 z-30 bg-[#0A0A0F]/95 backdrop-blur-xl border-b border-white/[0.06]">
-        <div className="flex gap-0 overflow-x-auto px-2 no-scrollbar">
+      <div className="px-5 -mt-4">
+        <div className="glass rounded-xl p-1 flex gap-1 overflow-x-auto scrollbar-hide">
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => handleSetTab(tab.id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-3 text-[10px] font-medium transition-colors border-b-2 whitespace-nowrap ${
-                activeTab === tab.id ? 'text-blue-400 border-blue-400' : 'text-[#5C5E72] border-transparent'
-              }`}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d={tab.icon} /></svg>
+            <button
+              key={tab.id}
+              onClick={() => handleSetTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium whitespace-nowrap rounded-lg transition-all flex-shrink-0 ${
+                activeTab === tab.id ? 'bg-[#3B82F6] text-white' : 'text-[#8A8B9C] hover:text-white'
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d={tab.icon} /></svg>
               {tab.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-5 py-5">
-        {activeTab === 'overview' && <OverviewTab stats={stats} scope={scope} />}
-        {activeTab === 'staff' && <StaffTab scope={scope} profile={profile} refresh={refresh} />}
-        {activeTab === 'users' && <UsersTab scope={scope} profile={profile} refresh={refresh} />}
-        {activeTab === 'listings' && <ListingsTab scope={scope} profile={profile} refresh={refresh} />}
+      {/* Content */}
+      <div className="px-5 pt-4">
+        {activeTab === 'overview' && <OverviewTab stats={stats} scope={scope} isStateAdmin={isStateAdmin} />}
+        {activeTab === 'users' && <UsersTab scope={scope} profile={profile} refresh={refresh} isStateAdmin={isStateAdmin} isAssistant={isAssistant} />}
+        {activeTab === 'listings' && <ListingsTab scope={scope} refresh={refresh} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={scope} />}
       </div>
@@ -127,276 +155,215 @@ export default function AdminDashboard({ profile, onLogout }: AdminDashboardProp
 }
 
 // ─── OVERVIEW ─────────────────────────────────────
-function OverviewTab({ stats, scope }: { stats: any; scope: { state: string; lga: string } }) {
-  return (
-    <div className="space-y-4">
-      {/* Scope Card */}
-      <div className="glass rounded-2xl p-4 border border-blue-500/10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Your Managed Area</p>
-            <p className="text-[11px] text-[#5C5E72]">{scope.lga}, {scope.state}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: 'Users', value: stats.users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Staff', value: stats.staff, color: 'text-green-400', bg: 'bg-green-500/10' },
-          { label: 'Listings', value: stats.listings, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Workers', value: stats.workers, color: 'text-pink-400', bg: 'bg-pink-500/10' },
-        ].map(s => (
-          <div key={s.label} className="glass rounded-2xl p-4">
-            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-[10px] text-[#5C5E72] mt-0.5">{s.label} in {scope.lga}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="glass rounded-2xl p-4">
-        <p className="text-xs font-semibold text-white mb-3">Quick Actions</p>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: 'Manage Staff', desc: 'View & control staff' },
-            { label: 'View Users', desc: 'Users in your LGA' },
-            { label: 'Moderate Listings', desc: 'Approve or remove' },
-            { label: 'View Reports', desc: 'Pending reports' },
-          ].map(a => (
-            <div key={a.label} className="p-3 rounded-xl bg-[#1A1A24] border border-[#2A2A3A]">
-              <p className="text-xs text-white font-medium">{a.label}</p>
-              <p className="text-[10px] text-[#5C5E72]">{a.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── STAFF TAB ────────────────────────────────────
-function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
-  const { ask, dialogProps } = useConfirm();
-  const [staff, setStaff] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { users } = await getAllUsers();
-    const inScope = (users || []).filter(u => u.state === scope.state && u.city === scope.lga && !u.deleted && u.role === 'staff');
-    setStaff(inScope);
-    setLoading(false);
-  }, [scope.state, scope.lga]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function handleDemote(userId: string, email: string) {
-    const demoteOk = await ask({ title: 'Demote this staff?', confirmLabel: 'Demote', variant: 'warning' });
-    if (!demoteOk) return;
-    const { error } = await updateUserRole(userId, 'user', 'staff', profile.user_id, profile.email, email);
-    if (error) { toast.error(error.message || 'Failed'); return; }
-    toast.success('Staff demoted to user');
-    await logAuditAction(profile.user_id, profile.email, 'demote_staff', 'user', userId, 'Staff demoted to user');
-    load(); refresh();
-  }
-
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>;
-
+function OverviewTab({ stats, scope, isStateAdmin }: { stats: any; scope: { state: string; lga: string }; isStateAdmin?: boolean }) {
   return (
     <div className="space-y-3">
-      <ConfirmDialog {...dialogProps} />
-      <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{staff.length} Staff in {scope.lga}</div>
-      {staff.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No staff in this area</div>}
-      {staff.map(s => (
-        <div key={s.id} className="glass rounded-xl p-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white text-xs font-bold">
-              {(s.username || s.email[0]).charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-white truncate">@{s.username || '...'}</span>
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">STAFF</span>
-              </div>
-              <div className="text-[10px] text-[#5C5E72] truncate">{s.email}</div>
-            </div>
-          </div>
-          <div className="flex gap-2 mt-2.5">
-            <button onClick={() => handleDemote(s.user_id, s.email)}
-              className="flex-1 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">
-              Demote to User
-            </button>
-          </div>
-        </div>
-      ))}
+      <div className={`glass rounded-2xl p-4 border ${isStateAdmin ? 'border-emerald-500/10' : 'border-[#3B82F6]/10'}`}>
+        <p className="text-xs text-[#8A8B9C]">
+          Managing {stats.users} users, {stats.staff} staff, {stats.listings} listings in {scope.state}{scope.lga ? ` · ${scope.lga}` : ' (entire state)'}
+        </p>
+        {isStateAdmin && (
+          <p className="text-[10px] text-emerald-400/70 mt-1">
+            As State Admin, you can promote users to Admin (Local Government Admin) within your state.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── USERS TAB ────────────────────────────────────
-function UsersTab({ scope, profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
-  const { ask, dialogProps } = useConfirm();
+// ─── USERS ────────────────────────────────────────
+function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void; isStateAdmin?: boolean; isAssistant?: boolean }) {
+  const { dialogProps } = useConfirm();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    const inScope = (data || []).filter(u => u.state === scope.state && u.city === scope.lga && !u.deleted && u.role === 'user');
-    setUsers(inScope);
-    setLoading(false);
+  useEffect(() => {
+    load();
   }, [scope.state, scope.lga]);
 
-  useEffect(() => { load(); }, [load]);
+  async function load() {
+    setLoading(true);
+    const { users: data } = await getAllUsers();
+    // State Admin: filter by state only; Local Admin: filter by state + lga
+    const filtered = (data || []).filter((u: any) => {
+      const matchesState = u.state === scope.state;
+      const matchesLga = scope.lga ? u.city === scope.lga : true;
+      return matchesState && matchesLga;
+    });
+    setUsers(filtered);
+    setLoading(false);
+  }
 
-  async function handlePromote(userId: string, email: string) {
-    const promoteOk = await ask({ title: 'Promote to staff?', confirmLabel: 'Promote', variant: 'info' });
-    if (!promoteOk) return;
-    const { error } = await updateUserRole(userId, 'staff', 'user', profile.user_id, profile.email, email);
+  async function handleRole(userId: string, newRole: string) {
+    const target = users.find(u => u.user_id === userId);
+    if (!target) return;
+    if (userId === profile.user_id) { toast.error('Cannot change own role'); return; }
+    if (target.role === 'creator' || target.role === 'creator_admin') { toast.error('Creator cannot be changed'); return; }
+    if (target.role === 'worker') { toast.error('Worker role is locked'); return; }
+    if (target.role === 'state_admin' && !isStateAdmin) { toast.error('Only Creator can change State Admin'); return; }
+
+    // State Admin can only assign roles within their state, and can promote to Admin
+    // Assistant is read-only
+    if (isAssistant) { toast.error('Assistant State Admin is read-only'); return; }
+
+    // For local admin: can only change user <-> staff
+    // For state admin: can change user/staff/admin/assistant_state_admin within their state
+    const allowedRoles = isStateAdmin
+      ? ['user', 'staff', 'admin', 'assistant_state_admin']
+      : ['user', 'staff'];
+
+    if (!allowedRoles.includes(newRole)) {
+      toast.error(`As ${profile.role}, you can only assign: ${allowedRoles.join(', ')}`);
+      return;
+    }
+
+    const { error } = await updateUserRole(userId, newRole, target.role, profile.user_id, profile.email, target.email);
     if (error) { toast.error(error.message || 'Failed'); return; }
-    toast.success('User promoted to staff');
-    await logAuditAction(profile.user_id, profile.email, 'promote_staff', 'user', userId, 'User promoted to staff');
-    load(); refresh();
+    await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role from ${target.role} to ${newRole}`);
+    toast.success(`Role changed: ${target.role} → ${newRole}`);
+    load();
+    refresh();
   }
 
   const filtered = users.filter(u => !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
 
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>;
+  const roleColors: Record<string, string> = {
+    creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+    creator_admin: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+    state_admin: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    assistant_state_admin: 'text-teal-400 bg-teal-500/10 border-teal-500/20',
+    admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
+    staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
+    worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
+  };
 
   return (
     <div className="space-y-3">
       <ConfirmDialog {...dialogProps} />
-      <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72]" />
-      <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{filtered.length} Users in {scope.lga}</div>
-      {filtered.length === 0 ? (
-        <div className="text-center py-10 text-xs text-[#5C5E72]">No users found</div>
+      <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white" />
+      {loading ? (
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
-        filtered.map(u => (
-          <div key={u.id} className="glass rounded-xl p-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">
-                {(u.username || u.email[0]).charAt(0).toUpperCase()}
+        <div className="space-y-2">
+          {isAssistant && <p className="text-[10px] text-teal-400/70">Read-only view. You cannot modify users.</p>}
+          {filtered.map(u => (
+            <div key={u.id} className="glass rounded-xl p-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">
+                  {(u.username || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-white truncate">@{u.username || '...'}</span>
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{u.role}</span>
+                  </div>
+                  <span className="text-[10px] text-[#5C5E72]">{u.email} · {u.city}</span>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs font-semibold text-white truncate">@{u.username || '...'}</span>
-                <div className="text-[10px] text-[#5C5E72] truncate">{u.email}</div>
-              </div>
+              {!isAssistant && (
+                <select
+                  value={u.role}
+                  onChange={e => handleRole(u.user_id, e.target.value)}
+                  className="mt-2 w-full h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
+                  disabled={u.role === 'creator' || u.role === 'creator_admin' || u.role === 'worker' || u.role === 'state_admin'}
+                >
+                  <option value="user">User</option>
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin (Local)</option>
+                  {isStateAdmin && <option value="assistant_state_admin">Assistant State Admin</option>}
+                </select>
+              )}
             </div>
-            <button onClick={() => handlePromote(u.user_id, u.email)}
-              className="w-full mt-2 h-7 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">
-              Promote to Staff
-            </button>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-// ─── LISTINGS TAB ─────────────────────────────────
-function ListingsTab({ scope, profile: _profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
-  const { ask, dialogProps } = useConfirm();
+// ─── LISTINGS ─────────────────────────────────────
+function ListingsTab({ scope, refresh }: { scope: { state: string; lga: string }; refresh: () => void }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  useEffect(() => { load(); }, [scope.state, scope.lga]);
+
+  async function load() {
     setLoading(true);
     const { listings: data } = await getAllListingsAdmin();
-    const inScope = (data || []).filter(l => l.state === scope.state && l.city === scope.lga);
-    setListings(inScope);
+    const filtered = (data || []).filter((l: any) => l.state === scope.state && (scope.lga ? l.city === scope.lga : true));
+    setListings(filtered);
     setLoading(false);
-  }, [scope.state, scope.lga]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function handleDelete(listingId: string) {
-    const delOk = await ask({ title: 'Delete this listing?', confirmLabel: 'Delete', variant: 'danger' });
-    if (!delOk) return;
-    const { error } = await deleteListing(listingId);
-    if (error) { toast.error('Delete failed'); return; }
-    toast.success('Listing deleted');
-    load(); refresh();
   }
 
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>;
+  async function handleDelete(id: string) {
+    const { error } = await deleteListing(id);
+    if (error) { toast.error('Failed'); return; }
+    toast.success('Deleted');
+    load();
+    refresh();
+  }
+
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="space-y-3">
-      <ConfirmDialog {...dialogProps} />
-      <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{listings.length} Listings in {scope.lga}</div>
-      {listings.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No listings in this area</div>}
-      {listings.map(l => (
-        <div key={l.id} className="glass rounded-xl p-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-[#1A1A24] flex items-center justify-center overflow-hidden">
-              {l.images?.[0] ? <img src={l.images[0]} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">🏠</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-white truncate">{l.title}</div>
-              <div className="text-[10px] text-[#5C5E72]">₦{l.price?.toLocaleString()} · {l.status || 'available'}</div>
-            </div>
+    <div className="space-y-2">
+      {listings.length === 0 ? <p className="text-xs text-[#5C5E72] text-center py-6">No listings in this area</p> : listings.map(l => (
+        <div key={l.id} className="glass rounded-xl p-3 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-white truncate">{l.title}</p>
+            <p className="text-[10px] text-[#5C5E72]">{l.city} · N{l.price?.toLocaleString()}</p>
           </div>
-          <button onClick={() => handleDelete(l.listing_id)}
-            className="w-full mt-2 h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">
-            Remove Listing
-          </button>
+          <button onClick={() => handleDelete(l.id)} className="h-7 px-2 rounded-lg bg-red-500/10 text-red-400 text-[10px] hover:bg-red-500/20">Delete</button>
         </div>
       ))}
     </div>
   );
 }
 
-// ─── REPORTS TAB ──────────────────────────────────
+// ─── REPORTS ──────────────────────────────────────
 function ReportsTab({ profile }: { profile: Profile }) {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  useEffect(() => { load(); }, []);
+
+  async function load() {
     setLoading(true);
     const { reports: data } = await getReports();
     setReports(data || []);
     setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  }
 
   async function handleResolve(id: string) {
-    const { error } = await resolveReport(id, profile.user_id);
-    if (error) { toast.error('Failed'); return; }
-    toast.success('Resolved'); load();
+    await resolveReport(id, profile.user_id);
+    toast.success('Resolved');
+    load();
   }
 
   async function handleDismiss(id: string) {
-    const { error } = await dismissReport(id, profile.user_id);
-    if (error) { toast.error('Failed'); return; }
-    toast.success('Dismissed'); load();
+    await dismissReport(id, profile.user_id);
+    toast.success('Dismissed');
+    load();
   }
 
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
+
   return (
-    <div className="space-y-3">
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /></div> :
-        reports.length === 0 ? <div className="text-center py-16 text-xs text-[#5C5E72]">No reports</div> :
-        reports.map(r => (
-          <div key={r.id} className="glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${r.status === 'pending' ? 'bg-amber-500/10 text-amber-400' : 'bg-green-500/10 text-green-400'}`}>{r.status}</span>
-            </div>
-            <p className="text-xs text-white font-medium mb-1">{r.reason}</p>
-            {r.status === 'pending' && (
-              <div className="flex gap-2 mt-2">
-                <button onClick={() => handleResolve(r.id)} className="flex-1 h-7 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px]">Resolve</button>
-                <button onClick={() => handleDismiss(r.id)} className="flex-1 h-7 rounded-lg bg-gray-500/10 border border-gray-500/20 text-gray-400 text-[10px]">Dismiss</button>
-              </div>
-            )}
+    <div className="space-y-2">
+      {reports.length === 0 ? <p className="text-xs text-[#5C5E72] text-center py-6">No pending reports</p> : reports.map(r => (
+        <div key={r.id} className="glass rounded-xl p-3">
+          <p className="text-xs text-white">{r.reason}</p>
+          <p className="text-[10px] text-[#5C5E72] mt-1">{r.status}</p>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => handleResolve(r.id)} className="flex-1 h-7 rounded-lg bg-green-500/10 text-green-400 text-[10px] hover:bg-green-500/20">Resolve</button>
+            <button onClick={() => handleDismiss(r.id)} className="flex-1 h-7 rounded-lg bg-red-500/10 text-red-400 text-[10px] hover:bg-red-500/20">Dismiss</button>
           </div>
-        ))
-      }
+        </div>
+      ))}
     </div>
   );
 }
