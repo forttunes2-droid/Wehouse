@@ -798,35 +798,52 @@ export async function sendOfficialMessage(
 }
 
 export async function getOfficialMessagesForUser(userId: string) {
-  // Step 1: Get recipient rows for this user
-  const { data: recipRows, error: recipError } = await supabase
-    .from('official_message_recipients')
-    .select('id, message_id, read, created_at')
-    .eq('recipient_id', userId)
-    .order('created_at', { ascending: false });
+  try {
+    // Step 1: Get recipient rows for this user
+    const { data: recipRows, error: recipError } = await supabase
+      .from('official_message_recipients')
+      .select('id, message_id, read, created_at')
+      .eq('recipient_id', userId)
+      .order('created_at', { ascending: false });
 
-  if (recipError || !recipRows || recipRows.length === 0) {
-    return { messages: [], error: recipError };
+    // If tables don't exist or no rows, return empty (don't show error)
+    if (recipError) {
+      if (recipError.message?.includes('does not exist') || recipError.message?.includes('relation')) {
+        console.warn('[getOfficialMessages] Tables not set up yet');
+        return { messages: [], error: null };
+      }
+      return { messages: [], error: recipError };
+    }
+
+    if (!recipRows || recipRows.length === 0) {
+      return { messages: [], error: null };
+    }
+
+    // Step 2: Get the actual message content for each
+    const messageIds = recipRows.map((r: any) => r.message_id);
+    const { data: messages, error: msgError } = await supabase
+      .from('official_messages')
+      .select('*')
+      .in('id', messageIds);
+
+    if (msgError || !messages) {
+      if (msgError?.message?.includes('does not exist')) {
+        return { messages: [], error: null };
+      }
+      return { messages: [], error: msgError };
+    }
+
+    // Step 3: Combine them
+    const combined = recipRows.map((r: any) => {
+      const msg = messages.find((m: any) => m.id === r.message_id);
+      return { ...r, message: msg || null };
+    }).filter((c: any) => c.message !== null);
+
+    return { messages: combined, error: null };
+  } catch (e: any) {
+    console.error('[getOfficialMessages] unexpected error:', e);
+    return { messages: [], error: null };
   }
-
-  // Step 2: Get the actual message content for each
-  const messageIds = recipRows.map((r: any) => r.message_id);
-  const { data: messages, error: msgError } = await supabase
-    .from('official_messages')
-    .select('*')
-    .in('id', messageIds);
-
-  if (msgError || !messages) {
-    return { messages: [], error: msgError };
-  }
-
-  // Step 3: Combine them
-  const combined = recipRows.map((r: any) => {
-    const msg = messages.find((m: any) => m.id === r.message_id);
-    return { ...r, message: msg || null };
-  }).filter((c: any) => c.message !== null);
-
-  return { messages: combined, error: null };
 }
 
 export async function markOfficialMessageRead(recipientRowId: string) {
