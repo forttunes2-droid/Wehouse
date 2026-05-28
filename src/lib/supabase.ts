@@ -428,13 +428,25 @@ export async function getAvailableChatAgents(listingState?: string, listingLga?:
 
   let agents = (data || []) as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>;
 
+  // Normalize listing location for comparison
+  const normState = (listingState || '').trim().toLowerCase();
+  const normLga = (listingLga || '').trim().toLowerCase();
+
   // Sort: staff matching listing location first, then others
-  if (listingState && agents.length > 1) {
+  if (normState && agents.length > 1) {
     agents.sort((a, b) => {
-      const aMatchesState = a.assigned_state === listingState;
-      const bMatchesState = b.assigned_state === listingState;
-      const aMatchesLga = listingLga ? a.assigned_lga === listingLga : aMatchesState;
-      const bMatchesLga = listingLga ? b.assigned_lga === listingLga : bMatchesState;
+      const aState = (a.assigned_state || '').trim().toLowerCase();
+      const bState = (b.assigned_state || '').trim().toLowerCase();
+      const aLga = (a.assigned_lga || '').trim().toLowerCase();
+      const bLga = (b.assigned_lga || '').trim().toLowerCase();
+
+      // Check if state matches (handles "Abuja (FCT)" vs "Abuja")
+      const aMatchesState = aState === normState || aState.includes(normState) || normState.includes(aState);
+      const bMatchesState = bState === normState || bState.includes(normState) || normState.includes(bState);
+
+      // Check if LGA/city matches
+      const aMatchesLga = normLga ? (aLga === normLga || aLga.includes(normLga) || normLga.includes(aLga)) : aMatchesState;
+      const bMatchesLga = normLga ? (bLga === normLga || bLga.includes(normLga) || normLga.includes(bLga)) : bMatchesState;
 
       // Perfect match (state + lga) comes first
       if (aMatchesLga && !bMatchesLga) return -1;
