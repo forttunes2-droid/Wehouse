@@ -417,8 +417,8 @@ export { getCreatorListings as getListingsByOwner };
 //   State Admin: can appoint staff, admin, assistant_state_admin, or themselves
 //   Creator: can appoint anyone (staff, admin, assistant_state_admin, state_admin)
 // Get all active staff who can be assigned as chat agents.
-// NOT filtered by location — staff can handle enquiries for listings anywhere.
-export async function getAvailableChatAgents() {
+// Staff matching the listing's location appear FIRST, then others follow.
+export async function getAvailableChatAgents(listingState?: string, listingLga?: string) {
   const { data, error } = await supabase
     .from('profiles')
     .select('user_id, username, avatar_url, role, assigned_state, assigned_lga')
@@ -426,7 +426,28 @@ export async function getAvailableChatAgents() {
     .eq('deleted', false)
     .order('username', { ascending: true });
 
-  const agents = (data || []) as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>;
+  let agents = (data || []) as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>;
+
+  // Sort: staff matching listing location first, then others
+  if (listingState && agents.length > 1) {
+    agents.sort((a, b) => {
+      const aMatchesState = a.assigned_state === listingState;
+      const bMatchesState = b.assigned_state === listingState;
+      const aMatchesLga = listingLga ? a.assigned_lga === listingLga : aMatchesState;
+      const bMatchesLga = listingLga ? b.assigned_lga === listingLga : bMatchesState;
+
+      // Perfect match (state + lga) comes first
+      if (aMatchesLga && !bMatchesLga) return -1;
+      if (!aMatchesLga && bMatchesLga) return 1;
+
+      // State match comes next
+      if (aMatchesState && !bMatchesState) return -1;
+      if (!aMatchesState && bMatchesState) return 1;
+
+      // Alphabetical for same tier
+      return (a.username || '').localeCompare(b.username || '');
+    });
+  }
 
   return { agents: agents.length > 0 ? agents : null, error };
 }

@@ -53,17 +53,20 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       setLoadingAgents(false);
       return;
     }
-    // Admin+ — fetch ALL active staff (not filtered by location)
+    // Admin+ — fetch all staff, sorted by location match (listing location first)
     async function loadAgents() {
       setLoadingAgents(true);
-      const { agents } = await getAvailableChatAgents();
+      const { agents } = await getAvailableChatAgents(location.state, location.city);
       const list = agents || [];
       setAvailableAgents(list);
       if (list.length > 0) setChatAgentId(list[0].user_id);
       else setChatAgentId('');
       setLoadingAgents(false);
     }
-    loadAgents();
+    // Reload when location changes so sorting updates
+    if (location.state) {
+      loadAgents();
+    }
   }, [profile.role, profile.user_id, location.state, location.city]);
 
   // Image upload handler
@@ -481,11 +484,14 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
               onChange={(e) => setChatAgentId(e.target.value)}
               className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
             >
-              {availableAgents.map(a => (
-                <option key={a.user_id} value={a.user_id}>
-                  @{a.username || 'Unknown'} ({a.role})
-                </option>
-              ))}
+              {availableAgents.map(a => {
+                const matchesLocation = a.assigned_state === location.state && a.assigned_lga === location.city;
+                return (
+                  <option key={a.user_id} value={a.user_id}>
+                    @{a.username || 'Unknown'} {matchesLocation ? '✓' : `· ${a.assigned_lga || '?'}`}
+                  </option>
+                );
+              })}
             </select>
           )}
           <p className="text-[9px] text-[#5C5E72] mt-2">
