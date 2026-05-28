@@ -30,7 +30,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat }: StaffD
   }, []);
 
   const [myListings, setMyListings] = useState<Listing[]>([]);
-  const [enquiryDetails, setEnquiryDetails] = useState<Array<{ conv: Conversation; otherName: string; lastMessage: string; unread: number }>>([]);
+  const [enquiryDetails, setEnquiryDetails] = useState<Array<{ conv: Conversation; otherName: string; lastMessage: string; unread: number; status: string; listingId: string | null }>>([]);
   const [stats, setStats] = useState({ listings: 0, enquiries: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -62,6 +62,8 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat }: StaffD
           otherName: otherProfile?.username || `User ${otherId.slice(-4)}`,
           lastMessage: lastMsg?.content || conv.last_message || 'No messages yet',
           unread: isUnread ? 1 : 0,
+          status: conv.status,
+          listingId: conv.listing_id,
         };
       })
     );
@@ -254,7 +256,7 @@ function MyListingsTab({ listings, loading, onRefresh }: { listings: Listing[]; 
 
 // ─── ENQUIRIES ─────────────────────────────────────
 function EnquiriesTab({ enquiries, loading, onGoToChat }: {
-  enquiries: Array<{ conv: Conversation; otherName: string; lastMessage: string; unread: number }>;
+  enquiries: Array<{ conv: Conversation; otherName: string; lastMessage: string; unread: number; status: string; listingId: string | null }>;
   loading: boolean;
   onGoToChat?: (convId?: string) => void;
 }) {
@@ -273,7 +275,7 @@ function EnquiriesTab({ enquiries, loading, onGoToChat }: {
       ) : (
         <>
           <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{enquiries.length} Enquiries</div>
-          {enquiries.map(({ conv, otherName, lastMessage, unread }) => (
+          {enquiries.map(({ conv, otherName, lastMessage, unread, status }) => (
             <button
               key={conv.id}
               onClick={() => onGoToChat?.(conv.id)}
@@ -285,7 +287,16 @@ function EnquiriesTab({ enquiries, loading, onGoToChat }: {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-white truncate">@{otherName}</span>
-                  {unread > 0 && <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${
+                      status === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                      status === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                      'bg-[#1A1A24] text-[#5C5E72] border-[#232330]'
+                    }`}>
+                      {status}
+                    </span>
+                    {unread > 0 && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                  </div>
                 </div>
                 <p className="text-xs text-[#8A8B9C] truncate">{lastMessage}</p>
               </div>

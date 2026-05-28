@@ -677,7 +677,29 @@ export async function markMessagesSeen(conversationId: string, userId: string) {
 export async function createConversation(userA: string, userB: string, listingId?: string | null) {
   const { data, error } = await supabase
     .from('conversations')
-    .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null })
+    .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null, status: 'pending' })
+    .select()
+    .single();
+  return { conversation: data as Conversation | null, error };
+}
+
+// Accept an enquiry — unlocks full conversation
+export async function acceptEnquiry(conversationId: string) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .update({ status: 'active' })
+    .eq('id', conversationId)
+    .select()
+    .single();
+  return { conversation: data as Conversation | null, error };
+}
+
+// Close a conversation
+export async function closeConversation(conversationId: string) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .update({ status: 'closed' })
+    .eq('id', conversationId)
     .select()
     .single();
   return { conversation: data as Conversation | null, error };

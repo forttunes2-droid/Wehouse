@@ -307,6 +307,7 @@ export interface Conversation {
   participant_a: string;
   participant_b: string;
   listing_id: string | null;  // Which listing this conversation is about
+  status: 'pending' | 'active' | 'closed';  // pending=initial enquiry, active=unlocked, closed=resolved
   last_message: string | null;
   last_message_at: string;
   unread_a: number;

@@ -6,9 +6,12 @@ import {
   sendMessage,
   markMessagesSeen,
   getOfficialMessagesForUser,
+  acceptEnquiry,
+  closeConversation,
 } from '@/lib/supabase';
 import OfficialChannel from '@/components/OfficialChannel';
 import VerifiedBadge from '@/components/VerifiedBadge';
+import { toast } from 'sonner';
 import type { Profile, Conversation, Message, Listing } from '@/types';
 
 interface ChatProps {
@@ -161,6 +164,12 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const otherId =
       activeConv.participant_a === profile.user_id ? activeConv.participant_b : activeConv.participant_a;
 
+    // Is this user the agent (staff/admin) or the enquirer?
+    const isAgent = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'state_admin' || profile.role === 'assistant_state_admin' || profile.role === 'creator';
+    const isPending = activeConv.status === 'pending';
+    const isActive = activeConv.status === 'active';
+    const isClosed = activeConv.status === 'closed';
+
     return (
       <div className="min-h-screen bg-transparent flex flex-col">
         {/* Header */}
@@ -180,10 +189,15 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-xs font-bold">
             {otherId.slice(0, 2).toUpperCase()}
           </div>
-          <span className="text-sm font-semibold">@{usernames[otherId] || `User ${otherId.slice(-4)}`}</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold block truncate">@{usernames[otherId] || `User ${otherId.slice(-4)}`}</span>
+            {linkedListing && (
+              <span className="text-[9px] text-[#5C5E72] truncate block">Re: {linkedListing.title}</span>
+            )}
+          </div>
         </header>
 
-        {/* Listing Context Banner — shows which listing this chat is about */}
+        {/* Listing Context Banner */}
         {linkedListing && (
           <div className="bg-[#12121A] border-b border-[#3B82F6]/10 px-4 py-2.5 flex items-center gap-3">
             <img
@@ -195,9 +209,59 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
               <p className="text-xs font-medium text-white truncate">{linkedListing.title}</p>
               <p className="text-[10px] text-[#5C5E72]">{linkedListing.city} · ₦{linkedListing.price?.toLocaleString()}</p>
             </div>
-            <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 flex-shrink-0">
-              Enquiry
+            <span className={`text-[9px] px-2 py-0.5 rounded-full flex-shrink-0 border ${
+              isPending ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+              isActive ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+              'bg-[#1A1A24] text-[#5C5E72] border-[#232330]'
+            }`}>
+              {isPending ? 'Pending' : isActive ? 'Active' : 'Closed'}
             </span>
+          </div>
+        )}
+
+        {/* Status Banner — Accept/Decline for agent, Waiting for user */}
+        {isPending && (
+          <div className="bg-amber-500/5 border-b border-amber-500/10 px-4 py-3">
+            {isAgent ? (
+              <div>
+                <p className="text-xs text-amber-400 font-medium mb-2">New Enquiry — Accept to unlock conversation</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      const { error } = await acceptEnquiry(activeConv.id);
+                      if (error) { toast.error('Failed to accept'); return; }
+                      toast.success('Enquiry accepted — conversation unlocked');
+                      setActiveConv(prev => prev ? { ...prev, status: 'active' } : prev);
+                    }}
+                    className="flex-1 h-8 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-[11px] font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const { error } = await closeConversation(activeConv.id);
+                      if (error) { toast.error('Failed to decline'); return; }
+                      toast.success('Enquiry declined');
+                      setActiveConv(prev => prev ? { ...prev, status: 'closed' } : prev);
+                    }}
+                    className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] text-[11px] font-medium hover:text-red-400 hover:border-red-500/30 transition-colors"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <p className="text-xs text-amber-400/80">Waiting for agent to accept your enquiry...</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isClosed && (
+          <div className="bg-[#1A1A24] border-b border-[#232330] px-4 py-3 text-center">
+            <p className="text-xs text-[#5C5E72]">This conversation has been closed</p>
           </div>
         )}
 
@@ -226,24 +290,36 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <form onSubmit={handleSend} className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 flex gap-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 h-11 bg-[#1A1A24] rounded-xl px-4 text-sm text-white placeholder-[#8A8B9C] outline-none border border-[#2A2A3A] focus:border-[#3B82F6]/50 transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim()}
-            className="w-11 h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-            </svg>
-          </button>
-        </form>
+        {/* Input — BLOCKED unless status is 'active' */}
+        {isActive ? (
+          <form onSubmit={handleSend} className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 flex gap-3">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 h-11 bg-[#1A1A24] rounded-xl px-4 text-sm text-white placeholder-[#8A8B9C] outline-none border border-[#2A2A3A] focus:border-[#3B82F6]/50 transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className="w-11 h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+            </button>
+          </form>
+        ) : isPending ? (
+          <div className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 text-center">
+            <p className="text-xs text-[#5C5E72]">
+              {isAgent ? 'Accept the enquiry above to start chatting' : 'You can send more messages once the agent accepts'}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 text-center">
+            <p className="text-xs text-[#5C5E72]">This conversation is closed</p>
+          </div>
+        )}
       </div>
     );
   }
