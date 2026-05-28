@@ -141,14 +141,15 @@ export async function getPublicAgentInfo(authId: string) {
 }
 
 // Same as above but lookup by user_id (for chat_agent_id field on listings)
+// Includes phone so users can call the agent directly
 export async function getPublicAgentByUserId(userId: string) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('user_id, username, avatar_url, role')
+    .select('user_id, username, avatar_url, role, phone')
     .eq('user_id', userId)
     .maybeSingle();
   return {
-    agent: data as { user_id: string; username: string | null; avatar_url: string | null; role: string } | null,
+    agent: data as { user_id: string; username: string | null; avatar_url: string | null; role: string; phone: string | null } | null,
     error,
   };
 }
