@@ -221,7 +221,7 @@ export default function Dashboard({
               </div>
             </button>
           )}
-          {onGoToProfileEdit && (
+          {onGoToProfileEdit && profile.role !== 'staff' && (
             <button
               onClick={onGoToProfileEdit}
               className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group"
@@ -237,6 +237,24 @@ export default function Dashboard({
                 <div className="text-[10px] text-[#5C5E72]">Photo, bio, details</div>
               </div>
             </button>
+          )}
+          {/* Staff — show assigned location instead of Edit Profile */}
+          {profile.role === 'staff' && (
+            <div className="glass rounded-2xl p-4 flex items-center gap-3 border border-amber-500/10">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Assigned Location</div>
+                <div className="text-[10px] text-amber-400">
+                  {profile.assigned_lga || profile.city || 'Not set'}, {profile.assigned_state || profile.state || 'Not set'}
+                </div>
+                <div className="text-[9px] text-[#5C5E72] mt-0.5">Contact admin to change</div>
+              </div>
+            </div>
           )}
         </div>
 

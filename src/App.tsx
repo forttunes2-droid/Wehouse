@@ -291,6 +291,29 @@ export default function App() {
       case 'chat':
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} conversationId={chatConvId} />;
       case 'profile_edit':
+        // Staff cannot edit their profile — location is assigned by admin/creator
+        if (profile.role === 'staff') {
+          return (
+            <div className="min-h-screen bg-transparent flex items-center justify-center px-5">
+              <div className="text-center max-w-sm">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-semibold text-white mb-2">Profile Locked</h2>
+                <p className="text-sm text-[#8A8B9C] mb-4">As a staff member, your profile is managed by the admin. You cannot edit your location or other details directly.</p>
+                <p className="text-xs text-[#5C5E72] mb-6">Contact your admin if you need any changes.</p>
+                <button
+                  onClick={() => goTo('profile')}
+                  className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Back to Profile
+                </button>
+              </div>
+            </div>
+          );
+        }
         return <ProfileEdit profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('profile')} />;
       case 'account':
         return <AccountCenter profile={profile} onBack={() => goTo('profile')} onGoToPrivacy={goToPrivacy} onGoToSecurity={goToSecurity} onGoToProfileEdit={goToProfileEdit} />;

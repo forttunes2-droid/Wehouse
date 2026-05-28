@@ -13,91 +13,99 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
   const initials = (profile.username || profile.email[0]).toUpperCase();
   const displayName = profile.username || profile.email.split('@')[0];
 
+  const isStaff = profile.role === 'staff';
+
+  type SectionItem = {
+    label: string;
+    desc: string;
+    icon: React.ReactNode;
+    action?: () => void;
+    value?: string;
+    valueColor?: string;
+  };
+
+  const personalItems: SectionItem[] = [
+    // Staff cannot edit profile — location is assigned by admin
+    ...(!isStaff ? [{
+      label: 'Edit Profile',
+      desc: 'Photo, bio, occupation, location',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      ),
+      action: onGoToProfileEdit,
+    }] : []),
+    {
+      label: 'Username',
+      desc: `@${profile.username || 'not set'}`,
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M16 12l-4-4M16 12l-4 4" />
+          <path d="M8 12h8" />
+        </svg>
+      ),
+      action: isStaff ? undefined : onGoToProfileEdit,
+      value: `@${profile.username || 'not set'}`,
+    },
+    {
+      label: 'Email',
+      desc: profile.email,
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg>
+      ),
+      value: profile.email_verified ? 'Verified' : 'Unverified',
+      valueColor: profile.email_verified ? 'text-green-400' : 'text-amber-400',
+    },
+    {
+      label: 'Member Since',
+      desc: new Date(profile.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      ),
+    },
+  ];
+
+  const privacyItems: SectionItem[] = [
+    {
+      label: 'Privacy Settings',
+      desc: 'Profile visibility, search, activity',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      ),
+      action: onGoToPrivacy,
+    },
+  ];
+
+  const securityItems: SectionItem[] = [
+    {
+      label: 'Security Center',
+      desc: 'Sessions, login history, password',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      ),
+      action: onGoToSecurity,
+    },
+  ];
+
   const sections = [
-    {
-      title: 'Personal Information',
-      items: [
-        {
-          label: 'Edit Profile',
-          desc: 'Photo, bio, occupation, location',
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          ),
-          action: onGoToProfileEdit,
-        },
-        {
-          label: 'Username',
-          desc: `@${profile.username || 'not set'}`,
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-              <circle cx="12" cy="12" r="10" />
-              <path d="M16 12l-4-4M16 12l-4 4" />
-              <path d="M8 12h8" />
-            </svg>
-          ),
-          action: onGoToProfileEdit,
-          value: `@${profile.username || 'not set'}`,
-        },
-        {
-          label: 'Email',
-          desc: profile.email,
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-              <polyline points="22,6 12,13 2,6" />
-            </svg>
-          ),
-          value: profile.email_verified ? 'Verified' : 'Unverified',
-          valueColor: profile.email_verified ? 'text-green-400' : 'text-amber-400',
-        },
-        {
-          label: 'Member Since',
-          desc: new Date(profile.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-          ),
-        },
-      ],
-    },
-    {
-      title: 'Privacy',
-      items: [
-        {
-          label: 'Privacy Settings',
-          desc: 'Profile visibility, search, activity',
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          ),
-          action: onGoToPrivacy,
-        },
-      ],
-    },
-    {
-      title: 'Security',
-      items: [
-        {
-          label: 'Security Center',
-          desc: 'Sessions, login history, password',
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          ),
-          action: onGoToSecurity,
-        },
-      ],
-    },
+    { title: 'Personal Information', items: personalItems },
+    { title: 'Privacy', items: privacyItems },
+    { title: 'Security', items: securityItems },
   ];
 
   return (
@@ -135,6 +143,19 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
             </div>
           </div>
         </div>
+
+        {/* Staff notice — profile managed by admin */}
+        {isStaff && (
+          <div className="rounded-2xl p-4 bg-amber-500/5 border border-amber-500/10 flex items-start gap-3">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div>
+              <p className="text-xs font-medium text-amber-400">Staff Profile Managed by Admin</p>
+              <p className="text-[10px] text-[#8A8B9C] mt-0.5">Your profile details and location are set by the administrator. Contact them if you need changes.</p>
+            </div>
+          </div>
+        )}
 
         {/* Sections */}
         {sections.map((section) => (
