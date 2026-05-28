@@ -221,11 +221,24 @@ export const ROLE_RANK: Record<UserRole, number> = {
   user: 0,
   worker: 0,          // same level as user
   staff: 1,
-  admin: 2,           // local admin — manages one LGA
-  assistant_state_admin: 3, // helps state admin
-  state_admin: 4,     // state admin — manages all in their state
+  admin: 2,           // Head of Staff — manages staff in one LGA
+  assistant_state_admin: 3, // Assistant Admin — helps Admin
+  state_admin: 4,     // Admin — manages entire state
   creator: 5,         // highest — manages entire platform
   creator_admin: 5,   // legacy alias for creator
+};
+
+// ─── ROLE DISPLAY LABELS ───────────────────────────
+// User-friendly names shown in UI. Internal role keys stay the same.
+export const ROLE_LABELS: Record<UserRole, string> = {
+  user: 'User',
+  worker: 'Worker',
+  staff: 'Staff',
+  admin: 'Head of Staff',
+  assistant_state_admin: 'Assistant Admin',
+  state_admin: 'Admin',
+  creator: 'Creator',
+  creator_admin: 'Creator',
 };
 
 export function roleRank(role: string): number {

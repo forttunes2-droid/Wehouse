@@ -8,7 +8,7 @@ import {
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
 } from '@/lib/supabase';
-import { WORKER_OCCUPATION_LABELS } from '@/types';
+import { WORKER_OCCUPATION_LABELS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking } from '@/types';
@@ -327,7 +327,9 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
     if (error) { toast.error(error.message || 'Failed'); return; }
 
     await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role from ${target.role} to ${newRole}`);
-    toast.success(`Role changed: ${target.role} → ${newRole}`);
+    const oldLabel = ROLE_LABELS[target.role as keyof typeof ROLE_LABELS] || target.role;
+    const newLabel = ROLE_LABELS[newRole as keyof typeof ROLE_LABELS] || newRole;
+    toast.success(`Role changed: ${oldLabel} → ${newLabel}`);
     load();
   }
 
@@ -409,7 +411,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                     <div className="flex items-center gap-2">
                       <div className="text-xs font-semibold text-white truncate">@{u.username || '...'}</div>
                       <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${roleBadge}`}>
-                        {u.role}
+                        {ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}
                       </span>
                       {isDeleted && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">DELETED</span>}
                     </div>
@@ -440,11 +442,11 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                         onChange={(e) => handleRole(u.user_id, e.target.value)}
                         className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
                       >
-                        <option value="user">User</option>
-                        <option value="staff">Staff</option>
-                        <option value="admin">Admin</option>
-                        <option value="assistant_state_admin">Assistant State Admin</option>
-                        <option value="state_admin">State Admin</option>
+                        <option value="user">{ROLE_LABELS.user}</option>
+                        <option value="staff">{ROLE_LABELS.staff}</option>
+                        <option value="admin">{ROLE_LABELS.admin}</option>
+                        <option value="assistant_state_admin">{ROLE_LABELS.assistant_state_admin}</option>
+                        <option value="state_admin">{ROLE_LABELS.state_admin}</option>
                       </select>
                     )}
 
@@ -571,7 +573,7 @@ function ListingsTab({ profile }: { profile: Profile }) {
                     <div className="flex items-center gap-1.5">
                       <span className="text-[9px] text-[#5C5E72] w-12 flex-shrink-0">Chat with</span>
                       <span className={`text-[10px] font-medium truncate ${agent.role === 'staff' ? 'text-amber-400' : 'text-[#3B82F6]'}`}>
-                        @{agent.username} ({agent.role})
+                        @{agent.username} ({ROLE_LABELS[agent.role as keyof typeof ROLE_LABELS] || agent.role})
                       </span>
                     </div>
                   ) : (
@@ -1058,7 +1060,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
             </div>
           </div>
           <div className="p-4">
-            {/* Send mode toggle — Creator sees both, State Admin sees Broadcast only */}
+            {/* Send mode toggle — Creator sees both, Admin sees Broadcast only */}
             <div className="flex gap-1 bg-[#1A1A24] rounded-lg p-1 mb-3">
               <button
                 onClick={() => { setSendMode('all'); setSelectedUsers([]); }}
@@ -1336,7 +1338,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
           <div className="w-10 h-10 rounded-full bg-[#3B82F6]/10 flex items-center justify-center mx-auto mb-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
           </div>
-          <p className="text-xs text-[#8A8B9C]">Only the Creator and State Admins can send announcements.</p>
+          <p className="text-xs text-[#8A8B9C]">Only the Creator and Admins can send announcements.</p>
         </div>
       )}
     </div>
@@ -1349,7 +1351,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
 interface HotelRoomLite { room_id: number; price_per_night: number; room_type: string; }
 
-function HotelsTab({ profile }: { profile: Profile }) {
+export function HotelsTab({ profile }: { profile: Profile }) {
   const [hotels, setHotels] = useState<(Hotel & { hotel_rooms: HotelRoomLite[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'add' | 'edit' | 'rooms' | 'bookings'>('list');

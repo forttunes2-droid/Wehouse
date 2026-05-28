@@ -6,8 +6,9 @@ import {
   updateUserRole, deleteListing,
 } from '@/lib/supabase';
 import type { Profile } from '@/types';
-import { AnnouncementsTab } from './CreatorDashboard';
+import { AnnouncementsTab, HotelsTab } from './CreatorDashboard';
 import { isCreator } from '@/hooks/useAuth';
+import { ROLE_LABELS } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
@@ -20,10 +21,10 @@ interface AdminDashboardProps {
   isAssistant?: boolean;
 }
 
-type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports' | 'announcements';
+type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports' | 'announcements' | 'hotels';
 
 export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssistant }: AdminDashboardProps) {
-  const dashboardLabel = isStateAdmin ? 'State Admin' : isAssistant ? 'Assistant' : 'Admin';
+  const dashboardLabel = isStateAdmin ? ROLE_LABELS.state_admin : isAssistant ? ROLE_LABELS.assistant_state_admin : ROLE_LABELS.admin;
   const headerGradient = isStateAdmin ? 'from-emerald-600 to-emerald-800' : isAssistant ? 'from-teal-600 to-teal-800' : 'from-[#3B82F6] to-[#2563EB]';
   const badgeClass = isStateAdmin ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : isAssistant ? 'text-teal-400 bg-teal-500/10 border-teal-500/20' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20';
 
@@ -32,7 +33,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview','staff','users','listings','reports','announcements'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','staff','users','listings','reports','announcements','hotels'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
 
@@ -44,7 +45,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
   const [stats, setStats] = useState({ users: 0, staff: 0, listings: 0, workers: 0, reports: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // State Admin sees entire state; Local Admin sees only their LGA
+  // Admin (state_admin) sees entire state; Head of Staff (admin) sees only their LGA
   const scope = {
     state: profile.assigned_state || profile.state || '',
     lga: isStateAdmin || isAssistant ? '' : (profile.assigned_lga || profile.city || ''),
@@ -59,7 +60,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
         getAllUsers(), getAllListingsAdmin(), getAllWorkers(), getReports()
       ]);
 
-      // State Admin: match state only; Local Admin: match state + lga
+      // Admin: match state only; Head of Staff: match state + lga
       const inScope = (item: any) => {
         const matchesState = item.state === scope.state;
         const matchesLga = scope.lga ? item.city === scope.lga : true;
@@ -88,6 +89,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
     { id: 'listings', label: 'Listings', icon: 'M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zm0-6v2h18V3H3z' },
     { id: 'reports', label: 'Reports', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
     { id: 'announcements', label: 'Announce', icon: 'M11 5.882V19.24a1.4 1.4 0 0 1-2.338.995l-3.867-3.43a1.4 1.4 0 0 0-.93-.338H2a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1.865a1.4 1.4 0 0 0 .93-.338l3.867-3.43A1.4 1.4 0 0 1 11 5.882z' },
+    { id: 'hotels', label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
   ];
 
   return (
@@ -100,7 +102,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg font-bold text-white">{dashboardLabel} Dashboard</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>{profile.role}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>{ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}</span>
             </div>
             <p className="text-xs text-white/60">
               {scope.state}{scope.lga ? ` · ${scope.lga}` : ' (State-wide)'}
@@ -150,6 +152,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
         {activeTab === 'listings' && <ListingsTab scope={scope} refresh={refresh} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={scope} />}
+        {activeTab === 'hotels' && <HotelsTab profile={profile} />}
       </div>
     </div>
   );
@@ -165,7 +168,7 @@ function OverviewTab({ stats, scope, isStateAdmin }: { stats: any; scope: { stat
         </p>
         {isStateAdmin && (
           <p className="text-[10px] text-emerald-400/70 mt-1">
-            As State Admin, you can promote users to Admin (Local Government Admin) within your state.
+            As Admin, you can promote users to Head of Staff within your state.
           </p>
         )}
       </div>
@@ -207,7 +210,7 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
 
     // State Admin can only assign roles within their state, and can promote to Admin
     // Assistant is read-only
-    if (isAssistant) { toast.error('Assistant State Admin is read-only'); return; }
+    if (isAssistant) { toast.error('Assistant Admin is read-only'); return; }
 
     // For local admin: can only change user <-> staff
     // For state admin: can change user/staff/admin/assistant_state_admin within their state
@@ -216,14 +219,17 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
       : ['user', 'staff'];
 
     if (!allowedRoles.includes(newRole)) {
-      toast.error(`As ${profile.role}, you can only assign: ${allowedRoles.join(', ')}`);
+      const roleNames = allowedRoles.map(r => ROLE_LABELS[r as keyof typeof ROLE_LABELS] || r);
+      toast.error(`As ${ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}, you can only assign: ${roleNames.join(', ')}`);
       return;
     }
 
     const { error } = await updateUserRole(userId, newRole, target.role, profile.user_id, profile.email, target.email);
     if (error) { toast.error(error.message || 'Failed'); return; }
     await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role from ${target.role} to ${newRole}`);
-    toast.success(`Role changed: ${target.role} → ${newRole}`);
+    const oldLabel = ROLE_LABELS[target.role as keyof typeof ROLE_LABELS] || target.role;
+    const newLabel = ROLE_LABELS[newRole as keyof typeof ROLE_LABELS] || newRole;
+    toast.success(`Role changed: ${oldLabel} → ${newLabel}`);
     load();
     refresh();
   }
@@ -259,7 +265,7 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-white truncate">@{u.username || '...'}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{u.role}</span>
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}</span>
                   </div>
                   <span className="text-[10px] text-[#5C5E72]">{u.email} · {u.city}</span>
                 </div>
@@ -273,8 +279,8 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
                 >
                   <option value="user">User</option>
                   <option value="staff">Staff</option>
-                  <option value="admin">Admin (Local)</option>
-                  {isStateAdmin && <option value="assistant_state_admin">Assistant State Admin</option>}
+                  <option value="admin">{ROLE_LABELS.admin}</option>
+                  {isStateAdmin && <option value="assistant_state_admin">{ROLE_LABELS.assistant_state_admin}</option>}
                 </select>
               )}
             </div>
