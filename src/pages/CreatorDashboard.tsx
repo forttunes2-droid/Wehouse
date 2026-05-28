@@ -6,17 +6,19 @@ import {
   resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
+  getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
-import type { Profile, Listing, AnnouncementTargetType } from '@/types';
+import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking } from '@/types';
+import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import SettingsTab from './SettingsTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -43,7 +45,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements','hotels'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -70,6 +72,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
     { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
     { id: 'workers' as AdminTab, label: 'Workers', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z' },
     { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
+    { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
   ];
 
   return (
@@ -143,6 +146,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
         {activeTab === 'settings' && <SettingsTab profile={profile} isCreator={isCreatorAccount} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
+        {activeTab === 'hotels' && <HotelsTab profile={profile} />}
       </main>
     </div>
   );
@@ -1333,6 +1337,512 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
           </div>
           <p className="text-xs text-[#8A8B9C]">Only the Creator and State Admins can send announcements.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// HOTELS MANAGEMENT TAB
+// ═══════════════════════════════════════════════════════════
+
+interface HotelRoomLite { room_id: number; price_per_night: number; room_type: string; }
+
+function HotelsTab({ profile }: { profile: Profile }) {
+  const [hotels, setHotels] = useState<(Hotel & { hotel_rooms: HotelRoomLite[] })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'add' | 'edit' | 'rooms' | 'bookings'>('list');
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [hotelBookings, setHotelBookings] = useState<(HotelBooking & { profiles: { username: string | null; phone: string | null }; hotel_rooms: { room_type: string } })[]>([]);
+
+  // Form states
+  const [formName, setFormName] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [formState, setFormState] = useState('');
+  const [formCity, setFormCity] = useState('');
+  const [formArea, setFormArea] = useState('');
+  const [formAddress, setFormAddress] = useState('');
+  const [formAmenities, setFormAmenities] = useState<string[]>([]);
+  const [formFeatured, setFormFeatured] = useState(false);
+  const [formImages, setFormImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const nigerianStates = ['Abia','Abuja','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno','Cross River','Delta','Ebonyi','Edo','Ekiti','Enugu','Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi','Kwara','Lagos','Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto','Taraba','Yobe','Zamfara'];
+
+  useEffect(() => { loadHotels(); }, []);
+
+  async function loadHotels() {
+    setLoading(true);
+    // Creator sees all hotels, admin sees all hotels (same pattern as listings)
+    const { hotels: data } = await getHotels({});
+    setHotels(data || []);
+    setLoading(false);
+  }
+
+  function resetForm() {
+    setFormName(''); setFormDesc(''); setFormState(''); setFormCity(''); setFormArea('');
+    setFormAddress(''); setFormAmenities([]); setFormFeatured(false); setFormImages([]);
+  }
+
+  function startAdd() { resetForm(); setView('add'); }
+
+  function startEdit(hotel: Hotel) {
+    setSelectedHotel(hotel);
+    setFormName(hotel.name); setFormDesc(hotel.description || '');
+    setFormState(hotel.state); setFormCity(hotel.city); setFormArea(hotel.area || '');
+    setFormAddress(hotel.address || ''); setFormAmenities(hotel.amenities || []);
+    setFormFeatured(hotel.featured); setFormImages(hotel.images || []);
+    setView('edit');
+  }
+
+  function startRooms(hotel: Hotel) {
+    setSelectedHotel(hotel);
+    setView('rooms');
+  }
+
+  async function startBookings(hotel: Hotel) {
+    setSelectedHotel(hotel);
+    const { bookings } = await getHotelBookingsForHotel(hotel.hotel_id);
+    setHotelBookings(bookings || []);
+    setView('bookings');
+  }
+
+  async function handleCreate() {
+    if (!formName.trim() || !formCity.trim() || !formState.trim()) {
+      toast.error('Name, state and city are required'); return;
+    }
+    const { hotel, error } = await createHotel({
+      name: formName.trim(),
+      description: formDesc.trim() || null,
+      state: formState,
+      city: formCity.trim(),
+      area: formArea.trim() || null,
+      address: formAddress.trim() || null,
+      images: formImages,
+      amenities: formAmenities,
+      owner_id: profile.user_id,
+      status: 'active',
+      featured: formFeatured,
+    });
+    if (error || !hotel) { toast.error('Failed to create hotel'); return; }
+    toast.success('Hotel created!');
+    resetForm();
+    setView('list');
+    loadHotels();
+  }
+
+  async function handleUpdate() {
+    if (!selectedHotel) return;
+    if (!formName.trim() || !formCity.trim() || !formState.trim()) {
+      toast.error('Name, state and city are required'); return;
+    }
+    const { error } = await updateHotel(selectedHotel.hotel_id, {
+      name: formName.trim(),
+      description: formDesc.trim() || null,
+      state: formState,
+      city: formCity.trim(),
+      area: formArea.trim() || null,
+      address: formAddress.trim() || null,
+      images: formImages,
+      amenities: formAmenities,
+      featured: formFeatured,
+    });
+    if (error) { toast.error('Failed to update hotel'); return; }
+    toast.success('Hotel updated!');
+    setView('list');
+    loadHotels();
+  }
+
+  async function handleDelete(hotelId: number) {
+    if (!confirm('Delete this hotel? All rooms and bookings will be lost.')) return;
+    const { error } = await deleteHotel(hotelId);
+    if (error) { toast.error('Failed to delete'); return; }
+    toast.success('Hotel deleted');
+    loadHotels();
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 12 * 1024 * 1024) { toast.error('Max 12MB per image'); return; }
+    setUploading(true);
+    const { url, error } = await uploadHotelImage(file, 0);
+    setUploading(false);
+    if (error || !url) { toast.error('Upload failed'); return; }
+    setFormImages(prev => [...prev, url]);
+    toast.success('Image added');
+  }
+
+  function removeImage(idx: number) {
+    setFormImages(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function toggleAmenity(a: string) {
+    setFormAmenities(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
+  }
+
+  async function handleUpdateBookingStatus(bookingId: number, status: HotelBooking['status']) {
+    const { error } = await updateBookingStatus(bookingId, status);
+    if (error) { toast.error('Failed to update'); return; }
+    toast.success(`Booking ${status}`);
+    if (selectedHotel) startBookings(selectedHotel);
+  }
+
+  // ─── ADD / EDIT FORM ──────────────────────────────────
+  if (view === 'add' || view === 'edit') {
+    const isEdit = view === 'edit';
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <button onClick={() => setView('list')} className="text-[#5C5E72] hover:text-white transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          </button>
+          <h2 className="text-sm font-bold text-white">{isEdit ? 'Edit Hotel' : 'Add Hotel'}</h2>
+        </div>
+
+        {/* Images */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Photos ({formImages.length})</label>
+          <div className="flex gap-2 flex-wrap">
+            {formImages.map((url, i) => (
+              <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                <button onClick={() => removeImage(i)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500/80 text-white flex items-center justify-center text-[10px]">×</button>
+              </div>
+            ))}
+            <label className="w-20 h-20 rounded-xl border border-dashed border-[#2A2A3A] flex flex-col items-center justify-center text-[#5C5E72] hover:border-[#3B82F6]/50 hover:text-[#3B82F6] transition-colors cursor-pointer">
+              {uploading ? <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+                : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg><span className="text-[9px] mt-1">Add</span></>}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
+          </div>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Hotel Name *</label>
+          <input type="text" value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g. Transcorp Hilton" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none" />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Description</label>
+          <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Describe the hotel..." rows={3} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none" />
+        </div>
+
+        {/* State */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">State *</label>
+          <select value={formState} onChange={e => setFormState(e.target.value)} className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none">
+            <option value="">Select state</option>
+            {nigerianStates.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        {/* City & Area */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">City *</label>
+            <input type="text" value={formCity} onChange={e => setFormCity(e.target.value)} placeholder="e.g. Ikeja" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none" />
+          </div>
+          <div>
+            <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Area</label>
+            <input type="text" value={formArea} onChange={e => setFormArea(e.target.value)} placeholder="e.g. GRA" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none" />
+          </div>
+        </div>
+
+        {/* Address */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Full Address</label>
+          <input type="text" value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Street address" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none" />
+        </div>
+
+        {/* Amenities */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Amenities</label>
+          <div className="flex flex-wrap gap-1.5">
+            {HOTEL_AMENITIES.map(a => (
+              <button key={a} onClick={() => toggleAmenity(a)} className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all ${formAmenities.includes(a) ? 'bg-[#3B82F6]/10 border-[#3B82F6]/40 text-[#3B82F6]' : 'bg-[#1A1A24] border-[#2A2A3A] text-[#5C5E72] hover:border-[#3B82F6]/30'}`}>{a}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Featured */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={formFeatured} onChange={e => setFormFeatured(e.target.checked)} className="w-4 h-4 rounded accent-[#3B82F6]" />
+          <span className="text-xs text-white">Featured hotel (appears at top)</span>
+        </label>
+
+        <button onClick={isEdit ? handleUpdate : handleCreate} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+          {isEdit ? 'Save Changes' : 'Create Hotel'}
+        </button>
+      </div>
+    );
+  }
+
+  // ─── ROOMS MANAGEMENT ─────────────────────────────────
+  if (view === 'rooms' && selectedHotel) {
+    return <HotelRoomsTab hotel={selectedHotel} onBack={() => { setView('list'); loadHotels(); }} />;
+  }
+
+  // ─── BOOKINGS VIEW ────────────────────────────────────
+  if (view === 'bookings' && selectedHotel) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <button onClick={() => setView('list')} className="text-[#5C5E72] hover:text-white transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          </button>
+          <h2 className="text-sm font-bold text-white">{selectedHotel.name} — Bookings</h2>
+        </div>
+
+        {hotelBookings.length === 0 ? (
+          <p className="text-xs text-[#5C5E72] text-center py-8">No bookings yet</p>
+        ) : (
+          <div className="space-y-3">
+            {hotelBookings.map(b => (
+              <div key={b.booking_id} className="p-4 rounded-2xl bg-[#12121A] border border-[#1E1E2C]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                    b.status === 'confirmed' ? 'bg-green-500/10 text-green-400' :
+                    b.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
+                    b.status === 'cancelled' ? 'bg-red-500/10 text-red-400' :
+                    'bg-[#3B82F6]/10 text-[#3B82F6]'
+                  }`}>{b.status}</span>
+                  <span className="text-[9px] text-[#5C5E72]">#{b.booking_id}</span>
+                </div>
+                <p className="text-xs text-white font-medium">{b.hotel_rooms?.room_type}</p>
+                <p className="text-[10px] text-[#5C5E72]">{b.profiles?.username || 'Guest'} · {b.profiles?.phone || 'No phone'}</p>
+                <p className="text-[10px] text-[#5C5E72]">{new Date(b.check_in).toLocaleDateString()} → {new Date(b.check_out).toLocaleDateString()} · {b.total_nights} night{b.total_nights !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-[#3B82F6] font-bold mt-1">₦{b.total_price.toLocaleString()}</p>
+                {b.status === 'pending' && (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => handleUpdateBookingStatus(b.booking_id, 'confirmed')} className="flex-1 h-8 rounded-lg bg-green-500/10 text-green-400 text-[10px] font-medium border border-green-500/20">Confirm</button>
+                    <button onClick={() => handleUpdateBookingStatus(b.booking_id, 'cancelled')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 text-[10px] font-medium border border-red-500/20">Cancel</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── LIST VIEW ────────────────────────────────────────
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-white">Hotels ({hotels.length})</h2>
+        <button onClick={startAdd} className="h-9 px-4 rounded-xl bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          Add Hotel
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2].map(i => <div key={i} className="h-32 rounded-2xl shimmer" />)}
+        </div>
+      ) : hotels.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="w-14 h-14 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+          </div>
+          <p className="text-sm text-[#5C5E72]">No hotels yet</p>
+          <p className="text-xs text-[#5C5E72] mt-1">Add your first hotel to get started</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {hotels.map(h => (
+            <div key={h.hotel_id} className="p-4 rounded-2xl bg-[#12121A] border border-[#1E1E2C]">
+              <div className="flex items-start gap-3">
+                <img src={h.images?.[0] || 'https://placehold.co/100x100/1A1A24/5C5E72?text=No+Image'} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white truncate">{h.name}</h3>
+                    {h.featured && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">FEATURED</span>}
+                  </div>
+                  <p className="text-[10px] text-[#5C5E72]">{h.city}, {h.state}</p>
+                  <p className="text-[10px] text-[#5C5E72]">{h.hotel_rooms?.length || 0} room type{h.hotel_rooms?.length !== 1 ? 's' : ''} · {h.review_count} review{h.review_count !== 1 ? 's' : ''}</p>
+                  {h.rating > 0 && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                      <span className="text-[10px] text-amber-400 font-medium">{h.rating}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Actions */}
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => startEdit(h)} className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-[10px] font-medium hover:border-[#3B82F6]/30 transition-colors">Edit</button>
+                <button onClick={() => startRooms(h)} className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-[10px] font-medium hover:border-[#3B82F6]/30 transition-colors">Rooms</button>
+                <button onClick={() => startBookings(h)} className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-[10px] font-medium hover:border-[#3B82F6]/30 transition-colors">Bookings</button>
+                <button onClick={() => handleDelete(h.hotel_id)} className="h-8 px-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-medium hover:bg-red-500/20 transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// HOTEL ROOMS SUB-TAB
+// ═══════════════════════════════════════════════════════════
+
+function HotelRoomsTab({ hotel, onBack }: { hotel: Hotel; onBack: () => void }) {
+  const [rooms, setRooms] = useState<HotelRoom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+
+  // Form
+  const [roomType, setRoomType] = useState('');
+  const [roomDesc, setRoomDesc] = useState('');
+  const [price, setPrice] = useState('');
+  const [maxGuests, setMaxGuests] = useState('2');
+  const [bedType, setBedType] = useState('');
+  const [totalRooms, setTotalRooms] = useState('1');
+  const [roomAmenities, setRoomAmenities] = useState<string[]>([]);
+
+  useEffect(() => { loadRooms(); }, []);
+
+  async function loadRooms() {
+    setLoading(true);
+    const { rooms: r } = await getHotelRooms(hotel.hotel_id);
+    setRooms(r || []);
+    setLoading(false);
+  }
+
+  async function handleAddRoom() {
+    if (!roomType.trim() || !price || Number(price) <= 0) {
+      toast.error('Room type and price are required'); return;
+    }
+    const { error } = await createHotelRoom({
+      hotel_id: hotel.hotel_id,
+      room_type: roomType.trim(),
+      description: roomDesc.trim() || null,
+      price_per_night: Number(price),
+      max_guests: Number(maxGuests) || 2,
+      bed_type: bedType || null,
+      images: [],
+      amenities: roomAmenities,
+      total_rooms: Number(totalRooms) || 1,
+    });
+    if (error) { toast.error('Failed to add room'); return; }
+    toast.success('Room added!');
+    setShowAdd(false);
+    setRoomType(''); setRoomDesc(''); setPrice(''); setMaxGuests('2'); setBedType(''); setTotalRooms('1'); setRoomAmenities([]);
+    loadRooms();
+  }
+
+  async function handleDeleteRoom(roomId: number) {
+    if (!confirm('Delete this room type?')) return;
+    const { error } = await deleteHotelRoom(roomId);
+    if (error) { toast.error('Failed to delete'); return; }
+    toast.success('Room deleted');
+    loadRooms();
+  }
+
+  function toggleRoomAmenity(a: string) {
+    setRoomAmenities(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button onClick={onBack} className="text-[#5C5E72] hover:text-white transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          </button>
+          <h2 className="text-sm font-bold text-white">{hotel.name} — Rooms</h2>
+        </div>
+        <button onClick={() => setShowAdd(!showAdd)} className="h-8 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-semibold hover:bg-[#2563EB] transition-colors flex items-center gap-1">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          Add Room
+        </button>
+      </div>
+
+      {/* Add Room Form */}
+      {showAdd && (
+        <div className="glass rounded-2xl p-4 border border-[#2A2A3A] space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1 block">Room Type *</label>
+              <select value={roomType} onChange={e => setRoomType(e.target.value)} className="w-full h-10 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
+                <option value="">Select</option>
+                {ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1 block">Price/Night (₦) *</label>
+              <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="25000" className="w-full h-10 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-[#3B82F6]" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-[#5C5E72] mb-1 block">Description</label>
+            <input type="text" value={roomDesc} onChange={e => setRoomDesc(e.target.value)} placeholder="Brief description" className="w-full h-10 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-[#3B82F6]" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Guests</label>
+              <select value={maxGuests} onChange={e => setMaxGuests(e.target.value)} className="w-full h-10 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
+                {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1 block">Bed Type</label>
+              <select value={bedType} onChange={e => setBedType(e.target.value)} className="w-full h-10 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
+                <option value="">Select</option>
+                {BED_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1 block">Total Rooms</label>
+              <input type="number" value={totalRooms} onChange={e => setTotalRooms(e.target.value)} min={1} className="w-full h-10 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-[#3B82F6]" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-[#5C5E72] mb-1 block">Room Amenities</label>
+            <div className="flex flex-wrap gap-1">
+              {['TV','Mini Fridge','Bathtub','Balcony','Safe','Desk','Sofa','Kitchenette'].map(a => (
+                <button key={a} onClick={() => toggleRoomAmenity(a)} className={`px-2 py-0.5 rounded-lg text-[9px] font-medium border transition-all ${roomAmenities.includes(a) ? 'bg-[#3B82F6]/10 border-[#3B82F6]/40 text-[#3B82F6]' : 'bg-[#1A1A24] border-[#2A2A3A] text-[#5C5E72]'}`}>{a}</button>
+              ))}
+            </div>
+          </div>
+          <button onClick={handleAddRoom} className="w-full h-9 rounded-lg bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors">Add Room Type</button>
+        </div>
+      )}
+
+      {/* Room List */}
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2].map(i => <div key={i} className="h-20 rounded-xl shimmer" />)}
+        </div>
+      ) : rooms.length === 0 ? (
+        <p className="text-xs text-[#5C5E72] text-center py-6">No room types yet. Add one above.</p>
+      ) : (
+        <div className="space-y-2">
+          {rooms.map(r => (
+            <div key={r.room_id} className="p-3 rounded-xl bg-[#12121A] border border-[#1E1E2C] flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold text-white">{r.room_type}</h4>
+                  <span className="text-[9px] text-[#3B82F6] font-bold">₦{r.price_per_night.toLocaleString()}/night</span>
+                </div>
+                <p className="text-[10px] text-[#5C5E72]">{r.max_guests} guests · {r.bed_type || 'No bed specified'} · {r.total_rooms} room{r.total_rooms !== 1 ? 's' : ''}</p>
+                {r.description && <p className="text-[9px] text-[#5C5E72]">{r.description}</p>}
+              </div>
+              <button onClick={() => handleDeleteRoom(r.room_id)} className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
