@@ -6,16 +6,17 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 
 
+type StaffTab = 'overview' | 'listings' | 'enquiries';
+
 interface StaffDashboardProps {
   profile: Profile;
   onLogout: () => void;
   onGoToChat?: (convId?: string) => void;
 }
 
-type StaffTab = 'overview' | 'listings' | 'enquiries';
-
 export default function StaffDashboard({ profile, onLogout, onGoToChat }: StaffDashboardProps) {
   const TAB_KEY = 'wh_staff_tab';
+  // StaffTab type is defined at module level above
   const [activeTab, setActiveTab] = useState<StaffTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
@@ -146,7 +147,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat }: StaffD
 
       {/* Content */}
       <div className="px-5 pt-4">
-        {activeTab === 'overview' && <OverviewTab profile={profile} stats={stats} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} stats={stats} onGoToTab={handleSetTab} />}
         {activeTab === 'listings' && <MyListingsTab listings={myListings} loading={loading} onRefresh={load} />}
         {activeTab === 'enquiries' && <EnquiriesTab enquiries={enquiryDetails} loading={loading} onGoToChat={onGoToChat} />}
       </div>
@@ -155,7 +156,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat }: StaffD
 }
 
 // ─── OVERVIEW ──────────────────────────────────────
-function OverviewTab({ profile, stats }: { profile: Profile; stats: { listings: number; enquiries: number } }) {
+function OverviewTab({ profile, stats, onGoToTab }: { profile: Profile; stats: { listings: number; enquiries: number }; onGoToTab?: (tab: StaffTab) => void }) {
   return (
     <div className="space-y-3">
       <div className="glass rounded-2xl p-4 border border-amber-500/10">
@@ -167,22 +168,28 @@ function OverviewTab({ profile, stats }: { profile: Profile; stats: { listings: 
         </p>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions — clickable */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="glass rounded-2xl p-4 border border-amber-500/5">
+        <button
+          onClick={() => onGoToTab?.('listings')}
+          className="glass rounded-2xl p-4 border border-amber-500/5 text-left active:scale-[0.97] transition-transform"
+        >
           <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
           </div>
-          <p className="text-xs font-medium text-white">Create Listing</p>
-          <p className="text-[10px] text-[#5C5E72]">Use the Listings tab in bottom nav</p>
-        </div>
-        <div className="glass rounded-2xl p-4 border border-amber-500/5">
+          <p className="text-xs font-medium text-white">My Listings</p>
+          <p className="text-[10px] text-[#5C5E72]">View and manage your listings</p>
+        </button>
+        <button
+          onClick={() => onGoToTab?.('enquiries')}
+          className="glass rounded-2xl p-4 border border-amber-500/5 text-left active:scale-[0.97] transition-transform"
+        >
           <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </div>
           <p className="text-xs font-medium text-white">Reply Enquiries</p>
           <p className="text-[10px] text-[#5C5E72]">Chat with interested users</p>
-        </div>
+        </button>
       </div>
     </div>
   );
