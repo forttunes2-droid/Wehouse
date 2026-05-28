@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getListingById, createEnquiry, createReservation, getProfileByAuthId, getOrCreateConversation } from '@/lib/supabase';
+import { getListingById, createEnquiry, createReservation, getPublicAgentInfo, getOrCreateConversation } from '@/lib/supabase';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 import type { Listing, Profile, ListingStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -21,17 +21,18 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [sendingEnquiry, setSendingEnquiry] = useState(false);
   const [reserving, setReserving] = useState(false);
-  const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
+  // Public agent info — only username, avatar, role, user_id. NO email/phone.
+  const [agentInfo, setAgentInfo] = useState<{ user_id: string; username: string | null; avatar_url: string | null; role: string } | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
       const { listing: data } = await getListingById(listingId);
       setListing(data);
-      // Load listing owner's profile to check if they're staff (for chat)
+      // Load listing owner's PUBLIC info only — safe fields, no email/phone
       if (data?.owner_id) {
-        const { profile: owner } = await getProfileByAuthId(data.owner_id);
-        setOwnerProfile(owner);
+        const { agent } = await getPublicAgentInfo(data.owner_id);
+        setAgentInfo(agent);
       }
       setLoading(false);
     }
@@ -50,10 +51,11 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
   }
 
   async function handleChatWithAgent() {
-    if (!ownerProfile || ownerProfile.role !== 'staff') { toast.error('No agent available for this listing'); return; }
-    if (ownerProfile.user_id === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
+    // Only staff agents are contactable. Creator/Admin listings have no chat.
+    if (!agentInfo || agentInfo.role !== 'staff') { toast.error('No agent available for this listing'); return; }
+    if (agentInfo.user_id === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
     setChatLoading(true);
-    const { conversation, error } = await getOrCreateConversation(profile.user_id, ownerProfile.user_id);
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, agentInfo.user_id);
     setChatLoading(false);
     if (error || !conversation) { toast.error('Failed to start chat'); return; }
     onGoToChat?.(conversation.id);
@@ -292,14 +294,15 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
           </p>
 
           {/* ─── CHAT WITH AGENT ───────────────────────── */}
-          {ownerProfile?.role === 'staff' && ownerProfile.user_id !== profile.user_id && (
+          {/* Only staff agents are contactable. Creator/Admin = no chat. */}
+          {agentInfo?.role === 'staff' && agentInfo.user_id !== profile.user_id && (
             <div className="mt-4 pt-4 border-t border-[#1E1E2C]">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">
-                  {(ownerProfile.username || 'A').charAt(0).toUpperCase()}
+                  {(agentInfo.username || 'A').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-white">@{ownerProfile.username || 'Agent'}</p>
+                  <p className="text-xs font-medium text-white">@{agentInfo.username || 'Agent'}</p>
                   <p className="text-[9px] text-amber-400">Listing Agent</p>
                 </div>
               </div>

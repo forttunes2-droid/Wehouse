@@ -126,6 +126,20 @@ export async function getProfileByAuthId(authId: string) {
   return { profile: data as Profile | null, error };
 }
 
+// Public agent info — only safe fields exposed to users viewing a listing
+// NEVER returns email, phone, or other sensitive data
+export async function getPublicAgentInfo(authId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('user_id, username, avatar_url, role')
+    .eq('auth_id', authId)
+    .maybeSingle();
+  return {
+    agent: data as { user_id: string; username: string | null; avatar_url: string | null; role: string } | null,
+    error,
+  };
+}
+
 export async function getProfileByEmail(email: string) {
   const { data, error } = await supabase
     .from('profiles')
