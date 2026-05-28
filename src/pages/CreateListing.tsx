@@ -35,7 +35,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     property_type: '' as '' | 'studio_apartment' | 'self_contain',
     bedrooms: '1',
     bathrooms: '1',
-    availability_status: 'available' as 'available' | 'reserved' | 'occupied',
+    availability_status: 'available' as 'available' | 'reserved' | 'viewed' | 'closed',
     status: 'available' as 'available' | 'reserved' | 'viewed' | 'occupied' | 'closed',
   });
 
@@ -260,9 +260,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
 
   const statusOptions = [
     { value: 'available', label: 'Available', color: 'text-green-400 bg-green-500/10 border-green-500/20' },
-    { value: 'reserved', label: 'Reserved', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
     { value: 'viewed', label: 'Viewed', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
-    { value: 'occupied', label: 'Occupied', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+    { value: 'reserved', label: 'Reserved', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
     { value: 'closed', label: 'Closed', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' },
   ];
 

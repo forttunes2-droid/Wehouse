@@ -255,16 +255,16 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
           </div>
         )}
 
-        {/* Reserved badge (if not available) */}
-        {!isAvailable && (
+        {/* Reserved badge — show friendly message to users */}
+        {listing.availability_status === 'reserved' && (
           <div className="mt-6 glass rounded-2xl p-5 border border-amber-500/10">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-white">Property {statusLabel}</h3>
-                <p className="text-[11px] text-[#5C5E72]">This property is currently not available for reservation.</p>
+                <h3 className="text-sm font-semibold text-white">Someone is interested already</h3>
+                <p className="text-[11px] text-[#5C5E72]">Check back later — this property may become available again.</p>
               </div>
             </div>
           </div>

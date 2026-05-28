@@ -127,7 +127,7 @@ export interface Listing {
   property_type: 'studio_apartment' | 'self_contain' | null;  // null = standard bedroom-based
   bedrooms: number;
   bathrooms: number;
-  availability_status: 'available' | 'reserved' | 'occupied' | 'hidden';
+  availability_status: 'available' | 'viewed' | 'reserved' | 'closed';
   owner_id: string | null;
   chat_agent_id: string | null;  // Staff/Admin who handles enquiries for this listing
   created_at: string;
