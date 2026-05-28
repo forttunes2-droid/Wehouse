@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
+  supabase,
   getAllUsers, getUserCount, updateUserRole, deleteUser, restoreUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
@@ -483,11 +484,34 @@ function ListingsTab({ profile }: { profile: Profile }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [agentNames, setAgentNames] = useState<Record<string, { username: string; role: string }>>({});
+  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     const { listings: data } = await getAllListingsAdmin();
-    setListings(data || []);
+    const list = data || [];
+    setListings(list);
+
+    // Fetch agent and owner profiles
+    const agentUserIds = list.map(l => l.chat_agent_id).filter(Boolean) as string[];
+    const ownerAuthIds = list.map(l => l.owner_id).filter(Boolean) as string[];
+    const allUserIds = [...new Set([...agentUserIds])];
+    const allAuthIds = [...new Set([...ownerAuthIds])];
+
+    if (allUserIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('user_id, username, role').in('user_id', allUserIds);
+      const map: Record<string, { username: string; role: string }> = {};
+      (profiles || []).forEach((p: any) => { map[p.user_id] = { username: p.username || 'Unknown', role: p.role }; });
+      setAgentNames(map);
+    }
+    if (allAuthIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('auth_id, username').in('auth_id', allAuthIds);
+      const map: Record<string, string> = {};
+      (profiles || []).forEach((p: any) => { map[p.auth_id] = p.username || 'Unknown'; });
+      setOwnerNames(map);
+    }
+
     setLoading(false);
   }, []);
 
@@ -517,19 +541,47 @@ function ListingsTab({ profile }: { profile: Profile }) {
         <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(l => (
-            <div key={l.id} className="glass rounded-xl p-3">
-              <div className="flex gap-3">
-                <img src={l.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-white truncate">{l.title}</div>
-                  <div className="text-[10px] text-[#3B82F6] font-bold">N{l.price.toLocaleString()}</div>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${l.availability_status === 'available' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{l.availability_status}</span>
+          {filtered.map(l => {
+            const agent = l.chat_agent_id ? agentNames[l.chat_agent_id] : null;
+            const owner = l.owner_id ? ownerNames[l.owner_id] : null;
+            return (
+              <div key={l.id} className="glass rounded-xl p-3">
+                <div className="flex gap-3">
+                  <img src={l.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-white truncate">{l.title}</div>
+                    <div className="text-[10px] text-[#3B82F6] font-bold">N{l.price.toLocaleString()}</div>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${l.availability_status === 'available' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{l.availability_status}</span>
+                  </div>
                 </div>
+
+                {/* Owner + Chat Agent info */}
+                <div className="mt-2 space-y-1">
+                  {owner && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-[#5C5E72] w-12 flex-shrink-0">Posted by</span>
+                      <span className="text-[10px] text-white font-medium truncate">@{owner}</span>
+                    </div>
+                  )}
+                  {agent ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-[#5C5E72] w-12 flex-shrink-0">Chat with</span>
+                      <span className={`text-[10px] font-medium truncate ${agent.role === 'staff' ? 'text-amber-400' : 'text-[#3B82F6]'}`}>
+                        @{agent.username} ({agent.role})
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-[#5C5E72] w-12 flex-shrink-0">Chat with</span>
+                      <span className="text-[10px] text-red-400">No agent assigned</span>
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={() => handleDeleteL(l.id)} className="mt-2 w-full h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Remove</button>
               </div>
-              <button onClick={() => handleDeleteL(l.id)} className="mt-2 w-full h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Remove</button>
-            </div>
-          ))}
+            );
+          })}
           {filtered.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No listings</div>}
         </div>
       )}

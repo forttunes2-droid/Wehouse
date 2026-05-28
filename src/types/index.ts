@@ -306,6 +306,7 @@ export interface Conversation {
   id: string;
   participant_a: string;
   participant_b: string;
+  listing_id: string | null;  // Which listing this conversation is about
   last_message: string | null;
   last_message_at: string;
   unread_a: number;

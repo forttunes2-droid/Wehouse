@@ -9,7 +9,7 @@ import {
 } from '@/lib/supabase';
 import OfficialChannel from '@/components/OfficialChannel';
 import VerifiedBadge from '@/components/VerifiedBadge';
-import type { Profile, Conversation, Message } from '@/types';
+import type { Profile, Conversation, Message, Listing } from '@/types';
 
 interface ChatProps {
   profile: Profile;
@@ -27,6 +27,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   const [showOfficial, setShowOfficial] = useState(false);
   const [officialUnread, setOfficialUnread] = useState(0);
   const [officialMessages, setOfficialMessages] = useState<any[]>([]);
+  const [linkedListing, setLinkedListing] = useState<Listing | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Load everything on mount
@@ -99,6 +100,17 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     if (conv) setActiveConv(conv);
   }, [conversationId, conversations]);
 
+  // Load listing context when conversation has a linked listing
+  useEffect(() => {
+    if (!activeConv?.listing_id) { setLinkedListing(null); return; }
+    async function loadListing() {
+      const { getListingById } = await import('@/lib/supabase');
+      const { listing } = await getListingById(activeConv!.listing_id!);
+      setLinkedListing(listing);
+    }
+    loadListing();
+  }, [activeConv?.listing_id]);
+
   // Load messages when conversation selected
   useEffect(() => {
     if (!activeConv) return;
@@ -157,6 +169,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
             onClick={() => {
               setActiveConv(null);
               setMessages([]);
+              setLinkedListing(null);
             }}
             className="text-[#8A8B9C] hover:text-white transition-colors"
           >
@@ -169,6 +182,24 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           </div>
           <span className="text-sm font-semibold">@{usernames[otherId] || `User ${otherId.slice(-4)}`}</span>
         </header>
+
+        {/* Listing Context Banner — shows which listing this chat is about */}
+        {linkedListing && (
+          <div className="bg-[#12121A] border-b border-[#3B82F6]/10 px-4 py-2.5 flex items-center gap-3">
+            <img
+              src={linkedListing.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'}
+              alt=""
+              className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-white truncate">{linkedListing.title}</p>
+              <p className="text-[10px] text-[#5C5E72]">{linkedListing.city} · ₦{linkedListing.price?.toLocaleString()}</p>
+            </div>
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 flex-shrink-0">
+              Enquiry
+            </span>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">

@@ -56,7 +56,19 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
     if (!agentInfo || !listing?.chat_agent_id) { toast.error('No agent assigned for this listing'); return; }
     if (agentInfo.user_id === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
     setChatLoading(true);
-    const { conversation, error } = await getOrCreateConversation(profile.user_id, agentInfo.user_id);
+    // Pass listing_id so conversation is linked to this listing
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, agentInfo.user_id, listing.listing_id);
+    // Auto-send listing context as first message if conversation is new
+    if (conversation && !error) {
+      const { messages } = await import('@/lib/supabase').then(m => m.getMessages(conversation.id));
+      if (!messages || messages.length === 0) {
+        await import('@/lib/supabase').then(m => m.sendMessage(
+          conversation.id,
+          profile.user_id,
+          `Hi, I'm interested in your listing: "${listing.title}" in ${listing.city}, ₦${listing.price?.toLocaleString()}`
+        ));
+      }
+    }
     setChatLoading(false);
     if (error || !conversation) { toast.error('Failed to start chat'); return; }
     onGoToChat?.(conversation.id);

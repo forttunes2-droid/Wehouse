@@ -673,29 +673,35 @@ export async function markMessagesSeen(conversationId: string, userId: string) {
   return { error };
 }
 
-export async function createConversation(userA: string, userB: string) {
+export async function createConversation(userA: string, userB: string, listingId?: string | null) {
   const { data, error } = await supabase
     .from('conversations')
-    .insert({ participant_a: userA, participant_b: userB })
+    .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null })
     .select()
     .single();
   return { conversation: data as Conversation | null, error };
 }
 
-export async function getOrCreateConversation(userA: string, userB: string) {
-  // Check if conversation already exists (either direction)
-  const { data: existing } = await supabase
+export async function getOrCreateConversation(userA: string, userB: string, listingId?: string | null) {
+  // Build the filter: same participants (either direction) AND same listing
+  let query = supabase
     .from('conversations')
     .select('*')
-    .or(`and(participant_a.eq.${userA},participant_b.eq.${userB}),and(participant_a.eq.${userB},participant_b.eq.${userA})`)
-    .maybeSingle();
+    .or(`and(participant_a.eq.${userA},participant_b.eq.${userB}),and(participant_a.eq.${userB},participant_b.eq.${userA})`);
+
+  // If a listing_id is provided, match on it too
+  if (listingId) {
+    query = query.eq('listing_id', listingId);
+  }
+
+  const { data: existing } = await query.maybeSingle();
 
   if (existing) {
     return { conversation: existing as Conversation, error: null };
   }
 
-  // Create new conversation
-  return createConversation(userA, userB);
+  // Create new conversation with listing context
+  return createConversation(userA, userB, listingId);
 }
 
 // ─── ANNOUNCEMENT SYSTEM v2 ────────────────────────
