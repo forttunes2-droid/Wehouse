@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { createListing, uploadListingImage, uploadListingVideo } from '@/lib/supabase';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +21,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<string[]>([]);
+  const [availableAgents, setAvailableAgents] = useState<Array<{ user_id: string; username: string | null; role: string }>>([]);
+  const [chatAgentId, setChatAgentId] = useState<string>('');
+  const [loadingAgents, setLoadingAgents] = useState(true);
 
   const [form, setForm] = useState({
     title: '',
@@ -40,6 +43,26 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     city: profile.city || '',
     area: profile.area || '',
   });
+
+  // Fetch available chat agents (staff/admin in scope)
+  useEffect(() => {
+    async function loadAgents() {
+      setLoadingAgents(true);
+      const scopeState = profile.assigned_state || profile.state || '';
+      const scopeLga = profile.role === 'admin' ? (profile.assigned_lga || profile.city || '') : undefined;
+      const { agents } = await getAvailableChatAgents(scopeState, scopeLga);
+      const list = agents || [];
+      setAvailableAgents(list);
+      // Default to self if poster is staff/admin
+      if (profile.role === 'staff' || profile.role === 'admin') {
+        setChatAgentId(profile.user_id);
+      } else if (list.length > 0) {
+        setChatAgentId(list[0].user_id);
+      }
+      setLoadingAgents(false);
+    }
+    loadAgents();
+  }, [profile.user_id, profile.role, profile.assigned_state, profile.state, profile.assigned_lga, profile.city]);
 
   // Image upload handler
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,6 +164,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       reservation_fee_paid: false,
       chat_unlocked: false,
       owner_id: profile.auth_id,
+      chat_agent_id: chatAgentId || null,
     });
     setSaving(false);
 
@@ -362,6 +386,37 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Chat Agent Assignment — who users will chat with */}
+        <div className="glass rounded-2xl p-4 border border-[#3B82F6]/10">
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            Chat Agent — Who handles enquiries
+          </label>
+          {loadingAgents ? (
+            <div className="flex items-center gap-2 py-2">
+              <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-[#5C5E72]">Loading agents...</span>
+            </div>
+          ) : availableAgents.length === 0 ? (
+            <p className="text-xs text-amber-400">No staff or admin available in your scope. Assign a staff member first.</p>
+          ) : (
+            <select
+              value={chatAgentId}
+              onChange={(e) => setChatAgentId(e.target.value)}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
+            >
+              {availableAgents.map(a => (
+                <option key={a.user_id} value={a.user_id}>
+                  @{a.username || 'Unknown'} ({a.role}) {a.user_id === profile.user_id ? '— You' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="text-[9px] text-[#5C5E72] mt-2">
+            Users will see only this agent&apos;s username and can chat with them about this listing. Your identity as the poster stays hidden.
+          </p>
         </div>
 
         <Button

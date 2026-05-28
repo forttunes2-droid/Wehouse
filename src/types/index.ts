@@ -128,6 +128,7 @@ export interface Listing {
   bathrooms: number;
   availability_status: 'available' | 'reserved' | 'occupied' | 'hidden';
   owner_id: string | null;
+  chat_agent_id: string | null;  // Staff/Admin who handles enquiries for this listing
   created_at: string;
   updated_at: string;
   // ── RESERVATION FIELDS ────────────────────────────

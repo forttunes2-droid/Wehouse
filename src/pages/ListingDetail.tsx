@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getListingById, createEnquiry, createReservation, getPublicAgentInfo, getOrCreateConversation } from '@/lib/supabase';
+import { getListingById, createEnquiry, createReservation, getPublicAgentByUserId, getOrCreateConversation } from '@/lib/supabase';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 import type { Listing, Profile, ListingStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -29,9 +29,10 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
     async function load() {
       const { listing: data } = await getListingById(listingId);
       setListing(data);
-      // Load listing owner's PUBLIC info only — safe fields, no email/phone
-      if (data?.owner_id) {
-        const { agent } = await getPublicAgentInfo(data.owner_id);
+      // Load assigned chat agent's PUBLIC info — lookup by chat_agent_id (user_id)
+      // This is who users will chat with, NOT the listing owner
+      if (data?.chat_agent_id) {
+        const { agent } = await getPublicAgentByUserId(data.chat_agent_id);
         setAgentInfo(agent);
       }
       setLoading(false);
@@ -51,8 +52,8 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
   }
 
   async function handleChatWithAgent() {
-    // Only staff agents are contactable. Creator/Admin listings have no chat.
-    if (!agentInfo || agentInfo.role !== 'staff') { toast.error('No agent available for this listing'); return; }
+    // Chat only available if a chat_agent_id is assigned (staff or admin)
+    if (!agentInfo || !listing?.chat_agent_id) { toast.error('No agent assigned for this listing'); return; }
     if (agentInfo.user_id === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
     setChatLoading(true);
     const { conversation, error } = await getOrCreateConversation(profile.user_id, agentInfo.user_id);
@@ -294,22 +295,32 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
           </p>
 
           {/* ─── CHAT WITH AGENT ───────────────────────── */}
-          {/* Only staff agents are contactable. Creator/Admin = no chat. */}
-          {agentInfo?.role === 'staff' && agentInfo.user_id !== profile.user_id && (
+          {/* Shows if a chat_agent_id is assigned (staff or admin). Creator who posted stays anonymous. */}
+          {listing?.chat_agent_id && agentInfo && agentInfo.user_id !== profile.user_id && (
             <div className="mt-4 pt-4 border-t border-[#1E1E2C]">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                  agentInfo.role === 'staff'
+                    ? 'bg-gradient-to-br from-amber-500 to-amber-700'
+                    : 'bg-gradient-to-br from-[#3B82F6] to-[#2563EB]'
+                }`}>
                   {(agentInfo.username || 'A').charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p className="text-xs font-medium text-white">@{agentInfo.username || 'Agent'}</p>
-                  <p className="text-[9px] text-amber-400">Listing Agent</p>
+                  <p className={`text-[9px] ${agentInfo.role === 'staff' ? 'text-amber-400' : 'text-[#3B82F6]'}`}>
+                    {agentInfo.role === 'staff' ? 'Staff Agent' : 'Admin Agent'}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={handleChatWithAgent}
                 disabled={chatLoading}
-                className="w-full h-10 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+                className={`w-full h-10 rounded-xl text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2 ${
+                  agentInfo.role === 'staff'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-700'
+                    : 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB]'
+                }`}
               >
                 {chatLoading ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

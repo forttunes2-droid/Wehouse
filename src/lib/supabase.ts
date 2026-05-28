@@ -140,6 +140,19 @@ export async function getPublicAgentInfo(authId: string) {
   };
 }
 
+// Same as above but lookup by user_id (for chat_agent_id field on listings)
+export async function getPublicAgentByUserId(userId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('user_id, username, avatar_url, role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return {
+    agent: data as { user_id: string; username: string | null; avatar_url: string | null; role: string } | null,
+    error,
+  };
+}
+
 export async function getProfileByEmail(email: string) {
   const { data, error } = await supabase
     .from('profiles')
@@ -395,6 +408,26 @@ export async function getCreatorListings(userId: string) {
 
 // Alias: get listings by owner (used by StaffDashboard)
 export { getCreatorListings as getListingsByOwner };
+
+// Get staff/admin users available to be assigned as chat agents for a listing
+// Creator gets all staff/admin globally; Admin gets staff/admin in their LGA
+export async function getAvailableChatAgents(scopeState: string, scopeLga?: string) {
+  let query = supabase
+    .from('profiles')
+    .select('user_id, username, avatar_url, role, assigned_state, assigned_lga')
+    .in('role', ['staff', 'admin'])
+    .eq('deleted', false);
+
+  if (scopeState) {
+    query = query.eq('assigned_state', scopeState);
+  }
+  if (scopeLga) {
+    query = query.eq('assigned_lga', scopeLga);
+  }
+
+  const { data, error } = await query.order('username', { ascending: true });
+  return { agents: data as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }> | null, error };
+}
 
 export async function uploadListingImage(file: File, listingId: string) {
   const fileName = `listings/${listingId}/${Date.now()}-${file.name}`;
