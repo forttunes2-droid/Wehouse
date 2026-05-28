@@ -25,6 +25,7 @@ const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
 const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 const Activity = lazy(() => import('@/pages/Activity'));
 const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
+const HeadOfStaffDashboard = lazy(() => import('@/pages/HeadOfStaffDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
@@ -290,7 +291,7 @@ export default function App() {
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
       case 'admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} />;
+        return <HeadOfStaffDashboard profile={profile} onLogout={auth.logout} />;
       case 'state_admin':
         return <AdminDashboard profile={profile} onLogout={auth.logout} isStateAdmin />;
       case 'assistant_state_admin':
@@ -370,6 +371,7 @@ export default function App() {
 
   const isStateAdminRole = profile.role === 'state_admin';
   const isAssistantRole = profile.role === 'assistant_state_admin';
+  const isHeadOfStaffRole = profile.role === 'admin';
 
   const isStaffRole = profile.role === 'staff';
 
@@ -381,6 +383,8 @@ export default function App() {
     ? { id: 'state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
     : isAssistantRole
     ? { id: 'assistant_state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
+    : isHeadOfStaffRole
+    ? { id: 'admin' as NavPage, label: 'Head of Staff', icon: AdminSvg }
     : isStaffRole
     ? { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg }
     : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
