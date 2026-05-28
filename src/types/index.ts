@@ -94,21 +94,17 @@ export interface RoleChangeHistory {
 
 export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard';
 
-export type ListingStatus = 'available' | 'reserved' | 'viewed' | 'occupied' | 'closed';
+export type ListingStatus = 'available' | 'reserved' | 'closed';
 
 export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   available: 'Available',
   reserved: 'Reserved',
-  viewed: 'Viewed',
-  occupied: 'Occupied',
   closed: 'Closed',
 };
 
 export const LISTING_STATUS_COLORS: Record<ListingStatus, string> = {
   available: 'bg-green-500/10 text-green-400 border-green-500/20',
   reserved: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  viewed: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  occupied: 'bg-red-500/10 text-red-400 border-red-500/20',
   closed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
 };
 
@@ -127,7 +123,7 @@ export interface Listing {
   property_type: 'studio_apartment' | 'self_contain' | null;  // null = standard bedroom-based
   bedrooms: number;
   bathrooms: number;
-  availability_status: 'available' | 'viewed' | 'reserved' | 'closed';
+  availability_status: 'available' | 'reserved' | 'closed';
   owner_id: string | null;
   chat_agent_id: string | null;  // Staff/Admin who handles enquiries for this listing
   created_at: string;

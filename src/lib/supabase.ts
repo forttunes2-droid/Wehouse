@@ -390,7 +390,12 @@ export async function getSessionHistory(userId: string, limit: number = 20) {
 // ─── LISTING HELPERS ───────────────────────────────
 
 export async function getAllListings() {
-  const { data, error } = await supabase.from('listings').select('*').order('created_at', { ascending: false });
+  // Users only see available and reserved listings. Closed listings are hidden.
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .in('availability_status', ['available', 'reserved'])
+    .order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }
 

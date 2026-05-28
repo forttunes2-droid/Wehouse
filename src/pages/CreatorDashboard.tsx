@@ -532,7 +532,7 @@ function ListingsTab({ profile }: { profile: Profile }) {
     <div className="space-y-3">
       <ConfirmDialog {...dialogProps} />
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {['all', 'available', 'reserved', 'occupied', 'hidden'].map(f => (
+        {['all', 'available', 'reserved', 'closed'].map(f => (
           <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 rounded-lg text-[10px] font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'}`}>{f}</button>
         ))}
       </div>
