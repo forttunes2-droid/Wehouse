@@ -418,15 +418,19 @@ export { getCreatorListings as getListingsByOwner };
 //   Creator: can appoint anyone (staff, admin, assistant_state_admin, state_admin)
 // Get all active staff who can be assigned as chat agents.
 // Staff matching the listing's location appear FIRST, then others follow.
+// Uses assigned_state/lga with fallback to state/city for location matching.
 export async function getAvailableChatAgents(listingState?: string, listingLga?: string) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('user_id, username, avatar_url, role, assigned_state, assigned_lga')
+    .select('user_id, username, avatar_url, role, assigned_state, assigned_lga, state, city')
     .eq('role', 'staff')
     .eq('deleted', false)
     .order('username', { ascending: true });
 
-  let agents = (data || []) as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>;
+  let agents = (data || []) as Array<{
+    user_id: string; username: string | null; avatar_url: string | null; role: string;
+    assigned_state: string | null; assigned_lga: string | null; state: string | null; city: string | null;
+  }>;
 
   // Normalize listing location for comparison
   const normState = (listingState || '').trim().toLowerCase();
@@ -435,10 +439,11 @@ export async function getAvailableChatAgents(listingState?: string, listingLga?:
   // Sort: staff matching listing location first, then others
   if (normState && agents.length > 1) {
     agents.sort((a, b) => {
-      const aState = (a.assigned_state || '').trim().toLowerCase();
-      const bState = (b.assigned_state || '').trim().toLowerCase();
-      const aLga = (a.assigned_lga || '').trim().toLowerCase();
-      const bLga = (b.assigned_lga || '').trim().toLowerCase();
+      // Use assigned_* with fallback to state/city
+      const aState = ((a.assigned_state || a.state) || '').trim().toLowerCase();
+      const bState = ((b.assigned_state || b.state) || '').trim().toLowerCase();
+      const aLga = ((a.assigned_lga || a.city) || '').trim().toLowerCase();
+      const bLga = ((b.assigned_lga || b.city) || '').trim().toLowerCase();
 
       // Check if state matches (handles "Abuja (FCT)" vs "Abuja")
       const aMatchesState = aState === normState || aState.includes(normState) || normState.includes(aState);

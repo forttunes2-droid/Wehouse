@@ -22,7 +22,10 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<string[]>([]);
-  const [availableAgents, setAvailableAgents] = useState<Array<{ user_id: string; username: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>>([]);
+  const [availableAgents, setAvailableAgents] = useState<Array<{
+    user_id: string; username: string | null; role: string;
+    assigned_state: string | null; assigned_lga: string | null; state: string | null; city: string | null;
+  }>>([]);
   const [chatAgentId, setChatAgentId] = useState<string>('');
   const [loadingAgents, setLoadingAgents] = useState(true);
 
@@ -542,13 +545,21 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
               className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
             >
               {availableAgents.map((a, idx) => {
-                // Debug: show actual data
-                const city = a.assigned_lga || 'no-city';
-                const state = a.assigned_state || 'no-state';
-                const isMatch = a.assigned_lga && location.city && a.assigned_lga.toLowerCase() === location.city.toLowerCase();
+                // Use assigned_* with fallback to state/city for display
+                const displayCity = a.assigned_lga || a.city || 'no-city';
+                const displayState = a.assigned_state || a.state || 'no-state';
+                const normListingCity = (location.city || '').trim().toLowerCase();
+                const normListingState = (location.state || '').trim().toLowerCase();
+                const normCity = displayCity.trim().toLowerCase();
+                const normState = displayState.trim().toLowerCase();
+
+                const matchesCity = normListingCity && (normCity === normListingCity || normCity.includes(normListingCity) || normListingCity.includes(normCity));
+                const matchesState = normListingState && (normState === normListingState || normState.includes(normListingState) || normListingState.includes(normState));
+                const isMatch = matchesCity && matchesState;
+
                 return (
                   <option key={a.user_id} value={a.user_id}>
-                    {idx === 0 && isMatch ? '✓ ' : ''}@{a.username || 'Unknown'} · {city}, {state}
+                    {idx === 0 && isMatch ? '✓ ' : ''}@{a.username || 'Unknown'} · {displayCity}, {displayState}
                   </option>
                 );
               })}
