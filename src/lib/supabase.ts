@@ -379,6 +379,9 @@ export async function getCreatorListings(userId: string) {
   return { listings: data as Listing[] | null, error };
 }
 
+// Alias: get listings by owner (used by StaffDashboard)
+export { getCreatorListings as getListingsByOwner };
+
 export async function uploadListingImage(file: File, listingId: string) {
   const fileName = `listings/${listingId}/${Date.now()}-${file.name}`;
   const { error: uploadError } = await supabase.storage.from('listing-images').upload(fileName, file);

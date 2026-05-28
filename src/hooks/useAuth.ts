@@ -175,6 +175,7 @@ export function useAuth() {
     if (isCreator(profile.role)) return 'creator';
     if (profile.role === 'state_admin') return 'state_admin';
     if (profile.role === 'assistant_state_admin') return 'assistant_state_admin';
+    if (profile.role === 'staff') return 'staff_dashboard';
     if (profile.role === 'admin') return 'admin';
     return 'dashboard';
   }, []);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getListingById, createEnquiry, createReservation } from '@/lib/supabase';
+import { getListingById, createEnquiry, createReservation, getProfileByAuthId, getOrCreateConversation } from '@/lib/supabase';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 import type { Listing, Profile, ListingStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -10,9 +10,10 @@ interface ListingDetailProps {
   isSaved: boolean;
   onToggleSave: () => void;
   profile: Profile;
+  onGoToChat?: (convId?: string) => void;
 }
 
-export default function ListingDetail({ listingId, onNavigate, isSaved, onToggleSave, profile }: ListingDetailProps) {
+export default function ListingDetail({ listingId, onNavigate, isSaved, onToggleSave, profile, onGoToChat }: ListingDetailProps) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImage, setCurrentImage] = useState(0);
@@ -20,11 +21,18 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [sendingEnquiry, setSendingEnquiry] = useState(false);
   const [reserving, setReserving] = useState(false);
+  const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
       const { listing: data } = await getListingById(listingId);
       setListing(data);
+      // Load listing owner's profile to check if they're staff (for chat)
+      if (data?.owner_id) {
+        const { profile: owner } = await getProfileByAuthId(data.owner_id);
+        setOwnerProfile(owner);
+      }
       setLoading(false);
     }
     load();
@@ -39,6 +47,16 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
     if (error) { toast.error('Failed to send enquiry'); return; }
     toast.success('Enquiry sent! Staff will reply soon.');
     setEnquiryMessage('');
+  }
+
+  async function handleChatWithAgent() {
+    if (!ownerProfile || ownerProfile.role !== 'staff') { toast.error('No agent available for this listing'); return; }
+    if (ownerProfile.user_id === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
+    setChatLoading(true);
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, ownerProfile.user_id);
+    setChatLoading(false);
+    if (error || !conversation) { toast.error('Failed to start chat'); return; }
+    onGoToChat?.(conversation.id);
   }
 
   async function handleReserve() {
@@ -272,6 +290,35 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
           <p className="text-[9px] text-[#5C5E72] mt-2">
             No contact sharing. No payment discussion. Quick questions only.
           </p>
+
+          {/* ─── CHAT WITH AGENT ───────────────────────── */}
+          {ownerProfile?.role === 'staff' && ownerProfile.user_id !== profile.user_id && (
+            <div className="mt-4 pt-4 border-t border-[#1E1E2C]">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">
+                  {(ownerProfile.username || 'A').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-white">@{ownerProfile.username || 'Agent'}</p>
+                  <p className="text-[9px] text-amber-400">Listing Agent</p>
+                </div>
+              </div>
+              <button
+                onClick={handleChatWithAgent}
+                disabled={chatLoading}
+                className="w-full h-10 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {chatLoading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                    Chat with Agent
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

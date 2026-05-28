@@ -24,6 +24,7 @@ const WorkerSetup = lazy(() => import('@/pages/WorkerSetup'));
 const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
 const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 const Activity = lazy(() => import('@/pages/Activity'));
+const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -65,7 +66,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -286,8 +287,10 @@ export default function App() {
         return <AdminDashboard profile={profile} onLogout={auth.logout} isStateAdmin />;
       case 'assistant_state_admin':
         return <AdminDashboard profile={profile} onLogout={auth.logout} isAssistant />;
+      case 'staff_dashboard':
+        return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} />;
       case 'detail':
-        return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} /> : null;
+        return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} onGoToChat={goToChat} /> : null;
       case 'chat':
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} conversationId={chatConvId} />;
       case 'profile_edit':
@@ -353,6 +356,8 @@ export default function App() {
   const isStateAdminRole = profile.role === 'state_admin';
   const isAssistantRole = profile.role === 'assistant_state_admin';
 
+  const isStaffRole = profile.role === 'staff';
+
   const roleTab = isWorker
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
     : isCreator
@@ -361,6 +366,8 @@ export default function App() {
     ? { id: 'state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
     : isAssistantRole
     ? { id: 'assistant_state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
+    : isStaffRole
+    ? { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg }
     : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
 
   const tabs = [...baseTabs, roleTab];
@@ -447,6 +454,13 @@ function AdminSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+function StaffSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#F59E0B' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM9 7V4h6v3" />
     </svg>
   );
 }

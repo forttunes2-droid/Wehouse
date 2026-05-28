@@ -18,4 +18,5 @@ export type NavPage =
   | 'worker_discovery'
   | 'admin'
   | 'state_admin'
-  | 'assistant_state_admin';
+  | 'assistant_state_admin'
+  | 'staff_dashboard';

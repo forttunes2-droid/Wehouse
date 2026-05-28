@@ -92,7 +92,7 @@ export interface RoleChangeHistory {
   created_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin';
+export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard';
 
 export type ListingStatus = 'available' | 'reserved' | 'viewed' | 'occupied' | 'closed';
 

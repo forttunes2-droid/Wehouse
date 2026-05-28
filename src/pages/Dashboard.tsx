@@ -324,10 +324,10 @@ export default function Dashboard({
           </div>
         )}
 
-        {/* Creator Link */}
+        {/* Creator / Admin / Staff Dashboard Link */}
         {((profile.role === 'creator') || (profile.role === 'admin') || (profile.role === 'staff')) && onNavigate && (
           <button
-            onClick={() => onNavigate('creator')}
+            onClick={() => onNavigate(profile.role === 'staff' ? 'staff_dashboard' : profile.role === 'creator' ? 'creator' : 'admin')}
             className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
           >
             <div className="flex items-center gap-3">
@@ -339,7 +339,7 @@ export default function Dashboard({
               </div>
               <div className="text-left">
                 <div className="text-sm font-semibold text-white">
-                  {profile.role === 'creator' ? 'Creator' : profile.role === 'admin' ? 'Admin' : 'Staff'} Dashboard
+                  {profile.role === 'creator' ? 'Creator' : profile.role === 'admin' ? 'Admin' : 'Staff'} Hub
                 </div>
                 <div className="text-[10px] text-[#5C5E72]">Manage users, listings, analytics</div>
               </div>
