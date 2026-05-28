@@ -84,7 +84,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
 
     const file = files[0];
     if (!file.type.startsWith('image/')) { toast.error('Select an image'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB per image'); return; }
+    if (file.size > 12 * 1024 * 1024) { toast.error('Max 12MB per image'); return; }
 
     setUploadingImage(true);
     // Use a temporary listing ID for storage path
