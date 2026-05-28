@@ -44,25 +44,26 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     area: profile.area || '',
   });
 
-  // Fetch available chat agents (staff/admin in scope)
+  // Auto-set chat agent based on poster role
   useEffect(() => {
-    async function loadAgents() {
-      setLoadingAgents(true);
-      const scopeState = profile.assigned_state || profile.state || '';
-      const scopeLga = profile.role === 'admin' ? (profile.assigned_lga || profile.city || '') : undefined;
-      const { agents } = await getAvailableChatAgents(scopeState, scopeLga);
-      const list = agents || [];
-      setAvailableAgents(list);
-      // Default to self if poster is staff/admin
-      if (profile.role === 'staff' || profile.role === 'admin') {
-        setChatAgentId(profile.user_id);
-      } else if (list.length > 0) {
-        setChatAgentId(list[0].user_id);
-      }
+    if (profile.role === 'staff' || profile.role === 'admin' || profile.role === 'assistant_state_admin' || profile.role === 'state_admin') {
+      // Staff/Admin posting — they ARE the chat agent automatically
+      setChatAgentId(profile.user_id);
       setLoadingAgents(false);
+    } else {
+      // Creator posting — fetch staff/admin to select from
+      async function loadAgents() {
+        setLoadingAgents(true);
+        const scopeState = profile.assigned_state || profile.state || '';
+        const { agents } = await getAvailableChatAgents(scopeState);
+        const list = agents || [];
+        setAvailableAgents(list);
+        if (list.length > 0) setChatAgentId(list[0].user_id);
+        setLoadingAgents(false);
+      }
+      loadAgents();
     }
-    loadAgents();
-  }, [profile.user_id, profile.role, profile.assigned_state, profile.state, profile.assigned_lga, profile.city]);
+  }, [profile.user_id, profile.role, profile.assigned_state, profile.state]);
 
   // Image upload handler
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -388,20 +389,36 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           </div>
         </div>
 
-        {/* Chat Agent Assignment — who users will chat with */}
+        {/* Chat Agent Assignment */}
         <div className="glass rounded-2xl p-4 border border-[#3B82F6]/10">
           <label className="text-xs text-[#8A8B9C] font-medium mb-2 block flex items-center gap-2">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
             Chat Agent — Who handles enquiries
           </label>
-          {loadingAgents ? (
+
+          {profile.role === 'staff' || profile.role === 'admin' || profile.role === 'assistant_state_admin' || profile.role === 'state_admin' ? (
+            /* Staff/Admin posting — they ARE the agent automatically */
+            <div className="flex items-center gap-3 py-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                profile.role === 'staff' ? 'bg-gradient-to-br from-amber-500 to-amber-700' : 'bg-gradient-to-br from-[#3B82F6] to-[#2563EB]'
+              }`}>
+                {(profile.username || 'Y').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-xs text-white font-medium">@{profile.username || 'You'} — You will handle enquiries</p>
+                <p className="text-[10px] text-amber-400/70">Users can chat or call you about this listing</p>
+              </div>
+            </div>
+          ) : loadingAgents ? (
+            /* Creator posting — loading agents */
             <div className="flex items-center gap-2 py-2">
               <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
               <span className="text-xs text-[#5C5E72]">Loading agents...</span>
             </div>
           ) : availableAgents.length === 0 ? (
-            <p className="text-xs text-amber-400">No staff or admin available in your scope. Assign a staff member first.</p>
+            <p className="text-xs text-amber-400">No staff or admin available. Assign a staff member first.</p>
           ) : (
+            /* Creator posting — select agent dropdown */
             <select
               value={chatAgentId}
               onChange={(e) => setChatAgentId(e.target.value)}
@@ -409,13 +426,13 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
             >
               {availableAgents.map(a => (
                 <option key={a.user_id} value={a.user_id}>
-                  @{a.username || 'Unknown'} ({a.role}) {a.user_id === profile.user_id ? '— You' : ''}
+                  @{a.username || 'Unknown'} ({a.role})
                 </option>
               ))}
             </select>
           )}
           <p className="text-[9px] text-[#5C5E72] mt-2">
-            Users will see only this agent&apos;s username and can chat with them about this listing. Your identity as the poster stays hidden.
+            Users will see only the agent&apos;s username and can chat/call about this listing. Your identity as the poster stays hidden.
           </p>
         </div>
 
