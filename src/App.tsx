@@ -378,11 +378,11 @@ export default function App() {
   const roleTab = isWorker
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
     : isCreator
-    ? { id: 'creator' as NavPage, label: 'Admin', icon: AdminSvg }
+    ? { id: 'creator' as NavPage, label: 'Creator', icon: AdminSvg }
     : isStateAdminRole
     ? { id: 'state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
     : isAssistantRole
-    ? { id: 'assistant_state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
+    ? { id: 'assistant_state_admin' as NavPage, label: 'Asst. Admin', icon: AdminSvg }
     : isHeadOfStaffRole
     ? { id: 'admin' as NavPage, label: 'Head of Staff', icon: AdminSvg }
     : isStaffRole
