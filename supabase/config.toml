@@ -1,0 +1,6 @@
+# Supabase Configuration
+project_id = "wehouse"
+
+[functions.detect-duplicate-images]
+enabled = true
+verify_jwt = true

@@ -433,6 +433,15 @@ export async function getAvailableChatAgents() {
 
 // Check for duplicate listings — practical for Nigerian context (no house numbers)
 // Uses: title similarity in same area + 30-day cooldown for same user
+// Call the Supabase Edge Function to detect duplicate images
+// Returns: { isDuplicate, isSuspicious, similarity, matches: [...] }
+export async function detectDuplicateImage(imageUrl: string, listingId?: string, ownerId?: string) {
+  const { data, error } = await supabase.functions.invoke('detect-duplicate-images', {
+    body: { imageUrl, listingId, ownerId },
+  });
+  return { result: data, error };
+}
+
 export async function checkDuplicateListing(title: string, _area: string, city: string, state: string, posterAuthId?: string) {
   const normTitle = title.trim().toLowerCase().replace(/\s+/g, ' ');
 
