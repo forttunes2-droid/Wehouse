@@ -18,6 +18,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3000000,
         skipWaiting: true,
         clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        cacheId: 'wehouse-v3',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/btpqlxmqaqfttmtllegx\.supabase\.co\/.*/i,
@@ -46,6 +48,7 @@ export default defineConfig({
           },
         ],
       },
+      manifestFilename: 'manifest-v3.json',
       manifest: {
         name: 'WeHouse',
         short_name: 'WeHouse',

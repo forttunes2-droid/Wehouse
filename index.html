@@ -42,19 +42,29 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Force-clear old service workers and cache
+      // Version-based cache clearing — only clears when version changes
       (function() {
-        // Unregister ALL old service workers
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            regs.forEach(function(reg) { reg.unregister(); });
-          });
-        }
-        // Clear all caches
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            names.forEach(function(name) { caches.delete(name); });
-          });
+        var CURRENT_VERSION = 'v3-2026-05-28';
+        var stored = localStorage.getItem('wh_app_version');
+        if (stored !== CURRENT_VERSION) {
+          // New version detected — clear everything and reload
+          localStorage.setItem('wh_app_version', CURRENT_VERSION);
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              return Promise.all(names.map(function(n) { return caches.delete(n); }));
+            }).then(function() {
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  return Promise.all(regs.map(function(r) { return r.unregister(); }));
+                }).then(function() {
+                  // Force reload once to get fresh code
+                  if (!window.location.search.includes('refreshed=1')) {
+                    window.location.href = window.location.pathname + '?refreshed=1';
+                  }
+                });
+              }
+            });
+          }
         }
       })();
     </script>
