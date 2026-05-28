@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents } from '@/lib/supabase';
+import { createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents, checkDuplicateListing } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,7 +21,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<string[]>([]);
-  const [availableAgents, setAvailableAgents] = useState<Array<{ user_id: string; username: string | null; role: string }>>([]);
+  const [availableAgents, setAvailableAgents] = useState<Array<{ user_id: string; username: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>>([]);
   const [chatAgentId, setChatAgentId] = useState<string>('');
   const [loadingAgents, setLoadingAgents] = useState(true);
 
@@ -45,27 +45,34 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     area: profile.area || '',
   });
 
-  // Auto-set chat agent based on poster role
+  // Load chat agents that match the LISTING location (not poster's location)
   useEffect(() => {
     if (profile.role === 'staff') {
       // Staff posting — they ARE the chat agent automatically
       setChatAgentId(profile.user_id);
       setLoadingAgents(false);
-    } else {
-      // Admin, Assistant State Admin, State Admin, Creator — can appoint agents based on hierarchy
-      async function loadAgents() {
-        setLoadingAgents(true);
-        const scopeState = profile.assigned_state || profile.state || '';
-        const scopeLga = profile.role === 'admin' ? (profile.assigned_lga || profile.city || '') : undefined;
-        const { agents } = await getAvailableChatAgents(profile.role, profile.user_id, scopeState, scopeLga);
-        const list = agents || [];
-        setAvailableAgents(list);
-        if (list.length > 0) setChatAgentId(list[0].user_id);
-        setLoadingAgents(false);
-      }
+      return;
+    }
+    // Admin+ — fetch staff matching the listing's state + city
+    async function loadAgents() {
+      setLoadingAgents(true);
+      const { agents } = await getAvailableChatAgents(
+        profile.role,
+        profile.user_id,
+        location.state,
+        location.city
+      );
+      const list = agents || [];
+      setAvailableAgents(list);
+      if (list.length > 0) setChatAgentId(list[0].user_id);
+      else setChatAgentId('');
+      setLoadingAgents(false);
+    }
+    // Only load when we have a state and city selected
+    if (location.state && location.city) {
       loadAgents();
     }
-  }, [profile.user_id, profile.role, profile.assigned_state, profile.state]);
+  }, [profile.role, profile.user_id, location.state, location.city]);
 
   // Image upload handler
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,6 +153,30 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     if (!form.title.trim()) { toast.error('Title is required'); return; }
     if (!form.price || Number(form.price) <= 0) { toast.error('Valid price is required'); return; }
     if (!location.city) { toast.error('City is required'); return; }
+
+    // Duplicate check — same address in same city
+    const address = form.address.trim() || location.area || '';
+    if (address) {
+      const { hasDuplicate, duplicates, recentPost } = await checkDuplicateListing(address, location.city, location.state, profile.auth_id);
+      if (hasDuplicate) {
+        const dup = duplicates[0];
+        toast.error(`A listing at this address already exists: "${dup.title}" — posted ${new Date(dup.created_at).toLocaleDateString()}`);
+        return;
+      }
+      if (recentPost) {
+        toast.error('You already posted a listing in this city within the last 30 days. Please wait before posting again.');
+        return;
+      }
+    }
+
+    // Validate chat agent matches listing location
+    if (chatAgentId) {
+      const selected = availableAgents.find(a => a.user_id === chatAgentId);
+      if (selected && (selected.assigned_state !== location.state || selected.assigned_lga !== location.city)) {
+        toast.error('Chat agent must be assigned to the same state and city as this listing');
+        return;
+      }
+    }
 
     setSaving(true);
     const { listing, error } = await createListing({

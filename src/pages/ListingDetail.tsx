@@ -320,9 +320,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
                 </div>
                 <div>
                   <p className="text-xs font-medium text-white">@{agentInfo.username || 'Agent'}</p>
-                  <p className={`text-[9px] ${agentInfo.role === 'staff' ? 'text-amber-400' : 'text-[#3B82F6]'}`}>
-                    {agentInfo.role === 'staff' ? 'Staff Agent' : 'Admin Agent'}
-                  </p>
+                  <p className="text-[9px] text-amber-400">Staff Agent · {listing?.city}, {listing?.state}</p>
                 </div>
               </div>
               <div className="flex gap-2">
