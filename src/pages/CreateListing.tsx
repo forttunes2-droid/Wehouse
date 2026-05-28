@@ -64,10 +64,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       else setChatAgentId('');
       setLoadingAgents(false);
     }
-    // Reload when location changes so sorting updates
-    if (location.state) {
-      loadAgents();
-    }
+    // Load agents immediately — sorting updates when location changes
+    loadAgents();
   }, [profile.role, profile.user_id, location.state, location.city]);
 
   // Image upload handler
