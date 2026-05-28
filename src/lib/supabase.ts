@@ -416,26 +416,16 @@ export { getCreatorListings as getListingsByOwner };
 //   Assistant State Admin: can appoint admin, staff, or themselves
 //   State Admin: can appoint staff, admin, assistant_state_admin, or themselves
 //   Creator: can appoint anyone (staff, admin, assistant_state_admin, state_admin)
-// Chat agents MUST be STAFF whose assigned location matches the listing location.
-// Only staff can be chat agents — admins cannot (they manage, staff handles enquiries).
-export async function getAvailableChatAgents(_posterRole: string, _posterUserId: string, listingState: string, listingLga: string) {
-  // Only staff can be chat agents — the people who actually talk to users
-  let query = supabase
+// Get all active staff who can be assigned as chat agents.
+// NOT filtered by location — staff can handle enquiries for listings anywhere.
+export async function getAvailableChatAgents() {
+  const { data, error } = await supabase
     .from('profiles')
     .select('user_id, username, avatar_url, role, assigned_state, assigned_lga')
     .eq('role', 'staff')
-    .eq('deleted', false);
+    .eq('deleted', false)
+    .order('username', { ascending: true });
 
-  // Staff MUST match the listing's state
-  if (listingState) {
-    query = query.eq('assigned_state', listingState);
-  }
-  // Staff MUST match the listing's LGA/city
-  if (listingLga) {
-    query = query.eq('assigned_lga', listingLga);
-  }
-
-  const { data, error } = await query.order('username', { ascending: true });
   const agents = (data || []) as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>;
 
   return { agents: agents.length > 0 ? agents : null, error };

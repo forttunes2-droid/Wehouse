@@ -53,25 +53,17 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       setLoadingAgents(false);
       return;
     }
-    // Admin+ — fetch staff matching the listing's state + city
+    // Admin+ — fetch ALL active staff (not filtered by location)
     async function loadAgents() {
       setLoadingAgents(true);
-      const { agents } = await getAvailableChatAgents(
-        profile.role,
-        profile.user_id,
-        location.state,
-        location.city
-      );
+      const { agents } = await getAvailableChatAgents();
       const list = agents || [];
       setAvailableAgents(list);
       if (list.length > 0) setChatAgentId(list[0].user_id);
       else setChatAgentId('');
       setLoadingAgents(false);
     }
-    // Only load when we have a state and city selected
-    if (location.state && location.city) {
-      loadAgents();
-    }
+    loadAgents();
   }, [profile.role, profile.user_id, location.state, location.city]);
 
   // Image upload handler
@@ -168,14 +160,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       }
     }
 
-    // Validate chat agent matches listing location
-    if (chatAgentId) {
-      const selected = availableAgents.find(a => a.user_id === chatAgentId);
-      if (selected && (selected.assigned_state !== location.state || selected.assigned_lga !== location.city)) {
-        toast.error('Chat agent must be assigned to the same state and city as this listing');
-        return;
-      }
-    }
+    // Chat agent is optional — if none selected, no chat option shown on listing
 
     setSaving(true);
     const { listing, error } = await createListing({
