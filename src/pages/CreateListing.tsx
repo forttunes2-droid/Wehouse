@@ -154,13 +154,12 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     if (!form.price || Number(form.price) <= 0) { toast.error('Valid price is required'); return; }
     if (!location.city) { toast.error('City is required'); return; }
 
-    // Duplicate check — same address in same city
+    // Duplicate detection — practical for Nigerian context (no house numbers)
     const address = form.address.trim() || location.area || '';
     if (address) {
-      const { hasDuplicate, duplicates, recentPost } = await checkDuplicateListing(address, location.city, location.state, profile.auth_id);
-      if (hasDuplicate) {
-        const dup = duplicates[0];
-        toast.error(`A listing at this address already exists: "${dup.title}" — posted ${new Date(dup.created_at).toLocaleDateString()}`);
+      const { titleMatch, recentPost } = await checkDuplicateListing(form.title.trim(), address, location.city, location.state, profile.auth_id);
+      if (titleMatch) {
+        toast.error(`A listing with a very similar title already exists in ${location.city}. Try a different title.`);
         return;
       }
       if (recentPost) {
@@ -383,8 +382,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Property Type</label>
           <div className="grid grid-cols-2 gap-2 mb-3">
             {[
-              { value: 'studio_apartment', label: 'Studio Apartment', desc: 'Open-plan: living + bedroom' },
-              { value: 'self_contain', label: 'Self Contain', desc: 'Single room with kitchen + toilet' },
+              { value: 'self_contain', label: 'Self Contain', desc: 'Single room + kitchenette + toilet (compact)' },
+              { value: 'studio_apartment', label: 'Studio Apartment', desc: 'Self contain but bigger open-plan space' },
             ].map(opt => (
               <button
                 key={opt.value}

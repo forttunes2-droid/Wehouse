@@ -441,22 +441,33 @@ export async function getAvailableChatAgents(_posterRole: string, _posterUserId:
   return { agents: agents.length > 0 ? agents : null, error };
 }
 
-// Check if a listing with the same or very similar address already exists
-export async function checkDuplicateListing(address: string, city: string, state: string, posterAuthId?: string) {
-  // Normalize: trim, lowercase, remove extra spaces
-  const normAddress = address.trim().toLowerCase().replace(/\s+/g, ' ');
+// Check for duplicate listings — practical for Nigerian context (no house numbers)
+// Uses: title similarity in same area + 30-day cooldown for same user
+export async function checkDuplicateListing(title: string, _area: string, city: string, state: string, posterAuthId?: string) {
+  const normTitle = title.trim().toLowerCase().replace(/\s+/g, ' ');
 
-  // 1. Exact address match in same city
-  const { data: exactMatches } = await supabase
+  // 1. Fetch existing listings in same city (not hidden)
+  const { data: existing } = await supabase
     .from('listings')
-    .select('id, title, address, city, state, owner_id, created_at')
-    .ilike('address', normAddress)
+    .select('id, title, city, state, owner_id, created_at, images')
     .eq('city', city)
     .eq('state', state)
     .not('availability_status', 'eq', 'hidden')
-    .limit(5);
+    .limit(50);
 
-  // 2. Same-user cooldown: same poster, same city, within last 30 days
+  // 2. Check title similarity (Levenshtein distance) — if >70% similar, flag it
+  let titleMatch = false;
+  for (const listing of (existing || [])) {
+    if (!listing.title) continue;
+    const existingTitle = listing.title.trim().toLowerCase().replace(/\s+/g, ' ');
+    const similarity = calculateSimilarity(normTitle, existingTitle);
+    if (similarity > 0.7) {
+      titleMatch = true;
+      break;
+    }
+  }
+
+  // 3. Same-user cooldown: same poster, same city, within last 30 days
   let recentPost = null;
   if (posterAuthId) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -471,13 +482,35 @@ export async function checkDuplicateListing(address: string, city: string, state
     recentPost = recent;
   }
 
-  const duplicates = (exactMatches || []).filter(l => l.address?.trim().toLowerCase() === normAddress);
-
   return {
-    hasDuplicate: duplicates.length > 0,
-    duplicates: duplicates,
-    recentPost: recentPost,
+    titleMatch,
+    recentPost,
   };
+}
+
+// Levenshtein distance — measures how similar two strings are
+function calculateSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      matrix[i][j] = b.charAt(i - 1) === a.charAt(j - 1)
+        ? matrix[i - 1][j - 1]
+        : Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1,     // insertion
+            matrix[i - 1][j] + 1      // deletion
+          );
+    }
+  }
+
+  const maxLen = Math.max(a.length, b.length);
+  return 1 - matrix[b.length][a.length] / maxLen;
 }
 
 export async function uploadListingImage(file: File, listingId: string) {
