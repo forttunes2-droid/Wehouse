@@ -411,12 +411,36 @@ export async function getCreatorListings(userId: string) {
 export { getCreatorListings as getListingsByOwner };
 
 // Get staff/admin users available to be assigned as chat agents for a listing
-// Creator gets all staff/admin globally; Admin gets staff/admin in their LGA
-export async function getAvailableChatAgents(scopeState: string, scopeLga?: string) {
+// Hierarchy:
+//   Admin: can appoint staff
+//   Assistant State Admin: can appoint admin, staff, or themselves
+//   State Admin: can appoint staff, admin, assistant_state_admin, or themselves
+//   Creator: can appoint anyone (staff, admin, assistant_state_admin, state_admin)
+export async function getAvailableChatAgents(posterRole: string, posterUserId: string, scopeState: string, scopeLga?: string) {
+  // Determine which roles the poster can appoint
+  let allowedRoles: string[];
+  switch (posterRole) {
+    case 'admin':
+      allowedRoles = ['staff'];
+      break;
+    case 'assistant_state_admin':
+      allowedRoles = ['admin', 'staff'];
+      break;
+    case 'state_admin':
+      allowedRoles = ['staff', 'admin', 'assistant_state_admin'];
+      break;
+    case 'creator':
+    case 'creator_admin':
+      allowedRoles = ['staff', 'admin', 'assistant_state_admin', 'state_admin'];
+      break;
+    default:
+      allowedRoles = [];
+  }
+
   let query = supabase
     .from('profiles')
     .select('user_id, username, avatar_url, role, assigned_state, assigned_lga')
-    .in('role', ['staff', 'admin'])
+    .in('role', allowedRoles)
     .eq('deleted', false);
 
   if (scopeState) {
@@ -427,7 +451,24 @@ export async function getAvailableChatAgents(scopeState: string, scopeLga?: stri
   }
 
   const { data, error } = await query.order('username', { ascending: true });
-  return { agents: data as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }> | null, error };
+  const agents = (data || []) as Array<{ user_id: string; username: string | null; avatar_url: string | null; role: string; assigned_state: string | null; assigned_lga: string | null }>;
+
+  // For assistant_state_admin and state_admin, add themselves to the list
+  if (posterRole === 'assistant_state_admin' || posterRole === 'state_admin') {
+    const { data: selfProfile } = await supabase
+      .from('profiles')
+      .select('user_id, username, avatar_url, role, assigned_state, assigned_lga')
+      .eq('user_id', posterUserId)
+      .single();
+    if (selfProfile) {
+      // Check if already in list (shouldn't be if their role isn't in allowedRoles)
+      if (!agents.find(a => a.user_id === posterUserId)) {
+        agents.unshift(selfProfile as any);
+      }
+    }
+  }
+
+  return { agents: agents.length > 0 ? agents : null, error };
 }
 
 export async function uploadListingImage(file: File, listingId: string) {

@@ -31,6 +31,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     price: '',
     currency: 'NGN',
     address: '',
+    property_type: '' as '' | 'studio_apartment' | 'self_contain',
     bedrooms: '1',
     bathrooms: '1',
     availability_status: 'available' as 'available' | 'reserved' | 'occupied',
@@ -46,16 +47,17 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
 
   // Auto-set chat agent based on poster role
   useEffect(() => {
-    if (profile.role === 'staff' || profile.role === 'admin' || profile.role === 'assistant_state_admin' || profile.role === 'state_admin') {
-      // Staff/Admin posting — they ARE the chat agent automatically
+    if (profile.role === 'staff') {
+      // Staff posting — they ARE the chat agent automatically
       setChatAgentId(profile.user_id);
       setLoadingAgents(false);
     } else {
-      // Creator posting — fetch staff/admin to select from
+      // Admin, Assistant State Admin, State Admin, Creator — can appoint agents based on hierarchy
       async function loadAgents() {
         setLoadingAgents(true);
         const scopeState = profile.assigned_state || profile.state || '';
-        const { agents } = await getAvailableChatAgents(scopeState);
+        const scopeLga = profile.role === 'admin' ? (profile.assigned_lga || profile.city || '') : undefined;
+        const { agents } = await getAvailableChatAgents(profile.role, profile.user_id, scopeState, scopeLga);
         const list = agents || [];
         setAvailableAgents(list);
         if (list.length > 0) setChatAgentId(list[0].user_id);
@@ -156,7 +158,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       address: form.address.trim() || location.area || null,
       images,
       videos,
-      bedrooms: Number(form.bedrooms) || 1,
+      property_type: form.property_type || null,
+      bedrooms: form.property_type ? 1 : (Number(form.bedrooms) || 1),
       bathrooms: Number(form.bathrooms) || 1,
       availability_status: form.availability_status,
       status: form.status,
@@ -344,28 +347,69 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           />
         </div>
 
-        {/* Bedrooms / Bathrooms */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bedrooms</label>
-            <select
-              value={form.bedrooms}
-              onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
-              className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
-            >
-              {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+        {/* Property Type — Studio, Self Contain, or Standard Bedrooms */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Property Type</label>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {[
+              { value: 'studio_apartment', label: 'Studio Apartment', desc: 'Open-plan: living + bedroom' },
+              { value: 'self_contain', label: 'Self Contain', desc: 'Single room with kitchen + toilet' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm({ ...form, property_type: form.property_type === opt.value ? '' : opt.value as any })}
+                className={`rounded-xl border p-3 text-left transition-all ${
+                  form.property_type === opt.value
+                    ? 'border-[#3B82F6] bg-[#3B82F6]/10'
+                    : 'border-[#2A2A3A] bg-[#1A1A24] hover:border-[#3B82F6]/30'
+                }`}
+              >
+                <p className={`text-xs font-semibold ${form.property_type === opt.value ? 'text-[#3B82F6]' : 'text-white'}`}>{opt.label}</p>
+                <p className="text-[9px] text-[#5C5E72] mt-0.5">{opt.desc}</p>
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bathrooms</label>
-            <select
-              value={form.bathrooms}
-              onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
-              className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
-            >
-              {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
+
+          {/* Bedrooms — only show for standard (non-studio/self-contain) */}
+          {!form.property_type && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bedrooms</label>
+                <select
+                  value={form.bedrooms}
+                  onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
+                  className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bathrooms</label>
+                <select
+                  value={form.bathrooms}
+                  onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
+                  className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Studio/Self Contain always has 1 bathroom */}
+          {form.property_type && (
+            <div>
+              <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Toilet / Bathroom</label>
+              <select
+                value={form.bathrooms}
+                onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
+                className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
+              >
+                {[1, 2].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Status */}
@@ -396,12 +440,10 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
             Chat Agent — Who handles enquiries
           </label>
 
-          {profile.role === 'staff' || profile.role === 'admin' || profile.role === 'assistant_state_admin' || profile.role === 'state_admin' ? (
-            /* Staff/Admin posting — they ARE the agent automatically */
+          {profile.role === 'staff' ? (
+            /* Staff posting — they ARE the agent automatically */
             <div className="flex items-center gap-3 py-1">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                profile.role === 'staff' ? 'bg-gradient-to-br from-amber-500 to-amber-700' : 'bg-gradient-to-br from-[#3B82F6] to-[#2563EB]'
-              }`}>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">
                 {(profile.username || 'Y').charAt(0).toUpperCase()}
               </div>
               <div>

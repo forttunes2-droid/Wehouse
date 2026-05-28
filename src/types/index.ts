@@ -124,6 +124,7 @@ export interface Listing {
   address: string | null;
   images: string[];
   videos: string[];
+  property_type: 'studio_apartment' | 'self_contain' | null;  // null = standard bedroom-based
   bedrooms: number;
   bathrooms: number;
   availability_status: 'available' | 'reserved' | 'occupied' | 'hidden';
