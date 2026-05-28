@@ -1463,15 +1463,30 @@ function HotelsTab({ profile }: { profile: Profile }) {
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 12 * 1024 * 1024) { toast.error('Max 12MB per image'); return; }
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) { toast.error('Select image files only'); return; }
+
+    const oversized = validFiles.filter(f => f.size > 35 * 1024 * 1024);
+    if (oversized.length > 0) { toast.error(`${oversized.length} file(s) exceed 35MB`); return; }
+
     setUploading(true);
-    const { url, error } = await uploadHotelImage(file, 0);
+    let uploaded = 0;
+
+    for (const file of validFiles) {
+      const { url, error } = await uploadHotelImage(file, 0);
+      if (url && !error) {
+        setFormImages(prev => [...prev, url]);
+        uploaded++;
+      }
+    }
+
     setUploading(false);
-    if (error || !url) { toast.error('Upload failed'); return; }
-    setFormImages(prev => [...prev, url]);
-    toast.success('Image added');
+    if (uploaded > 0) toast.success(`${uploaded} image${uploaded > 1 ? 's' : ''} added`);
+    if (uploaded < validFiles.length) toast.error(`${validFiles.length - uploaded} failed`);
+    e.target.value = '';
   }
 
   function removeImage(idx: number) {
@@ -1514,7 +1529,7 @@ function HotelsTab({ profile }: { profile: Profile }) {
             <label className="w-20 h-20 rounded-xl border border-dashed border-[#2A2A3A] flex flex-col items-center justify-center text-[#5C5E72] hover:border-[#3B82F6]/50 hover:text-[#3B82F6] transition-colors cursor-pointer">
               {uploading ? <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
                 : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg><span className="text-[9px] mt-1">Add</span></>}
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+              <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
             </label>
           </div>
         </div>

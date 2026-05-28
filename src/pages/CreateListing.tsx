@@ -71,33 +71,53 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     loadAgents();
   }, [profile.role, profile.user_id, location.state, location.city]);
 
-  // Image upload handler
+  // Image upload handler — supports multiple files at once
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Limit to 5 images total
-    if (images.length >= 5) {
-      toast.error('Maximum 5 images');
+    // Filter valid image files
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) { toast.error('Select image files only'); return; }
+
+    // Check total won't exceed 5
+    if (images.length + validFiles.length > 5) {
+      toast.error(`Maximum 5 images. You can add ${5 - images.length} more.`);
       return;
     }
 
-    const file = files[0];
-    if (!file.type.startsWith('image/')) { toast.error('Select an image'); return; }
-    if (file.size > 12 * 1024 * 1024) { toast.error('Max 12MB per image'); return; }
+    // Check each file size
+    const oversized = validFiles.filter(f => f.size > 35 * 1024 * 1024);
+    if (oversized.length > 0) {
+      toast.error(`${oversized.length} file(s) exceed 35MB limit`);
+      return;
+    }
 
     setUploadingImage(true);
-    // Use a temporary listing ID for storage path
-    const tempId = `temp-${profile.user_id}-${Date.now()}`;
-    const { url, error } = await uploadListingImage(file, tempId);
+    let uploaded = 0;
+    const newUrls: string[] = [];
+
+    for (const file of validFiles) {
+      const tempId = `temp-${profile.user_id}-${Date.now()}-${uploaded}`;
+      const { url, error } = await uploadListingImage(file, tempId);
+      if (url && !error) {
+        newUrls.push(url);
+        uploaded++;
+      }
+    }
+
     setUploadingImage(false);
 
-    if (error || !url) {
-      toast.error('Upload failed: ' + (error?.message || 'Unknown'));
-      return;
+    if (newUrls.length > 0) {
+      setImages(prev => [...prev, ...newUrls]);
+      toast.success(`${newUrls.length} image${newUrls.length > 1 ? 's' : ''} added`);
     }
-    setImages(prev => [...prev, url]);
-    toast.success('Image added');
+    if (newUrls.length < validFiles.length) {
+      toast.error(`${validFiles.length - newUrls.length} file(s) failed to upload`);
+    }
+
+    // Reset input so same files can be selected again
+    e.target.value = '';
   }, [images.length, profile.user_id]);
 
   const removeImage = (index: number) => {
@@ -313,7 +333,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
                 )}
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
           </div>
         </div>
 
