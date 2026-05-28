@@ -543,17 +543,14 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
               onChange={(e) => setChatAgentId(e.target.value)}
               className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
             >
-              {availableAgents.map(a => {
-                const matchesCity = a.assigned_lga === location.city;
-                const matchesState = a.assigned_state === location.state;
-                const locationLabel = matchesCity
-                  ? '✓ MATCH'
-                  : matchesState
-                  ? `· ${a.assigned_lga || 'same state'}`
-                  : `· ${a.assigned_lga || a.assigned_state || 'other'}`;
+              {availableAgents.map((a, idx) => {
+                // Debug: show actual data
+                const city = a.assigned_lga || 'no-city';
+                const state = a.assigned_state || 'no-state';
+                const isMatch = a.assigned_lga && location.city && a.assigned_lga.toLowerCase() === location.city.toLowerCase();
                 return (
                   <option key={a.user_id} value={a.user_id}>
-                    @{a.username || 'Unknown'} {locationLabel}
+                    {idx === 0 && isMatch ? '✓ ' : ''}@{a.username || 'Unknown'} · {city}, {state}
                   </option>
                 );
               })}
