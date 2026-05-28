@@ -550,7 +550,7 @@ function ListingsTab({ profile }: { profile: Profile }) {
                   <img src={l.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-white truncate">{l.title}</div>
-                    <div className="text-[10px] text-[#3B82F6] font-bold">N{l.price.toLocaleString()}</div>
+                    <div className="text-[10px] text-[#3B82F6] font-bold">₦{l.price.toLocaleString()}/year</div>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${l.availability_status === 'available' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{l.availability_status}</span>
                   </div>
                 </div>

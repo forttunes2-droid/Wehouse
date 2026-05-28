@@ -65,7 +65,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
         await import('@/lib/supabase').then(m => m.sendMessage(
           conversation.id,
           profile.user_id,
-          `Hi, I'm interested in your listing: "${listing.title}" in ${listing.city}, ₦${listing.price?.toLocaleString()}`
+          `Hi, I'm interested in your listing: "${listing.title}" in ${listing.city}, ₦${listing.price?.toLocaleString()}/year`
         ));
       }
     }
@@ -183,7 +183,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
       <div className="px-5 py-5">
         <div className="flex items-start justify-between gap-3 mb-2">
           <h1 className="text-lg font-bold text-white">{listing.title}</h1>
-          <span className="text-lg font-bold text-[#3B82F6] whitespace-nowrap">₦{listing.price.toLocaleString()}</span>
+          <span className="text-lg font-bold text-[#3B82F6] whitespace-nowrap">₦{listing.price.toLocaleString()}<span className="text-xs font-normal text-[#5C5E72] ml-1">/year</span></span>
         </div>
 
         <p className="text-xs text-[#5C5E72] mb-4">

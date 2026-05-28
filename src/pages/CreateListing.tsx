@@ -396,13 +396,13 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
 
         {/* Price */}
         <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Price (NGN) *</label>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Price per year (NGN) *</label>
           <Input
             type="number"
             value={form.price}
             onChange={(e) => setForm({ ...form, price: e.target.value })}
             className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
-            placeholder="150000"
+            placeholder="e.g. 600000 (yearly rent)"
             required
           />
         </div>

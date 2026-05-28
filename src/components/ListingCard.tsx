@@ -90,10 +90,9 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave }:
           <div className="flex items-baseline gap-1.5">
             <span className="text-base font-bold text-white drop-shadow-lg">{priceDisplay}</span>
             {priceDetail && (
-              <span className="text-[9px] text-white/50 line-through">{priceDetail}</span>
+              <span className="text-[9px] text-white/50">{priceDetail}/yr</span>
             )}
           </div>
-          <span className="text-[8px] text-white/50">/year</span>
         </div>
 
         {/* Beds/baths — bottom right on image */}

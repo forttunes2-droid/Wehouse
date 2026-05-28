@@ -372,3 +372,85 @@ export interface AnnouncementRecipient {
 // Legacy aliases for backward compatibility
 export type OfficialMessage = Announcement;
 export type OfficialMessageRecipient = AnnouncementRecipient;
+
+// ─── HOTEL TYPES ───────────────────────────────────
+
+export type HotelStatus = 'active' | 'inactive';
+
+export interface Hotel {
+  hotel_id: number;
+  name: string;
+  description: string | null;
+  state: string;
+  city: string;
+  area: string | null;
+  address: string | null;
+  images: string[];
+  amenities: string[];
+  owner_id: string;
+  status: HotelStatus;
+  rating: number;
+  review_count: number;
+  featured: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HotelRoom {
+  room_id: number;
+  hotel_id: number;
+  room_type: string;
+  description: string | null;
+  price_per_night: number;
+  max_guests: number;
+  bed_type: string | null;
+  images: string[];
+  amenities: string[];
+  total_rooms: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type HotelBookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+
+export interface HotelBooking {
+  booking_id: number;
+  hotel_id: number;
+  room_id: number;
+  user_id: string;
+  check_in: string;
+  check_out: string;
+  guest_count: number;
+  total_nights: number;
+  total_price: number;
+  status: HotelBookingStatus;
+  guest_name: string | null;
+  guest_phone: string | null;
+  special_requests: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HotelReview {
+  review_id: number;
+  hotel_id: number;
+  user_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+}
+
+// Hotel amenity options
+export const HOTEL_AMENITIES = [
+  'WiFi', 'AC', 'Swimming Pool', 'Gym', 'Restaurant', 'Bar', 'Parking',
+  '24/7 Power', 'Security', 'Laundry', 'Room Service', 'Conference Room',
+  'Elevator', 'SPA', 'Airport Shuttle', 'Kitchenette',
+] as const;
+
+export const ROOM_TYPES = [
+  'Standard', 'Deluxe', 'Suite', 'Executive', 'Presidential', 'Single', 'Twin',
+] as const;
+
+export const BED_TYPES = [
+  'King', 'Queen', 'Twin', 'Single', 'Double', 'Bunk',
+] as const;

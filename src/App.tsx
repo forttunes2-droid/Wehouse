@@ -25,6 +25,9 @@ const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
 const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 const Activity = lazy(() => import('@/pages/Activity'));
 const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
+const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
+const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
+const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -66,7 +69,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -86,6 +89,8 @@ export default function App() {
 
   const [navPage, setNavPage] = useState<NavPage>(savedPageInit || 'home');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [hotelId, setHotelId] = useState<number | null>(null);
+  const [hotelRoomId, setHotelRoomId] = useState<number | null>(null);
   const [chatConvId, setChatConvId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [unreadCount, setUnreadCount] = useState(0);
@@ -229,6 +234,9 @@ export default function App() {
   const goToPrivacy = useCallback(() => setNavPage('privacy'), []);
   const goToSecurity = useCallback(() => setNavPage('security'), []);
   const goToNewListing = useCallback(() => setNavPage('new_listing'), []);
+  const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); setNavPage('hotels'); }, []);
+  const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); setNavPage('hotel_detail'); }, []);
+  const goToHotelBooking = useCallback((hId: number, rId: number) => { setHotelId(hId); setHotelRoomId(rId); setNavPage('hotel_booking'); }, []);
 
   // ─── LOADING ──────────────────────────────────────
   if (auth.isLoading) {
@@ -337,6 +345,12 @@ export default function App() {
         return <WorkerDiscovery userCity={profile.city} />;
       case 'worker_setup':
         return <WorkerSetup profile={profile} onComplete={() => goTo('worker_dashboard')} />;
+      case 'hotels':
+        return <HotelsHome onNavigate={(p: string, id?: string) => p === 'hotel_detail' && id ? goToHotelDetail(Number(id)) : goTo(p as NavPage)} />;
+      case 'hotel_detail':
+        return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} profile={profile} /> : null;
+      case 'hotel_booking':
+        return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => setNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
@@ -349,6 +363,7 @@ export default function App() {
   const baseTabs = [
     { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
     { id: 'search' as NavPage, label: 'Listings', icon: ListingsSvg },
+    { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
     ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
     { id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg },
   ];
@@ -379,7 +394,7 @@ export default function App() {
       </div>
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {
@@ -446,6 +461,20 @@ function WrenchSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  );
+}
+
+function HotelSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z" />
+      <path d="m2 20h20" />
+      <path d="M12 11v-6" />
+      <path d="M9 11v-2" />
+      <path d="M15 11v-2" />
+      <path d="M8 22v-5a2 2 0 0 1 4 0v5" />
+      <path d="M12 22v-5a2 2 0 0 1 4 0v5" />
     </svg>
   );
 }

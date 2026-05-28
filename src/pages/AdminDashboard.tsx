@@ -316,7 +316,7 @@ function ListingsTab({ scope, refresh }: { scope: { state: string; lga: string }
         <div key={l.id} className="glass rounded-xl p-3 flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-white truncate">{l.title}</p>
-            <p className="text-[10px] text-[#5C5E72]">{l.city} · N{l.price?.toLocaleString()}</p>
+            <p className="text-[10px] text-[#5C5E72]">{l.city} · ₦{l.price?.toLocaleString()}/year</p>
           </div>
           <button onClick={() => handleDelete(l.id)} className="h-7 px-2 rounded-lg bg-red-500/10 text-red-400 text-[10px] hover:bg-red-500/20">Delete</button>
         </div>

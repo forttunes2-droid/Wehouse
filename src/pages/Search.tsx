@@ -110,7 +110,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
           <div className="mt-3 glass rounded-xl p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Price (N)</label>
+                <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Price/yr (₦)</label>
                 <input type="number" value={priceMax} onChange={(e) => setPriceMax(e.target.value ? Number(e.target.value) : '')} placeholder="Any" className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
               </div>
               <div>

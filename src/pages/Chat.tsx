@@ -207,7 +207,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
             />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-white truncate">{linkedListing.title}</p>
-              <p className="text-[10px] text-[#5C5E72]">{linkedListing.city} · ₦{linkedListing.price?.toLocaleString()}</p>
+              <p className="text-[10px] text-[#5C5E72]">{linkedListing.city} · ₦{linkedListing.price?.toLocaleString()}/year</p>
             </div>
             <span className={`text-[9px] px-2 py-0.5 rounded-full flex-shrink-0 border ${
               isPending ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :

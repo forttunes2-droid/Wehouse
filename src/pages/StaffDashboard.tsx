@@ -232,7 +232,7 @@ function MyListingsTab({ listings, loading, onRefresh }: { listings: Listing[]; 
                 <img src={l.images?.[0] || 'https://placehold.co/100x100/1A1A24/5C5E72?text=No+Image'} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-white truncate">{l.title}</p>
-                  <p className="text-[10px] text-[#5C5E72]">{l.city} · N{l.price?.toLocaleString()}</p>
+                  <p className="text-[10px] text-[#5C5E72]">{l.city} · ₦{l.price?.toLocaleString()}/year</p>
                   <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${
                     l.status === 'available' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                     l.status === 'reserved' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
