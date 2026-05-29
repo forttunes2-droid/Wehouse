@@ -33,6 +33,7 @@ const DirectorDashboard = lazy(() => import('@/pages/DirectorDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
+const PremiumPage = lazy(() => import('@/pages/PremiumPage'));
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -74,7 +75,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'premium', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -238,6 +239,7 @@ export default function App() {
   const goToAccount = useCallback(() => setNavPage('account'), []);
   const goToPrivacy = useCallback(() => setNavPage('privacy'), []);
   const goToSecurity = useCallback(() => setNavPage('security'), []);
+  const goToPremium = useCallback(() => setNavPage('premium'), []);
   const goToNewListing = useCallback(() => setNavPage('new_listing'), []);
   const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); setNavPage('hotels'); }, []);
   const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); setNavPage('hotel_detail'); }, []);
@@ -334,11 +336,13 @@ export default function App() {
         }
         return <ProfileEdit profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('profile')} />;
       case 'account':
-        return <AccountCenter profile={profile} onBack={() => goTo('profile')} onGoToPrivacy={goToPrivacy} onGoToSecurity={goToSecurity} onGoToProfileEdit={goToProfileEdit} />;
+        return <AccountCenter profile={profile} onBack={() => goTo('profile')} onGoToPrivacy={goToPrivacy} onGoToSecurity={goToSecurity} onGoToProfileEdit={goToProfileEdit} onGoToPremium={goToPremium} />;
       case 'privacy':
         return <PrivacySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('account')} />;
       case 'security':
         return <SecuritySettings profile={profile} onBack={() => goTo('account')} />;
+      case 'premium':
+        return <PremiumPage profile={profile} onBack={() => goTo('account')} />;
       case 'new_listing':
         // Only staff, admin, creator can create listings
         if (!canList) {
@@ -420,7 +424,7 @@ export default function App() {
         } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'premium' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {
