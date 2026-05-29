@@ -427,7 +427,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
 
               {/* WhatsApp CTA */}
               <a
-                href="https://wa.me/2348000000000?text=Hi%20WeHouse%20Support,%20I%20just%20reserved%20a%20property%20and%20want%20to%20complete%20payment."
+                href="https://wa.me/2347943946685?text=Hi%20WeHouse%20Support,%20I%20just%20reserved%20a%20property%20and%20want%20to%20complete%20payment."
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full h-12 rounded-xl bg-gradient-to-r from-[#22C55E] to-[#16A34A] text-white text-sm font-semibold shadow-lg shadow-green-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2 mb-2.5"
