@@ -42,34 +42,23 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Auto-detect new deployments and force refresh
+      // Auto-detect new deployments — checks every 1 hour + when returning from background
       (function() {
         var STORAGE_KEY = 'wh_sw_hash';
+        var CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
         var lastHash = localStorage.getItem(STORAGE_KEY) || '';
+        var hasRefreshed = false; // Prevent double-reload
 
-        // Check by fetching index.html (script src hashes change every build)
         function checkForUpdate() {
-          fetch('/?_=' + Date.now(), { cache: 'no-store' })
+          if (hasRefreshed) return; // Already refreshed this session
+          fetch('/sw.js?_=' + Date.now(), { cache: 'no-store' })
             .then(function(r) { return r.text(); })
             .then(function(text) {
-              // Extract the script src hash from the HTML
-              var match = text.match(/src="\/assets\/main-([^.]+)/);
-              var currentHash = match ? match[1] : Date.now().toString();
+              var currentHash = btoa(text.slice(0, 200));
               if (lastHash && lastHash !== currentHash) {
-                // New deployment detected!
+                hasRefreshed = true;
                 localStorage.setItem(STORAGE_KEY, currentHash);
-                // Unregister old SW and reload
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.getRegistrations().then(function(regs) {
-                    return Promise.all(regs.map(function(r) { return r.unregister(); }));
-                  }).then(function() {
-                    window.location.reload();
-                  }).catch(function() {
-                    window.location.reload();
-                  });
-                } else {
-                  window.location.reload();
-                }
+                window.location.reload();
               } else {
                 localStorage.setItem(STORAGE_KEY, currentHash);
               }
@@ -77,27 +66,24 @@
             .catch(function() {});
         }
 
-        // 1. Register service worker
+        // Register service worker
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/sw.js').then(function(reg) {
-            reg.update();
-            reg.addEventListener('updatefound', function() {
-              var newWorker = reg.installing;
-              newWorker.addEventListener('statechange', function() {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  newWorker.postMessage('SKIP_WAITING');
-                  window.location.reload();
-                }
-              });
-            });
-          }).catch(function() {});
+          navigator.serviceWorker.register('/sw.js').catch(function() {});
         }
 
-        // 2. Check for new deployments
-        checkForUpdate(); // On load
-        setInterval(checkForUpdate, 60 * 1000); // Every 60 seconds
-        document.addEventListener('visibilitychange', function() { // When returning from background
-          if (document.visibilityState === 'visible') checkForUpdate();
+        // Check once on load (after 3 seconds)
+        setTimeout(checkForUpdate, 3000);
+
+        // Check every 1 hour
+        setInterval(checkForUpdate, CHECK_INTERVAL);
+
+        // Check when returning from background (but not more than once per 5 min)
+        var lastBgCheck = 0;
+        document.addEventListener('visibilitychange', function() {
+          if (document.visibilityState === 'visible' && Date.now() - lastBgCheck > 5 * 60 * 1000) {
+            lastBgCheck = Date.now();
+            checkForUpdate();
+          }
         });
       })();
     </script>
