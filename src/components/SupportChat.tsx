@@ -322,8 +322,8 @@ export default function SupportChat({ profile }: SupportChatProps) {
               </p>
               <p className="text-[10px] text-[#5C5E72]">
                 {premiumFeature === 'messages'
-                  ? 'Unlimited AI messages + photos + verified badge'
-                  : 'Unlimited photo uploads + AI messages + verified badge'}
+                  ? '60 AI messages daily + 30 photos daily + verified badge'
+                  : '30 photos daily + 60 AI messages daily + verified badge'}
               </p>
             </div>
             <button onClick={() => setShowPremium(false)} className="h-8 px-3 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">

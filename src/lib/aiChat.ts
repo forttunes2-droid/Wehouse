@@ -55,18 +55,19 @@ function isCreatorRole(role: string | null): boolean {
 
 // ─── MESSAGE TRACKING ──────────────────────────────────
 
-const DAILY_LIMIT = 7;
+const FREE_DAILY_LIMIT = 7;
+const PREMIUM_DAILY_LIMIT = 60;
 
 export async function getRemainingMessages(userId: string): Promise<number> {
-  // Creator = unlimited
   const role = await getUserRole(userId);
+
+  // Creator = unlimited
   if (isCreatorRole(role)) return 9999;
 
-  // Premium = unlimited
+  // Premium = 60 per day
   const premium = await isPremiumActive(userId);
-  if (premium) return 9999;
+  const limit = premium ? PREMIUM_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
-  // Normal user = 7 per day
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -76,12 +77,12 @@ export async function getRemainingMessages(userId: string): Promise<number> {
     .eq('user_id', userId)
     .gte('created_at', today.toISOString());
 
-  return Math.max(0, DAILY_LIMIT - (count || 0));
+  return Math.max(0, limit - (count || 0));
 }
 
 export async function trackMessage(userId: string) {
-  // Don't track creators (unlimited)
   const role = await getUserRole(userId);
+  // Don't track creators (unlimited)
   if (isCreatorRole(role)) return;
 
   await supabase.from('chat_usage').insert({
@@ -92,24 +93,37 @@ export async function trackMessage(userId: string) {
 
 // ─── PHOTO TRACKING ────────────────────────────────────
 // Normal users: 1 free photo ever
-// Premium users: unlimited
+// Premium users: 30 photos per day
 // Creator: unlimited
+
+const FREE_PHOTO_LIMIT = 1; // total lifetime
+const PREMIUM_DAILY_PHOTOS = 30; // per day
 
 export async function getRemainingPhotos(userId: string): Promise<number> {
   const role = await getUserRole(userId);
   if (isCreatorRole(role)) return 9999;
 
   const premium = await isPremiumActive(userId);
-  if (premium) return 9999;
 
-  // Count how many photos this user has sent
+  if (premium) {
+    // Premium: 30 photos per day
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('chat_photo_usage')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', today.toISOString());
+    return Math.max(0, PREMIUM_DAILY_PHOTOS - (count || 0));
+  }
+
+  // Free: 1 photo total lifetime
   const { count } = await supabase
     .from('chat_photo_usage')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId);
 
-  const used = count || 0;
-  return Math.max(0, 1 - used); // 1 free photo
+  return Math.max(0, FREE_PHOTO_LIMIT - (count || 0));
 }
 
 export async function trackPhoto(userId: string) {
