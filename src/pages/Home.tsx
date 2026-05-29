@@ -28,15 +28,7 @@ function AnimatedCounter({ target, duration = 2000 }: { target: number; duration
   return <span>{count.toLocaleString()}</span>;
 }
 
-// ─── PROPERTY TYPE CARD ───────────────────────────────────
-const PROPERTY_TYPES = [
-  { type: 'Apartment', icon: '🏢' },
-  { type: 'Self Contain', icon: '🏠' },
-  { type: 'Single Room', icon: '🛏️' },
-  { type: 'Shared', icon: '👥' },
-  { type: 'Duplex', icon: '🏘️' },
-  { type: 'Hostel', icon: '🎓' },
-];
+
 
 // ─── HOW IT WORKS ────────────────────────────────────────
 const HOW_STEPS = [
@@ -88,14 +80,16 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const totalCities = popularCities.length;
   const availableCount = listings.filter(l => l.status === 'available').length;
 
-  // Property type counts — from ACTUAL listings, not fake numbers
-  const typeCounts = useMemo(() => {
+  // Property types available — from ACTUAL listings
+  const availableTypes = useMemo(() => {
     const counts: Record<string, number> = {};
     listings.forEach(l => {
       const type = l.property_type || 'Apartment';
       counts[type] = (counts[type] || 0) + 1;
     });
-    return counts;
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
   }, [listings]);
 
   if (loading) return <HomeSkeleton />;
@@ -183,22 +177,20 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       )}
 
-      {/* ═══ PROPERTY TYPES — REAL COUNTS ═══ */}
-      <section className="mt-10 px-5 relative z-[1]">
-        <h2 className="text-lg font-bold text-white mb-4">Browse by Type</h2>
-        <div className="grid grid-cols-3 gap-3">
-          {PROPERTY_TYPES.map((pt) => {
-            const realCount = typeCounts[pt.type] || 0;
-            return (
-              <button key={pt.type} onClick={() => onNavigate('search')} className="group rounded-2xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-4 flex flex-col items-center gap-2 hover:border-[#3B82F6]/20 hover:bg-[#12121A] transition-all active:scale-[0.97]">
-                <span className="text-2xl group-hover:scale-110 transition-transform">{pt.icon}</span>
-                <span className="text-[11px] font-semibold text-white">{pt.type}</span>
-                {realCount > 0 && <span className="text-[9px] text-[#5C5E72]">{realCount} listed</span>}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {/* ═══ AVAILABLE TYPES — REAL DATA ═══ */}
+      {availableTypes.length > 0 && (
+        <section className="mt-10 px-5 relative z-[1]">
+          <h2 className="text-lg font-bold text-white mb-4">Available Types</h2>
+          <div className="flex flex-wrap gap-2">
+            {availableTypes.map(([type, count]) => (
+              <span key={type} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-[#12121A]/60 border border-white/[0.04] text-[11px] text-[#CBCBD7]">
+                <span className="font-semibold">{type}</span>
+                <span className="text-[#5C5E72]">({count})</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ═══ POPULAR CITIES ═══ */}
       {popularCities.length > 0 && (
