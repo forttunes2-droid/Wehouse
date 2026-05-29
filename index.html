@@ -42,30 +42,63 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Version-based cache clearing — only clears when version changes
+      // Auto-detect new deployments and force refresh
       (function() {
-        var CURRENT_VERSION = 'v3-2026-05-28';
-        var stored = localStorage.getItem('wh_app_version');
-        if (stored !== CURRENT_VERSION) {
-          // New version detected — clear everything and reload
-          localStorage.setItem('wh_app_version', CURRENT_VERSION);
-          if ('caches' in window) {
-            caches.keys().then(function(names) {
-              return Promise.all(names.map(function(n) { return caches.delete(n); }));
-            }).then(function() {
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(regs) {
-                  return Promise.all(regs.map(function(r) { return r.unregister(); }));
-                }).then(function() {
-                  // Force reload once to get fresh code
-                  if (!window.location.search.includes('refreshed=1')) {
-                    window.location.href = window.location.pathname + '?refreshed=1';
-                  }
-                });
+        var STORAGE_KEY = 'wh_sw_hash';
+        var lastHash = localStorage.getItem(STORAGE_KEY) || '';
+
+        // Check by fetching index.html (script src hashes change every build)
+        function checkForUpdate() {
+          fetch('/?_=' + Date.now(), { cache: 'no-store' })
+            .then(function(r) { return r.text(); })
+            .then(function(text) {
+              // Extract the script src hash from the HTML
+              var match = text.match(/src="\/assets\/main-([^.]+)/);
+              var currentHash = match ? match[1] : Date.now().toString();
+              if (lastHash && lastHash !== currentHash) {
+                // New deployment detected!
+                localStorage.setItem(STORAGE_KEY, currentHash);
+                // Unregister old SW and reload
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    return Promise.all(regs.map(function(r) { return r.unregister(); }));
+                  }).then(function() {
+                    window.location.reload();
+                  }).catch(function() {
+                    window.location.reload();
+                  });
+                } else {
+                  window.location.reload();
+                }
+              } else {
+                localStorage.setItem(STORAGE_KEY, currentHash);
               }
-            });
-          }
+            })
+            .catch(function() {});
         }
+
+        // 1. Register service worker
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            reg.update();
+            reg.addEventListener('updatefound', function() {
+              var newWorker = reg.installing;
+              newWorker.addEventListener('statechange', function() {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  newWorker.postMessage('SKIP_WAITING');
+                  window.location.reload();
+                }
+              });
+            });
+          }).catch(function() {});
+        }
+
+        // 2. Check for new deployments
+        checkForUpdate(); // On load
+        setInterval(checkForUpdate, 60 * 1000); // Every 60 seconds
+        document.addEventListener('visibilitychange', function() { // When returning from background
+          if (document.visibilityState === 'visible') checkForUpdate();
+        });
       })();
     </script>
   </body>

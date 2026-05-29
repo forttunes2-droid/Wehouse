@@ -102,6 +102,12 @@ export default defineConfig({
           'vendor-data': ['@supabase/supabase-js', 'openai'],
           'vendor-utils': ['date-fns', 'sonner', 'embla-carousel-react'],
         },
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: (info) => {
+          if (info.name === 'manifest.json') return '[name][extname]';
+          return 'assets/[name]-[hash][extname]';
+        },
       },
     },
   },
