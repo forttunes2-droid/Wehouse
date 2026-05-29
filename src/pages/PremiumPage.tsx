@@ -137,22 +137,19 @@ export default function PremiumPage({ profile, onBack }: PremiumPageProps) {
           <h2 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider mb-3">Pricing</h2>
           <div className="rounded-2xl bg-gradient-to-r from-amber-500/10 to-amber-600/5 border border-amber-500/20 p-5">
             <div className="flex items-baseline gap-1 mb-1">
-              <span className="text-2xl font-extrabold text-white">₦2,000</span>
+              <span className="text-2xl font-extrabold text-white">₦1,000</span>
               <span className="text-xs text-[#5C5E72]">/month</span>
             </div>
             <p className="text-[11px] text-[#5C5E72] mb-4">Cancel anytime. No hidden fees.</p>
 
-            {/* PAYSTACK NOT CONNECTED - show coming soon */}
-            <div className="rounded-xl bg-[#1A1A24] border border-white/[0.06] p-4 text-center">
-              <div className="w-10 h-10 rounded-full bg-[#3B82F6]/10 flex items-center justify-center mx-auto mb-2">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="M9 12l2 2 4-4" />
-                </svg>
-              </div>
-              <p className="text-xs font-semibold text-white mb-1">Payments Coming Soon</p>
-              <p className="text-[10px] text-[#5C5E72]">We're setting up Paystack for secure payments. Check back soon!</p>
-            </div>
+            {/* PAYSTACK NOT CONNECTED - contact support to upgrade */}
+            <button
+              onClick={() => window.location.href = 'mailto:support@wehouse.com.ng?subject=Premium%20Upgrade%20Request&body=Hi%20WeHouse%20Team%2C%0A%0AI%20want%20to%20upgrade%20to%20Premium%20(%E2%82%A61%2C000%2Fmonth).%0A%0AMy%20User%20ID%3A%20' + encodeURIComponent(profile.user_id) + '%0A%0AThanks!'}
+              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white p-4 text-center hover:opacity-90 transition-opacity"
+            >
+              <p className="text-sm font-semibold mb-0.5">Upgrade to Premium</p>
+              <p className="text-[10px] text-white/70">Contact support@wehouse.com.ng to activate</p>
+            </button>
 
             {/* Hidden - will be enabled when Paystack is connected
             <button className="w-full h-12 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">

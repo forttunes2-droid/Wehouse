@@ -1659,7 +1659,7 @@ export async function logAuditAction(adminId: string, email: string, action: str
 }
 
 // Settings table: platform_settings
-// Reads with fallback defaults if table doesn't exist
+// Reads ALL rows from the DB and merges with defaults
 const DEFAULT_SETTINGS: Record<string, string> = {
   platform_name: 'WeHouse',
   listing_approval_required: 'false',
@@ -1667,20 +1667,33 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   maintenance_mode: 'false',
   registration_open: 'true',
   max_listings_per_user: '5',
+  support_whatsapp: '',
+  support_telegram: '',
+  support_email: '',
+  openai_api_key: '',
 };
 
 export async function getSystemSettings() {
   const { data, error } = await supabase.from('platform_settings').select('*');
-  // Merge DB values with defaults (DB wins if exists)
-  const merged: SystemSetting[] = Object.entries(DEFAULT_SETTINGS).map(([key, value]) => {
-    const dbRow = data?.find((d: any) => d.key === key);
-    return {
-      id: dbRow?.id || key,
-      key,
-      value: dbRow?.value ?? value,
-      updated_by: dbRow?.updated_by || null,
-      updated_at: dbRow?.updated_at || new Date().toISOString(),
-    };
+  // Start with ALL database rows
+  const merged: SystemSetting[] = (data || []).map((dbRow: any) => ({
+    id: dbRow.id,
+    key: dbRow.key,
+    value: dbRow.value ?? DEFAULT_SETTINGS[dbRow.key] ?? '',
+    updated_by: dbRow.updated_by || null,
+    updated_at: dbRow.updated_at || new Date().toISOString(),
+  }));
+  // Add any missing defaults that aren't in the DB yet
+  Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
+    if (!merged.find((m) => m.key === key)) {
+      merged.push({
+        id: key,
+        key,
+        value,
+        updated_by: null,
+        updated_at: new Date().toISOString(),
+      });
+    }
   });
   return { settings: merged, error };
 }
