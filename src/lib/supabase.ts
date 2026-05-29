@@ -1850,3 +1850,4 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
   return { url: data.publicUrl, error: null };
 }
 // force deploy Fri May 29 09:06:48 CST 2026
+// deploy trigger 1780037607
