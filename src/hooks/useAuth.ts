@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession } from '@/lib/supabase';
+import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession, createUserSession, deactivateUserSession, isSessionActive, getStoredSessionId, updateSessionLastSeen } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -7,6 +7,7 @@ interface AuthState {
   profile: Profile | null;
   isLoading: boolean;
   error: string;
+  kickedOut?: boolean;
 }
 
 // ─── LOGOUT CLEANUP ────────────────────────────────
@@ -178,7 +179,7 @@ async function shouldBlockForMaintenance(profile: Profile | null): Promise<boole
 
 // ─── AUTH HOOK ────────────────────────────────────
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({ page: 'loading', profile: null, isLoading: true, error: '' });
+  const [state, setState] = useState<AuthState>({ page: 'loading', profile: null, isLoading: true, error: '', kickedOut: false });
 
   // Prevent auth listener from racing with handleLoginSuccess
   const handlingLoginRef = useRef(false);
@@ -281,7 +282,11 @@ export function useAuth() {
 
       if (byAuth) {
         const allowed = await allowEntry(byAuth);
-        if (allowed) { setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '' }); trackSession(byAuth.user_id, authId).catch(() => {}); }
+        if (allowed) {
+          setState({ profile: byAuth, page: determinePage(byAuth), isLoading: false, error: '', kickedOut: false });
+          trackSession(byAuth.user_id, authId).catch(() => {});
+          createUserSession(byAuth.user_id, authId).catch(() => {});
+        }
         return;
       }
 
@@ -290,8 +295,9 @@ export function useAuth() {
         if (!allowed) return;
         const { profile: linked, error: linkErr } = await linkProfileToAuth(byEmail.user_id, authId);
         if (linkErr || !linked) { setState({ page: 'login', profile: null, isLoading: false, error: linkErr?.message || 'Link failed' }); return; }
-        setState({ profile: linked, page: determinePage(linked), isLoading: false, error: '' });
+        setState({ profile: linked, page: determinePage(linked), isLoading: false, error: '', kickedOut: false });
         trackSession(linked.user_id, authId).catch(() => {});
+        createUserSession(linked.user_id, authId).catch(() => {});
         return;
       }
 
@@ -317,11 +323,12 @@ export function useAuth() {
       if (isWorker) {
         await supabase.from('profiles').update({ role: 'worker', worker_status: 'pending' }).eq('user_id', newProfile.user_id);
         const { data: updated } = await supabase.from('profiles').select('*').eq('user_id', newProfile.user_id).maybeSingle();
-        if (updated) { setState({ profile: updated as Profile, page: 'worker_setup', isLoading: false, error: '' }); trackSession(updated.user_id, authId).catch(() => {}); return; }
+        if (updated) { setState({ profile: updated as Profile, page: 'worker_setup', isLoading: false, error: '', kickedOut: false }); trackSession(updated.user_id, authId).catch(() => {}); createUserSession(updated.user_id, authId).catch(() => {}); return; }
       }
 
-      setState({ profile: newProfile, page: 'setup', isLoading: false, error: '' });
+      setState({ profile: newProfile, page: 'setup', isLoading: false, error: '', kickedOut: false });
       trackSession(newProfile.user_id, authId).catch(() => {});
+      createUserSession(newProfile.user_id, authId).catch(() => {});
     } finally {
       handlingLoginRef.current = false;
     }
@@ -333,13 +340,44 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     const userId = state.profile?.user_id; const authId = state.profile?.auth_id;
+    // Deactivate the current device session
+    const sessionId = getStoredSessionId();
+    if (sessionId) await deactivateUserSession(sessionId).catch(() => {});
     if (userId && authId) await endSession(userId, authId).catch(() => {});
     await supabase.auth.signOut({ scope: 'global' }); wipeOnLogout();
-    setState({ page: 'login', profile: null, isLoading: false, error: '' });
+    setState({ page: 'login', profile: null, isLoading: false, error: '', kickedOut: false });
     setTimeout(() => window.location.reload(), 100);
   }, [state.profile]);
 
+  // ─── Single-device session check ──────────────────
+  // Every 30 seconds, verify this session is still the active one.
+  // If another device logged in, this session becomes inactive → logout.
+  useEffect(() => {
+    if (!state.profile || state.page === 'login' || state.page === 'setup' || state.page === 'worker_setup') return;
+
+    const sessionId = getStoredSessionId();
+    if (!sessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const active = await isSessionActive(sessionId);
+        if (!active) {
+          // Another device signed in — logout this device
+          clearInterval(interval);
+          await supabase.auth.signOut({ scope: 'global' });
+          wipeOnLogout();
+          setState({ page: 'login', profile: null, isLoading: false, error: '', kickedOut: true });
+        } else {
+          // Still active — update last_seen
+          await updateSessionLastSeen(sessionId);
+        }
+      } catch { /* network issues, don't logout */ }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [state.profile?.user_id, state.page]);
+
   const clearError = useCallback(() => { setState((s) => ({ ...s, error: '' })); }, []);
 
-  return { ...state, handleLoginSuccess, handleSetupComplete, logout, clearError };
+  return { ...state, handleLoginSuccess, handleSetupComplete, logout, clearError, kickedOut: state.kickedOut };
 }

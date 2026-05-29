@@ -12,7 +12,7 @@ export async function loadGlobalApiKey(): Promise<boolean> {
     .select('value')
     .eq('key', 'openai_api_key')
     .maybeSingle();
-  
+
   if (data?.value && data.value.length > 10) {
     globalKey = data.value;
     openai = new OpenAI({ apiKey: globalKey, dangerouslyAllowBrowser: true });
@@ -25,29 +25,51 @@ export function isAIReady(): boolean {
   return !!openai;
 }
 
+// ─── ROLE CHECK ──────────────────────────────────────────
+
+async function getUserRole(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role, is_premium, premium_expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data?.role || null;
+}
+
+async function isPremiumActive(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('is_premium, premium_expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!data?.is_premium) return false;
+  const expires = data.premium_expires_at ? new Date(data.premium_expires_at) : null;
+  if (!expires) return true; // No expiry = lifetime
+  return expires > new Date();
+}
+
+function isCreatorRole(role: string | null): boolean {
+  return role === 'creator' || role === 'creator_admin';
+}
+
 // ─── MESSAGE TRACKING ──────────────────────────────────
 
 const DAILY_LIMIT = 7;
 
 export async function getRemainingMessages(userId: string): Promise<number> {
-  // Check if premium
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_premium, premium_expires_at')
-    .eq('user_id', userId)
-    .maybeSingle();
-  
-  if (profile?.is_premium) {
-    const expires = profile.premium_expires_at ? new Date(profile.premium_expires_at) : null;
-    if (!expires || expires > new Date()) {
-      return 999; // Unlimited
-    }
-  }
+  // Creator = unlimited
+  const role = await getUserRole(userId);
+  if (isCreatorRole(role)) return 9999;
 
-  // Count today's messages
+  // Premium = unlimited
+  const premium = await isPremiumActive(userId);
+  if (premium) return 9999;
+
+  // Normal user = 7 per day
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const { count } = await supabase
     .from('chat_usage')
     .select('*', { count: 'exact', head: true })
@@ -58,10 +80,43 @@ export async function getRemainingMessages(userId: string): Promise<number> {
 }
 
 export async function trackMessage(userId: string) {
+  // Don't track creators (unlimited)
+  const role = await getUserRole(userId);
+  if (isCreatorRole(role)) return;
+
   await supabase.from('chat_usage').insert({
     user_id: userId,
     date: new Date().toISOString().split('T')[0],
   });
+}
+
+// ─── PHOTO TRACKING ────────────────────────────────────
+// Normal users: 1 free photo ever
+// Premium users: unlimited
+// Creator: unlimited
+
+export async function getRemainingPhotos(userId: string): Promise<number> {
+  const role = await getUserRole(userId);
+  if (isCreatorRole(role)) return 9999;
+
+  const premium = await isPremiumActive(userId);
+  if (premium) return 9999;
+
+  // Count how many photos this user has sent
+  const { count } = await supabase
+    .from('chat_photo_usage')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  const used = count || 0;
+  return Math.max(0, 1 - used); // 1 free photo
+}
+
+export async function trackPhoto(userId: string) {
+  const role = await getUserRole(userId);
+  if (isCreatorRole(role)) return; // Don't track creators
+
+  await supabase.from('chat_photo_usage').insert({ user_id: userId });
 }
 
 // ─── SYSTEM PROMPT ──────────────────────────────────────

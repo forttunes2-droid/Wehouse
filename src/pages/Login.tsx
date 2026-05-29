@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker') => void;
   serverError: string;
+  kickedOut?: boolean;
 }
 
 type Mode = 'choose' | 'choose_role' | 'signin' | 'signup' | 'forgot';
@@ -74,7 +75,7 @@ function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }
 
 // ─── MAIN COMPONENT ────────────────────────────────
 
-export default function Login({ onLoginSuccess, serverError }: LoginProps) {
+export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
   const [signupRole, setSignupRole] = useState<'user' | 'worker'>('user');
   const [email, setEmail] = useState('');
@@ -189,6 +190,14 @@ export default function Login({ onLoginSuccess, serverError }: LoginProps) {
               {diag}
             </div>
           </details>
+        )}
+
+        {/* Kicked out from another device */}
+        {kickedOut && (
+          <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs text-center leading-relaxed">
+            <p className="font-semibold mb-1">You were logged out</p>
+            <p>Another device signed into your account. For security, only one device can be active at a time.</p>
+          </div>
         )}
 
         {/* Messages */}

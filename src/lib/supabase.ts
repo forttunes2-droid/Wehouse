@@ -390,6 +390,64 @@ export async function getSessionHistory(userId: string, limit: number = 20) {
   return { sessions: data || [], error };
 }
 
+// ─── SINGLE-DEVICE SESSION MANAGEMENT ──────────────
+// When user logs in on a new device, old device gets logged out
+
+const SESSION_STORAGE_KEY = 'wh_session_id';
+
+export async function createUserSession(userId: string, authId: string): Promise<string | null> {
+  const { device, os, browser } = parseDeviceInfo();
+  const { data, error } = await supabase
+    .from('user_sessions')
+    .insert({
+      user_id: userId,
+      auth_id: authId,
+      device,
+      os,
+      browser,
+      is_active: true,
+      is_current: true,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    console.error('[Session] Failed to create session:', error?.message);
+    return null;
+  }
+
+  localStorage.setItem(SESSION_STORAGE_KEY, data.id);
+  return data.id;
+}
+
+export async function deactivateUserSession(sessionId: string) {
+  await supabase
+    .from('user_sessions')
+    .update({ is_active: false, is_current: false, logout_time: new Date().toISOString() })
+    .eq('id', sessionId);
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+export async function isSessionActive(sessionId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('user_sessions')
+    .select('is_active')
+    .eq('id', sessionId)
+    .maybeSingle();
+  return data?.is_active === true;
+}
+
+export function getStoredSessionId(): string | null {
+  try { return localStorage.getItem(SESSION_STORAGE_KEY); } catch { return null; }
+}
+
+export async function updateSessionLastSeen(sessionId: string) {
+  await supabase
+    .from('user_sessions')
+    .update({ last_seen: new Date().toISOString() })
+    .eq('id', sessionId);
+}
+
 // ─── LISTING HELPERS ───────────────────────────────
 
 export async function getAllListings() {

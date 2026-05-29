@@ -3,6 +3,8 @@ import {
   loadGlobalApiKey,
   getRemainingMessages,
   trackMessage,
+  getRemainingPhotos,
+  trackPhoto,
   sendMessage,
   sendMessageWithImage,
   clearHistory,
@@ -16,8 +18,16 @@ interface Message {
   image?: string;
 }
 
+interface ChatProfile {
+  user_id: string;
+  username: string | null;
+  email: string;
+  is_premium?: boolean;
+  role?: string;
+}
+
 interface SupportChatProps {
-  profile: { user_id: string; username: string | null; email: string; is_premium?: boolean } | null;
+  profile: ChatProfile | null;
 }
 
 export default function SupportChat({ profile }: SupportChatProps) {
@@ -27,27 +37,36 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const [typing, setTyping] = useState(false);
   const [aiReady, setAiReady] = useState(false);
   const [remaining, setRemaining] = useState(7);
+  const [remainingPhotos, setRemainingPhotos] = useState(0);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showPremium, setShowPremium] = useState(false);
+  const [premiumFeature, setPremiumFeature] = useState<'messages' | 'photos'>('messages');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const greetedRef = useRef(false);
 
-  // Load AI key and check remaining on mount
+  const isCreator = profile?.role === 'creator' || profile?.role === 'creator_admin';
+  const isUnlimited = isCreator || profile?.is_premium;
+
+  // Load AI key and check limits on mount
   useEffect(() => {
     if (!profile) return;
     loadGlobalApiKey().then((ready) => {
       setAiReady(ready);
-      if (ready) checkRemaining();
+      if (ready) checkAllLimits();
     });
   }, [profile]);
 
-  // Check remaining messages
-  const checkRemaining = async () => {
+  // Check remaining messages and photos
+  const checkAllLimits = async () => {
     if (!profile) return;
-    const count = await getRemainingMessages(profile.user_id);
-    setRemaining(count);
-    if (count <= 0 && !profile.is_premium) setShowPremium(true);
+    const [msgCount, photoCount] = await Promise.all([
+      getRemainingMessages(profile.user_id),
+      getRemainingPhotos(profile.user_id),
+    ]);
+    setRemaining(msgCount);
+    setRemainingPhotos(photoCount);
+    if (msgCount <= 0 && !isUnlimited) setShowPremium(true);
   };
 
   // Auto-scroll
@@ -69,15 +88,19 @@ export default function SupportChat({ profile }: SupportChatProps) {
       greetedRef.current = true;
       setTyping(true);
       setTimeout(() => {
-        const isPremium = profile?.is_premium;
-        const limitText = isPremium
-          ? "You have unlimited messages as a premium member."
-          : "You have 7 free messages per day.";
-        addMessage('bot', `Hey there! Welcome to WeHouse. I'm your AI assistant. ${limitText} How can I help you?`);
+        let greeting: string;
+        if (isCreator) {
+          greeting = "Welcome back, Creator! You have unlimited access to everything. How can I help you today?";
+        } else if (profile?.is_premium) {
+          greeting = "Hey there! Welcome to WeHouse. You have unlimited messages and photo uploads as a premium member. How can I help you?";
+        } else {
+          greeting = "Hey there! Welcome to WeHouse. I'm your AI assistant. You have 7 free messages per day and 1 free photo upload. How can I help you?";
+        }
+        addMessage('bot', greeting);
         setTyping(false);
       }, 500);
     }
-  }, [messages.length, aiReady, profile, addMessage]);
+  }, [messages.length, aiReady, profile, addMessage, isCreator]);
 
   // Listen for open event from Account Center
   useEffect(() => {
@@ -92,8 +115,9 @@ export default function SupportChat({ profile }: SupportChatProps) {
     if (!aiReady) return;
     if (!profile) return;
 
-    // Check limit
-    if (remaining <= 0 && !profile.is_premium) {
+    // Check message limit (creators skip)
+    if (remaining <= 0 && !isUnlimited) {
+      setPremiumFeature('messages');
       setShowPremium(true);
       return;
     }
@@ -112,13 +136,15 @@ export default function SupportChat({ profile }: SupportChatProps) {
       if (selectedImage) {
         reply = await sendMessageWithImage(text, selectedImage);
         setSelectedImage(null);
+        // Track photo usage (only for non-creators)
+        await trackPhoto(profile.user_id);
       } else {
         reply = await sendMessage(text);
       }
       addMessage('bot', reply);
-      // Track usage and update remaining
+      // Track message and update remaining
       await trackMessage(profile.user_id);
-      await checkRemaining();
+      await checkAllLimits();
     } catch (err: any) {
       addMessage('bot', "I'm having trouble connecting right now. Please try again.");
     } finally {
@@ -137,9 +163,12 @@ export default function SupportChat({ profile }: SupportChatProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Image upload is premium only
-    if (!profile?.is_premium) {
+    // Check photo limit: creators and premium = unlimited, normal = 1 free
+    if (remainingPhotos <= 0 && !isUnlimited) {
+      setPremiumFeature('photos');
       setShowPremium(true);
+      // Reset file input
+      if (fileRef.current) fileRef.current.value = '';
       return;
     }
 
@@ -152,7 +181,15 @@ export default function SupportChat({ profile }: SupportChatProps) {
 
   const quickReplies = ['How do I search?', 'Find a roommate', 'Book a hotel', 'I have a problem'];
 
-  // ─── RENDER ───────────────────────────────────────────
+  // ─── STATUS TEXT ──────────────────────────────────
+  const getStatusText = () => {
+    if (!aiReady) return 'Setup needed';
+    if (isCreator) return 'Creator';
+    if (profile?.is_premium) return 'Premium';
+    return `${remaining} msg · ${remainingPhotos} photo today`;
+  };
+
+  // ─── RENDER ───────────────────────────────────────
 
   if (!open) {
     return (
@@ -182,9 +219,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
           <p className="text-sm font-semibold text-white">WeHouse AI</p>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[10px] text-emerald-400">
-              {aiReady ? (profile?.is_premium ? 'Premium' : `${remaining} left today`) : 'Setup needed'}
-            </span>
+            <span className="text-[10px] text-emerald-400">{getStatusText()}</span>
           </div>
         </div>
         {messages.length > 0 && (
@@ -239,7 +274,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
             )}
 
             {/* Quick Replies */}
-            {messages.length <= 1 && !typing && remaining > 0 && (
+            {messages.length <= 1 && !typing && (isUnlimited || remaining > 0) && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                 {quickReplies.map((reply) => (
                   <button
@@ -254,11 +289,11 @@ export default function SupportChat({ profile }: SupportChatProps) {
             )}
 
             {/* Limit Reached Banner */}
-            {remaining <= 0 && !profile?.is_premium && messages.length > 0 && (
+            {remaining <= 0 && !isUnlimited && messages.length > 0 && (
               <div className="rounded-2xl bg-amber-500/5 border border-amber-500/20 p-4 text-center">
-                <p className="text-xs text-amber-400 font-semibold mb-1">Daily limit reached</p>
+                <p className="text-xs text-amber-400 font-semibold mb-1">Daily message limit reached</p>
                 <p className="text-[10px] text-[#5C5E72] mb-3">You've used all 7 free messages today</p>
-                <button onClick={() => setShowPremium(true)} className="h-8 px-4 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
+                <button onClick={() => { setPremiumFeature('messages'); setShowPremium(true); }} className="h-8 px-4 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
                   Go Premium for Unlimited
                 </button>
               </div>
@@ -275,8 +310,14 @@ export default function SupportChat({ profile }: SupportChatProps) {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
             </div>
             <div className="flex-1">
-              <p className="text-xs font-semibold text-white">Go Premium</p>
-              <p className="text-[10px] text-[#5C5E72]">Unlimited AI chat + Image upload + Verified badge</p>
+              <p className="text-xs font-semibold text-white">
+                {premiumFeature === 'messages' ? 'Message Limit Reached' : 'Photo Upload Limit Reached'}
+              </p>
+              <p className="text-[10px] text-[#5C5E72]">
+                {premiumFeature === 'messages'
+                  ? '7 free messages per day. Upgrade for unlimited.'
+                  : '1 free photo used. Upgrade for unlimited uploads.'}
+              </p>
             </div>
             <button onClick={() => setShowPremium(false)} className="h-8 px-3 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
               ₦2,000
@@ -286,7 +327,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
       )}
 
       {/* Input */}
-      {aiReady && remaining > 0 && (
+      {aiReady && (isUnlimited || remaining > 0) && (
         <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 py-3">
           {selectedImage && (
             <div className="relative inline-block mb-2">
@@ -297,11 +338,19 @@ export default function SupportChat({ profile }: SupportChatProps) {
             </div>
           )}
           <div className="flex items-center gap-2">
+            {/* Photo button - show for everyone, but limit applies */}
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-10 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex-shrink-0"
+              className="w-10 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex-shrink-0 relative"
+              title={isUnlimited ? 'Upload photo (unlimited)' : remainingPhotos > 0 ? `Upload photo (${remainingPhotos} left)` : 'Upgrade for more photos'}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+              {/* Badge showing remaining photos for non-unlimited */}
+              {!isUnlimited && remainingPhotos >= 0 && (
+                <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-bold flex items-center justify-center ${remainingPhotos > 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                  {remainingPhotos}
+                </span>
+              )}
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
             <input
@@ -309,7 +358,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={remaining <= 3 && !profile?.is_premium ? `${remaining} messages left...` : "Ask me anything..."}
+              placeholder={!isUnlimited && remaining <= 3 ? `${remaining} messages left...` : "Ask me anything..."}
               className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 focus:outline-none"
             />
             <button

@@ -255,7 +255,7 @@ export default function App() {
 
   // ─── LOGIN ────────────────────────────────────────
   if (auth.page === 'login') {
-    return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;
+    return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut} />;
   }
 
   // ─── SETUP ────────────────────────────────────────
@@ -411,7 +411,13 @@ export default function App() {
         {isCreator && <CreatorAuthModal />}
 
         {/* AI Support Chat — always available for help */}
-        <SupportChat profile={auth.profile} />
+        <SupportChat profile={auth.profile ? {
+          user_id: auth.profile.user_id,
+          username: auth.profile.username,
+          email: auth.profile.email,
+          is_premium: auth.profile.is_premium,
+          role: auth.profile.role,
+        } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
       {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
