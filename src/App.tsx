@@ -3,7 +3,7 @@ import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/u
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
 import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
 import CreatorAuthModal from '@/components/CreatorAuthModal';
-import SupportButton from '@/components/SupportButton';
+import SupportChat from '@/components/SupportChat';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
 import type { NavPage } from '@/types/nav';
@@ -410,8 +410,8 @@ export default function App() {
         {/* Creator Authorization Modal — only for creator, gates critical actions */}
         {isCreator && <CreatorAuthModal />}
 
-        {/* Floating Support Button — shows configured contacts */}
-        <SupportButton />
+        {/* AI Support Chat — always available for help */}
+        <SupportChat profile={auth.profile} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
       {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
