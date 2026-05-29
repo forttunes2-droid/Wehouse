@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Profile, Listing, RoommatePreferences, AdminAuditLog, SystemSetting, Notification, Conversation, Message, Review, RoomInterest, Announcement, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking, HotelReview } from '@/types';
+import { ROLE_RANK } from '@/types';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // These are PUBLIC client credentials — safe in browser bundles.
@@ -620,6 +621,104 @@ export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' |
     listing_id: crypto.randomUUID(),
   }).select().single();
   return { listing: data as Listing | null, error };
+}
+
+// ═══════════════════════════════════════════════════════════
+// LISTING APPROVAL SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+// Returns the minimum role rank required to approve a listing based on who posted it
+export function getRequiredApproverRank(posterRole: string): number {
+  switch (posterRole) {
+    case 'staff': return ROLE_RANK.admin;        // needs Head of Staff+
+    case 'admin': return ROLE_RANK.assistant_state_admin; // needs Asst Admin+
+    case 'assistant_state_admin': return ROLE_RANK.state_admin; // needs Admin+
+    case 'state_admin': return ROLE_RANK.director; // needs Director+
+    case 'director': return ROLE_RANK.creator;    // needs Creator
+    default: return ROLE_RANK.creator;
+  }
+}
+
+// Returns human-readable approver label
+export function getApproverLabel(posterRole: string): string {
+  switch (posterRole) {
+    case 'staff': return 'Head of Staff, Assistant Admin, Admin, or Creator';
+    case 'admin': return 'Assistant Admin, Admin, or Creator';
+    case 'assistant_state_admin': return 'Admin or Creator';
+    case 'state_admin': return 'Director or Creator';
+    case 'director': return 'Creator only';
+    default: return 'Creator';
+  }
+}
+
+// Check if a user with given role can approve a listing posted by someone with posterRole
+export function canApproveListing(userRole: string, posterRole: string): boolean {
+  return ROLE_RANK[userRole as keyof typeof ROLE_RANK] >= getRequiredApproverRank(posterRole);
+}
+
+// Get listings pending approval that this user can approve
+export async function getListingsPendingApproval(userRole: string, _userId: string, scopeState?: string, scopeLga?: string) {
+  // Build the query for listings with pending_approval status
+  let query = supabase
+    .from('listings')
+    .select('*, profiles!owner_id(username, role)')
+    .eq('status', 'pending_approval');
+
+  // Filter by scope if provided
+  if (scopeState) query = query.eq('state', scopeState);
+  if (scopeLga) query = query.eq('city', scopeLga);
+
+  const { data, error } = await query.order('created_at', { ascending: false });
+  if (error) return { listings: [] as Listing[], error };
+
+  // Filter to only show listings this user can approve
+  const filtered = (data || []).filter((l: any) => {
+    const posterRole = l.submitted_by_role || l.profiles?.role || 'staff';
+    return canApproveListing(userRole, posterRole);
+  });
+
+  return { listings: filtered as Listing[], error: null };
+}
+
+// Approve a listing
+export async function approveListing(listingId: string, approverId: string) {
+  const { error } = await supabase
+    .from('listings')
+    .update({
+      status: 'available',
+      availability_status: 'available',
+      approved_by: approverId,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', listingId);
+  return { error };
+}
+
+// Reject a listing
+export async function rejectListing(listingId: string, approverId: string, reason: string) {
+  const { error } = await supabase
+    .from('listings')
+    .update({
+      status: 'rejected',
+      approved_by: approverId,
+      approved_at: new Date().toISOString(),
+      rejection_reason: reason,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', listingId);
+  return { error };
+}
+
+// Get listings submitted by a user that are pending approval
+export async function getMyPendingListings(userId: string) {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('status', 'pending_approval')
+    .order('created_at', { ascending: false });
+  return { listings: data as Listing[] | null, error };
 }
 
 // ─── PASSWORD CHANGE ───────────────────────────────

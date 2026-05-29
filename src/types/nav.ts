@@ -20,6 +20,7 @@ export type NavPage =
   | 'state_admin'
   | 'assistant_state_admin'
   | 'staff_dashboard'
+  | 'director'
   | 'hotels'
   | 'hotel_detail'
   | 'hotel_booking';

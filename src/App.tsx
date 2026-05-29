@@ -26,6 +26,7 @@ const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 const Activity = lazy(() => import('@/pages/Activity'));
 const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
 const HeadOfStaffDashboard = lazy(() => import('@/pages/HeadOfStaffDashboard'));
+const DirectorDashboard = lazy(() => import('@/pages/DirectorDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
@@ -70,7 +71,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -290,6 +291,8 @@ export default function App() {
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
+      case 'director':
+        return <DirectorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'admin':
         return <HeadOfStaffDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'state_admin':
@@ -372,6 +375,7 @@ export default function App() {
   const isStateAdminRole = profile.role === 'state_admin';
   const isAssistantRole = profile.role === 'assistant_state_admin';
   const isHeadOfStaffRole = profile.role === 'admin';
+  const isDirectorRole = profile.role === 'director';
 
   const isStaffRole = profile.role === 'staff';
 
@@ -379,6 +383,8 @@ export default function App() {
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
     : isCreator
     ? { id: 'creator' as NavPage, label: 'Creator', icon: AdminSvg }
+    : isDirectorRole
+    ? { id: 'director' as NavPage, label: 'Director', icon: AdminSvg }
     : isStateAdminRole
     ? { id: 'state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
     : isAssistantRole

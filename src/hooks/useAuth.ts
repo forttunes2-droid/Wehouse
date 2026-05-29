@@ -45,8 +45,12 @@ export function isAssistantAdmin(role: string): boolean {
   return role === 'assistant_state_admin';
 }
 
+export function isDirector(role: string): boolean {
+  return role === 'director';
+}
+
 export function canSendAnnouncements(role: string): boolean {
-  return isCreator(role) || role === 'state_admin';
+  return isCreator(role) || isDirector(role) || role === 'state_admin';
 }
 
 export function isCreator(role: string): boolean {
@@ -55,6 +59,7 @@ export function isCreator(role: string): boolean {
 
 export function getScope(role: string): 'global' | 'state' | 'local' | null {
   if (isCreator(role)) return 'global';
+  if (isDirector(role)) return 'global'; // Director has global scope
   if (role === 'state_admin') return 'state';
   if (role === 'admin' || role === 'assistant_state_admin' || role === 'staff') return 'local';
   return null;
@@ -87,6 +92,7 @@ export function canAccessLocation(
 
 export function canModifyRole(modifierRole: string, targetRole: string): boolean {
   if (isCreator(modifierRole)) return !isCreator(targetRole);
+  if (isDirector(modifierRole)) return !isCreator(targetRole) && !isDirector(targetRole);
   if (modifierRole === 'admin') return targetRole === 'staff' || targetRole === 'user';
   return false;
 }
@@ -98,15 +104,29 @@ export function validateRoleTransition(
   if (isCreator(targetNewRole)) return { allowed: false, reason: 'Creator role cannot be assigned' };
   if (targetCurrentRole === 'worker') return { allowed: false, reason: 'Worker role is locked. Workers must sign up via worker registration.' };
   if (targetNewRole === 'worker') return { allowed: false, reason: 'Cannot assign worker role. Workers must sign up via worker registration.' };
+  // Creator can change any role (except other creators)
   if (isCreator(modifierRole)) {
-    const allRoles = ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'];
+    const allRoles = ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin', 'director'];
     if (allRoles.includes(targetCurrentRole) && allRoles.includes(targetNewRole)) return { allowed: true };
     return { allowed: false, reason: `Cannot change ${targetCurrentRole} to ${targetNewRole}` };
   }
+  // Director can change roles up to state_admin
+  if (isDirector(modifierRole)) {
+    const dirRoles = ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'];
+    if (dirRoles.includes(targetCurrentRole) && dirRoles.includes(targetNewRole)) return { allowed: true };
+    return { allowed: false, reason: 'Director can only assign roles up to Admin.' };
+  }
+  // Admin (state_admin) can change roles up to assistant_state_admin
+  if (isStateAdmin(modifierRole)) {
+    const saRoles = ['user', 'staff', 'admin', 'assistant_state_admin'];
+    if (saRoles.includes(targetCurrentRole) && saRoles.includes(targetNewRole)) return { allowed: true };
+    return { allowed: false, reason: 'Admin can only assign roles up to Assistant Admin.' };
+  }
+  // Head of Staff (admin) can only toggle staff ↔ user
   if (modifierRole === 'admin') {
     const validAdminTransitions: Record<string, string[]> = { staff: ['user'], user: ['staff'] };
     if (validAdminTransitions[targetCurrentRole]?.includes(targetNewRole)) return { allowed: true };
-    return { allowed: false, reason: 'Admin can only change Staff ↔ User.' };
+    return { allowed: false, reason: 'Head of Staff can only change Staff ↔ User.' };
   }
   return { allowed: false, reason: 'Staff cannot change roles' };
 }

@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'director' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -94,18 +94,22 @@ export interface RoleChangeHistory {
 
 export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard';
 
-export type ListingStatus = 'available' | 'reserved' | 'closed';
+export type ListingStatus = 'available' | 'reserved' | 'closed' | 'pending_approval' | 'rejected';
 
 export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   available: 'Available',
   reserved: 'Reserved',
   closed: 'Closed',
+  pending_approval: 'Pending Approval',
+  rejected: 'Rejected',
 };
 
 export const LISTING_STATUS_COLORS: Record<ListingStatus, string> = {
   available: 'bg-green-500/10 text-green-400 border-green-500/20',
   reserved: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   closed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  pending_approval: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
 };
 
 export interface Listing {
@@ -134,6 +138,11 @@ export interface Listing {
   reservation_expiry: string | null;
   reservation_fee_paid: boolean;
   chat_unlocked: boolean;
+  // ── APPROVAL FIELDS ───────────────────────────────
+  submitted_by_role?: UserRole | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  rejection_reason?: string | null;
 }
 
 export interface Enquiry {
@@ -217,14 +226,16 @@ export interface RoommateMatch {
 
 // ─── ROLE HIERARCHY ────────────────────────────────
 // Higher number = more power. Used for permission checks.
+// Approval chain: Staff → Head of Staff → Assistant Admin → Admin → Director → Creator
 export const ROLE_RANK: Record<UserRole, number> = {
   user: 0,
   worker: 0,          // same level as user
-  staff: 1,
-  admin: 2,           // Head of Staff — manages staff in one LGA
-  assistant_state_admin: 3, // Assistant Admin — helps Admin
-  state_admin: 4,     // Admin — manages entire state
-  creator: 5,         // highest — manages entire platform
+  staff: 1,           // posts need Head of Staff approval
+  admin: 2,           // Head of Staff — approves staff posts, posts need Asst Admin approval
+  assistant_state_admin: 3, // Assistant Admin — approves HOS posts, posts need Admin approval
+  state_admin: 4,     // Admin — approves Asst Admin posts, posts need Director approval
+  director: 4.5,      // Director — approves Admin posts, posts need Creator approval
+  creator: 5,         // highest — approves Director posts, auto-approved for own posts
   creator_admin: 5,   // legacy alias for creator
 };
 
@@ -237,6 +248,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Head of Staff',
   assistant_state_admin: 'Assistant Admin',
   state_admin: 'Admin',
+  director: 'Director',
   creator: 'Creator',
   creator_admin: 'Creator',
 };

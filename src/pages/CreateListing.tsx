@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase, createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents, checkDuplicateListing } from '@/lib/supabase';
+import { ROLE_RANK } from '@/types';
 import { computeImageHash, compareImageHashes, getAllImageHashes } from '@/lib/imageHash';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -225,6 +226,12 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       }
     }
 
+    // Determine approval status based on poster role
+    // Creator and Director posts go live immediately
+    // Everyone else needs approval from higher-up
+    const requiresApproval = ROLE_RANK[profile.role as keyof typeof ROLE_RANK] < ROLE_RANK.director;
+    const listingStatus = requiresApproval ? 'pending_approval' : 'available';
+
     setSaving(true);
     const { listing, error } = await createListing({
       title: form.title.trim(),
@@ -239,14 +246,15 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       property_type: form.property_type || null,
       bedrooms: form.property_type ? 1 : (Number(form.bedrooms) || 1),
       bathrooms: Number(form.bathrooms) || 1,
-      availability_status: form.availability_status,
-      status: form.status,
+      availability_status: listingStatus as any,
+      status: listingStatus as any,
       reserved_by: null,
       reservation_expiry: null,
       reservation_fee_paid: false,
       chat_unlocked: false,
       owner_id: profile.auth_id,
       chat_agent_id: chatAgentId || null,
+      submitted_by_role: profile.role,
     });
     setSaving(false);
 
@@ -254,7 +262,11 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       toast.error('Failed to create: ' + (error?.message || 'Unknown'));
       return;
     }
-    toast.success('Listing created!');
+    if (requiresApproval) {
+      toast.success('Listing submitted for approval! It will go live once reviewed.');
+    } else {
+      toast.success('Listing created and published!');
+    }
 
     // Save image hashes for future duplicate detection
     if (listing?.listing_id && images.length > 0) {
