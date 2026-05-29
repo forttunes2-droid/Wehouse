@@ -309,9 +309,9 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
 
       {/* ─── VERIFIED HOUSING BANNER ──────────────────────── */}
       <section className="mt-4 px-5">
-        <div className="glass-strong rounded-2xl p-4 border border-green-500/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+        <div className="glass-strong rounded-2xl p-4 border border-[#3B82F6]/10 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-white">Verified Housing</p>

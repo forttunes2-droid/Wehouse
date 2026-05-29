@@ -97,8 +97,11 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
                   {isCreatorAccount ? 'Creator' : profile.role === 'admin' ? 'Admin' : 'Staff'} Dashboard
                 </h1>
                 {isCreatorAccount && (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                    CREATOR
+                  <span className="flex items-center gap-1 text-[8px] font-bold px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    VERIFIED
                   </span>
                 )}
               </div>
@@ -538,8 +541,26 @@ function ListingsTab({ profile }: { profile: Profile }) {
     <div className="space-y-3">
       <ConfirmDialog {...dialogProps} />
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {['all', 'available', 'reserved', 'closed'].map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-3 h-8 rounded-lg text-[10px] font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'}`}>{f}</button>
+        {[
+          { key: 'all', label: 'All', count: listings.length },
+          { key: 'available', label: 'Available', count: listings.filter(l => l.availability_status === 'available').length },
+          { key: 'reserved', label: 'Reserved', count: listings.filter(l => l.availability_status === 'reserved').length },
+          { key: 'closed', label: 'Closed', count: listings.filter(l => l.availability_status === 'closed').length },
+        ].map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key as typeof filter)}
+            className={`px-3 h-8 rounded-lg text-[10px] font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              filter === f.key
+                ? 'bg-[#3B82F6] text-white shadow-lg shadow-blue-500/20'
+                : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30'
+            }`}
+          >
+            {f.label}
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${filter === f.key ? 'bg-white/20 text-white' : 'bg-[#2A2A3A] text-[#5C5E72]'}`}>
+              {f.count}
+            </span>
+          </button>
         ))}
       </div>
 
