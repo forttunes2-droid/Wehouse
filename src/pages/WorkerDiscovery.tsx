@@ -3,6 +3,7 @@ import { getWorkers, getOrCreateConversation } from '@/lib/supabase';
 import { WORKER_OCCUPATIONS, WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile } from '@/types';
 import { toast, Toaster } from 'sonner';
+import VerifiedBadge from '@/components/VerifiedBadge';
 
 interface WorkerDiscoveryProps {
   userCity?: string | null;
@@ -125,7 +126,10 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
                       {w.city && <span>· {w.city}</span>}
                     </div>
                   </div>
-                  <span className="flex-shrink-0 text-[9px] px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 font-medium">Verified</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <VerifiedBadge size={14} />
+                    <span className="text-[9px] text-[#1DA1F2] font-medium">Verified</span>
+                  </div>
                 </div>
                 {w.worker_bio && <p className="text-xs text-[#8A8B9C] mt-2 line-clamp-2">{w.worker_bio}</p>}
                 <div className="flex items-center gap-2 mt-2">
