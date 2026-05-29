@@ -134,16 +134,16 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
             {s.description && <p className="text-[10px] text-[#5C5E72] mb-2">{s.description}</p>}
 
             {s.type === 'text' ? (
-              <input value={pendingSettings[s.key] || ''} onChange={(e) => setPendingSettings(prev => ({ ...prev, [s.key]: e.target.value }))} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
+              <input value={pendingSettings[s.key] || ''} onChange={(e) => setPendingSettings(prev => ({ ...prev, [s.key]: e.target.value }))} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-[#3B82F6] overflow-hidden text-ellipsis whitespace-nowrap" style={{ textOverflow: 'ellipsis' }} />
             ) : (
               <select value={pendingSettings[s.key] || ''} onChange={(e) => setPendingSettings(prev => ({ ...prev, [s.key]: e.target.value }))} className={`w-full h-10 rounded-xl border text-white text-sm px-4 outline-none ${isChanged ? 'bg-[#3B82F6]/5 border-[#3B82F6]/30' : 'bg-[#1A1A24] border-[#232330]'}`}>
                 {s.options?.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             )}
 
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[9px] text-[#5C5E72]">Saved: <span className="text-[#8A8B9C]">{s.type === 'select' ? s.options?.find(o => o[0] === savedSettings[s.key])?.[1] || savedSettings[s.key] : savedSettings[s.key]}</span></span>
-              {isChanged && <span className="text-[9px] text-amber-400">--&gt; Pending: {s.type === 'select' ? s.options?.find(o => o[0] === pendingSettings[s.key])?.[1] || pendingSettings[s.key] : pendingSettings[s.key]}</span>}
+            <div className="flex items-center gap-2 mt-2 overflow-hidden">
+              <span className="text-[9px] text-[#5C5E72] truncate">Saved: <span className="text-[#8A8B9C]">{s.type === 'select' ? s.options?.find(o => o[0] === savedSettings[s.key])?.[1] || savedSettings[s.key] : savedSettings[s.key]?.length > 40 ? savedSettings[s.key]?.slice(0, 40) + '...' : savedSettings[s.key]}</span></span>
+              {isChanged && <span className="text-[9px] text-amber-400 truncate">--&gt; Pending: {s.type === 'select' ? s.options?.find(o => o[0] === pendingSettings[s.key])?.[1] || pendingSettings[s.key] : pendingSettings[s.key]?.length > 30 ? pendingSettings[s.key]?.slice(0, 30) + '...' : pendingSettings[s.key]}</span>}
             </div>
           </div>
         );
