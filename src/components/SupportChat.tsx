@@ -90,11 +90,9 @@ export default function SupportChat({ profile }: SupportChatProps) {
       setTimeout(() => {
         let greeting: string;
         if (isCreator) {
-          greeting = "Welcome back, Creator! You have unlimited access to everything. How can I help you today?";
-        } else if (profile?.is_premium) {
-          greeting = "Hey there! Welcome to WeHouse. You have unlimited messages and photo uploads as a premium member. How can I help you?";
+          greeting = "Welcome back, Creator! How can I help you today?";
         } else {
-          greeting = "Hey there! Welcome to WeHouse. I'm your AI assistant. You have 7 free messages per day and 1 free photo upload. How can I help you?";
+          greeting = "Hey there! I'm your WeHouse AI Agent. How can I help you today?";
         }
         addMessage('bot', greeting);
         setTyping(false);
@@ -184,9 +182,17 @@ export default function SupportChat({ profile }: SupportChatProps) {
   // ─── STATUS TEXT ──────────────────────────────────
   const getStatusText = () => {
     if (!aiReady) return 'Setup needed';
-    if (isCreator) return 'Creator';
+    if (isCreator) return 'Online';
     if (profile?.is_premium) return 'Premium';
-    return `${remaining} msg · ${remainingPhotos} photo today`;
+    return 'Online';
+  };
+
+  // ─── LIMIT REFRESH TIME ───────────────────────────
+  const getRefreshTime = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   // ─── RENDER ───────────────────────────────────────
@@ -216,7 +222,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
           </svg>
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-white">WeHouse AI</p>
+          <p className="text-sm font-semibold text-white">WeHouse AI Agent</p>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             <span className="text-[10px] text-emerald-400">{getStatusText()}</span>
@@ -240,8 +246,8 @@ export default function SupportChat({ profile }: SupportChatProps) {
             <div className="w-12 h-12 rounded-full bg-[#3B82F6]/10 flex items-center justify-center mx-auto mb-3">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /></svg>
             </div>
-            <p className="text-sm font-semibold text-white mb-1">AI Chat Coming Soon</p>
-            <p className="text-[10px] text-[#5C5E72]">The AI assistant is being configured by our team. Check back later!</p>
+            <p className="text-sm font-semibold text-white mb-1">AI Agent Offline</p>
+            <p className="text-[10px] text-[#5C5E72]">The AI Agent is being configured. Check back soon!</p>
           </div>
         ) : (
           <>
@@ -291,10 +297,11 @@ export default function SupportChat({ profile }: SupportChatProps) {
             {/* Limit Reached Banner */}
             {remaining <= 0 && !isUnlimited && messages.length > 0 && (
               <div className="rounded-2xl bg-amber-500/5 border border-amber-500/20 p-4 text-center">
-                <p className="text-xs text-amber-400 font-semibold mb-1">Daily message limit reached</p>
-                <p className="text-[10px] text-[#5C5E72] mb-3">You've used all 7 free messages today</p>
+                <p className="text-xs text-amber-400 font-semibold mb-1">Daily limit reached</p>
+                <p className="text-[10px] text-[#5C5E72] mb-1">Your free messages will refresh at {getRefreshTime()} tomorrow.</p>
+                <p className="text-[10px] text-[#5C5E72] mb-3">Or upgrade to Premium for unlimited access.</p>
                 <button onClick={() => { setPremiumFeature('messages'); setShowPremium(true); }} className="h-8 px-4 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
-                  Go Premium for Unlimited
+                  Go Premium
                 </button>
               </div>
             )}
@@ -315,8 +322,8 @@ export default function SupportChat({ profile }: SupportChatProps) {
               </p>
               <p className="text-[10px] text-[#5C5E72]">
                 {premiumFeature === 'messages'
-                  ? '7 free messages per day. Upgrade for unlimited.'
-                  : '1 free photo used. Upgrade for unlimited uploads.'}
+                  ? 'Unlimited AI messages + photos + verified badge'
+                  : 'Unlimited photo uploads + AI messages + verified badge'}
               </p>
             </div>
             <button onClick={() => setShowPremium(false)} className="h-8 px-3 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
@@ -342,15 +349,10 @@ export default function SupportChat({ profile }: SupportChatProps) {
             <button
               onClick={() => fileRef.current?.click()}
               className="w-10 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex-shrink-0 relative"
-              title={isUnlimited ? 'Upload photo (unlimited)' : remainingPhotos > 0 ? `Upload photo (${remainingPhotos} left)` : 'Upgrade for more photos'}
+              title="Upload photo"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-              {/* Badge showing remaining photos for non-unlimited */}
-              {!isUnlimited && remainingPhotos >= 0 && (
-                <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-bold flex items-center justify-center ${remainingPhotos > 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                  {remainingPhotos}
-                </span>
-              )}
+
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
             <input
@@ -358,7 +360,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={!isUnlimited && remaining <= 3 ? `${remaining} messages left...` : "Ask me anything..."}
+              placeholder="Ask me anything..."
               className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 focus:outline-none"
             />
             <button

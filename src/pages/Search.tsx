@@ -14,7 +14,7 @@ interface SearchProps {
 const POPULAR_STATES = ['Lagos', 'Abuja (FCT)', 'Rivers', 'Kano', 'Oyo', 'Enugu', 'Delta', 'Kaduna'];
 
 // Property types for Nigerian housing
-const PROPERTY_TYPES = ['Apartment', 'Self Contain', 'Single Room', 'Shared', 'Duplex', 'Hostel', 'Studio Apartment'];
+const PROPERTY_TYPES = ['Apartment', 'Self Contain', 'Single Room', 'Duplex', 'Hostel', 'Studio Apartment'];
 
 export default function Search({ onNavigate, savedIds, onToggleSave }: SearchProps) {
   const [listings, setListings] = useState<Listing[]>([]);
