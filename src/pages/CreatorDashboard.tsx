@@ -292,18 +292,15 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 // ─── USERS ─────────────────────────────────────────
 function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode?: 'manage' | 'view' | 'today' }) {
   const { ask, dialogProps } = useConfirm();
-  const { requestAuth, isAuthorized } = useCreatorAuth();
+  const { requestAuth } = useCreatorAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   // Wrapper: require creator auth before executing critical actions
+  // If not authenticated, shows modal; after password, action runs automatically
   const withAuth = (action: () => void | Promise<void>) => {
-    if (!isAuthorized) {
-      requestAuth(action);
-      return;
-    }
-    action();
+    requestAuth(action);
   };
 
   const isManage = viewMode === 'manage';
