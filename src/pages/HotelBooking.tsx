@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getRoomById, createHotelBooking } from '@/lib/supabase';
+import { getRoomById, createHotelBooking, getAllUsers, submitStaffReview } from '@/lib/supabase';
 import type { HotelRoom, Hotel } from '@/types';
 import { Toaster, toast } from 'sonner';
 
@@ -9,6 +9,37 @@ interface HotelBookingProps {
   profile: { user_id: string; username: string | null; phone: string | null };
   onBack: () => void;
   onComplete: () => void;
+}
+
+// ─── STAR RATING COMPONENT ────────────────────────
+function StarRating({ value, onChange, size = 24 }: { value: number; onChange?: (v: number) => void; size?: number }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange?.(star)}
+          onMouseEnter={() => onChange && setHover(star)}
+          onMouseLeave={() => onChange && setHover(0)}
+          className={onChange ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}
+          disabled={!onChange}
+        >
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill={star <= (hover || value) ? '#F59E0B' : 'none'}
+            stroke={star <= (hover || value) ? '#F59E0B' : '#5C5E72'}
+            strokeWidth="2"
+          >
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export default function HotelBooking({ hotelId, roomId, profile, onBack, onComplete }: HotelBookingProps) {
@@ -25,6 +56,15 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
   const [submitting, setSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [bookingData, setBookingData] = useState<{ totalNights: number; totalPrice: number; checkIn: string; checkOut: string } | null>(null);
+
+  // Staff rating state
+  const [showRating, setShowRating] = useState(false);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState('');
+  const [rating, setRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   useEffect(() => {
     loadRoom();
@@ -56,12 +96,10 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
 
   const totals = calculateTotals();
 
-  // Get tomorrow's date for min check-in
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-  // Get min check-out (day after check-in)
   const getMinCheckOut = () => {
     if (!checkIn) return tomorrowStr;
     const dayAfter = new Date(checkIn);
@@ -107,6 +145,31 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
     toast.success('Booking created!');
   }
 
+  // Load staff list for rating
+  async function loadStaffList() {
+    const { users } = await getAllUsers();
+    const staffOnly = (users || []).filter((u: any) =>
+      ['staff', 'admin', 'creator', 'creator_admin', 'state_admin'].includes(u.role)
+    );
+    setStaffList(staffOnly);
+  }
+
+  async function handleSubmitReview() {
+    if (!selectedStaff) { toast.error('Select a staff member'); return; }
+    if (rating === 0) { toast.error('Select a star rating'); return; }
+
+    setSubmittingReview(true);
+    const { error } = await submitStaffReview(profile.user_id, selectedStaff, rating, reviewComment || undefined);
+    setSubmittingReview(false);
+
+    if (error) {
+      toast.error('Failed to submit review');
+      return;
+    }
+    setReviewSubmitted(true);
+    toast.success('Review submitted!');
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-transparent flex items-center justify-center">
@@ -124,7 +187,79 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
     );
   }
 
-  // Booking success screen
+  // ─── RATING SCREEN ────────────────────────────
+  if (showRating) {
+    return (
+      <div className="min-h-screen bg-transparent flex items-center justify-center px-5">
+        <div className="w-full max-w-md">
+          <div className="glass rounded-2xl p-6 border border-amber-500/10 text-center">
+            {reviewSubmitted ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                </div>
+                <h2 className="text-lg font-bold text-white mb-1">Thank You!</h2>
+                <p className="text-xs text-[#5C5E72] mb-5">Your review helps others trust our staff.</p>
+                <button onClick={onComplete} className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold">Done</button>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-white mb-1">Rate Your Experience</h2>
+                <p className="text-xs text-[#5C5E72] mb-5">How was the staff who handled your booking?</p>
+
+                {/* Star rating */}
+                <div className="flex justify-center mb-5">
+                  <StarRating value={rating} onChange={setRating} size={36} />
+                </div>
+
+                {/* Staff selection */}
+                <div className="text-left mb-4">
+                  <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Select Staff Member</label>
+                  <select
+                    value={selectedStaff}
+                    onChange={(e) => setSelectedStaff(e.target.value)}
+                    onFocus={() => { if (staffList.length === 0) loadStaffList(); }}
+                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
+                  >
+                    <option value="">Choose who helped you...</option>
+                    {staffList.map((s) => (
+                      <option key={s.user_id} value={s.user_id}>{s.full_name || s.username || s.email} ({s.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Comment */}
+                <div className="text-left mb-5">
+                  <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Comment (optional)</label>
+                  <textarea
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Share your experience..."
+                    rows={3}
+                    className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6] outline-none resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setShowRating(false)} className="flex-1 h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm font-medium hover:bg-[#232330]">Back</button>
+                  <button
+                    onClick={handleSubmitReview}
+                    disabled={submittingReview || rating === 0 || !selectedStaff}
+                    className="flex-1 h-11 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity"
+                  >
+                    {submittingReview ? 'Submitting...' : 'Submit Review'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── BOOKING SUCCESS SCREEN ───────────────────
   if (bookingComplete && bookingData) {
     return (
       <div className="min-h-screen bg-transparent flex items-center justify-center px-5">
@@ -167,7 +302,7 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
               </div>
               <div className="border-t border-[#2A2A3A] pt-2 flex justify-between">
                 <span className="text-xs text-[#5C5E72] font-medium">Total</span>
-                <span className="text-sm font-bold text-green-400">₦{bookingData.totalPrice.toLocaleString()}</span>
+                <span className="text-sm font-bold text-green-400">N{bookingData.totalPrice.toLocaleString()}</span>
               </div>
             </div>
 
@@ -187,11 +322,20 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
               </div>
             </div>
 
+            {/* Rate staff button */}
+            <button
+              onClick={() => { setShowRating(true); if (staffList.length === 0) loadStaffList(); }}
+              className="w-full h-11 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity mb-3 flex items-center justify-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+              Rate Your Experience
+            </button>
+
             <button
               onClick={onComplete}
-              className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm font-medium hover:bg-[#232330] transition-colors"
             >
-              Done
+              Maybe Later
             </button>
           </div>
         </div>
@@ -199,6 +343,7 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
     );
   }
 
+  // ─── BOOKING FORM ─────────────────────────────
   return (
     <div className="min-h-screen bg-transparent pb-6">
       <Toaster position="top-center" richColors />
@@ -210,7 +355,7 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
         </button>
         <div>
           <h1 className="text-base font-semibold">Book Room</h1>
-          <p className="text-[10px] text-[#5C5E72]">{room.hotels.name} · {room.room_type}</p>
+          <p className="text-[10px] text-[#5C5E72]">{room.hotels.name} &middot; {room.room_type}</p>
         </div>
       </header>
 
@@ -223,141 +368,116 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
               </svg>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">{room.room_type}</h3>
-              <p className="text-xs text-[#3B82F6] font-bold">₦{room.price_per_night.toLocaleString()}<span className="text-[10px] text-[#5C5E72] font-normal">/night</span></p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] text-[#5C5E72]">{room.max_guests} max guests</span>
-                {room.bed_type && <span className="text-[10px] text-[#5C5E72]">· {room.bed_type} bed</span>}
-              </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">{room.room_type}</p>
+              <p className="text-xs text-[#5C5E72]">{room.hotels.name}</p>
+              <p className="text-xs text-[#3B82F6] font-medium mt-0.5">N{room.price_per_night.toLocaleString()}/night</p>
             </div>
           </div>
         </div>
 
-        {/* Date Selection */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-white">Select Dates</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-[#5C5E72] mb-1.5 block">Check-in</label>
-              <input
-                type="date"
-                value={checkIn}
-                min={tomorrowStr}
-                onChange={(e) => {
-                  setCheckIn(e.target.value);
-                  // Reset check-out if it's before new check-in
-                  if (checkOut && e.target.value >= checkOut) setCheckOut('');
-                }}
-                className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 focus:border-[#3B82F6]/50 outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] text-[#5C5E72] mb-1.5 block">Check-out</label>
-              <input
-                type="date"
-                value={checkOut}
-                min={getMinCheckOut()}
-                onChange={(e) => setCheckOut(e.target.value)}
-                disabled={!checkIn}
-                className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 focus:border-[#3B82F6]/50 outline-none disabled:opacity-40"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Guest Count */}
-        <div>
-          <label className="text-xs font-semibold text-white mb-2 block">Number of Guests</label>
-          <div className="flex gap-2">
-            {Array.from({ length: Math.min(room.max_guests, 6) }).map((_, i) => (
-              <button
-                key={i + 1}
-                onClick={() => setGuestCount(i + 1)}
-                className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${
-                  guestCount === i + 1
-                    ? 'bg-[#3B82F6] text-white'
-                    : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] hover:border-[#3B82F6]/30'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
-          <p className="text-[9px] text-[#5C5E72] mt-1.5">Max {room.max_guests} guest{room.max_guests !== 1 ? 's' : ''} for this room</p>
-        </div>
-
-        {/* Guest Details */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-white">Guest Details</h3>
+        {/* Dates */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-[#5C5E72] mb-1.5 block">Full Name *</label>
+            <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Check-in</label>
+            <input
+              type="date"
+              value={checkIn}
+              onChange={(e) => setCheckIn(e.target.value)}
+              min={tomorrowStr}
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6] [color-scheme:dark]"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Check-out</label>
+            <input
+              type="date"
+              value={checkOut}
+              onChange={(e) => setCheckOut(e.target.value)}
+              min={getMinCheckOut()}
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6] [color-scheme:dark]"
+            />
+          </div>
+        </div>
+
+        {/* Guest count */}
+        <div>
+          <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Guests</label>
+          <select
+            value={guestCount}
+            onChange={(e) => setGuestCount(Number(e.target.value))}
+            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
+          >
+            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>)}
+          </select>
+        </div>
+
+        {/* Guest details */}
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Full Name</label>
             <input
               type="text"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               placeholder="Your full name"
-              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#3B82F6]"
             />
           </div>
           <div>
-            <label className="text-[10px] text-[#5C5E72] mb-1.5 block">Phone Number *</label>
+            <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Phone Number</label>
             <input
               type="tel"
               value={guestPhone}
               onChange={(e) => setGuestPhone(e.target.value)}
               placeholder="e.g. 08012345678"
-              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#3B82F6]"
             />
           </div>
           <div>
-            <label className="text-[10px] text-[#5C5E72] mb-1.5 block">Special Requests (optional)</label>
+            <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Special Requests (optional)</label>
             <textarea
               value={specialRequests}
               onChange={(e) => setSpecialRequests(e.target.value)}
-              placeholder="Any special requests..."
-              rows={2}
-              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none"
+              placeholder="Any special requirements..."
+              rows={3}
+              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none"
             />
           </div>
         </div>
 
-        {/* Price Summary */}
+        {/* Price summary */}
         {totals && (
-          <div className="glass rounded-2xl p-4 border border-[#3B82F6]/10">
-            <h3 className="text-xs font-semibold text-white mb-3">Price Summary</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-xs text-[#5C5E72]">₦{room.price_per_night.toLocaleString()} × {totals.nights} night{totals.nights !== 1 ? 's' : ''}</span>
-                <span className="text-xs text-white">₦{totals.total.toLocaleString()}</span>
-              </div>
-              <div className="border-t border-[#2A2A3A] pt-2 flex justify-between">
-                <span className="text-sm font-bold text-white">Total</span>
-                <span className="text-lg font-bold text-[#3B82F6]">₦{totals.total.toLocaleString()}</span>
-              </div>
+          <div className="p-4 rounded-xl bg-[#1A1A24] border border-[#2A2A3A]">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-[#5C5E72]">{room.price_per_night.toLocaleString()} x {totals.nights} nights</span>
+              <span className="text-sm text-white">N{totals.total.toLocaleString()}</span>
+            </div>
+            <div className="border-t border-[#2A2A3A] pt-2 flex justify-between items-center">
+              <span className="text-sm font-semibold text-white">Total</span>
+              <span className="text-lg font-bold text-green-400">N{totals.total.toLocaleString()}</span>
             </div>
           </div>
         )}
 
-        {/* Book Button */}
+        {/* Book button */}
         <button
           onClick={handleBook}
           disabled={submitting || !totals}
-          className="w-full h-13 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 py-3.5 flex items-center justify-center gap-2"
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
         >
           {submitting ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-              {totals ? `Book Now — ₦${totals.total.toLocaleString()}` : 'Select dates to book'}
+              Confirm Booking
             </>
           )}
         </button>
 
-        <p className="text-[9px] text-[#5C5E72] text-center">
-          No online payment required. Pay at the hotel during check-in.
-        </p>
+        <p className="text-[10px] text-[#5C5E72] text-center">No payment required now. Pay at check-in.</p>
       </div>
     </div>
   );

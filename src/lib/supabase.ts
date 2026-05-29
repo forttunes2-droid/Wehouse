@@ -2093,5 +2093,36 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
     return { url: null, error: { message: err.message || 'Upload failed' } };
   }
 }
+// ─── STAFF REVIEWS ─────────────────────────────────
+
+export async function submitStaffReview(reviewerId: string, staffId: string, rating: number, comment?: string, bookingId?: number) {
+  const { data, error } = await supabase
+    .from('staff_reviews')
+    .insert({
+      reviewer_id: reviewerId,
+      staff_id: staffId,
+      booking_id: bookingId || null,
+      rating,
+      comment: comment || null,
+    })
+    .select()
+    .single();
+  return { review: data, error };
+}
+
+export async function getStaffReviews(staffId: string) {
+  const { data, error } = await supabase
+    .from('staff_reviews')
+    .select('*, profiles!staff_reviews_reviewer_id_fkey(username, avatar_url)')
+    .eq('staff_id', staffId)
+    .order('created_at', { ascending: false });
+  return { reviews: data, error };
+}
+
+export async function getStaffRatingSummary(staffId: string) {
+  const { data, error } = await supabase.rpc('get_staff_rating', { staff_user_id: staffId });
+  return { summary: data?.[0] || { avg_rating: 0, review_count: 0 }, error };
+}
+
 // force deploy Fri May 29 09:06:48 CST 2026
 // deploy trigger 1780037607
