@@ -312,22 +312,23 @@ export default function SupportChat({ profile }: SupportChatProps) {
       {/* Premium Banner */}
       {showPremium && (
         <div className="flex-shrink-0 bg-gradient-to-r from-amber-500/10 to-amber-600/5 border-t border-amber-500/20 p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-white">
-                {premiumFeature === 'messages' ? 'Message Limit Reached' : 'Photo Upload Limit Reached'}
+                {premiumFeature === 'messages' ? 'Daily Limit Reached' : 'Photo Limit Reached'}
               </p>
-              <p className="text-[10px] text-[#5C5E72]">
-                {premiumFeature === 'messages'
-                  ? '60 AI messages daily + 30 photos daily + verified badge'
-                  : '30 photos daily + 60 AI messages daily + verified badge'}
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">
+                Your limit refreshes at {getRefreshTime()} tomorrow.
+              </p>
+              <p className="text-[10px] text-[#5C5E72] mt-1">
+                Premium (60 messages + 30 photos daily) — coming soon.
               </p>
             </div>
-            <button onClick={() => setShowPremium(false)} className="h-8 px-3 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
-              ₦2,000
+            <button onClick={() => setShowPremium(false)} className="text-[10px] text-[#5C5E72] hover:text-white px-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
         </div>
