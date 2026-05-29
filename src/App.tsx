@@ -406,8 +406,8 @@ export default function App() {
           {renderPage()}
         </div>
 
-        {/* Creator Authorization Modal — gates critical actions */}
-        <CreatorAuthModal />
+        {/* Creator Authorization Modal — only for creator, gates critical actions */}
+        {isCreator && <CreatorAuthModal />}
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
       {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (

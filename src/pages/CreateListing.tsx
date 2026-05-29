@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { supabase, createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents, checkDuplicateListing } from '@/lib/supabase';
+import { createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents, checkDuplicateListing } from '@/lib/supabase';
 import { ROLE_RANK } from '@/types';
-import { computeImageHash, compareImageHashes, getAllImageHashes } from '@/lib/imageHash';
+// Image hash duplicate detection removed — too many false positives
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -188,43 +188,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
 
     // Chat agent is optional — if none selected, no chat option shown on listing
 
-    // Image duplicate detection — check uploaded images against existing listings
-    if (images.length > 0) {
-      setSaving(true); // Show loading while checking
-      toast.loading('Checking images for duplicates...', { id: 'img-check' });
-
-      const existingHashes = await getAllImageHashes(supabase);
-      let highestSimilarity = 0;
-      let duplicateFound = false;
-
-      for (const imageUrl of images) {
-        const newHash = await computeImageHash(imageUrl);
-        if (!newHash) continue;
-
-        for (const record of existingHashes) {
-          if (!record.image_hash) continue;
-          const similarity = compareImageHashes(newHash, record.image_hash);
-          if (similarity > highestSimilarity) highestSimilarity = similarity;
-          if (similarity >= 0.8) {
-            duplicateFound = true;
-            break;
-          }
-        }
-        if (duplicateFound) break;
-      }
-
-      toast.dismiss('img-check');
-
-      if (duplicateFound) {
-        setSaving(false);
-        toast.error('This image appears to match an existing listing photo. Please use original photos only.');
-        return;
-      }
-      if (highestSimilarity >= 0.6) {
-        toast.warning(`Warning: This image is ${Math.round(highestSimilarity * 100)}% similar to an existing listing. Please verify it's not a duplicate.`);
-        // Don't block — let user decide
-      }
-    }
+    // NOTE: Image hash duplicate detection removed — too many false positives
+    // with similar-looking rooms (white walls, tiled floors, common in Nigeria).
+    // Title + location duplicate check above is sufficient.
 
     // Determine approval status based on poster role
     // Creator and Director posts go live immediately
@@ -268,25 +234,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       toast.success('Listing created and published!');
     }
 
-    // Save image hashes for future duplicate detection
-    if (listing?.listing_id && images.length > 0) {
-      toast.loading('Saving image fingerprints...', { id: 'img-save' });
-      for (const imageUrl of images) {
-        const hash = await computeImageHash(imageUrl);
-        if (hash) {
-          try {
-            await supabase.from('listing_image_hashes').insert({
-              listing_id: listing.listing_id,
-              image_url: imageUrl,
-              image_hash: hash,
-            });
-          } catch {
-            // Silently fail — saving hashes is not critical
-          }
-        }
-      }
-      toast.dismiss('img-save');
-    }
+    // Image hash saving removed — perceptual hashing produced too many
+    // false positives with similar-looking rooms common in Nigeria.
 
     onSuccess?.();
   }
