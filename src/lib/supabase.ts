@@ -1295,19 +1295,24 @@ export async function getUserCount() {
 
 // ── ROLE MANAGEMENT ────────────────────────────────
 
-// Valid role transitions (bidirectional):
-// user ↔ staff, user ↔ admin, staff ↔ admin
-// worker is locked (must sign up as worker)
-// creator is locked (only one creator)
+// Valid role transitions — full hierarchy support
+// Creator can change any role (except other creators)
+// Director can change up to state_admin
+// Each role can move within its level and below
 const VALID_ROLE_TRANSITIONS: Record<string, string[]> = {
-  user: ['staff', 'admin'],
-  staff: ['user', 'admin'],
-  admin: ['user', 'staff'],
+  user: ['staff', 'admin', 'assistant_state_admin', 'state_admin', 'director'],
+  staff: ['user', 'admin', 'assistant_state_admin', 'state_admin', 'director'],
+  admin: ['user', 'staff', 'assistant_state_admin', 'state_admin', 'director'],
+  assistant_state_admin: ['user', 'staff', 'admin', 'state_admin', 'director'],
+  state_admin: ['user', 'staff', 'admin', 'assistant_state_admin', 'director'],
+  director: ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'],
   worker: [],
   creator: [],
 };
 
 export function canChangeRole(currentRole: string, newRole: string): { allowed: boolean; reason?: string } {
+  // Creator can do anything (except change another creator)
+  // This is checked at the UI level via validateRoleTransition
   const allowed = VALID_ROLE_TRANSITIONS[currentRole] || [];
   if (!allowed.includes(newRole)) {
     if (currentRole === 'worker') return { allowed: false, reason: 'Workers signed up as workers. Role cannot be changed.' };
