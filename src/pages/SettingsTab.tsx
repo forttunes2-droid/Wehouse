@@ -36,6 +36,10 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
       if (!map.maintenance_mode) map.maintenance_mode = 'false';
       if (!map.registration_open) map.registration_open = 'true';
       if (!map.max_listings_per_user) map.max_listings_per_user = 'unlimited';
+      // Support contacts — no defaults, user sets them
+      if (!map.support_whatsapp) map.support_whatsapp = '';
+      if (!map.support_telegram) map.support_telegram = '';
+      if (!map.support_email) map.support_email = '';
       setSavedSettings(map);
       setPendingSettings(map);
       setLoading(false);
@@ -99,6 +103,9 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
     { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'select', options: [['false', 'Off — App is open to everyone'], ['true', 'On — Only creator can access']], creatorOnly: true, description: 'When ON, blocks all non-creator users from logging in' },
     { key: 'registration_open', label: 'Allow New Registrations', type: 'select', options: [['true', 'Yes — Anyone can sign up'], ['false', 'No — New signups blocked']], creatorOnly: true, description: 'Control whether new accounts can be created' },
     { key: 'max_listings_per_user', label: 'Max Listings Per User', type: 'select', options: [['3', '3 listings'], ['5', '5 listings'], ['10', '10 listings'], ['20', '20 listings'], ['unlimited', 'Unlimited']], creatorOnly: true, description: 'Maximum listings a single user can post' },
+    { key: 'support_whatsapp', label: 'Support WhatsApp', type: 'text', creatorOnly: true, description: 'WhatsApp number for support button (e.g., 2348012345678)' },
+    { key: 'support_telegram', label: 'Support Telegram', type: 'text', creatorOnly: true, description: 'Telegram username or link (e.g., @wehouse or https://t.me/wehouse)' },
+    { key: 'support_email', label: 'Support Email', type: 'text', creatorOnly: true, description: 'Support email address (e.g., support@wehouse.com.ng)' },
   ];
 
   const visible = settings.filter(s => !s.creatorOnly || isCreator);
