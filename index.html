@@ -42,50 +42,10 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Auto-detect new deployments — checks every 1 hour + when returning from background
-      (function() {
-        var STORAGE_KEY = 'wh_sw_hash';
-        var CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
-        var lastHash = localStorage.getItem(STORAGE_KEY) || '';
-        var hasRefreshed = false; // Prevent double-reload
-
-        function checkForUpdate() {
-          if (hasRefreshed) return; // Already refreshed this session
-          fetch('/sw.js?_=' + Date.now(), { cache: 'no-store' })
-            .then(function(r) { return r.text(); })
-            .then(function(text) {
-              var currentHash = btoa(text.slice(0, 200));
-              if (lastHash && lastHash !== currentHash) {
-                hasRefreshed = true;
-                localStorage.setItem(STORAGE_KEY, currentHash);
-                window.location.reload();
-              } else {
-                localStorage.setItem(STORAGE_KEY, currentHash);
-              }
-            })
-            .catch(function() {});
-        }
-
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/sw.js').catch(function() {});
-        }
-
-        // Check once on load (after 3 seconds)
-        setTimeout(checkForUpdate, 3000);
-
-        // Check every 1 hour
-        setInterval(checkForUpdate, CHECK_INTERVAL);
-
-        // Check when returning from background (but not more than once per 5 min)
-        var lastBgCheck = 0;
-        document.addEventListener('visibilitychange', function() {
-          if (document.visibilityState === 'visible' && Date.now() - lastBgCheck > 5 * 60 * 1000) {
-            lastBgCheck = Date.now();
-            checkForUpdate();
-          }
-        });
-      })();
+      // Register service worker only — no auto-refresh
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      }
     </script>
   </body>
 </html>

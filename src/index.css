@@ -4,35 +4,46 @@
 
 @layer base {
   :root {
-    /* Deep Black Premium Theme - Blue Accents */
-    --background: 240 12% 4%;
+    /* Modern Dark Theme - 2026 */
+    --background: 240 20% 2%;
     --foreground: 0 0% 100%;
-    --card: 240 12% 7%;
+    --card: 240 14% 5%;
     --card-foreground: 0 0% 100%;
-    --popover: 240 12% 7%;
+    --popover: 240 14% 5%;
     --popover-foreground: 0 0% 100%;
-    --primary: 217 91% 60%;
+    --primary: 258 100% 68%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 8% 14%;
+    --secondary: 240 10% 10%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 240 8% 14%;
-    --muted-foreground: 240 5% 55%;
-    --accent: 217 91% 60%;
+    --muted: 240 10% 10%;
+    --muted-foreground: 240 8% 55%;
+    --accent: 258 100% 68%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 8% 16%;
-    --input: 240 8% 16%;
-    --ring: 217 91% 60%;
+    --border: 240 8% 12%;
+    --input: 240 8% 12%;
+    --ring: 258 100% 68%;
     --radius: 0.75rem;
-    --sidebar-background: 240 12% 5%;
+    --sidebar-background: 240 20% 3%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary: 258 100% 68%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 8% 14%;
+    --sidebar-accent: 240 10% 10%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 8% 16%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-border: 240 8% 12%;
+    --sidebar-ring: 258 100% 68%;
+
+    /* WeHouse custom tokens */
+    --wh-bg: #050508;
+    --wh-surface: #0C0C12;
+    --wh-elevated: #14141C;
+    --wh-violet: #7C5CFF;
+    --wh-violet-glow: rgba(124,92,255,0.15);
+    --wh-text: #FFFFFF;
+    --wh-text-secondary: #7A7A8C;
+    --wh-text-muted: #4A4A5C;
+    --wh-border: rgba(255,255,255,0.06);
   }
 }
 
@@ -42,11 +53,8 @@
   }
   html, body, #root {
     min-height: 100vh;
-    background-color: #0A0A0F !important;
-    /* Ultra-subtle dot grid pattern — modern, clean, barely visible */
-    background-image:
-      radial-gradient(circle at 1px 1px, rgba(100, 130, 237, 0.04) 1px, transparent 0) !important;
-    background-size: 40px 40px !important;
+    background-color: var(--wh-bg) !important;
+    color: var(--wh-text);
   }
 
   body {
@@ -125,26 +133,26 @@
   50% { transform: translate(40px, -30px) scale(1.05); }
 }
 
-/* Glass effect */
+/* Card surface — solid, no glass blur */
 .glass {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--wh-surface);
+  border: 1px solid var(--wh-border);
+  border-radius: 16px;
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--wh-elevated);
+  border: 1px solid var(--wh-border);
+  border-radius: 16px;
 }
 
-/* Glow effects */
-.glow-blue {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+/* Glow effects — violet accent */
+.glow-violet {
+  box-shadow: 0 0 20px rgba(124, 92, 255, 0.15);
 }
 
-.glow-blue-sm {
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+.glow-violet-sm {
+  box-shadow: 0 0 10px rgba(124, 92, 255, 0.1);
 }
 
 /* Card hover lift */
@@ -173,9 +181,9 @@
   animation: shimmer 1.5s infinite;
 }
 
-/* Input focus ring */
+/* Input focus ring — violet */
 .input-glow:focus {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.25);
 }
 
 /* Status indicators */
@@ -199,19 +207,16 @@
   background: #5C5E72;
 }
 
-/* ─── MODERN 2026 BACKGROUND PATTERN ─── */
-/* Clean, ultra-subtle dot pattern — barely visible but adds depth */
+/* ─── MODERN 2026 BACKGROUND ─── */
+/* Clean, no pattern — just solid deep background */
 
 .bg-modern {
-  background-color: #0A0A0F;
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(100, 130, 237, 0.04) 1px, transparent 0);
-  background-size: 40px 40px;
+  background-color: var(--wh-bg);
 }
 
 /* ─────────────────────────────────────────── */
 
-/* Tab active indicator */
+/* Tab active indicator — violet */
 .tab-active {
   position: relative;
 }
@@ -222,16 +227,14 @@
   left: 20%;
   right: 20%;
   height: 2px;
-  background: #3B82F6;
+  background: var(--wh-violet);
   border-radius: 2px;
 }
 
-/* Bottom nav — modern minimal */
+/* Bottom nav — solid, minimal */
 .bottom-nav {
-  background: rgba(10, 10, 15, 0.95);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(5, 5, 8, 0.95);
+  border-top: 1px solid var(--wh-border);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -266,9 +269,9 @@
   overflow: hidden;
 }
 
-/* Gradient text */
+/* Gradient text — violet */
 .gradient-text {
-  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+  background: linear-gradient(135deg, #7C5CFF 0%, #A78BFA 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
