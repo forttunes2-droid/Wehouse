@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
+import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
 import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
+import CreatorAuthModal from '@/components/CreatorAuthModal';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
 import type { NavPage } from '@/types/nav';
@@ -398,10 +400,14 @@ export default function App() {
   const tabs = [...baseTabs, roleTab];
 
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <div className="page-transition min-h-screen bg-[#0A0A0F]">
-        {renderPage()}
-      </div>
+    <CreatorAuthProvider>
+      <Suspense fallback={<PageSkeleton />}>
+        <div className="page-transition min-h-screen bg-[#0A0A0F]">
+          {renderPage()}
+        </div>
+
+        {/* Creator Authorization Modal — gates critical actions */}
+        <CreatorAuthModal />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
       {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
@@ -434,7 +440,8 @@ export default function App() {
           </div>
         </nav>
       )}
-    </Suspense>
+      </Suspense>
+    </CreatorAuthProvider>
   );
 }
 

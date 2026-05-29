@@ -10,6 +10,7 @@ import {
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
+import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { Input } from '@/components/ui/input';
 import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking } from '@/types';
 import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
@@ -40,7 +41,14 @@ const ROLE_COLORS: Record<string, string> = {
   worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
 };
 
-export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, onNavigate }: CreatorDashboardProps) {
+export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToNewListing, onNavigate }: CreatorDashboardProps) {
+  const { clearAuth } = useCreatorAuth();
+
+  // Wrapped logout: clears creator auth session too
+  const handleLogout = useCallback(() => {
+    clearAuth();
+    _onLogout();
+  }, [_onLogout, clearAuth]);
   // Persist dashboard sub-tab across refreshes
   const DASHBOARD_TAB_KEY = isCreator(profile.role) ? 'wh_creator_tab' : 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
@@ -119,7 +127,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, 
               <p className="text-[10px] text-[#5C5E72]">@{profile.username}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
+          <button onClick={handleLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
             Logout
           </button>
         </div>
@@ -284,9 +292,19 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 // ─── USERS ─────────────────────────────────────────
 function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode?: 'manage' | 'view' | 'today' }) {
   const { ask, dialogProps } = useConfirm();
+  const { requestAuth, isAuthorized } = useCreatorAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Wrapper: require creator auth before executing critical actions
+  const withAuth = (action: () => void | Promise<void>) => {
+    if (!isAuthorized) {
+      requestAuth(action);
+      return;
+    }
+    action();
+  };
 
   const isManage = viewMode === 'manage';
   const isToday = viewMode === 'today';
@@ -319,64 +337,72 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
   );
 
   async function handleRole(userId: string, newRole: string) {
-    const target = users.find(u => u.user_id === userId);
-    if (!target) { toast.error('User not found'); return; }
+    withAuth(async () => {
+      const target = users.find(u => u.user_id === userId);
+      if (!target) { toast.error('User not found'); return; }
 
-    // Cannot change own role
-    if (userId === profile.user_id) { toast.error('You cannot change your own role'); return; }
+      // Cannot change own role
+      if (userId === profile.user_id) { toast.error('You cannot change your own role'); return; }
 
-    // Validate using the permission matrix
-    const validation = validateRoleTransition(profile.role, target.role, newRole);
-    if (!validation.allowed) {
-      toast.error(validation.reason || 'Role change not allowed');
-      return;
-    }
+      // Validate using the permission matrix
+      const validation = validateRoleTransition(profile.role, target.role, newRole);
+      if (!validation.allowed) {
+        toast.error(validation.reason || 'Role change not allowed');
+        return;
+      }
 
-    // Execute the change
-    const { error } = await updateUserRole(
-      userId, newRole, target.role,
-      profile.user_id, profile.email,
-      target.email
-    );
-    if (error) { toast.error(error.message || 'Failed'); return; }
+      // Execute the change
+      const { error } = await updateUserRole(
+        userId, newRole, target.role,
+        profile.user_id, profile.email,
+        target.email
+      );
+      if (error) { toast.error(error.message || 'Failed'); return; }
 
-    await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role from ${target.role} to ${newRole}`);
-    const oldLabel = ROLE_LABELS[target.role as keyof typeof ROLE_LABELS] || target.role;
-    const newLabel = ROLE_LABELS[newRole as keyof typeof ROLE_LABELS] || newRole;
-    toast.success(`Role changed: ${oldLabel} → ${newLabel}`);
-    load();
+      await logAuditAction(profile.user_id, profile.email, 'update_role', 'user', userId, `Changed role from ${target.role} to ${newRole}`);
+      const oldLabel = ROLE_LABELS[target.role as keyof typeof ROLE_LABELS] || target.role;
+      const newLabel = ROLE_LABELS[newRole as keyof typeof ROLE_LABELS] || newRole;
+      toast.success(`Role changed: ${oldLabel} → ${newLabel}`);
+      load();
+    });
   }
 
   async function handleDelete(userId: string) {
-    const target = users.find(u => u.user_id === userId);
-    if (!target) { toast.error('User not found'); return; }
-    if (isCreator(target.role)) { toast.error('Creator accounts cannot be deleted'); return; }
-    if (userId === profile.user_id) { toast.error('You cannot delete your own account from here'); return; }
+    withAuth(async () => {
+      const target = users.find(u => u.user_id === userId);
+      if (!target) { toast.error('User not found'); return; }
+      if (isCreator(target.role)) { toast.error('Creator accounts cannot be deleted'); return; }
+      if (userId === profile.user_id) { toast.error('You cannot delete your own account from here'); return; }
 
-    const sdOk = await ask({ title: 'Delete this user?', confirmLabel: 'Delete', variant: 'danger' });
-    if (!sdOk) return;
-    const { error } = await deleteUser(userId);
-    if (error) { toast.error('Delete failed: ' + error.message); return; }
-    await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User soft-deleted');
-    toast.success('User deleted');
-    load();
+      const sdOk = await ask({ title: 'Delete this user?', confirmLabel: 'Delete', variant: 'danger' });
+      if (!sdOk) return;
+      const { error } = await deleteUser(userId);
+      if (error) { toast.error('Delete failed: ' + error.message); return; }
+      await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User soft-deleted');
+      toast.success('User deleted');
+      load();
+    });
   }
 
   async function handleRestore(userId: string) {
-    const restoreOk = await ask({ title: 'Restore this user?', confirmLabel: 'Restore', variant: 'info' });
-    if (!restoreOk) return;
-    const { error } = await restoreUser(userId);
-    if (error) { toast.error('Restore failed: ' + error.message); return; }
-    await logAuditAction(profile.user_id, profile.email, 'restore_user', 'user', userId, 'User restored');
-    toast.success('User restored');
-    load();
+    withAuth(async () => {
+      const restoreOk = await ask({ title: 'Restore this user?', confirmLabel: 'Restore', variant: 'info' });
+      if (!restoreOk) return;
+      const { error } = await restoreUser(userId);
+      if (error) { toast.error('Restore failed: ' + error.message); return; }
+      await logAuditAction(profile.user_id, profile.email, 'restore_user', 'user', userId, 'User restored');
+      toast.success('User restored');
+      load();
+    });
   }
 
   async function handleExemptToggle(userId: string, currentExempt: boolean) {
-    const { error } = await toggleMaintenanceExempt(userId, !currentExempt);
-    if (error) { toast.error('Failed to update exemption'); return; }
-    toast.success(currentExempt ? 'Removed maintenance exemption' : 'User can now login during maintenance');
-    load();
+    withAuth(async () => {
+      const { error } = await toggleMaintenanceExempt(userId, !currentExempt);
+      if (error) { toast.error('Failed to update exemption'); return; }
+      toast.success(currentExempt ? 'Removed maintenance exemption' : 'User can now login during maintenance');
+      load();
+    });
   }
 
   return (

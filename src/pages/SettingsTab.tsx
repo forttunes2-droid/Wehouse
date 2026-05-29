@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSystemSettings, updateSystemSetting, logAuditAction } from '@/lib/supabase';
+import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
 
@@ -18,6 +19,7 @@ interface SettingDef {
 }
 
 export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
+  const { requestAuth, isAuthorized, timeRemaining } = useCreatorAuth();
   const [savedSettings, setSavedSettings] = useState<Record<string, string>>({});
   const [pendingSettings, setPendingSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,14 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
     setHasChanges(changed);
   }, [pendingSettings, savedSettings]);
 
+  // Protected save — requires creator auth
   async function handleSaveAll() {
+    // If not authorized, request auth first
+    if (isCreator && !isAuthorized) {
+      requestAuth(() => handleSaveAll());
+      return;
+    }
+
     setSaving(true);
     const keys = Object.keys(pendingSettings).filter(k => pendingSettings[k] !== savedSettings[k]);
     if (keys.length === 0) { toast.info('No changes to save'); setSaving(false); return; }
@@ -93,11 +102,41 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
 
   return (
     <div className="space-y-4">
+      {/* Auth Status Banner — only for creator */}
+      {isCreator && (
+        <div className={`glass rounded-2xl p-4 ${isAuthorized ? 'border border-purple-500/20' : 'border border-amber-500/20'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isAuthorized ? 'bg-purple-500/10' : 'bg-amber-500/10'}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isAuthorized ? '#A855F7' : '#F59E0B'} strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-medium text-white">Creator Authorization</p>
+              <p className="text-[10px] text-[#5C5E72]">
+                {isAuthorized
+                  ? `Authorized — expires in ${Math.floor(timeRemaining / 60)}m ${timeRemaining % 60}s`
+                  : 'Authentication required before saving changes'}
+              </p>
+            </div>
+            {!isAuthorized && (
+              <button
+                onClick={() => requestAuth()}
+                className="h-8 px-3 rounded-lg bg-purple-500/10 text-purple-400 text-[10px] font-medium hover:bg-purple-500/20 transition-colors"
+              >
+                Authenticate
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="glass rounded-2xl p-4 flex items-start gap-3">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
         <div>
           <p className="text-xs text-white font-medium">Platform Settings</p>
-          <p className="text-[10px] text-[#5C5E72] mt-0.5">Click Save Changes to apply your changes.</p>
+          <p className="text-[10px] text-[#5C5E72] mt-0.5">{isCreator ? 'Creator authentication required before saving.' : 'Click Save Changes to apply.'}</p>
         </div>
       </div>
 
