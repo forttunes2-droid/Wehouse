@@ -1045,31 +1045,36 @@ function EditView({
       return;
     }
     setSaving(true);
-    await onSave({
-      gender: form.gender || 'male',
-      gender_preference: form.gender_preference,
-      budget_min: Number(form.budget_min),
-      budget_max: Number(form.budget_max),
-      study_level: form.study_level,
-      noise_level: form.noise_level,
-      cleanliness: form.cleanliness,
-      sleep_time: form.sleep_time,
-      visitors: form.visitors,
-      stay_duration: form.stay_duration,
-      area_preference: form.preferred_lga || form.area_preference,
-      preferred_state: form.preferred_state || null,
-      preferred_lga: form.preferred_lga || null,
-      preferred_area: form.preferred_area || null,
-      bio: form.bio,
-      school_name: showStudent ? form.school_name || null : null,
-      campus: showStudent ? form.campus || null : null,
-      faculty: showStudent ? form.faculty || null : null,
-      department: showStudent ? form.department || null : null,
-      level: showStudent ? form.level || null : null,
-      school_match: showStudent ? form.school_match : false,
-      campus_match: showStudent ? form.campus_match : false,
-    });
-    setSaving(false);
+    try {
+      await onSave({
+        gender: form.gender || 'male',
+        gender_preference: form.gender_preference,
+        budget_min: Number(form.budget_min),
+        budget_max: Number(form.budget_max),
+        study_level: form.study_level,
+        noise_level: form.noise_level,
+        cleanliness: form.cleanliness,
+        sleep_time: form.sleep_time,
+        visitors: form.visitors,
+        stay_duration: form.stay_duration,
+        area_preference: form.preferred_lga || form.area_preference,
+        preferred_state: form.preferred_state || null,
+        preferred_lga: form.preferred_lga || null,
+        preferred_area: form.preferred_area || null,
+        bio: form.bio,
+        school_name: showStudent ? form.school_name || null : null,
+        campus: showStudent ? form.campus || null : null,
+        faculty: showStudent ? form.faculty || null : null,
+        department: showStudent ? form.department || null : null,
+        level: showStudent ? form.level || null : null,
+        school_match: showStudent ? form.school_match : false,
+        campus_match: showStudent ? form.campus_match : false,
+      });
+    } catch (err: any) {
+      toast.error('Something went wrong: ' + (err.message || 'Please try again'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   const update = (key: string, value: any) => setForm((f) => ({ ...f, [key]: value }));
