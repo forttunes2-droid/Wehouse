@@ -126,6 +126,9 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
           <polyline points="22,6 12,13 2,6" />
         </svg>
       ),
+      action: () => {
+        window.location.href = 'mailto:support@wehouse.com.ng';
+      },
       value: 'support@wehouse.com.ng',
       valueColor: 'text-[#3B82F6]',
     },
