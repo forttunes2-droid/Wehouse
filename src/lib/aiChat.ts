@@ -1,35 +1,71 @@
 import OpenAI from 'openai';
+import { supabase } from './supabase';
 
-// ─── CONFIG ─────────────────────────────────────────────
-// User provides their own OpenAI API key in platform_settings
-// This keeps costs under their control
+// ─── GLOBAL API KEY (set by creator in Platform Settings) ──
 
 let openai: OpenAI | null = null;
+let globalKey: string | null = null;
 
-function getClient(): OpenAI {
-  if (!openai) {
-    const key = localStorage.getItem('openai_api_key');
-    if (!key) throw new Error('AI not configured');
-    openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
+export async function loadGlobalApiKey(): Promise<boolean> {
+  const { data } = await supabase
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'openai_api_key')
+    .maybeSingle();
+  
+  if (data?.value && data.value.length > 10) {
+    globalKey = data.value;
+    openai = new OpenAI({ apiKey: globalKey, dangerouslyAllowBrowser: true });
+    return true;
   }
-  return openai;
+  return false;
 }
 
-export function setOpenAIKey(key: string) {
-  localStorage.setItem('openai_api_key', key);
-  openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
+export function isAIReady(): boolean {
+  return !!openai;
 }
 
-export function hasOpenAIKey(): boolean {
-  return !!localStorage.getItem('openai_api_key');
+// ─── MESSAGE TRACKING ──────────────────────────────────
+
+const DAILY_LIMIT = 7;
+
+export async function getRemainingMessages(userId: string): Promise<number> {
+  // Check if premium
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_premium, premium_expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  
+  if (profile?.is_premium) {
+    const expires = profile.premium_expires_at ? new Date(profile.premium_expires_at) : null;
+    if (!expires || expires > new Date()) {
+      return 999; // Unlimited
+    }
+  }
+
+  // Count today's messages
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const { count } = await supabase
+    .from('chat_usage')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', today.toISOString());
+
+  return Math.max(0, DAILY_LIMIT - (count || 0));
 }
 
-export function clearOpenAIKey() {
-  localStorage.removeItem('openai_api_key');
-  openai = null;
+export async function trackMessage(userId: string) {
+  await supabase.from('chat_usage').insert({
+    user_id: userId,
+    date: new Date().toISOString().split('T')[0],
+  });
 }
 
 // ─── SYSTEM PROMPT ──────────────────────────────────────
+
 const SYSTEM_PROMPT = `You are the WeHouse Nigeria virtual assistant. WeHouse is a housing platform connecting people with accommodation across Nigeria. You help users with their questions in a friendly, conversational way.
 
 WHAT YOU KNOW:
@@ -55,12 +91,13 @@ WHAT YOU DO:
 TONE: Friendly, helpful, warm, professional. Use emojis occasionally.`;
 
 // ─── CONVERSATION MEMORY ────────────────────────────────
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
-const MAX_HISTORY = 10; // Keep last 10 messages for context
+const MAX_HISTORY = 10;
 
 export function getHistory(): ChatMessage[] {
   try {
@@ -72,7 +109,6 @@ export function getHistory(): ChatMessage[] {
 }
 
 export function saveHistory(history: ChatMessage[]) {
-  // Trim to last MAX_HISTORY messages
   const trimmed = history.slice(-MAX_HISTORY);
   localStorage.setItem('ai_chat_history', JSON.stringify(trimmed));
 }
@@ -82,11 +118,11 @@ export function clearHistory() {
 }
 
 // ─── SEND MESSAGE ───────────────────────────────────────
-export async function sendMessage(userMessage: string): Promise<string> {
-  const client = getClient();
-  const history = getHistory();
 
-  // Build messages array with system prompt + history + new message
+export async function sendMessage(userMessage: string): Promise<string> {
+  if (!openai) throw new Error('AI not configured');
+
+  const history = getHistory();
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: SYSTEM_PROMPT },
     ...history.map((h): OpenAI.Chat.ChatCompletionMessageParam => ({
@@ -96,16 +132,15 @@ export async function sendMessage(userMessage: string): Promise<string> {
     { role: 'user', content: userMessage },
   ];
 
-  const response = await client.chat.completions.create({
-    model: 'gpt-4o-mini', // Fast and cheap
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
     messages,
     max_tokens: 300,
     temperature: 0.8,
   });
 
-  const reply = response.choices[0]?.message?.content || "I'm having trouble thinking right now. Please try again.";
+  const reply = response.choices[0]?.message?.content || "I'm having trouble right now. Please try again.";
 
-  // Save to history
   history.push({ role: 'user', content: userMessage });
   history.push({ role: 'assistant', content: reply });
   saveHistory(history);
@@ -114,10 +149,11 @@ export async function sendMessage(userMessage: string): Promise<string> {
 }
 
 // ─── SEND WITH IMAGE ────────────────────────────────────
-export async function sendMessageWithImage(userMessage: string, imageBase64: string): Promise<string> {
-  const client = getClient();
-  const history = getHistory();
 
+export async function sendMessageWithImage(userMessage: string, imageBase64: string): Promise<string> {
+  if (!openai) throw new Error('AI not configured');
+
+  const history = getHistory();
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: SYSTEM_PROMPT },
     ...history.slice(-4).map((h): OpenAI.Chat.ChatCompletionMessageParam => ({
@@ -130,23 +166,20 @@ export async function sendMessageWithImage(userMessage: string, imageBase64: str
         { type: 'text', text: userMessage || 'What do you see in this image? Can you help me with it?' },
         {
           type: 'image_url',
-          image_url: {
-            url: imageBase64,
-            detail: 'low', // Use low detail to save cost
-          },
+          image_url: { url: imageBase64, detail: 'low' },
         },
       ] as any,
     },
   ];
 
-  const response = await client.chat.completions.create({
-    model: 'gpt-4o-mini', // Supports vision
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
     messages,
     max_tokens: 400,
     temperature: 0.8,
   });
 
-  const reply = response.choices[0]?.message?.content || "I'm having trouble analyzing this image. Please try again.";
+  const reply = response.choices[0]?.message?.content || "I'm having trouble analyzing this image.";
 
   history.push({ role: 'user', content: userMessage || '[Image uploaded]' });
   history.push({ role: 'assistant', content: reply });

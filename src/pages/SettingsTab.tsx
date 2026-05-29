@@ -40,6 +40,7 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
       if (!map.support_whatsapp) map.support_whatsapp = '';
       if (!map.support_telegram) map.support_telegram = '';
       if (!map.support_email) map.support_email = '';
+      if (!map.openai_api_key) map.openai_api_key = '';
       setSavedSettings(map);
       setPendingSettings(map);
       setLoading(false);
@@ -106,6 +107,7 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
     { key: 'support_whatsapp', label: 'Support WhatsApp', type: 'text', creatorOnly: true, description: 'WhatsApp number for support button (e.g., 2348012345678)' },
     { key: 'support_telegram', label: 'Support Telegram', type: 'text', creatorOnly: true, description: 'Telegram username or link (e.g., @wehouse or https://t.me/wehouse)' },
     { key: 'support_email', label: 'Support Email', type: 'text', creatorOnly: true, description: 'Support email address (e.g., support@wehouse.com.ng)' },
+    { key: 'openai_api_key', label: 'OpenAI API Key', type: 'text', creatorOnly: true, description: 'API key for AI chat bot (from platform.openai.com/api-keys)' },
   ];
 
   const visible = settings.filter(s => !s.creatorOnly || isCreator);

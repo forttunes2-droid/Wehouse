@@ -1,5 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { hasOpenAIKey, setOpenAIKey, sendMessage, sendMessageWithImage, getHistory, clearHistory } from '@/lib/aiChat';
+import {
+  loadGlobalApiKey,
+  getRemainingMessages,
+  trackMessage,
+  sendMessage,
+  sendMessageWithImage,
+  clearHistory,
+} from '@/lib/aiChat';
 
 interface Message {
   id: string;
@@ -18,27 +25,30 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
-  const [hasKey, setHasKey] = useState(hasOpenAIKey());
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [showPremium, setShowPremium] = useState(false);
+  const [aiReady, setAiReady] = useState(false);
+  const [remaining, setRemaining] = useState(7);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showPremium, setShowPremium] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const greetedRef = useRef(false);
 
-  // Load history on mount
+  // Load AI key and check remaining on mount
   useEffect(() => {
-    const history = getHistory();
-    if (history.length > 0) {
-      const loaded: Message[] = history.map((h, i) => ({
-        id: `hist-${i}`,
-        role: h.role === 'assistant' ? 'bot' : 'user',
-        text: h.content,
-        time: '',
-      }));
-      setMessages(loaded);
-    }
-  }, []);
+    if (!profile) return;
+    loadGlobalApiKey().then((ready) => {
+      setAiReady(ready);
+      if (ready) checkRemaining();
+    });
+  }, [profile]);
+
+  // Check remaining messages
+  const checkRemaining = async () => {
+    if (!profile) return;
+    const count = await getRemainingMessages(profile.user_id);
+    setRemaining(count);
+    if (count <= 0 && !profile.is_premium) setShowPremium(true);
+  };
 
   // Auto-scroll
   useEffect(() => {
@@ -50,21 +60,24 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const addMessage = useCallback((role: 'user' | 'bot', text: string, image?: string) => {
     const now = new Date();
     const time = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-    setMessages(prev => [...prev, { id: Date.now().toString(), role, text, time, image }]);
+    setMessages((prev) => [...prev, { id: Date.now().toString(), role, text, time, image }]);
   }, []);
 
   const handleOpen = useCallback(() => {
     setOpen(true);
-    // Only greet if first time opening AND no history AND hasn't greeted yet
-    if (!greetedRef.current && messages.length === 0 && hasKey) {
+    if (!greetedRef.current && messages.length === 0 && aiReady) {
       greetedRef.current = true;
       setTyping(true);
       setTimeout(() => {
-        addMessage('bot', "Hey there! 👋 Welcome to WeHouse. I'm your AI assistant — ask me anything about finding a home, roommates, or using the app!");
+        const isPremium = profile?.is_premium;
+        const limitText = isPremium
+          ? "You have unlimited messages as a premium member."
+          : "You have 7 free messages per day.";
+        addMessage('bot', `Hey there! Welcome to WeHouse. I'm your AI assistant. ${limitText} How can I help you?`);
         setTyping(false);
-      }, 600);
+      }, 500);
     }
-  }, [messages.length, hasKey, addMessage]);
+  }, [messages.length, aiReady, profile, addMessage]);
 
   // Listen for open event from Account Center
   useEffect(() => {
@@ -76,7 +89,14 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const handleSend = async () => {
     const text = input.trim();
     if (!text && !selectedImage) return;
-    if (!hasKey) return;
+    if (!aiReady) return;
+    if (!profile) return;
+
+    // Check limit
+    if (remaining <= 0 && !profile.is_premium) {
+      setShowPremium(true);
+      return;
+    }
 
     // Add user message
     if (selectedImage) {
@@ -96,13 +116,11 @@ export default function SupportChat({ profile }: SupportChatProps) {
         reply = await sendMessage(text);
       }
       addMessage('bot', reply);
+      // Track usage and update remaining
+      await trackMessage(profile.user_id);
+      await checkRemaining();
     } catch (err: any) {
-      if (err.message?.includes('not configured') || err.message?.includes('Incorrect API key')) {
-        addMessage('bot', "⚠️ The AI key isn't working. Please check your API key in settings.");
-        setHasKey(false);
-      } else {
-        addMessage('bot', "I'm having trouble connecting right now. Please try again in a moment.");
-      }
+      addMessage('bot', "I'm having trouble connecting right now. Please try again.");
     } finally {
       setTyping(false);
     }
@@ -115,22 +133,11 @@ export default function SupportChat({ profile }: SupportChatProps) {
     }
   };
 
-  const handleSetupKey = () => {
-    if (!apiKeyInput.trim()) return;
-    setOpenAIKey(apiKeyInput.trim());
-    setHasKey(true);
-    setApiKeyInput('');
-    // Greet after key is set
-    setTimeout(() => {
-      addMessage('bot', "Great! I'm ready to help. 👋 Ask me anything about WeHouse!");
-    }, 300);
-  };
-
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check if premium
+    // Image upload is premium only
     if (!profile?.is_premium) {
       setShowPremium(true);
       return;
@@ -143,7 +150,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
     reader.readAsDataURL(file);
   };
 
-  const quickReplies = ['How do I search?', 'Find a roommate', 'How do I book a hotel?', 'Report a problem'];
+  const quickReplies = ['How do I search?', 'Find a roommate', 'Book a hotel', 'I have a problem'];
 
   // ─── RENDER ───────────────────────────────────────────
 
@@ -173,9 +180,11 @@ export default function SupportChat({ profile }: SupportChatProps) {
         </div>
         <div className="flex-1">
           <p className="text-sm font-semibold text-white">WeHouse AI</p>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[10px] text-emerald-400">{hasKey ? 'Online' : 'Setup needed'}</span>
+            <span className="text-[10px] text-emerald-400">
+              {aiReady ? (profile?.is_premium ? 'Premium' : `${remaining} left today`) : 'Setup needed'}
+            </span>
           </div>
         </div>
         {messages.length > 0 && (
@@ -190,27 +199,14 @@ export default function SupportChat({ profile }: SupportChatProps) {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {!hasKey ? (
-          /* API Key Setup */
+        {!aiReady ? (
+          /* Not Configured */
           <div className="rounded-2xl bg-[#1A1A24] border border-white/[0.06] p-5 text-center">
             <div className="w-12 h-12 rounded-full bg-[#3B82F6]/10 flex items-center justify-center mx-auto mb-3">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /></svg>
             </div>
-            <p className="text-sm font-semibold text-white mb-1">AI Chat Setup</p>
-            <p className="text-[10px] text-[#5C5E72] mb-4">Enter your OpenAI API key to activate the AI assistant</p>
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="sk-..."
-              className="w-full h-10 rounded-xl bg-[#12121A] border border-[#232330] text-white text-xs px-4 placeholder-[#5C5E72] focus:border-[#3B82F6] focus:outline-none mb-3"
-            />
-            <button onClick={handleSetupKey} className="w-full h-10 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white text-xs font-semibold">
-              Activate AI
-            </button>
-            <p className="text-[9px] text-[#5C5E72] mt-3">
-              Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-[#3B82F6]">platform.openai.com</a>
-            </p>
+            <p className="text-sm font-semibold text-white mb-1">AI Chat Coming Soon</p>
+            <p className="text-[10px] text-[#5C5E72]">The AI assistant is being configured by our team. Check back later!</p>
           </div>
         ) : (
           <>
@@ -243,7 +239,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
             )}
 
             {/* Quick Replies */}
-            {messages.length <= 2 && !typing && (
+            {messages.length <= 1 && !typing && remaining > 0 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                 {quickReplies.map((reply) => (
                   <button
@@ -254,6 +250,17 @@ export default function SupportChat({ profile }: SupportChatProps) {
                     {reply}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Limit Reached Banner */}
+            {remaining <= 0 && !profile?.is_premium && messages.length > 0 && (
+              <div className="rounded-2xl bg-amber-500/5 border border-amber-500/20 p-4 text-center">
+                <p className="text-xs text-amber-400 font-semibold mb-1">Daily limit reached</p>
+                <p className="text-[10px] text-[#5C5E72] mb-3">You've used all 7 free messages today</p>
+                <button onClick={() => setShowPremium(true)} className="h-8 px-4 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
+                  Go Premium for Unlimited
+                </button>
               </div>
             )}
           </>
@@ -269,9 +276,9 @@ export default function SupportChat({ profile }: SupportChatProps) {
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-white">Go Premium</p>
-              <p className="text-[10px] text-[#5C5E72]">Upload images to AI + Get verified badge</p>
+              <p className="text-[10px] text-[#5C5E72]">Unlimited AI chat + Image upload + Verified badge</p>
             </div>
-            <button onClick={() => { setShowPremium(false); }} className="h-8 px-3 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
+            <button onClick={() => setShowPremium(false)} className="h-8 px-3 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
               ₦2,000
             </button>
           </div>
@@ -279,9 +286,8 @@ export default function SupportChat({ profile }: SupportChatProps) {
       )}
 
       {/* Input */}
-      {hasKey && (
+      {aiReady && remaining > 0 && (
         <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 py-3">
-          {/* Selected image preview */}
           {selectedImage && (
             <div className="relative inline-block mb-2">
               <img src={selectedImage} alt="Selected" className="w-16 h-16 rounded-lg object-cover" />
@@ -291,26 +297,19 @@ export default function SupportChat({ profile }: SupportChatProps) {
             </div>
           )}
           <div className="flex items-center gap-2">
-            {/* Image upload button */}
             <button
               onClick={() => fileRef.current?.click()}
               className="w-10 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex-shrink-0"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
             </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              className="hidden"
-            />
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask me anything..."
+              placeholder={remaining <= 3 && !profile?.is_premium ? `${remaining} messages left...` : "Ask me anything..."}
               className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 focus:outline-none"
             />
             <button
