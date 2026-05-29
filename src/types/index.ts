@@ -208,6 +208,11 @@ export interface RoommatePreferences {
   level: string | null; // 100, 200, 300, 400, 500
   school_match: boolean;
   campus_match: boolean;
+  // ── BACKGROUND SEARCH FIELDS ──────────────────────
+  search_status: 'idle' | 'active' | 'expired' | 'stopped';
+  search_started_at: string | null;
+  search_expires_at: string | null;
+  search_match_count: number;
   // ─────────────────────────────────────────────────
   created_at: string;
 }
@@ -219,6 +224,24 @@ export interface RoommateMatch {
   match_score: number;
   match_level: 'low' | 'medium' | 'high';
   status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+}
+
+// Saved match result from background search — persisted across sessions
+export interface SavedRoommateMatch {
+  id: string;
+  searcher_id: string;      // the user who initiated the search
+  matched_user_id: string;  // the matched roommate
+  match_score: number;
+  status: 'new' | 'viewed' | 'accepted' | 'declined';
+  matched_profile?: {
+    username: string | null;
+    gender: string | null;
+    city: string | null;
+    state: string | null;
+    bio: string | null;
+    school: string | null;
+  };
   created_at: string;
 }
 
