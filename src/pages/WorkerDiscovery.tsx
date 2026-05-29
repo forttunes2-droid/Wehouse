@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
-import { getWorkers } from '@/lib/supabase';
+import { getWorkers, getOrCreateConversation } from '@/lib/supabase';
 import { WORKER_OCCUPATIONS, WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile } from '@/types';
+import { toast, Toaster } from 'sonner';
 
 interface WorkerDiscoveryProps {
   userCity?: string | null;
+  profile?: Profile | null;
+  onGoToChat?: (convId: string) => void;
 }
 
-export default function WorkerDiscovery({ userCity }: WorkerDiscoveryProps) {
+export default function WorkerDiscovery({ userCity, profile, onGoToChat }: WorkerDiscoveryProps) {
   const [workers, setWorkers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [occupation, setOccupation] = useState('');
@@ -16,6 +19,18 @@ export default function WorkerDiscovery({ userCity }: WorkerDiscoveryProps) {
   useEffect(() => {
     loadWorkers();
   }, [occupation, city]);
+
+  async function handleChatWithWorker(workerId: string) {
+    if (!profile) { toast.error('Please log in to chat'); return; }
+    if (workerId === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, workerId);
+    if (error) { toast.error('Failed to start chat'); return; }
+    if (conversation && onGoToChat) {
+      onGoToChat(conversation.id);
+    } else {
+      toast.success('Chat started!');
+    }
+  }
 
   async function loadWorkers() {
     setLoading(true);
@@ -40,6 +55,7 @@ export default function WorkerDiscovery({ userCity }: WorkerDiscoveryProps) {
 
   return (
     <div className="min-h-screen bg-transparent pb-20">
+      <Toaster position="top-center" richColors />
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
         <div className="max-w-lg mx-auto">
           <h1 className="text-lg font-bold text-white mb-1">Find Workers</h1>
@@ -53,14 +69,10 @@ export default function WorkerDiscovery({ userCity }: WorkerDiscoveryProps) {
           <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-2 block">Filter by Occupation</label>
           <div className="flex gap-2 flex-wrap">
             <button onClick={() => setOccupation('')}
-              className={`h-8 px-3 rounded-full text-[11px] font-medium transition-all ${
-                !occupation ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white' : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
-              }`}>All</button>
+              className={!occupation ? 'h-8 px-3 rounded-full text-[11px] font-medium transition-all bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white' : 'h-8 px-3 rounded-full text-[11px] font-medium transition-all bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'}>All</button>
             {WORKER_OCCUPATIONS.map(occ => (
               <button key={occ} onClick={() => setOccupation(occupation === occ ? '' : occ)}
-                className={`h-8 px-3 rounded-full text-[11px] font-medium transition-all ${
-                  occupation === occ ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white' : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
-                }`}>
+                className={occupation === occ ? 'h-8 px-3 rounded-full text-[11px] font-medium transition-all bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white' : 'h-8 px-3 rounded-full text-[11px] font-medium transition-all bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'}>
                 {WORKER_OCCUPATION_LABELS[occ]}
               </button>
             ))}
@@ -116,12 +128,23 @@ export default function WorkerDiscovery({ userCity }: WorkerDiscoveryProps) {
                   <span className="flex-shrink-0 text-[9px] px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 font-medium">Verified</span>
                 </div>
                 {w.worker_bio && <p className="text-xs text-[#8A8B9C] mt-2 line-clamp-2">{w.worker_bio}</p>}
-                {w.phone && (
-                  <a href={`tel:${w.phone}`} className="inline-flex items-center gap-1 mt-2 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                    {w.phone}
-                  </a>
-                )}
+                <div className="flex items-center gap-2 mt-2">
+                  {w.phone && (
+                    <a href={`tel:${w.phone}`} className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+                      Call
+                    </a>
+                  )}
+                  {profile && (
+                    <button
+                      onClick={() => handleChatWithWorker(w.user_id)}
+                      className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      Chat
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

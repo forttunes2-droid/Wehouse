@@ -353,7 +353,7 @@ export default function App() {
       case 'worker_dashboard':
         return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} />;
       case 'worker_discovery':
-        return <WorkerDiscovery userCity={profile.city} />;
+        return <WorkerDiscovery userCity={profile.city} profile={profile} onGoToChat={goToChat} />;
       case 'worker_setup':
         return <WorkerSetup profile={profile} onComplete={() => goTo('worker_dashboard')} />;
       case 'hotels':

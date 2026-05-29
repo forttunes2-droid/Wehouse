@@ -91,5 +91,18 @@ export default defineConfig({
   build: {
     // Capacitor needs relative paths
     assetsInlineLimit: 0,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy vendor libraries into separate chunks
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-router': ['react-router-dom'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-popover', '@radix-ui/react-slot', '@radix-ui/react-separator', '@radix-ui/react-tabs', 'class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'],
+          'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          'vendor-data': ['@supabase/supabase-js', 'openai'],
+          'vendor-utils': ['date-fns', 'sonner', 'embla-carousel-react'],
+        },
+      },
+    },
   },
 });
