@@ -18,6 +18,7 @@ interface Feature {
 const USER_FEATURES: Feature[] = [
   { icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', label: '60 AI messages daily' },
   { icon: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z', label: '30 photo uploads daily' },
+  { icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', label: 'Unlimited roommate searches', desc: 'Find compatible roommates' },
   { icon: 'M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', label: 'Verified profile badge' },
   { icon: 'M13 10V3L4 14h7v7l9-11h-7z', label: 'Priority support' },
 ];

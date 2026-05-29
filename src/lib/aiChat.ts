@@ -133,6 +133,35 @@ export async function trackPhoto(userId: string) {
   await supabase.from('chat_photo_usage').insert({ user_id: userId });
 }
 
+// ─── ROOMMATE SEARCH TRACKING ──────────────────────────
+// Normal users: 3 free searches (lifetime)
+// Premium users: unlimited
+// Creator: unlimited
+
+const FREE_ROOMMATE_SEARCHES = 3; // total lifetime
+
+export async function getRemainingRoommateSearches(userId: string): Promise<number> {
+  const role = await getUserRole(userId);
+  if (isCreatorRole(role)) return 9999;
+
+  const premium = await isPremiumActive(userId);
+  if (premium) return 9999;
+
+  const { count } = await supabase
+    .from('roommate_search_usage')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  return Math.max(0, FREE_ROOMMATE_SEARCHES - (count || 0));
+}
+
+export async function trackRoommateSearch(userId: string) {
+  const role = await getUserRole(userId);
+  if (isCreatorRole(role)) return;
+
+  await supabase.from('roommate_search_usage').insert({ user_id: userId });
+}
+
 // ─── SYSTEM PROMPT ──────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are the WeHouse AI Agent — the virtual assistant for WeHouse Nigeria, a housing platform connecting people with accommodation across Nigeria.
