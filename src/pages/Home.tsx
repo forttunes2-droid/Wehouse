@@ -30,26 +30,19 @@ function AnimatedCounter({ target, duration = 2000 }: { target: number; duration
 
 // ─── PROPERTY TYPE CARD ───────────────────────────────────
 const PROPERTY_TYPES = [
-  { type: 'Apartment', icon: '🏢', count: '2,400+' },
-  { type: 'Self Contain', icon: '🏠', count: '1,800+' },
-  { type: 'Single Room', icon: '🛏️', count: '3,200+' },
-  { type: 'Shared', icon: '👥', count: '900+' },
-  { type: 'Duplex', icon: '🏘️', count: '600+' },
-  { type: 'Hostel', icon: '🎓', count: '1,500+' },
+  { type: 'Apartment', icon: '🏢' },
+  { type: 'Self Contain', icon: '🏠' },
+  { type: 'Single Room', icon: '🛏️' },
+  { type: 'Shared', icon: '👥' },
+  { type: 'Duplex', icon: '🏘️' },
+  { type: 'Hostel', icon: '🎓' },
 ];
 
 // ─── HOW IT WORKS ────────────────────────────────────────
 const HOW_STEPS = [
-  { step: '01', title: 'Search', desc: 'Browse thousands of verified listings across Nigeria', icon: '🔍' },
-  { step: '02', title: 'Connect', desc: 'Chat directly with landlords or find a roommate match', icon: '💬' },
-  { step: '03', title: 'Move In', desc: 'Secure your home with verified bookings and payments', icon: '🏠' },
-];
-
-// ─── TESTIMONIALS ────────────────────────────────────────
-const TESTIMONIALS = [
-  { name: 'Chinedu O.', role: 'Student', text: 'Found my hostel in UNILAG within 2 days. The roommate feature is a game changer!', rating: 5 },
-  { name: 'Amina K.', role: 'Young Professional', text: 'Finally a housing platform that actually works in Nigeria. So easy to use.', rating: 5 },
-  { name: 'Tunde B.', role: 'Landlord', text: 'I posted my apartment and got 5 serious enquiries the same day.', rating: 4 },
+  { step: '01', title: 'Search', desc: 'Browse verified listings across Nigeria', icon: '🔍' },
+  { step: '02', title: 'Connect', desc: 'Chat with our verified staff for help', icon: '💬' },
+  { step: '03', title: 'Move In', desc: 'Secure your home with verified bookings', icon: '🏠' },
 ];
 
 // ─── CITY IMAGES MAP ─────────────────────────────────────
@@ -64,7 +57,6 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState<string | null>(null);
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,12 +69,6 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
     }
     load();
     return () => { cancelled = true };
-  }, []);
-
-  // Auto-rotate testimonials
-  useEffect(() => {
-    const timer = setInterval(() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS.length), 4000);
-    return () => clearInterval(timer);
   }, []);
 
   const availableListings = useMemo(() => {
@@ -102,27 +88,34 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const totalCities = popularCities.length;
   const availableCount = listings.filter(l => l.status === 'available').length;
 
+  // Property type counts — from ACTUAL listings, not fake numbers
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    listings.forEach(l => {
+      const type = l.property_type || 'Apartment';
+      counts[type] = (counts[type] || 0) + 1;
+    });
+    return counts;
+  }, [listings]);
+
   if (loading) return <HomeSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-24 relative overflow-hidden">
-      {/* ═══ FLOATING GRADIENT ORBS — background depth ═══ */}
+      {/* ═══ FLOATING GRADIENT ORBS ═══ */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="orb orb-1" />
         <div className="orb orb-2" />
         <div className="orb orb-3" />
       </div>
 
-      {/* ════════════════════════════════════════════════
-          HERO SECTION — Tall, dramatic, immersive
-          ════════════════════════════════════════════════ */}
+      {/* ═══ HERO SECTION ═══ */}
       <div className="relative h-[500px] overflow-hidden z-[1]">
         <img src="/hero-luxury.jpg" alt="Luxury apartments" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/60 via-[#0A0A0F]/40 to-[#0A0A0F]" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/80 via-transparent to-[#0A0A0F]/60" />
 
         <div className="absolute inset-0 flex flex-col justify-between p-5 pt-8">
-          {/* Top bar */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-blue-500/30">
@@ -144,7 +137,6 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
             </div>
           </div>
 
-          {/* Hero content */}
           <div className="mt-auto pb-4">
             <div className="inline-flex items-center gap-1.5 bg-[#3B82F6]/10 backdrop-blur-md border border-[#3B82F6]/20 rounded-full px-3 py-1 mb-3">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -155,10 +147,9 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
               <span className="bg-gradient-to-r from-[#3B82F6] via-[#7C3AED] to-[#EC4899] bg-clip-text text-transparent">Perfect Home</span>
             </h1>
             <p className="text-sm text-white/60 mb-5 max-w-[280px]">
-              Houses, apartments & roommates across {totalCities}+ cities in Nigeria
+              Houses, apartments & roommates across {totalCities > 0 ? totalCities : 'multiple'} cities in Nigeria
             </p>
 
-            {/* Search bar */}
             <button onClick={() => onNavigate('search')} className="w-full h-13 rounded-2xl bg-white/[0.08] backdrop-blur-xl border border-white/[0.08] flex items-center px-5 gap-3 text-white/40 text-sm hover:border-[#3B82F6]/30 hover:bg-white/[0.12] transition-all shadow-2xl">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
               <span>Search location, price, type...</span>
@@ -170,46 +161,46 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </div>
 
-      {/* ═══ STATS STRIP — Animated counters ═══ */}
-      <div className="px-5 -mt-8 relative z-10">
-        <div className="rounded-3xl bg-[#12121A]/80 backdrop-blur-xl border border-white/[0.06] p-5 flex items-center justify-around shadow-2xl">
-          <div className="text-center">
-            <p className="text-xl font-extrabold text-white"><AnimatedCounter target={totalListings} /></p>
-            <p className="text-[10px] text-[#5C5E72] mt-0.5">Listings</p>
-          </div>
-          <div className="w-px h-10 bg-white/[0.06]" />
-          <div className="text-center">
-            <p className="text-xl font-extrabold text-white"><AnimatedCounter target={totalCities} /></p>
-            <p className="text-[10px] text-[#5C5E72] mt-0.5">Cities</p>
-          </div>
-          <div className="w-px h-10 bg-white/[0.06]" />
-          <div className="text-center">
-            <p className="text-xl font-extrabold text-emerald-400"><AnimatedCounter target={availableCount} /></p>
-            <p className="text-[10px] text-[#5C5E72] mt-0.5">Available</p>
-          </div>
-          <div className="w-px h-10 bg-white/[0.06]" />
-          <div className="text-center">
-            <p className="text-xl font-extrabold text-[#3B82F6]">24/7</p>
-            <p className="text-[10px] text-[#5C5E72] mt-0.5">Support</p>
+      {/* ═══ STATS STRIP — REAL DATA ONLY ═══ */}
+      {totalListings > 0 && (
+        <div className="px-5 -mt-8 relative z-10">
+          <div className="rounded-3xl bg-[#12121A]/80 backdrop-blur-xl border border-white/[0.06] p-5 flex items-center justify-around shadow-2xl">
+            <div className="text-center">
+              <p className="text-xl font-extrabold text-white"><AnimatedCounter target={totalListings} /></p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Listings</p>
+            </div>
+            <div className="w-px h-10 bg-white/[0.06]" />
+            <div className="text-center">
+              <p className="text-xl font-extrabold text-white"><AnimatedCounter target={totalCities} /></p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Cities</p>
+            </div>
+            <div className="w-px h-10 bg-white/[0.06]" />
+            <div className="text-center">
+              <p className="text-xl font-extrabold text-emerald-400"><AnimatedCounter target={availableCount} /></p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Available</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ═══ PROPERTY TYPES ═══ */}
+      {/* ═══ PROPERTY TYPES — REAL COUNTS ═══ */}
       <section className="mt-10 px-5 relative z-[1]">
         <h2 className="text-lg font-bold text-white mb-4">Browse by Type</h2>
         <div className="grid grid-cols-3 gap-3">
-          {PROPERTY_TYPES.map((pt) => (
-            <button key={pt.type} onClick={() => onNavigate('search')} className="group rounded-2xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-4 flex flex-col items-center gap-2 hover:border-[#3B82F6]/20 hover:bg-[#12121A] transition-all active:scale-[0.97]">
-              <span className="text-2xl group-hover:scale-110 transition-transform">{pt.icon}</span>
-              <span className="text-[11px] font-semibold text-white">{pt.type}</span>
-              <span className="text-[9px] text-[#5C5E72]">{pt.count}</span>
-            </button>
-          ))}
+          {PROPERTY_TYPES.map((pt) => {
+            const realCount = typeCounts[pt.type] || 0;
+            return (
+              <button key={pt.type} onClick={() => onNavigate('search')} className="group rounded-2xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-4 flex flex-col items-center gap-2 hover:border-[#3B82F6]/20 hover:bg-[#12121A] transition-all active:scale-[0.97]">
+                <span className="text-2xl group-hover:scale-110 transition-transform">{pt.icon}</span>
+                <span className="text-[11px] font-semibold text-white">{pt.type}</span>
+                {realCount > 0 && <span className="text-[9px] text-[#5C5E72]">{realCount} listed</span>}
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* ═══ POPULAR CITIES — Visual cards ═══ */}
+      {/* ═══ POPULAR CITIES ═══ */}
       {popularCities.length > 0 && (
         <section className="mt-10 relative z-[1]">
           <div className="flex items-center justify-between px-5 mb-4">
@@ -249,13 +240,13 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </section>
       )}
 
-      {/* ═══ FEATURED PROPERTIES — Horizontal scroll ═══ */}
+      {/* ═══ FEATURED PROPERTIES ═══ */}
       {featured.length > 0 && (
         <section className="mt-10 relative z-[1]">
           <div className="flex items-center justify-between px-5 mb-4">
             <div>
               <h2 className="text-lg font-bold text-white">Featured Properties</h2>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">Handpicked premium listings</p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Browse verified listings</p>
             </div>
             <button onClick={() => onNavigate('search')} className="text-[11px] text-[#3B82F6] font-semibold">See all</button>
           </div>
@@ -270,7 +261,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
       )}
 
       {/* ═══ HOW IT WORKS ═══ */}
-      <section className="mt-12 px-5 relative z-[1]">
+      <section className="mt-10 px-5 relative z-[1]">
         <div className="text-center mb-6">
           <h2 className="text-lg font-bold text-white">How It Works</h2>
           <p className="text-[10px] text-[#5C5E72] mt-1">Three simple steps to your new home</p>
@@ -291,7 +282,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </section>
 
-      {/* ═══ ROOMMATE CTA — Dramatic ═══ */}
+      {/* ═══ ROOMMATE CTA ═══ */}
       <section className="mt-10 px-5 relative z-[1]">
         <button onClick={() => onNavigate('roommate')} className="relative w-full h-[180px] rounded-3xl overflow-hidden group text-left">
           <img src="/hero-roommate.jpg" alt="Roommate" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -312,34 +303,20 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </button>
       </section>
 
-      {/* ═══ TESTIMONIALS ═══ */}
+      {/* ═══ TESTIMONIALS — HONEST EMPTY STATE ═══ */}
       <section className="mt-12 px-5 relative z-[1]">
         <div className="text-center mb-5">
           <h2 className="text-lg font-bold text-white">What People Say</h2>
-          <p className="text-[10px] text-[#5C5E72] mt-1">Trusted by thousands across Nigeria</p>
+          <p className="text-[10px] text-[#5C5E72] mt-1">Real reviews from real users</p>
         </div>
-        <div className="rounded-3xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-5">
-          <div className="flex gap-1 mb-3">
-            {Array.from({ length: TESTIMONIALS[activeTestimonial].rating }).map((_, i) => (
-              <svg key={i} width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="1"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-            ))}
+        <div className="rounded-3xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
           </div>
-          <p className="text-sm text-white/80 leading-relaxed italic">&ldquo;{TESTIMONIALS[activeTestimonial].text}&rdquo;</p>
-          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/[0.04]">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center text-white text-sm font-bold">
-              {TESTIMONIALS[activeTestimonial].name[0]}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-white">{TESTIMONIALS[activeTestimonial].name}</p>
-              <p className="text-[10px] text-[#5C5E72]">{TESTIMONIALS[activeTestimonial].role}</p>
-            </div>
-          </div>
-          {/* Dots */}
-          <div className="flex justify-center gap-2 mt-4">
-            {TESTIMONIALS.map((_, i) => (
-              <button key={i} onClick={() => setActiveTestimonial(i)} className={`w-2 h-2 rounded-full transition-all ${i === activeTestimonial ? 'w-6 bg-[#3B82F6]' : 'bg-white/20'}`} />
-            ))}
-          </div>
+          <p className="text-sm text-[#5C5E72] mb-1">No reviews yet</p>
+          <p className="text-[10px] text-[#5C5E72]/70">Be the first to share your WeHouse experience</p>
         </div>
       </section>
 
@@ -389,7 +366,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
               </div>
               <div>
                 <p className="text-xs font-semibold text-white">Fast</p>
-                <p className="text-[9px] text-[#5C5E72]">Instant matching</p>
+                <p className="text-[9px] text-[#5C5E72]">Quick matching</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -398,7 +375,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
               </div>
               <div>
                 <p className="text-xs font-semibold text-white">Support</p>
-                <p className="text-[9px] text-[#5C5E72]">Always here to help</p>
+                <p className="text-[9px] text-[#5C5E72]">Staff-assisted</p>
               </div>
             </div>
           </div>
@@ -412,14 +389,14 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F] via-[#0A0A0F]/70 to-[#0A0A0F]/40" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-5">
             <p className="text-lg font-bold text-white">Ready to find your home?</p>
-            <p className="text-xs text-white/50 mt-1 mb-4">Join thousands who trust WeHouse</p>
+            <p className="text-xs text-white/50 mt-1 mb-4">Our verified staff are here to help</p>
             <button onClick={() => onNavigate('search')} className="h-10 px-6 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white text-xs font-semibold shadow-lg shadow-blue-500/30 hover:opacity-90 transition-opacity inline-flex items-center gap-2">
               Start Browsing
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </button>
           </div>
         </div>
-        <p className="text-center text-[10px] text-[#5C5E72] mt-4">WeHouse Nigeria &copy; 2026</p>
+        <p className="text-center text-[10px] text-[#5C5E72] mt-4">WeHouse Nigeria &copy; 2026 &middot; support@wehouse.com.ng</p>
       </section>
 
       {/* ═══ EMPTY STATE ═══ */}

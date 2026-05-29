@@ -421,7 +421,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
                   <span className="text-sm font-bold text-[#3B82F6] flex-shrink-0">4</span>
-                  <p className="text-xs text-[#8A8B9C]">After inspection, pay full rent directly to the landlord</p>
+                  <p className="text-xs text-[#8A8B9C]">After inspection, our staff will guide you through secure payment</p>
                 </div>
               </div>
 
