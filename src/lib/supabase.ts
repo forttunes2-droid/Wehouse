@@ -201,48 +201,48 @@ export async function createProfile(a: string, b: string, c?: string, d?: string
   return { profile: data as Profile | null, error };
 }
 
+// ─── SHARED IMAGE COMPRESSION ──────────────────────
+// Compresses images before upload for fast upload on Nigerian mobile networks
+
+function compressImageFile(f: File, maxDim: number = 1200, quality: number = 0.8): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width;
+      let h = img.height;
+      if (w > h && w > maxDim) { h = Math.round((h / w) * maxDim); w = maxDim; }
+      else if (h > maxDim) { w = Math.round((w / h) * maxDim); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('No canvas context')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Compression failed'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = url;
+  });
+}
+
 // ─── AVATAR UPLOAD ─────────────────────────────────
 
 export async function uploadAvatar(file: File, userId: string) {
-  // Validate
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image (JPG, PNG)' } as any };
   if (file.size > 5 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 5MB' } as any };
 
-  const compressImage = (f: File): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(f);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const maxDim = 600; // Higher quality for profile photos
-        let w = img.width;
-        let h = img.height;
-        if (w > h && w > maxDim) { h = (h / w) * maxDim; w = maxDim; }
-        else if (h > maxDim) { w = (w / h) * maxDim; h = maxDim; }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('No canvas context')); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Compression failed'));
-        }, 'image/jpeg', 0.85);
-      };
-      img.onerror = () => reject(new Error('Image load failed'));
-      img.src = url;
-    });
-  };
-
   try {
-    const compressed = await compressImage(file);
+    const compressed = await compressImageFile(file, 600, 0.85);
     const fileName = `avatars/${userId}-${Date.now()}.jpg`;
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(fileName, compressed, { contentType: 'image/jpeg', upsert: true });
     if (uploadError) {
-      // Check if bucket doesn't exist
       if (uploadError.message?.includes('bucket') || uploadError.message?.includes('Bucket')) {
         return { url: null, error: { message: 'Storage not configured. Ask admin to run storage setup SQL.' } as any };
       }
@@ -631,11 +631,19 @@ function calculateSimilarity(a: string, b: string): number {
 }
 
 export async function uploadListingImage(file: File, listingId: string) {
-  const fileName = `listings/${listingId}/${Date.now()}-${file.name}`;
-  const { error: uploadError } = await supabase.storage.from('listing-images').upload(fileName, file);
-  if (uploadError) return { url: null, error: uploadError };
-  const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(fileName);
-  return { url: urlData.publicUrl, error: null };
+  if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image (JPG, PNG)' } as any };
+  if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
+
+  try {
+    const compressed = await compressImageFile(file, 1200, 0.8);
+    const fileName = `listings/${listingId}/${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage.from('listing-images').upload(fileName, compressed, { contentType: 'image/jpeg' });
+    if (uploadError) return { url: null, error: uploadError };
+    const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(fileName);
+    return { url: urlData.publicUrl, error: null };
+  } catch (err: any) {
+    return { url: null, error: { message: err.message || 'Upload failed' } };
+  }
 }
 
 export async function uploadListingVideo(file: File, listingId: string) {
@@ -2059,21 +2067,31 @@ export async function deleteHotelRoom(roomId: number) {
 // ── Upload hotel images ────────────────────────────────
 
 export async function uploadHotelImage(file: File, hotelId: number) {
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `hotels/${hotelId}/${Date.now()}.${ext}`;
-  const { error: uploadError } = await supabase.storage.from('listings').upload(path, file, { cacheControl: '3600' });
-  if (uploadError) return { url: null, error: uploadError };
-  const { data } = supabase.storage.from('listings').getPublicUrl(path);
-  return { url: data.publicUrl, error: null };
+  if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image' } as any };
+  try {
+    const compressed = await compressImageFile(file, 1200, 0.8);
+    const path = `hotels/${hotelId}/${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage.from('listings').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
+    if (uploadError) return { url: null, error: uploadError };
+    const { data } = supabase.storage.from('listings').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  } catch (err: any) {
+    return { url: null, error: { message: err.message || 'Upload failed' } };
+  }
 }
 
 export async function uploadRoomImage(file: File, hotelId: number, roomId: number) {
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `hotels/${hotelId}/rooms/${roomId}/${Date.now()}.${ext}`;
-  const { error: uploadError } = await supabase.storage.from('listings').upload(path, file, { cacheControl: '3600' });
-  if (uploadError) return { url: null, error: uploadError };
-  const { data } = supabase.storage.from('listings').getPublicUrl(path);
-  return { url: data.publicUrl, error: null };
+  if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image' } as any };
+  try {
+    const compressed = await compressImageFile(file, 1200, 0.8);
+    const path = `hotels/${hotelId}/rooms/${roomId}/${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage.from('listings').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
+    if (uploadError) return { url: null, error: uploadError };
+    const { data } = supabase.storage.from('listings').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  } catch (err: any) {
+    return { url: null, error: { message: err.message || 'Upload failed' } };
+  }
 }
 // force deploy Fri May 29 09:06:48 CST 2026
 // deploy trigger 1780037607

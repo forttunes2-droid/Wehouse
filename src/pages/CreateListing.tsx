@@ -95,17 +95,16 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     }
 
     setUploadingImage(true);
-    let uploaded = 0;
-    const newUrls: string[] = [];
-
-    for (const file of validFiles) {
-      const tempId = `temp-${profile.user_id}-${Date.now()}-${uploaded}`;
+    // Upload all images in parallel for speed
+    const uploadPromises = validFiles.map(async (file, idx) => {
+      const tempId = `temp-${profile.user_id}-${Date.now()}-${idx}`;
       const { url, error } = await uploadListingImage(file, tempId);
-      if (url && !error) {
-        newUrls.push(url);
-        uploaded++;
-      }
-    }
+      return { url, error };
+    });
+
+    const results = await Promise.all(uploadPromises);
+    const newUrls = results.filter(r => r.url && !r.error).map(r => r.url!);
+    const failed = results.filter(r => r.error).length;
 
     setUploadingImage(false);
 
@@ -113,8 +112,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       setImages(prev => [...prev, ...newUrls]);
       toast.success(`${newUrls.length} image${newUrls.length > 1 ? 's' : ''} added`);
     }
-    if (newUrls.length < validFiles.length) {
-      toast.error(`${validFiles.length - newUrls.length} file(s) failed to upload`);
+    if (failed > 0) {
+      toast.error(`${failed} file(s) failed to upload`);
     }
 
     // Reset input so same files can be selected again
