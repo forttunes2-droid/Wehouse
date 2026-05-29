@@ -1,7 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getAllListings } from '@/lib/supabase';
+import { getAllListings, supabase } from '@/lib/supabase';
 import ListingCard from '@/components/ListingCard';
 import type { Listing, Profile } from '@/types';
+
+interface Review {
+  id: number;
+  reviewer_name: string;
+  reviewer_avatar: string | null;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  hotel_name?: string;
+}
 
 interface HomeProps {
   profile: Profile;
@@ -47,6 +57,7 @@ const CITY_BG: Record<string, string> = {
 
 export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAdmin, onGoToNewListing }: HomeProps) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState<string | null>(null);
 
@@ -54,9 +65,28 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
     let cancelled = false;
     async function load() {
       try {
-        const { listings: data } = await getAllListings();
+        const [{ listings: data }, { data: reviewData }] = await Promise.all([
+          getAllListings(),
+          supabase
+            .from('hotel_reviews')
+            .select('review_id, rating, comment, created_at, profiles(username, avatar_url), hotels(name)')
+            .order('created_at', { ascending: false })
+            .limit(6),
+        ]);
         if (!cancelled) setListings(data || []);
-      } catch { if (!cancelled) setListings([]); }
+        const mapped: Review[] = (reviewData || []).map((r: any) => ({
+          id: r.review_id,
+          reviewer_name: r.profiles?.username || 'User',
+          reviewer_avatar: r.profiles?.avatar_url,
+          rating: r.rating,
+          comment: r.comment,
+          created_at: r.created_at,
+          hotel_name: r.hotels?.name,
+        }));
+        if (!cancelled) setReviews(mapped);
+      } catch { 
+        if (!cancelled) { setListings([]); setReviews([]); }
+      }
       finally { if (!cancelled) setLoading(false); }
     }
     load();
@@ -283,10 +313,14 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
 
       {/* ═══ ROOMMATE CTA ═══ */}
       <section className="mt-10 px-5 relative z-[1]">
-        <button onClick={() => onNavigate('roommate')} className="relative w-full h-[180px] rounded-3xl overflow-hidden group text-left">
-          <img src="/hero-roommate.jpg" alt="Roommate" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+        <button
+          onClick={() => onNavigate('roommate')}
+          className="block w-full h-[180px] rounded-3xl overflow-hidden relative text-left cursor-pointer"
+          type="button"
+        >
+          <img src="/hero-roommate.jpg" alt="Roommate" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/95 via-[#0A0A0F]/70 to-[#0A0A0F]/40" />
-          <div className="absolute inset-0 flex flex-col justify-center p-6">
+          <div className="absolute inset-0 flex flex-col justify-center p-6 pointer-events-none">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-xl bg-[#EC4899]/20 flex items-center justify-center">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
@@ -302,21 +336,47 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </button>
       </section>
 
-      {/* ═══ TESTIMONIALS — HONEST EMPTY STATE ═══ */}
+      {/* ═══ REAL REVIEWS FROM USERS ═══ */}
       <section className="mt-12 px-5 relative z-[1]">
         <div className="text-center mb-5">
           <h2 className="text-lg font-bold text-white">What People Say</h2>
           <p className="text-[10px] text-[#5C5E72] mt-1">Real reviews from real users</p>
         </div>
-        <div className="rounded-3xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+        {reviews.length === 0 ? (
+          <div className="rounded-3xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <p className="text-sm text-[#5C5E72] mb-1">No reviews yet</p>
+            <p className="text-[10px] text-[#5C5E72]/70">Book a hotel and leave a review to see it here</p>
           </div>
-          <p className="text-sm text-[#5C5E72] mb-1">No reviews yet</p>
-          <p className="text-[10px] text-[#5C5E72]/70">Be the first to share your WeHouse experience</p>
-        </div>
+        ) : (
+          <div className="space-y-3">
+            {reviews.map((r) => (
+              <div key={r.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {r.reviewer_avatar ? <img src={r.reviewer_avatar} alt="" className="w-full h-full rounded-xl object-cover" /> : r.reviewer_name[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">@{r.reviewer_name}</p>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <svg key={i} width="10" height="10" viewBox="0 0 24 24" fill={i < r.rating ? '#F59E0B' : 'none'} stroke={i < r.rating ? '#F59E0B' : '#5C5E72'} strokeWidth="2">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                      ))}
+                    </div>
+                  </div>
+                  {r.hotel_name && <span className="ml-auto text-[9px] text-[#5C5E72]">{r.hotel_name}</span>}
+                </div>
+                {r.comment && <p className="text-xs text-[#CBCBD7] leading-relaxed">{r.comment}</p>}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ═══ RECENTLY ADDED ═══ */}

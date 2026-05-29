@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { toast } from 'sonner';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
 import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
@@ -286,6 +287,7 @@ export default function App() {
       case 'roommate':
         // Only users and workers can access roommate matching
         if (!canAccessRoommate) {
+          toast.error('Roommate matching is only available for regular users and workers');
           setNavPage('home');
           return null;
         }
