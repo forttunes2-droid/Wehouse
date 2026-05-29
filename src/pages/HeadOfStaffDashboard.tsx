@@ -4,6 +4,7 @@ import {
   updateUserRole, logAuditAction,
 } from '@/lib/supabase';
 import { AnnouncementsTab } from './CreatorDashboard';
+import UserProfileModal from '@/components/UserProfileModal';
 import type { Profile } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,7 @@ export default function HeadOfStaffDashboard({ profile, onLogout, onNavigate }: 
 
   const [stats, setStats] = useState({ staff: 0, listings: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewingUser, setViewingUser] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
 
   const scope = {
@@ -87,9 +89,8 @@ export default function HeadOfStaffDashboard({ profile, onLogout, onNavigate }: 
           </div>
           <div className="flex items-center gap-2">
             {onNavigate && (
-              <button onClick={() => onNavigate('home')} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                Home
+              <button onClick={() => onNavigate('home')} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
               </button>
             )}
             <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
@@ -145,17 +146,20 @@ export default function HeadOfStaffDashboard({ profile, onLogout, onNavigate }: 
             </div>
           </div>
         )}
-        {activeTab === 'staff' && <StaffTab scope={scope} profile={profile} refresh={refresh} />}
+        {activeTab === 'staff' && <StaffTab scope={scope} profile={profile} refresh={refresh} onViewUser={setViewingUser} />}
         {activeTab === 'listings' && <ListingsTab scope={scope} refresh={refresh} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: scope.state, lga: scope.lga }} />}
       </div>
+
+      {/* User Profile Viewer */}
+      <UserProfileModal user={viewingUser} onClose={() => setViewingUser(null)} />
     </div>
   );
 }
 
 // ─── STAFF TAB ─────────────────────────────────────
 // Head of Staff can only see and manage staff in their LGA
-function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void }) {
+function StaffTab({ scope, profile, refresh, onViewUser }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void; onViewUser?: (u: Profile) => void }) {
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -165,12 +169,13 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
   async function load() {
     setLoading(true);
     const { users } = await getAllUsers();
-    // Only show staff in this LGA
+    // Only show staff in this LGA (exclude current user — Head of Staff)
     const filtered = (users || []).filter((u: any) => {
       const isStaffRole = u.role === 'staff' || u.role === 'user';
       const matchesState = u.state === scope.state;
       const matchesLga = u.city === scope.lga;
-      return isStaffRole && matchesState && matchesLga && !u.deleted;
+      const isSelf = u.user_id === profile.user_id;
+      return isStaffRole && matchesState && matchesLga && !u.deleted && !isSelf;
     });
     setStaff(filtered);
     setLoading(false);
@@ -205,7 +210,7 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
       ) : (
         <div className="space-y-2">
           {filtered.length === 0 ? <p className="text-xs text-[#5C5E72] text-center py-6">No staff in this LGA</p> : filtered.map(u => (
-            <div key={u.id} className="glass rounded-xl p-3">
+            <div key={u.id} className="glass rounded-xl p-3 hover:border-[#3B82F6]/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
@@ -213,6 +218,7 @@ function StaffTab({ scope, profile, refresh }: { scope: { state: string; lga: st
                   <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
                 </div>
                 <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0"><path d="M9 18l6-6-6-6" /></svg>
               </div>
               {/* Role toggle */}
               <div className="mt-2 flex gap-2">

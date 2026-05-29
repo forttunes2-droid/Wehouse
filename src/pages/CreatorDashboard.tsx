@@ -24,6 +24,7 @@ interface CreatorDashboardProps {
   profile: Profile;
   onLogout: () => void;
   onGoToNewListing?: () => void;
+  onNavigate?: (page: string) => void;
 }
 
 // ─── ROLE CONFIG ───────────────────────────────────
@@ -39,7 +40,7 @@ const ROLE_COLORS: Record<string, string> = {
   worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
 };
 
-export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }: CreatorDashboardProps) {
+export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, onNavigate }: CreatorDashboardProps) {
   // Persist dashboard sub-tab across refreshes
   const DASHBOARD_TAB_KEY = isCreator(profile.role) ? 'wh_creator_tab' : 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
@@ -83,6 +84,16 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing }
       <header className="bg-gradient-to-b from-[#1A1029] via-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('home')}
+                className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
             {/* Purple gradient for creator — distinct from blue admin */}
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-[#7C3AED] flex items-center justify-center glow-purple-sm">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">

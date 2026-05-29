@@ -489,22 +489,36 @@ export async function detectDuplicateImage(imageUrl: string, listingId?: string,
 export async function checkDuplicateListing(title: string, _area: string, city: string, state: string, posterAuthId?: string) {
   const normTitle = title.trim().toLowerCase().replace(/\s+/g, ' ');
 
+  // Skip duplicate check for very short/generic titles — too many false positives
+  if (normTitle.length < 6) {
+    return { titleMatch: false, recentPost: null };
+  }
+
   // 1. Fetch existing listings in same city (not hidden)
-  const { data: existing } = await supabase
+  // If area is provided, also filter by area for more precise matching
+  let query = supabase
     .from('listings')
-    .select('id, title, city, state, owner_id, created_at, images')
+    .select('id, title, city, state, address, owner_id, created_at, images')
     .eq('city', city)
     .eq('state', state)
-    .not('availability_status', 'eq', 'hidden')
-    .limit(50);
+    .not('availability_status', 'eq', 'hidden');
 
-  // 2. Check title similarity (Levenshtein distance) — if >70% similar, flag it
+  const { data: existing } = await query.limit(50);
+
+  // 2. Check title similarity — ADAPTIVE threshold based on title length
+  // Short titles (< 15 chars): need 95%+ match to flag (avoids "clean room" vs "nice room")
+  // Medium titles (15-30 chars): need 88%+ match
+  // Long titles (> 30 chars): need 82%+ match
+  const THRESHOLD = normTitle.length < 15 ? 0.95 : normTitle.length < 30 ? 0.88 : 0.82;
+
   let titleMatch = false;
   for (const listing of (existing || [])) {
     if (!listing.title) continue;
+    // Skip comparing against the same user's own listings
+    if (posterAuthId && listing.owner_id === posterAuthId) continue;
     const existingTitle = listing.title.trim().toLowerCase().replace(/\s+/g, ' ');
     const similarity = calculateSimilarity(normTitle, existingTitle);
-    if (similarity > 0.7) {
+    if (similarity >= THRESHOLD) {
       titleMatch = true;
       break;
     }

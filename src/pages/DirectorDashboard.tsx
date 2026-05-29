@@ -6,6 +6,7 @@ import {
   getListingsPendingApproval, approveListing, rejectListing,
 } from '@/lib/supabase';
 import { AnnouncementsTab } from './CreatorDashboard';
+import UserProfileModal from '@/components/UserProfileModal';
 import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -45,6 +46,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
 
   const [stats, setStats] = useState({ totalUsers: 0, staff: 0, newToday: 0, listings: 0, pendingApproval: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewingUser, setViewingUser] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
 
   const scopeState = profile.assigned_state || profile.state || '';
@@ -96,9 +98,8 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
           </div>
           <div className="flex items-center gap-2">
             {onNavigate && (
-              <button onClick={() => onNavigate('home')} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                Home
+              <button onClick={() => onNavigate('home')} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
               </button>
             )}
             <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
@@ -154,8 +155,11 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
             </div>
           </div>
         )}
-        {activeTab === 'users' && <UsersTabDirector profile={profile} scopeState={scopeState} refresh={refresh} />}
+        {activeTab === 'users' && <UsersTabDirector profile={profile} scopeState={scopeState} refresh={refresh} onViewUser={setViewingUser} />}
         {activeTab === 'listings' && <ListingsTabDirector scopeState={scopeState} refresh={refresh} />}
+
+      {/* User Profile Viewer */}
+      <UserProfileModal user={viewingUser} onClose={() => setViewingUser(null)} />
         {activeTab === 'approval' && <ApprovalTabDirector profile={profile} scopeState={scopeState} refresh={refresh} />}
         {activeTab === 'reports' && <ReportsTabDirector profile={profile} refresh={refresh} />}
         {activeTab === 'audit' && <AuditTabDirector />}
@@ -166,7 +170,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
 }
 
 // ─── USERS TAB ─────────────────────────────────────
-function UsersTabDirector({ profile, scopeState, refresh }: { profile: Profile; scopeState: string; refresh: () => void }) {
+function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profile: Profile; scopeState: string; refresh: () => void; onViewUser?: (u: Profile) => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -177,7 +181,8 @@ function UsersTabDirector({ profile, scopeState, refresh }: { profile: Profile; 
   async function load() {
     setLoading(true);
     const { users: data } = await getAllUsers();
-    const inState = (data || []).filter((u: any) => u.state === scopeState && !u.deleted);
+    // Exclude current user (director) from the list
+    const inState = (data || []).filter((u: any) => u.state === scopeState && !u.deleted && u.user_id !== profile.user_id);
     setUsers(inState);
     setLoading(false);
   }
@@ -212,7 +217,7 @@ function UsersTabDirector({ profile, scopeState, refresh }: { profile: Profile; 
       {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div> : (
         <div className="space-y-2">
           {filtered.map(u => (
-            <div key={u.id} className="glass rounded-xl p-3">
+            <div key={u.id} className="glass rounded-xl p-3 hover:border-indigo-500/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
@@ -220,6 +225,7 @@ function UsersTabDirector({ profile, scopeState, refresh }: { profile: Profile; 
                   <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
                 </div>
                 <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0"><path d="M9 18l6-6-6-6" /></svg>
               </div>
               <select value={u.role} onChange={e => handleRole(u.user_id, e.target.value)} className="w-full h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[10px] px-2 mt-2 outline-none">
                 <option value="user">{ROLE_LABELS.user}</option>

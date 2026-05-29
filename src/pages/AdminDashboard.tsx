@@ -11,19 +11,21 @@ import { isCreator } from '@/hooks/useAuth';
 import { ROLE_LABELS } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
+import UserProfileModal from '@/components/UserProfileModal';
 import { Toaster, toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
 interface AdminDashboardProps {
   profile: Profile;
   onLogout: () => void;
+  onNavigate?: (page: string) => void;
   isStateAdmin?: boolean;
   isAssistant?: boolean;
 }
 
 type AdminTab = 'overview' | 'staff' | 'users' | 'listings' | 'reports' | 'announcements' | 'hotels';
 
-export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssistant }: AdminDashboardProps) {
+export default function AdminDashboard({ profile, onLogout, onNavigate, isStateAdmin, isAssistant }: AdminDashboardProps) {
   const dashboardLabel = isStateAdmin ? ROLE_LABELS.state_admin : isAssistant ? ROLE_LABELS.assistant_state_admin : ROLE_LABELS.admin;
   const headerGradient = isStateAdmin ? 'from-emerald-600 to-emerald-800' : isAssistant ? 'from-teal-600 to-teal-800' : 'from-[#3B82F6] to-[#2563EB]';
   const badgeClass = isStateAdmin ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : isAssistant ? 'text-teal-400 bg-teal-500/10 border-teal-500/20' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20';
@@ -44,6 +46,7 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
 
   const [stats, setStats] = useState({ users: 0, staff: 0, listings: 0, workers: 0, reports: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewingUser, setViewingUser] = useState<Profile | null>(null);
 
   // Admin (state_admin) sees entire state; Head of Staff (admin) sees only their LGA
   const scope = {
@@ -97,16 +100,28 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
       <Toaster position="top-center" toastOptions={{ style: { background: '#1A1A24', color: '#fff', border: '1px solid #232330' } }} />
 
       {/* Header */}
-      <header className={`bg-gradient-to-r ${headerGradient} px-5 pt-6 pb-8`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg font-bold text-white">{dashboardLabel} Dashboard</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>{ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}</span>
+      <header className={`bg-gradient-to-r ${headerGradient} px-5 pt-4 pb-8`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('home')}
+                className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-lg font-bold text-white">{dashboardLabel} Dashboard</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>{ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}</span>
+              </div>
+              <p className="text-xs text-white/60">
+                {scope.state}{scope.lga ? ` · ${scope.lga}` : ' (State-wide)'}
+              </p>
             </div>
-            <p className="text-xs text-white/60">
-              {scope.state}{scope.lga ? ` · ${scope.lga}` : ' (State-wide)'}
-            </p>
           </div>
           <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
         </div>
@@ -148,12 +163,15 @@ export default function AdminDashboard({ profile, onLogout, isStateAdmin, isAssi
       {/* Content */}
       <div className="px-5 pt-4">
         {activeTab === 'overview' && <OverviewTab stats={stats} scope={scope} isStateAdmin={isStateAdmin} />}
-        {activeTab === 'users' && <UsersTab scope={scope} profile={profile} refresh={refresh} isStateAdmin={isStateAdmin} isAssistant={isAssistant} />}
+        {activeTab === 'users' && <UsersTab scope={scope} profile={profile} refresh={refresh} isStateAdmin={isStateAdmin} isAssistant={isAssistant} onViewUser={setViewingUser} />}
         {activeTab === 'listings' && <ListingsTab scope={scope} refresh={refresh} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={scope} />}
         {activeTab === 'hotels' && <HotelsTab profile={profile} />}
       </div>
+
+      {/* User Profile Viewer */}
+      <UserProfileModal user={viewingUser} onClose={() => setViewingUser(null)} />
     </div>
   );
 }
@@ -177,7 +195,7 @@ function OverviewTab({ stats, scope, isStateAdmin }: { stats: any; scope: { stat
 }
 
 // ─── USERS ────────────────────────────────────────
-function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void; isStateAdmin?: boolean; isAssistant?: boolean }) {
+function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant, onViewUser }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void; isStateAdmin?: boolean; isAssistant?: boolean; onViewUser?: (u: Profile) => void }) {
   const { dialogProps } = useConfirm();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,10 +209,12 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
     setLoading(true);
     const { users: data } = await getAllUsers();
     // State Admin: filter by state only; Local Admin: filter by state + lga
+    // Exclude the current user (admin viewing the list) from results
     const filtered = (data || []).filter((u: any) => {
       const matchesState = u.state === scope.state;
       const matchesLga = scope.lga ? u.city === scope.lga : true;
-      return matchesState && matchesLga;
+      const isSelf = u.user_id === profile.user_id;
+      return matchesState && matchesLga && !isSelf;
     });
     setUsers(filtered);
     setLoading(false);
@@ -257,7 +277,7 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
         <div className="space-y-2">
           {isAssistant && <p className="text-[10px] text-teal-400/70">Read-only view. You cannot modify users.</p>}
           {filtered.map(u => (
-            <div key={u.id} className="glass rounded-xl p-3">
+            <div key={u.id} className="glass rounded-xl p-3 hover:border-[#3B82F6]/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">
                   {(u.username || 'U').charAt(0).toUpperCase()}
@@ -269,6 +289,9 @@ function UsersTab({ scope, profile, refresh, isStateAdmin, isAssistant }: { scop
                   </div>
                   <span className="text-[10px] text-[#5C5E72]">{u.email} · {u.city}</span>
                 </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
               </div>
               {!isAssistant && (
                 <select

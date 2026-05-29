@@ -290,15 +290,15 @@ export default function App() {
       case 'profile':
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
-        return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
+        return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'director':
         return <DirectorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'admin':
         return <HeadOfStaffDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'state_admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} isStateAdmin />;
+        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} isStateAdmin />;
       case 'assistant_state_admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} isAssistant />;
+        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} isAssistant />;
       case 'staff_dashboard':
         return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'detail':
@@ -399,7 +399,7 @@ export default function App() {
 
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <div className="page-transition bg-housing min-h-screen">
+      <div className="page-transition min-h-screen bg-[#0A0A0F]">
         {renderPage()}
       </div>
 
