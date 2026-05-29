@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
 import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
+import { checkPremiumActivation } from '@/lib/paystackWebhook';
 import CreatorAuthModal from '@/components/CreatorAuthModal';
 import SupportChat from '@/components/SupportChat';
 import Login from '@/pages/Login';
@@ -164,6 +165,25 @@ export default function App() {
       }).catch(() => {});
     }
   }, [auth.profile?.user_id]);
+
+  // Check for pending premium activation (5-minute AI review)
+  useEffect(() => {
+    if (!auth.profile?.user_id || auth.profile?.is_premium) return;
+    const userId = auth.profile.user_id;
+
+    async function checkActivation() {
+      const result = await checkPremiumActivation(userId);
+      if (result.activated) {
+        toast.success('Your Premium has been activated!');
+        window.location.reload();
+      }
+    }
+
+    // Check immediately and every 30 seconds
+    checkActivation();
+    const interval = setInterval(checkActivation, 30 * 1000);
+    return () => clearInterval(interval);
+  }, [auth.profile?.user_id, auth.profile?.is_premium]);
 
   // Global unread message count (conversations + official)
   useEffect(() => {

@@ -6,7 +6,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 
 
-type StaffTab = 'overview' | 'listings' | 'enquiries';
+type StaffTab = 'overview' | 'listings' | 'enquiries' | 'rating';
 
 interface StaffDashboardProps {
   profile: Profile;
@@ -21,7 +21,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
   const [activeTab, setActiveTab] = useState<StaffTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview', 'listings', 'enquiries'].includes(saved) ? saved as StaffTab : 'overview';
+      return saved && ['overview', 'listings', 'enquiries', 'rating'].includes(saved) ? saved as StaffTab : 'overview';
     } catch { return 'overview'; }
   });
 
@@ -90,6 +90,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
     { id: 'overview', label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'listings', label: 'My Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
     { id: 'enquiries', label: 'Enquiries', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+    { id: 'rating', label: 'My Rating', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
   ];
 
   return (
@@ -160,6 +161,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
         {activeTab === 'overview' && <OverviewTab profile={profile} stats={stats} onGoToTab={handleSetTab} />}
         {activeTab === 'listings' && <MyListingsTab listings={myListings} loading={loading} onRefresh={load} />}
         {activeTab === 'enquiries' && <EnquiriesTab enquiries={enquiryDetails} loading={loading} onGoToChat={onGoToChat} />}
+        {activeTab === 'rating' && <StaffRatingTab staffId={profile.user_id} />}
       </div>
     </div>
   );
@@ -312,6 +314,87 @@ function EnquiriesTab({ enquiries, loading, onGoToChat }: {
             </button>
           ))}
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── STAFF RATING TAB (Read-Only) ─────────────────
+function StaffRatingTab({ staffId }: { staffId: string }) {
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [summary, setSummary] = useState({ avg: 0, count: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('staff_reviews')
+        .select('*, profiles!staff_reviews_reviewer_id_fkey(username)')
+        .eq('staff_id', staffId)
+        .order('created_at', { ascending: false });
+
+      const reviewList = data || [];
+      setReviews(reviewList);
+
+      if (reviewList.length > 0) {
+        const sum = reviewList.reduce((acc: number, r: any) => acc + r.rating, 0);
+        setSummary({ avg: Math.round((sum / reviewList.length) * 10) / 10, count: reviewList.length });
+      }
+      setLoading(false);
+    }
+    load();
+  }, [staffId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Rating Summary */}
+      <div className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-6 text-center">
+        {summary.count > 0 ? (
+          <>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+              <span className="text-4xl font-extrabold text-white">{summary.avg}</span>
+              <span className="text-sm text-[#7A7A8C]">/ 5</span>
+            </div>
+            <p className="text-sm text-[#7A7A8C]">Based on {summary.count} review{summary.count !== 1 ? 's' : ''}</p>
+          </>
+        ) : (
+          <>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4A4A5C" strokeWidth="2" className="mx-auto mb-2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+            <p className="text-sm text-[#7A7A8C]">No ratings yet</p>
+            <p className="text-xs text-[#4A4A5C] mt-1">Your rating will appear here after users review you</p>
+          </>
+        )}
+      </div>
+
+      {/* Individual Reviews */}
+      {reviews.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#4A4A5C] mb-3">Reviews</p>
+          <div className="space-y-2">
+            {reviews.map((r: any) => (
+              <div key={r.review_id} className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <svg key={star} width="12" height="12" viewBox="0 0 24 24" fill={star <= r.rating ? '#F59E0B' : 'none'} stroke={star <= r.rating ? '#F59E0B' : '#4A4A5C'} strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-[#7A7A8C]">{new Date(r.created_at).toLocaleDateString()}</span>
+                </div>
+                {r.comment && <p className="text-xs text-[#7A7A8C]">{r.comment}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
