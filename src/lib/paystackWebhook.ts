@@ -19,7 +19,7 @@ interface PaystackEvent {
 export async function handlePaystackWebhook(event: PaystackEvent) {
   if (event.event !== 'charge.success') return { success: false };
 
-  const { reference, amount, customer, metadata } = event.data;
+  const { reference, amount, metadata } = event.data;
   const userId = metadata?.user_id;
   const planType = metadata?.plan_type || 'user';
 
