@@ -357,7 +357,7 @@ export interface RoomInterest {
 
 // --- NEW ANNOUNCEMENT SYSTEM v2 ---
 
-export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_workers' | 'admins' | 'specific_user';
+export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_workers' | 'admins' | 'specific_user' | 'staff_only' | 'head_of_staff_only' | 'admin_only' | 'assistant_admin_only';
 
 export interface Announcement {
   id: number;

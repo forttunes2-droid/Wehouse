@@ -907,7 +907,19 @@ export async function sendAnnouncement(
         query = query.eq('role', 'worker').eq('worker_verified', true);
         break;
       case 'admins':
-        query = query.in('role', ['admin', 'state_admin', 'assistant_state_admin']);
+        query = query.in('role', ['admin', 'state_admin', 'assistant_state_admin', 'creator']);
+        break;
+      case 'staff_only':
+        query = query.eq('role', 'staff');
+        break;
+      case 'head_of_staff_only':
+        query = query.eq('role', 'admin');
+        break;
+      case 'admin_only':
+        query = query.eq('role', 'state_admin');
+        break;
+      case 'assistant_admin_only':
+        query = query.eq('role', 'assistant_state_admin');
         break;
       case 'all_users':
       default:

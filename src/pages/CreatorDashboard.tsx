@@ -870,6 +870,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const canIncludeStaff = isCreator(profile.role) || profile.role === 'state_admin' || profile.role === 'admin';
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
+  // Role-specific targeting (new)
+  const [targetRoleFilter, setTargetRoleFilter] = useState<string>(''); // empty = all users
   const [liveCount, setLiveCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
   const [dbStatus, setDbStatus] = useState<{ok: boolean; issues: string[]}>({ok: true, issues: []});
@@ -995,6 +997,16 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     if (sendMode === 'select') {
       targetType = 'specific_user';
       options = { recipientIds: selectedUsers };
+    } else if (targetRoleFilter) {
+      // Role-specific targeting (new)
+      switch (targetRoleFilter) {
+        case 'staff': targetType = 'staff_only'; break;
+        case 'admin': targetType = 'head_of_staff_only'; break;
+        case 'state_admin': targetType = 'admin_only'; break;
+        case 'assistant_state_admin': targetType = 'assistant_admin_only'; break;
+        default: targetType = 'all_users';
+      }
+      options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
     } else if (includeWorkers && includeStaff) {
       targetType = 'all_users'; // users + workers + staff = everyone
       options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
@@ -1022,6 +1034,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     setSelectedUsers([]);
     setIncludeWorkers(false);
     setIncludeStaff(false);
+    setTargetRoleFilter('');
     setActiveView('history');
     await loadSentMessages();
   }
@@ -1214,6 +1227,25 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                   <span className="text-xs text-green-400 flex-1">Users</span>
                   <span className="text-[9px] text-green-400/60">Always included</span>
+                </div>
+
+                {/* Role-specific targeting dropdown */}
+                <div className="px-1">
+                  <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-1.5 block">Or target specific role</label>
+                  <select
+                    value={targetRoleFilter}
+                    onChange={(e) => setTargetRoleFilter(e.target.value)}
+                    className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 outline-none focus:border-[#3B82F6]/50"
+                  >
+                    <option value="">All Users (default)</option>
+                    <option value="staff">Staff Only</option>
+                    <option value="admin">Head of Staff Only</option>
+                    <option value="state_admin">Admin Only</option>
+                    <option value="assistant_state_admin">Assistant Admin Only</option>
+                  </select>
+                  {targetRoleFilter && (
+                    <p className="text-[9px] text-amber-400 mt-1">This will override the default user targeting</p>
+                  )}
                 </div>
 
                 {/* Include Workers toggle */}

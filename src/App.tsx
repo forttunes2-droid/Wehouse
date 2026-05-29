@@ -291,13 +291,13 @@ export default function App() {
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} />;
       case 'admin':
-        return <HeadOfStaffDashboard profile={profile} onLogout={auth.logout} />;
+        return <HeadOfStaffDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'state_admin':
         return <AdminDashboard profile={profile} onLogout={auth.logout} isStateAdmin />;
       case 'assistant_state_admin':
         return <AdminDashboard profile={profile} onLogout={auth.logout} isAssistant />;
       case 'staff_dashboard':
-        return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} />;
+        return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} onGoToChat={goToChat} /> : null;
       case 'chat':

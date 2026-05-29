@@ -14,6 +14,7 @@ type HosTab = 'overview' | 'staff' | 'listings' | 'announcements';
 interface Props {
   profile: Profile;
   onLogout: () => void;
+  onNavigate?: (page: string) => void;
 }
 
 // ─── ROLE COLORS ───────────────────────────────────
@@ -27,7 +28,7 @@ const roleColors: Record<string, string> = {
   worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
 };
 
-export default function HeadOfStaffDashboard({ profile, onLogout }: Props) {
+export default function HeadOfStaffDashboard({ profile, onLogout, onNavigate }: Props) {
   const TAB_KEY = 'wh_hos_tab';
   const [activeTab, setActiveTab] = useState<HosTab>(() => {
     try {
@@ -84,7 +85,15 @@ export default function HeadOfStaffDashboard({ profile, onLogout }: Props) {
             </div>
             <p className="text-xs text-white/60">{scope.state} · {scope.lga}</p>
           </div>
-          <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
+          <div className="flex items-center gap-2">
+            {onNavigate && (
+              <button onClick={() => onNavigate('home')} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                Home
+              </button>
+            )}
+            <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
+          </div>
         </div>
 
         {/* Stats */}
