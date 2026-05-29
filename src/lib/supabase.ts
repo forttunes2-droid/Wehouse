@@ -428,7 +428,7 @@ export async function getAvailableChatAgents(listingState?: string, listingLga?:
   const { data, error } = await supabase
     .from('profiles')
     .select('user_id, username, avatar_url, role, assigned_state, assigned_lga, state, city')
-    .eq('role', 'staff')
+    .in('role', ['staff', 'admin', 'assistant_state_admin'])
     .eq('deleted', false)
     .order('username', { ascending: true });
 

@@ -80,9 +80,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (validFiles.length === 0) { toast.error('Select image files only'); return; }
 
-    // Check total won't exceed 5
-    if (images.length + validFiles.length > 5) {
-      toast.error(`Maximum 5 images. You can add ${5 - images.length} more.`);
+    // Check total won't exceed 7
+    if (images.length + validFiles.length > 7) {
+      toast.error(`Maximum 7 images allowed. You selected ${validFiles.length} but can only add ${Math.max(0, 7 - images.length)} more.`);
       return;
     }
 
@@ -302,7 +302,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 py-5 space-y-5">
         {/* Images */}
         <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Photos ({images.length}/5)</label>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Photos ({images.length}/7)</label>
           <div className="flex gap-2 flex-wrap">
             {images.map((url, i) => (
               <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
@@ -316,7 +316,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
                 </button>
               </div>
             ))}
-            {images.length < 5 && (
+            {images.length < 7 && (
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -333,7 +333,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
                 )}
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+            <input ref={fileInputRef} type="file" accept="image/*" multiple max="7" className="hidden" onChange={handleImageUpload} />
           </div>
         </div>
 

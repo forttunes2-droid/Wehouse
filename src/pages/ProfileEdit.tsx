@@ -21,6 +21,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatar, setLocalAvatar] = useState<string | null>(profile.avatar_url);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   // Username validation
   const [username, setUsername] = useState(profile.username || '');
@@ -94,7 +96,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
   }, []);
 
   const handleAvatarChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
@@ -104,45 +106,64 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
         toast.error('Please select a JPG or PNG image');
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image must be under 5MB');
+      if (file.size > 35 * 1024 * 1024) {
+        toast.error('Image must be under 35MB');
         return;
       }
 
-      setUploadingAvatar(true);
-      toast.loading('Uploading photo...', { id: 'avatar-upload' });
+      // Show preview before upload
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAvatarPreview(reader.result as string);
+        setAvatarFile(file);
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
 
-      const { url, error } = await uploadAvatar(file, profile.user_id);
+  const handleConfirmAvatar = useCallback(async () => {
+    if (!avatarFile) return;
+    setUploadingAvatar(true);
+    toast.loading('Uploading photo...', { id: 'avatar-upload' });
 
-      if (error || !url) {
-        setUploadingAvatar(false);
-        toast.dismiss('avatar-upload');
-        const msg = error?.message || 'Upload failed';
-        if (msg.includes('Storage') || msg.includes('bucket') || msg.includes('configured')) {
-          toast.error('Photo upload is not configured yet. Contact the creator.');
-        } else if (msg.includes('RLS') || msg.includes('policy')) {
-          toast.error('Upload blocked by security policy. Run the storage SQL setup.');
-        } else {
-          toast.error('Upload failed: ' + msg);
-        }
-        return;
-      }
+    const { url, error } = await uploadAvatar(avatarFile, profile.user_id);
 
-      // Save URL to profile
-      const { error: updateErr } = await updateProfile(profile.user_id, { avatar_url: url });
+    if (error || !url) {
       setUploadingAvatar(false);
       toast.dismiss('avatar-upload');
-
-      if (updateErr) {
-        toast.error('Photo uploaded but failed to save to profile');
-        return;
+      const msg = error?.message || 'Upload failed';
+      if (msg.includes('Storage') || msg.includes('bucket') || msg.includes('configured')) {
+        toast.error('Photo upload is not configured yet. Contact the creator.');
+      } else if (msg.includes('RLS') || msg.includes('policy')) {
+        toast.error('Upload blocked by security policy. Run the storage SQL setup.');
+      } else {
+        toast.error('Upload failed: ' + msg);
       }
+      return;
+    }
 
-      setLocalAvatar(url);
-      toast.success('Profile photo updated!');
-    },
-    [profile.user_id]
-  );
+    // Save URL to profile
+    const { error: updateErr } = await updateProfile(profile.user_id, { avatar_url: url });
+    setUploadingAvatar(false);
+    toast.dismiss('avatar-upload');
+
+    if (updateErr) {
+      toast.error('Photo uploaded but failed to save to profile');
+      return;
+    }
+
+    setLocalAvatar(url);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    toast.success('Profile photo updated!');
+  }, [profile.user_id, avatarFile]);
+
+  const handleCancelAvatar = useCallback(() => {
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
 
   // Remove avatar
   const handleRemoveAvatar = useCallback(async () => {
@@ -241,25 +262,46 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: ProfileEditPr
             </div>
           </div>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg" className="hidden" onChange={handleAvatarChange} />
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAvatarTap}
-              className="h-8 px-4 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs font-medium hover:border-[#3B82F6]/30 hover:text-[#3B82F6] transition-all"
-            >
-              {uploadingAvatar ? 'Uploading...' : localAvatar ? 'Change Photo' : 'Add Photo'}
-            </button>
-            {localAvatar && (
-              <button
-                type="button"
-                onClick={handleRemoveAvatar}
-                className="h-8 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all"
-              >
-                Remove Photo
-              </button>
-            )}
-          </div>
-          <p className="text-[9px] text-[#5C5E72]">JPG or PNG, max 5MB</p>
+
+          {/* Preview UI - shows after selecting photo */}
+          {avatarPreview && (
+            <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-[#1A1A24] border border-[#2A2A3A]">
+              <p className="text-[10px] text-[#5C5E72]">Preview your new photo</p>
+              <img src={avatarPreview} alt="Preview" className="w-20 h-20 rounded-xl object-cover" />
+              <div className="flex gap-2">
+                <button type="button" onClick={handleConfirmAvatar} disabled={uploadingAvatar} className="h-8 px-4 rounded-lg bg-[#3B82F6] text-white text-xs font-medium hover:bg-[#2563EB] transition-all disabled:opacity-50">
+                  {uploadingAvatar ? 'Uploading...' : 'Confirm'}
+                </button>
+                <button type="button" onClick={handleCancelAvatar} disabled={uploadingAvatar} className="h-8 px-4 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs font-medium hover:text-white transition-all">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!avatarPreview && (
+            <>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAvatarTap}
+                  className="h-8 px-4 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs font-medium hover:border-[#3B82F6]/30 hover:text-[#3B82F6] transition-all"
+                >
+                  {localAvatar ? 'Change Photo' : 'Add Photo'}
+                </button>
+                {localAvatar && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    className="h-8 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+              </div>
+              <p className="text-[9px] text-[#5C5E72]">JPG or PNG, max 35MB</p>
+            </>
+          )}
         </div>
 
         {/* Username with validation */}
