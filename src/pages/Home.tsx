@@ -12,42 +12,59 @@ interface HomeProps {
   onGoToNewListing?: () => void;
 }
 
-// ─── QUICK STAT CARD ──────────────────────────────────────
-function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center flex-shrink-0">
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm font-bold text-white leading-none">{value}</p>
-        <p className="text-[10px] text-white/60 mt-0.5">{label}</p>
-      </div>
-    </div>
-  );
+// ─── ANIMATED COUNTER ────────────────────────────────────
+function AnimatedCounter({ target, duration = 2000 }: { target: number; duration?: number }) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let start = 0;
+    const step = Math.max(1, Math.floor(target / (duration / 16)));
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) { setCount(target); clearInterval(timer); }
+      else setCount(start);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [target, duration]);
+  return <span>{count.toLocaleString()}</span>;
 }
 
-// ─── LOCATION CARD ────────────────────────────────────────
-function LocationCard({ city, count, image, onClick }: { city: string; count: number; image: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="relative flex-shrink-0 w-[140px] h-[100px] rounded-2xl overflow-hidden group card-hover"
-    >
-      <img src={image} alt={city} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 p-3 text-left">
-        <p className="text-xs font-bold text-white leading-tight">{city}</p>
-        <p className="text-[9px] text-white/70">{count} {count === 1 ? 'listing' : 'listings'}</p>
-      </div>
-    </button>
-  );
-}
+// ─── PROPERTY TYPE CARD ───────────────────────────────────
+const PROPERTY_TYPES = [
+  { type: 'Apartment', icon: '🏢', count: '2,400+' },
+  { type: 'Self Contain', icon: '🏠', count: '1,800+' },
+  { type: 'Single Room', icon: '🛏️', count: '3,200+' },
+  { type: 'Shared', icon: '👥', count: '900+' },
+  { type: 'Duplex', icon: '🏘️', count: '600+' },
+  { type: 'Hostel', icon: '🎓', count: '1,500+' },
+];
+
+// ─── HOW IT WORKS ────────────────────────────────────────
+const HOW_STEPS = [
+  { step: '01', title: 'Search', desc: 'Browse thousands of verified listings across Nigeria', icon: '🔍' },
+  { step: '02', title: 'Connect', desc: 'Chat directly with landlords or find a roommate match', icon: '💬' },
+  { step: '03', title: 'Move In', desc: 'Secure your home with verified bookings and payments', icon: '🏠' },
+];
+
+// ─── TESTIMONIALS ────────────────────────────────────────
+const TESTIMONIALS = [
+  { name: 'Chinedu O.', role: 'Student', text: 'Found my hostel in UNILAG within 2 days. The roommate feature is a game changer!', rating: 5 },
+  { name: 'Amina K.', role: 'Young Professional', text: 'Finally a housing platform that actually works in Nigeria. So easy to use.', rating: 5 },
+  { name: 'Tunde B.', role: 'Landlord', text: 'I posted my apartment and got 5 serious enquiries the same day.', rating: 4 },
+];
+
+// ─── CITY IMAGES MAP ─────────────────────────────────────
+const CITY_BG: Record<string, string> = {
+  'Lagos': '/hero-cityscape.jpg',
+  'Abuja': '/hero-luxury.jpg',
+  'Ibadan': '/hero-interior.jpg',
+  'Port Harcourt': '/hero-roommate.jpg',
+};
 
 export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAdmin, onGoToNewListing }: HomeProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cityFilter, setCityFilter] = useState<string | null>(profile.city || null);
+  const [cityFilter, setCityFilter] = useState<string | null>(null);
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,287 +72,286 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
       try {
         const { listings: data } = await getAllListings();
         if (!cancelled) setListings(data || []);
-      } catch {
-        if (!cancelled) setListings([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { if (!cancelled) setListings([]); }
+      finally { if (!cancelled) setLoading(false); }
     }
     load();
     return () => { cancelled = true };
   }, []);
 
-  const cityListings = useMemo(() => {
-    if (!cityFilter) return listings;
-    return [...listings].sort((a, b) => {
-      const aMatch = a.city === cityFilter;
-      const bMatch = b.city === cityFilter;
-      if (aMatch && !bMatch) return -1;
-      if (!aMatch && bMatch) return 1;
-      return 0;
-    });
+  // Auto-rotate testimonials
+  useEffect(() => {
+    const timer = setInterval(() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS.length), 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const availableListings = useMemo(() => {
+    return cityFilter ? listings.filter(l => l.city === cityFilter) : listings;
   }, [listings, cityFilter]);
 
-  const availableListings = cityFilter
-    ? cityListings.filter(l => l.city === cityFilter)
-    : cityListings;
-
-  // Filter listings with images for featured
-  const featured = availableListings.filter(l => (l.images?.length || 0) > 0).slice(0, 8);
+  const featured = availableListings.filter(l => (l.images?.length || 0) > 0).slice(0, 10);
   const recent = availableListings.slice(0, 8);
 
-  // Popular cities from listings
   const popularCities = useMemo(() => {
     const cityCount: Record<string, number> = {};
     listings.forEach(l => { if (l.city) cityCount[l.city] = (cityCount[l.city] || 0) + 1; });
-    return Object.entries(cityCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([city]) => city);
+    return Object.entries(cityCount).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([city]) => city);
   }, [listings]);
 
-  // Stats
   const totalListings = listings.length;
   const totalCities = popularCities.length;
   const availableCount = listings.filter(l => l.status === 'available').length;
 
-  // Location images cycling
-  const locationImages = ['/hero-city.jpg', '/hero-main.jpg', '/locations-bg.jpg', '/roommate-bg.jpg'];
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-transparent pb-24">
-        {/* Hero shimmer */}
-        <div className="h-[320px] w-full shimmer" />
-        <div className="px-5 mt-6 space-y-6">
-          <div className="h-5 w-40 rounded shimmer" />
-          <div className="flex gap-3">
-            {[1, 2, 3].map(i => <div key={i} className="w-[280px] h-[220px] rounded-2xl shimmer flex-shrink-0" />)}
-          </div>
-          <div className="h-5 w-32 rounded shimmer" />
-          <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-[200px] rounded-2xl shimmer" />)}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <HomeSkeleton />;
 
   return (
-    <div className="min-h-screen bg-transparent pb-24">
-      {/* ═══════════════════════════════════════════════════
-          HERO SECTION — Full-width property imagery
-          ═══════════════════════════════════════════════════ */}
-      <div className="relative h-[320px] overflow-hidden">
-        {/* Background image */}
-        <img
-          src="/hero-main.jpg"
-          alt="Modern luxury apartments"
-          className="w-full h-full object-cover"
-        />
-        {/* Dark overlay — multi-layer for depth */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/70 via-[#0A0A0F]/50 to-[#0A0A0F]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/80 via-transparent to-[#0A0A0F]/40" />
+    <div className="min-h-screen bg-[#0A0A0F] pb-24 relative overflow-hidden">
+      {/* ═══ FLOATING GRADIENT ORBS — background depth ═══ */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="orb orb-1" />
+        <div className="orb orb-2" />
+        <div className="orb orb-3" />
+      </div>
 
-        {/* Hero content */}
-        <div className="absolute inset-0 flex flex-col justify-between p-5">
-          {/* Top: Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+      {/* ════════════════════════════════════════════════
+          HERO SECTION — Tall, dramatic, immersive
+          ════════════════════════════════════════════════ */}
+      <div className="relative h-[500px] overflow-hidden z-[1]">
+        <img src="/hero-luxury.jpg" alt="Luxury apartments" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/60 via-[#0A0A0F]/40 to-[#0A0A0F]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/80 via-transparent to-[#0A0A0F]/60" />
+
+        <div className="absolute inset-0 flex flex-col justify-between p-5 pt-8">
+          {/* Top bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+              <span className="text-base font-bold text-white tracking-wide">WeHouse</span>
             </div>
-            <span className="text-sm font-bold text-white tracking-wide">WeHouse</span>
-            <span className="ml-auto text-[10px] font-medium text-white/50 bg-white/10 backdrop-blur-md px-2.5 py-1 rounded-full">
-              {profile.city || 'Nigeria'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-white/60 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/[0.06]">
+                {profile.city || 'Nigeria'}
+              </span>
+              {isAdmin && (
+                <button onClick={onGoToNewListing} className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Middle: Headline + Search */}
-          <div className="mt-auto">
-            <h1 className="text-2xl font-bold text-white leading-tight mb-1">
+          {/* Hero content */}
+          <div className="mt-auto pb-4">
+            <div className="inline-flex items-center gap-1.5 bg-[#3B82F6]/10 backdrop-blur-md border border-[#3B82F6]/20 rounded-full px-3 py-1 mb-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] text-[#3B82F6] font-medium">{availableCount} properties available now</span>
+            </div>
+            <h1 className="text-3xl font-extrabold text-white leading-[1.1] mb-2">
               Find Your<br />
-              <span className="text-[#3B82F6]">Perfect Home</span>
+              <span className="bg-gradient-to-r from-[#3B82F6] via-[#7C3AED] to-[#EC4899] bg-clip-text text-transparent">Perfect Home</span>
             </h1>
-            <p className="text-xs text-white/60 mb-4">
-              Houses, apartments & roommates in Nigeria
+            <p className="text-sm text-white/60 mb-5 max-w-[280px]">
+              Houses, apartments & roommates across {totalCities}+ cities in Nigeria
             </p>
 
-            {/* Search bar — integrated on hero */}
-            <button
-              onClick={() => onNavigate('search')}
-              className="w-full h-12 glass-strong rounded-xl flex items-center px-4 gap-3 text-white/50 text-sm hover:border-[#3B82F6]/40 transition-all shadow-xl"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-              <span>Search by location, price, type...</span>
-              <div className="ml-auto w-8 h-8 rounded-lg bg-[#3B82F6] flex items-center justify-center flex-shrink-0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            {/* Search bar */}
+            <button onClick={() => onNavigate('search')} className="w-full h-13 rounded-2xl bg-white/[0.08] backdrop-blur-xl border border-white/[0.08] flex items-center px-5 gap-3 text-white/40 text-sm hover:border-[#3B82F6]/30 hover:bg-white/[0.12] transition-all shadow-2xl">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+              <span>Search location, price, type...</span>
+              <div className="ml-auto w-10 h-10 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </div>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ─── STATS BAR ────────────────────────────────────── */}
-      <div className="px-5 -mt-5 relative z-10">
-        <div className="glass-strong rounded-2xl p-4 flex items-center justify-around">
-          <StatCard
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>}
-            value={totalListings.toString()}
-            label="Listings"
-          />
-          <div className="w-px h-8 bg-white/10" />
-          <StatCard
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>}
-            value={totalCities.toString()}
-            label="Cities"
-          />
-          <div className="w-px h-8 bg-white/10" />
-          <StatCard
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>}
-            value={availableCount.toString()}
-            label="Available"
-          />
+      {/* ═══ STATS STRIP — Animated counters ═══ */}
+      <div className="px-5 -mt-8 relative z-10">
+        <div className="rounded-3xl bg-[#12121A]/80 backdrop-blur-xl border border-white/[0.06] p-5 flex items-center justify-around shadow-2xl">
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-white"><AnimatedCounter target={totalListings} /></p>
+            <p className="text-[10px] text-[#5C5E72] mt-0.5">Listings</p>
+          </div>
+          <div className="w-px h-10 bg-white/[0.06]" />
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-white"><AnimatedCounter target={totalCities} /></p>
+            <p className="text-[10px] text-[#5C5E72] mt-0.5">Cities</p>
+          </div>
+          <div className="w-px h-10 bg-white/[0.06]" />
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-emerald-400"><AnimatedCounter target={availableCount} /></p>
+            <p className="text-[10px] text-[#5C5E72] mt-0.5">Available</p>
+          </div>
+          <div className="w-px h-10 bg-white/[0.06]" />
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-[#3B82F6]">24/7</p>
+            <p className="text-[10px] text-[#5C5E72] mt-0.5">Support</p>
+          </div>
         </div>
       </div>
 
-      {/* ─── POPULAR LOCATIONS ────────────────────────────── */}
+      {/* ═══ PROPERTY TYPES ═══ */}
+      <section className="mt-10 px-5 relative z-[1]">
+        <h2 className="text-lg font-bold text-white mb-4">Browse by Type</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {PROPERTY_TYPES.map((pt) => (
+            <button key={pt.type} onClick={() => onNavigate('search')} className="group rounded-2xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-4 flex flex-col items-center gap-2 hover:border-[#3B82F6]/20 hover:bg-[#12121A] transition-all active:scale-[0.97]">
+              <span className="text-2xl group-hover:scale-110 transition-transform">{pt.icon}</span>
+              <span className="text-[11px] font-semibold text-white">{pt.type}</span>
+              <span className="text-[9px] text-[#5C5E72]">{pt.count}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══ POPULAR CITIES — Visual cards ═══ */}
       {popularCities.length > 0 && (
-        <section className="mt-7 px-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-sm font-bold text-white">Popular Locations</h2>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">Explore top cities</p>
-            </div>
-            <button onClick={() => onNavigate('search')} className="text-[10px] text-[#3B82F6] font-semibold">View all</button>
+        <section className="mt-10 relative z-[1]">
+          <div className="flex items-center justify-between px-5 mb-4">
+            <h2 className="text-lg font-bold text-white">Popular Cities</h2>
+            <button onClick={() => onNavigate('search')} className="text-[11px] text-[#3B82F6] font-semibold">View all</button>
           </div>
-          <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-5 px-5">
-            {popularCities.map((city, i) => {
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-5 pb-1">
+            {popularCities.map((city) => {
               const count = listings.filter(l => l.city === city).length;
               const isActive = cityFilter === city;
+              const bgImage = CITY_BG[city] || '/hero-interior.jpg';
               return (
-                <LocationCard
-                  key={city}
-                  city={city}
-                  count={count}
-                  image={locationImages[i % locationImages.length]}
-                  onClick={() => setCityFilter(isActive ? null : city)}
-                />
+                <button key={city} onClick={() => setCityFilter(isActive ? null : city)} className={`relative flex-shrink-0 w-[160px] h-[110px] rounded-2xl overflow-hidden group text-left transition-all ${isActive ? 'ring-2 ring-[#3B82F6]' : ''}`}>
+                  <img src={bgImage} alt={city} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <p className="text-xs font-bold text-white">{city}</p>
+                    <p className="text-[9px] text-white/60">{count} listings</p>
+                  </div>
+                  {isActive && <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#3B82F6] flex items-center justify-center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg></div>}
+                </button>
               );
             })}
           </div>
         </section>
       )}
 
-      {/* ─── CITY FILTER CHIPS ────────────────────────────── */}
+      {/* ═══ CITY FILTER CHIPS ═══ */}
       {popularCities.length > 0 && (
-        <section className="mt-4 px-5">
+        <section className="mt-4 px-5 relative z-[1]">
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => setCityFilter(null)}
-              className={`flex-shrink-0 h-9 px-4 rounded-full text-[11px] font-semibold transition-all ${
-                cityFilter === null
-                  ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/20'
-                  : 'bg-[#12121A] border border-[#1E1E2C] text-[#8A8B9C] hover:border-[#3B82F6]/30'
-              }`}
-            >
-              All
-            </button>
+            <button onClick={() => setCityFilter(null)} className={`flex-shrink-0 h-9 px-4 rounded-full text-[11px] font-semibold transition-all ${cityFilter === null ? 'bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white shadow-lg shadow-blue-500/20' : 'bg-[#12121A]/60 border border-white/[0.04] text-[#8A8B9C] hover:border-[#3B82F6]/30'}`}>All</button>
             {popularCities.map(city => (
-              <button
-                key={city}
-                onClick={() => setCityFilter(cityFilter === city ? null : city)}
-                className={`flex-shrink-0 h-9 px-4 rounded-full text-[11px] font-semibold transition-all ${
-                  cityFilter === city
-                    ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/20'
-                    : 'bg-[#12121A] border border-[#1E1E2C] text-[#8A8B9C] hover:border-[#3B82F6]/30'
-                }`}
-              >
-                {city}
-              </button>
+              <button key={city} onClick={() => setCityFilter(cityFilter === city ? null : city)} className={`flex-shrink-0 h-9 px-4 rounded-full text-[11px] font-semibold transition-all ${cityFilter === city ? 'bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white shadow-lg shadow-blue-500/20' : 'bg-[#12121A]/60 border border-white/[0.04] text-[#8A8B9C] hover:border-[#3B82F6]/30'}`}>{city}</button>
             ))}
           </div>
         </section>
       )}
 
-      {/* ─── FEATURED PROPERTIES ──────────────────────────── */}
+      {/* ═══ FEATURED PROPERTIES — Horizontal scroll ═══ */}
       {featured.length > 0 && (
-        <section className="mt-7">
-          <div className="flex items-center justify-between mb-3 px-5">
+        <section className="mt-10 relative z-[1]">
+          <div className="flex items-center justify-between px-5 mb-4">
             <div>
-              <h2 className="text-sm font-bold text-white">Featured Properties</h2>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">Premium handpicked listings</p>
+              <h2 className="text-lg font-bold text-white">Featured Properties</h2>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Handpicked premium listings</p>
             </div>
-            <button onClick={() => onNavigate('search')} className="text-[10px] text-[#3B82F6] font-semibold">See all</button>
+            <button onClick={() => onNavigate('search')} className="text-[11px] text-[#3B82F6] font-semibold">See all</button>
           </div>
-          <div className="overflow-x-auto scrollbar-hide">
-            <div className="flex gap-3.5 px-5" style={{ minWidth: 'max-content' }}>
-              {featured.map(l => (
-                <div key={l.id} className="w-[300px] flex-shrink-0">
-                  <ListingCard listing={l} onClick={() => onNavigate('detail', l.id)} isSaved={savedIds.has(l.id)} onToggleSave={(e) => { e.stopPropagation(); onToggleSave(l.id); }} />
-                </div>
-              ))}
-            </div>
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide px-5 pb-1">
+            {featured.map(l => (
+              <div key={l.id} className="w-[280px] flex-shrink-0">
+                <ListingCard listing={l} onClick={() => onNavigate('detail', l.id)} isSaved={savedIds.has(l.id)} onToggleSave={(e) => { e.stopPropagation(); onToggleSave(l.id); }} />
+              </div>
+            ))}
           </div>
         </section>
       )}
 
-      {/* ─── ROOMMATE CTA — Full-width with image ─────────── */}
-      <section className="mt-7 px-5">
-        <button
-          onClick={() => onNavigate('roommate')}
-          className="relative w-full h-[140px] rounded-2xl overflow-hidden group text-left card-hover"
-        >
-          <img
-            src="/roommate-bg.jpg"
-            alt="Shared apartment"
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/90 via-[#0A0A0F]/60 to-transparent" />
-          <div className="absolute inset-0 flex items-center p-5">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-xl bg-[#3B82F6]/20 backdrop-blur-md flex items-center justify-center">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+      {/* ═══ HOW IT WORKS ═══ */}
+      <section className="mt-12 px-5 relative z-[1]">
+        <div className="text-center mb-6">
+          <h2 className="text-lg font-bold text-white">How It Works</h2>
+          <p className="text-[10px] text-[#5C5E72] mt-1">Three simple steps to your new home</p>
+        </div>
+        <div className="space-y-3">
+          {HOW_STEPS.map((s, i) => (
+            <div key={i} className="flex items-center gap-4 rounded-2xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3B82F6]/20 to-[#7C3AED]/20 flex items-center justify-center flex-shrink-0 text-xl">{s.icon}</div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold text-[#3B82F6]">STEP {s.step}</span>
                 </div>
-                <span className="text-[10px] font-semibold text-[#3B82F6] uppercase tracking-wider">Roommate Match</span>
+                <p className="text-sm font-semibold text-white mt-0.5">{s.title}</p>
+                <p className="text-[11px] text-[#5C5E72] mt-0.5">{s.desc}</p>
               </div>
-              <p className="text-base font-bold text-white leading-tight">Find a Roommate</p>
-              <p className="text-[11px] text-white/60 mt-1 max-w-[200px]">Connect with people looking to share housing costs</p>
             </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="flex-shrink-0 opacity-60"><path d="M9 18l6-6-6-6" /></svg>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══ ROOMMATE CTA — Dramatic ═══ */}
+      <section className="mt-10 px-5 relative z-[1]">
+        <button onClick={() => onNavigate('roommate')} className="relative w-full h-[180px] rounded-3xl overflow-hidden group text-left">
+          <img src="/hero-roommate.jpg" alt="Roommate" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/95 via-[#0A0A0F]/70 to-[#0A0A0F]/40" />
+          <div className="absolute inset-0 flex flex-col justify-center p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-[#EC4899]/20 flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+              </div>
+              <span className="text-[10px] font-bold text-[#EC4899] uppercase tracking-wider">Roommate Match</span>
+            </div>
+            <p className="text-xl font-bold text-white leading-tight">Share Housing Costs</p>
+            <p className="text-xs text-white/50 mt-1 max-w-[240px]">Find compatible roommates based on lifestyle, budget & location preferences</p>
+            <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[#EC4899] font-semibold">
+              Get matched <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            </div>
           </div>
         </button>
       </section>
 
-      {/* ─── VERIFIED HOUSING BANNER ──────────────────────── */}
-      <section className="mt-4 px-5">
-        <div className="glass-strong rounded-2xl p-4 border border-[#3B82F6]/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+      {/* ═══ TESTIMONIALS ═══ */}
+      <section className="mt-12 px-5 relative z-[1]">
+        <div className="text-center mb-5">
+          <h2 className="text-lg font-bold text-white">What People Say</h2>
+          <p className="text-[10px] text-[#5C5E72] mt-1">Trusted by thousands across Nigeria</p>
+        </div>
+        <div className="rounded-3xl bg-[#12121A]/60 backdrop-blur border border-white/[0.04] p-5">
+          <div className="flex gap-1 mb-3">
+            {Array.from({ length: TESTIMONIALS[activeTestimonial].rating }).map((_, i) => (
+              <svg key={i} width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="1"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+            ))}
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-white">Verified Housing</p>
-            <p className="text-[11px] text-[#5C5E72] mt-0.5">All listings are reviewed by our team before going live</p>
+          <p className="text-sm text-white/80 leading-relaxed italic">&ldquo;{TESTIMONIALS[activeTestimonial].text}&rdquo;</p>
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/[0.04]">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center text-white text-sm font-bold">
+              {TESTIMONIALS[activeTestimonial].name[0]}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-white">{TESTIMONIALS[activeTestimonial].name}</p>
+              <p className="text-[10px] text-[#5C5E72]">{TESTIMONIALS[activeTestimonial].role}</p>
+            </div>
           </div>
-          <div className="flex -space-x-2 flex-shrink-0">
-            {['bg-blue-500', 'bg-green-500', 'bg-amber-500'].map((color, i) => (
-              <div key={i} className={`w-7 h-7 rounded-full ${color} border-2 border-[#0A0A0F] flex items-center justify-center`}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>
-              </div>
+          {/* Dots */}
+          <div className="flex justify-center gap-2 mt-4">
+            {TESTIMONIALS.map((_, i) => (
+              <button key={i} onClick={() => setActiveTestimonial(i)} className={`w-2 h-2 rounded-full transition-all ${i === activeTestimonial ? 'w-6 bg-[#3B82F6]' : 'bg-white/20'}`} />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── RECENTLY ADDED ───────────────────────────────── */}
+      {/* ═══ RECENTLY ADDED ═══ */}
       {recent.length > 0 && (
-        <section className="mt-7 px-5">
-          <div className="flex items-center justify-between mb-3">
+        <section className="mt-10 px-5 relative z-[1]">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-white">Recently Added</h2>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">Newest properties on the market</p>
+              <h2 className="text-lg font-bold text-white">Recently Added</h2>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Fresh on the market</p>
             </div>
-            <button onClick={() => onNavigate('search')} className="text-[10px] text-[#3B82F6] font-semibold">See all</button>
+            <button onClick={() => onNavigate('search')} className="text-[11px] text-[#3B82F6] font-semibold">See all</button>
           </div>
           <div className="grid grid-cols-2 gap-3.5">
             {recent.map(l => (
@@ -345,59 +361,112 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </section>
       )}
 
-      {/* ─── EXPLORE CITIES — Large visual section ────────── */}
-      {popularCities.length > 0 && (
-        <section className="mt-7 px-5">
-          <div className="relative rounded-2xl overflow-hidden h-[160px]">
-            <img
-              src="/locations-bg.jpg"
-              alt="Explore cities"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0F]/90 via-[#0A0A0F]/50 to-[#0A0A0F]/70" />
-            <div className="absolute inset-0 flex flex-col justify-center p-5">
-              <p className="text-[10px] font-semibold text-[#3B82F6] uppercase tracking-wider mb-1">Explore</p>
-              <p className="text-lg font-bold text-white leading-tight">Housing across<br />Nigeria</p>
-              <p className="text-[11px] text-white/60 mt-1.5">From Lagos to Abuja, find your next home</p>
-              <button
-                onClick={() => onNavigate('search')}
-                className="mt-3 h-8 px-4 rounded-xl bg-[#3B82F6] text-white text-[11px] font-semibold self-start inline-flex items-center gap-1.5 hover:bg-[#2563EB] transition-colors"
-              >
-                Browse all
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-              </button>
+      {/* ═══ TRUST BADGES ═══ */}
+      <section className="mt-10 px-5 relative z-[1]">
+        <div className="rounded-3xl bg-gradient-to-r from-[#12121A]/80 to-[#1A1A24]/80 backdrop-blur border border-white/[0.04] p-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34D399" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-white">Verified</p>
+                <p className="text-[9px] text-[#5C5E72]">All listings checked</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-white">Secure</p>
+                <p className="text-[9px] text-[#5C5E72]">Safe payments</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-white">Fast</p>
+                <p className="text-[9px] text-[#5C5E72]">Instant matching</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-white">Support</p>
+                <p className="text-[9px] text-[#5C5E72]">Always here to help</p>
+              </div>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* ─── EMPTY STATE ──────────────────────────────────── */}
+      {/* ═══ FOOTER CTA ═══ */}
+      <section className="mt-10 px-5 pb-4 relative z-[1]">
+        <div className="relative rounded-3xl overflow-hidden h-[200px]">
+          <img src="/hero-cityscape.jpg" alt="Nigeria" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F] via-[#0A0A0F]/70 to-[#0A0A0F]/40" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-5">
+            <p className="text-lg font-bold text-white">Ready to find your home?</p>
+            <p className="text-xs text-white/50 mt-1 mb-4">Join thousands who trust WeHouse</p>
+            <button onClick={() => onNavigate('search')} className="h-10 px-6 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white text-xs font-semibold shadow-lg shadow-blue-500/30 hover:opacity-90 transition-opacity inline-flex items-center gap-2">
+              Start Browsing
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            </button>
+          </div>
+        </div>
+        <p className="text-center text-[10px] text-[#5C5E72] mt-4">WeHouse Nigeria &copy; 2026</p>
+      </section>
+
+      {/* ═══ EMPTY STATE ═══ */}
       {listings.length === 0 && (
-        <div className="text-center py-20 px-5">
+        <div className="text-center py-20 px-5 relative z-[1]">
           <div className="w-16 h-16 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           </div>
           <p className="text-sm text-[#5C5E72]">No listings yet</p>
-          <p className="text-xs text-[#5C5E72] mt-1">{isAdmin ? 'Be the first to post a listing' : 'Check back soon for available properties'}</p>
           {isAdmin && onGoToNewListing && (
-            <button onClick={onGoToNewListing} className="mt-4 h-10 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-xs font-semibold shadow-lg shadow-blue-500/20 inline-flex items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-              Post a Listing
+            <button onClick={onGoToNewListing} className="mt-4 h-10 px-5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white text-xs font-semibold inline-flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>Post First Listing
             </button>
           )}
         </div>
       )}
 
-      {/* ─── ADD LISTING FAB ──────────────────────────────── */}
+      {/* ═══ FAB ═══ */}
       {isAdmin && onGoToNewListing && listings.length > 0 && (
-        <button
-          onClick={onGoToNewListing}
-          className="fixed bottom-20 right-5 w-13 h-13 rounded-full bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center shadow-xl shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform z-40 w-14 h-14"
-          aria-label="Add listing"
-        >
+        <button onClick={onGoToNewListing} className="fixed bottom-20 right-5 w-14 h-14 rounded-full bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white flex items-center justify-center shadow-2xl shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform z-40" aria-label="Add listing">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── SKELETON ────────────────────────────────────────────
+function HomeSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+      <div className="h-[500px] w-full bg-[#12121A] shimmer" />
+      <div className="px-5 mt-6 space-y-8">
+        <div className="h-16 rounded-2xl bg-[#12121A] shimmer" />
+        <div className="h-5 w-40 rounded shimmer" />
+        <div className="grid grid-cols-3 gap-3">
+          {[1,2,3,4,5,6].map(i => <div key={i} className="h-24 rounded-2xl bg-[#12121A] shimmer" />)}
+        </div>
+        <div className="h-5 w-32 rounded shimmer" />
+        <div className="flex gap-3">
+          {[1,2,3].map(i => <div key={i} className="w-[280px] h-[220px] rounded-2xl bg-[#12121A] shimmer flex-shrink-0" />)}
+        </div>
+        <div className="h-5 w-32 rounded shimmer" />
+        <div className="grid grid-cols-2 gap-3">
+          {[1,2,3,4].map(i => <div key={i} className="h-[200px] rounded-2xl bg-[#12121A] shimmer" />)}
+        </div>
+      </div>
     </div>
   );
 }
