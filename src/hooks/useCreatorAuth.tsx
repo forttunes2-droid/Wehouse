@@ -32,17 +32,11 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
   const pendingCallbackRef = useRef<(() => void) | null>(null);
 
   /**
-   * Core flow: user clicks a critical action → we check if they're still authenticated.
-   * If yes, action runs immediately. If no, modal opens. After password entered,
-   * action runs automatically and modal closes. Clean — no banners, no countdowns.
+   * ALWAYS asks for password on every critical action.
+   * No session caching — most secure for the user's needs.
    */
   const requestAuth = useCallback((onSuccess?: () => void) => {
-    if (Date.now() < expiryRef.current) {
-      // Still authenticated — run action immediately, no modal
-      onSuccess?.();
-      return;
-    }
-    // Need auth — store callback and show modal
+    // Always show modal — never skip
     pendingCallbackRef.current = onSuccess || null;
     setShowModal(true);
     setError('');
