@@ -78,22 +78,7 @@ export async function signInWithGoogle() {
   });
 }
 
-// ─── PHONE OTP AUTH ──────────────────────────────────
 
-export async function signInWithPhone(phone: string) {
-  // Format: +2348012345678 (E.164 format required)
-  return supabase.auth.signInWithOtp({
-    phone,
-  });
-}
-
-export async function verifyPhoneOtp(phone: string, token: string) {
-  return supabase.auth.verifyOtp({
-    phone,
-    token,
-    type: 'sms',
-  });
-}
 
 export async function resetPassword(email: string) {
   return supabase.auth.resetPasswordForEmail(email, {

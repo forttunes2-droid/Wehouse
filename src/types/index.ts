@@ -79,6 +79,9 @@ export interface Profile {
   updated_by: string | null;      // Who last updated
   // ── MAINTENANCE ───────────────────────────────────
   maintenance_exempt: boolean;     // Can login during maintenance mode (for testing)
+  // ── PREMIUM ───────────────────────────────────────
+  is_premium?: boolean;
+  premium_expires_at?: string | null;
 }
 
 export interface RoleChangeHistory {
