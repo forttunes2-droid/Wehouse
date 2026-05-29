@@ -28,10 +28,10 @@ const BOT_KB: Record<string, string[]> = {
     "To find a roommate:\n\n1. Tap the **Roommate** tab\n2. Set up your profile (budget, lifestyle preferences, location)\n3. Tap **Find Roommate**\n4. The system searches for up to 8 hours\n5. You'll get notified when a match is found\n\nYou can edit your preferences anytime during the search to get better matches.",
   ],
   payment: [
-    "For payments and bookings:\n\n1. Find a listing you like\n2. Tap **Contact Staff** to chat with our verified team\n3. Our staff will guide you through property inspection\n4. After inspection, you'll be directed to make secure payment\n\n⚠️ Never pay directly to a landlord. All payments go through WeHouse for your protection.",
+    "For payments:\n\n1. Find a listing you like\n2. Tap **Contact Staff** to chat with our verified team\n3. Our staff will guide you through the process\n4. Payment is handled securely through Paystack\n\n⚠️ Never pay directly to anyone. All payments go through WeHouse staff only.",
   ],
   complaint: [
-    "I'm sorry to hear you're having an issue. To file a complaint:\n\n1. Describe your problem in detail here\n2. Our team will review it within 24 hours\n3. You'll get a response via notification\n\nCommon issues I can help with:\n- Fake listings\n- Payment problems\n- Account issues\n- Technical problems\n\nWhat specifically happened?",
+    "I'm sorry to hear you're having an issue. Please describe your problem in detail here and our team will review it.\n\nCommon issues I can help with:\n- Fake listings\n- Payment problems\n- Account issues\n- Technical problems\n\nWhat specifically happened?",
   ],
   fake: [
     "To report a fake listing:\n\n1. Open the listing\n2. Tap the **Report** button (flag icon)\n3. Select 'Fake Listing' as the reason\n4. Add details about why you think it's fake\n5. Submit\n\nOur team reviews all reports within 24 hours. Fake listings are removed immediately upon verification.",
@@ -46,7 +46,7 @@ const BOT_KB: Record<string, string[]> = {
     "To book a hotel room:\n\n1. Tap the **Hotels** tab\n2. Browse available hotels\n3. Select your check-in and check-out dates\n4. Choose a room type\n5. Tap **Book Now**\n\nYou can manage your bookings in the Bookings section.",
   ],
   contact: [
-    "You can reach our support team through:\n\n- **In-app chat**: You're talking to it right now!\n- **Settings**: Tap your profile → scroll to Support section\n\nOur team is available to help you 24/7.",
+    "You can reach our support team through:\n\n- **In-app chat**: You're talking to it right now!\n- **Settings**: Tap your profile → scroll to Support section\n\nOur team will respond as soon as possible.",
   ],
   default: [
     "I can help you with:\n\n• Finding accommodation\n• Posting a listing\n• Finding a roommate\n• Payment & bookings\n• Reporting fake listings\n• Account issues\n• Worker registration\n• Hotel bookings\n\nWhat do you need help with?",
