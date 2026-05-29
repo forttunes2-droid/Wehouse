@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getAllUsers, getAllListingsAdmin, deleteListing,
-  updateUserRole, logAuditAction,
+  updateUserRole, logAuditAction, getConversations, getProfileByAuthId,
 } from '@/lib/supabase';
 import { AnnouncementsTab } from './CreatorDashboard';
 import UserProfileModal from '@/components/UserProfileModal';
@@ -158,9 +158,11 @@ export default function HeadOfStaffDashboard({ profile, onLogout, onNavigate }: 
 }
 
 // ─── STAFF TAB ─────────────────────────────────────
-// Head of Staff can only see and manage staff in their LGA
+// Head of Staff sees:
+// 1. Staff members in their LGA (people they manage)
+// 2. Users who have sent them enquiries/chats through listings
 function StaffTab({ scope, profile, refresh, onViewUser }: { scope: { state: string; lga: string }; profile: Profile; refresh: () => void; onViewUser?: (u: Profile) => void }) {
-  const [staff, setStaff] = useState<any[]>([]);
+  const [people, setPeople] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -168,21 +170,47 @@ function StaffTab({ scope, profile, refresh, onViewUser }: { scope: { state: str
 
   async function load() {
     setLoading(true);
+
+    // 1. Get staff members in this LGA
     const { users } = await getAllUsers();
-    // Only show staff in this LGA (exclude current user — Head of Staff)
-    const filtered = (users || []).filter((u: any) => {
-      const isStaffRole = u.role === 'staff' || u.role === 'user';
+    const staffInLga = (users || []).filter((u: any) => {
+      const isStaffRole = u.role === 'staff';
       const matchesState = u.state === scope.state;
       const matchesLga = u.city === scope.lga;
       const isSelf = u.user_id === profile.user_id;
       return isStaffRole && matchesState && matchesLga && !u.deleted && !isSelf;
-    });
-    setStaff(filtered);
+    }).map((u: any) => ({ ...u, _source: 'staff' as const }));
+
+    // 2. Get users who have chatted/enquired with this Head of Staff
+    const { conversations } = await getConversations(profile.user_id);
+    const chatUserProfiles: any[] = [];
+    const seenIds = new Set<string>();
+
+    for (const conv of (conversations || [])) {
+      const otherId = conv.participant_a === profile.user_id ? conv.participant_b : conv.participant_a;
+      if (seenIds.has(otherId)) continue;
+      seenIds.add(otherId);
+
+      const { profile: otherProfile } = await getProfileByAuthId(otherId);
+      if (otherProfile && !otherProfile.deleted) {
+        chatUserProfiles.push({ ...otherProfile, _source: 'chat' as const });
+      }
+    }
+
+    // 3. Merge — staff first, then chat users (no duplicates)
+    const merged = [...staffInLga];
+    for (const chatUser of chatUserProfiles) {
+      if (!merged.some((s) => s.user_id === chatUser.user_id)) {
+        merged.push(chatUser);
+      }
+    }
+
+    setPeople(merged);
     setLoading(false);
   }
 
   async function handleRole(userId: string, newRole: string) {
-    const target = staff.find(u => u.user_id === userId);
+    const target = people.find((u) => u.user_id === userId);
     if (!target) return;
     if (userId === profile.user_id) { toast.error('Cannot change own role'); return; }
     // Head of Staff can only toggle between user and staff
@@ -200,37 +228,52 @@ function StaffTab({ scope, profile, refresh, onViewUser }: { scope: { state: str
     refresh();
   }
 
-  const filtered = staff.filter(u => !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = people.filter((u) => !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase()));
+
+  const staffCount = people.filter((u) => u._source === 'staff').length;
+  const chatCount = people.filter((u) => u._source === 'chat').length;
 
   return (
     <div className="space-y-3">
-      <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search staff..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white" />
+      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff & chat users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white" />
+      {/* Summary badges */}
+      <div className="flex gap-2">
+        <span className="text-[10px] px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">{staffCount} Staff in LGA</span>
+        {chatCount > 0 && <span className="text-[10px] px-2 py-1 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{chatCount} From chat</span>}
+      </div>
       {loading ? (
         <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <div className="space-y-2">
-          {filtered.length === 0 ? <p className="text-xs text-[#5C5E72] text-center py-6">No staff in this LGA</p> : filtered.map(u => (
+          {filtered.length === 0 ? <p className="text-xs text-[#5C5E72] text-center py-6">No staff or chat users in this LGA</p> : filtered.map((u) => (
             <div key={u.id} className="glass rounded-xl p-3 hover:border-[#3B82F6]/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
+                    {u._source === 'chat' && u.role === 'user' && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">From chat</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[#5C5E72] truncate">{u.email} · {u.city}</p>
                 </div>
                 <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0"><path d="M9 18l6-6-6-6" /></svg>
               </div>
-              {/* Role toggle */}
-              <div className="mt-2 flex gap-2">
-                <select
-                  value={u.role}
-                  onChange={(e) => handleRole(u.user_id, e.target.value)}
-                  className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[10px] px-2 outline-none"
-                >
-                  <option value="user">{ROLE_LABELS.user}</option>
-                  <option value="staff">{ROLE_LABELS.staff}</option>
-                </select>
-              </div>
+              {/* Role toggle — only for staff members, not chat users */}
+              {u._source === 'staff' && (
+                <div className="mt-2 flex gap-2">
+                  <select
+                    value={u.role}
+                    onChange={(e) => handleRole(u.user_id, e.target.value)}
+                    className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[10px] px-2 outline-none"
+                  >
+                    <option value="user">{ROLE_LABELS.user}</option>
+                    <option value="staff">{ROLE_LABELS.staff}</option>
+                  </select>
+                </div>
+              )}
             </div>
           ))}
         </div>
