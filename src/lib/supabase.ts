@@ -1733,3 +1733,4 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
   const { data } = supabase.storage.from('listings').getPublicUrl(path);
   return { url: data.publicUrl, error: null };
 }
+// force deploy Fri May 29 09:06:48 CST 2026
