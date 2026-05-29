@@ -150,7 +150,7 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
       })}
 
       {hasChanges && (
-        <div className="flex gap-3 sticky bottom-4 z-10">
+        <div className="flex gap-3 sticky bottom-20 z-10 bg-[#0A0A0F]/90 backdrop-blur-sm pt-2 pb-6 px-0 -mx-0">
           <button onClick={handleSaveAll} disabled={saving} className="flex-1 h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2">
             {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>Save Changes</>}
           </button>

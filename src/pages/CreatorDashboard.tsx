@@ -394,12 +394,11 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
   }
 
   async function handleExemptToggle(userId: string, currentExempt: boolean) {
-    withAuth(async () => {
-      const { error } = await toggleMaintenanceExempt(userId, !currentExempt);
-      if (error) { toast.error('Failed to update exemption'); return; }
-      toast.success(currentExempt ? 'Removed maintenance exemption' : 'User can now login during maintenance');
-      load();
-    });
+    // Exempt toggle is a minor action — no auth required
+    const { error } = await toggleMaintenanceExempt(userId, !currentExempt);
+    if (error) { toast.error('Failed to update exemption'); return; }
+    toast.success(currentExempt ? 'Removed maintenance exemption' : 'User can now login during maintenance');
+    load();
   }
 
   return (
