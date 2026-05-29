@@ -450,6 +450,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                         <option value="admin">{ROLE_LABELS.admin}</option>
                         <option value="assistant_state_admin">{ROLE_LABELS.assistant_state_admin}</option>
                         <option value="state_admin">{ROLE_LABELS.state_admin}</option>
+                        <option value="director">{ROLE_LABELS.director}</option>
                       </select>
                     )}
 
