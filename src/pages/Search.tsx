@@ -13,6 +13,9 @@ interface SearchProps {
 // Popular states for quick browse
 const POPULAR_STATES = ['Lagos', 'Abuja (FCT)', 'Rivers', 'Kano', 'Oyo', 'Enugu', 'Delta', 'Kaduna'];
 
+// Property types for Nigerian housing
+const PROPERTY_TYPES = ['Apartment', 'Self Contain', 'Single Room', 'Shared', 'Duplex', 'Hostel', 'Studio Apartment'];
+
 export default function Search({ onNavigate, savedIds, onToggleSave }: SearchProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +24,17 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
   const [bedrooms, setBedrooms] = useState<number | ''>('');
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
+  const [propertyType, setPropertyType] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Load property type filter from homepage click
+  useEffect(() => {
+    const savedType = sessionStorage.getItem('search_property_type');
+    if (savedType) {
+      setPropertyType(savedType);
+      sessionStorage.removeItem('search_property_type');
+    }
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -42,15 +55,26 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
       const matchesBed = !bedrooms || l.bedrooms >= bedrooms;
       const matchesState = !filterState || l.state === filterState;
       const matchesCity = !filterCity || l.city === filterCity;
-      return matchesQuery && matchesPrice && matchesBed && matchesState && matchesCity;
+      const matchesType = !propertyType || (l.property_type || 'Apartment') === propertyType;
+      return matchesQuery && matchesPrice && matchesBed && matchesState && matchesCity && matchesType;
     });
-  }, [listings, query, priceMax, bedrooms, filterState, filterCity]);
+  }, [listings, query, priceMax, bedrooms, filterState, filterCity, propertyType]);
 
   // Group listings by state for counts
   const listingsByState = useMemo(() => {
     const map: Record<string, number> = {};
     listings.forEach(l => {
       if (l.state) map[l.state] = (map[l.state] || 0) + 1;
+    });
+    return map;
+  }, [listings]);
+
+  // Group listings by property type for counts
+  const listingsByType = useMemo(() => {
+    const map: Record<string, number> = {};
+    listings.forEach(l => {
+      const type = l.property_type || 'Apartment';
+      map[type] = (map[type] || 0) + 1;
     });
     return map;
   }, [listings]);
@@ -105,9 +129,23 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
           </select>
         </div>
 
-        {/* Advanced filters (price, bedrooms) */}
+        {/* Advanced filters (price, bedrooms, property type) */}
         {showFilters && (
           <div className="mt-3 glass rounded-xl p-4 space-y-3">
+            <div>
+              <label className="text-[10px] text-[#5C5E72] mb-1 block">Property Type</label>
+              <select
+                value={propertyType}
+                onChange={(e) => setPropertyType(e.target.value)}
+                className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
+              >
+                <option value="">All Types</option>
+                {PROPERTY_TYPES.map((t) => (
+                  <option key={t} value={t}>{t} {listingsByType[t] ? `(${listingsByType[t]})` : ''}</option>
+                ))}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Price/yr (₦)</label>
@@ -124,10 +162,29 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
                 </select>
               </div>
             </div>
-            <button onClick={() => { setPriceMax(''); setBedrooms(''); setFilterState(''); setFilterCity(''); }} className="text-[10px] text-[#3B82F6] font-medium">Clear all filters</button>
+            <button onClick={() => { setPriceMax(''); setBedrooms(''); setFilterState(''); setFilterCity(''); setPropertyType(''); }} className="text-[10px] text-[#3B82F6] font-medium">Clear all filters</button>
           </div>
         )}
       </header>
+
+      {/* Browse by Property Type — Quick access */}
+      {!propertyType && (
+        <div className="px-5 pt-4">
+          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Browse by Type</p>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+            {PROPERTY_TYPES.filter(t => listingsByType[t]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setPropertyType(t)}
+                className="flex-shrink-0 h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] text-xs text-[#8A8B9C] hover:border-[#3B82F6]/50 hover:text-white transition-colors"
+              >
+                {t}
+                <span className="ml-1 text-[9px] text-[#5C5E72]">{listingsByType[t]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Browse by State — Quick access */}
       {!filterState && !query && (
@@ -151,15 +208,20 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
       )}
 
       {/* Active filter indicator */}
-      {(filterState || filterCity) && (
-        <div className="px-5 pt-3 flex items-center gap-2">
+      {(filterState || filterCity || propertyType) && (
+        <div className="px-5 pt-3 flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-[#5C5E72]">Showing:</span>
+          {propertyType && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 font-medium">
+              {propertyType}
+            </span>
+          )}
           {filterState && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] font-medium">
               {filterState}{filterCity ? ` · ${filterCity}` : ''}
             </span>
           )}
-          <button onClick={() => { setFilterState(''); setFilterCity(''); }} className="text-[10px] text-red-400 hover:text-red-300 ml-auto">Clear</button>
+          <button onClick={() => { setFilterState(''); setFilterCity(''); setPropertyType(''); }} className="text-[10px] text-red-400 hover:text-red-300 ml-auto">Clear</button>
         </div>
       )}
 
