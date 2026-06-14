@@ -27,7 +27,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved, onToggle
 
   useEffect(() => {
     async function load() {
-      const { listing: data } = await getListingById(listingId);
+      const { listing: data } = await getListingById(listingId, profile?.user_id);
       setListing(data);
       // Load assigned chat agent's PUBLIC info — lookup by chat_agent_id (user_id)
       // This is who users will chat with, NOT the listing owner
@@ -511,5 +511,18 @@ function DetailItem({ label, value, icon }: { label: string; value: string | num
       <div className="text-sm font-bold text-white">{value}</div>
       <div className="text-[10px] text-[#5C5E72]">{label}</div>
     </div>
-  );
+  );// ✅ FIXED: Owners can now see their own listings properly
+export async function getListingById(listingId: string, userId?: string) {
+  let query = supabase
+    .from('listings')
+    .select('*, profiles!owner_id(*)')
+    .eq('listing_id', listingId);
+
+  if (userId) {
+    query = query.or(`owner_id.eq.${userId},status.in.(available,pending_approval,reserved)`);
+  }
+
+  const { data, error } = await query.single();
+  return { listing: data, error };
+}
 }
