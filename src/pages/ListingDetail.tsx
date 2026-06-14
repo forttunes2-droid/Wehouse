@@ -511,7 +511,8 @@ function DetailItem({ label, value, icon }: { label: string; value: string | num
       <div className="text-sm font-bold text-white">{value}</div>
       <div className="text-[10px] text-[#5C5E72]">{label}</div>
     </div>
-  );// ✅ FIXED: Owners can now see their own listings properly
+  ); 
+// FIXED: Owners can now see their own listings properly
 export async function getListingById(listingId: string, userId?: string) {
   let query = supabase
     .from('listings')
@@ -520,9 +521,6 @@ export async function getListingById(listingId: string, userId?: string) {
 
   if (userId) {
     query = query.or(`owner_id.eq.${userId},status.in.(available,pending_approval,reserved)`);
-  }
-
-  const { data, error } = await query.single();
+  }const { data, error } = await query.single();
   return { listing: data, error };
-}
 }
