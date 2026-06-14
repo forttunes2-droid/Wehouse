@@ -512,3 +512,4 @@ function DetailItem({ label, value, icon }: { label: string; value: string | num
       <div className="text-[10px] text-[#5C5E72]">{label}</div>
     </div>
   ); 
+}
