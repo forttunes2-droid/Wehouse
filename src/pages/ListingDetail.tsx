@@ -511,12 +511,4 @@ function DetailItem({ label, value, icon }: { label: string; value: string | num
       <div className="text-sm font-bold text-white">{value}</div>
       <div className="text-[10px] text-[#5C5E72]">{label}</div>
     </div>
-  ); // SIMPLE FIX: Allow owners to see their listings
-export async function getListingById(listingId: string) {
-  const { data, error } = await supabase
-    .from('listings')
-    .select('*, profiles!owner_id(*)')
-    .eq('listing_id', listingId)
-    .single();
- return { listing: data, error };
-}
+  ); 
