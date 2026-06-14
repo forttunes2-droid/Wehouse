@@ -673,8 +673,28 @@ export async function uploadListingVideo(file: File, listingId: string) {
   return { url: urlData.publicUrl, error: null };
 }
 
-export async function deleteListing(listingId: string) {
-  const { error } = await supabase.from('listings').delete().eq('listing_id', listingId);
+export async function deleteListing(listingId: string, userId: string) {
+  if (!userId) {
+    return { error: { message: 'You must be logged in' } as any };
+  }
+
+  // Check that you own this listing
+  const { data: listing } = await supabase
+    .from('listings')
+    .select('owner_id')
+    .eq('listing_id', listingId)
+    .single();
+
+  if (!listing || listing.owner_id !== userId) {
+    return { error: { message: 'You can only delete your own listings' } as any };
+  }
+
+  // Now delete it
+  const { error } = await supabase
+    .from('listings')
+    .delete()
+    .eq('listing_id', listingId);
+
   return { error };
 }
 
