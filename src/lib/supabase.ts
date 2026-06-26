@@ -451,17 +451,23 @@ export async function updateSessionLastSeen(sessionId: string) {
 // ─── LISTING HELPERS ───────────────────────────────
 
 export async function getAllListings() {
-  // Users only see available and reserved listings. Closed listings are hidden.
+  // Users only see available and reserved listings. Deleted and closed listings are hidden.
   const { data, error } = await supabase
     .from('listings')
     .select('*')
     .in('availability_status', ['available', 'reserved'])
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }
 
 export async function getListing(id: string) {
-  const { data, error } = await supabase.from('listings').select('*').eq('listing_id', id).single();
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('listing_id', id)
+    .is('deleted_at', null)
+    .single();
   return { listing: data as Listing | null, error };
 }
 
@@ -469,7 +475,7 @@ export async function getListing(id: string) {
 export { getListing as getListingById };
 
 export async function getCreatorListings(userId: string) {
-  const { data, error } = await supabase.from('listings').select('*').eq('owner_id', userId).order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('listings').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }
 
@@ -673,26 +679,23 @@ export async function uploadListingVideo(file: File, listingId: string) {
   return { url: urlData.publicUrl, error: null };
 }
 
-export async function deleteListing(listingId: string, userId: string) {
-  if (!userId) {
-    return { error: { message: 'You must be logged in' } as any };
+export async function deleteListing(listingId: string, userId?: string) {
+  // Soft-delete: set deleted_at instead of hard delete
+  // If userId provided, verify ownership first
+  if (userId) {
+    const { data: listing } = await supabase
+      .from('listings')
+      .select('owner_id')
+      .eq('listing_id', listingId)
+      .single();
+    if (!listing || listing.owner_id !== userId) {
+      return { error: { message: 'You can only delete your own listings' } as any };
+    }
   }
 
-  // Check that you own this listing
-  const { data: listing } = await supabase
-    .from('listings')
-    .select('owner_id')
-    .eq('listing_id', listingId)
-    .single();
-
-  if (!listing || listing.owner_id !== userId) {
-    return { error: { message: 'You can only delete your own listings' } as any };
-  }
-
-  // Now delete it
   const { error } = await supabase
     .from('listings')
-    .delete()
+    .update({ deleted_at: new Date().toISOString(), availability_status: 'closed' })
     .eq('listing_id', listingId);
 
   return { error };
@@ -1127,6 +1130,15 @@ export async function sendMessage(conversationId: string, senderId: string, cont
     .insert({ conversation_id: conversationId, sender_id: senderId, content })
     .select()
     .single();
+
+  // Update conversation timestamp so it appears at top of list
+  if (!error) {
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+  }
+
   return { message: data as Message | null, error };
 }
 
@@ -1142,7 +1154,7 @@ export async function markMessagesSeen(conversationId: string, userId: string) {
 export async function createConversation(userA: string, userB: string, listingId?: string | null) {
   const { data, error } = await supabase
     .from('conversations')
-    .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null, status: 'pending' })
+    .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null, status: 'active' })
     .select()
     .single();
   return { conversation: data as Conversation | null, error };
@@ -1650,7 +1662,7 @@ export async function createReport(reporterId: string, reason: string, listingId
     listing_id: listingId || null,
     reported_user_id: reportedUserId || null,
     reason,
-    status: 'pending',
+    status: 'active',
   }).select();
   return { report: data?.[0] || null, error };
 }
@@ -1774,7 +1786,7 @@ export async function createEnquiry(listingId: string, userId: string, message: 
     listing_id: listingId,
     user_id: userId,
     message,
-    status: 'pending',
+    status: 'active',
   }).select();
   return { enquiry: data?.[0] || null, error };
 }
@@ -1844,7 +1856,7 @@ export async function createReservation(
     listing_title: listingSnapshot?.title || '',
     listing_price: listingSnapshot?.price || 0,
     listing_location: listingSnapshot?.location || '',
-    status: 'pending',
+    status: 'active',
     manual_payment_status: 'unpaid',
     amount: 10000,
     currency: 'NGN',

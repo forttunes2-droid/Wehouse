@@ -134,32 +134,16 @@ export async function trackPhoto(userId: string) {
 }
 
 // ─── ROOMMATE SEARCH TRACKING ──────────────────────────
-// Normal users: 3 free searches (lifetime)
-// Premium users: unlimited
-// Creator: unlimited
+// Roommate matching is completely FREE for all users per business rules.
+// No limits. No premium requirement. Business rule #1.
 
-const FREE_ROOMMATE_SEARCHES = 3; // total lifetime
-
-export async function getRemainingRoommateSearches(userId: string): Promise<number> {
-  const role = await getUserRole(userId);
-  if (isCreatorRole(role)) return 9999;
-
-  const premium = await isPremiumActive(userId);
-  if (premium) return 9999;
-
-  const { count } = await supabase
-    .from('roommate_search_usage')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId);
-
-  return Math.max(0, FREE_ROOMMATE_SEARCHES - (count || 0));
+export async function getRemainingRoommateSearches(_userId: string): Promise<number> {
+  return 9999; // Always free
 }
 
-export async function trackRoommateSearch(userId: string) {
-  const role = await getUserRole(userId);
-  if (isCreatorRole(role)) return;
-
-  await supabase.from('roommate_search_usage').insert({ user_id: userId });
+export async function trackRoommateSearch(_userId: string) {
+  // No-op: roommate matching is free, no tracking needed
+  return;
 }
 
 // ─── SYSTEM PROMPT ──────────────────────────────────────

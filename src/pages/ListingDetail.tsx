@@ -4,7 +4,16 @@ import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 import type { Listing, Profile, ListingStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
 
-export default function ListingDetail(listingId: string, onNavigate: () => void) {
+interface ListingDetailProps {
+  listingId: string;
+  onNavigate: () => void;
+  isSaved: boolean;
+  onToggleSave: () => void;
+  profile: Profile;
+  onGoToChat: (convId: string) => void;
+}
+
+export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved, onToggleSave: _onToggleSave, profile, onGoToChat: _onGoToChat }: ListingDetailProps) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImage, setCurrentImage] = useState(0);
@@ -14,14 +23,6 @@ export default function ListingDetail(listingId: string, onNavigate: () => void)
   const [reserving, setReserving] = useState(false);
   const [agentInfo, setAgentInfo] = useState<{ user_id: string; username: string | null; avatar_url: string | null; role: string; phone: string | null } | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
-
-  // Get profile from localStorage or context
-  const [profile, setProfile] = useState<Profile | null>(null);
-  
-  useEffect(() => {
-    const stored = localStorage.getItem('profile');
-    if (stored) setProfile(JSON.parse(stored));
-  }, []);
 
   useEffect(() => {
     async function load() {
