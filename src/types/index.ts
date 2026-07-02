@@ -94,7 +94,7 @@ export interface RoleChangeHistory {
   created_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard';
+export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard' | 'property_owner';
 
 export type ListingStatus = 'available' | 'reserved' | 'closed' | 'pending_approval' | 'rejected';
 

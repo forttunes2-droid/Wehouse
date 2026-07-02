@@ -198,6 +198,7 @@ export function useAuth() {
     if (profile.role === 'assistant_state_admin') return 'assistant_state_admin';
     if (profile.role === 'staff') return 'staff_dashboard';
     if (profile.role === 'admin') return 'admin';
+    if (profile.role === 'property_owner') return 'property_owner';
     return 'dashboard';
   }, []);
 
@@ -271,7 +272,7 @@ export function useAuth() {
   }, [loadProfile]);
 
   // ─── Login / Signup success handler ───────────────
-  const handleLoginSuccess = useCallback(async (authId: string, email: string, role?: 'user' | 'worker') => {
+  const handleLoginSuccess = useCallback(async (authId: string, email: string, role?: 'user' | 'worker' | 'property_owner') => {
     handlingLoginRef.current = true;
     processedAuthIdRef.current = authId;
     setState((s) => ({ ...s, isLoading: true, error: '' }));
@@ -316,16 +317,26 @@ export function useAuth() {
         return;
       }
 
-      const isWorker = role === 'worker';
-      const { profile: newProfile, error: createError } = await createProfile(authId, email);
+      const chosenRole = role || 'user';
+      const { profile: newProfile, error: createError } = await createProfile(authId, email, chosenRole);
       if (createError || !newProfile) { setState({ page: 'login', profile: null, isLoading: false, error: createError?.message || 'Create failed' }); return; }
 
-      if (isWorker) {
-        await supabase.from('profiles').update({ role: 'worker', worker_status: 'pending' }).eq('user_id', newProfile.user_id);
-        const { data: updated } = await supabase.from('profiles').select('*').eq('user_id', newProfile.user_id).maybeSingle();
-        if (updated) { setState({ profile: updated as Profile, page: 'worker_setup', isLoading: false, error: '', kickedOut: false }); trackSession(updated.user_id, authId).catch(() => {}); createUserSession(updated.user_id, authId).catch(() => {}); return; }
+      // Route based on role
+      if (chosenRole === 'worker') {
+        setState({ profile: newProfile, page: 'worker_setup', isLoading: false, error: '', kickedOut: false });
+        trackSession(newProfile.user_id, authId).catch(() => {});
+        createUserSession(newProfile.user_id, authId).catch(() => {});
+        return;
       }
 
+      if (chosenRole === 'property_owner') {
+        setState({ profile: newProfile, page: 'setup', isLoading: false, error: '', kickedOut: false });
+        trackSession(newProfile.user_id, authId).catch(() => {});
+        createUserSession(newProfile.user_id, authId).catch(() => {});
+        return;
+      }
+
+      // Default: user
       setState({ profile: newProfile, page: 'setup', isLoading: false, error: '', kickedOut: false });
       trackSession(newProfile.user_id, authId).catch(() => {});
       createUserSession(newProfile.user_id, authId).catch(() => {});

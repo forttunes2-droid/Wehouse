@@ -69,16 +69,20 @@ export async function linkProfileToAuth(userId: string, authId: string) {
   return { profile: data as Profile | null, error };
 }
 
-// createProfile has two signatures:
-//   createProfile(authId, email)        — called from useAuth.ts
+// createProfile — unified signup for all external users
+//   createProfile(authId, email, role?)   — called from useAuth.ts (role = user/worker/property_owner)
 //   createProfile(userId, email, username, authId)  — direct calls
-export async function createProfile(authId: string, email: string): Promise<{ profile: Profile | null; error: any }>;
+export async function createProfile(authId: string, email: string, role?: 'user' | 'worker' | 'property_owner'): Promise<{ profile: Profile | null; error: any }>;
 export async function createProfile(userId: string, email: string, username: string, authId: string): Promise<{ profile: Profile | null; error: any }>;
 export async function createProfile(a: string, b: string, c?: string, d?: string) {
-  const authId = c === undefined ? a : d!;
+  // Determine which signature was used
+  const isDirectCall = c !== undefined && d !== undefined;
+  const authId = isDirectCall ? d! : a;
   const email = b;
-  const userId = c === undefined ? `WHU-${(Date.now() % 9000) + 1000}` : a;
-  const username = c === undefined ? email.split('@')[0].replace(/[^a-z0-9_]/g, '') + Math.floor(Math.random() * 1000) : c;
+  const userId = isDirectCall ? a : `WHU-${(Date.now() % 9000) + 1000}`;
+  const username = isDirectCall ? c : email.split('@')[0].replace(/[^a-z0-9_]/g, '') + Math.floor(Math.random() * 1000);
+  // Role: direct calls default to 'user', useAuth passes the chosen role
+  const role: 'user' | 'worker' | 'property_owner' = !isDirectCall && c ? c as any : 'user';
   const { data, error } = await supabase
     .from('profiles')
     .insert({
@@ -86,7 +90,8 @@ export async function createProfile(a: string, b: string, c?: string, d?: string
       email,
       username,
       auth_id: authId,
-      role: 'user',
+      role,
+      worker_status: role === 'worker' ? 'pending' : null,
       profile_complete: false,
     })
     .select()
