@@ -36,7 +36,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     price: '',
     currency: 'NGN',
     address: '',
-    property_type: '' as '' | 'house' | 'apartment' | 'duplex',
+    property_type: '' as '' | 'apartment' | 'hotel',
+    sub_type: '' as '' | 'short_let' | 'long_stay',
     bedrooms: '1',
     bathrooms: '1',
     availability_status: 'available' as 'available' | 'reserved' | 'closed',
@@ -208,7 +209,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       address: form.address.trim() || location.area || null,
       images,
       videos,
-      property_type: form.property_type || null,
+      property_type: form.sub_type ? 'apartment' : (form.property_type || null),
+      sub_type: form.sub_type || null,
       bedrooms: Number(form.bedrooms) || 1,
       bathrooms: Number(form.bathrooms) || 1,
       availability_status: listingStatus as any,
@@ -404,32 +406,31 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           />
         </div>
 
-        {/* Property Type — House, Apartment, or Duplex */}
+        {/* Property Type — Apartment only: Short Let or Long Stay */}
         <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Property Type *</label>
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Listing Type *</label>
+          <div className="grid grid-cols-2 gap-2 mb-3">
             {[
-              { value: 'house', label: 'House', desc: 'Standalone building' },
-              { value: 'apartment', label: 'Apartment', desc: 'Flat in a building' },
-              { value: 'duplex', label: 'Duplex', desc: 'Two-floor unit' },
+              { value: 'short_let', label: 'Short Let', desc: 'Daily or weekly rental' },
+              { value: 'long_stay', label: 'Long Stay', desc: 'Monthly or yearly rental' },
             ].map(opt => (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setForm({ ...form, property_type: form.property_type === opt.value ? '' : opt.value as any })}
+                onClick={() => setForm({ ...form, property_type: 'apartment', sub_type: form.sub_type === opt.value ? '' : opt.value as 'short_let' | 'long_stay' })}
                 className={`rounded-xl border p-3 text-left transition-all ${
-                  form.property_type === opt.value
+                  form.sub_type === opt.value
                     ? 'border-[#3B82F6] bg-[#3B82F6]/10'
                     : 'border-[#2A2A3A] bg-[#1A1A24] hover:border-[#3B82F6]/30'
                 }`}
               >
-                <p className={`text-xs font-semibold ${form.property_type === opt.value ? 'text-[#3B82F6]' : 'text-white'}`}>{opt.label}</p>
+                <p className={`text-xs font-semibold ${form.sub_type === opt.value ? 'text-[#3B82F6]' : 'text-white'}`}>{opt.label}</p>
                 <p className="text-[9px] text-[#5C5E72] mt-0.5">{opt.desc}</p>
               </button>
             ))}
           </div>
 
-          {/* Bedrooms & Bathrooms — all property types can configure */}
+          {/* Bedrooms & Bathrooms */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bedrooms</label>

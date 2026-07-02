@@ -13,11 +13,11 @@ interface SearchProps {
 // Popular states for quick browse
 const POPULAR_STATES = ['Lagos', 'Abuja (FCT)', 'Rivers', 'Kano', 'Oyo', 'Enugu', 'Delta', 'Kaduna'];
 
-// Property types for Nigerian housing
+// Property types: Apartment (Short Let / Long Stay) or Hotel
 const PROPERTY_TYPES = [
-  { value: 'house', label: 'House' },
-  { value: 'apartment', label: 'Apartment' },
-  { value: 'duplex', label: 'Duplex' },
+  { value: 'short_let', label: 'Short Let' },
+  { value: 'long_stay', label: 'Long Stay' },
+  { value: 'hotel', label: 'Hotel' },
 ];
 
 export default function Search({ onNavigate, savedIds, onToggleSave }: SearchProps) {
@@ -59,7 +59,10 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
       const matchesBed = !bedrooms || l.bedrooms >= bedrooms;
       const matchesState = !filterState || l.state === filterState;
       const matchesCity = !filterCity || l.city === filterCity;
-      const matchesType = !propertyType || (l.property_type || 'apartment') === propertyType;
+      const matchesType = !propertyType ||
+        (propertyType === 'hotel' && l.property_type === 'hotel') ||
+        (propertyType === 'short_let' && l.sub_type === 'short_let') ||
+        (propertyType === 'long_stay' && l.sub_type === 'long_stay');
       return matchesQuery && matchesPrice && matchesBed && matchesState && matchesCity && matchesType;
     });
   }, [listings, query, priceMax, bedrooms, filterState, filterCity, propertyType]);
@@ -77,7 +80,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
   const listingsByType = useMemo(() => {
     const map: Record<string, number> = {};
     listings.forEach(l => {
-      const type = l.property_type || 'apartment';
+      const type = l.property_type === 'hotel' ? 'hotel' : (l.sub_type || 'long_stay');
       map[type] = (map[type] || 0) + 1;
     });
     return map;

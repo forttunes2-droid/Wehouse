@@ -114,7 +114,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const availableTypes = useMemo(() => {
     const counts: Record<string, number> = {};
     listings.forEach(l => {
-      const type = l.property_type || 'apartment';
+      const type = l.property_type === 'hotel' ? 'hotel' : (l.sub_type || 'long_stay');
       counts[type] = (counts[type] || 0) + 1;
     });
     return Object.entries(counts)

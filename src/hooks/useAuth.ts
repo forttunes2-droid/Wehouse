@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession, createUserSession, deactivateUserSession, isSessionActive, getStoredSessionId, updateSessionLastSeen } from '@/lib/supabase';
+import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession, createUserSession, deactivateUserSession, getStoredSessionId, updateSessionLastSeen } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -309,26 +309,51 @@ export function useAuth() {
     setTimeout(() => window.location.reload(), 100);
   }, [state.profile]);
 
-  // ─── Single-device session check ──────────────────
+  // ─── Session heartbeat (no aggressive kicking) ───
+  // Just update last_seen periodically for audit. If the session row
+  // goes missing (rare), silently recreate it. Never kick the user out
+  // just because their phone went to sleep.
   useEffect(() => {
     if (!state.profile || state.page === 'login' || state.page === 'setup' || state.page === 'worker_setup') return;
 
-    const sessionId = getStoredSessionId();
-    if (!sessionId) return;
+    let sessionId = getStoredSessionId();
+    const userId = state.profile.user_id;
+    const authId = state.profile.auth_id;
 
+    // Recover or create session record
+    async function ensureSession() {
+      if (!sessionId) {
+        // Try to find an existing active session for this user
+        const { data: existing } = await supabase
+          .from('user_sessions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (existing?.id) {
+          sessionId = existing.id;
+          localStorage.setItem('wh_session_id', sessionId!);
+        } else {
+          // Create a new session
+          const newId = await createUserSession(userId, authId);
+          if (newId) sessionId = newId;
+        }
+      }
+    }
+    ensureSession();
+
+    // Gentle heartbeat — just update last_seen, never kick out
     const interval = setInterval(async () => {
       try {
-        const active = await isSessionActive(sessionId);
-        if (!active) {
-          clearInterval(interval);
-          await supabase.auth.signOut({ scope: 'global' });
-          wipeOnLogout();
-          setState({ page: 'login', profile: null, isLoading: false, error: '', kickedOut: true });
-        } else {
+        if (sessionId) {
           await updateSessionLastSeen(sessionId);
+        } else {
+          await ensureSession();
         }
-      } catch { /* network issues, don't logout */ }
-    }, 30000);
+      } catch { /* network issues — ignore */ }
+    }, 60000); // Every 60 seconds
 
     return () => clearInterval(interval);
   }, [state.profile?.user_id, state.page]);

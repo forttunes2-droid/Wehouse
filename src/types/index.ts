@@ -126,7 +126,8 @@ export interface Listing {
   address: string | null;
   images: string[];
   videos: string[];
-  property_type: 'house' | 'apartment' | 'duplex' | null;  // null = standard bedroom-based
+  property_type: PropertyType | null;  // 'apartment' (short_let/long_stay) or 'hotel'
+  sub_type: ApartmentSubType | null;    // 'short_let' or 'long_stay' (for apartments only)
   bedrooms: number;
   bathrooms: number;
   availability_status: 'available' | 'reserved' | 'closed';
@@ -543,26 +544,24 @@ export interface StaffPermissionRecord {
 // Replaces: PropertyOwner, Hotel types. One system for all accommodation.
 // ═══════════════════════════════════════════════════════════════
 
-export type PropertyType = 'house' | 'apartment' | 'duplex' | 'hotel' | 'resort' | 'short_let' | 'lodge';
+// Property types: Apartment (Short Let or Long Stay) or Hotel
+// Short Let = daily/weekly rental | Long Stay = monthly/yearly rental
+export type PropertyType = 'apartment' | 'hotel';
+export type ApartmentSubType = 'short_let' | 'long_stay';
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
-  house: 'House',
   apartment: 'Apartment',
-  duplex: 'Duplex',
   hotel: 'Hotel',
-  resort: 'Resort',
-  short_let: 'Short Let',
-  lodge: 'Lodge',
 };
 
 export const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  house: '🏠',
   apartment: '🏢',
-  duplex: '🏘️',
   hotel: '🏨',
-  resort: '🏕',
-  short_let: '🏠',
-  lodge: '🏢',
+};
+
+export const APARTMENT_SUB_LABELS: Record<ApartmentSubType, string> = {
+  short_let: 'Short Let',
+  long_stay: 'Long Stay',
 };
 
 export type PropertyStatus = 'pending_inspection' | 'under_inspection' | 'pending_agreement' | 'pending_approval' | 'approved' | 'rejected' | 'active' | 'inactive' | 'suspended';
