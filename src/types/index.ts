@@ -94,7 +94,7 @@ export interface RoleChangeHistory {
   created_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard' | 'property_owner';
+export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard' | 'property_owner' | 'property_partner';
 
 export type ListingStatus = 'available' | 'reserved' | 'closed' | 'pending_approval' | 'rejected';
 
@@ -700,7 +700,7 @@ export interface PropertyOwner {
   bank_account_name: string | null;
   tax_id: string | null;
   commission_rate: number;
-  status: PropertyOwnerStatus;
+  status: 'active' | 'inactive' | 'suspended';
   notes: string | null;
   created_by: string;
   created_at: string;

@@ -72,7 +72,7 @@ export async function linkProfileToAuth(userId: string, authId: string) {
 // createProfile — unified signup for all external users
 //   createProfile(authId, email, role?)   — called from useAuth.ts (role = user/worker/property_owner)
 //   createProfile(userId, email, username, authId)  — direct calls
-export async function createProfile(authId: string, email: string, role?: 'user' | 'worker' | 'property_owner'): Promise<{ profile: Profile | null; error: any }>;
+export async function createProfile(authId: string, email: string, role?: 'user' | 'worker' | 'property_partner'): Promise<{ profile: Profile | null; error: any }>;
 export async function createProfile(userId: string, email: string, username: string, authId: string): Promise<{ profile: Profile | null; error: any }>;
 export async function createProfile(a: string, b: string, c?: string, d?: string) {
   // Determine which signature was used
@@ -82,7 +82,7 @@ export async function createProfile(a: string, b: string, c?: string, d?: string
   const userId = isDirectCall ? a : `WHU-${(Date.now() % 9000) + 1000}`;
   const username = isDirectCall ? c : email.split('@')[0].replace(/[^a-z0-9_]/g, '') + Math.floor(Math.random() * 1000);
   // Role: direct calls default to 'user', useAuth passes the chosen role
-  const role: 'user' | 'worker' | 'property_owner' = !isDirectCall && c ? c as any : 'user';
+  const role: 'user' | 'worker' | 'property_partner' = !isDirectCall && c ? c as any : 'user';
   const { data, error } = await supabase
     .from('profiles')
     .insert({
