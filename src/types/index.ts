@@ -573,8 +573,13 @@ export const WEHOUSE_FEES = {
   WORKER_BOOKING_FEE_USER: 300,          // N300 per booking (user pays)
   WORKER_COMMISSION_PERCENT: 12.5,        // 12.5% of job value (worker pays)
 
-  // Property rentals: WeHouse takes commission from rent
-  RENTAL_COMMISSION_PERCENT: 10,          // 10% of annual rent (from landlord)
+  // Long Stay (monthly/yearly): Lower commission — tenant stays long-term, less management
+  LONG_STAY_COMMISSION_PERCENT: 10,       // 10% of annual rent (from landlord)
+
+  // Short Let (daily/weekly): Higher commission — more management, cleaning, turnover
+  SHORT_STAY_COMMISSION_PERCENT: 20,      // 20% of booking value (from landlord)
+
+  // Reservation fee for 72-hour property hold
   RESERVATION_FEE: 5000,                  // N5,000 to reserve a property for 72hrs
 
   // Hotel bookings
@@ -582,6 +587,11 @@ export const WEHOUSE_FEES = {
 
   // Late payment / penalty fees
   LATE_PAYMENT_FEE_PERCENT: 5,            // 5% late fee on overdue installments
+
+  // Security deposit: held in escrow, returned after stay if no damage
+  // Amount is SET BY PROPERTY OWNER (default 10% of rent, min N10,000)
+  SECURITY_DEPOSIT_DEFAULT_PERCENT: 10,
+  SECURITY_DEPOSIT_MIN_NGN: 10000,
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -619,18 +629,34 @@ export const RENTAL_PLANS: RentalPlan[] = [
 ];
 
 // Calculate payment breakdown for a rental plan
-export function calculateRentalPayments(annualRent: number, durationYears: RentalDuration) {
-  const wehouseCommission = Math.round(annualRent * (WEHOUSE_FEES.RENTAL_COMMISSION_PERCENT / 100));
+// subType: 'short_let' uses higher commission (20%), 'long_stay' uses lower (10%)
+export function calculateRentalPayments(
+  annualRent: number,
+  durationYears: RentalDuration,
+  subType: 'short_let' | 'long_stay' = 'long_stay'
+) {
+  const commissionPercent = subType === 'short_let'
+    ? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT
+    : WEHOUSE_FEES.LONG_STAY_COMMISSION_PERCENT;
+  const wehouseCommission = Math.round(annualRent * (commissionPercent / 100));
   const netAnnualRent = annualRent - wehouseCommission;
+
+  // Security deposit: owner's preference (default 10%, min N10,000)
+  const securityDeposit = Math.max(
+    WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN,
+    Math.round(annualRent * (WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100))
+  );
 
   if (durationYears === 1) {
     return {
       totalRent: annualRent,
-      wehouseCommission: wehouseCommission,
+      wehouseCommission,
       landlordReceives: netAnnualRent,
       year1Upfront: annualRent,
       monthlyInstallments: [] as { month: number; amount: number }[],
       reservationFee: WEHOUSE_FEES.RESERVATION_FEE,
+      securityDeposit,
+      commissionPercent,
     };
   }
 
@@ -651,6 +677,8 @@ export function calculateRentalPayments(annualRent: number, durationYears: Renta
     year1Upfront,
     monthlyInstallments: installments,
     reservationFee: WEHOUSE_FEES.RESERVATION_FEE,
+    securityDeposit,
+    commissionPercent,
   };
 }
 

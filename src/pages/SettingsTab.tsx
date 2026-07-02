@@ -231,14 +231,19 @@ function GeneralSettings({ profile, isCreator, onBack }: { profile: Profile; isC
 // FINANCE SETTINGS — Fee configuration (moved from separate tab)
 // ═══════════════════════════════════════════════════════════
 
+
+
 function FinanceSettings({ onBack }: { onBack: () => void }) {
   const [fees, setFees] = useState({
-    rentalCommission: 10,
+    longStayCommission: 10,
+    shortStayCommission: 20,
     workerCommission: 12.5,
     workerBookingFee: 300,
     reservationFee: 5000,
     hotelCommission: 15,
     lateFeePercent: 5,
+    securityDepositPercent: 10,
+    securityDepositMin: 10000,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -247,19 +252,23 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     async function load() {
       const { data } = await supabase.from('platform_settings').select('key, value').in('key', [
-        'rental_commission_percent', 'worker_commission_percent', 'worker_booking_fee',
-        'reservation_fee', 'hotel_commission_percent', 'late_fee_percent',
+        'long_stay_commission_percent', 'short_stay_commission_percent', 'worker_commission_percent',
+        'worker_booking_fee', 'reservation_fee', 'hotel_commission_percent', 'late_fee_percent',
+        'security_deposit_percent', 'security_deposit_min',
       ]);
       if (data) {
         const map: Record<string, number> = {};
-        data.forEach(r => { map[r.key] = Number(r.value) || 0; });
+        data.forEach((r: any) => { map[r.key] = Number(r.value) || 0; });
         setFees(f => ({
-          rentalCommission: map['rental_commission_percent'] || f.rentalCommission,
+          longStayCommission: map['long_stay_commission_percent'] || f.longStayCommission,
+          shortStayCommission: map['short_stay_commission_percent'] || f.shortStayCommission,
           workerCommission: map['worker_commission_percent'] || f.workerCommission,
           workerBookingFee: map['worker_booking_fee'] || f.workerBookingFee,
           reservationFee: map['reservation_fee'] || f.reservationFee,
           hotelCommission: map['hotel_commission_percent'] || f.hotelCommission,
           lateFeePercent: map['late_fee_percent'] || f.lateFeePercent,
+          securityDepositPercent: map['security_deposit_percent'] || f.securityDepositPercent,
+          securityDepositMin: map['security_deposit_min'] || f.securityDepositMin,
         }));
       }
       setLoading(false);
@@ -270,12 +279,15 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
   async function handleSave() {
     setSaving(true);
     const updates = [
-      { key: 'rental_commission_percent', value: String(fees.rentalCommission) },
+      { key: 'long_stay_commission_percent', value: String(fees.longStayCommission) },
+      { key: 'short_stay_commission_percent', value: String(fees.shortStayCommission) },
       { key: 'worker_commission_percent', value: String(fees.workerCommission) },
       { key: 'worker_booking_fee', value: String(fees.workerBookingFee) },
       { key: 'reservation_fee', value: String(fees.reservationFee) },
       { key: 'hotel_commission_percent', value: String(fees.hotelCommission) },
       { key: 'late_fee_percent', value: String(fees.lateFeePercent) },
+      { key: 'security_deposit_percent', value: String(fees.securityDepositPercent) },
+      { key: 'security_deposit_min', value: String(fees.securityDepositMin) },
     ];
     for (const u of updates) {
       await supabase.from('platform_settings').upsert({ key: u.key, value: u.value }, { onConflict: 'key' });
@@ -286,12 +298,9 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
     toast.success('Fee settings saved');
   }
 
-  function FeeCard({ label, desc, value, suffix, onChange, min = 0, max = 50000 }: {
-    label: string; desc: string; value: number; suffix: string;
-    onChange: (v: number) => void; min?: number; max?: number;
-  }) {
+  function FeeCard({ label, desc, value, suffix, onChange, min = 0, max = 100 }:
+    { label: string; desc: string; value: number; suffix: string; onChange: (v: number) => void; min?: number; max?: number }) {
     const [local, setLocal] = useState(String(value));
-    // Sync from parent when value prop changes (initial load, save, etc.)
     useEffect(() => { setLocal(String(value)); }, [value]);
     return (
       <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
@@ -299,27 +308,12 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
           <p className="text-sm font-semibold text-white">{label}</p>
           <div className="flex items-center gap-2">
             <input
-              type="text"
-              inputMode="decimal"
-              value={local}
-              onChange={e => {
-                const raw = e.target.value;
-                // Allow typing digits and one decimal point
-                if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
-                  setLocal(raw);
-                  const n = raw === '' ? 0 : Number(raw);
-                  if (!isNaN(n) && n >= min && n <= max) onChange(n);
-                }
-              }}
-              onBlur={() => {
-                const n = local === '' ? 0 : Number(local);
-                const clamped = Math.max(min, Math.min(max, isNaN(n) ? 0 : n));
-                setLocal(String(clamped));
-                onChange(clamped);
-              }}
+              type="text" inputMode="decimal" value={local}
+              onChange={e => { const r = e.target.value; if (r === '' || /^\d*\.?\d*$/.test(r)) { setLocal(r); const n = r === '' ? 0 : Number(r); if (!isNaN(n) && n >= min && n <= max) onChange(n); } }}
+              onBlur={() => { const n = local === '' ? 0 : Number(local); const c = Math.max(min, Math.min(max, isNaN(n) ? 0 : n)); setLocal(String(c)); onChange(c); }}
               className="w-20 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-emerald-500"
             />
-            <span className="text-xs text-[#5C5E72] w-10">{suffix}</span>
+            <span className="text-xs text-[#5C5E72] w-12">{suffix}</span>
           </div>
         </div>
         <p className="text-[10px] text-[#5C5E72]">{desc}</p>
@@ -329,9 +323,12 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
 
   if (loading) { return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>; }
 
+  const longWh = Math.round(2000000 * fees.longStayCommission / 100);
+  const shortWh = Math.round(2000000 * fees.shortStayCommission / 100);
+  const secDep = Math.max(fees.securityDepositMin, Math.round(2000000 * fees.securityDepositPercent / 100));
+
   return (
     <div className="space-y-4">
-      {/* Back button + header */}
       <div className="flex items-center gap-3">
         <button onClick={onBack} className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
@@ -342,35 +339,48 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Property Partners */}
       <div className="space-y-3">
-        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Property Partners (Landlords)</h3>
-        <FeeCard label="Rental Commission" desc="Percentage of annual rent WeHouse keeps. Rest goes to partner." value={fees.rentalCommission} suffix="%" onChange={v => setFees(f => ({ ...f, rentalCommission: v }))} max={50} />
-        <FeeCard label="Reservation Fee" desc="What renters pay to hold a property for 72 hours. Non-refundable." value={fees.reservationFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, reservationFee: v }))} max={50000} />
-        <FeeCard label="Hotel Booking Commission" desc="Percentage of hotel booking value WeHouse keeps." value={fees.hotelCommission} suffix="%" onChange={v => setFees(f => ({ ...f, hotelCommission: v }))} max={50} />
-        <FeeCard label="Late Payment Fee" desc="Percentage added to overdue monthly installment payments." value={fees.lateFeePercent} suffix="%" onChange={v => setFees(f => ({ ...f, lateFeePercent: v }))} max={20} />
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Apartments</h3>
+        <FeeCard label="Long Stay Commission" desc="Monthly/yearly rentals. Lower because tenants stay long-term." value={fees.longStayCommission} suffix="%" onChange={v => setFees(f => ({ ...f, longStayCommission: v }))} max={50} />
+        <FeeCard label="Short Stay Commission" desc="Daily/weekly rentals. Higher because of cleaning, turnover, management." value={fees.shortStayCommission} suffix="%" onChange={v => setFees(f => ({ ...f, shortStayCommission: v }))} max={50} />
+        <FeeCard label="Reservation Fee" desc="What renters pay to hold a property for 72 hours." value={fees.reservationFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, reservationFee: v }))} max={50000} />
+        <FeeCard label="Security Deposit %" desc="Percentage of rent held as security. Min amount applies." value={fees.securityDepositPercent} suffix="%" onChange={v => setFees(f => ({ ...f, securityDepositPercent: v }))} max={100} />
+        <FeeCard label="Security Deposit Min" desc="Minimum security deposit amount regardless of percentage." value={fees.securityDepositMin} suffix="NGN" onChange={v => setFees(f => ({ ...f, securityDepositMin: v }))} max={1000000} />
+        <FeeCard label="Late Payment Fee" desc="Added to overdue monthly installment payments." value={fees.lateFeePercent} suffix="%" onChange={v => setFees(f => ({ ...f, lateFeePercent: v }))} max={20} />
       </div>
 
-      {/* Service Workers */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Hotels</h3>
+        <FeeCard label="Hotel Commission" desc="Percentage of hotel booking value WeHouse keeps." value={fees.hotelCommission} suffix="%" onChange={v => setFees(f => ({ ...f, hotelCommission: v }))} max={50} />
+      </div>
+
       <div className="space-y-3">
         <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Service Workers</h3>
-        <FeeCard label="Worker Commission" desc="Percentage taken from worker earnings per completed job." value={fees.workerCommission} suffix="%" onChange={v => setFees(f => ({ ...f, workerCommission: v }))} max={50} />
-        <FeeCard label="User Booking Fee" desc="Flat fee users pay per worker booking. Covers escrow protection." value={fees.workerBookingFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, workerBookingFee: v }))} max={2000} />
+        <FeeCard label="Worker Commission" desc="Taken from worker earnings per completed job." value={fees.workerCommission} suffix="%" onChange={v => setFees(f => ({ ...f, workerCommission: v }))} max={50} />
+        <FeeCard label="User Booking Fee" desc="Flat fee users pay per worker booking." value={fees.workerBookingFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, workerBookingFee: v }))} max={2000} />
       </div>
 
-      {/* Preview */}
       <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
-        <h3 className="text-xs font-semibold text-white">Live Preview</h3>
+        <h3 className="text-xs font-semibold text-white">Live Preview (N2,000,000/year property)</h3>
 
         <div className="rounded-xl bg-[#1A1A24] p-3">
-          <p className="text-[10px] font-semibold text-emerald-400 mb-2">Property Rental at N2,000,000/year</p>
+          <p className="text-[10px] font-semibold text-emerald-400 mb-2">Long Stay (Yearly Tenant)</p>
           <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Annual Rent</span><span className="text-white">N2,000,000</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.rentalCommission}%)</span><span className="text-amber-400">N{Math.round(2000000 * fees.rentalCommission / 100).toLocaleString()}</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400 font-medium">N{Math.round(2000000 * (100 - fees.rentalCommission) / 100).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.longStayCommission}%)</span><span className="text-amber-400">N{longWh.toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Security Deposit</span><span className="text-blue-400">N{secDep.toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400 font-medium">N{(2000000 - longWh).toLocaleString()}</span></div>
         </div>
 
         <div className="rounded-xl bg-[#1A1A24] p-3">
-          <p className="text-[10px] font-semibold text-blue-400 mb-2">Worker Job at N5,000</p>
+          <p className="text-[10px] font-semibold text-orange-400 mb-2">Short Stay (Daily/Weekly Guest)</p>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Annual Rent Equivalent</span><span className="text-white">N2,000,000</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.shortStayCommission}%)</span><span className="text-amber-400">N{shortWh.toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Why higher?</span><span className="text-orange-400">More cleaning, turnover, management</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400 font-medium">N{(2000000 - shortWh).toLocaleString()}</span></div>
+        </div>
+
+        <div className="rounded-xl bg-[#1A1A24] p-3">
+          <p className="text-[10px] font-semibold text-blue-400 mb-2">Worker Job (N5,000)</p>
           <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Agreed Price</span><span className="text-white">N5,000</span></div>
           <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">User Booking Fee</span><span className="text-amber-400">N{fees.workerBookingFee}</span></div>
           <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.workerCommission}%)</span><span className="text-amber-400">N{Math.round(5000 * fees.workerCommission / 100).toLocaleString()}</span></div>

@@ -4,15 +4,16 @@ import type { RentalDuration } from '@/types';
 
 interface Props {
   annualRent: number;
+  subType?: 'short_let' | 'long_stay';
   onSelectPlan: (plan: { durationYears: RentalDuration; year1Upfront: number; monthlyInstallment: number }) => void;
 }
 
-export default function RentalPlanSelector({ annualRent, onSelectPlan }: Props) {
+export default function RentalPlanSelector({ annualRent, subType = 'long_stay', onSelectPlan }: Props) {
   const [selectedDuration, setSelectedDuration] = useState<RentalDuration>(1);
 
   const breakdown = useMemo(() => {
-    return calculateRentalPayments(annualRent, selectedDuration);
-  }, [annualRent, selectedDuration]);
+    return calculateRentalPayments(annualRent, selectedDuration, subType);
+  }, [annualRent, selectedDuration, subType]);
 
   const handleSelect = (years: RentalDuration) => {
     setSelectedDuration(years);
@@ -64,8 +65,13 @@ export default function RentalPlanSelector({ annualRent, onSelectPlan }: Props) 
         </div>
 
         <div className="flex justify-between text-xs">
-          <span className="text-[#5C5E72]">WeHouse Commission ({WEHOUSE_FEES.RENTAL_COMMISSION_PERCENT}%)</span>
+          <span className="text-[#5C5E72]">WeHouse Commission ({breakdown.commissionPercent}%)</span>
           <span className="text-amber-400 font-medium">N{breakdown.wehouseCommission.toLocaleString()}</span>
+        </div>
+
+        <div className="flex justify-between text-xs">
+          <span className="text-[#5C5E72]">Security Deposit (held in escrow)</span>
+          <span className="text-blue-400 font-medium">N{breakdown.securityDeposit.toLocaleString()}</span>
         </div>
 
         <div className="border-t border-white/[0.04] pt-2 flex justify-between text-xs">
