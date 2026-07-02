@@ -6,26 +6,35 @@ import { Toaster, toast } from 'sonner';
 interface PropertyOwnerDashboardProps {
   profile: Profile;
   onLogout: () => void;
+  onNavigate?: (page: string) => void;
 }
 
 type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'earnings';
 
-export default function PropertyOwnerDashboard({ profile, onLogout }: PropertyOwnerDashboardProps) {
+export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }: PropertyOwnerDashboardProps) {
   const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-6">
       <Toaster position="top-center" richColors />
 
-      {/* Header */}
+      {/* Header with Back Button */}
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-white">Property Owner</h1>
-            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onNavigate?.('home')}
+            className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#8A8B9C] hover:text-white hover:border-[#3B82F6]/30 transition-all"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-white">Property Partner</h1>
+            <p className="text-[10px] text-[#5C5E72] truncate">{profile.email}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Owner</span>
+            <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
             <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-white px-2 py-1">Logout</button>
           </div>
         </div>
@@ -55,9 +64,9 @@ export default function PropertyOwnerDashboard({ profile, onLogout }: PropertyOw
       </div>
 
       <main className="px-5 py-4">
-        {activeTab === 'overview' && <OverviewTab profile={profile} />}
+        {activeTab === 'overview' && <OverviewTab profile={profile} onRequestInspection={() => setActiveTab('request')} />}
         {activeTab === 'properties' && <PropertiesTab ownerId={profile.user_id} />}
-        {activeTab === 'request' && <RequestInspectionTab profile={profile} />}
+        {activeTab === 'request' && <RequestInspectionTab profile={profile} onSubmitted={() => setActiveTab('requests')} />}
         {activeTab === 'requests' && <MyRequestsTab ownerId={profile.user_id} />}
         {activeTab === 'earnings' && <EarningsTab ownerId={profile.user_id} />}
       </main>
@@ -69,7 +78,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout }: PropertyOw
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════
 
-function OverviewTab({ profile }: { profile: Profile }) {
+function OverviewTab({ profile, onRequestInspection }: { profile: Profile; onRequestInspection?: () => void }) {
   const [stats, setStats] = useState({ properties: 0, requests: 0, earnings: 0 });
 
   useEffect(() => {
@@ -106,8 +115,8 @@ function OverviewTab({ profile }: { profile: Profile }) {
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Quick Actions</h3>
         <button
-          onClick={() => {}}
-          className="w-full rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors"
+          onClick={onRequestInspection}
+          className="w-full rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors active:scale-[0.98]"
         >
           <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
@@ -173,14 +182,14 @@ function PropertiesTab({ ownerId }: { ownerId: string }) {
 // REQUEST INSPECTION TAB
 // ═══════════════════════════════════════════════════════════════
 
-function RequestInspectionTab({ profile }: { profile: Profile }) {
+function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSubmitted?: () => void }) {
   const [form, setForm] = useState({
     property_address: '',
     property_city: '',
     property_state: '',
-    property_type: 'apartment' as string,
-    bedrooms: '',
-    bathrooms: '',
+    property_type: '' as 'house' | 'apartment' | 'duplex' | '',
+    bedrooms: '1',
+    bathrooms: '1',
     expected_rent: '',
     description: '',
     owner_phone: profile.phone || '',
@@ -191,6 +200,10 @@ function RequestInspectionTab({ profile }: { profile: Profile }) {
     e.preventDefault();
     if (!form.property_address || !form.property_city || !form.property_state) {
       toast.error('Address, city, and state are required');
+      return;
+    }
+    if (!form.property_type) {
+      toast.error('Please select a property type');
       return;
     }
 
@@ -206,8 +219,8 @@ function RequestInspectionTab({ profile }: { profile: Profile }) {
       property_city: form.property_city,
       property_state: form.property_state,
       property_type: form.property_type,
-      bedrooms: form.bedrooms ? parseInt(form.bedrooms) : null,
-      bathrooms: form.bathrooms ? parseInt(form.bathrooms) : null,
+      bedrooms: parseInt(form.bedrooms),
+      bathrooms: parseInt(form.bathrooms),
       expected_rent: form.expected_rent ? parseFloat(form.expected_rent) : null,
       description: form.description,
       status: 'pending',
@@ -221,8 +234,15 @@ function RequestInspectionTab({ profile }: { profile: Profile }) {
     }
 
     toast.success('Inspection request submitted! WeHouse will review and schedule.');
-    setForm({ property_address: '', property_city: '', property_state: '', property_type: 'apartment', bedrooms: '', bathrooms: '', expected_rent: '', description: '', owner_phone: profile.phone || '' });
+    setForm({ property_address: '', property_city: '', property_state: '', property_type: '', bedrooms: '1', bathrooms: '1', expected_rent: '', description: '', owner_phone: profile.phone || '' });
+    onSubmitted?.();
   }
+
+  const propertyTypes = [
+    { value: 'house' as const, label: 'House', icon: '🏠', desc: 'Standalone building' },
+    { value: 'apartment' as const, label: 'Apartment', icon: '🏢', desc: 'Flat in a building' },
+    { value: 'duplex' as const, label: 'Duplex', icon: '🏘️', desc: 'Two-floor unit' },
+  ];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -236,33 +256,66 @@ function RequestInspectionTab({ profile }: { profile: Profile }) {
       <div className="space-y-3">
         <Input label="Property Address *" value={form.property_address} onChange={v => setForm(f => ({ ...f, property_address: v }))} placeholder="123 Main Street, Block 4" required />
         <div className="grid grid-cols-2 gap-3">
-          <Input label="City *" value={form.property_city} onChange={v => setForm(f => ({ ...f, property_city: v }))} placeholder="Lagos" required />
+          <Input label="City *" value={form.property_city} onChange={v => setForm(f => ({ ...f, property_city: v }))} placeholder="Ikeja" required />
           <Input label="State *" value={form.property_state} onChange={v => setForm(f => ({ ...f, property_state: v }))} placeholder="Lagos" required />
         </div>
+
+        {/* Property Type — Card Selection (no native radio buttons) */}
+        <div>
+          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Property Type *</label>
+          <div className="grid grid-cols-3 gap-2">
+            {propertyTypes.map((pt) => (
+              <button
+                key={pt.value}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, property_type: pt.value }))}
+                className={`rounded-xl border p-3 text-center transition-all ${
+                  form.property_type === pt.value
+                    ? 'border-violet-500 bg-violet-500/10'
+                    : 'border-[#232330] bg-[#1A1A24] hover:border-violet-500/30'
+                }`}
+              >
+                <span className="text-xl">{pt.icon}</span>
+                <p className={`text-xs font-semibold mt-1 ${form.property_type === pt.value ? 'text-violet-400' : 'text-white'}`}>{pt.label}</p>
+                <p className="text-[9px] text-[#5C5E72] mt-0.5">{pt.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
-          <Select label="Property Type" value={form.property_type} onChange={v => setForm(f => ({ ...f, property_type: v }))} options={[
-            { value: 'apartment', label: 'Apartment' },
-            { value: 'house', label: 'House' },
-            { value: 'self_contain', label: 'Self Contain' },
-            { value: 'mini_flat', label: 'Mini Flat' },
-            { value: 'duplex', label: 'Duplex' },
-            { value: 'bungalow', label: 'Bungalow' },
-            { value: 'mansion', label: 'Mansion' },
-          ]} />
-          <Input label="Expected Rent (N)" value={form.expected_rent} onChange={v => setForm(f => ({ ...f, expected_rent: v }))} placeholder="500000" type="number" />
+          <Input label="Expected Rent (N/year)" value={form.expected_rent} onChange={v => setForm(f => ({ ...f, expected_rent: v }))} placeholder="500000" type="number" />
+          <Input label="Phone" value={form.owner_phone} onChange={v => setForm(f => ({ ...f, owner_phone: v }))} placeholder="08012345678" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Bedrooms" value={form.bedrooms} onChange={v => setForm(f => ({ ...f, bedrooms: v }))} placeholder="2" type="number" />
-          <Input label="Bathrooms" value={form.bathrooms} onChange={v => setForm(f => ({ ...f, bathrooms: v }))} placeholder="2" type="number" />
+          <div>
+            <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Bedrooms</label>
+            <select
+              value={form.bedrooms}
+              onChange={e => setForm(f => ({ ...f, bedrooms: e.target.value }))}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500"
+            >
+              {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Bathrooms</label>
+            <select
+              value={form.bathrooms}
+              onChange={e => setForm(f => ({ ...f, bathrooms: e.target.value }))}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500"
+            >
+              {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
         </div>
-        <Input label="Phone" value={form.owner_phone} onChange={v => setForm(f => ({ ...f, owner_phone: v }))} placeholder="08012345678" />
         <TextArea label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Tell us about your property..." rows={4} />
       </div>
 
       <button
         type="submit"
         disabled={submitting}
-        className="w-full h-12 rounded-xl bg-violet-500 text-white font-semibold hover:bg-violet-600 transition-colors disabled:opacity-50"
+        className="w-full h-12 rounded-xl bg-violet-500 text-white font-semibold hover:bg-violet-600 transition-colors disabled:opacity-50 active:scale-[0.98]"
       >
         {submitting ? 'Submitting...' : 'Submit Inspection Request'}
       </button>
@@ -428,21 +481,6 @@ function Input({ label, value, onChange, placeholder, type = 'text', required }:
         required={required}
         className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder:text-[#5C5E72] outline-none focus:border-violet-500"
       />
-    </div>
-  );
-}
-
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
-  return (
-    <div>
-      <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500"
-      >
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
     </div>
   );
 }

@@ -75,12 +75,24 @@ export async function getSessionHistory(userId: string, limit: number = 20) {
 }
 
 // ─── SINGLE-DEVICE SESSION MANAGEMENT ──────────────
-// When user logs in on a new device, old device gets logged out
+// When user logs in on a new device, old device gets logged out.
+// BUT: same device (phone turn off/on) should NOT trigger logout.
+// Grace period: 5 minutes of no heartbeat before considering session stale.
 
 const SESSION_STORAGE_KEY = 'wh_session_id';
+const GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function createUserSession(userId: string, authId: string): Promise<string | null> {
   const { device, os, browser } = parseDeviceInfo();
+
+  // Deactivate ALL previous sessions for this user first
+  await supabase
+    .from('user_sessions')
+    .update({ is_active: false, is_current: false, logout_time: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  // Create new session
   const { data, error } = await supabase
     .from('user_sessions')
     .insert({
@@ -112,13 +124,50 @@ export async function deactivateUserSession(sessionId: string) {
   localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
+/**
+ * Check if a session is still the active one.
+ * A session is active IF:
+ * 1. The session row exists and is_active=true, AND
+ * 2. There is no NEWER session for the same user (prevents false logout on phone restart)
+ * 3. OR the last_seen is within the grace period (phone turned off briefly)
+ */
 export async function isSessionActive(sessionId: string): Promise<boolean> {
-  const { data } = await supabase
+  // Get the current session details
+  const { data: currentSession } = await supabase
     .from('user_sessions')
-    .select('is_active')
+    .select('is_active, user_id, last_seen, created_at')
     .eq('id', sessionId)
     .maybeSingle();
-  return data?.is_active === true;
+
+  if (!currentSession) return false;
+  if (!currentSession.is_active) return false;
+
+  // Check if there's a newer session for the same user
+  const { data: newerSessions } = await supabase
+    .from('user_sessions')
+    .select('id, created_at')
+    .eq('user_id', currentSession.user_id)
+    .eq('is_active', true)
+    .gt('created_at', currentSession.created_at)
+    .limit(1);
+
+  // If there's a newer active session, this one is superseded
+  if (newerSessions && newerSessions.length > 0) {
+    // But wait — if our last_seen is very recent (within grace period),
+    // it might be a race condition. Allow it.
+    const lastSeen = currentSession.last_seen ? new Date(currentSession.last_seen).getTime() : 0;
+    const now = Date.now();
+    if (now - lastSeen < GRACE_PERIOD_MS) {
+      return true; // Grace period — don't kick out
+    }
+    return false; // There's a newer session — we got replaced
+  }
+
+  // No newer session — we're the current one. Check grace period for stale last_seen.
+  // If last_seen is very old (beyond grace), the session might be stale.
+  // But we only check this if there's actually another session to compete with.
+  // Since there's no newer session, we're fine.
+  return true;
 }
 
 export function getStoredSessionId(): string | null {

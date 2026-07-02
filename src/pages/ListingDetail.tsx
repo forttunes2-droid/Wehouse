@@ -185,7 +185,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
 
         {/* Details */}
         <div className="flex gap-6 py-4 border-y border-[#1E1E2C]">
-          <DetailItem label="Type" value={listing.property_type === 'studio_apartment' ? 'Studio Apt' : listing.property_type === 'self_contain' ? 'Self Contain' : `${listing.bedrooms} Bedroom${listing.bedrooms !== 1 ? 's' : ''}`} icon="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <DetailItem label="Type" value={listing.property_type ? (listing.property_type.charAt(0).toUpperCase() + listing.property_type.slice(1)) : `${listing.bedrooms} Bedroom${listing.bedrooms !== 1 ? 's' : ''}`} icon="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           <DetailItem label={listing.property_type ? 'Toilet/Bath' : 'Bathrooms'} value={listing.bathrooms} icon="M4 12h16M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M6 12V8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4" />
           <DetailItem label="Status" value={listing.availability_status ? listing.availability_status.charAt(0).toUpperCase() + listing.availability_status.slice(1) : 'Available'} icon="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </div>

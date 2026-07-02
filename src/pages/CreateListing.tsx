@@ -36,7 +36,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     price: '',
     currency: 'NGN',
     address: '',
-    property_type: '' as '' | 'studio_apartment' | 'self_contain',
+    property_type: '' as '' | 'house' | 'apartment' | 'duplex',
     bedrooms: '1',
     bathrooms: '1',
     availability_status: 'available' as 'available' | 'reserved' | 'closed',
@@ -209,7 +209,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       images,
       videos,
       property_type: form.property_type || null,
-      bedrooms: form.property_type ? 1 : (Number(form.bedrooms) || 1),
+      bedrooms: Number(form.bedrooms) || 1,
       bathrooms: Number(form.bathrooms) || 1,
       availability_status: listingStatus as any,
       status: listingStatus as any,
@@ -404,13 +404,14 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           />
         </div>
 
-        {/* Property Type — Studio, Self Contain, or Standard Bedrooms */}
+        {/* Property Type — House, Apartment, or Duplex */}
         <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Property Type</label>
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Property Type *</label>
+          <div className="grid grid-cols-3 gap-2 mb-3">
             {[
-              { value: 'self_contain', label: 'Self Contain', desc: 'Single room + kitchenette + toilet (compact)' },
-              { value: 'studio_apartment', label: 'Studio Apartment', desc: 'Self contain but bigger open-plan space' },
+              { value: 'house', label: 'House', desc: 'Standalone building' },
+              { value: 'apartment', label: 'Apartment', desc: 'Flat in a building' },
+              { value: 'duplex', label: 'Duplex', desc: 'Two-floor unit' },
             ].map(opt => (
               <button
                 key={opt.value}
@@ -428,45 +429,29 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
             ))}
           </div>
 
-          {/* Bedrooms — only show for standard (non-studio/self-contain) */}
-          {!form.property_type && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bedrooms</label>
-                <select
-                  value={form.bedrooms}
-                  onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
-                  className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
-                >
-                  {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bathrooms</label>
-                <select
-                  value={form.bathrooms}
-                  onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
-                  className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
-                >
-                  {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Studio/Self Contain always has 1 bathroom */}
-          {form.property_type && (
+          {/* Bedrooms & Bathrooms — all property types can configure */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Toilet / Bathroom</label>
+              <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bedrooms</label>
+              <select
+                value={form.bedrooms}
+                onChange={(e) => setForm({ ...form, bedrooms: e.target.value })}
+                className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
+              >
+                {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Bathrooms</label>
               <select
                 value={form.bathrooms}
                 onChange={(e) => setForm({ ...form, bathrooms: e.target.value })}
                 className="w-full h-11 rounded-xl border border-[#2A2A3A] px-3 text-sm bg-[#1A1A24] text-white focus:border-[#3B82F6]/50 outline-none"
               >
-                {[1, 2].map(n => <option key={n} value={n}>{n}</option>)}
+                {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Status */}

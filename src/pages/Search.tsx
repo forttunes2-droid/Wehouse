@@ -14,7 +14,11 @@ interface SearchProps {
 const POPULAR_STATES = ['Lagos', 'Abuja (FCT)', 'Rivers', 'Kano', 'Oyo', 'Enugu', 'Delta', 'Kaduna'];
 
 // Property types for Nigerian housing
-const PROPERTY_TYPES = ['Apartment', 'Self Contain', 'Single Room', 'Duplex', 'Studio Apartment'];
+const PROPERTY_TYPES = [
+  { value: 'house', label: 'House' },
+  { value: 'apartment', label: 'Apartment' },
+  { value: 'duplex', label: 'Duplex' },
+];
 
 export default function Search({ onNavigate, savedIds, onToggleSave }: SearchProps) {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -55,7 +59,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
       const matchesBed = !bedrooms || l.bedrooms >= bedrooms;
       const matchesState = !filterState || l.state === filterState;
       const matchesCity = !filterCity || l.city === filterCity;
-      const matchesType = !propertyType || (l.property_type || 'Apartment') === propertyType;
+      const matchesType = !propertyType || (l.property_type || 'apartment') === propertyType;
       return matchesQuery && matchesPrice && matchesBed && matchesState && matchesCity && matchesType;
     });
   }, [listings, query, priceMax, bedrooms, filterState, filterCity, propertyType]);
@@ -73,7 +77,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
   const listingsByType = useMemo(() => {
     const map: Record<string, number> = {};
     listings.forEach(l => {
-      const type = l.property_type || 'Apartment';
+      const type = l.property_type || 'apartment';
       map[type] = (map[type] || 0) + 1;
     });
     return map;
@@ -142,7 +146,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
               >
                 <option value="">All Types</option>
                 {PROPERTY_TYPES.map((t) => (
-                  <option key={t} value={t}>{t} {listingsByType[t] ? `(${listingsByType[t]})` : ''}</option>
+                  <option key={t.value} value={t.value}>{t.label} {listingsByType[t.value] ? `(${listingsByType[t.value]})` : ''}</option>
                 ))}
               </select>
             </div>
@@ -172,14 +176,14 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
         <div className="px-5 pt-4">
           <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Browse by Type</p>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-            {PROPERTY_TYPES.filter(t => listingsByType[t]).map((t) => (
+            {PROPERTY_TYPES.filter(t => listingsByType[t.value]).map((t) => (
               <button
-                key={t}
-                onClick={() => setPropertyType(t)}
+                key={t.value}
+                onClick={() => setPropertyType(t.value)}
                 className="flex-shrink-0 h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] text-xs text-[#8A8B9C] hover:border-[#3B82F6]/50 hover:text-white transition-colors"
               >
-                {t}
-                <span className="ml-1 text-[9px] text-[#5C5E72]">{listingsByType[t]}</span>
+                {t.label}
+                <span className="ml-1 text-[9px] text-[#5C5E72]">{listingsByType[t.value]}</span>
               </button>
             ))}
           </div>
@@ -213,7 +217,7 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
           <span className="text-[10px] text-[#5C5E72]">Showing:</span>
           {propertyType && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 font-medium">
-              {propertyType}
+              {PROPERTY_TYPES.find(t => t.value === propertyType)?.label || propertyType}
             </span>
           )}
           {filterState && (

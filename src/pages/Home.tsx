@@ -114,7 +114,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const availableTypes = useMemo(() => {
     const counts: Record<string, number> = {};
     listings.forEach(l => {
-      const type = l.property_type || 'Apartment';
+      const type = l.property_type || 'apartment';
       counts[type] = (counts[type] || 0) + 1;
     });
     return Object.entries(counts)
@@ -221,7 +221,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
                 }}
                 className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-[#12121A]/60 border border-white/[0.04] text-[11px] text-[#CBCBD7] hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/10 hover:text-white transition-all active:scale-95"
               >
-                <span className="font-semibold">{type}</span>
+                <span className="font-semibold">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
                 <span className="text-[#5C5E72]">({count})</span>
               </button>
             ))}

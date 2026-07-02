@@ -126,7 +126,7 @@ export interface Listing {
   address: string | null;
   images: string[];
   videos: string[];
-  property_type: 'studio_apartment' | 'self_contain' | null;  // null = standard bedroom-based
+  property_type: 'house' | 'apartment' | 'duplex' | null;  // null = standard bedroom-based
   bedrooms: number;
   bathrooms: number;
   availability_status: 'available' | 'reserved' | 'closed';
@@ -552,25 +552,25 @@ export interface StaffPermissionRecord {
 // Replaces: PropertyOwner, Hotel types. One system for all accommodation.
 // ═══════════════════════════════════════════════════════════════
 
-export type PropertyType = 'house' | 'apartment' | 'hotel' | 'resort' | 'short_let' | 'hostel' | 'lodge';
+export type PropertyType = 'house' | 'apartment' | 'duplex' | 'hotel' | 'resort' | 'short_let' | 'lodge';
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   house: 'House',
   apartment: 'Apartment',
+  duplex: 'Duplex',
   hotel: 'Hotel',
   resort: 'Resort',
   short_let: 'Short Let',
-  hostel: 'Hostel',
   lodge: 'Lodge',
 };
 
 export const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
   house: '🏠',
   apartment: '🏢',
+  duplex: '🏘️',
   hotel: '🏨',
   resort: '🏕',
   short_let: '🏠',
-  hostel: '🏡',
   lodge: '🏢',
 };
 
