@@ -266,17 +266,17 @@ export default function App() {
   }, [auth.profile, savedIds]);
 
   const goTo = useCallback((page: NavPage) => handleSetNavPage(page), [handleSetNavPage]);
-  const goToDetail = useCallback((id: string) => { setDetailId(id); setNavPage('detail'); }, []);
-  const goBack = useCallback(() => { setDetailId(null); handleSetNavPage('home'); }, [handleSetNavPage]);
-  const goToChat = useCallback((convId?: string) => { setChatConvId(convId || null); setNavPage('chat'); }, []);
-  const goToProfileEdit = useCallback(() => setNavPage('profile_edit'), []);
-  const goToAccount = useCallback(() => setNavPage('account'), []);
-  const goToPrivacy = useCallback(() => setNavPage('privacy'), []);
-  const goToSecurity = useCallback(() => setNavPage('security'), []);
-  const goToNewListing = useCallback(() => setNavPage('new_listing'), []);
-  const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); setNavPage('hotels'); }, []);
-  const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); setNavPage('hotel_detail'); }, []);
-  const goToHotelBooking = useCallback((hId: number, rId: number) => { setHotelId(hId); setHotelRoomId(rId); setNavPage('hotel_booking'); }, []);
+  const goToDetail = useCallback((id: string) => { setDetailId(id); handleSetNavPage('detail'); }, [handleSetNavPage]);
+  const goBack = useCallback(() => { setDetailId(null); window.history.back(); }, []);
+  const goToChat = useCallback((convId?: string) => { setChatConvId(convId || null); handleSetNavPage('chat'); }, [handleSetNavPage]);
+  const goToProfileEdit = useCallback(() => handleSetNavPage('profile_edit'), [handleSetNavPage]);
+  const goToAccount = useCallback(() => handleSetNavPage('account'), [handleSetNavPage]);
+  const goToPrivacy = useCallback(() => handleSetNavPage('privacy'), [handleSetNavPage]);
+  const goToSecurity = useCallback(() => handleSetNavPage('security'), [handleSetNavPage]);
+  const goToNewListing = useCallback(() => handleSetNavPage('new_listing'), [handleSetNavPage]);
+  const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); handleSetNavPage('hotels'); }, [handleSetNavPage]);
+  const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); handleSetNavPage('hotel_detail'); }, [handleSetNavPage]);
+  const goToHotelBooking = useCallback((hId: number, rId: number) => { setHotelId(hId); setHotelRoomId(rId); handleSetNavPage('hotel_booking'); }, [handleSetNavPage]);
 
   // ─── LOADING ──────────────────────────────────────
   if (auth.isLoading) {
@@ -320,7 +320,7 @@ export default function App() {
         // Only users and workers can access roommate matching
         if (!canAccessRoommate) {
           toast.error('Roommate matching is only available for regular users and workers');
-          setNavPage('home');
+          handleSetNavPage('home');
           return null;
         }
         return <Roommate profile={profile} />;
@@ -378,7 +378,7 @@ export default function App() {
       case 'new_listing':
         // Only staff, admin, creator can create listings
         if (!canList) {
-          setNavPage('home');
+          handleSetNavPage('home');
           return null;
         }
         return <CreateListing profile={profile} onBack={() => goTo('home')} onSuccess={() => goTo('home')} />;
@@ -393,7 +393,7 @@ export default function App() {
       case 'hotel_detail':
         return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} profile={profile} /> : null;
       case 'hotel_booking':
-        return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => setNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
+        return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
       case 'operations':
         return <OperationsDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'worker_verification':
