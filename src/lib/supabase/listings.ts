@@ -122,7 +122,8 @@ export async function checkDuplicateListing(title: string, _area: string, city: 
     .select('id, title, city, state, address, owner_id, created_at, images')
     .eq('city', city)
     .eq('state', state)
-    .not('availability_status', 'eq', 'hidden');
+    .not('availability_status', 'eq', 'hidden')
+    .is('deleted_at', null);
 
   const { data: existing } = await query.limit(50);
 
@@ -236,12 +237,12 @@ export async function uploadListingVideo(file: File, listingId: string) {
 
 export async function deleteListing(listingId: string, userId?: string) {
   // Soft-delete: set deleted_at instead of hard delete
-  // If userId provided, verify ownership first
+  // listingId is the UUID primary key (id column), NOT the listing_id text column
   if (userId) {
     const { data: listing } = await supabase
       .from('listings')
       .select('owner_id')
-      .eq('listing_id', listingId)
+      .eq('id', listingId)
       .single();
     if (!listing || listing.owner_id !== userId) {
       return { error: { message: 'You can only delete your own listings' } as any };
@@ -251,7 +252,7 @@ export async function deleteListing(listingId: string, userId?: string) {
   const { error } = await supabase
     .from('listings')
     .update({ deleted_at: new Date().toISOString(), availability_status: 'closed' })
-    .eq('listing_id', listingId);
+    .eq('id', listingId);
 
   return { error };
 }
@@ -322,7 +323,8 @@ export async function getListingsPendingApproval(userRole: string, _userId: stri
   let query = supabase
     .from('listings')
     .select('*, profiles!owner_id(username, role)')
-    .eq('status', 'pending_approval');
+    .eq('status', 'pending_approval')
+    .is('deleted_at', null);
 
   // Filter by scope if provided
   if (scopeState) query = query.eq('state', scopeState);
@@ -377,6 +379,7 @@ export async function getMyPendingListings(userId: string) {
     .select('*')
     .eq('owner_id', userId)
     .eq('status', 'pending_approval')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }

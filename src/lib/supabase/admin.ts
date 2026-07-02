@@ -138,7 +138,11 @@ export async function toggleMaintenanceExempt(userId: string, exempt: boolean) {
 }
 
 export async function getAllListingsAdmin() {
-  const { data, error } = await supabase.from('listings').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }
 
