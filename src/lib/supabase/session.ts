@@ -93,7 +93,7 @@ export async function createUserSession(userId: string, authId: string): Promise
       is_current: true,
     })
     .select('id')
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     console.error('[Session] Failed to create session:', error?.message);

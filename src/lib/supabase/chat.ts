@@ -26,7 +26,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
     .from('messages')
     .insert({ conversation_id: conversationId, sender_id: senderId, content })
     .select()
-    .single();
+    .maybeSingle();
 
   // Update conversation timestamp so it appears at top of list
   if (!error) {
@@ -53,7 +53,7 @@ export async function createConversation(userA: string, userB: string, listingId
     .from('conversations')
     .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null, status: 'active' })
     .select()
-    .single();
+    .maybeSingle();
   return { conversation: data as Conversation | null, error };
 }
 
@@ -64,7 +64,7 @@ export async function acceptEnquiry(conversationId: string) {
     .update({ status: 'active' })
     .eq('id', conversationId)
     .select()
-    .single();
+    .maybeSingle();
   return { conversation: data as Conversation | null, error };
 }
 
@@ -75,7 +75,7 @@ export async function closeConversation(conversationId: string) {
     .update({ status: 'closed' })
     .eq('id', conversationId)
     .select()
-    .single();
+    .maybeSingle();
   return { conversation: data as Conversation | null, error };
 }
 

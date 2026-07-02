@@ -219,7 +219,7 @@ function TasksTab({ profile }: { profile: Profile }) {
     async function load() {
       // Get recent audit logs related to this field officer
       const { data } = await supabase
-        .from('audit_logs')
+        .from('admin_audit_log')
         .select('*')
         .eq('admin_id', profile.user_id)
         .order('created_at', { ascending: false })

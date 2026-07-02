@@ -14,7 +14,7 @@ export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences
       { onConflict: 'user_id' }
     )
     .select()
-    .single();
+    .maybeSingle();
   return { prefs: data as RoommatePreferences | null, error };
 }
 
@@ -46,7 +46,7 @@ export async function startRoommateSearch(userId: string) {
     })
     .eq('user_id', userId)
     .select()
-    .single();
+    .maybeSingle();
 
   return { prefs: data as RoommatePreferences | null, error };
 }
@@ -62,7 +62,7 @@ export async function stopRoommateSearch(userId: string) {
     })
     .eq('user_id', userId)
     .select()
-    .single();
+    .maybeSingle();
 
   return { prefs: data as RoommatePreferences | null, error };
 }
@@ -157,7 +157,7 @@ export async function checkSearchExpiry(userId: string): Promise<{ expired: bool
       .update({ search_status: 'expired' })
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
     return { expired: true, prefs: data as RoommatePreferences | null };
   }
 

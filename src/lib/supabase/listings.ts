@@ -22,7 +22,7 @@ export async function getListing(id: string) {
     .select('*')
     .eq('listing_id', id)
     .is('deleted_at', null)
-    .single();
+    .maybeSingle();
   return { listing: data as Listing | null, error };
 }
 
@@ -243,7 +243,7 @@ export async function deleteListing(listingId: string, userId?: string) {
       .from('listings')
       .select('owner_id')
       .eq('id', listingId)
-      .single();
+      .maybeSingle();
     if (!listing || listing.owner_id !== userId) {
       return { error: { message: 'You can only delete your own listings' } as any };
     }
@@ -280,7 +280,7 @@ export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' |
   const { data, error } = await supabase.from('listings').insert({
     ...listing,
     listing_id: crypto.randomUUID(),
-  }).select().single();
+  }).select().maybeSingle();
   return { listing: data as Listing | null, error };
 }
 

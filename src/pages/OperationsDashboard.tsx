@@ -261,7 +261,7 @@ function ActivityFeedTab() {
   useEffect(() => {
     async function load() {
       const { data } = await supabase
-        .from('audit_logs')
+        .from('admin_audit_log')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(30);

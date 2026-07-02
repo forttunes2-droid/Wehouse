@@ -40,7 +40,7 @@ export async function getHotelById(hotelId: number) {
     .from('hotels')
     .select('*, hotel_rooms(*)')
     .eq('hotel_id', hotelId)
-    .single();
+    .maybeSingle();
   return { hotel: data as (Hotel & { hotel_rooms: HotelRoom[] }) | null, error };
 }
 
@@ -58,7 +58,7 @@ export async function getRoomById(roomId: number) {
     .from('hotel_rooms')
     .select('*, hotels(*)')
     .eq('room_id', roomId)
-    .single();
+    .maybeSingle();
   return { room: data as (HotelRoom & { hotels: Hotel }) | null, error };
 }
 
@@ -78,7 +78,7 @@ export async function addHotelReview(hotelId: number, userId: string, rating: nu
     .from('hotel_reviews')
     .insert({ hotel_id: hotelId, user_id: userId, rating, comment: comment || null })
     .select()
-    .single();
+    .maybeSingle();
   // Update hotel average rating
   if (!error) {
     const { data: allReviews } = await supabase
@@ -103,7 +103,7 @@ export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id
     .from('hotel_bookings')
     .insert(booking)
     .select()
-    .single();
+    .maybeSingle();
   return { booking: data as HotelBooking | null, error };
 }
 
@@ -149,7 +149,7 @@ export async function createHotel(hotel: Omit<Hotel, 'hotel_id' | 'rating' | 're
     .from('hotels')
     .insert(hotel)
     .select()
-    .single();
+    .maybeSingle();
   return { hotel: data as Hotel | null, error };
 }
 
@@ -159,7 +159,7 @@ export async function updateHotel(hotelId: number, updates: Partial<Hotel>) {
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('hotel_id', hotelId)
     .select()
-    .single();
+    .maybeSingle();
   return { hotel: data as Hotel | null, error };
 }
 
@@ -173,7 +173,7 @@ export async function createHotelRoom(room: Omit<HotelRoom, 'room_id' | 'created
     .from('hotel_rooms')
     .insert(room)
     .select()
-    .single();
+    .maybeSingle();
   return { room: data as HotelRoom | null, error };
 }
 
@@ -183,7 +183,7 @@ export async function updateHotelRoom(roomId: number, updates: Partial<HotelRoom
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('room_id', roomId)
     .select()
-    .single();
+    .maybeSingle();
   return { room: data as HotelRoom | null, error };
 }
 

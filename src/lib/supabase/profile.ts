@@ -65,7 +65,7 @@ export async function linkProfileToAuth(userId: string, authId: string) {
     .update({ auth_id: authId })
     .eq('user_id', userId)
     .select()
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }
 
@@ -90,7 +90,7 @@ export async function createProfile(a: string, b: string, c?: string, d?: string
       profile_complete: false,
     })
     .select()
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }
 
@@ -160,7 +160,7 @@ export async function updateProfile(userId: string, updates: Partial<Profile>) {
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
     .select()
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }
 
@@ -176,6 +176,6 @@ export async function updatePrivacySettings(userId: string, settings: {
     .update({ ...settings, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
     .select()
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }

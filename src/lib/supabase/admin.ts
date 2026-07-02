@@ -133,7 +133,7 @@ export async function toggleMaintenanceExempt(userId: string, exempt: boolean) {
     .update({ maintenance_exempt: exempt })
     .eq('user_id', userId)
     .select()
-    .single();
+    .maybeSingle();
   return { profile: data as Profile | null, error };
 }
 
@@ -259,7 +259,7 @@ export async function submitStaffReview(reviewerId: string, staffId: string, rat
       comment: comment || null,
     })
     .select()
-    .single();
+    .maybeSingle();
   return { review: data, error };
 }
 

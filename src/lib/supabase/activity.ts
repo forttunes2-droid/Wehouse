@@ -55,12 +55,13 @@ export async function getSavedListingsWithData(userId: string) {
 }
 
 // ─── REVIEWS ───────────────────────────────────────
+// Column mapping: user_id = reviewer, worker_id = target, comment = content
 
 export async function getReviews(targetId: string) {
   const { data, error } = await supabase
     .from('reviews')
     .select('*')
-    .eq('target_id', targetId)
+    .eq('worker_id', targetId)
     .order('created_at', { ascending: false });
   return { reviews: data as Review[] | null, error };
 }
@@ -68,9 +69,9 @@ export async function getReviews(targetId: string) {
 export async function createReview(reviewerId: string, targetId: string, rating: number, content: string) {
   const { data, error } = await supabase
     .from('reviews')
-    .insert({ reviewer_id: reviewerId, target_id: targetId, rating, content })
+    .insert({ user_id: reviewerId, worker_id: targetId, rating, comment: content })
     .select()
-    .single();
+    .maybeSingle();
   return { review: data as Review | null, error };
 }
 
@@ -90,6 +91,6 @@ export async function createRoomInterest(userId: string, listingId: string, mess
     .from('room_interests')
     .insert({ user_id: userId, listing_id: listingId, message })
     .select()
-    .single();
+    .maybeSingle();
   return { interest: data as RoomInterest | null, error };
 }

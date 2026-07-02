@@ -32,7 +32,7 @@ export async function sendAnnouncement(
     .from('announcements')
     .insert({ title, message, created_by: senderId, sender_name: senderName, sender_role: senderRole, target_type: targetType, target_state: scopeState || null, target_lga: scopeLga || null })
     .select()
-    .single();
+    .maybeSingle();
 
   if (insertErr || !announcement) {
     console.error('[sendAnnouncement] insert failed:', insertErr);
@@ -187,7 +187,7 @@ export async function getAnnouncementStats(announcementId: number) {
     .from('announcements')
     .select('recipient_count, read_count')
     .eq('id', announcementId)
-    .single();
+    .maybeSingle();
   return { stats: announcement || { recipient_count: 0, read_count: 0 }, error };
 }
 
