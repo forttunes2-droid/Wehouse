@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, getConversations, getListingsByOwner, getMessages, deleteListing, getProfileByAuthId } from '@/lib/supabase';
+import { supabase, getConversations, getCreatorListings, getMessages, deleteListing, getProfileByAuthId } from '@/lib/supabase';
 import type { Profile, Listing, Conversation } from '@/types';
 import { Toaster, toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -38,7 +38,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
   const load = useCallback(async () => {
     setLoading(true);
     // Get my listings
-    const { listings: data } = await getListingsByOwner(profile.auth_id);
+    const { listings: data } = await getCreatorListings(profile.auth_id);
     const myList = data || [];
     setMyListings(myList);
     setStats(s => ({ ...s, listings: myList.length }));

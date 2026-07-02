@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getListingById, createEnquiry, createReservation, getPublicAgentByUserId, getOrCreateConversation } from '@/lib/supabase';
+import { getListing, createEnquiry, createReservation, getPublicAgentByUserId, getOrCreateConversation } from '@/lib/supabase';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
 import type { Listing, Profile, ListingStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -26,7 +26,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
 
   useEffect(() => {
     async function load() {
-      const { listing: data } = await getListingById(listingId);
+      const { listing: data } = await getListing(listingId);
       setListing(data);
       if (data?.chat_agent_id) {
         const { agent } = await getPublicAgentByUserId(data.chat_agent_id);

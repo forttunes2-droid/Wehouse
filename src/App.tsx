@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
 import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
-import { checkPremiumActivation } from '@/lib/paystackWebhook';
 import CreatorAuthModal from '@/components/CreatorAuthModal';
 import SupportChat from '@/components/SupportChat';
 import Login from '@/pages/Login';
@@ -35,7 +34,11 @@ const DirectorDashboard = lazy(() => import('@/pages/DirectorDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
-const PremiumPage = lazy(() => import('@/pages/PremiumPage'));
+const OperationsDashboard = lazy(() => import('@/pages/OperationsDashboard'));
+const WorkerVerificationDashboard = lazy(() => import('@/pages/WorkerVerificationDashboard'));
+const FinanceDashboard = lazy(() => import('@/pages/FinanceDashboard'));
+const FieldOfficerDashboard = lazy(() => import('@/pages/FieldOfficerDashboard'));
+
 
 // ─── SKELETON LOADER ──────────────────────────────
 function PageSkeleton() {
@@ -77,7 +80,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'premium', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director', 'operations', 'worker_verification', 'finance', 'field_officer'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -166,24 +169,7 @@ export default function App() {
     }
   }, [auth.profile?.user_id]);
 
-  // Check for pending premium activation (5-minute AI review)
-  useEffect(() => {
-    if (!auth.profile?.user_id || auth.profile?.is_premium) return;
-    const userId = auth.profile.user_id;
 
-    async function checkActivation() {
-      const result = await checkPremiumActivation(userId);
-      if (result.activated) {
-        toast.success('Your Premium has been activated!');
-        window.location.reload();
-      }
-    }
-
-    // Check immediately and every 30 seconds
-    checkActivation();
-    const interval = setInterval(checkActivation, 30 * 1000);
-    return () => clearInterval(interval);
-  }, [auth.profile?.user_id, auth.profile?.is_premium]);
 
   // Global unread message count (conversations + official)
   useEffect(() => {
@@ -260,7 +246,6 @@ export default function App() {
   const goToAccount = useCallback(() => setNavPage('account'), []);
   const goToPrivacy = useCallback(() => setNavPage('privacy'), []);
   const goToSecurity = useCallback(() => setNavPage('security'), []);
-  const goToPremium = useCallback(() => setNavPage('premium'), []);
   const goToNewListing = useCallback(() => setNavPage('new_listing'), []);
   const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); setNavPage('hotels'); }, []);
   const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); setNavPage('hotel_detail'); }, []);
@@ -358,13 +343,11 @@ export default function App() {
         }
         return <ProfileEdit profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('profile')} />;
       case 'account':
-        return <AccountCenter profile={profile} onBack={() => goTo('profile')} onGoToPrivacy={goToPrivacy} onGoToSecurity={goToSecurity} onGoToProfileEdit={goToProfileEdit} onGoToPremium={goToPremium} />;
+        return <AccountCenter profile={profile} onBack={() => goTo('profile')} onGoToPrivacy={goToPrivacy} onGoToSecurity={goToSecurity} onGoToProfileEdit={goToProfileEdit} />;
       case 'privacy':
         return <PrivacySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={() => goTo('account')} />;
       case 'security':
         return <SecuritySettings profile={profile} onBack={() => goTo('account')} />;
-      case 'premium':
-        return <PremiumPage profile={profile} onBack={() => goTo('account')} />;
       case 'new_listing':
         // Only staff, admin, creator can create listings
         if (!canList) {
@@ -384,6 +367,14 @@ export default function App() {
         return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} profile={profile} /> : null;
       case 'hotel_booking':
         return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => setNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
+      case 'operations':
+        return <OperationsDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+      case 'worker_verification':
+        return <WorkerVerificationDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+      case 'finance':
+        return <FinanceDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+      case 'field_officer':
+        return <FieldOfficerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
@@ -441,12 +432,11 @@ export default function App() {
           user_id: auth.profile.user_id,
           username: auth.profile.username,
           email: auth.profile.email,
-          is_premium: auth.profile.is_premium,
           role: auth.profile.role,
         } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'premium' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {

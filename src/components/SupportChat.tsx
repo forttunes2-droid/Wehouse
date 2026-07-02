@@ -22,7 +22,6 @@ interface ChatProfile {
   user_id: string;
   username: string | null;
   email: string;
-  is_premium?: boolean;
   role?: string;
 }
 
@@ -39,14 +38,12 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const [remaining, setRemaining] = useState(7);
   const [remainingPhotos, setRemainingPhotos] = useState(0);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showPremium, setShowPremium] = useState(false);
-  const [premiumFeature, setPremiumFeature] = useState<'messages' | 'photos'>('messages');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const greetedRef = useRef(false);
 
   const isCreator = profile?.role === 'creator' || profile?.role === 'creator_admin';
-  const isUnlimited = isCreator || profile?.is_premium;
+  const isUnlimited = isCreator;
 
   // Load AI key and check limits on mount
   useEffect(() => {
@@ -66,7 +63,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
     ]);
     setRemaining(msgCount);
     setRemainingPhotos(photoCount);
-    if (msgCount <= 0 && !isUnlimited) setShowPremium(true);
+
   };
 
   // Auto-scroll
@@ -114,11 +111,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
     if (!profile) return;
 
     // Check message limit (creators skip)
-    if (remaining <= 0 && !isUnlimited) {
-      setPremiumFeature('messages');
-      setShowPremium(true);
-      return;
-    }
+    if (remaining <= 0 && !isUnlimited) return;
 
     // Add user message
     if (selectedImage) {
@@ -161,11 +154,8 @@ export default function SupportChat({ profile }: SupportChatProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check photo limit: creators and premium = unlimited, normal = 1 free
+    // Check photo limit: creators = unlimited, normal = 1 free
     if (remainingPhotos <= 0 && !isUnlimited) {
-      setPremiumFeature('photos');
-      setShowPremium(true);
-      // Reset file input
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
@@ -183,7 +173,6 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const getStatusText = () => {
     if (!aiReady) return 'Setup needed';
     if (isCreator) return 'Online';
-    if (profile?.is_premium) return 'Premium';
     return 'Online';
   };
 
@@ -299,40 +288,11 @@ export default function SupportChat({ profile }: SupportChatProps) {
               <div className="rounded-2xl bg-amber-500/5 border border-amber-500/20 p-4 text-center">
                 <p className="text-xs text-amber-400 font-semibold mb-1">Daily limit reached</p>
                 <p className="text-[10px] text-[#5C5E72] mb-1">Your free messages will refresh at {getRefreshTime()} tomorrow.</p>
-                <p className="text-[10px] text-[#5C5E72] mb-3">Or upgrade to Premium for unlimited access.</p>
-                <button onClick={() => { setPremiumFeature('messages'); setShowPremium(true); }} className="h-8 px-4 rounded-lg bg-amber-500 text-white text-[10px] font-semibold">
-                  Go Premium
-                </button>
               </div>
             )}
           </>
         )}
       </div>
-
-      {/* Premium Banner */}
-      {showPremium && (
-        <div className="flex-shrink-0 bg-gradient-to-r from-amber-500/10 to-amber-600/5 border-t border-amber-500/20 p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-white">
-                {premiumFeature === 'messages' ? 'Daily Limit Reached' : 'Photo Limit Reached'}
-              </p>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">
-                Your limit refreshes at {getRefreshTime()} tomorrow.
-              </p>
-              <p className="text-[10px] text-[#5C5E72] mt-1">
-                Premium (60 messages + 30 photos daily) — coming soon.
-              </p>
-            </div>
-            <button onClick={() => setShowPremium(false)} className="text-[10px] text-[#5C5E72] hover:text-white px-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Input */}
       {aiReady && (isUnlimited || remaining > 0) && (

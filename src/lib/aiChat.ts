@@ -30,23 +30,10 @@ export function isAIReady(): boolean {
 async function getUserRole(userId: string): Promise<string | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('role, is_premium, premium_expires_at')
+    .select('role')
     .eq('user_id', userId)
     .maybeSingle();
   return data?.role || null;
-}
-
-async function isPremiumActive(userId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('is_premium, premium_expires_at')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (!data?.is_premium) return false;
-  const expires = data.premium_expires_at ? new Date(data.premium_expires_at) : null;
-  if (!expires) return true; // No expiry = lifetime
-  return expires > new Date();
 }
 
 function isCreatorRole(role: string | null): boolean {
@@ -54,19 +41,15 @@ function isCreatorRole(role: string | null): boolean {
 }
 
 // ─── MESSAGE TRACKING ──────────────────────────────────
+// All users get 7 messages per day. No premium. No paid tiers.
 
 const FREE_DAILY_LIMIT = 7;
-const PREMIUM_DAILY_LIMIT = 60;
 
 export async function getRemainingMessages(userId: string): Promise<number> {
   const role = await getUserRole(userId);
 
   // Creator = unlimited
   if (isCreatorRole(role)) return 9999;
-
-  // Premium = 60 per day
-  const premium = await isPremiumActive(userId);
-  const limit = premium ? PREMIUM_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -77,7 +60,7 @@ export async function getRemainingMessages(userId: string): Promise<number> {
     .eq('user_id', userId)
     .gte('created_at', today.toISOString());
 
-  return Math.max(0, limit - (count || 0));
+  return Math.max(0, FREE_DAILY_LIMIT - (count || 0));
 }
 
 export async function trackMessage(userId: string) {
@@ -92,30 +75,13 @@ export async function trackMessage(userId: string) {
 }
 
 // ─── PHOTO TRACKING ────────────────────────────────────
-// Normal users: 1 free photo ever
-// Premium users: 30 photos per day
-// Creator: unlimited
+// Normal users: 1 free photo ever. No premium. No paid tiers.
 
 const FREE_PHOTO_LIMIT = 1; // total lifetime
-const PREMIUM_DAILY_PHOTOS = 30; // per day
 
 export async function getRemainingPhotos(userId: string): Promise<number> {
   const role = await getUserRole(userId);
   if (isCreatorRole(role)) return 9999;
-
-  const premium = await isPremiumActive(userId);
-
-  if (premium) {
-    // Premium: 30 photos per day
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const { count } = await supabase
-      .from('chat_photo_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('created_at', today.toISOString());
-    return Math.max(0, PREMIUM_DAILY_PHOTOS - (count || 0));
-  }
 
   // Free: 1 photo total lifetime
   const { count } = await supabase

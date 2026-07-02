@@ -107,8 +107,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   useEffect(() => {
     if (!activeConv?.listing_id) { setLinkedListing(null); return; }
     async function loadListing() {
-      const { getListingById } = await import('@/lib/supabase');
-      const { listing } = await getListingById(activeConv!.listing_id!);
+      const { getListing } = await import('@/lib/supabase');
+      const { listing } = await getListing(activeConv!.listing_id!);
       setLinkedListing(listing);
     }
     loadListing();

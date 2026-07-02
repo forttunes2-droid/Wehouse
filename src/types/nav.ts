@@ -24,4 +24,7 @@ export type NavPage =
   | 'hotels'
   | 'hotel_detail'
   | 'hotel_booking'
-  | 'premium';
+  | 'operations'
+  | 'worker_verification'
+  | 'finance'
+  | 'field_officer';

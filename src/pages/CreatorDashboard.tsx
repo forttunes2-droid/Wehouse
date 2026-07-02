@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   supabase,
-  getAllUsers, getUserCount, updateUserRole, deleteUser, restoreUser, updateProfile,
+  getAllUsers, getUserCount, updateUserRole, deleteUser, restoreUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
@@ -19,7 +19,7 @@ import { useConfirm } from '@/hooks/useConfirm';
 import SettingsTab from './SettingsTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels' | 'premium' | 'premium_analytics';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -54,7 +54,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements','hotels','premium','premium_analytics'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements','hotels'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -82,8 +82,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'workers' as AdminTab, label: 'Workers', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z' },
     { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
     { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
-    { id: 'premium' as AdminTab, label: 'Premium', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
-    { id: 'premium_analytics' as AdminTab, label: 'Analytics', icon: 'M3 3v18h18M18 17V9M13 17V5M8 17v-3' },
+
   ];
 
   return (
@@ -171,8 +170,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'hotels' && <HotelsTab profile={profile} />}
-        {activeTab === 'premium' && <PremiumManagementTab profile={profile} />}
-        {activeTab === 'premium_analytics' && <PremiumAnalyticsTab />}
+
       </main>
     </div>
   );
@@ -1957,297 +1955,4 @@ function HotelRoomsTab({ hotel, onBack }: { hotel: Hotel; onBack: () => void }) 
   );
 }
 
-// ─── PREMIUM MANAGEMENT ────────────────────────────
-function PremiumManagementTab({ profile }: { profile: Profile }) {
-  const { ask, dialogProps } = useConfirm();
-  const { requestAuth } = useCreatorAuth();
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'premium' | 'free'>('all');
 
-  const withAuth = (action: () => void | Promise<void>) => {
-    requestAuth(action);
-  };
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    setUsers(data || []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = !search ||
-      u.email?.toLowerCase().includes(search.toLowerCase()) ||
-      u.username?.toLowerCase().includes(search.toLowerCase()) ||
-      u.user_id?.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filter === 'all' ? true : filter === 'premium' ? u.is_premium : !u.is_premium;
-    return matchesSearch && matchesFilter;
-  });
-
-  const premiumCount = users.filter(u => u.is_premium).length;
-  const freeCount = users.length - premiumCount;
-
-  async function handleTogglePremium(userId: string, currentStatus: boolean, email: string) {
-    withAuth(async () => {
-      const ok = await ask({
-        title: `${currentStatus ? 'Remove premium from' : 'Grant premium to'} ${email || userId}?`,
-        confirmLabel: currentStatus ? 'Remove' : 'Grant',
-        variant: currentStatus ? 'danger' : 'info',
-      });
-      if (!ok) return;
-
-      const { error } = await updateProfile(userId, {
-        is_premium: !currentStatus,
-        premium_expires_at: null,
-      });
-
-      if (error) {
-        toast.error('Failed: ' + error.message);
-        return;
-      }
-
-      toast.success(currentStatus ? 'Premium removed' : 'Premium granted');
-      await logAuditAction(profile.user_id, profile.email, currentStatus ? 'remove_premium' : 'grant_premium', 'user', userId, `${currentStatus ? 'Removed' : 'Granted'} premium for ${email}`);
-      load();
-    });
-  }
-
-  return (
-    <div className="space-y-4">
-      <ConfirmDialog {...dialogProps} />
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3 text-center">
-          <p className="text-lg font-bold text-white">{users.length}</p>
-          <p className="text-[9px] text-[#5C5E72]">Total Users</p>
-        </div>
-        <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-3 text-center">
-          <p className="text-lg font-bold text-amber-400">{premiumCount}</p>
-          <p className="text-[9px] text-[#5C5E72]">Premium</p>
-        </div>
-        <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3 text-center">
-          <p className="text-lg font-bold text-white">{freeCount}</p>
-          <p className="text-[9px] text-[#5C5E72]">Free</p>
-        </div>
-      </div>
-
-      {/* Search + Filter */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by email, username, ID..."
-          className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6]"
-        />
-      </div>
-      <div className="flex gap-2">
-        {(['all', 'premium', 'free'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`flex-1 h-9 rounded-xl text-[11px] font-semibold transition-all ${
-              filter === f
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white'
-                : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'
-            }`}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* User List */}
-      {loading ? (
-        <div className="flex justify-center py-10">
-          <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : filteredUsers.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">No users found</div>
-      ) : (
-        <div className="space-y-2">
-          {filteredUsers.map(u => (
-            <div key={u.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                u.is_premium
-                  ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-white'
-                  : 'bg-[#1A1A24] text-[#5C5E72]'
-              }`}>
-                {u.avatar_url ? (
-                  <img src={u.avatar_url} alt="" className="w-full h-full rounded-xl object-cover" />
-                ) : (
-                  (u.username || u.email)[0].toUpperCase()
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-semibold text-white truncate">@{u.username || 'no-username'}</p>
-                  {u.is_premium && (
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">PREMIUM</span>
-                  )}
-                </div>
-                <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
-                <p className="text-[9px] text-[#5C5E72]">{u.user_id}</p>
-              </div>
-              <button
-                onClick={() => handleTogglePremium(u.user_id, u.is_premium, u.email)}
-                className={`h-8 px-3 rounded-lg text-[10px] font-semibold transition-colors ${
-                  u.is_premium
-                    ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20'
-                    : 'bg-amber-500 text-white hover:bg-amber-600'
-                }`}
-              >
-                {u.is_premium ? 'Remove' : 'Grant'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ─── PREMIUM ANALYTICS ───────────────────────────
-function PremiumAnalyticsTab() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const [{ data: userData }, { data: reviewData }] = await Promise.all([
-        supabase.from('profiles').select('user_id, email, username, is_premium, role, created_at'),
-        supabase.from('staff_reviews').select('*, profiles!staff_reviews_staff_id_fkey(username, role)').order('created_at', { ascending: false }),
-      ]);
-      setUsers(userData || []);
-      setReviews(reviewData || []);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  const premiumUsers = users.filter(u => u.is_premium);
-  const freeUsers = users.filter(u => !u.is_premium);
-  const monthlyRevenue = premiumUsers.length * 1000;
-
-  // Staff ratings summary
-  const staffRatings: Record<string, { name: string; role: string; total: number; sum: number; avg: number; count: number }> = {};
-  reviews.forEach((r: any) => {
-    const sid = r.staff_id;
-    if (!staffRatings[sid]) {
-      staffRatings[sid] = {
-        name: r.profiles?.username || 'Unknown',
-        role: r.profiles?.role || '',
-        total: 0,
-        sum: 0,
-        avg: 0,
-        count: 0,
-      };
-    }
-    staffRatings[sid].sum += r.rating;
-    staffRatings[sid].count += 1;
-    staffRatings[sid].avg = Math.round((staffRatings[sid].sum / staffRatings[sid].count) * 10) / 10;
-  });
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-10">
-        <div className="w-6 h-6 border-2 border-[#7C5CFF] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Revenue Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4 text-center">
-          <p className="text-2xl font-extrabold text-white">{users.length}</p>
-          <p className="text-[10px] text-[#7A7A8C] mt-1">Total Users</p>
-        </div>
-        <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-4 text-center">
-          <p className="text-2xl font-extrabold text-amber-400">{premiumUsers.length}</p>
-          <p className="text-[10px] text-[#7A7A8C] mt-1">Premium</p>
-        </div>
-        <div className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4 text-center">
-          <p className="text-2xl font-extrabold text-white">N{monthlyRevenue.toLocaleString()}</p>
-          <p className="text-[10px] text-[#7A7A8C] mt-1">Monthly Revenue</p>
-        </div>
-      </div>
-
-      {/* Breakdown */}
-      <div className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4">
-        <h3 className="text-sm font-semibold text-white mb-3">Plan Breakdown</h3>
-        <div className="space-y-2">
-          {[
-            { label: 'Premium Users', count: premiumUsers.length, color: 'bg-amber-500' },
-            { label: 'Free Users', count: freeUsers.length, color: 'bg-[#14141C]' },
-          ].map((row) => (
-            <div key={row.label} className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${row.color}`} />
-              <span className="text-xs text-[#7A7A8C] flex-1">{row.label}</span>
-              <span className="text-sm font-semibold text-white">{row.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Staff Ratings */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-[#4A4A5C] mb-3">Staff Ratings</h3>
-        {Object.keys(staffRatings).length === 0 ? (
-          <div className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-6 text-center">
-            <p className="text-sm text-[#7A7A8C]">No ratings yet</p>
-            <p className="text-[10px] text-[#4A4A5C] mt-1">Staff ratings appear here after users review them</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {Object.entries(staffRatings).map(([sid, data]) => (
-              <div key={sid} className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#14141C] flex items-center justify-center text-sm font-bold text-[#7A7A8C]">
-                  {(data.name || '?')[0].toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">@{data.name}</p>
-                  <p className="text-[10px] text-[#7A7A8C]">{data.role} &middot; {data.count} review{data.count !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                  <span className="text-sm font-bold text-white">{data.avg}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recent Reviews */}
-      {reviews.length > 0 && (
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-[#4A4A5C] mb-3">Recent Reviews</h3>
-          <div className="space-y-2">
-            {reviews.slice(0, 10).map((r: any) => (
-              <div key={r.review_id} className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <svg key={i} width="10" height="10" viewBox="0 0 24 24" fill={i < r.rating ? '#F59E0B' : 'none'} stroke={i < r.rating ? '#F59E0B' : '#4A4A5C'} strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-[#7A7A8C]">{new Date(r.created_at).toLocaleDateString()}</span>
-                </div>
-                {r.comment && <p className="text-xs text-[#7A7A8C]">{r.comment}</p>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
