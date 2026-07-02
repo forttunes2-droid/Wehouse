@@ -564,6 +564,155 @@ export const APARTMENT_SUB_LABELS: Record<ApartmentSubType, string> = {
   long_stay: 'Long Stay',
 };
 
+// ═══════════════════════════════════════════════════════════════
+// WEHOUSE FEE STRUCTURE — Fair & Transparent
+// ═══════════════════════════════════════════════════════════════
+
+export const WEHOUSE_FEES = {
+  // Worker bookings: user pays a small booking fee, worker pays commission
+  WORKER_BOOKING_FEE_USER: 300,          // N300 per booking (user pays)
+  WORKER_COMMISSION_PERCENT: 12.5,        // 12.5% of job value (worker pays)
+
+  // Property rentals: WeHouse takes commission from rent
+  RENTAL_COMMISSION_PERCENT: 10,          // 10% of annual rent (from landlord)
+  RESERVATION_FEE: 5000,                  // N5,000 to reserve a property for 72hrs
+
+  // Hotel bookings
+  HOTEL_BOOKING_COMMISSION_PERCENT: 15,   // 15% of booking value
+
+  // Late payment / penalty fees
+  LATE_PAYMENT_FEE_PERCENT: 5,            // 5% late fee on overdue installments
+} as const;
+
+// ═══════════════════════════════════════════════════════════════
+// RENTAL PLANS — Multi-year payment options
+// ═══════════════════════════════════════════════════════════════
+
+export type RentalDuration = 1 | 2 | 3;
+
+export interface RentalPlan {
+  durationYears: RentalDuration;
+  label: string;
+  description: string;
+  paymentStructure: string;
+}
+
+export const RENTAL_PLANS: RentalPlan[] = [
+  {
+    durationYears: 1,
+    label: '1 Year',
+    description: 'Pay full year upfront',
+    paymentStructure: 'full_upfront',
+  },
+  {
+    durationYears: 2,
+    label: '2 Years',
+    description: 'Year 1 upfront, Year 2 split monthly',
+    paymentStructure: 'first_upfront_rest_monthly',
+  },
+  {
+    durationYears: 3,
+    label: '3 Years',
+    description: 'Year 1 upfront, Years 2-3 split monthly',
+    paymentStructure: 'first_upfront_rest_monthly',
+  },
+];
+
+// Calculate payment breakdown for a rental plan
+export function calculateRentalPayments(annualRent: number, durationYears: RentalDuration) {
+  const wehouseCommission = Math.round(annualRent * (WEHOUSE_FEES.RENTAL_COMMISSION_PERCENT / 100));
+  const netAnnualRent = annualRent - wehouseCommission;
+
+  if (durationYears === 1) {
+    return {
+      totalRent: annualRent,
+      wehouseCommission: wehouseCommission,
+      landlordReceives: netAnnualRent,
+      year1Upfront: annualRent,
+      monthlyInstallments: [] as { month: number; amount: number }[],
+      reservationFee: WEHOUSE_FEES.RESERVATION_FEE,
+    };
+  }
+
+  // For 2+ years: Year 1 upfront, rest split monthly
+  const year1Upfront = annualRent;
+  const remainingYears = durationYears - 1;
+  const remainingTotal = annualRent * remainingYears;
+  const monthlyAmount = Math.round(remainingTotal / (remainingYears * 12));
+  const installments: { month: number; amount: number }[] = [];
+  for (let m = 1; m <= remainingYears * 12; m++) {
+    installments.push({ month: m, amount: monthlyAmount });
+  }
+
+  return {
+    totalRent: annualRent * durationYears,
+    wehouseCommission: wehouseCommission * durationYears,
+    landlordReceives: netAnnualRent * durationYears,
+    year1Upfront,
+    monthlyInstallments: installments,
+    reservationFee: WEHOUSE_FEES.RESERVATION_FEE,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WORKER ESCROW SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+export type WorkerBookingStatus = 'pending_payment' | 'paid_escrow' | 'worker_assigned' | 'in_progress' | 'completed_pending_approval' | 'approved_released' | 'disputed' | 'cancelled' | 'refunded';
+
+export interface WorkerBooking {
+  id: string;
+  booking_code: string;
+  user_id: string;
+  worker_id: string;
+  service_type: string;
+  description: string;
+  address: string;
+  scheduled_date: string | null;
+  agreed_amount: number;              // What user pays
+  wehouse_fee: number;                // N300 booking fee
+  worker_commission: number;          // 12.5% of job value
+  worker_receives: number;            // agreed_amount - worker_commission
+  status: WorkerBookingStatus;
+  paystack_reference: string | null;
+  user_approved: boolean;
+  worker_approved: boolean;
+  user_rating: number | null;
+  user_review: string | null;
+  worker_rating: number | null;
+  worker_review: string | null;
+  dispute_reason: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const WORKER_BOOKING_STATUS_LABELS: Record<WorkerBookingStatus, string> = {
+  pending_payment: 'Pending Payment',
+  paid_escrow: 'Paid — In Escrow',
+  worker_assigned: 'Worker Assigned',
+  in_progress: 'Work In Progress',
+  completed_pending_approval: 'Done — Awaiting Your Approval',
+  approved_released: 'Completed & Paid',
+  disputed: 'Under Dispute',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+};
+
+export const WORKER_BOOKING_STATUS_COLORS: Record<WorkerBookingStatus, string> = {
+  pending_payment: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  paid_escrow: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  worker_assigned: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  in_progress: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  completed_pending_approval: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  approved_released: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  disputed: 'bg-red-500/10 text-red-400 border-red-500/20',
+  cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  refunded: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+};
+
+// ═══════════════════════════════════════════════════════════════
+
 export type PropertyStatus = 'pending_inspection' | 'under_inspection' | 'pending_agreement' | 'pending_approval' | 'approved' | 'rejected' | 'active' | 'inactive' | 'suspended';
 
 export interface PropertyPartner {
