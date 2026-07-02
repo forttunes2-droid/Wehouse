@@ -99,7 +99,7 @@ export async function getAllStaffWithPermissions(): Promise<{
     .from('profiles')
     .select('user_id, email, username, full_name, role, staff_permissions')
     .eq('role', 'staff')
-    .eq('deleted', false);
+    .is('deleted_at', null);
 
   if (error) return { staff: [], error };
 

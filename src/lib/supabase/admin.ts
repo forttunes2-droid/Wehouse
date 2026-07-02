@@ -9,7 +9,7 @@ export async function getAllUsers() {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('deleted', false)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   return { users: data as Profile[] | null, error };
 }
@@ -27,12 +27,12 @@ export async function getUserCount() {
   const { count, error } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
-    .eq('deleted', false);
+    .is('deleted_at', null);
   // Count users created since midnight UTC today (actual "today", not last 24h)
   const { count: today } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
-    .eq('deleted', false)
+    .is('deleted_at', null)
     .gte('created_at', getLocalMidnightISO());
   return { total: count || 0, today: today || 0, error };
 }

@@ -51,7 +51,7 @@ export async function getAvailableChatAgents(listingState?: string, listingLga?:
     .from('profiles')
     .select('user_id, username, avatar_url, role, assigned_state, assigned_lga, state, city')
     .in('role', ['staff', 'admin', 'assistant_state_admin'])
-    .eq('deleted', false)
+    .is('deleted_at', null)
     .order('username', { ascending: true });
 
   let agents = (data || []) as Array<{

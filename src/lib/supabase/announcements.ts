@@ -46,7 +46,7 @@ export async function sendAnnouncement(
     targetUserIds = recipientIds;
   } else {
     // Build query based on target_type
-    let query = supabase.from('profiles').select('user_id').eq('deleted', false);
+    let query = supabase.from('profiles').select('user_id').is('deleted_at', null);
 
     switch (targetType) {
       case 'all_workers':
@@ -207,7 +207,7 @@ export const getFilteredRecipientCount = async (includeWorkers: boolean, include
   const allowedRoles: string[] = ['user'];
   if (includeWorkers) allowedRoles.push('worker');
   if (includeStaff) allowedRoles.push('staff', 'assistant_state_admin', 'admin');
-  let query = supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('deleted', false).in('role', allowedRoles);
+  let query = supabase.from('profiles').select('*', { count: 'exact', head: true }).is('deleted_at', null).in('role', allowedRoles);
   if (scopeState) query = query.eq('state', scopeState);
   if (scopeLga) query = query.eq('city', scopeLga);
   const { count, error } = await query;
