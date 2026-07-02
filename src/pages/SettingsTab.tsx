@@ -286,25 +286,46 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
     toast.success('Fee settings saved');
   }
 
-  const FeeCard = ({ label, desc, value, suffix, onChange, min = 0, max = 100 }: {
+  function FeeCard({ label, desc, value, suffix, onChange, min = 0, max = 50000 }: {
     label: string; desc: string; value: number; suffix: string;
     onChange: (v: number) => void; min?: number; max?: number;
-  }) => (
-    <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-semibold text-white">{label}</p>
-        <div className="flex items-center gap-2">
-          <input
-            type="number" value={value} min={min} max={max}
-            onChange={e => onChange(Number(e.target.value))}
-            className="w-20 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-emerald-500"
-          />
-          <span className="text-xs text-[#5C5E72] w-10">{suffix}</span>
+  }) {
+    const [local, setLocal] = useState(String(value));
+    // Sync from parent when value prop changes (initial load, save, etc.)
+    useEffect(() => { setLocal(String(value)); }, [value]);
+    return (
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-sm font-semibold text-white">{label}</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={local}
+              onChange={e => {
+                const raw = e.target.value;
+                // Allow typing digits and one decimal point
+                if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+                  setLocal(raw);
+                  const n = raw === '' ? 0 : Number(raw);
+                  if (!isNaN(n) && n >= min && n <= max) onChange(n);
+                }
+              }}
+              onBlur={() => {
+                const n = local === '' ? 0 : Number(local);
+                const clamped = Math.max(min, Math.min(max, isNaN(n) ? 0 : n));
+                setLocal(String(clamped));
+                onChange(clamped);
+              }}
+              className="w-20 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-emerald-500"
+            />
+            <span className="text-xs text-[#5C5E72] w-10">{suffix}</span>
+          </div>
         </div>
+        <p className="text-[10px] text-[#5C5E72]">{desc}</p>
       </div>
-      <p className="text-[10px] text-[#5C5E72]">{desc}</p>
-    </div>
-  );
+    );
+  }
 
   if (loading) { return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>; }
 
