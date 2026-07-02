@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSystemSettings, updateSystemSetting, logAuditAction } from '@/lib/supabase';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
+import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
 
@@ -18,7 +19,93 @@ interface SettingDef {
   description?: string;
 }
 
+type SettingsSubPage = 'menu' | 'general' | 'finance';
+
+// ═══════════════════════════════════════════════════════════
+// MAIN SETTINGS TAB — with sub-navigation
+// ═══════════════════════════════════════════════════════════
+
 export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
+  const [subPage, setSubPage] = useState<SettingsSubPage>('menu');
+
+  // Menu view — show categories
+  if (subPage === 'menu') {
+    return <SettingsMenu isCreator={isCreator} onNavigate={setSubPage} />;
+  }
+
+  // General settings
+  if (subPage === 'general') {
+    return <GeneralSettings profile={profile} isCreator={isCreator} onBack={() => setSubPage('menu')} />;
+  }
+
+  // Finance settings
+  if (subPage === 'finance') {
+    return <FinanceSettings onBack={() => setSubPage('menu')} />;
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS MENU — Category selector
+// ═══════════════════════════════════════════════════════════
+
+function SettingsMenu({ isCreator, onNavigate }: { isCreator: boolean; onNavigate: (p: SettingsSubPage) => void }) {
+  const categories = [
+    {
+      id: 'general' as SettingsSubPage,
+      label: 'General Settings',
+      desc: 'Platform name, maintenance mode, registration, support contacts, AI key',
+      icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+      creatorOnly: false,
+    },
+    {
+      id: 'finance' as SettingsSubPage,
+      label: 'Finance Settings',
+      desc: 'Commissions, fees, reservation fee, worker charges',
+      icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+      creatorOnly: true,
+    },
+  ].filter(c => !c.creatorOnly || isCreator);
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-2xl p-4">
+        <p className="text-xs text-white font-medium">Platform Settings</p>
+        <p className="text-[10px] text-[#5C5E72] mt-0.5">Choose a category to configure</p>
+      </div>
+
+      <div className="space-y-3">
+        {categories.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => onNavigate(cat.id)}
+            className="w-full glass rounded-2xl p-4 flex items-center gap-4 text-left card-hover group"
+          >
+            <div className="w-11 h-11 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center flex-shrink-0 group-hover:border-[#3B82F6]/30 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5">
+                <path d={cat.icon} />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">{cat.label}</p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">{cat.desc}</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// GENERAL SETTINGS — The existing settings page
+// ═══════════════════════════════════════════════════════════
+
+function GeneralSettings({ profile, isCreator, onBack }: { profile: Profile; isCreator: boolean; onBack: () => void }) {
   const { requestAuth } = useCreatorAuth();
   const [savedSettings, setSavedSettings] = useState<Record<string, string>>({});
   const [pendingSettings, setPendingSettings] = useState<Record<string, string>>({});
@@ -36,7 +123,6 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
       if (!map.maintenance_mode) map.maintenance_mode = 'false';
       if (!map.registration_open) map.registration_open = 'true';
       if (!map.max_listings_per_user) map.max_listings_per_user = 'unlimited';
-      // Support contacts — no defaults, user sets them
       if (!map.support_whatsapp) map.support_whatsapp = '';
       if (!map.support_telegram) map.support_telegram = '';
       if (!map.support_email) map.support_email = '';
@@ -53,13 +139,8 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
     setHasChanges(changed);
   }, [pendingSettings, savedSettings]);
 
-  // Protected save — requires creator auth
   async function handleSaveAll() {
-    if (isCreator) {
-      // Will show auth modal if needed, then auto-continue after password
-      requestAuth(doSave);
-      return;
-    }
+    if (isCreator) { requestAuth(doSave); return; }
     doSave();
   }
 
@@ -70,39 +151,23 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
     let savedCount = 0;
     for (const key of keys) {
       const { error } = await updateSystemSetting(key, pendingSettings[key], profile.user_id);
-      if (error) {
-        toast.error(`Failed to save "${key}"`);
-      } else {
-        savedCount++;
-        await logAuditAction(profile.user_id, profile.email, 'update_setting', 'setting', key, `${key} = ${pendingSettings[key]}`);
-      }
+      if (error) { toast.error(`Failed to save "${key}"`); } else { savedCount++; await logAuditAction(profile.user_id, profile.email, 'update_setting', 'setting', key, `${key} = ${pendingSettings[key]}`); }
     }
-    if (savedCount === keys.length) {
-      toast.success(`${savedCount} setting${savedCount > 1 ? 's' : ''} saved`);
-      setSavedSettings({ ...pendingSettings });
-    } else if (savedCount > 0) {
-      toast.warning(`${savedCount}/${keys.length} saved`);
-      setSavedSettings({ ...pendingSettings });
-    } else {
-      toast.error('All saves failed');
-    }
+    if (savedCount === keys.length) { toast.success(`${savedCount} setting${savedCount > 1 ? 's' : ''} saved`); setSavedSettings({ ...pendingSettings }); }
+    else if (savedCount > 0) { toast.warning(`${savedCount}/${keys.length} saved`); setSavedSettings({ ...pendingSettings }); }
+    else { toast.error('All saves failed'); }
     setSaving(false);
   }
 
-  function handleDiscard() {
-    setPendingSettings({ ...savedSettings });
-    toast.info('Changes discarded');
-  }
+  function handleDiscard() { setPendingSettings({ ...savedSettings }); toast.info('Changes discarded'); }
 
-  if (loading) {
-    return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
-  }
+  if (loading) { return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>; }
 
   const settings: SettingDef[] = [
     { key: 'platform_name', label: 'Platform Name', type: 'text', description: 'The name displayed across the app' },
-    { key: 'listing_approval_required', label: 'Require Listing Approval', type: 'select', options: [['false', 'No — Listings go live immediately'], ['true', 'Yes — Require admin approval']], description: 'Control whether new listings need approval' },
-    { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'select', options: [['false', 'Off — App is open to everyone'], ['true', 'On — Only creator can access']], creatorOnly: true, description: 'When ON, blocks all non-creator users from logging in' },
-    { key: 'registration_open', label: 'Allow New Registrations', type: 'select', options: [['true', 'Yes — Anyone can sign up'], ['false', 'No — New signups blocked']], creatorOnly: true, description: 'Control whether new accounts can be created' },
+    { key: 'listing_approval_required', label: 'Require Listing Approval', type: 'select', options: [['false', 'No \u2014 Listings go live immediately'], ['true', 'Yes \u2014 Require admin approval']], description: 'Control whether new listings need approval' },
+    { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'select', options: [['false', 'Off \u2014 App is open to everyone'], ['true', 'On \u2014 Only creator can access']], creatorOnly: true, description: 'When ON, blocks all non-creator users from logging in' },
+    { key: 'registration_open', label: 'Allow New Registrations', type: 'select', options: [['true', 'Yes \u2014 Anyone can sign up'], ['false', 'No \u2014 New signups blocked']], creatorOnly: true, description: 'Control whether new accounts can be created' },
     { key: 'max_listings_per_user', label: 'Max Listings Per User', type: 'select', options: [['3', '3 listings'], ['5', '5 listings'], ['10', '10 listings'], ['20', '20 listings'], ['unlimited', 'Unlimited']], creatorOnly: true, description: 'Maximum listings a single user can post' },
     { key: 'support_whatsapp', label: 'Support WhatsApp', type: 'text', creatorOnly: true, description: 'WhatsApp number for support button (e.g., 2348012345678)' },
     { key: 'support_telegram', label: 'Support Telegram', type: 'text', creatorOnly: true, description: 'Telegram username or link (e.g., @wehouse or https://t.me/wehouse)' },
@@ -114,11 +179,14 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="glass rounded-2xl p-4 flex items-start gap-3">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+      {/* Back button + header */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+        </button>
         <div>
-          <p className="text-xs text-white font-medium">Platform Settings</p>
-          <p className="text-[10px] text-[#5C5E72] mt-0.5">{isCreator ? 'Click Save Changes to apply. Password will be required.' : 'Click Save Changes to apply.'}</p>
+          <p className="text-xs text-white font-medium">General Settings</p>
+          <p className="text-[10px] text-[#5C5E72]">Platform configuration</p>
         </div>
       </div>
 
@@ -132,31 +200,167 @@ export default function SettingsTab({ profile, isCreator }: SettingsTabProps) {
               {isChanged && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">CHANGED</span>}
             </div>
             {s.description && <p className="text-[10px] text-[#5C5E72] mb-2">{s.description}</p>}
-
             {s.type === 'text' ? (
-              <input value={pendingSettings[s.key] || ''} onChange={(e) => setPendingSettings(prev => ({ ...prev, [s.key]: e.target.value }))} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-[#3B82F6] overflow-hidden text-ellipsis whitespace-nowrap" style={{ textOverflow: 'ellipsis' }} />
+              <input value={pendingSettings[s.key] || ''} onChange={(e) => setPendingSettings(prev => ({ ...prev, [s.key]: e.target.value }))} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
             ) : (
               <select value={pendingSettings[s.key] || ''} onChange={(e) => setPendingSettings(prev => ({ ...prev, [s.key]: e.target.value }))} className={`w-full h-10 rounded-xl border text-white text-sm px-4 outline-none ${isChanged ? 'bg-[#3B82F6]/5 border-[#3B82F6]/30' : 'bg-[#1A1A24] border-[#232330]'}`}>
                 {s.options?.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             )}
-
-            <div className="flex items-center gap-2 mt-2 overflow-hidden">
-              <span className="text-[9px] text-[#5C5E72] truncate">Saved: <span className="text-[#8A8B9C]">{s.type === 'select' ? s.options?.find(o => o[0] === savedSettings[s.key])?.[1] || savedSettings[s.key] : savedSettings[s.key]?.length > 40 ? savedSettings[s.key]?.slice(0, 40) + '...' : savedSettings[s.key]}</span></span>
-              {isChanged && <span className="text-[9px] text-amber-400 truncate">--&gt; Pending: {s.type === 'select' ? s.options?.find(o => o[0] === pendingSettings[s.key])?.[1] || pendingSettings[s.key] : pendingSettings[s.key]?.length > 30 ? pendingSettings[s.key]?.slice(0, 30) + '...' : pendingSettings[s.key]}</span>}
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[9px] text-[#5C5E72]">Saved: <span className="text-[#8A8B9C]">{s.type === 'select' ? s.options?.find(o => o[0] === savedSettings[s.key])?.[1] || savedSettings[s.key] : savedSettings[s.key]}</span></span>
+              {isChanged && <span className="text-[9px] text-amber-400">{`->`} Pending: {s.type === 'select' ? s.options?.find(o => o[0] === pendingSettings[s.key])?.[1] || pendingSettings[s.key] : pendingSettings[s.key]}</span>}
             </div>
           </div>
         );
       })}
 
       {hasChanges && (
-        <div className="flex gap-3 sticky bottom-20 z-10 bg-[#0A0A0F]/90 backdrop-blur-sm pt-2 pb-6 px-0 -mx-0">
+        <div className="flex gap-3 sticky bottom-20 z-10 bg-[#0A0A0F]/90 backdrop-blur-sm pt-2 pb-6">
           <button onClick={handleSaveAll} disabled={saving} className="flex-1 h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2">
-            {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>Save Changes</>}
+            {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <>Save Changes</>}
           </button>
           <button onClick={handleDiscard} disabled={saving} className="h-11 px-5 rounded-xl bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] text-sm font-medium hover:text-white transition-colors disabled:opacity-50">Discard</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// FINANCE SETTINGS — Fee configuration (moved from separate tab)
+// ═══════════════════════════════════════════════════════════
+
+function FinanceSettings({ onBack }: { onBack: () => void }) {
+  const [fees, setFees] = useState({
+    rentalCommission: 10,
+    workerCommission: 12.5,
+    workerBookingFee: 300,
+    reservationFee: 5000,
+    hotelCommission: 15,
+    lateFeePercent: 5,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('platform_settings').select('key, value').in('key', [
+        'rental_commission_percent', 'worker_commission_percent', 'worker_booking_fee',
+        'reservation_fee', 'hotel_commission_percent', 'late_fee_percent',
+      ]);
+      if (data) {
+        const map: Record<string, number> = {};
+        data.forEach(r => { map[r.key] = Number(r.value) || 0; });
+        setFees(f => ({
+          rentalCommission: map['rental_commission_percent'] || f.rentalCommission,
+          workerCommission: map['worker_commission_percent'] || f.workerCommission,
+          workerBookingFee: map['worker_booking_fee'] || f.workerBookingFee,
+          reservationFee: map['reservation_fee'] || f.reservationFee,
+          hotelCommission: map['hotel_commission_percent'] || f.hotelCommission,
+          lateFeePercent: map['late_fee_percent'] || f.lateFeePercent,
+        }));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    const updates = [
+      { key: 'rental_commission_percent', value: String(fees.rentalCommission) },
+      { key: 'worker_commission_percent', value: String(fees.workerCommission) },
+      { key: 'worker_booking_fee', value: String(fees.workerBookingFee) },
+      { key: 'reservation_fee', value: String(fees.reservationFee) },
+      { key: 'hotel_commission_percent', value: String(fees.hotelCommission) },
+      { key: 'late_fee_percent', value: String(fees.lateFeePercent) },
+    ];
+    for (const u of updates) {
+      await supabase.from('platform_settings').upsert({ key: u.key, value: u.value }, { onConflict: 'key' });
+    }
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    toast.success('Fee settings saved');
+  }
+
+  const FeeCard = ({ label, desc, value, suffix, onChange, min = 0, max = 100 }: {
+    label: string; desc: string; value: number; suffix: string;
+    onChange: (v: number) => void; min?: number; max?: number;
+  }) => (
+    <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-white">{label}</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number" value={value} min={min} max={max}
+            onChange={e => onChange(Number(e.target.value))}
+            className="w-20 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-emerald-500"
+          />
+          <span className="text-xs text-[#5C5E72] w-10">{suffix}</span>
+        </div>
+      </div>
+      <p className="text-[10px] text-[#5C5E72]">{desc}</p>
+    </div>
+  );
+
+  if (loading) { return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>; }
+
+  return (
+    <div className="space-y-4">
+      {/* Back button + header */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+        </button>
+        <div>
+          <p className="text-xs text-white font-medium">Finance Settings</p>
+          <p className="text-[10px] text-[#5C5E72]">Configure what WeHouse charges</p>
+        </div>
+      </div>
+
+      {/* Property Partners */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Property Partners (Landlords)</h3>
+        <FeeCard label="Rental Commission" desc="Percentage of annual rent WeHouse keeps. Rest goes to partner." value={fees.rentalCommission} suffix="%" onChange={v => setFees(f => ({ ...f, rentalCommission: v }))} max={50} />
+        <FeeCard label="Reservation Fee" desc="What renters pay to hold a property for 72 hours. Non-refundable." value={fees.reservationFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, reservationFee: v }))} max={50000} />
+        <FeeCard label="Hotel Booking Commission" desc="Percentage of hotel booking value WeHouse keeps." value={fees.hotelCommission} suffix="%" onChange={v => setFees(f => ({ ...f, hotelCommission: v }))} max={50} />
+        <FeeCard label="Late Payment Fee" desc="Percentage added to overdue monthly installment payments." value={fees.lateFeePercent} suffix="%" onChange={v => setFees(f => ({ ...f, lateFeePercent: v }))} max={20} />
+      </div>
+
+      {/* Service Workers */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Service Workers</h3>
+        <FeeCard label="Worker Commission" desc="Percentage taken from worker earnings per completed job." value={fees.workerCommission} suffix="%" onChange={v => setFees(f => ({ ...f, workerCommission: v }))} max={50} />
+        <FeeCard label="User Booking Fee" desc="Flat fee users pay per worker booking. Covers escrow protection." value={fees.workerBookingFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, workerBookingFee: v }))} max={2000} />
+      </div>
+
+      {/* Preview */}
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <h3 className="text-xs font-semibold text-white">Live Preview</h3>
+
+        <div className="rounded-xl bg-[#1A1A24] p-3">
+          <p className="text-[10px] font-semibold text-emerald-400 mb-2">Property Rental at N2,000,000/year</p>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Annual Rent</span><span className="text-white">N2,000,000</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.rentalCommission}%)</span><span className="text-amber-400">N{Math.round(2000000 * fees.rentalCommission / 100).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400 font-medium">N{Math.round(2000000 * (100 - fees.rentalCommission) / 100).toLocaleString()}</span></div>
+        </div>
+
+        <div className="rounded-xl bg-[#1A1A24] p-3">
+          <p className="text-[10px] font-semibold text-blue-400 mb-2">Worker Job at N5,000</p>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Agreed Price</span><span className="text-white">N5,000</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">User Booking Fee</span><span className="text-amber-400">N{fees.workerBookingFee}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.workerCommission}%)</span><span className="text-amber-400">N{Math.round(5000 * fees.workerCommission / 100).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Worker Receives</span><span className="text-emerald-400 font-medium">N{Math.round(5000 * (100 - fees.workerCommission) / 100).toLocaleString()}</span></div>
+        </div>
+      </div>
+
+      <button onClick={handleSave} disabled={saving}
+        className="w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50 active:scale-[0.98]">
+        {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Fee Settings'}
+      </button>
     </div>
   );
 }
