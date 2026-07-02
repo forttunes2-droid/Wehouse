@@ -17,7 +17,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
 
   const handleSelect = (years: RentalDuration) => {
     setSelectedDuration(years);
-    const calc = calculateRentalPayments(annualRent, years);
+    const calc = calculateRentalPayments(annualRent, years, subType);
     onSelectPlan({
       durationYears: years,
       year1Upfront: calc.year1Upfront,
@@ -55,9 +55,22 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
         ))}
       </div>
 
-      {/* Payment Breakdown */}
+      {/* Reservation Step — What user pays NOW */}
       <div className="rounded-xl bg-[#12121A] border border-white/[0.04] p-4 space-y-2">
-        <h4 className="text-xs font-semibold text-[#8A8B9C] uppercase tracking-wider">Payment Breakdown</h4>
+        <h4 className="text-xs font-semibold text-[#8A8B9C] uppercase tracking-wider">Step 1: Reserve Now</h4>
+
+        <div className="flex justify-between text-xs">
+          <span className="text-[#5C5E72]">Reservation Fee</span>
+          <span className="text-[#3B82F6] font-bold">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
+        </div>
+        <p className="text-[9px] text-[#5C5E72]">
+          This holds the property for 72 hours. A WeHouse agent will contact you to schedule inspection.
+        </p>
+      </div>
+
+      {/* After Inspection — What user pays LATER */}
+      <div className="rounded-xl bg-[#12121A] border border-white/[0.04] p-4 space-y-2">
+        <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Step 2: After Inspection</h4>
 
         <div className="flex justify-between text-xs">
           <span className="text-[#5C5E72]">Annual Rent</span>
@@ -65,23 +78,13 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
         </div>
 
         <div className="flex justify-between text-xs">
-          <span className="text-[#5C5E72]">WeHouse Commission ({breakdown.commissionPercent}%)</span>
-          <span className="text-amber-400 font-medium">N{breakdown.wehouseCommission.toLocaleString()}</span>
-        </div>
-
-        <div className="flex justify-between text-xs">
-          <span className="text-[#5C5E72]">Security Deposit (held in escrow)</span>
+          <span className="text-[#5C5E72]">Security Deposit (escrow)</span>
           <span className="text-blue-400 font-medium">N{breakdown.securityDeposit.toLocaleString()}</span>
-        </div>
-
-        <div className="border-t border-white/[0.04] pt-2 flex justify-between text-xs">
-          <span className="text-[#5C5E72]">Reservation Fee (holds property 72hrs)</span>
-          <span className="text-white font-medium">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
         </div>
 
         <div className="border-t border-white/[0.04] pt-2">
           <div className="flex justify-between text-sm">
-            <span className="text-white font-semibold">Year 1 (Pay Now)</span>
+            <span className="text-white font-semibold">Year 1 Rent</span>
             <span className="text-[#3B82F6] font-bold">N{breakdown.year1Upfront.toLocaleString()}</span>
           </div>
         </div>
@@ -92,28 +95,21 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
               <span className="text-[#5C5E72]">Monthly from Year 2 ({breakdown.monthlyInstallments.length} months)</span>
               <span className="text-emerald-400 font-medium">N{breakdown.monthlyInstallments[0].amount.toLocaleString()}/mo</span>
             </div>
-            <p className="text-[9px] text-[#5C5E72] mt-1">
-              Paid via Paystack monthly. Late payments attract {WEHOUSE_FEES.LATE_PAYMENT_FEE_PERCENT}% fee.
-            </p>
           </div>
         )}
 
-        <div className="border-t border-white/[0.04] pt-2 flex justify-between text-xs">
-          <span className="text-[#5C5E72]">Total over {selectedDuration} year(s)</span>
-          <span className="text-white font-bold">N{breakdown.totalRent.toLocaleString()}</span>
-        </div>
-
-        <div className="flex justify-between text-xs">
-          <span className="text-emerald-400">Landlord Receives</span>
-          <span className="text-emerald-400 font-bold">N{breakdown.landlordReceives.toLocaleString()}</span>
-        </div>
+        <p className="text-[9px] text-[#5C5E72] mt-1">
+          Security deposit is held by WeHouse and returned after your stay if no damage.
+          Late payments attract {WEHOUSE_FEES.LATE_PAYMENT_FEE_PERCENT}% fee.
+        </p>
       </div>
 
       <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-3">
         <p className="text-[10px] text-amber-400">
-          <strong>How it works:</strong> Pay the reservation fee now to hold the property for 72 hours. 
-          A WeHouse agent will contact you to schedule inspection. After inspection, pay Year 1 rent via Paystack. 
-          {selectedDuration > 1 ? `Subsequent years are automatically deducted monthly from your Paystack account.` : ''}
+          <strong>How it works:</strong> Click "Reserve" to notify WeHouse. 
+          A staff/agent will be assigned to guide you through inspection. 
+          After inspection, you pay rent + security deposit. 
+          {selectedDuration > 1 ? `Subsequent years are auto-deducted monthly.` : ''}
         </p>
       </div>
     </div>

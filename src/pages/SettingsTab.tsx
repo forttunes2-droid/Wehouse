@@ -323,10 +323,6 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
 
   if (loading) { return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>; }
 
-  const longWh = Math.round(2000000 * fees.longStayCommission / 100);
-  const shortWh = Math.round(2000000 * fees.shortStayCommission / 100);
-  const secDep = Math.max(fees.securityDepositMin, Math.round(2000000 * fees.securityDepositPercent / 100));
-
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -360,31 +356,36 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
         <FeeCard label="User Booking Fee" desc="Flat fee users pay per worker booking." value={fees.workerBookingFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, workerBookingFee: v }))} max={2000} />
       </div>
 
+      {/* Fee Summary — no fake numbers, just clear explanations */}
       <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
-        <h3 className="text-xs font-semibold text-white">Live Preview (N2,000,000/year property)</h3>
+        <h3 className="text-xs font-semibold text-white">How Fees Work</h3>
 
         <div className="rounded-xl bg-[#1A1A24] p-3">
-          <p className="text-[10px] font-semibold text-emerald-400 mb-2">Long Stay (Yearly Tenant)</p>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Annual Rent</span><span className="text-white">N2,000,000</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.longStayCommission}%)</span><span className="text-amber-400">N{longWh.toLocaleString()}</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Security Deposit</span><span className="text-blue-400">N{secDep.toLocaleString()}</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400 font-medium">N{(2000000 - longWh).toLocaleString()}</span></div>
+          <p className="text-[10px] font-semibold text-emerald-400 mb-2">Long Stay Apartment</p>
+          <p className="text-[10px] text-[#8A8B9C] leading-relaxed">
+            When a user rents for a year, WeHouse takes <span className="text-amber-400">{fees.longStayCommission}%</span> of the annual rent. 
+            The property partner receives <span className="text-emerald-400">{100 - fees.longStayCommission}%</span>.
+            Security deposit ({fees.securityDepositPercent}%, min N{fees.securityDepositMin.toLocaleString()}) is held in escrow and returned after stay.
+          </p>
         </div>
 
         <div className="rounded-xl bg-[#1A1A24] p-3">
-          <p className="text-[10px] font-semibold text-orange-400 mb-2">Short Stay (Daily/Weekly Guest)</p>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Annual Rent Equivalent</span><span className="text-white">N2,000,000</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.shortStayCommission}%)</span><span className="text-amber-400">N{shortWh.toLocaleString()}</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Why higher?</span><span className="text-orange-400">More cleaning, turnover, management</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400 font-medium">N{(2000000 - shortWh).toLocaleString()}</span></div>
+          <p className="text-[10px] font-semibold text-orange-400 mb-2">Short Stay Apartment</p>
+          <p className="text-[10px] text-[#8A8B9C] leading-relaxed">
+            Daily/weekly guests cost more to manage (cleaning, turnover, key handovers). 
+            WeHouse takes <span className="text-amber-400">{fees.shortStayCommission}%</span> — higher than long stay. 
+            Partner receives <span className="text-emerald-400">{100 - fees.shortStayCommission}%</span>.
+          </p>
         </div>
 
         <div className="rounded-xl bg-[#1A1A24] p-3">
-          <p className="text-[10px] font-semibold text-blue-400 mb-2">Worker Job (N5,000)</p>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Agreed Price</span><span className="text-white">N5,000</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">User Booking Fee</span><span className="text-amber-400">N{fees.workerBookingFee}</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.workerCommission}%)</span><span className="text-amber-400">N{Math.round(5000 * fees.workerCommission / 100).toLocaleString()}</span></div>
-          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Worker Receives</span><span className="text-emerald-400 font-medium">N{Math.round(5000 * (100 - fees.workerCommission) / 100).toLocaleString()}</span></div>
+          <p className="text-[10px] font-semibold text-blue-400 mb-2">Worker Booking</p>
+          <p className="text-[10px] text-[#8A8B9C] leading-relaxed">
+            User pays agreed price + N{fees.workerBookingFee} booking fee. 
+            WeHouse takes <span className="text-amber-400">{fees.workerCommission}%</span> from the worker. 
+            Worker keeps <span className="text-emerald-400">{100 - fees.workerCommission}%</span>. 
+            Payment held in escrow until user approves completed work.
+          </p>
         </div>
       </div>
 
