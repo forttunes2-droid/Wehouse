@@ -4,72 +4,122 @@ import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
 
-interface PropertyOwnerDashboardProps {
+interface Props {
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
 }
 
-type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'earnings';
+type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'bookings' | 'earnings';
+type PropertyCategory = 'apartment' | 'hotel';
+type ApartmentSub = 'short_let' | 'long_stay';
 
-export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }: PropertyOwnerDashboardProps) {
+const AMENITIES = [
+  { key: 'consistent_water', label: 'Consistent Water' },
+  { key: 'generator', label: 'Generator' },
+  { key: 'security', label: 'Security' },
+  { key: 'parking', label: 'Parking Space' },
+  { key: 'ac', label: 'Air Conditioning' },
+  { key: 'furnished', label: 'Furnished' },
+  { key: 'wifi', label: 'Wi-Fi' },
+  { key: 'gym', label: 'Gym' },
+  { key: 'swimming_pool', label: 'Swimming Pool' },
+  { key: 'prepaid_meter', label: 'Prepaid Meter' },
+  { key: 'pop_ceiling', label: 'POP Ceiling' },
+  { key: 'wardrobe', label: 'Wardrobe' },
+  { key: 'kitchen_cabinets', label: 'Kitchen Cabinets' },
+  { key: 'balcony', label: 'Balcony' },
+  { key: 'interlocked_road', label: 'Interlocked Road' },
+  { key: 'waste_disposal', label: 'Waste Disposal' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════
+
+export default function PropertyOwnerDashboard({ profile, onNavigate }: Props) {
   const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
+  const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    totalProperties: 0, activeProperties: 0, pendingRequests: 0,
+    totalBookings: 0, totalEarnings: 0,
+  });
+
+  useEffect(() => {
+    async function loadPartner() {
+      const { data } = await supabase
+        .from('property_partners')
+        .select('id')
+        .eq('profile_id', profile.user_id)
+        .maybeSingle();
+      if (data) setPartnerId(data.id);
+    }
+    loadPartner();
+  }, [profile.user_id]);
+
+  useEffect(() => {
+    if (!partnerId) return;
+    async function loadStats() {
+      const [{ count: ap }, { count: rp }, { count: b }, { data: payouts }] = await Promise.all([
+        supabase.from('properties').select('*', { count: 'exact', head: true }).eq('partner_id', partnerId),
+        supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('partner_id', partnerId).eq('status', 'pending'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('partner_id', partnerId),
+        supabase.from('property_payouts').select('amount').eq('partner_id', partnerId).eq('status', 'paid'),
+      ]);
+      const earnings = (payouts || []).reduce((s, p) => s + (p.amount || 0), 0);
+      setStats({
+        totalProperties: ap || 0, activeProperties: ap || 0, pendingRequests: rp || 0,
+        totalBookings: b || 0, totalEarnings: earnings,
+      });
+    }
+    loadStats();
+  }, [partnerId]);
+
+  const TABS: { id: OwnerTab; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'properties', label: 'My Properties' },
+    { id: 'request', label: 'New Request' },
+    { id: 'requests', label: 'Requests' },
+    { id: 'bookings', label: 'Bookings' },
+    { id: 'earnings', label: 'Earnings' },
+  ];
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-6">
       <Toaster position="top-center" richColors />
 
-      {/* Header with Back Button */}
+      {/* Header */}
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => onNavigate?.('home')}
-            className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#8A8B9C] hover:text-white hover:border-[#3B82F6]/30 transition-all"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+          <button onClick={() => onNavigate?.('home')}
+            className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-all">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-white">Property Partner</h1>
             <p className="text-[10px] text-[#5C5E72] truncate">{profile.email}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
-            <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-white px-2 py-1">Logout</button>
-          </div>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
         </div>
       </header>
 
       {/* Tabs */}
       <div className="flex gap-1 px-5 py-3 border-b border-white/[0.04] overflow-x-auto scrollbar-hide">
-        {([
-          { id: 'overview' as OwnerTab, label: 'Overview' },
-          { id: 'properties' as OwnerTab, label: 'My Properties' },
-          { id: 'request' as OwnerTab, label: 'Request Inspection' },
-          { id: 'requests' as OwnerTab, label: 'My Requests' },
-          { id: 'earnings' as OwnerTab, label: 'Earnings' },
-        ]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex-shrink-0 h-9 px-4 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'bg-violet-500 text-white'
-                : 'text-[#5C5E72] hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
+              activeTab === t.id ? 'bg-violet-500 text-white' : 'text-[#5C5E72] hover:text-white'
+            }`}>{t.label}</button>
         ))}
       </div>
 
       <main className="px-5 py-4 max-w-lg mx-auto">
-        {activeTab === 'overview' && <OverviewTab profile={profile} onRequestInspection={() => setActiveTab('request')} onViewProperties={() => setActiveTab('properties')} onViewEarnings={() => setActiveTab('earnings')} />}
-        {activeTab === 'properties' && <PropertiesTab ownerId={profile.user_id} />}
-        {activeTab === 'request' && <RequestInspectionTab profile={profile} onSubmitted={() => setActiveTab('requests')} />}
-        {activeTab === 'requests' && <MyRequestsTab ownerId={profile.user_id} />}
-        {activeTab === 'earnings' && <EarningsTab ownerId={profile.user_id} />}
+        {activeTab === 'overview' && <OverviewTab stats={stats} onTab={setActiveTab} />}
+        {activeTab === 'properties' && <PropertiesTab partnerId={partnerId} />}
+        {activeTab === 'request' && <RequestInspectionTab partnerId={partnerId} onSubmitted={() => setActiveTab('requests')} />}
+        {activeTab === 'requests' && <RequestsTab partnerId={partnerId} />}
+        {activeTab === 'bookings' && <BookingsTab partnerId={partnerId} />}
+        {activeTab === 'earnings' && <EarningsTab partnerId={partnerId} />}
       </main>
     </div>
   );
@@ -79,244 +129,251 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════
 
-function OverviewTab({ profile, onRequestInspection, onViewProperties, onViewEarnings }: {
-  profile: Profile; onRequestInspection?: () => void; onViewProperties?: () => void; onViewEarnings?: () => void;
-}) {
-  const [stats, setStats] = useState({ properties: 0, requests: 0, earnings: 0 });
-
-  useEffect(() => {
-    async function load() {
-      const [{ count: p }, { count: r }, { data: payouts }] = await Promise.all([
-        supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('owner_id', profile.user_id),
-        supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('owner_id', profile.user_id).eq('status', 'pending'),
-        supabase.from('payouts').select('amount').eq('owner_id', profile.user_id).eq('status', 'paid'),
-      ]);
-      const totalEarnings = (payouts || []).reduce((s, p) => s + (p.amount || 0), 0);
-      setStats({ properties: p || 0, requests: r || 0, earnings: totalEarnings });
-    }
-    load();
-  }, [profile.user_id]);
+function OverviewTab({ stats, onTab }: { stats: any; onTab: (t: OwnerTab) => void }) {
+  const cards = [
+    { label: 'My Properties', value: stats.totalProperties, color: 'violet', tab: 'properties' as OwnerTab },
+    { label: 'Pending', value: stats.pendingRequests, color: 'amber', tab: 'requests' as OwnerTab },
+    { label: 'Bookings', value: stats.totalBookings, color: 'blue', tab: 'bookings' as OwnerTab },
+    { label: 'Earnings', value: `N${stats.totalEarnings.toLocaleString()}`, color: 'emerald', tab: 'earnings' as OwnerTab },
+  ];
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-5">
-        <h2 className="text-sm font-semibold text-white">Welcome, {profile.full_name || profile.username || 'Partner'}</h2>
+        <h2 className="text-sm font-semibold text-white">Welcome to your Partner Dashboard</h2>
         <p className="text-[10px] text-[#5C5E72] mt-1">
-          WeHouse manages your property listings. Submit an inspection request to get started.
+          Request property inspections. WeHouse will inspect, approve, and list your properties. You track everything here.
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Properties" value={stats.properties} color="violet" />
-        <StatCard label="Pending" value={stats.requests} color="amber" />
-        <StatCard label="Earnings" value={`N${stats.earnings.toLocaleString()}`} color="emerald" />
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map(c => (
+          <button key={c.label} onClick={() => onTab(c.tab)}
+            className={`rounded-2xl bg-gradient-to-br from-${c.color}-500/10 to-${c.color}-600/5 border border-${c.color}-500/20 p-4 text-center hover:scale-[1.02] transition-all active:scale-[0.98]`}>
+            <p className="text-lg font-extrabold text-white">{c.value}</p>
+            <p className="text-[9px] text-[#5C5E72] mt-1">{c.label}</p>
+          </button>
+        ))}
       </div>
 
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Quick Actions</h3>
-        <button onClick={onRequestInspection}
-          className="w-full rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors active:scale-[0.98]">
-          <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Request Inspection</p>
-            <p className="text-[10px] text-[#5C5E72]">Submit a new property for WeHouse to inspect</p>
-          </div>
-        </button>
-        <button onClick={onViewProperties}
-          className="w-full rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors active:scale-[0.98]">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">My Properties</p>
-            <p className="text-[10px] text-[#5C5E72]">View all your listed properties</p>
-          </div>
-        </button>
-        <button onClick={onViewEarnings}
-          className="w-full rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors active:scale-[0.98]">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Earnings</p>
-            <p className="text-[10px] text-[#5C5E72]">View your payout history</p>
-          </div>
-        </button>
+      <button onClick={() => onTab('request')}
+        className="w-full rounded-2xl bg-violet-500 text-white h-12 font-semibold text-sm hover:bg-violet-600 transition-colors active:scale-[0.98]">
+        + Request New Property Inspection
+      </button>
+
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+        <h3 className="text-xs font-semibold text-white mb-2">How It Works</h3>
+        <ol className="space-y-2">
+          {[
+            'Request inspection — Fill property details, upload photos',
+            'WeHouse reviews — Admin assigns a field officer to inspect',
+            'Field inspection — Our staff visits, verifies, photographs',
+            'Approved & listed — Your property goes public on WeHouse',
+            'Manage bookings — Track reservations, earnings, all in one place',
+          ].map((s, i) => (
+            <li key={i} className="flex items-start gap-2 text-[10px] text-[#8A8B9C]">
+              <span className="w-5 h-5 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center text-[9px] font-bold flex-shrink-0">{i + 1}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// PROPERTIES TAB
+// MY PROPERTIES TAB
 // ═══════════════════════════════════════════════════════════════
 
-function PropertiesTab({ ownerId }: { ownerId: string }) {
+function PropertiesTab({ partnerId }: { partnerId: string | null }) {
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!partnerId) { setLoading(false); return; }
     async function load() {
-      const { data } = await supabase
-        .from('inspection_requests')
-        .select('*')
-        .eq('owner_id', ownerId)
-        .order('created_at', { ascending: false });
+      const { data } = await supabase.from('properties').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
       setProperties(data || []);
       setLoading(false);
     }
     load();
-  }, [ownerId]);
+  }, [partnerId]);
 
-  if (loading) return <LoadingSpinner />;
-
-  const statusColors: Record<string, string> = {
-    pending: 'bg-amber-500/10 text-amber-400',
-    scheduled: 'bg-blue-500/10 text-blue-400',
-    in_progress: 'bg-purple-500/10 text-purple-400',
-    approved: 'bg-emerald-500/10 text-emerald-400',
-    rejected: 'bg-red-500/10 text-red-400',
-    completed: 'bg-gray-500/10 text-gray-400',
-  };
+  if (loading) return <Spinner />;
+  if (!properties.length) return <Empty title="No properties yet" desc="Submit an inspection request. Once approved by WeHouse staff, your properties will appear here." />;
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Properties ({properties.length})</h3>
-      {properties.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">
-          No properties yet. Submit an inspection request to get started.
-        </div>
-      ) : (
-        properties.map(p => (
-          <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{p.property_address}</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${statusColors[p.status] || 'bg-gray-500/10'}`}>{p.status}</span>
-                </div>
-                <p className="text-[10px] text-[#5C5E72]">{p.property_city}, {p.property_state} · {p.property_type}</p>
-                <p className="text-[9px] text-[#5C5E72]">{p.request_code} · {p.bedrooms}bd/{p.bathrooms}ba · N{(p.expected_rent || 0).toLocaleString()}</p>
-              </div>
-            </div>
+      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Listed Properties ({properties.length})</h3>
+      {properties.map(p => (
+        <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
+          <div className="h-32 bg-[#1A1A24] relative">
+            {p.images?.length > 0 ? (
+              <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-[#5C5E72] text-xs">No photo yet</div>
+            )}
+            <span className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 rounded-full font-semibold ${
+              p.status === 'approved' || p.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
+              p.status === 'pending' ? 'bg-amber-500/20 text-amber-400' :
+              'bg-red-500/20 text-red-400'
+            }`}>{p.status || 'pending'}</span>
           </div>
-        ))
-      )}
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white truncate">{p.title || p.address || 'Untitled Property'}</p>
+            </div>
+            <p className="text-[10px] text-[#5C5E72]">{p.city}, {p.state} · {p.property_type}{p.sub_type ? ` (${p.sub_type === 'short_let' ? 'Short Let' : 'Long Stay'})` : ''}</p>
+            {p.amenities?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {p.amenities.slice(0, 4).map((a: string) => (
+                  <span key={a} className="text-[8px] px-1.5 py-0.5 rounded bg-[#1A1A24] text-[#5C5E72]">{a.replace(/_/g, ' ')}</span>
+                ))}
+                {p.amenities.length > 4 && <span className="text-[8px] text-[#5C5E72]">+{p.amenities.length - 4} more</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// REQUEST INSPECTION TAB — Multiple Properties, State/LGA Dropdowns
+// REQUEST INSPECTION TAB
 // ═══════════════════════════════════════════════════════════════
 
-interface PropertyForm {
+interface DraftProperty {
   id: string;
-  property_address: string;
+  category: PropertyCategory;
+  sub_type: ApartmentSub | '';
   property_state: string;
   property_city: string;
-  property_type: 'short_let' | 'long_stay' | '';
+  property_address: string;
   bedrooms: string;
   bathrooms: string;
   expected_rent: string;
   description: string;
+  amenities: string[];
+  photoUrls: string[];
+  uploading: boolean;
 }
 
-function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSubmitted?: () => void }) {
-  const [properties, setProperties] = useState<PropertyForm[]>([]);
-  const [form, setForm] = useState<PropertyForm>({
-    id: '', property_address: '', property_state: '', property_city: '',
-    property_type: '', bedrooms: '1', bathrooms: '1', expected_rent: '', description: '',
+function RequestInspectionTab({ partnerId, onSubmitted }: { partnerId: string | null; onSubmitted?: () => void }) {
+  const [properties, setProperties] = useState<DraftProperty[]>([]);
+  const [draft, setDraft] = useState<DraftProperty>({
+    id: '', category: 'apartment', sub_type: '', property_state: '', property_city: '',
+    property_address: '', bedrooms: '1', bathrooms: '1', expected_rent: '',
+    description: '', amenities: [], photoUrls: [], uploading: false,
   });
-  const [ownerPhone, setOwnerPhone] = useState(profile.phone || '');
   const [submitting, setSubmitting] = useState(false);
+  // Phone is taken from profile, editable per-property in description
 
-  const availableLgas = form.property_state ? getCitiesForState(form.property_state) : [];
+  const availableLgas = draft.property_state ? getCitiesForState(draft.property_state) : [];
 
-  function resetForm() {
-    setForm({ id: '', property_address: '', property_state: '', property_city: '', property_type: '', bedrooms: '1', bathrooms: '1', expected_rent: '', description: '' });
-  }
+  const resetDraft = () => setDraft({
+    id: '', category: 'apartment', sub_type: '', property_state: '', property_city: '',
+    property_address: '', bedrooms: '1', bathrooms: '1', expected_rent: '',
+    description: '', amenities: [], photoUrls: [], uploading: false,
+  });
 
-  function addProperty() {
-    if (!form.property_address || !form.property_state || !form.property_city) {
-      toast.error('Please fill in address, state, and LGA');
+  const toggleAmenity = (key: string) => {
+    setDraft(d => ({
+      ...d,
+      amenities: d.amenities.includes(key) ? d.amenities.filter(a => a !== key) : [...d.amenities, key],
+    }));
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setDraft(d => ({ ...d, uploading: true }));
+    const newUrls: string[] = [];
+    for (const file of Array.from(files)) {
+      const path = `inspection-photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${file.name.split('.').pop()}`;
+      const { error } = await supabase.storage.from('listings').upload(path, file);
+      if (!error) {
+        const { data } = supabase.storage.from('listings').getPublicUrl(path);
+        newUrls.push(data.publicUrl);
+      }
+    }
+    setDraft(d => ({ ...d, photoUrls: [...d.photoUrls, ...newUrls], uploading: false }));
+  };
+
+  const addProperty = () => {
+    if (!draft.property_address || !draft.property_state || !draft.property_city) {
+      toast.error('Fill in state, LGA, and street address');
       return;
     }
-    if (!form.property_type) {
-      toast.error('Please select apartment type (Short Let or Long Stay)');
+    if (draft.category === 'apartment' && !draft.sub_type) {
+      toast.error('Select Short Let or Long Stay');
       return;
     }
-    setProperties(prev => [...prev, { ...form, id: crypto.randomUUID() }]);
-    resetForm();
-    toast.success('Property added! Add more or submit all.');
-  }
+    setProperties(prev => [...prev, { ...draft, id: crypto.randomUUID() }]);
+    resetDraft();
+    toast.success('Property added to batch!');
+  };
 
-  function removeProperty(id: string) {
-    setProperties(prev => prev.filter(p => p.id !== id));
-  }
+  const removeProperty = (id: string) => setProperties(prev => prev.filter(p => p.id !== id));
+  const removePhoto = (url: string) => setDraft(d => ({ ...d, photoUrls: d.photoUrls.filter(u => u !== url) }));
 
-  async function handleSubmitAll() {
-    if (properties.length === 0) {
-      toast.error('Add at least one property');
-      return;
-    }
-
+  const submitAll = async () => {
+    if (properties.length === 0) { toast.error('Add at least one property'); return; }
+    if (!partnerId) { toast.error('Partner account not found'); return; }
     setSubmitting(true);
-    const baseCode = `WHIR-${Date.now().toString(36).toUpperCase()}`;
 
-    const inserts = properties.map((p, i) => ({
-      request_code: `${baseCode}-${i + 1}`,
-      owner_id: profile.user_id,
-      owner_email: profile.email,
-      owner_phone: ownerPhone,
+    const inserts = properties.map(p => ({
+      partner_id: partnerId,
+      property_type: p.category === 'apartment' ? `apartment_${p.sub_type}` : 'hotel',
       property_address: p.property_address,
       property_city: p.property_city,
       property_state: p.property_state,
-      property_type: p.property_type,
-      bedrooms: parseInt(p.bedrooms),
-      bathrooms: parseInt(p.bathrooms),
+      bedrooms: parseInt(p.bedrooms) || null,
+      bathrooms: parseInt(p.bathrooms) || null,
       expected_rent: p.expected_rent ? parseFloat(p.expected_rent) : null,
       description: p.description,
+      amenities: p.amenities,
+      photo_urls: p.photoUrls,
       status: 'pending' as const,
     }));
 
     const { error } = await supabase.from('inspection_requests').insert(inserts);
     setSubmitting(false);
 
-    if (error) {
-      toast.error('Failed: ' + error.message);
-      return;
-    }
+    if (error) { toast.error('Failed: ' + error.message); return; }
 
-    toast.success(`${properties.length} inspection request(s) submitted! WeHouse will review and schedule.`);
+    toast.success(`${properties.length} inspection request(s) submitted! WeHouse will assign a field officer.`);
     setProperties([]);
-    resetForm();
+    resetDraft();
     onSubmitted?.();
-  }
+  };
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-4">
         <h3 className="text-sm font-semibold text-white">Request Property Inspection</h3>
         <p className="text-[10px] text-[#5C5E72] mt-1">
-          Add all your properties, then submit them all in one go. WeHouse will inspect, photograph, and list each one.
+          Add all properties you want inspected. WeHouse staff will visit each one.
         </p>
       </div>
 
-      {/* Added Properties List */}
+      {/* Batch List */}
       {properties.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-[#8B8DA0] uppercase tracking-wider">Added Properties ({properties.length})</h4>
-          {properties.map((p) => (
+          <h4 className="text-xs font-semibold text-[#8B8DA0] uppercase tracking-wider">Added ({properties.length})</h4>
+          {properties.map(p => (
             <div key={p.id} className="rounded-xl bg-[#12121A]/80 border border-violet-500/10 p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-sm">
-                {p.property_type === 'short_let' ? '⏱' : '🏠'}
-              </div>
+              {p.photoUrls[0] ? (
+                <img src={p.photoUrls[0]} alt="" className="w-10 h-10 rounded-lg object-cover" />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-sm">
+                  {p.category === 'hotel' ? '🏨' : p.sub_type === 'short_let' ? '⏱' : '🏠'}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">{p.property_address}</p>
-                <p className="text-[9px] text-[#5C5E72]">{p.property_city}, {p.property_state} · {p.property_type === 'short_let' ? 'Short Let' : 'Long Stay'} · {p.bedrooms}bd/{p.bathrooms}ba</p>
+                <p className="text-[9px] text-[#5C5E72]">{p.property_city}, {p.property_state} · {p.category === 'hotel' ? 'Hotel' : p.sub_type === 'short_let' ? 'Short Let' : 'Long Stay'}</p>
               </div>
               <button onClick={() => removeProperty(p.id)} className="text-[10px] text-red-400 hover:text-red-300 px-2 py-1">Remove</button>
             </div>
@@ -324,98 +381,135 @@ function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSu
         </div>
       )}
 
-      {/* Property Form */}
-      <div className="rounded-2xl bg-[#12121A]/40 border border-white/[0.04] p-4 space-y-3">
+      {/* Draft Form */}
+      <div className="rounded-2xl bg-[#12121A]/40 border border-white/[0.04] p-4 space-y-4">
         <h4 className="text-xs font-semibold text-white">Property {properties.length + 1}</h4>
 
-        {/* State Dropdown */}
+        {/* Category: Apartment vs Hotel */}
         <div>
-          <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">State *</label>
-          <select
-            value={form.property_state}
-            onChange={e => setForm(f => ({ ...f, property_state: e.target.value, property_city: '' }))}
-            className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500"
-          >
-            <option value="">Select State</option>
-            {NIGERIA_STATES.map(s => (
-              <option key={s.state} value={s.state}>{s.state}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* LGA Dropdown */}
-        <div>
-          <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Local Government (LGA) *</label>
-          <select
-            value={form.property_city}
-            onChange={e => setForm(f => ({ ...f, property_city: e.target.value }))}
-            disabled={!form.property_state}
-            className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500 disabled:opacity-40"
-          >
-            <option value="">{form.property_state ? 'Select LGA' : 'Select state first'}</option>
-            {availableLgas.map(lga => (
-              <option key={lga} value={lga}>{lga}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Full Address — Manual Input */}
-        <Input label="Full Street Address *" value={form.property_address} onChange={v => setForm(f => ({ ...f, property_address: v }))} placeholder="e.g. 15 Adeola Odeku Street, Block B" required />
-
-        {/* Property Type — Short Let / Long Stay */}
-        <div>
-          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Apartment Type *</label>
+          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Property Category *</label>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { value: 'short_let' as const, label: 'Short Let', desc: 'Daily/weekly rental', icon: '⏱' },
-              { value: 'long_stay' as const, label: 'Long Stay', desc: 'Monthly/yearly rental', icon: '🏠' },
-            ].map((pt) => (
-              <button key={pt.value} type="button" onClick={() => setForm(f => ({ ...f, property_type: pt.value }))}
-                className={`rounded-xl border p-3 text-center transition-all ${form.property_type === pt.value ? 'border-violet-500 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24] hover:border-violet-500/30'}`}>
-                <span className="text-xl">{pt.icon}</span>
-                <p className={`text-xs font-semibold mt-1 ${form.property_type === pt.value ? 'text-violet-400' : 'text-white'}`}>{pt.label}</p>
-                <p className="text-[9px] text-[#5C5E72]">{pt.desc}</p>
+              { value: 'apartment' as PropertyCategory, label: 'Apartment', icon: '🏢', desc: 'Short Let or Long Stay' },
+              { value: 'hotel' as PropertyCategory, label: 'Hotel', icon: '🏨', desc: 'Hotel / Guest House' },
+            ].map(cat => (
+              <button key={cat.value} type="button"
+                onClick={() => setDraft(d => ({ ...d, category: cat.value, sub_type: '' }))}
+                className={`rounded-xl border p-3 text-center transition-all ${draft.category === cat.value ? 'border-violet-500 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24] hover:border-violet-500/30'}`}>
+                <span className="text-xl">{cat.icon}</span>
+                <p className={`text-xs font-semibold mt-1 ${draft.category === cat.value ? 'text-violet-400' : 'text-white'}`}>{cat.label}</p>
+                <p className="text-[9px] text-[#5C5E72]">{cat.desc}</p>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Sub-type: Short Let / Long Stay (only for apartments) */}
+        {draft.category === 'apartment' && (
           <div>
-            <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Bedrooms</label>
-            <select value={form.bedrooms} onChange={e => setForm(f => ({ ...f, bedrooms: e.target.value }))}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500">
-              {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Apartment Type *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'short_let' as ApartmentSub, label: 'Short Let', desc: 'Daily / Weekly rental' },
+                { value: 'long_stay' as ApartmentSub, label: 'Long Stay', desc: 'Monthly / Yearly rental' },
+              ].map(st => (
+                <button key={st.value} type="button"
+                  onClick={() => setDraft(d => ({ ...d, sub_type: st.value }))}
+                  className={`rounded-xl border p-3 text-center transition-all ${draft.sub_type === st.value ? 'border-violet-500 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24]'}`}>
+                  <p className={`text-xs font-semibold ${draft.sub_type === st.value ? 'text-violet-400' : 'text-white'}`}>{st.label}</p>
+                  <p className="text-[9px] text-[#5C5E72]">{st.desc}</p>
+                </button>
+              ))}
+            </div>
           </div>
-          <div>
-            <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Bathrooms</label>
-            <select value={form.bathrooms} onChange={e => setForm(f => ({ ...f, bathrooms: e.target.value }))}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500">
-              {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+        )}
+
+        {/* Location: State → LGA → Address */}
+        <div className="space-y-3">
+          <Select label="State *" value={draft.property_state}
+            onChange={v => setDraft(d => ({ ...d, property_state: v, property_city: '' }))}
+            options={[{ value: '', label: 'Select State' }, ...NIGERIA_STATES.map(s => ({ value: s.state, label: s.state }))]} />
+
+          <Select label="Local Government (LGA) *" value={draft.property_city}
+            onChange={v => setDraft(d => ({ ...d, property_city: v }))}
+            disabled={!draft.property_state}
+            options={[{ value: '', label: draft.property_state ? 'Select LGA' : 'Select state first' }, ...availableLgas.map(l => ({ value: l, label: l }))]} />
+
+          <Input label="Full Street Address *" value={draft.property_address}
+            onChange={v => setDraft(d => ({ ...d, property_address: v }))}
+            placeholder="e.g. 15 Adeola Odeku Street, Block B, Flat 3" />
+        </div>
+
+        {/* Bedrooms / Bathrooms */}
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Bedrooms" value={draft.bedrooms}
+            onChange={v => setDraft(d => ({ ...d, bedrooms: v }))}
+            options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({ value: String(n), label: String(n) }))} />
+          <Select label="Bathrooms" value={draft.bathrooms}
+            onChange={v => setDraft(d => ({ ...d, bathrooms: v }))}
+            options={[1, 2, 3, 4, 5, 6].map(n => ({ value: String(n), label: String(n) }))} />
+        </div>
+
+        {/* Expected Rent */}
+        <Input label="Expected Rent (N/year)" value={draft.expected_rent}
+          onChange={v => setDraft(d => ({ ...d, expected_rent: v }))}
+          placeholder="e.g. 1500000" type="number" />
+
+        {/* Amenities */}
+        <div>
+          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Amenities Available</label>
+          <div className="grid grid-cols-2 gap-2">
+            {AMENITIES.map(a => (
+              <button key={a.key} type="button" onClick={() => toggleAmenity(a.key)}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
+                  draft.amenities.includes(a.key) ? 'border-violet-500/50 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24]'
+                }`}>
+                <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${
+                  draft.amenities.includes(a.key) ? 'bg-violet-500 border-violet-500' : 'border-[#5C5E72]'
+                }`}>
+                  {draft.amenities.includes(a.key) && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>}
+                </div>
+                <span className={`text-[10px] ${draft.amenities.includes(a.key) ? 'text-violet-400' : 'text-[#8A8B9C]'}`}>{a.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Expected Rent (N/year)" value={form.expected_rent} onChange={v => setForm(f => ({ ...f, expected_rent: v }))} placeholder="500000" type="number" />
-          {properties.length === 0 && (
-            <Input label="Phone" value={ownerPhone} onChange={v => setOwnerPhone(v)} placeholder="08012345678" />
-          )}
+        {/* Photo Upload */}
+        <div>
+          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Property Photos</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {draft.photoUrls.map(url => (
+              <div key={url} className="relative w-16 h-16 rounded-xl overflow-hidden">
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                <button onClick={() => removePhoto(url)} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[8px]">x</button>
+              </div>
+            ))}
+          </div>
+          <label className={`flex items-center justify-center gap-2 h-10 rounded-xl border border-dashed cursor-pointer transition-colors ${
+            draft.uploading ? 'border-amber-500/30 text-amber-400' : 'border-violet-500/30 text-violet-400 hover:bg-violet-500/10'
+          }`}>
+            <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+            <span className="text-xs font-semibold">{draft.uploading ? 'Uploading...' : '+ Add Photos'}</span>
+          </label>
         </div>
 
-        <TextArea label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Tell us about this property..." rows={3} />
+        {/* Description */}
+        <TextArea label="Description" value={draft.description}
+          onChange={v => setDraft(d => ({ ...d, description: v }))}
+          placeholder="Tell us about this property... What makes it special?" rows={3} />
 
+        {/* Add to Batch Button */}
         <button type="button" onClick={addProperty}
           className="w-full h-10 rounded-xl border border-dashed border-violet-500/30 text-violet-400 text-sm font-semibold hover:bg-violet-500/10 transition-colors">
-          + Add This Property
+          + Add to Batch
         </button>
       </div>
 
-      {/* Submit All */}
-      <button onClick={handleSubmitAll} disabled={submitting || properties.length === 0}
+      {/* Submit */}
+      <button onClick={submitAll} disabled={submitting || properties.length === 0}
         className="w-full h-12 rounded-xl bg-violet-500 text-white font-semibold hover:bg-violet-600 transition-colors disabled:opacity-40 active:scale-[0.98]">
-        {submitting ? 'Submitting...' : properties.length === 0 ? 'Add Properties Above' : `Submit All ${properties.length} Properties`}
+        {submitting ? 'Submitting...' : properties.length === 0 ? 'Add Properties Above' : `Submit ${properties.length} Property Request(s)`}
       </button>
     </div>
   );
@@ -425,58 +519,108 @@ function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSu
 // MY REQUESTS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function MyRequestsTab({ ownerId }: { ownerId: string }) {
+function RequestsTab({ partnerId }: { partnerId: string | null }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadRequests();
-  }, [ownerId]);
+    if (!partnerId) { setLoading(false); return; }
+    load();
+  }, [partnerId]);
 
-  async function loadRequests() {
-    const { data } = await supabase
-      .from('inspection_requests')
-      .select('*')
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
+  async function load() {
+    const { data } = await supabase.from('inspection_requests').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
     setRequests(data || []);
     setLoading(false);
   }
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <Spinner />;
+  if (!requests.length) return <Empty title="No requests yet" desc="Submit your first property inspection request to get started." />;
 
-  const statusColors: Record<string, string> = {
-    pending: 'bg-amber-500/10 text-amber-400',
-    scheduled: 'bg-blue-500/10 text-blue-400',
-    in_progress: 'bg-purple-500/10 text-purple-400',
-    approved: 'bg-emerald-500/10 text-emerald-400',
-    rejected: 'bg-red-500/10 text-red-400',
-    completed: 'bg-gray-500/10 text-gray-400',
+  const statusMap: Record<string, { color: string; label: string }> = {
+    pending: { color: 'bg-amber-500/10 text-amber-400', label: 'Pending' },
+    scheduled: { color: 'bg-blue-500/10 text-blue-400', label: 'Scheduled' },
+    in_progress: { color: 'bg-purple-500/10 text-purple-400', label: 'In Progress' },
+    approved: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Approved' },
+    rejected: { color: 'bg-red-500/10 text-red-400', label: 'Rejected' },
+    completed: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Completed' },
   };
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Requests ({requests.length})</h3>
-      {requests.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">No requests yet. Submit your first inspection request.</div>
-      ) : (
-        requests.map(r => (
-          <div key={r.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{r.property_address}</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${statusColors[r.status] || 'bg-gray-500/10'}`}>{r.status}</span>
-                </div>
-                <p className="text-[10px] text-[#5C5E72]">{r.property_city}, {r.property_state} · {r.property_type === 'short_let' ? 'Short Let' : r.property_type === 'long_stay' ? 'Long Stay' : r.property_type}</p>
-                <p className="text-[9px] text-[#5C5E72]">{r.request_code} · {new Date(r.created_at).toLocaleDateString()}</p>
+      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Inspection Requests ({requests.length})</h3>
+      {requests.map(r => {
+        const s = statusMap[r.status] || statusMap.pending;
+        return (
+          <div key={r.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
+            {r.photo_urls?.length > 0 && (
+              <div className="h-24 bg-[#1A1A24]">
+                <img src={r.photo_urls[0]} alt="" className="w-full h-full object-cover" />
               </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
+                {r.scheduled_date && <span className="text-[8px] text-blue-400">Scheduled: {r.scheduled_date}</span>}
+              </div>
+              <p className="text-sm font-semibold text-white">{r.property_address}</p>
+              <p className="text-[10px] text-[#5C5E72]">{r.property_city}, {r.property_state} · {r.property_type?.replace('apartment_', 'Apartment - ').replace('short_let', 'Short Let').replace('long_stay', 'Long Stay').replace('hotel', 'Hotel')}</p>
+              {r.amenities?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {r.amenities.slice(0, 5).map((a: string) => (
+                    <span key={a} className="text-[8px] px-1.5 py-0.5 rounded bg-[#1A1A24] text-[#5C5E72]">{a.replace(/_/g, ' ')}</span>
+                  ))}
+                </div>
+              )}
+              {r.notes && <p className="text-[10px] text-[#5C5E72] mt-2 italic">Note: {r.notes}</p>}
+              {r.rejection_reason && <p className="text-[10px] text-red-400 mt-2">Reason: {r.rejection_reason}</p>}
             </div>
-            {r.rejection_reason && <p className="text-[10px] text-red-400 mt-2">Reason: {r.rejection_reason}</p>}
-            {r.notes && <p className="text-[10px] text-[#5C5E72] mt-2">Note: {r.notes}</p>}
           </div>
-        ))
-      )}
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOKINGS TAB
+// ═══════════════════════════════════════════════════════════════
+
+function BookingsTab({ partnerId }: { partnerId: string | null }) {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!partnerId) { setLoading(false); return; }
+    async function load() {
+      const { data } = await supabase.from('bookings').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
+      setBookings(data || []);
+      setLoading(false);
+    }
+    load();
+  }, [partnerId]);
+
+  if (loading) return <Spinner />;
+  if (!bookings.length) return <Empty title="No bookings yet" desc="Bookings will appear here once users start reserving your listed properties." />;
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Bookings ({bookings.length})</h3>
+      {bookings.map(b => (
+        <div key={b.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-white">{b.booking_code || 'Booking'}</p>
+            <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
+              b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400' :
+              b.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
+              'bg-red-500/10 text-red-400'
+            }`}>{b.status}</span>
+          </div>
+          <p className="text-[10px] text-[#5C5E72]">Check-in: {b.check_in} · {b.nights} night(s)</p>
+          <p className="text-[10px] text-[#5C5E72]">Guest: {b.guest_name || '—'} · {b.guest_phone || '—'}</p>
+          <p className="text-xs font-semibold text-white mt-2">N{(b.total_amount || 0).toLocaleString()}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -485,25 +629,21 @@ function MyRequestsTab({ ownerId }: { ownerId: string }) {
 // EARNINGS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function EarningsTab({ ownerId }: { ownerId: string }) {
+function EarningsTab({ partnerId }: { partnerId: string | null }) {
   const [payouts, setPayouts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!partnerId) { setLoading(false); return; }
     async function load() {
-      const { data } = await supabase
-        .from('payouts')
-        .select('*')
-        .eq('owner_id', ownerId)
-        .order('created_at', { ascending: false });
+      const { data } = await supabase.from('property_payouts').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
       setPayouts(data || []);
       setLoading(false);
     }
     load();
-  }, [ownerId]);
+  }, [partnerId]);
 
-  if (loading) return <LoadingSpinner />;
-
+  if (loading) return <Spinner />;
   const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
   const totalPending = payouts.filter(p => p.status === 'pending').reduce((s, p) => s + (p.amount || 0), 0);
 
@@ -521,30 +661,16 @@ function EarningsTab({ ownerId }: { ownerId: string }) {
       </div>
 
       <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Payout History ({payouts.length})</h3>
-      {payouts.length === 0 ? (
-        <div className="text-center py-10">
-          <div className="w-12 h-12 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+      {!payouts.length ? <Empty title="No payouts yet" desc="Earnings appear here once WeHouse processes bookings on your properties." /> : payouts.map(p => (
+        <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white">{p.payout_code || 'Payout'}</p>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
           </div>
-          <p className="text-sm text-[#5C5E72]">No payouts yet</p>
-          <p className="text-[10px] text-[#5C5E72] mt-1">Earnings will appear here once WeHouse processes your property bookings.</p>
+          <p className="text-sm font-bold text-white mt-1">N{(p.amount || 0).toLocaleString()}</p>
+          <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
         </div>
-      ) : (
-        payouts.map(p => (
-          <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-white">{p.payout_code || 'Payout'}</p>
-                <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-white">N{(p.amount || 0).toLocaleString()}</p>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
-              </div>
-            </div>
-          </div>
-        ))
-      )}
+      ))}
     </div>
   );
 }
@@ -553,33 +679,24 @@ function EarningsTab({ ownerId }: { ownerId: string }) {
 // SHARED COMPONENTS
 // ═══════════════════════════════════════════════════════════════
 
-function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
-  const colorMap: Record<string, string> = {
-    violet: 'from-violet-500/10 to-violet-600/5 text-violet-400 border-violet-500/20',
-    amber: 'from-amber-500/10 to-amber-600/5 text-amber-400 border-amber-500/20',
-    emerald: 'from-emerald-500/10 to-emerald-600/5 text-emerald-400 border-emerald-500/20',
-    blue: 'from-blue-500/10 to-blue-600/5 text-blue-400 border-blue-500/20',
-  };
+function Input({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${colorMap[color]} border p-4 text-center`}>
-      <p className="text-lg font-extrabold">{value}</p>
-      <p className="text-[9px] mt-1 opacity-70">{label}</p>
+    <div>
+      <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder:text-[#5C5E72] outline-none focus:border-violet-500" />
     </div>
   );
 }
 
-function Input({ label, value, onChange, placeholder, type = 'text', required }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean }) {
+function Select({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
   return (
     <div>
       <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder:text-[#5C5E72] outline-none focus:border-violet-500"
-      />
+      <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
+        className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500 disabled:opacity-40">
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
     </div>
   );
 }
@@ -588,21 +705,24 @@ function TextArea({ label, value, onChange, placeholder, rows = 3 }: { label: st
   return (
     <div>
       <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
-      <textarea
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        className="w-full rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 py-3 placeholder:text-[#5C5E72] outline-none focus:border-violet-500 resize-none"
-      />
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+        className="w-full rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 py-3 placeholder:text-[#5C5E72] outline-none focus:border-violet-500 resize-none" />
     </div>
   );
 }
 
-function LoadingSpinner() {
+function Spinner() {
+  return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
+}
+
+function Empty({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="flex justify-center py-10">
-      <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+    <div className="text-center py-10">
+      <div className="w-12 h-12 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+      </div>
+      <p className="text-sm font-semibold text-[#5C5E72]">{title}</p>
+      <p className="text-[10px] text-[#5C5E72] mt-1 max-w-[200px] mx-auto">{desc}</p>
     </div>
   );
 }
