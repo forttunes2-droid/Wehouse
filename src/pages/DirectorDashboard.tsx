@@ -11,7 +11,7 @@ import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
 
-type DirectorTab = 'overview' | 'users' | 'listings' | 'approval' | 'reports' | 'audit' | 'announcements';
+type AdminTab = 'overview' | 'users' | 'listings' | 'approval' | 'reports' | 'audit' | 'announcements';
 
 interface Props {
   profile: Profile;
@@ -21,25 +21,23 @@ interface Props {
 
 const roleColors: Record<string, string> = {
   creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  director: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-  state_admin: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  assistant_state_admin: 'text-teal-400 bg-teal-500/10 border-teal-500/20',
   admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
   staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
   worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
+  property_partner: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
 };
 
 export default function DirectorDashboard({ profile, onLogout, onNavigate }: Props) {
-  const TAB_KEY = 'wh_director_tab';
-  const [activeTab, setActiveTab] = useState<DirectorTab>(() => {
+  const TAB_KEY = 'wh_admin_tab';
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview','users','listings','approval','reports','audit','announcements'].includes(saved) ? saved as DirectorTab : 'overview';
+      return saved && ['overview','users','listings','approval','reports','audit','announcements'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
 
-  const handleSetTab = useCallback((tab: DirectorTab) => {
+  const handleSetTab = useCallback((tab: AdminTab) => {
     setActiveTab(tab);
     localStorage.setItem(TAB_KEY, tab);
   }, []);
@@ -49,7 +47,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
   const [viewingUser, setViewingUser] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
 
-  const scopeState = profile.assigned_state || profile.state || '';
+  const scopeState = profile.state || profile.state || '';
 
   useEffect(() => {
     async function loadStats() {
@@ -63,7 +61,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
       const today = new Date().toISOString().split('T')[0];
       setStats({
         totalUsers: users.filter((u: any) => !u.deleted && u.state === scopeState).length,
-        staff: users.filter((u: any) => !u.deleted && u.state === scopeState && (u.role === 'staff' || u.role === 'admin' || u.role === 'assistant_state_admin')).length,
+        staff: users.filter((u: any) => !u.deleted && u.state === scopeState && (u.role === 'staff' || u.role === 'admin' || u.role === 'staff')).length,
         newToday: users.filter((u: any) => u.created_at?.startsWith(today)).length,
         listings: listings.filter((l: any) => l.state === scopeState).length,
         pendingApproval: approvalRes.listings.length,
@@ -73,13 +71,13 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
   }, [scopeState, profile.role, profile.user_id, refreshKey]);
 
   const tabs = [
-    { id: 'overview' as DirectorTab, label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
-    { id: 'users' as DirectorTab, label: 'Users', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
-    { id: 'listings' as DirectorTab, label: 'Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
-    { id: 'approval' as DirectorTab, label: 'Approval', icon: 'M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
-    { id: 'reports' as DirectorTab, label: 'Reports', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
-    { id: 'audit' as DirectorTab, label: 'Audit', icon: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
-    { id: 'announcements' as DirectorTab, label: 'Announce', icon: 'M11 5.882V19.24a1.4 1.4 0 0 1-2.338.995l-3.867-3.43a1.4 1.4 0 0 0-.93-.338H2a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1.865a1.4 1.4 0 0 0 .93-.338l3.867-3.43A1.4 1.4 0 0 1 11 5.882z' },
+    { id: 'overview' as AdminTab, label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
+    { id: 'users' as AdminTab, label: 'Users', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+    { id: 'listings' as AdminTab, label: 'Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
+    { id: 'approval' as AdminTab, label: 'Approval', icon: 'M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
+    { id: 'reports' as AdminTab, label: 'Reports', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
+    { id: 'audit' as AdminTab, label: 'Audit', icon: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
+    { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M11 5.882V19.24a1.4 1.4 0 0 1-2.338.995l-3.867-3.43a1.4 1.4 0 0 0-.93-.338H2a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1.865a1.4 1.4 0 0 0 .93-.338l3.867-3.43A1.4 1.4 0 0 1 11 5.882z' },
   ];
 
   return (
@@ -94,7 +92,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
               <span className="text-lg font-bold text-white">Director Dashboard</span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-indigo-300 bg-white/10 border-white/20">{ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}</span>
             </div>
-            <p className="text-xs text-white/60">{scopeState} · Director Level</p>
+            <p className="text-xs text-white/60">{scopeState} · Admin Level</p>
           </div>
           <div className="flex items-center gap-2">
             {onNavigate && (
@@ -148,7 +146,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
         {activeTab === 'overview' && (
           <div className="space-y-3">
             <div className="glass rounded-2xl p-4 border border-indigo-500/10">
-              <p className="text-xs text-[#8A8B9C]">As Director, you manage all users and listings in {scopeState}. You approve listings posted by Admin and below.</p>
+              <p className="text-xs text-[#8A8B9C]">As Admin, you manage all users and listings in {scopeState}. You approve listings posted by Admin and below.</p>
               {stats.pendingApproval > 0 && (
                 <p className="text-xs text-amber-400 mt-2 font-medium">{stats.pendingApproval} listing{stats.pendingApproval !== 1 ? 's' : ''} awaiting your approval</p>
               )}
@@ -163,7 +161,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
         {activeTab === 'approval' && <ApprovalTabDirector profile={profile} scopeState={scopeState} refresh={refresh} />}
         {activeTab === 'reports' && <ReportsTabDirector profile={profile} refresh={refresh} />}
         {activeTab === 'audit' && <AuditTabDirector />}
-        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: scopeState, lga: profile.assigned_lga || profile.city || '' }} />}
+        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: scopeState, lga: profile.city || profile.city || '' }} />}
       </div>
     </div>
   );
@@ -181,7 +179,7 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
   async function load() {
     setLoading(true);
     const { users: data } = await getAllUsers();
-    // Exclude current user (director) from the list
+    // Exclude current user (admin) from the list
     const inState = (data || []).filter((u: any) => u.state === scopeState && !u.deleted && u.user_id !== profile.user_id);
     setUsers(inState);
     setLoading(false);
@@ -208,7 +206,7 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
     <div className="space-y-3">
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
       <div className="flex gap-2 overflow-x-auto">
-        {['', 'user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'].map(r => (
+        {['', 'user', 'staff', 'admin'].map(r => (
           <button key={r} onClick={() => setRoleFilter(r)} className={`px-3 h-7 rounded-lg text-[10px] font-medium whitespace-nowrap ${roleFilter === r ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72]'}`}>
             {r ? ROLE_LABELS[r as keyof typeof ROLE_LABELS] || r : 'All'}
           </button>
@@ -231,8 +229,6 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
                 <option value="user">{ROLE_LABELS.user}</option>
                 <option value="staff">{ROLE_LABELS.staff}</option>
                 <option value="admin">{ROLE_LABELS.admin}</option>
-                <option value="assistant_state_admin">{ROLE_LABELS.assistant_state_admin}</option>
-                <option value="state_admin">{ROLE_LABELS.state_admin}</option>
               </select>
             </div>
           ))}

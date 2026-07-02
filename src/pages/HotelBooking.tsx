@@ -149,7 +149,7 @@ export default function HotelBooking({ hotelId, roomId, profile, onBack, onCompl
   async function loadStaffList() {
     const { users } = await getAllUsers();
     const staffOnly = (users || []).filter((u: any) =>
-      ['staff', 'admin', 'creator', 'creator_admin', 'state_admin'].includes(u.role)
+      ['staff', 'admin', 'creator', 'creator_admin'].includes(u.role)
     );
     setStaffList(staffOnly);
   }

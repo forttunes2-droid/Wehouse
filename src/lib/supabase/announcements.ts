@@ -56,19 +56,16 @@ export async function sendAnnouncement(
         query = query.eq('role', 'worker').eq('worker_verified', true);
         break;
       case 'admins':
-        query = query.in('role', ['admin', 'state_admin', 'assistant_state_admin', 'creator']);
+        query = query.in('role', ['admin', 'creator']);
         break;
       case 'staff_only':
         query = query.eq('role', 'staff');
         break;
-      case 'head_of_staff_only':
+      case 'admin_only':
         query = query.eq('role', 'admin');
         break;
-      case 'admin_only':
-        query = query.eq('role', 'state_admin');
-        break;
-      case 'assistant_admin_only':
-        query = query.eq('role', 'assistant_state_admin');
+      case 'partners_only':
+        query = query.eq('role', 'property_partner');
         break;
       case 'all_users':
       default:
@@ -206,7 +203,7 @@ export const getMessageRecipientCount = async (id: string | number) => {
 export const getFilteredRecipientCount = async (includeWorkers: boolean, includeStaff: boolean, scopeState?: string, scopeLga?: string) => {
   const allowedRoles: string[] = ['user'];
   if (includeWorkers) allowedRoles.push('worker');
-  if (includeStaff) allowedRoles.push('staff', 'assistant_state_admin', 'admin');
+  if (includeStaff) allowedRoles.push('staff', 'admin');
   let query = supabase.from('profiles').select('*', { count: 'exact', head: true }).is('deleted_at', null).in('role', allowedRoles);
   if (scopeState) query = query.eq('state', scopeState);
   if (scopeLga) query = query.eq('city', scopeLga);

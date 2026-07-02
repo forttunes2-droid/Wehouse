@@ -116,24 +116,32 @@ export async function trackRoommateSearch(_userId: string) {
 
 const SYSTEM_PROMPT = `You are the WeHouse AI Agent — the virtual assistant for WeHouse Nigeria, a housing platform connecting people with accommodation across Nigeria.
 
+STRICT RULE: You ONLY answer questions about WeHouse, Nigerian housing, property rentals, and related topics. If a user asks about anything else (science, math, general knowledge, other companies, etc.), politely redirect them to WeHouse topics.
+
+REDIRECT RESPONSE: "I'm here to help with WeHouse! Ask me about finding accommodation, booking inspections, payments, or anything about our platform."
+
 WHAT YOU KNOW:
-- Users can search for houses, apartments, self-contained rooms, single rooms, duplexes, studio apartments
-- Users can find roommates through the Roommate Match feature (8-hour search window)
+- Users can search for houses, apartments, duplexes across Nigeria
+- Users make reservations, pay through Paystack
+- WeHouse appoints an agent to guide them
+- They come for inspection, and if they like the house, proceed to pay rent via Paystack
+- Users can find roommates through the Roommate Match feature (FREE)
 - Users can book hotel rooms
-- Users can register as service workers (cleaners, electricians, plumbers, etc.)
-- Payments are handled through Paystack
-- Users chat with verified WeHouse staff (not landlords directly)
+- Users can find verified service workers (plumbers, electricians, etc.)
+- Users can register as service workers
+- Property Partners can list their properties for inspection
 - Support email: support@wehouse.com.ng
 
 WHAT YOU DO:
-- Answer questions about using the WeHouse app
-- Guide users through features (search, listings, roommate matching, bookings)
+- Answer questions about using the WeHouse app and platform
+- Guide users through features (search, listings, roommate matching, bookings, payments)
 - Help with account issues
+- Explain how the reservation and inspection process works
 - Be friendly, warm, and conversational — like a helpful friend
 - If you don't know something, be honest and suggest contacting support@wehouse.com.ng
 - NEVER make up features, prices, or policies
+- NEVER answer questions unrelated to WeHouse, housing, or property
 - NEVER say "24/7" or promise specific response times
-- NEVER mention message limits, photo limits, or premium tiers unless the user asks about them
 - Keep responses concise (2-4 sentences max)
 - Respond in the same language the user writes in
 
@@ -168,8 +176,41 @@ export function clearHistory() {
 
 // ─── SEND MESSAGE ───────────────────────────────────────
 
+// Keywords that indicate a WeHouse/housing/property related question
+const WEHOUSE_KEYWORDS = [
+  'house', 'apartment', 'rent', 'rental', 'property', 'landlord', 'tenant', 'room',
+  'roommate', 'accommodation', 'housing', 'flat', 'duplex', 'bungalow', 'estate',
+  'agent', 'inspection', 'booking', 'reserve', 'payment', 'paystack', 'lagos',
+  'abuja', 'ph', 'portharcourt', 'ibadan', 'kano', 'nigeria', 'bedroom', 'bathroom',
+  'worker', 'plumber', 'electrician', 'cleaner', 'service', 'list', 'listing',
+  'account', 'login', 'sign', 'password', 'profile', 'support', 'help', 'app',
+  'website', 'wehouse', 'verification', 'price', 'budget', 'location', 'state',
+  'lga', 'city', 'area', 'neighborhood', 'move', 'moving', 'furniture',
+  'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening', 'thanks',
+  'thank', 'ok', 'okay', 'yes', 'no', 'what', 'how', 'why', 'where', 'when',
+  'who', 'can', 'do', 'does', 'is', 'are', 'will', 'would', 'should',
+];
+
+function isWeHouseRelated(message: string): boolean {
+  const lower = message.toLowerCase().trim();
+  // Very short messages (greetings, etc.) are always allowed
+  if (lower.length < 10) return true;
+  // Check if any keyword matches
+  return WEHOUSE_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 export async function sendMessage(userMessage: string): Promise<string> {
   if (!openai) throw new Error('AI not configured');
+
+  // Guard: reject off-topic questions
+  if (!isWeHouseRelated(userMessage)) {
+    const redirect = "I'm here to help with WeHouse! Ask me about finding accommodation, booking inspections, payments, or anything about our platform.";
+    const history = getHistory();
+    history.push({ role: 'user', content: userMessage });
+    history.push({ role: 'assistant', content: redirect });
+    saveHistory(history);
+    return redirect;
+  }
 
   const history = getHistory();
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -201,6 +242,16 @@ export async function sendMessage(userMessage: string): Promise<string> {
 
 export async function sendMessageWithImage(userMessage: string, imageBase64: string): Promise<string> {
   if (!openai) throw new Error('AI not configured');
+
+  // Guard: reject off-topic questions
+  if (!isWeHouseRelated(userMessage || '')) {
+    const redirect = "I'm here to help with WeHouse! Ask me about finding accommodation, booking inspections, payments, or anything about our platform.";
+    const history = getHistory();
+    history.push({ role: 'user', content: userMessage || '[Image uploaded]' });
+    history.push({ role: 'assistant', content: redirect });
+    saveHistory(history);
+    return redirect;
+  }
 
   const history = getHistory();
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [

@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'director' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker' | 'property_owner' | 'property_partner';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker' | 'property_partner';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -94,7 +94,7 @@ export interface RoleChangeHistory {
   created_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'state_admin' | 'assistant_state_admin' | 'staff_dashboard' | 'property_owner' | 'property_partner';
+export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'creator' | 'admin' | 'staff_dashboard' | 'property_partner';
 
 export type ListingStatus = 'available' | 'reserved' | 'closed' | 'pending_approval' | 'rejected';
 
@@ -251,34 +251,25 @@ export interface SavedRoommateMatch {
 
 // ─── ROLE HIERARCHY ────────────────────────────────
 // Higher number = more power. Used for permission checks.
-// Approval chain: Staff → Head of Staff → Assistant Admin → Admin → Director → Creator
+// Simple chain: Staff → Admin → Creator
 export const ROLE_RANK: Record<UserRole, number> = {
   user: 0,
-  worker: 0,          // same level as user
-  property_partner: 0, // same level as user — external account
-  property_owner: 0,  // legacy
-  staff: 1,           // posts need Head of Staff approval
-  admin: 2,           // Head of Staff
-  assistant_state_admin: 3, // Assistant Admin
-  state_admin: 4,     // Admin
-  director: 4.5,      // Director
-  creator: 5,         // highest
-  creator_admin: 5,   // legacy
+  worker: 0,
+  property_partner: 0,
+  staff: 1,
+  admin: 3,
+  creator: 5,
+  creator_admin: 5,
 };
 
 // ─── ROLE DISPLAY LABELS ───────────────────────────
-// User-friendly names shown in UI. Internal role keys stay the same.
 export const ROLE_LABELS: Record<UserRole, string> = {
   user: 'User',
   worker: 'Worker',
   staff: 'Staff',
-  admin: 'Head of Staff',
-  assistant_state_admin: 'Assistant Admin',
-  state_admin: 'Admin',
-  director: 'Director',
+  admin: 'Admin',
   creator: 'Creator',
   creator_admin: 'Creator',
-  property_owner: 'Property Owner',
   property_partner: 'Property Partner',
 };
 
@@ -398,7 +389,7 @@ export interface RoomInterest {
 
 // --- NEW ANNOUNCEMENT SYSTEM v2 ---
 
-export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_workers' | 'admins' | 'specific_user' | 'staff_only' | 'head_of_staff_only' | 'admin_only' | 'assistant_admin_only';
+export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_workers' | 'admins' | 'specific_user' | 'staff_only' | 'admin_only' | 'partners_only';
 
 export interface Announcement {
   id: number;

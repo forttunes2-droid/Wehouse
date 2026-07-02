@@ -38,19 +38,14 @@ export async function getCreatorListings(userId: string) {
 export { getCreatorListings as getListingsByOwner };
 
 // Get staff/admin users available to be assigned as chat agents for a listing
-// Hierarchy:
-//   Admin: can appoint staff
-//   Assistant State Admin: can appoint admin, staff, or themselves
-//   State Admin: can appoint staff, admin, assistant_state_admin, or themselves
-//   Creator: can appoint anyone (staff, admin, assistant_state_admin, state_admin)
+// Simple hierarchy: Creator & Admin can appoint staff
 // Get all active staff who can be assigned as chat agents.
 // Staff matching the listing's location appear FIRST, then others follow.
-// Uses assigned_state/lga with fallback to state/city for location matching.
 export async function getAvailableChatAgents(listingState?: string, listingLga?: string) {
   const { data, error } = await supabase
     .from('profiles')
     .select('user_id, username, avatar_url, role, assigned_state, assigned_lga, state, city')
-    .in('role', ['staff', 'admin', 'assistant_state_admin'])
+    .in('role', ['staff', 'admin'])
     .is('deleted_at', null)
     .order('username', { ascending: true });
 
@@ -291,11 +286,8 @@ export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' |
 // Returns the minimum role rank required to approve a listing based on who posted it
 export function getRequiredApproverRank(posterRole: string): number {
   switch (posterRole) {
-    case 'staff': return ROLE_RANK.admin;        // needs Head of Staff+
-    case 'admin': return ROLE_RANK.assistant_state_admin; // needs Asst Admin+
-    case 'assistant_state_admin': return ROLE_RANK.state_admin; // needs Admin+
-    case 'state_admin': return ROLE_RANK.director; // needs Director+
-    case 'director': return ROLE_RANK.creator;    // needs Creator
+    case 'staff': return ROLE_RANK.admin;   // needs Admin or Creator
+    case 'admin': return ROLE_RANK.creator; // needs Creator
     default: return ROLE_RANK.creator;
   }
 }
@@ -303,11 +295,8 @@ export function getRequiredApproverRank(posterRole: string): number {
 // Returns human-readable approver label
 export function getApproverLabel(posterRole: string): string {
   switch (posterRole) {
-    case 'staff': return 'Head of Staff, Assistant Admin, Admin, or Creator';
-    case 'admin': return 'Assistant Admin, Admin, or Creator';
-    case 'assistant_state_admin': return 'Admin or Creator';
-    case 'state_admin': return 'Director or Creator';
-    case 'director': return 'Creator only';
+    case 'staff': return 'Admin or Creator';
+    case 'admin': return 'Creator only';
     default: return 'Creator';
   }
 }

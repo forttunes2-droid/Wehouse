@@ -182,22 +182,38 @@ function PropertiesTab({ ownerId }: { ownerId: string }) {
 // REQUEST INSPECTION TAB
 // ═══════════════════════════════════════════════════════════════
 
+interface PropertyForm {
+  id: string;
+  property_address: string;
+  property_city: string;
+  property_state: string;
+  property_type: 'house' | 'apartment' | 'duplex' | '';
+  bedrooms: string;
+  bathrooms: string;
+  expected_rent: string;
+  description: string;
+}
+
 function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSubmitted?: () => void }) {
-  const [form, setForm] = useState({
-    property_address: '',
-    property_city: '',
-    property_state: '',
-    property_type: '' as 'house' | 'apartment' | 'duplex' | '',
-    bedrooms: '1',
-    bathrooms: '1',
-    expected_rent: '',
-    description: '',
-    owner_phone: profile.phone || '',
+  const [properties, setProperties] = useState<PropertyForm[]>([]);
+  const [form, setForm] = useState<PropertyForm>({
+    id: '', property_address: '', property_city: '', property_state: '',
+    property_type: '', bedrooms: '1', bathrooms: '1', expected_rent: '', description: '',
   });
+  const [ownerPhone, setOwnerPhone] = useState(profile.phone || '');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const propertyTypes = [
+    { value: 'house' as const, label: 'House', icon: '🏠', desc: 'Standalone' },
+    { value: 'apartment' as const, label: 'Apartment', icon: '🏢', desc: 'Flat' },
+    { value: 'duplex' as const, label: 'Duplex', icon: '🏘️', desc: 'Two-floor' },
+  ];
+
+  function resetForm() {
+    setForm({ id: '', property_address: '', property_city: '', property_state: '', property_type: '', bedrooms: '1', bathrooms: '1', expected_rent: '', description: '' });
+  }
+
+  function addProperty() {
     if (!form.property_address || !form.property_city || !form.property_state) {
       toast.error('Address, city, and state are required');
       return;
@@ -206,26 +222,41 @@ function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSu
       toast.error('Please select a property type');
       return;
     }
+    setProperties(prev => [...prev, { ...form, id: crypto.randomUUID() }]);
+    resetForm();
+    toast.success('Property added! Add more or submit all.');
+  }
+
+  function removeProperty(id: string) {
+    setProperties(prev => prev.filter(p => p.id !== id));
+  }
+
+  async function handleSubmitAll() {
+    if (properties.length === 0) {
+      toast.error('Add at least one property');
+      return;
+    }
 
     setSubmitting(true);
-    const requestCode = `WHIR-${Date.now().toString(36).toUpperCase()}`;
+    const baseCode = `WHIR-${Date.now().toString(36).toUpperCase()}`;
 
-    const { error } = await supabase.from('inspection_requests').insert({
-      request_code: requestCode,
+    const inserts = properties.map((p, i) => ({
+      request_code: `${baseCode}-${i + 1}`,
       owner_id: profile.user_id,
       owner_email: profile.email,
-      owner_phone: form.owner_phone,
-      property_address: form.property_address,
-      property_city: form.property_city,
-      property_state: form.property_state,
-      property_type: form.property_type,
-      bedrooms: parseInt(form.bedrooms),
-      bathrooms: parseInt(form.bathrooms),
-      expected_rent: form.expected_rent ? parseFloat(form.expected_rent) : null,
-      description: form.description,
-      status: 'pending',
-    });
+      owner_phone: ownerPhone,
+      property_address: p.property_address,
+      property_city: p.property_city,
+      property_state: p.property_state,
+      property_type: p.property_type,
+      bedrooms: parseInt(p.bedrooms),
+      bathrooms: parseInt(p.bathrooms),
+      expected_rent: p.expected_rent ? parseFloat(p.expected_rent) : null,
+      description: p.description,
+      status: 'pending' as const,
+    }));
 
+    const { error } = await supabase.from('inspection_requests').insert(inserts);
     setSubmitting(false);
 
     if (error) {
@@ -233,93 +264,99 @@ function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSu
       return;
     }
 
-    toast.success('Inspection request submitted! WeHouse will review and schedule.');
-    setForm({ property_address: '', property_city: '', property_state: '', property_type: '', bedrooms: '1', bathrooms: '1', expected_rent: '', description: '', owner_phone: profile.phone || '' });
+    toast.success(`${properties.length} inspection request(s) submitted! WeHouse will review and schedule.`);
+    setProperties([]);
+    resetForm();
     onSubmitted?.();
   }
 
-  const propertyTypes = [
-    { value: 'house' as const, label: 'House', icon: '🏠', desc: 'Standalone building' },
-    { value: 'apartment' as const, label: 'Apartment', icon: '🏢', desc: 'Flat in a building' },
-    { value: 'duplex' as const, label: 'Duplex', icon: '🏘️', desc: 'Two-floor unit' },
-  ];
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
       <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-4">
         <h3 className="text-sm font-semibold text-white">Request Property Inspection</h3>
         <p className="text-[10px] text-[#5C5E72] mt-1">
-          Fill in your property details. WeHouse will inspect, photograph, and list it for you.
+          Add all your properties, then submit them all in one go.
         </p>
       </div>
 
-      <div className="space-y-3">
+      {/* Added Properties List */}
+      {properties.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-[#8B8DA0] uppercase tracking-wider">Added Properties ({properties.length})</h4>
+          {properties.map((p) => (
+            <div key={p.id} className="rounded-xl bg-[#12121A]/80 border border-violet-500/10 p-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-sm">
+                {propertyTypes.find(t => t.value === p.property_type)?.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white truncate">{p.property_address}</p>
+                <p className="text-[9px] text-[#5C5E72]">{p.property_city}, {p.property_state} · {p.property_type} · {p.bedrooms}bd/{p.bathrooms}ba</p>
+              </div>
+              <button onClick={() => removeProperty(p.id)} className="text-[10px] text-red-400 hover:text-red-300 px-2 py-1">Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Property Form */}
+      <div className="rounded-2xl bg-[#12121A]/40 border border-white/[0.04] p-4 space-y-3">
+        <h4 className="text-xs font-semibold text-white">Add Property {properties.length + 1}</h4>
+
         <Input label="Property Address *" value={form.property_address} onChange={v => setForm(f => ({ ...f, property_address: v }))} placeholder="123 Main Street, Block 4" required />
         <div className="grid grid-cols-2 gap-3">
           <Input label="City *" value={form.property_city} onChange={v => setForm(f => ({ ...f, property_city: v }))} placeholder="Ikeja" required />
           <Input label="State *" value={form.property_state} onChange={v => setForm(f => ({ ...f, property_state: v }))} placeholder="Lagos" required />
         </div>
 
-        {/* Property Type — Card Selection (no native radio buttons) */}
         <div>
           <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Property Type *</label>
           <div className="grid grid-cols-3 gap-2">
             {propertyTypes.map((pt) => (
-              <button
-                key={pt.value}
-                type="button"
-                onClick={() => setForm(f => ({ ...f, property_type: pt.value }))}
-                className={`rounded-xl border p-3 text-center transition-all ${
-                  form.property_type === pt.value
-                    ? 'border-violet-500 bg-violet-500/10'
-                    : 'border-[#232330] bg-[#1A1A24] hover:border-violet-500/30'
-                }`}
-              >
+              <button key={pt.value} type="button" onClick={() => setForm(f => ({ ...f, property_type: pt.value }))}
+                className={`rounded-xl border p-3 text-center transition-all ${form.property_type === pt.value ? 'border-violet-500 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24] hover:border-violet-500/30'}`}>
                 <span className="text-xl">{pt.icon}</span>
                 <p className={`text-xs font-semibold mt-1 ${form.property_type === pt.value ? 'text-violet-400' : 'text-white'}`}>{pt.label}</p>
-                <p className="text-[9px] text-[#5C5E72] mt-0.5">{pt.desc}</p>
               </button>
             ))}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Expected Rent (N/year)" value={form.expected_rent} onChange={v => setForm(f => ({ ...f, expected_rent: v }))} placeholder="500000" type="number" />
-          <Input label="Phone" value={form.owner_phone} onChange={v => setForm(f => ({ ...f, owner_phone: v }))} placeholder="08012345678" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Bedrooms</label>
-            <select
-              value={form.bedrooms}
-              onChange={e => setForm(f => ({ ...f, bedrooms: e.target.value }))}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500"
-            >
+            <select value={form.bedrooms} onChange={e => setForm(f => ({ ...f, bedrooms: e.target.value }))}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500">
               {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Bathrooms</label>
-            <select
-              value={form.bathrooms}
-              onChange={e => setForm(f => ({ ...f, bathrooms: e.target.value }))}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500"
-            >
+            <select value={form.bathrooms} onChange={e => setForm(f => ({ ...f, bathrooms: e.target.value }))}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500">
               {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
         </div>
-        <TextArea label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Tell us about your property..." rows={4} />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Expected Rent (N/year)" value={form.expected_rent} onChange={v => setForm(f => ({ ...f, expected_rent: v }))} placeholder="500000" type="number" />
+          {properties.length === 0 && (
+            <Input label="Phone" value={ownerPhone} onChange={v => setOwnerPhone(v)} placeholder="08012345678" />
+          )}
+        </div>
+        <TextArea label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Tell us about this property..." rows={3} />
+
+        <button type="button" onClick={addProperty}
+          className="w-full h-10 rounded-xl border border-dashed border-violet-500/30 text-violet-400 text-sm font-semibold hover:bg-violet-500/10 transition-colors">
+          + Add This Property
+        </button>
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full h-12 rounded-xl bg-violet-500 text-white font-semibold hover:bg-violet-600 transition-colors disabled:opacity-50 active:scale-[0.98]"
-      >
-        {submitting ? 'Submitting...' : 'Submit Inspection Request'}
+      {/* Submit All */}
+      <button onClick={handleSubmitAll} disabled={submitting || properties.length === 0}
+        className="w-full h-12 rounded-xl bg-violet-500 text-white font-semibold hover:bg-violet-600 transition-colors disabled:opacity-40 active:scale-[0.98]">
+        {submitting ? 'Submitting...' : properties.length === 0 ? 'Add Properties Above' : `Submit All ${properties.length} Properties`}
       </button>
-    </form>
+    </div>
   );
 }
 

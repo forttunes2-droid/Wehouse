@@ -194,7 +194,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     // Determine approval status based on poster role
     // Creator and Director posts go live immediately
     // Everyone else needs approval from higher-up
-    const requiresApproval = ROLE_RANK[profile.role as keyof typeof ROLE_RANK] < ROLE_RANK.director;
+    const requiresApproval = ROLE_RANK[profile.role as keyof typeof ROLE_RANK] < ROLE_RANK.admin;
     const listingStatus = requiresApproval ? 'pending_approval' : 'available';
 
     setSaving(true);

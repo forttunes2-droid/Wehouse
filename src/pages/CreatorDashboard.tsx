@@ -33,12 +33,11 @@ interface CreatorDashboardProps {
 const ROLE_COLORS: Record<string, string> = {
   creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
   creator_admin: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  state_admin: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  assistant_state_admin: 'text-teal-400 bg-teal-500/10 border-teal-500/20',
   admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
   staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
   worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
+  property_partner: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
 };
 
 export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToNewListing, onNavigate }: CreatorDashboardProps) {
@@ -485,9 +484,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                         <option value="user">{ROLE_LABELS.user}</option>
                         <option value="staff">{ROLE_LABELS.staff}</option>
                         <option value="admin">{ROLE_LABELS.admin}</option>
-                        <option value="assistant_state_admin">{ROLE_LABELS.assistant_state_admin}</option>
-                        <option value="state_admin">{ROLE_LABELS.state_admin}</option>
-                        <option value="director">{ROLE_LABELS.director}</option>
+                        <option value="property_partner">{ROLE_LABELS.property_partner}</option>
                       </select>
                     )}
 
@@ -904,8 +901,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const { ask, dialogProps } = useConfirm();
 
   // ── Role filter toggles ──
-  const canIncludeWorkers = isCreator(profile.role) || profile.role === 'state_admin';
-  const canIncludeStaff = isCreator(profile.role) || profile.role === 'state_admin' || profile.role === 'admin';
+  const canIncludeWorkers = isCreator(profile.role) || profile.role === 'admin';
+  const canIncludeStaff = isCreator(profile.role) || profile.role === 'admin';
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
   // Role-specific targeting (new)
@@ -1026,7 +1023,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     setSending(true);
     toast.loading('Sending...', { id: 'send-announce' });
 
-    const senderRole = isCreator(profile.role) ? 'creator' : 'state_admin';
+    const senderRole = isCreator(profile.role) ? 'creator' : 'admin';
 
     // Build target type and options
     let targetType: AnnouncementTargetType;
@@ -1039,9 +1036,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       // Role-specific targeting (new)
       switch (targetRoleFilter) {
         case 'staff': targetType = 'staff_only'; break;
-        case 'admin': targetType = 'head_of_staff_only'; break;
-        case 'state_admin': targetType = 'admin_only'; break;
-        case 'assistant_state_admin': targetType = 'assistant_admin_only'; break;
+        case 'admin': targetType = 'admin_only'; break;
+        case 'property_partner': targetType = 'partners_only'; break;
         default: targetType = 'all_users';
       }
       options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
@@ -1278,8 +1274,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                     <option value="">All Users (default)</option>
                     <option value="staff">Staff Only</option>
                     <option value="admin">Head of Staff Only</option>
-                    <option value="state_admin">Admin Only</option>
-                    <option value="assistant_state_admin">Assistant Admin Only</option>
+                    <option value="admin">Admin Only</option>
+                    <option value="property_partner">Property Partners Only</option>
                   </select>
                   {targetRoleFilter && (
                     <p className="text-[9px] text-amber-400 mt-1">This will override the default user targeting</p>

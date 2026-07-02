@@ -165,7 +165,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
       activeConv.participant_a === profile.user_id ? activeConv.participant_b : activeConv.participant_a;
 
     // Is this user the agent (staff/admin) or the enquirer?
-    const isAgent = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'state_admin' || profile.role === 'assistant_state_admin' || profile.role === 'creator';
+    const isAgent = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator';
     const isPending = activeConv.status === 'pending';
     const isActive = activeConv.status === 'active';
     const isClosed = activeConv.status === 'closed';

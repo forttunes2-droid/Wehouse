@@ -16,7 +16,7 @@ const Saved = lazy(() => import('@/pages/Saved'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetail'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const CreatorDashboard = lazy(() => import('@/pages/CreatorDashboard'));
-const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
+const AdminDashboard = lazy(() => import('@/pages/DirectorDashboard'));
 const Roommate = lazy(() => import('@/pages/Roommate'));
 const Chat = lazy(() => import('@/pages/Chat'));
 const ProfileEdit = lazy(() => import('@/pages/ProfileEdit'));
@@ -29,8 +29,6 @@ const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
 const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 const Activity = lazy(() => import('@/pages/Activity'));
 const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
-const HeadOfStaffDashboard = lazy(() => import('@/pages/HeadOfStaffDashboard'));
-const DirectorDashboard = lazy(() => import('@/pages/DirectorDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
@@ -81,7 +79,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_owner', 'property_partner'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -120,12 +118,10 @@ export default function App() {
 
     if (navPage === 'creator' && !checkCreator(role)) valid = false;
     if (navPage === 'admin' && role !== 'admin') valid = false;
-    if (navPage === 'state_admin' && role !== 'state_admin') valid = false;
-    if (navPage === 'assistant_state_admin' && role !== 'assistant_state_admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
-    if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'state_admin' || role === 'assistant_state_admin')) valid = false;
+    if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
     // Profile sub-pages (account, privacy, security) same rules as profile
-    if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'state_admin' || role === 'assistant_state_admin')) valid = false;
+    if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
     if (navPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
 
     if (!valid) {
@@ -330,14 +326,8 @@ export default function App() {
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
         return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} onNavigate={(p) => goTo(p as NavPage)} />;
-      case 'director':
-        return <DirectorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'admin':
-        return <HeadOfStaffDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
-      case 'state_admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} isStateAdmin />;
-      case 'assistant_state_admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} isAssistant />;
+        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'staff_dashboard':
         return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'detail':
@@ -383,7 +373,7 @@ export default function App() {
         }
         return <CreateListing profile={profile} onBack={() => goTo('home')} onSuccess={() => goTo('home')} />;
       case 'worker_dashboard':
-        return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} />;
+        return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'worker_discovery':
         return <WorkerDiscovery userCity={profile.city} profile={profile} onGoToChat={goToChat} />;
       case 'worker_setup':
@@ -422,29 +412,19 @@ export default function App() {
     { id: 'worker_discovery' as NavPage, label: 'Workers', icon: WrenchSvg },
   ];
 
-  const isStateAdminRole = profile.role === 'state_admin';
-  const isAssistantRole = profile.role === 'assistant_state_admin';
-  const isHeadOfStaffRole = profile.role === 'admin';
-  const isDirectorRole = profile.role === 'director';
-
   const isStaffRole = profile.role === 'staff';
-  const isPropertyOwner = profile.role === 'property_owner' || profile.role === 'property_partner';
+  const isAdminRole = profile.role === 'admin';
+  const isPropertyPartner = profile.role === 'property_partner';
 
   const roleTab = isWorker
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
     : isCreator
     ? { id: 'creator' as NavPage, label: 'Creator', icon: AdminSvg }
-    : isDirectorRole
-    ? { id: 'director' as NavPage, label: 'Director', icon: AdminSvg }
-    : isStateAdminRole
-    ? { id: 'state_admin' as NavPage, label: 'Admin', icon: AdminSvg }
-    : isAssistantRole
-    ? { id: 'assistant_state_admin' as NavPage, label: 'Asst. Admin', icon: AdminSvg }
-    : isHeadOfStaffRole
-    ? { id: 'admin' as NavPage, label: 'Head of Staff', icon: AdminSvg }
+    : isAdminRole
+    ? { id: 'admin' as NavPage, label: 'Admin', icon: AdminSvg }
     : isStaffRole
     ? { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg }
-    : isPropertyOwner
+    : isPropertyPartner
     ? { id: 'property_partner' as NavPage, label: 'Partner', icon: AdminSvg }
     : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
 
@@ -469,7 +449,7 @@ export default function App() {
         } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_partner' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {

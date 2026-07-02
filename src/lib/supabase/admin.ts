@@ -39,17 +39,14 @@ export async function getUserCount() {
 
 // ── ROLE MANAGEMENT ────────────────────────────────
 
-// Valid role transitions — full hierarchy support
+// Valid role transitions — simplified hierarchy
 // Creator can change any role (except other creators)
-// Director can change up to state_admin
-// Each role can move within its level and below
+// Admin can change user ↔ staff
 const VALID_ROLE_TRANSITIONS: Record<string, string[]> = {
-  user: ['staff', 'admin', 'assistant_state_admin', 'state_admin', 'director'],
-  staff: ['user', 'admin', 'assistant_state_admin', 'state_admin', 'director'],
-  admin: ['user', 'staff', 'assistant_state_admin', 'state_admin', 'director'],
-  assistant_state_admin: ['user', 'staff', 'admin', 'state_admin', 'director'],
-  state_admin: ['user', 'staff', 'admin', 'assistant_state_admin', 'director'],
-  director: ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'],
+  user: ['staff'],
+  staff: ['user'],
+  admin: ['user', 'staff'],
+  property_partner: [],
   worker: [],
   creator: [],
 };

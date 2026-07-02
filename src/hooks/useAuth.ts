@@ -24,7 +24,7 @@ function wipeOnLogout() {
 }
 
 // ─── ROLE HELPERS ──────────────────────────────────
-const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'state_admin', 'admin', 'assistant_state_admin']);
+const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'admin']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
@@ -35,34 +35,25 @@ export function isStaff(role: string): boolean {
 }
 
 export function canCreateListings(role: string): boolean {
-  return role === 'staff' || role === 'admin' || role === 'assistant_state_admin' || role === 'state_admin' || role === 'creator' || role === 'creator_admin';
+  return role === 'staff' || role === 'admin' || role === 'creator' || role === 'creator_admin';
 }
 
-export function isStateAdmin(role: string): boolean {
-  return role === 'state_admin';
-}
-
-export function isAssistantAdmin(role: string): boolean {
-  return role === 'assistant_state_admin';
-}
-
-export function isDirector(role: string): boolean {
-  return role === 'director';
-}
-
-export function canSendAnnouncements(role: string): boolean {
-  return isCreator(role) || isDirector(role) || role === 'state_admin';
+export function isAdmin(role: string): boolean {
+  return role === 'admin';
 }
 
 export function isCreator(role: string): boolean {
   return role === 'creator' || role === 'creator_admin';
 }
 
-export function getScope(role: string): 'global' | 'state' | 'local' | null {
+export function canSendAnnouncements(role: string): boolean {
+  return isCreator(role) || isAdmin(role);
+}
+
+export function getScope(role: string): 'global' | 'local' | null {
   if (isCreator(role)) return 'global';
-  if (isDirector(role)) return 'global'; // Director has global scope
-  if (role === 'state_admin') return 'state';
-  if (role === 'admin' || role === 'assistant_state_admin' || role === 'staff') return 'local';
+  if (isAdmin(role)) return 'global';
+  if (role === 'staff') return 'local';
   return null;
 }
 
@@ -70,31 +61,9 @@ export function isGlobal(role: string): boolean {
   return getScope(role) === 'global';
 }
 
-export function isStateScope(role: string): boolean {
-  return getScope(role) === 'state';
-}
-
-export function isLocal(role: string): boolean {
-  return getScope(role) === 'local';
-}
-
-export function canAccessLocation(
-  userRole: string, userState: string | null, userLga: string | null,
-  targetState: string | null, targetLga: string | null
-): boolean {
-  if (isGlobal(userRole)) return true;
-  if (isStateScope(userRole)) return userState === targetState;
-  if (isLocal(userRole)) {
-    if (!userState || !userLga) return false;
-    return userState === targetState && userLga === targetLga;
-  }
-  return true;
-}
-
 export function canModifyRole(modifierRole: string, targetRole: string): boolean {
   if (isCreator(modifierRole)) return !isCreator(targetRole);
-  if (isDirector(modifierRole)) return !isCreator(targetRole) && !isDirector(targetRole);
-  if (modifierRole === 'admin') return targetRole === 'staff' || targetRole === 'user';
+  if (isAdmin(modifierRole)) return !isCreator(targetRole) && !isAdmin(targetRole);
   return false;
 }
 
@@ -107,33 +76,20 @@ export function validateRoleTransition(
   if (targetNewRole === 'worker') return { allowed: false, reason: 'Cannot assign worker role. Workers must sign up via worker registration.' };
   // Creator can change any role (except other creators)
   if (isCreator(modifierRole)) {
-    const allRoles = ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin', 'director'];
+    const allRoles = ['user', 'staff', 'admin', 'property_partner'];
     if (allRoles.includes(targetCurrentRole) && allRoles.includes(targetNewRole)) return { allowed: true };
     return { allowed: false, reason: `Cannot change ${targetCurrentRole} to ${targetNewRole}` };
   }
-  // Director can change roles up to state_admin
-  if (isDirector(modifierRole)) {
-    const dirRoles = ['user', 'staff', 'admin', 'assistant_state_admin', 'state_admin'];
-    if (dirRoles.includes(targetCurrentRole) && dirRoles.includes(targetNewRole)) return { allowed: true };
-    return { allowed: false, reason: 'Director can only assign roles up to Admin.' };
+  // Admin can change roles up to staff
+  if (isAdmin(modifierRole)) {
+    const adminRoles = ['user', 'staff'];
+    if (adminRoles.includes(targetCurrentRole) && adminRoles.includes(targetNewRole)) return { allowed: true };
+    return { allowed: false, reason: 'Admin can only assign User and Staff roles.' };
   }
-  // Admin (state_admin) can change roles up to assistant_state_admin
-  if (isStateAdmin(modifierRole)) {
-    const saRoles = ['user', 'staff', 'admin', 'assistant_state_admin'];
-    if (saRoles.includes(targetCurrentRole) && saRoles.includes(targetNewRole)) return { allowed: true };
-    return { allowed: false, reason: 'Admin can only assign roles up to Assistant Admin.' };
-  }
-  // Head of Staff (admin) can only toggle staff ↔ user
-  if (modifierRole === 'admin') {
-    const validAdminTransitions: Record<string, string[]> = { staff: ['user'], user: ['staff'] };
-    if (validAdminTransitions[targetCurrentRole]?.includes(targetNewRole)) return { allowed: true };
-    return { allowed: false, reason: 'Head of Staff can only change Staff ↔ User.' };
-  }
-  return { allowed: false, reason: 'Staff cannot change roles' };
+  return { allowed: false, reason: 'You cannot change roles' };
 }
 
 // ─── PLATFORM SETTINGS READERS ────────────────────
-// Uses .limit(1) to avoid potential issues, reads from both tables.
 async function readSettingFrom(table: string, key: string): Promise<string | null> {
   try {
     const { data, error } = await supabase.from(table).select('value').eq('key', key).limit(1).maybeSingle();
@@ -181,12 +137,8 @@ async function shouldBlockForMaintenance(profile: Profile | null): Promise<boole
 export function useAuth() {
   const [state, setState] = useState<AuthState>({ page: 'loading', profile: null, isLoading: true, error: '', kickedOut: false });
 
-  // Prevent auth listener from racing with handleLoginSuccess
   const handlingLoginRef = useRef(false);
-  // Track auth IDs we've processed (resets on page load)
   const processedAuthIdRef = useRef<string | null>(null);
-  // TRUE when we triggered signOut programmatically (maintenance block, deleted account)
-  // Prevents the SIGNED_OUT listener from overwriting our error message
   const weTriggeredSignOutRef = useRef(false);
 
   const determinePage = useCallback((profile: Profile | null): Page => {
@@ -194,25 +146,20 @@ export function useAuth() {
     if (!profile.profile_complete && profile.role === 'worker') return 'worker_setup';
     if (!profile.profile_complete) return 'setup';
     if (isCreator(profile.role)) return 'creator';
-    if (profile.role === 'state_admin') return 'state_admin';
-    if (profile.role === 'assistant_state_admin') return 'assistant_state_admin';
-    if (profile.role === 'staff') return 'staff_dashboard';
     if (profile.role === 'admin') return 'admin';
+    if (profile.role === 'staff') return 'staff_dashboard';
     if (profile.role === 'property_partner') return 'property_partner';
-    if (profile.role === 'property_owner') return 'property_partner'; // Legacy: redirect old property_owners
     return 'dashboard';
   }, []);
 
   // ─── Centralized entry-point guard ────────────────
   const allowEntry = useCallback(async (profile: Profile): Promise<boolean> => {
-    // Deleted check
     if (profile.deleted) {
       weTriggeredSignOutRef.current = true;
       await supabase.auth.signOut(); wipeOnLogout();
       setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
       return false;
     }
-    // Maintenance check
     const blocked = await shouldBlockForMaintenance(profile);
     if (blocked) {
       weTriggeredSignOutRef.current = true;
@@ -257,7 +204,6 @@ export function useAuth() {
         if (handlingLoginRef.current) { console.log('[Auth] SIGNED_IN skipped'); return; }
         loadProfile(session.user.id);
       }
-      // If WE triggered the signOut (maintenance block / deleted), DON'T overwrite the error
       if (event === 'SIGNED_OUT') {
         if (weTriggeredSignOutRef.current) {
           console.log('[Auth] SIGNED_OUT — we triggered it, preserving error');
@@ -322,7 +268,6 @@ export function useAuth() {
       const { profile: newProfile, error: createError } = await createProfile(authId, email, chosenRole);
       if (createError || !newProfile) { setState({ page: 'login', profile: null, isLoading: false, error: createError?.message || 'Create failed' }); return; }
 
-      // Route based on role
       if (chosenRole === 'worker') {
         setState({ profile: newProfile, page: 'worker_setup', isLoading: false, error: '', kickedOut: false });
         trackSession(newProfile.user_id, authId).catch(() => {});
@@ -331,7 +276,6 @@ export function useAuth() {
       }
 
       if (chosenRole === 'property_partner') {
-        // Create property_partner record
         await supabase.from('property_partners').insert({
           profile_id: newProfile.user_id,
           partner_code: `WHP-${Date.now().toString(36).toUpperCase()}`,
@@ -343,7 +287,6 @@ export function useAuth() {
         return;
       }
 
-      // Default: user
       setState({ profile: newProfile, page: 'setup', isLoading: false, error: '', kickedOut: false });
       trackSession(newProfile.user_id, authId).catch(() => {});
       createUserSession(newProfile.user_id, authId).catch(() => {});
@@ -358,7 +301,6 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     const userId = state.profile?.user_id; const authId = state.profile?.auth_id;
-    // Deactivate the current device session
     const sessionId = getStoredSessionId();
     if (sessionId) await deactivateUserSession(sessionId).catch(() => {});
     if (userId && authId) await endSession(userId, authId).catch(() => {});
@@ -368,8 +310,6 @@ export function useAuth() {
   }, [state.profile]);
 
   // ─── Single-device session check ──────────────────
-  // Every 30 seconds, verify this session is still the active one.
-  // If another device logged in, this session becomes inactive → logout.
   useEffect(() => {
     if (!state.profile || state.page === 'login' || state.page === 'setup' || state.page === 'worker_setup') return;
 
@@ -380,17 +320,15 @@ export function useAuth() {
       try {
         const active = await isSessionActive(sessionId);
         if (!active) {
-          // Another device signed in — logout this device
           clearInterval(interval);
           await supabase.auth.signOut({ scope: 'global' });
           wipeOnLogout();
           setState({ page: 'login', profile: null, isLoading: false, error: '', kickedOut: true });
         } else {
-          // Still active — update last_seen
           await updateSessionLastSeen(sessionId);
         }
       } catch { /* network issues, don't logout */ }
-    }, 30000); // Check every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [state.profile?.user_id, state.page]);
