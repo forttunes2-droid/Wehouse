@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { toast } from 'sonner';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
@@ -144,8 +144,34 @@ export default function App() {
     }
   }, [navPage, detailId]);
 
-  // ─── Clear stored nav on logout ───────────────────
+  // ─── Browser history integration (phone back button) ──
+  const navHistoryRef = useRef<NavPage[]>(['home']);
+
+  // Listen for browser back button (popstate)
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      const state = e.state as { page?: NavPage } | null;
+      if (state?.page) {
+        setNavPage(state.page);
+        // Remove from our internal history stack
+        const stack = navHistoryRef.current;
+        if (stack.length > 1) {
+          navHistoryRef.current = stack.slice(0, -1);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // ─── Navigation with history push ─────────────────
   const handleSetNavPage = useCallback((page: NavPage) => {
+    const currentPage = navHistoryRef.current[navHistoryRef.current.length - 1];
+    // Only push if actually changing pages
+    if (page !== currentPage) {
+      window.history.pushState({ page }, '', `#${page}`);
+      navHistoryRef.current = [...navHistoryRef.current, page];
+    }
     setNavPage(page);
     if (isRestorable(page)) {
       localStorage.setItem(NAV_STORAGE_KEY, page);
