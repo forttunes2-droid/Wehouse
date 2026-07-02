@@ -12,14 +12,14 @@ import { WORKER_OCCUPATION_LABELS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { Input } from '@/components/ui/input';
-import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking } from '@/types';
+import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking, StaffPermission } from '@/types';
 import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import SettingsTab from './SettingsTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels' | 'permissions';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -82,6 +82,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'workers' as AdminTab, label: 'Workers', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z' },
     { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
     { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
+    { id: 'permissions' as AdminTab, label: 'Permissions', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
 
   ];
 
@@ -170,6 +171,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'hotels' && <HotelsTab profile={profile} />}
+        {activeTab === 'permissions' && <PermissionsTab profile={profile} />}
 
       </main>
     </div>
@@ -1956,3 +1958,152 @@ function HotelRoomsTab({ hotel, onBack }: { hotel: Hotel; onBack: () => void }) 
 }
 
 
+// ─── PERMISSIONS TAB (CTO DESIGN) ──────────────────
+// Creator assigns permission groups to staff members.
+// Permission groups determine which modules appear on the Staff Dashboard.
+
+function PermissionsTab({ profile }: { profile: Profile }) {
+  const [staffList, setStaffList] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<Record<string, StaffPermission[]>>({});
+
+  const permissionGroups: Array<{ id: StaffPermission; label: string; desc: string }> = [
+    { id: 'operations', label: 'Operations', desc: 'Listings, property management, inspections' },
+    { id: 'finance', label: 'Finance', desc: 'Payments, revenue, commission, payouts' },
+    { id: 'support', label: 'Customer Support', desc: 'Tickets, customer chat, complaints' },
+    { id: 'verification', label: 'Worker Verification', desc: 'Review docs, approve/reject workers' },
+    { id: 'field_officer', label: 'Field Officer', desc: 'Property inspections, photo uploads' },
+  ];
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
+
+  async function loadStaff() {
+    setLoading(true);
+    // Get all staff members (role = 'staff')
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'staff')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    const staff = data || [];
+    setStaffList(staff);
+
+    // Load existing permissions for each staff member
+    const perms: Record<string, StaffPermission[]> = {};
+    for (const s of staff) {
+      const { data: p } = await supabase
+        .from('staff_permissions')
+        .select('permission')
+        .eq('staff_id', s.user_id)
+        .eq('is_active', true);
+      perms[s.user_id] = (p || []).map((x: any) => x.permission as StaffPermission);
+    }
+    setPermissions(perms);
+    setLoading(false);
+  }
+
+  async function togglePermission(staffId: string, perm: StaffPermission, hasIt: boolean) {
+    if (hasIt) {
+      // Revoke
+      await supabase
+        .from('staff_permissions')
+        .update({ is_active: false, revoked_at: new Date().toISOString() })
+        .eq('staff_id', staffId)
+        .eq('permission', perm);
+    } else {
+      // Grant
+      await supabase
+        .from('staff_permissions')
+        .upsert(
+          { staff_id: staffId, permission: perm, granted_by: profile.user_id, is_active: true },
+          { onConflict: 'staff_id,permission' }
+        );
+    }
+
+    // Refresh
+    setPermissions(prev => ({
+      ...prev,
+      [staffId]: hasIt
+        ? (prev[staffId] || []).filter(p => p !== perm)
+        : [...(prev[staffId] || []), perm],
+    }));
+
+    toast.success(hasIt ? 'Permission removed' : 'Permission granted');
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 p-4">
+        <h3 className="text-sm font-semibold text-white">Permission Management</h3>
+        <p className="text-[10px] text-[#5C5E72] mt-1">
+          Assign permission groups to staff members. These determine which modules appear on their Staff Dashboard.
+        </p>
+      </div>
+
+      {/* Staff List */}
+      {staffList.length === 0 ? (
+        <div className="text-center py-10 text-[#5C5E72] text-sm">
+          No staff members yet. Change a user's role to "Staff" in the Users tab first.
+        </div>
+      ) : (
+        staffList.map(s => (
+          <div key={s.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+            {/* Staff Info */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-sm font-bold text-[#5C5E72]">
+                {(s.username || s.email)[0].toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">@{s.username || 'unknown'}</p>
+                <p className="text-[10px] text-[#5C5E72]">{s.email}</p>
+              </div>
+            </div>
+
+            {/* Permission Toggles */}
+            <div className="space-y-2">
+              {permissionGroups.map(pg => {
+                const hasIt = (permissions[s.user_id] || []).includes(pg.id);
+                return (
+                  <button
+                    key={pg.id}
+                    onClick={() => togglePermission(s.user_id, pg.id, hasIt)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+                      hasIt
+                        ? 'bg-purple-500/10 border border-purple-500/30'
+                        : 'bg-[#1A1A24] border border-[#232330]'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center ${
+                      hasIt ? 'bg-purple-500 border-purple-500' : 'border-[#232330]'
+                    }`}>
+                      {hasIt && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>
+                      )}
+                    </div>
+                    <div>
+                      <p className={`text-[11px] font-semibold ${hasIt ? 'text-purple-400' : 'text-white'}`}>{pg.label}</p>
+                      <p className="text-[9px] text-[#5C5E72]">{pg.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
