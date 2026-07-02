@@ -38,7 +38,7 @@ const OperationsDashboard = lazy(() => import('@/pages/OperationsDashboard'));
 const WorkerVerificationDashboard = lazy(() => import('@/pages/WorkerVerificationDashboard'));
 const FinanceDashboard = lazy(() => import('@/pages/FinanceDashboard'));
 const FieldOfficerDashboard = lazy(() => import('@/pages/FieldOfficerDashboard'));
-const PropertyOwnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
+const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
 
 
 // ─── SKELETON LOADER ──────────────────────────────
@@ -81,7 +81,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_owner'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'state_admin', 'assistant_state_admin', 'worker_dashboard', 'worker_discovery', 'staff_dashboard', 'new_listing', 'hotels', 'director', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_owner', 'property_partner'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -377,7 +377,8 @@ export default function App() {
       case 'field_officer':
         return <FieldOfficerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'property_owner':
-        return <PropertyOwnerDashboard profile={profile} onLogout={auth.logout} />;
+      case 'property_partner':
+        return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
@@ -401,7 +402,7 @@ export default function App() {
   const isDirectorRole = profile.role === 'director';
 
   const isStaffRole = profile.role === 'staff';
-  const isPropertyOwner = profile.role === 'property_owner';
+  const isPropertyOwner = profile.role === 'property_owner' || profile.role === 'property_partner';
 
   const roleTab = isWorker
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
@@ -418,7 +419,7 @@ export default function App() {
     : isStaffRole
     ? { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg }
     : isPropertyOwner
-    ? { id: 'property_owner' as NavPage, label: 'Owner', icon: AdminSvg }
+    ? { id: 'property_partner' as NavPage, label: 'Partner', icon: AdminSvg }
     : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
 
   const tabs = [...baseTabs, roleTab];
@@ -442,7 +443,7 @@ export default function App() {
         } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'admin' && navPage !== 'state_admin' && navPage !== 'assistant_state_admin' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {

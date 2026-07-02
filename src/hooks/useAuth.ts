@@ -198,7 +198,8 @@ export function useAuth() {
     if (profile.role === 'assistant_state_admin') return 'assistant_state_admin';
     if (profile.role === 'staff') return 'staff_dashboard';
     if (profile.role === 'admin') return 'admin';
-    if (profile.role === 'property_owner') return 'property_owner';
+    if (profile.role === 'property_partner') return 'property_partner';
+    if (profile.role === 'property_owner') return 'property_partner'; // Legacy: redirect old property_owners
     return 'dashboard';
   }, []);
 
@@ -272,7 +273,7 @@ export function useAuth() {
   }, [loadProfile]);
 
   // ─── Login / Signup success handler ───────────────
-  const handleLoginSuccess = useCallback(async (authId: string, email: string, role?: 'user' | 'worker' | 'property_owner') => {
+  const handleLoginSuccess = useCallback(async (authId: string, email: string, role?: 'user' | 'worker' | 'property_partner') => {
     handlingLoginRef.current = true;
     processedAuthIdRef.current = authId;
     setState((s) => ({ ...s, isLoading: true, error: '' }));
@@ -329,7 +330,13 @@ export function useAuth() {
         return;
       }
 
-      if (chosenRole === 'property_owner') {
+      if (chosenRole === 'property_partner') {
+        // Create property_partner record
+        await supabase.from('property_partners').insert({
+          profile_id: newProfile.user_id,
+          partner_code: `WHP-${Date.now().toString(36).toUpperCase()}`,
+          status: 'pending_verification',
+        });
         setState({ profile: newProfile, page: 'setup', isLoading: false, error: '', kickedOut: false });
         trackSession(newProfile.user_id, authId).catch(() => {});
         createUserSession(newProfile.user_id, authId).catch(() => {});

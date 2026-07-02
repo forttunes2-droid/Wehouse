@@ -28,4 +28,5 @@ export type NavPage =
   | 'worker_verification'
   | 'finance'
   | 'field_officer'
-  | 'property_owner';
+  | 'property_owner'
+  | 'property_partner';

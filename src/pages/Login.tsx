@@ -3,7 +3,7 @@ import { signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runD
 import { Input } from '@/components/ui/input';
 
 interface LoginProps {
-  onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker' | 'property_owner') => void;
+  onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker' | 'property_partner') => void;
   serverError: string;
   kickedOut?: boolean;
 }
@@ -77,7 +77,7 @@ function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }
 
 export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
-  const [signupRole, setSignupRole] = useState<'user' | 'worker' | 'property_owner'>('user');
+  const [signupRole, setSignupRole] = useState<'user' | 'worker' | 'property_partner'>('user');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -284,14 +284,14 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
               </div>
             </button>
 
-            <button onClick={() => { setSignupRole('property_owner'); setMode('signup'); setError(''); }}
+            <button onClick={() => { setSignupRole('property_partner'); setMode('signup'); setError(''); }}
               className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
               <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">List My Property</div>
-                <div className="text-[10px] text-[#5C5E72]">Property owner — WeHouse manages your listing</div>
+                <div className="text-[10px] text-[#5C5E72]">Property Partner — WeHouse manages everything</div>
               </div>
             </button>
 

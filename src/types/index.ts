@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'director' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker' | 'property_owner';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'director' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker' | 'property_owner' | 'property_partner';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -255,14 +255,15 @@ export interface SavedRoommateMatch {
 export const ROLE_RANK: Record<UserRole, number> = {
   user: 0,
   worker: 0,          // same level as user
+  property_partner: 0, // same level as user — external account
+  property_owner: 0,  // legacy
   staff: 1,           // posts need Head of Staff approval
-  admin: 2,           // Head of Staff — approves staff posts, posts need Asst Admin approval
-  assistant_state_admin: 3, // Assistant Admin — approves HOS posts, posts need Admin approval
-  state_admin: 4,     // Admin — approves Asst Admin posts, posts need Director approval
-  director: 4.5,      // Director — approves Admin posts, posts need Creator approval
-  creator: 5,         // highest — approves Director posts, auto-approved for own posts
-  creator_admin: 5,   // legacy alias for creator
-  property_owner: 0,  // property owners are not part of staff hierarchy
+  admin: 2,           // Head of Staff
+  assistant_state_admin: 3, // Assistant Admin
+  state_admin: 4,     // Admin
+  director: 4.5,      // Director
+  creator: 5,         // highest
+  creator_admin: 5,   // legacy
 };
 
 // ─── ROLE DISPLAY LABELS ───────────────────────────
@@ -278,6 +279,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   creator: 'Creator',
   creator_admin: 'Creator',
   property_owner: 'Property Owner',
+  property_partner: 'Property Partner',
 };
 
 export function roleRank(role: string): number {
@@ -545,10 +547,144 @@ export interface StaffPermissionRecord {
   is_active: boolean;
 }
 
-// ─── PROPERTY OWNER ─────────────────────────────────────────
-// Private. Property owners are NOT users. WeHouse manages them.
+// ═══════════════════════════════════════════════════════════════
+// UNIFIED PROPERTY PARTNER SYSTEM
+// Replaces: PropertyOwner, Hotel types. One system for all accommodation.
+// ═══════════════════════════════════════════════════════════════
 
-export type PropertyOwnerStatus = 'active' | 'inactive' | 'suspended';
+export type PropertyType = 'house' | 'apartment' | 'hotel' | 'resort' | 'short_let' | 'hostel' | 'lodge';
+
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  house: 'House',
+  apartment: 'Apartment',
+  hotel: 'Hotel',
+  resort: 'Resort',
+  short_let: 'Short Let',
+  hostel: 'Hostel',
+  lodge: 'Lodge',
+};
+
+export const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
+  house: '🏠',
+  apartment: '🏢',
+  hotel: '🏨',
+  resort: '🏕',
+  short_let: '🏠',
+  hostel: '🏡',
+  lodge: '🏢',
+};
+
+export type PropertyStatus = 'pending_inspection' | 'under_inspection' | 'pending_agreement' | 'pending_approval' | 'approved' | 'rejected' | 'active' | 'inactive' | 'suspended';
+
+export interface PropertyPartner {
+  id: string;
+  profile_id: string;
+  partner_code: string;
+  status: 'active' | 'suspended' | 'pending_verification';
+  commission_rate: number;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
+  tax_id: string | null;
+  verification_notes: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Property {
+  id: string;
+  property_code: string;
+  partner_id: string;
+  title: string;
+  description: string | null;
+  property_type: PropertyType;
+  address: string;
+  city: string;
+  state: string;
+  latitude: number | null;
+  longitude: number | null;
+  images: string[];
+  videos: string[];
+  documents: string[];
+  status: PropertyStatus;
+  amenities: string[];
+  house_rules: string | null;
+  cancellation_policy: string | null;
+  check_in_time: string;
+  check_out_time: string;
+  rating: number;
+  review_count: number;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PropertyUnit {
+  id: string;
+  unit_code: string;
+  property_id: string;
+  unit_name: string;
+  unit_type: string | null;
+  description: string | null;
+  max_guests: number;
+  bedrooms: number;
+  bathrooms: number;
+  base_price: number;
+  cleaning_fee: number;
+  service_fee: number;
+  total_quantity: number;
+  available_quantity: number;
+  images: string[];
+  amenities: string[];
+  bed_types: string[];
+  status: 'active' | 'maintenance' | 'inactive';
+  maintenance_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UnifiedBooking {
+  id: string;
+  booking_code: string;
+  customer_id: string;
+  property_id: string;
+  unit_id: string;
+  check_in: string;
+  check_out: string;
+  nights: number;
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  guest_count: number;
+  special_requests: string | null;
+  unit_price: number;
+  subtotal: number;
+  cleaning_fee: number;
+  service_fee: number;
+  total_amount: number;
+  payment_status: string;
+  payment_method: string | null;
+  payment_reference: string | null;
+  paid_at: string | null;
+  commission_rate: number;
+  commission_amount: number;
+  partner_payout: number;
+  status: string;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  refund_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── LEGACY: PROPERTY OWNER (keeping for backward compat) ───
 
 export interface PropertyOwner {
   id: string;
