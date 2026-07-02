@@ -19,7 +19,7 @@ import { useConfirm } from '@/hooks/useConfirm';
 import SettingsTab from './SettingsTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels' | 'permissions';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'announcements' | 'hotels' | 'permissions' | 'finance';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -53,7 +53,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements','hotels'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','reports','audit','settings','workers','announcements','hotels','permissions','finance'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -82,6 +82,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
     { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
     { id: 'permissions' as AdminTab, label: 'Permissions', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
+    { id: 'finance' as AdminTab, label: 'Finance', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
 
   ];
 
@@ -171,6 +172,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'hotels' && <HotelsTab profile={profile} />}
         {activeTab === 'permissions' && <PermissionsTab profile={profile} />}
+        {activeTab === 'finance' && <FinanceTab />}
 
       </main>
     </div>
@@ -2100,6 +2102,184 @@ function PermissionsTab({ profile }: { profile: Profile }) {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// FINANCE TAB — Fee Configuration & Commission Settings
+// ═══════════════════════════════════════════════════════════
+
+function FinanceTab() {
+  const [fees, setFees] = useState({
+    rentalCommission: 10,
+    workerCommission: 12.5,
+    workerBookingFee: 300,
+    reservationFee: 5000,
+    hotelCommission: 15,
+    lateFeePercent: 5,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('platform_settings').select('key, value').in('key', [
+        'rental_commission_percent', 'worker_commission_percent', 'worker_booking_fee',
+        'reservation_fee', 'hotel_commission_percent', 'late_fee_percent',
+      ]);
+      if (data) {
+        const map: Record<string, number> = {};
+        data.forEach(r => { map[r.key] = Number(r.value) || 0; });
+        setFees(f => ({
+          rentalCommission: map['rental_commission_percent'] || f.rentalCommission,
+          workerCommission: map['worker_commission_percent'] || f.workerCommission,
+          workerBookingFee: map['worker_booking_fee'] || f.workerBookingFee,
+          reservationFee: map['reservation_fee'] || f.reservationFee,
+          hotelCommission: map['hotel_commission_percent'] || f.hotelCommission,
+          lateFeePercent: map['late_fee_percent'] || f.lateFeePercent,
+        }));
+      }
+    }
+    load();
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    const updates = [
+      { key: 'rental_commission_percent', value: String(fees.rentalCommission) },
+      { key: 'worker_commission_percent', value: String(fees.workerCommission) },
+      { key: 'worker_booking_fee', value: String(fees.workerBookingFee) },
+      { key: 'reservation_fee', value: String(fees.reservationFee) },
+      { key: 'hotel_commission_percent', value: String(fees.hotelCommission) },
+      { key: 'late_fee_percent', value: String(fees.lateFeePercent) },
+    ];
+    for (const u of updates) {
+      await supabase.from('platform_settings').upsert({ key: u.key, value: u.value }, { onConflict: 'key' });
+    }
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    toast.success('Fee settings saved');
+  }
+
+  const FeeCard = ({ label, desc, value, suffix, onChange, min = 0, max = 100 }: {
+    label: string; desc: string; value: number; suffix: string;
+    onChange: (v: number) => void; min?: number; max?: number;
+  }) => (
+    <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-white">{label}</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={value}
+            min={min}
+            max={max}
+            onChange={e => onChange(Number(e.target.value))}
+            className="w-20 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-violet-500"
+          />
+          <span className="text-xs text-[#5C5E72] w-10">{suffix}</span>
+        </div>
+      </div>
+      <p className="text-[10px] text-[#5C5E72]">{desc}</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-4">
+        <h2 className="text-sm font-semibold text-white">Fee Configuration</h2>
+        <p className="text-[10px] text-[#5C5E72] mt-1">
+          Set what WeHouse charges property partners and workers. Changes apply to new transactions.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Property Partners (Landlords)</h3>
+        <FeeCard
+          label="Rental Commission"
+          desc="Percentage of annual rent WeHouse keeps. The rest goes to the property partner."
+          value={fees.rentalCommission}
+          suffix="%"
+          onChange={v => setFees(f => ({ ...f, rentalCommission: v }))}
+          max={50}
+        />
+        <FeeCard
+          label="Reservation Fee"
+          desc="What renters pay to hold a property for 72 hours. Non-refundable."
+          value={fees.reservationFee}
+          suffix="NGN"
+          onChange={v => setFees(f => ({ ...f, reservationFee: v }))}
+          max={50000}
+        />
+        <FeeCard
+          label="Hotel Booking Commission"
+          desc="Percentage of hotel booking value WeHouse keeps."
+          value={fees.hotelCommission}
+          suffix="%"
+          onChange={v => setFees(f => ({ ...f, hotelCommission: v }))}
+          max={50}
+        />
+        <FeeCard
+          label="Late Payment Fee"
+          desc="Percentage added to overdue monthly installment payments."
+          value={fees.lateFeePercent}
+          suffix="%"
+          onChange={v => setFees(f => ({ ...f, lateFeePercent: v }))}
+          max={20}
+        />
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Service Workers</h3>
+        <FeeCard
+          label="Worker Commission"
+          desc="Percentage taken from worker's earnings per completed job. Industry standard is 15-25%."
+          value={fees.workerCommission}
+          suffix="%"
+          onChange={v => setFees(f => ({ ...f, workerCommission: v }))}
+          max={50}
+        />
+        <FeeCard
+          label="User Booking Fee"
+          desc="Flat fee users pay per worker booking. Covers escrow protection."
+          value={fees.workerBookingFee}
+          suffix="NGN"
+          onChange={v => setFees(f => ({ ...f, workerBookingFee: v }))}
+          max={2000}
+        />
+      </div>
+
+      {/* Example Breakdown */}
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <h3 className="text-xs font-semibold text-white">Example Breakdown</h3>
+
+        <div className="rounded-xl bg-[#1A1A24] p-3">
+          <p className="text-[10px] font-semibold text-emerald-400 mb-2">Property Rental (N2,000,000/year)</p>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Annual Rent</span><span className="text-white">N2,000,000</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.rentalCommission}%)</span><span className="text-amber-400">N{Math.round(2000000 * fees.rentalCommission / 100).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Partner Receives</span><span className="text-emerald-400">N{Math.round(2000000 * (100 - fees.rentalCommission) / 100).toLocaleString()}</span></div>
+        </div>
+
+        <div className="rounded-xl bg-[#1A1A24] p-3">
+          <p className="text-[10px] font-semibold text-blue-400 mb-2">Worker Job (N5,000 job)</p>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Agreed Price</span><span className="text-white">N5,000</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">User Booking Fee</span><span className="text-amber-400">N{fees.workerBookingFee}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse ({fees.workerCommission}%)</span><span className="text-amber-400">N{Math.round(5000 * fees.workerCommission / 100).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Worker Receives</span><span className="text-emerald-400">N{Math.round(5000 * (100 - fees.workerCommission) / 100).toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs border-t border-white/[0.04] pt-1 mt-1"><span className="text-white font-semibold">User Pays Total</span><span className="text-[#3B82F6] font-bold">N{(5000 + fees.workerBookingFee).toLocaleString()}</span></div>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50 active:scale-[0.98]"
+      >
+        {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Fee Settings'}
+      </button>
     </div>
   );
 }
