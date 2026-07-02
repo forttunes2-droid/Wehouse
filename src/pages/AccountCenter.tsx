@@ -239,7 +239,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
           <div className="glass rounded-2xl p-4 space-y-3">
             {[
               { label: 'User ID', value: profile.user_id },
-              { label: 'Auth ID', value: `${profile.auth_id.slice(0, 8)}...` },
+              { label: 'Auth ID', value: profile.auth_id },
               { label: 'Role', value: profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
               {
                 label: 'Joined',
