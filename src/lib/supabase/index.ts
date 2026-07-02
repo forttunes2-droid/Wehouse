@@ -192,6 +192,17 @@ export {
   createNotification,
 } from './notifications';
 
+// Permissions (CTO Master Architecture)
+export {
+  getStaffPermissions,
+  grantPermission,
+  revokePermission,
+  hasPermission,
+  hasAnyPermission,
+  getAllStaffWithPermissions,
+  getStaffByPermission,
+} from './permissions';
+
 // Hotels
 export {
   getHotels,

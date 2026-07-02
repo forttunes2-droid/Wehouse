@@ -1,401 +1,635 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase, getConversations, getCreatorListings, getMessages, deleteListing, getProfileByAuthId } from '@/lib/supabase';
-import type { Profile, Listing, Conversation } from '@/types';
+import { useState, useEffect } from 'react';
+import { useStaffPermissions } from '@/hooks/useStaffPermissions';
+import { supabase } from '@/lib/supabase';
+import type { Profile, StaffPermission, SupportTicket, Payout, CommissionRule } from '@/types';
+import { STAFF_PERMISSION_LABELS, TICKET_TYPE_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_COLORS } from '@/types';
+import type { TicketStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
-import ConfirmDialog from '@/components/ConfirmDialog';
-import { useConfirm } from '@/hooks/useConfirm';
-
-
-type StaffTab = 'overview' | 'listings' | 'enquiries' | 'rating';
 
 interface StaffDashboardProps {
   profile: Profile;
   onLogout: () => void;
-  onGoToChat?: (convId?: string) => void;
+  onGoToChat: (convId?: string) => void;
   onNavigate?: (page: string) => void;
 }
 
-export default function StaffDashboard({ profile, onLogout, onGoToChat, onNavigate }: StaffDashboardProps) {
-  const TAB_KEY = 'wh_staff_tab';
-  // StaffTab type is defined at module level above
-  const [activeTab, setActiveTab] = useState<StaffTab>(() => {
-    try {
-      const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview', 'listings', 'enquiries', 'rating'].includes(saved) ? saved as StaffTab : 'overview';
-    } catch { return 'overview'; }
-  });
+type StaffTab = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer';
 
-  const handleSetTab = useCallback((tab: StaffTab) => {
-    setActiveTab(tab);
-    localStorage.setItem(TAB_KEY, tab);
-  }, []);
+export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardProps) {
+  const { permissions, loading: permsLoading, hasPermission } = useStaffPermissions(profile.user_id);
+  const [activeTab, setActiveTab] = useState<StaffTab>('overview');
 
-  const [myListings, setMyListings] = useState<Listing[]>([]);
-  const [enquiryDetails, setEnquiryDetails] = useState<Array<{ conv: Conversation; otherName: string; lastMessage: string; unread: number; status: string; listingId: string | null }>>([]);
-  const [stats, setStats] = useState({ listings: 0, enquiries: 0 });
-  const [loading, setLoading] = useState(true);
+  // Determine available tabs based on permissions
+  const availableTabs: StaffTab[] = ['overview'];
+  if (hasPermission('operations')) availableTabs.push('operations');
+  if (hasPermission('finance')) availableTabs.push('finance');
+  if (hasPermission('support')) availableTabs.push('support');
+  if (hasPermission('verification')) availableTabs.push('verification');
+  if (hasPermission('field_officer')) availableTabs.push('field_officer');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    // Get my listings
-    const { listings: data } = await getCreatorListings(profile.auth_id);
-    const myList = data || [];
-    setMyListings(myList);
-    setStats(s => ({ ...s, listings: myList.length }));
-
-    // Get my conversations (enquiries from users)
-    const { conversations: convData } = await getConversations(profile.user_id);
-    const convs = convData || [];
-    setStats(s => ({ ...s, enquiries: convs.length }));
-
-    // Build enquiry details with usernames
-    const details = await Promise.all(
-      convs.map(async (conv) => {
-        const otherId = conv.participant_a === profile.user_id ? conv.participant_b : conv.participant_a;
-        const isUnread = conv.participant_a === profile.user_id ? conv.unread_a > 0 : conv.unread_b > 0;
-        // Get last message
-        const { messages } = await getMessages(conv.id);
-        const lastMsg = messages?.[messages.length - 1];
-        // Get other person's profile
-        const { profile: otherProfile } = await getProfileByAuthId(otherId);
-        return {
-          conv,
-          otherName: otherProfile?.username || `User ${otherId.slice(-4)}`,
-          lastMessage: lastMsg?.content || conv.last_message || 'No messages yet',
-          unread: isUnread ? 1 : 0,
-          status: conv.status,
-          listingId: conv.listing_id,
-        };
-      })
+  if (permsLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+      </div>
     );
-    setEnquiryDetails(details);
-
-    setLoading(false);
-  }, [profile.auth_id, profile.user_id]);
-
-  useEffect(() => { load(); }, [load]);
-
-  // Subscribe to conversation updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('staff-enquiries')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-        load();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [load]);
-
-  const tabs: Array<{ id: StaffTab; label: string; icon: string }> = [
-    { id: 'overview', label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
-    { id: 'listings', label: 'My Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
-    { id: 'enquiries', label: 'Enquiries', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
-    { id: 'rating', label: 'My Rating', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
-  ];
+  }
 
   return (
-    <div className="min-h-screen bg-transparent pb-6">
-      <Toaster position="top-center" toastOptions={{ style: { background: '#1A1A24', color: '#fff', border: '1px solid #232330' } }} />
+    <div className="min-h-screen bg-[#0A0A0F] pb-6">
+      <Toaster position="top-center" richColors />
 
       {/* Header */}
-      <header className="bg-gradient-to-r from-amber-600 to-amber-800 px-5 pt-6 pb-8">
+      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg font-bold text-white">Staff Dashboard</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-amber-400 bg-amber-500/10 border-amber-500/20">STAFF</span>
-            </div>
-            <p className="text-xs text-white/60">
-              {profile.assigned_state || profile.state || 'No state assigned'}
-              {profile.assigned_lga || profile.city ? ` · ${profile.assigned_lga || profile.city}` : ''}
-            </p>
+            <h1 className="text-lg font-bold text-white">Staff Dashboard</h1>
+            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
           </div>
-          <div className="flex items-center gap-2">
-            {onNavigate && (
-              <button onClick={() => onNavigate('home')} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-              </button>
-            )}
-            <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          {[
-            { label: 'My Listings', value: stats.listings },
-            { label: 'Enquiries', value: stats.enquiries },
-          ].map(s => (
-            <button
-              key={s.label}
-              onClick={() => handleSetTab(s.label === 'My Listings' ? 'listings' : 'enquiries')}
-              className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center text-left active:scale-[0.97] transition-transform"
-            >
-              <div className="text-2xl font-bold text-white">{s.value}</div>
-              <div className="text-[10px] text-white/60">{s.label}</div>
-            </button>
-          ))}
+          <span className="text-[10px] px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            {permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(', ') || 'No Permissions'}
+          </span>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="px-5 -mt-4">
-        <div className="glass rounded-xl p-1 flex gap-1 overflow-x-auto scrollbar-hide">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => handleSetTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium whitespace-nowrap rounded-lg transition-all flex-shrink-0 ${
-                activeTab === tab.id ? 'bg-amber-500 text-white' : 'text-[#8A8B9C] hover:text-white'
-              }`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon} /></svg>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Module Navigation */}
+      <nav className="flex gap-1 px-5 py-3 border-b border-white/[0.04] overflow-x-auto scrollbar-hide">
+        {availableTabs.map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-shrink-0 h-9 px-4 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
+              activeTab === tab
+                ? 'bg-[#3B82F6] text-white'
+                : 'text-[#5C5E72] hover:text-white'
+            }`}
+          >
+            {tab === 'overview' ? 'Overview' : STAFF_PERMISSION_LABELS[tab as StaffPermission]}
+          </button>
+        ))}
+      </nav>
 
-      {/* Content */}
-      <div className="px-5 pt-4">
-        {activeTab === 'overview' && <OverviewTab profile={profile} stats={stats} onGoToTab={handleSetTab} />}
-        {activeTab === 'listings' && <MyListingsTab listings={myListings} loading={loading} onRefresh={load} />}
-        {activeTab === 'enquiries' && <EnquiriesTab enquiries={enquiryDetails} loading={loading} onGoToChat={onGoToChat} />}
-        {activeTab === 'rating' && <StaffRatingTab staffId={profile.user_id} />}
-      </div>
+      {/* Module Content */}
+      <main className="px-5 py-4">
+        {activeTab === 'overview' && <OverviewModule profile={profile} permissions={permissions} onGoToChat={onGoToChat} />}
+        {activeTab === 'operations' && <OperationsModule profile={profile} />}
+        {activeTab === 'finance' && <FinanceModule />}
+        {activeTab === 'support' && <SupportModule profile={profile} />}
+        {activeTab === 'verification' && <VerificationModule />}
+        {activeTab === 'field_officer' && <FieldOfficerModule profile={profile} />}
+      </main>
     </div>
   );
 }
 
-// ─── OVERVIEW ──────────────────────────────────────
-function OverviewTab({ profile, stats, onGoToTab }: { profile: Profile; stats: { listings: number; enquiries: number }; onGoToTab?: (tab: StaffTab) => void }) {
-  return (
-    <div className="space-y-3">
-      <div className="glass rounded-2xl p-4 border border-amber-500/10">
-        <p className="text-xs text-[#8A8B9C]">
-          You have {stats.listings} listing{stats.listings !== 1 ? 's' : ''} and {stats.enquiries} active enquiry{stats.enquiries !== 1 ? 'ies' : ''}.
-        </p>
-        <p className="text-[10px] text-amber-400/70 mt-2">
-          Your assigned location: {profile.assigned_lga || profile.city || 'Not set'}, {profile.assigned_state || profile.state || 'Not set'}
-        </p>
-      </div>
+// ═══════════════════════════════════════════════════════════════
+// OVERVIEW MODULE
+// ═══════════════════════════════════════════════════════════════
 
-      {/* Quick Actions — clickable */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => onGoToTab?.('listings')}
-          className="glass rounded-2xl p-4 border border-amber-500/5 text-left active:scale-[0.97] transition-transform"
-        >
-          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-          </div>
-          <p className="text-xs font-medium text-white">My Listings</p>
-          <p className="text-[10px] text-[#5C5E72]">View and manage your listings</p>
-        </button>
-        <button
-          onClick={() => onGoToTab?.('enquiries')}
-          className="glass rounded-2xl p-4 border border-amber-500/5 text-left active:scale-[0.97] transition-transform"
-        >
-          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-          </div>
-          <p className="text-xs font-medium text-white">Reply Enquiries</p>
-          <p className="text-[10px] text-[#5C5E72]">Chat with interested users</p>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── MY LISTINGS ───────────────────────────────────
-function MyListingsTab({ listings, loading, onRefresh }: { listings: Listing[]; loading: boolean; onRefresh: () => void }) {
-  const { ask, dialogProps } = useConfirm();
-
-  async function handleDelete(id: string) {
-    const ok = await ask({ title: 'Delete this listing?', confirmLabel: 'Delete', variant: 'danger' });
-    if (!ok) return;
-    const { error } = await deleteListing(id);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    toast.success('Listing deleted');
-    onRefresh();
-  }
-
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>;
-
-  return (
-    <div className="space-y-3">
-      <ConfirmDialog {...dialogProps} />
-      {listings.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-          </div>
-          <p className="text-sm text-[#8A8B9C]">No listings yet</p>
-          <p className="text-xs text-[#5C5E72] mt-1">Create your first listing from the Listings tab</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{listings.length} Listings</div>
-          {listings.map(l => (
-            <div key={l.id} className="glass rounded-xl p-3">
-              <div className="flex items-center gap-3">
-                <img src={l.images?.[0] || 'https://placehold.co/100x100/1A1A24/5C5E72?text=No+Image'} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{l.title}</p>
-                  <p className="text-[10px] text-[#5C5E72]">{l.city} · ₦{l.price?.toLocaleString()}/year</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${
-                    l.status === 'available' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                    l.status === 'reserved' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    'bg-[#1A1A24] text-[#5C5E72] border-[#232330]'
-                  }`}>{l.status}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => handleDelete(l.id)}
-                className="mt-2 w-full h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── ENQUIRIES ─────────────────────────────────────
-function EnquiriesTab({ enquiries, loading, onGoToChat }: {
-  enquiries: Array<{ conv: Conversation; otherName: string; lastMessage: string; unread: number; status: string; listingId: string | null }>;
-  loading: boolean;
-  onGoToChat?: (convId?: string) => void;
-}) {
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>;
-
-  return (
-    <div className="space-y-2">
-      {enquiries.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-          </div>
-          <p className="text-sm text-[#8A8B9C]">No enquiries yet</p>
-          <p className="text-xs text-[#5C5E72] mt-1">When users message you about your listings, they will appear here</p>
-        </div>
-      ) : (
-        <>
-          <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">{enquiries.length} Enquiries</div>
-          {enquiries.map(({ conv, otherName, lastMessage, unread, status }) => (
-            <button
-              key={conv.id}
-              onClick={() => onGoToChat?.(conv.id)}
-              className="w-full glass rounded-xl p-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors"
-            >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                {otherName.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white truncate">@{otherName}</span>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${
-                      status === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                      status === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                      'bg-[#1A1A24] text-[#5C5E72] border-[#232330]'
-                    }`}>
-                      {status}
-                    </span>
-                    {unread > 0 && <span className="w-2 h-2 rounded-full bg-amber-500" />}
-                  </div>
-                </div>
-                <p className="text-xs text-[#8A8B9C] truncate">{lastMessage}</p>
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-            </button>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── STAFF RATING TAB (Read-Only) ─────────────────
-function StaffRatingTab({ staffId }: { staffId: string }) {
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [summary, setSummary] = useState({ avg: 0, count: 0 });
-  const [loading, setLoading] = useState(true);
+function OverviewModule({ profile, permissions }: { profile: Profile; permissions: StaffPermission[]; onGoToChat?: (convId?: string) => void }) {
+  const [stats, setStats] = useState({ tickets: 0, inspections: 0, listings: 0, workers: 0, messages: 0 });
+  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('staff_reviews')
-        .select('*, profiles!staff_reviews_reviewer_id_fkey(username)')
-        .eq('staff_id', staffId)
-        .order('created_at', { ascending: false });
+      const promises = [];
+      if (permissions.includes('support')) promises.push(supabase.from('support_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'));
+      if (permissions.includes('field_officer')) promises.push(supabase.from('inspections').select('*', { count: 'exact', head: true }).eq('field_officer_id', profile.user_id).eq('status', 'scheduled'));
+      if (permissions.includes('operations')) promises.push(supabase.from('listings').select('*', { count: 'exact', head: true }).is('deleted_at', null));
+      if (permissions.includes('verification')) promises.push(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'worker').eq('worker_status', 'pending'));
+      promises.push(supabase.from('conversations').select('*', { count: 'exact', head: true }));
 
-      const reviewList = data || [];
-      setReviews(reviewList);
+      const results = await Promise.all(promises);
+      let idx = 0;
+      const s = { tickets: 0, inspections: 0, listings: 0, workers: 0, messages: results[results.length - 1]?.count || 0 };
+      if (permissions.includes('support')) s.tickets = results[idx++]?.count || 0;
+      if (permissions.includes('field_officer')) s.inspections = results[idx++]?.count || 0;
+      if (permissions.includes('operations')) s.listings = results[idx++]?.count || 0;
+      if (permissions.includes('verification')) s.workers = results[idx++]?.count || 0;
+      setStats(s);
 
-      if (reviewList.length > 0) {
-        const sum = reviewList.reduce((acc: number, r: any) => acc + r.rating, 0);
-        setSummary({ avg: Math.round((sum / reviewList.length) * 10) / 10, count: reviewList.length });
-      }
-      setLoading(false);
+      // Load recent activity
+      const { data: acts } = await supabase
+        .from('staff_activity_log')
+        .select('*')
+        .eq('staff_id', profile.user_id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setActivities(acts || []);
     }
     load();
-  }, [staffId]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-10">
-        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  }, [profile.user_id, permissions]);
 
   return (
     <div className="space-y-4">
-      {/* Rating Summary */}
-      <div className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-6 text-center">
-        {summary.count > 0 ? (
-          <>
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-              <span className="text-4xl font-extrabold text-white">{summary.avg}</span>
-              <span className="text-sm text-[#7A7A8C]">/ 5</span>
-            </div>
-            <p className="text-sm text-[#7A7A8C]">Based on {summary.count} review{summary.count !== 1 ? 's' : ''}</p>
-          </>
-        ) : (
-          <>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4A4A5C" strokeWidth="2" className="mx-auto mb-2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-            <p className="text-sm text-[#7A7A8C]">No ratings yet</p>
-            <p className="text-xs text-[#4A4A5C] mt-1">Your rating will appear here after users review you</p>
-          </>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        {permissions.includes('support') && stats.tickets > 0 && (
+          <div className="rounded-2xl bg-red-500/5 border border-red-500/10 p-4 text-center">
+            <p className="text-2xl font-bold text-red-400">{stats.tickets}</p>
+            <p className="text-[10px] text-[#5C5E72]">Open Tickets</p>
+          </div>
+        )}
+        {permissions.includes('field_officer') && stats.inspections > 0 && (
+          <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-4 text-center">
+            <p className="text-2xl font-bold text-amber-400">{stats.inspections}</p>
+            <p className="text-[10px] text-[#5C5E72]">Pending Inspections</p>
+          </div>
+        )}
+        {permissions.includes('operations') && (
+          <div className="rounded-2xl bg-blue-500/5 border border-blue-500/10 p-4 text-center">
+            <p className="text-2xl font-bold text-blue-400">{stats.listings}</p>
+            <p className="text-[10px] text-[#5C5E72]">Listings</p>
+          </div>
+        )}
+        {permissions.includes('verification') && (
+          <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/10 p-4 text-center">
+            <p className="text-2xl font-bold text-emerald-400">{stats.workers}</p>
+            <p className="text-[10px] text-[#5C5E72]">Pending Workers</p>
+          </div>
         )}
       </div>
 
-      {/* Individual Reviews */}
-      {reviews.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#4A4A5C] mb-3">Reviews</p>
-          <div className="space-y-2">
-            {reviews.map((r: any) => (
-              <div key={r.review_id} className="rounded-2xl bg-[#0C0C12] border border-[rgba(255,255,255,0.06)] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <svg key={star} width="12" height="12" viewBox="0 0 24 24" fill={star <= r.rating ? '#F59E0B' : 'none'} stroke={star <= r.rating ? '#F59E0B' : '#4A4A5C'} strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-[#7A7A8C]">{new Date(r.created_at).toLocaleDateString()}</span>
-                </div>
-                {r.comment && <p className="text-xs text-[#7A7A8C]">{r.comment}</p>}
+      {/* My Modules */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Modules</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {permissions.map(perm => (
+            <div key={perm} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+              <p className="text-sm font-semibold text-white">{STAFF_PERMISSION_LABELS[perm]}</p>
+              <p className="text-[10px] text-[#5C5E72] mt-1">Active permission</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Recent Activity</h3>
+        {activities.length === 0 ? (
+          <div className="text-center py-6 text-[#5C5E72] text-sm">No recent activity</div>
+        ) : (
+          activities.map(a => (
+            <div key={a.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]" />
+                <p className="text-[11px] text-white flex-1">{a.action}</p>
+                <span className="text-[9px] text-[#5C5E72]">{new Date(a.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OPERATIONS MODULE
+// ═══════════════════════════════════════════════════════════════
+
+function OperationsModule({ profile }: { profile: Profile }) {
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  useEffect(() => {
+    loadListings();
+  }, [statusFilter]);
+
+  async function loadListings() {
+    setLoading(true);
+    let query = supabase.from('listings').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+    if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+    const { data } = await query.limit(50);
+    setListings(data || []);
+    setLoading(false);
+  }
+
+  async function approveListing(id: string) {
+    const { error } = await supabase.from('listings').update({ status: 'available', approved_by: profile.user_id, approved_at: new Date().toISOString() }).eq('id', id);
+    if (error) toast.error('Failed: ' + error.message);
+    else { toast.success('Listing approved'); loadListings(); }
+  }
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Property Management</h3>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[11px] px-2">
+          <option value="all">All</option>
+          <option value="available">Available</option>
+          <option value="reserved">Reserved</option>
+          <option value="pending_approval">Pending</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+
+      {listings.length === 0 ? (
+        <div className="text-center py-10 text-[#5C5E72] text-sm">No listings found</div>
+      ) : (
+        listings.map(l => (
+          <div key={l.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{l.title}</p>
+                <p className="text-[10px] text-[#5C5E72]">{l.city}, {l.state} &middot; {l.bedrooms} bed &middot; N{l.price?.toLocaleString()}</p>
+              </div>
+              <span className={`text-[9px] px-2 py-0.5 rounded-full ${
+                l.status === 'available' ? 'bg-emerald-500/10 text-emerald-400' :
+                l.status === 'reserved' ? 'bg-amber-500/10 text-amber-400' :
+                l.status === 'pending_approval' ? 'bg-blue-500/10 text-blue-400' :
+                'bg-gray-500/10 text-gray-400'
+              }`}>{l.status}</span>
+            </div>
+            {l.status === 'pending_approval' && (
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => approveListing(l.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
+                <button onClick={() => { const r = prompt('Rejection reason:'); if (r) supabase.from('listings').update({ status: 'rejected', rejection_reason: r }).eq('id', l.id).then(() => { toast.success('Rejected'); loadListings(); }); }} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
+              </div>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FINANCE MODULE
+// ═══════════════════════════════════════════════════════════════
+
+function FinanceModule() {
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'payouts' | 'rules'>('overview');
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [rules, setRules] = useState<CommissionRule[]>([]);
+  const [_loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: p }, { data: r }] = await Promise.all([
+        supabase.from('payouts').select('*, property_owners(full_name)').order('created_at', { ascending: false }).limit(20),
+        supabase.from('commission_rules').select('*').eq('is_active', true).order('rule_type'),
+      ]);
+      setPayouts(p || []);
+      setRules(r || []);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
+  const totalPending = payouts.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1">
+        {(['overview', 'payouts', 'rules'] as const).map(t => (
+          <button key={t} onClick={() => setActiveSubTab(t)} className={`flex-1 h-8 rounded-lg text-[11px] font-semibold ${activeSubTab === t ? 'bg-emerald-500 text-white' : 'text-[#5C5E72]'}`}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {activeSubTab === 'overview' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/10 p-4 text-center">
+              <p className="text-xl font-bold text-emerald-400">N{totalPaid.toLocaleString()}</p>
+              <p className="text-[9px] text-[#5C5E72]">Total Paid Out</p>
+            </div>
+            <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-4 text-center">
+              <p className="text-xl font-bold text-amber-400">N{totalPending.toLocaleString()}</p>
+              <p className="text-[9px] text-[#5C5E72]">Pending Payouts</p>
+            </div>
+          </div>
+          <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+            <p className="text-sm font-semibold text-white mb-2">Commission Rules ({rules.length})</p>
+            {rules.map(r => (
+              <div key={r.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+                <span className="text-[11px] text-[#8A8B9C]">{r.name}</span>
+                <span className="text-[11px] text-emerald-400">{r.percentage ? `${r.percentage}%` : `N${r.flat_amount?.toLocaleString()}`}</span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {activeSubTab === 'payouts' && (
+        <div className="space-y-3">
+          {payouts.length === 0 ? (
+            <div className="text-center py-10 text-[#5C5E72] text-sm">No payouts yet</div>
+          ) : payouts.map(p => (
+            <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">{(p as any).property_owners?.full_name || 'Unknown'}</p>
+                  <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-white">N{p.amount.toLocaleString()}</p>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                    p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' :
+                    p.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
+                    'bg-red-500/10 text-red-400'
+                  }`}>{p.status}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeSubTab === 'rules' && (
+        <div className="space-y-3">
+          {rules.length === 0 ? (
+            <div className="text-center py-10 text-[#5C5E72] text-sm">No commission rules set</div>
+          ) : rules.map(r => (
+            <div key={r.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+              <p className="text-sm font-semibold text-white">{r.name}</p>
+              <p className="text-[10px] text-[#5C5E72]">{r.description}</p>
+              <div className="flex gap-4 mt-2 text-[10px] text-[#5C5E72]">
+                <span>Type: {r.rule_type}</span>
+                <span>{r.percentage ? `${r.percentage}%` : `N${r.flat_amount}`}</span>
+                <span>Min: N{r.min_amount}</span>
+                <span>Max: N{r.max_amount}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPPORT MODULE
+// ═══════════════════════════════════════════════════════════════
+
+function SupportModule({ profile }: { profile: Profile }) {
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
+
+  useEffect(() => {
+    loadTickets();
+  }, [statusFilter]);
+
+  async function loadTickets() {
+    setLoading(true);
+    let query = supabase.from('support_tickets').select('*').order('created_at', { ascending: false });
+    if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+    const { data } = await query.limit(30);
+    setTickets(data || []);
+    setLoading(false);
+  }
+
+  async function assignTicket(ticketId: string) {
+    const { error } = await supabase.from('support_tickets').update({ assigned_to: profile.user_id, status: 'in_progress' }).eq('id', ticketId);
+    if (error) toast.error('Failed: ' + error.message);
+    else { toast.success('Ticket assigned to you'); loadTickets(); }
+  }
+
+  async function resolveTicket(ticketId: string) {
+    const notes = prompt('Resolution notes:');
+    if (!notes) return;
+    const { error } = await supabase.from('support_tickets').update({ status: 'resolved', resolution_notes: notes, resolved_at: new Date().toISOString(), resolved_by: profile.user_id }).eq('id', ticketId);
+    if (error) toast.error('Failed: ' + error.message);
+    else { toast.success('Ticket resolved'); loadTickets(); }
+  }
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Support Tickets ({tickets.length})</h3>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TicketStatus | 'all')} className="h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[11px] px-2">
+          <option value="all">All</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="resolved">Resolved</option>
+          <option value="escalated">Escalated</option>
+        </select>
+      </div>
+
+      {tickets.length === 0 ? (
+        <div className="text-center py-10 text-[#5C5E72] text-sm">No tickets</div>
+      ) : (
+        tickets.map(t => (
+          <div key={t.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-white truncate">{t.subject}</p>
+                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${TICKET_STATUS_COLORS[t.status]}`}>{t.status}</span>
+                </div>
+                <p className="text-[10px] text-[#5C5E72] mt-1">{t.ticket_code} &middot; {TICKET_TYPE_LABELS[t.type]} &middot; <span className={TICKET_PRIORITY_COLORS[t.priority]}>{t.priority}</span></p>
+                <p className="text-[11px] text-[#8A8B9C] mt-2">{t.description}</p>
+                <p className="text-[9px] text-[#5C5E72] mt-1">{t.customer_email} &middot; {new Date(t.created_at).toLocaleDateString()}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              {t.status === 'open' && (
+                <button onClick={() => assignTicket(t.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Assign to Me</button>
+              )}
+              {t.status === 'in_progress' && t.assigned_to === profile.user_id && (
+                <button onClick={() => resolveTicket(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Resolve</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VERIFICATION MODULE
+// ═══════════════════════════════════════════════════════════════
+
+function VerificationModule() {
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'pending' | 'verified' | 'suspended' | 'all'>('pending');
+
+  useEffect(() => {
+    loadWorkers();
+  }, [filter]);
+
+  async function loadWorkers() {
+    setLoading(true);
+    let query = supabase.from('profiles').select('*').eq('role', 'worker');
+    if (filter !== 'all') query = query.eq('worker_status', filter);
+    const { data } = await query.order('created_at', { ascending: false });
+    setWorkers(data || []);
+    setLoading(false);
+  }
+
+  async function updateStatus(userId: string, status: 'verified' | 'suspended' | 'rejected') {
+    const { error } = await supabase.from('profiles').update({ worker_status: status, worker_verified: status === 'verified' }).eq('user_id', userId);
+    if (error) toast.error('Failed: ' + error.message);
+    else { toast.success(`Worker ${status}`); loadWorkers(); }
+  }
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1">
+        {(['pending', 'verified', 'suspended', 'all'] as const).map(f => (
+          <button key={f} onClick={() => setFilter(f)} className={`flex-1 h-8 rounded-lg text-[11px] font-semibold ${filter === f ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {workers.length === 0 ? (
+        <div className="text-center py-10 text-[#5C5E72] text-sm">No {filter} workers</div>
+      ) : (
+        workers.map(w => (
+          <div key={w.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-sm font-bold text-[#5C5E72]">
+                {(w.full_name || w.username || w.email)[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-white truncate">{w.full_name || w.username || 'Unnamed'}</p>
+                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
+                    w.worker_status === 'verified' ? 'bg-emerald-500/10 text-emerald-400' :
+                    w.worker_status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
+                    'bg-red-500/10 text-red-400'
+                  }`}>{w.worker_status}</span>
+                </div>
+                <p className="text-[10px] text-[#5C5E72]">{w.worker_occupation || 'No occupation'} &middot; {w.city || 'No location'}</p>
+                {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mt-1">{w.worker_bio}</p>}
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              {w.worker_status !== 'verified' && (
+                <button onClick={() => updateStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Verify</button>
+              )}
+              {w.worker_status !== 'suspended' && (
+                <button onClick={() => updateStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Suspend</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FIELD OFFICER MODULE
+// ═══════════════════════════════════════════════════════════════
+
+function FieldOfficerModule({ profile }: { profile: Profile }) {
+  const [inspections, setInspections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadInspections();
+  }, []);
+
+  async function loadInspections() {
+    setLoading(true);
+    const { data } = await supabase
+      .from('inspections')
+      .select('*, listings(title, address, city, state)')
+      .eq('field_officer_id', profile.user_id)
+      .order('scheduled_date', { ascending: true });
+    setInspections(data || []);
+    setLoading(false);
+  }
+
+  async function startInspection(id: string) {
+    await supabase.from('inspections').update({ status: 'in_progress' }).eq('id', id);
+    loadInspections();
+  }
+
+  async function completeInspection(id: string) {
+    const report = prompt('Inspection report:');
+    if (!report) return;
+    const condition = prompt('Overall condition (excellent/good/fair/poor):') as any;
+    await supabase.from('inspections').update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      report,
+      overall_condition: condition,
+    }).eq('id', id);
+    toast.success('Inspection completed');
+    loadInspections();
+  }
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      {/* Inspection Checklist */}
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+        <h4 className="text-sm font-semibold text-white mb-3">Inspection Checklist</h4>
+        {[
+          'Verify property photos match actual location',
+          'Check amenities are as listed',
+          'Confirm price with landlord',
+          'Document property condition',
+          'Take geotagged photos',
+          'Verify security of the area',
+        ].map((item, i) => (
+          <div key={i} className="flex items-center gap-3 py-2 border-b border-white/[0.04] last:border-0">
+            <div className="w-5 h-5 rounded border-2 border-[#232330]" />
+            <span className="text-[11px] text-[#8A8B9C]">{item}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Inspections List */}
+      <h4 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Inspections ({inspections.length})</h4>
+      {inspections.length === 0 ? (
+        <div className="text-center py-10 text-[#5C5E72] text-sm">No inspections assigned</div>
+      ) : (
+        inspections.map(ins => (
+          <div key={ins.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-white truncate">{ins.listings?.title || 'Unknown Property'}</p>
+                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
+                    ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                    ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
+                    ins.status === 'scheduled' ? 'bg-amber-500/10 text-amber-400' :
+                    'bg-gray-500/10 text-gray-400'
+                  }`}>{ins.status}</span>
+                </div>
+                <p className="text-[10px] text-[#5C5E72]">{ins.listings?.address}, {ins.listings?.city}</p>
+                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code} &middot; Scheduled: {ins.scheduled_date ? new Date(ins.scheduled_date).toLocaleDateString() : 'Not set'}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              {ins.status === 'scheduled' && (
+                <button onClick={() => startInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>
+              )}
+              {ins.status === 'in_progress' && (
+                <button onClick={() => completeInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ─── LOADING SPINNER ───────────────────────────────
+
+function LoadingSpinner() {
+  return (
+    <div className="flex justify-center py-10">
+      <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }

@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'director' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker';
+export type UserRole = 'user' | 'creator' | 'creator_admin' | 'director' | 'state_admin' | 'admin' | 'assistant_state_admin' | 'staff' | 'worker' | 'property_owner';
 
 export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -262,6 +262,7 @@ export const ROLE_RANK: Record<UserRole, number> = {
   director: 4.5,      // Director — approves Admin posts, posts need Creator approval
   creator: 5,         // highest — approves Director posts, auto-approved for own posts
   creator_admin: 5,   // legacy alias for creator
+  property_owner: 0,  // property owners are not part of staff hierarchy
 };
 
 // ─── ROLE DISPLAY LABELS ───────────────────────────
@@ -276,6 +277,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   director: 'Director',
   creator: 'Creator',
   creator_admin: 'Creator',
+  property_owner: 'Property Owner',
 };
 
 export function roleRank(role: string): number {
@@ -504,3 +506,273 @@ export const ROOM_TYPES = [
 export const BED_TYPES = [
   'King', 'Queen', 'Twin', 'Single', 'Double', 'Bunk',
 ] as const;
+
+// ═══════════════════════════════════════════════════════════════
+// CTO MASTER SCHEMA — NEW TYPES
+// ═══════════════════════════════════════════════════════════════
+
+// ─── STAFF PERMISSIONS ──────────────────────────────────────
+// Permission groups that creator assigns to staff members.
+// These determine which modules appear on the unified Staff Dashboard.
+
+export type StaffPermission = 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'admin';
+
+export const STAFF_PERMISSION_LABELS: Record<StaffPermission, string> = {
+  operations: 'Operations',
+  finance: 'Finance',
+  support: 'Customer Support',
+  verification: 'Worker Verification',
+  field_officer: 'Field Officer',
+  admin: 'Admin',
+};
+
+export const STAFF_PERMISSION_ICONS: Record<StaffPermission, string> = {
+  operations: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
+  finance: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  support: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  verification: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.24-.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24A3.42 3.42 0 0 1 14.4 2.01 3.42 3.42 0 0 1 17 3.388a3.42 3.42 0 0 0 1.24.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24 3.42 3.42 0 0 1 3.388-3.388 3.42 3.42 0 0 1 2.568 1.932 3.42 3.42 0 0 0 2.604 2.604 3.42 3.42 0 0 0 1.24.12M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0',
+  field_officer: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0zM15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+  admin: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+};
+
+export interface StaffPermissionRecord {
+  id: string;
+  staff_id: string;
+  permission: StaffPermission;
+  granted_by: string;
+  granted_at: string;
+  revoked_at: string | null;
+  is_active: boolean;
+}
+
+// ─── PROPERTY OWNER ─────────────────────────────────────────
+// Private. Property owners are NOT users. WeHouse manages them.
+
+export type PropertyOwnerStatus = 'active' | 'inactive' | 'suspended';
+
+export interface PropertyOwner {
+  id: string;
+  owner_code: string;
+  full_name: string;
+  email: string | null;
+  phone: string;
+  address: string | null;
+  state: string | null;
+  city: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
+  tax_id: string | null;
+  commission_rate: number;
+  status: PropertyOwnerStatus;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OwnerProperty {
+  id: string;
+  owner_id: string;
+  listing_id: string;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  monthly_rent: number | null;
+  payout_day: number;
+  is_primary_owner: boolean;
+  ownership_percentage: number;
+  created_at: string;
+}
+
+export type ContractType = 'rental' | 'management' | 'partnership';
+export type ContractStatus = 'draft' | 'active' | 'expired' | 'terminated';
+
+export interface OwnerContract {
+  id: string;
+  owner_id: string;
+  contract_code: string;
+  contract_type: ContractType;
+  start_date: string;
+  end_date: string | null;
+  commission_rate: number;
+  terms: string | null;
+  document_url: string | null;
+  status: ContractStatus;
+  terminated_by: string | null;
+  terminated_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── SUPPORT TICKETS ────────────────────────────────────────
+
+export type TicketType = 'booking_issue' | 'refund_request' | 'complaint' | 'account_help' | 'payment_issue' | 'general';
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'escalated';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export const TICKET_TYPE_LABELS: Record<TicketType, string> = {
+  booking_issue: 'Booking Issue',
+  refund_request: 'Refund Request',
+  complaint: 'Complaint',
+  account_help: 'Account Help',
+  payment_issue: 'Payment Issue',
+  general: 'General',
+};
+
+export const TICKET_STATUS_COLORS: Record<TicketStatus, string> = {
+  open: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  in_progress: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  resolved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  closed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  escalated: 'bg-red-500/10 text-red-400 border-red-500/20',
+};
+
+export const TICKET_PRIORITY_COLORS: Record<TicketPriority, string> = {
+  low: 'text-gray-400',
+  medium: 'text-blue-400',
+  high: 'text-amber-400',
+  urgent: 'text-red-400',
+};
+
+export interface SupportTicket {
+  id: string;
+  ticket_code: string;
+  customer_id: string;
+  customer_email: string;
+  customer_phone: string | null;
+  type: TicketType;
+  subject: string;
+  description: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assigned_to: string | null;
+  resolution_notes: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  listing_id: string | null;
+  reservation_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── INSPECTIONS ────────────────────────────────────────────
+
+export type InspectionStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 're_inspection_required';
+export type ConditionRating = 'excellent' | 'good' | 'fair' | 'poor';
+export type SecurityLevel = 'high' | 'medium' | 'low';
+
+export interface Inspection {
+  id: string;
+  inspection_code: string;
+  listing_id: string;
+  field_officer_id: string;
+  status: InspectionStatus;
+  scheduled_date: string | null;
+  completed_at: string | null;
+  overall_condition: ConditionRating | null;
+  property_cleanliness: ConditionRating | null;
+  security_level: SecurityLevel | null;
+  amenities_verified: boolean;
+  photos_match_listing: boolean;
+  price_verified: boolean;
+  landlord_present: boolean;
+  notes: string | null;
+  report: string | null;
+  photo_urls: string[];
+  document_urls: string[];
+  gps_latitude: number | null;
+  gps_longitude: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── COMMISSION RULES ───────────────────────────────────────
+
+export type CommissionRuleType = 'reservation_fee' | 'listing_commission' | 'hotel_booking_fee' | 'worker_subscription' | 'owner_commission' | 'late_fee' | 'cancellation_fee';
+
+export interface CommissionRule {
+  id: string;
+  name: string;
+  rule_type: CommissionRuleType;
+  percentage: number | null;
+  flat_amount: number | null;
+  min_amount: number | null;
+  max_amount: number | null;
+  currency: string;
+  is_active: boolean;
+  applies_to: 'all' | 'new' | 'existing' | null;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── PAYOUTS ────────────────────────────────────────────────
+
+export type PayoutStatus = 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled';
+
+export interface Payout {
+  id: string;
+  payout_code: string;
+  owner_id: string;
+  owner_property_id: string | null;
+  amount: number;
+  commission_amount: number;
+  gross_amount: number;
+  period_start: string;
+  period_end: string;
+  status: PayoutStatus;
+  payment_method: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  transaction_reference: string | null;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── BOOKING PAYMENTS ───────────────────────────────────────
+
+export type BookingPaymentType = 'reservation' | 'hotel_booking' | 'worker_subscription';
+export type BookingPaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'partially_refunded';
+
+export interface BookingPayment {
+  id: string;
+  payment_reference: string;
+  user_id: string;
+  type: BookingPaymentType;
+  listing_id: string | null;
+  hotel_booking_id: number | null;
+  amount: number;
+  commission_amount: number;
+  net_amount: number;
+  currency: string;
+  status: BookingPaymentStatus;
+  payment_method: string | null;
+  paystack_reference: string | null;
+  refund_amount: number;
+  refund_reason: string | null;
+  refund_processed_at: string | null;
+  refund_processed_by: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── STAFF ACTIVITY LOG ─────────────────────────────────────
+
+export type StaffActivityModule = 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'admin' | 'general';
+
+export interface StaffActivityLog {
+  id: string;
+  staff_id: string;
+  action: string;
+  module: StaffActivityModule;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, any>;
+  ip_address: string | null;
+  created_at: string;
+}
