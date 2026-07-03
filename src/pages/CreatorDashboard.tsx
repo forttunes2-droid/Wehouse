@@ -314,6 +314,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('');
 
   // Wrapper: require creator auth before executing critical actions
   // If not authenticated, shows modal; after password, action runs automatically
@@ -350,11 +351,13 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
     ? users.filter(u => u.created_at >= todayStartISO)
     : users;
 
-  const searchedUsers = displayUsers.filter(u =>
-    !search ||
-    u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.username?.toLowerCase().includes(search.toLowerCase())
-  );
+  const searchedUsers = displayUsers
+    .filter(u => !userRoleFilter || u.role === userRoleFilter)
+    .filter(u =>
+      !search ||
+      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.username?.toLowerCase().includes(search.toLowerCase())
+    );
 
   async function handleRole(userId: string, newRole: string) {
     withAuth(async () => {
@@ -484,6 +487,30 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
           </span>
         </div>
       )}
+
+      {/* Role filter buttons */}
+      <div className="flex gap-1.5 flex-wrap">
+        {[
+          { key: '', label: 'All' },
+          { key: 'user', label: 'Users' },
+          { key: 'staff', label: 'Staff' },
+          { key: 'admin', label: 'Admins' },
+          { key: 'worker', label: 'Workers' },
+          { key: 'property_partner', label: 'Partners' },
+        ].map(f => (
+          <button
+            key={f.key}
+            onClick={() => setUserRoleFilter(f.key)}
+            className={`h-7 px-3 rounded-lg text-[10px] font-medium transition-all ${
+              userRoleFilter === f.key
+                ? 'bg-[#3B82F6] text-white'
+                : 'bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] hover:text-white'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="h-10 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
 
@@ -2395,13 +2422,13 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-white truncate">
-                {selectedConv.participant_a || 'Unknown'}
+                {selectedConv.partner_name || selectedConv.participant_a || 'Unknown'}
               </span>
               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${typeLabels[selectedConv.conversation_type]?.color || ''}`}>
                 {typeLabels[selectedConv.conversation_type]?.label || 'Chat'}
               </span>
             </div>
-            <p className="text-[10px] text-[#5C5E72]">Partner ID: {selectedConv.participant_a}</p>
+            <p className="text-[10px] text-[#5C5E72]">{selectedConv.partner_email || ''} {selectedConv.partner_phone ? '· ' + selectedConv.partner_phone : ''}</p>
           </div>
           <button onClick={() => openConversation(selectedConv)} className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center text-[#8A8B9C] hover:text-white flex-shrink-0" title="Refresh messages">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
@@ -2550,7 +2577,7 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
                 {/* Avatar */}
                 <div className="relative flex-shrink-0">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white font-bold text-sm">
-                    {(conv.participant_a || 'P').charAt(0).toUpperCase()}
+                    {(conv.partner_name || conv.participant_a || 'P').charAt(0).toUpperCase()}
                   </div>
                   <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#12121A] ${typeInfo.dot}`} />
                 </div>
@@ -2558,12 +2585,15 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className={`text-sm truncate ${isUnread ? 'font-bold text-white' : 'font-medium text-white'}`}>
-                      {conv.participant_a || 'Unknown'}
+                      {conv.partner_name || conv.participant_a || 'Unknown'}
                     </span>
                     <span className="text-[9px] text-[#5C5E72] flex-shrink-0 ml-2">
                       {conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'New'}
                     </span>
                   </div>
+                  {conv.partner_email && (
+                    <p className="text-[10px] text-[#5C5E72] truncate">{conv.partner_email}</p>
+                  )}
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${typeInfo.color}`}>
                       {typeInfo.label}
