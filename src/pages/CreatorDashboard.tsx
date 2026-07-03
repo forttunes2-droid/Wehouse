@@ -8,6 +8,7 @@ import {
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
   assignFieldOfficer,
+  getNotifications, getUnreadNotificationCount, markNotificationsRead,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -21,7 +22,7 @@ import SettingsTab from './SettingsTab';
 import ServiceCategoriesTab from './ServiceCategoriesTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections' | 'support';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -55,7 +56,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','settings','workers','services','announcements','hotels','permissions','inspections'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','reports','audit','settings','workers','services','announcements','hotels','permissions','inspections','support'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -86,6 +87,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
     { id: 'permissions' as AdminTab, label: 'Permissions', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
     { id: 'inspections' as AdminTab, label: 'Inspections', icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' },
+    { id: 'support' as AdminTab, label: 'Support Inbox', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
   ];
 
   return (
@@ -131,9 +133,13 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
               <p className="text-[10px] text-[#5C5E72]">@{profile.username}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Notification Bell */}
+            <NotificationBell userId={profile.user_id} />
+            <button onClick={handleLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -173,6 +179,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'services' && <ServiceCategoriesTab />}
         {activeTab === 'inspections' && <UserInspectionsTab profile={profile} />}
+        {activeTab === 'support' && <SupportInboxTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'hotels' && <HotelsTab profile={profile} />}
         {activeTab === 'permissions' && <PermissionsTab profile={profile} />}
@@ -321,7 +328,8 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
       console.error('[Creator] getAllUsers error:', error);
       toast.error('Failed to load users: ' + error.message);
     }
-    setUsers(data || []);
+    // Filter out the wehouse_support system account — it's not a real user
+    setUsers((data || []).filter((u: any) => u.user_id !== 'wehouse_support'));
     setLoading(false);
   }, []);
 
@@ -1180,8 +1188,12 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     await loadSentMessages();
   }
 
-  // Recipient breakdown label
+  // Recipient breakdown label — reflects ACTUAL target, not always "Users"
   const getRecipientBreakdown = () => {
+    if (targetRoleFilter === 'staff') return 'Staff Only';
+    if (targetRoleFilter === 'admin') return 'Admins Only';
+    if (targetRoleFilter === 'property_partner') return 'Property Partners Only';
+    if (sendMode === 'select') return `${selectedUsers.length} Selected User${selectedUsers.length !== 1 ? 's' : ''}`;
     const parts: string[] = ['Users'];
     if (includeWorkers) parts.push('Workers');
     if (includeStaff) parts.push('Staff');
@@ -2213,6 +2225,144 @@ function PermissionsTab({ profile }: { profile: Profile }) {
 
 
 // ═════════════════════════════════════════════════════════════════
+// SUPPORT INBOX TAB (Creator/Admin) — Shared inbox for all partner chats
+// ═════════════════════════════════════════════════════════════════
+
+function SupportInboxTab({ profile: _profile }: { profile: Profile }) {
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'partner_inspection' | 'partner_support' | 'general_support'>('all');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.rpc('admin_get_all_support_inbox');
+    if (error) console.error('[SupportInbox] error:', error);
+    setConversations(data || []);
+    setLoading(false);
+  }
+
+  const filtered = activeFilter === 'all'
+    ? conversations
+    : conversations.filter((c: any) => c.conversation_type === activeFilter);
+
+  const counts = {
+    all: conversations.length,
+    partner_inspection: conversations.filter((c: any) => c.conversation_type === 'partner_inspection').length,
+    partner_support: conversations.filter((c: any) => c.conversation_type === 'partner_support').length,
+    general_support: conversations.filter((c: any) => c.conversation_type === 'general_support').length,
+  };
+
+  const typeLabels: Record<string, { label: string; color: string }> = {
+    partner_inspection: { label: 'Inspection', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
+    partner_support: { label: 'Partner', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+    general_support: { label: 'General', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white">Support Inbox</h3>
+          <p className="text-[11px] text-[#5C5E72]">{counts.all} conversations · All staff see all messages</p>
+        </div>
+        <button
+          onClick={load}
+          className="h-9 px-3 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-xs hover:text-white hover:border-[#3B82F6]/30 transition-colors"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-1 bg-[#1A1A24] rounded-xl p-1">
+        {[
+          { key: 'all' as const, label: `All (${counts.all})` },
+          { key: 'partner_inspection' as const, label: `Inspection (${counts.partner_inspection})` },
+          { key: 'partner_support' as const, label: `Partner (${counts.partner_support})` },
+          { key: 'general_support' as const, label: `General (${counts.general_support})` },
+        ].map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setActiveFilter(f.key)}
+            className={`flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all ${
+              activeFilter === f.key ? 'bg-[#3B82F6] text-white' : 'text-[#8A8B9C] hover:text-white'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Conversations list */}
+      {loading ? (
+        <div className="text-center py-12">
+          <svg className="w-6 h-6 animate-spin mx-auto text-[#5C5E72] mb-2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+          </svg>
+          <p className="text-xs text-[#5C5E72]">Loading conversations...</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5" className="mx-auto mb-3">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <p className="text-xs text-[#5C5E72]">No support conversations yet</p>
+          <p className="text-[10px] text-[#5C5E72]/60 mt-1">Partner messages will appear here</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((conv: any) => {
+            const typeInfo = typeLabels[conv.conversation_type] || { label: 'Chat', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' };
+            return (
+              <div key={conv.id} className="glass rounded-2xl p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white font-bold text-sm">
+                      {(conv.partner_name || conv.participant_a || 'P').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">
+                          {conv.partner_name || conv.participant_a || 'Unknown Partner'}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${typeInfo.color}`}>
+                          {typeInfo.label}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[#5C5E72]">
+                        {conv.partner_email || 'No email'} · {conv.partner_role || 'partner'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-[#5C5E72] flex-shrink-0">
+                    {conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : 'New'}
+                  </span>
+                </div>
+                {/* Last message */}
+                {conv.last_message && (
+                  <p className="text-xs text-[#8A8B9C] mt-2 ml-[52px]">{conv.last_message}</p>
+                )}
+                {/* Partner contact */}
+                {conv.partner_phone && (
+                  <p className="text-[10px] text-[#5C5E72] mt-1 ml-[52px]">
+                    Phone: {conv.partner_phone}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════
 // USER INSPECTION REQUESTS TAB (Creator/Admin)
 // ═════════════════════════════════════════════════════════════════
 
@@ -2535,3 +2685,95 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
 
 
 
+
+
+// ═════════════════════════════════════════════════════════════════
+// NOTIFICATION BELL COMPONENT
+// ═════════════════════════════════════════════════════════════════
+
+function NotificationBell({ userId }: { userId: string }) {
+  const [count, setCount] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadCount();
+    loadNotifications();
+
+    // Real-time subscription
+    const sub = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        () => { loadCount(); loadNotifications(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(sub); };
+  }, [userId]);
+
+  async function loadCount() {
+    const { count: c } = await getUnreadNotificationCount(userId);
+    setCount(c || 0);
+  }
+
+  async function loadNotifications() {
+    const { notifications: data } = await getNotifications(userId, 20);
+    setNotifications(data || []);
+  }
+
+  async function handleMarkRead() {
+    await markNotificationsRead(userId);
+    setCount(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="relative w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+            {count > 9 ? '9+' : count}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-12 w-80 max-h-[400px] overflow-y-auto bg-[#1A1A24] border border-[#2A2A3A] rounded-2xl shadow-2xl z-50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#232330]">
+              <span className="text-xs font-semibold text-white">Notifications</span>
+              {count > 0 && (
+                <button onClick={handleMarkRead} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA]">
+                  Mark all read
+                </button>
+              )}
+            </div>
+            {notifications.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-[#5C5E72]">No notifications yet</p>
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <div key={n.id} className={`px-4 py-3 border-b border-[#232330] last:border-0 ${!n.is_read ? 'bg-[#3B82F6]/5' : ''}`}>
+                  <p className="text-[11px] font-medium text-white">{n.title}</p>
+                  <p className="text-[10px] text-[#8A8B9C] mt-0.5">{n.body}</p>
+                  <p className="text-[9px] text-[#5C5E72] mt-1">{new Date(n.created_at).toLocaleDateString()}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

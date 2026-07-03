@@ -357,13 +357,14 @@ export interface AdminAuditLog {
 
 export interface Notification {
   id: string;
-  recipient_id: string;
-  type: string;
+  user_id: string;
+  type: 'inspection_requested' | 'new_message' | 'booking_received' | 'property_booked' | 'inspection_assigned' | 'payment_received';
   title: string;
-  message: string | null;
-  read: boolean;
-  related_id: string | null;
+  body: string;
+  data: Record<string, any>;
+  is_read: boolean;
   created_at: string;
+  read_at?: string | null;
 }
 
 export interface SystemSetting {

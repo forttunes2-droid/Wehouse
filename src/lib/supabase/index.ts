@@ -244,8 +244,10 @@ export {
 // Notifications
 export {
   getNotifications,
+  getUnreadNotificationCount,
+  markNotificationsRead,
   markNotificationRead,
-  createNotification,
+  subscribeToNotifications,
 } from './notifications';
 
 // Permissions (CTO Master Architecture)
