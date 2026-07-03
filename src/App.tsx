@@ -103,6 +103,7 @@ export default function App() {
   const [hotelId, setHotelId] = useState<number | null>(null);
   const [hotelRoomId, setHotelRoomId] = useState<number | null>(null);
   const [chatConvId, setChatConvId] = useState<string | null>(null);
+  const [workerCategory, setWorkerCategory] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState<Error | null>(null);
@@ -265,7 +266,10 @@ export default function App() {
     }
   }, [auth.profile, savedIds]);
 
-  const goTo = useCallback((page: NavPage) => handleSetNavPage(page), [handleSetNavPage]);
+  const goTo = useCallback((page: NavPage, category?: string) => {
+    if (category) setWorkerCategory(category);
+    handleSetNavPage(page);
+  }, [handleSetNavPage]);
   const goToDetail = useCallback((id: string) => { setDetailId(id); handleSetNavPage('detail'); }, [handleSetNavPage]);
   const goBack = useCallback(() => { setDetailId(null); window.history.back(); }, []);
   const goToChat = useCallback((convId?: string) => { setChatConvId(convId || null); handleSetNavPage('chat'); }, [handleSetNavPage]);
@@ -379,7 +383,7 @@ export default function App() {
       case 'worker_dashboard':
         return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToMessages={() => goTo('chat')} />;
       case 'worker_discovery':
-        return <WorkerDiscovery userCity={profile.city} profile={profile} onGoToChat={goToChat} />;
+        return <WorkerDiscovery userCity={profile.city} profile={profile} onGoToChat={goToChat} preSelectedCategory={workerCategory} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'worker_categories':
         return <WorkerCategories onNavigate={(p) => goTo(p as NavPage)} profile={profile} />;
       case 'worker_setup':

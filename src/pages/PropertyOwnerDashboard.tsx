@@ -12,7 +12,7 @@ interface Props {
   onGoToMessages?: () => void;
 }
 
-type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'bookings' | 'earnings';
+type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'bookings' | 'earnings' | 'settings';
 type PropertyCategory = 'apartment' | 'hotel';
 type ApartmentSub = 'short_let' | 'long_stay';
 
@@ -39,7 +39,7 @@ const AMENITIES = [
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat, onGoToMessages }: Props) {
+export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, onGoToChat, onGoToMessages }: Props) {
   const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -50,40 +50,48 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
   // Auto-create partner record if it doesn't exist
   useEffect(() => {
     async function ensurePartner() {
-      // Check if partner record exists
-      const { data: existing } = await supabase
-        .from('property_partners')
-        .select('id')
-        .eq('profile_id', profile.user_id)
-        .maybeSingle();
+      try {
+        // Check if partner record exists
+        const { data: existing } = await supabase
+          .from('property_partners')
+          .select('id')
+          .eq('profile_id', profile.user_id)
+          .maybeSingle();
 
-      if (existing) {
-        setPartnerId(existing.id);
-        return;
-      }
+        if (existing) {
+          setPartnerId(existing.id);
+          return;
+        }
 
-      // Auto-create partner record from profile
-      const { data: created, error } = await supabase
-        .from('property_partners')
-        .insert({
-          profile_id: profile.user_id,
-          partner_code: 'WH-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          status: 'active',
-        })
-        .select('id')
-        .single();
+        // Auto-create partner record from profile
+        const { data: created, error } = await supabase
+          .from('property_partners')
+          .insert({
+            profile_id: profile.user_id,
+            partner_code: 'WHP-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+            status: 'active',
+          })
+          .select('id')
+          .single();
 
-      if (error) {
-        toast.error('Failed to set up partner account: ' + error.message);
-        return;
-      }
+        if (error) {
+          console.error('[Partner] Create error:', error);
+          toast.error('Partner setup failed. Please refresh the page.');
+          return;
+        }
 
-      if (created) {
-        setPartnerId(created.id);
-        toast.success('Partner account created!');
+        if (created) {
+          setPartnerId(created.id);
+          toast.success('Partner account ready!');
+        }
+      } catch (err: any) {
+        console.error('[Partner] Unexpected error:', err);
+        toast.error('Partner setup error. Try logging out and back in.');
       }
     }
-    ensurePartner();
+    // Delay slightly to let Supabase schema cache refresh
+    const timer = setTimeout(ensurePartner, 500);
+    return () => clearTimeout(timer);
   }, [profile.user_id]);
 
   useEffect(() => {
@@ -109,6 +117,7 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
     { id: 'requests', label: 'Requests' },
     { id: 'bookings', label: 'Bookings' },
     { id: 'earnings', label: 'Earnings' },
+    { id: 'settings', label: 'Settings' },
   ];
 
   // Start chat with WeHouse staff — finds staff first, then admin, then creator
@@ -203,6 +212,7 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
         {activeTab === 'requests' && <RequestsTab profileId={profile.user_id} />}
         {activeTab === 'bookings' && <BookingsTab profileId={profile.user_id} />}
         {activeTab === 'earnings' && <EarningsTab profileId={profile.user_id} />}
+        {activeTab === 'settings' && <PartnerSettingsTab profile={profile} onLogout={() => { if (onLogout) onLogout(); }} />}
       </main>
     </div>
   );
@@ -813,6 +823,15 @@ function TextArea({ label, value, onChange, placeholder, rows = 3 }: { label: st
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-[10px] text-[#5C5E72]">{label}</span>
+      <span className="text-[10px] text-white">{value}</span>
+    </div>
+  );
+}
+
 function Spinner() {
   return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
 }
@@ -825,6 +844,62 @@ function Empty({ title, desc }: { title: string; desc: string }) {
       </div>
       <p className="text-sm font-semibold text-[#5C5E72]">{title}</p>
       <p className="text-[10px] text-[#5C5E72] mt-1 max-w-[200px] mx-auto">{desc}</p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PARTNER SETTINGS TAB
+// ═══════════════════════════════════════════════════════════════
+
+function PartnerSettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-white">Settings</h3>
+
+      {/* Profile Card */}
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-lg font-bold">
+            {(profile.full_name || profile.username || 'P')[0].toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">{profile.full_name || profile.username || 'Partner'}</p>
+            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+          </div>
+        </div>
+        <div className="pt-2 border-t border-white/[0.04] space-y-2">
+          <InfoRow label="Role" value="Property Partner" />
+          <InfoRow label="Phone" value={profile.phone || 'Not set'} />
+          <InfoRow label="Location" value={`${profile.city || '-'}, ${profile.state || '-'}`} />
+          <InfoRow label="Joined" value={new Date(profile.created_at).toLocaleDateString()} />
+        </div>
+      </div>
+
+      {/* Logout */}
+      <button
+        onClick={() => setShowLogoutConfirm(true)}
+        className="w-full h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+        Logout
+      </button>
+
+      {/* Logout Confirm */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#12121A] rounded-2xl p-5 border border-[#2A2A3A] max-w-xs w-full mx-4">
+            <p className="text-sm font-semibold text-white mb-2">Logout?</p>
+            <p className="text-xs text-[#5C5E72] mb-4">Are you sure you want to log out?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
+              <button onClick={onLogout} className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-medium">Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

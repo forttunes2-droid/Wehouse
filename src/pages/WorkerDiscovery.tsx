@@ -10,9 +10,11 @@ interface WorkerDiscoveryProps {
   userCity?: string | null;
   profile?: Profile | null;
   onGoToChat?: (convId: string) => void;
+  onNavigate?: (page: string) => void;
+  preSelectedCategory?: string | null;
 }
 
-export default function WorkerDiscovery({ userCity, profile, onGoToChat }: WorkerDiscoveryProps) {
+export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavigate, preSelectedCategory }: WorkerDiscoveryProps) {
   const [allWorkers, setAllWorkers] = useState<Profile[]>([]);
   const [categories, setCategories] = useState<(ServiceCategory & { subcategories: any[] })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,10 +24,17 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedCity, setSelectedCity] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(preSelectedCategory || null);
 
   // Booking modal
   const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
+
+  // Apply pre-selected category when navigating from WorkerCategories
+  useEffect(() => {
+    if (preSelectedCategory) {
+      setSelectedCategory(preSelectedCategory);
+    }
+  }, [preSelectedCategory]);
 
   // ─── FETCH WORKERS ────────────────────────────────────
   useEffect(() => {
@@ -179,10 +188,19 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-lg font-bold text-white mb-1">Find Workers</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => onNavigate?.('worker_categories')}
+              className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors flex-shrink-0"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-lg font-bold text-white">Find Workers</h1>
+          </div>
           <p className="text-xs text-[#5C5E72]">
-            {loading ? 'Loading workers...' : `${allWorkers.length} worker${allWorkers.length !== 1 ? 's' : ''} registered`}
-            {userCity ? ` · Your location: ${userCity}` : ''}
+            {loading ? 'Loading workers...' : `${filteredWorkers.length} of ${allWorkers.length} workers`}
+            {selectedCategory ? ` · Category: ${selectedCategory}` : ''}
+            {userCity ? ` · Near: ${userCity}` : ''}
           </p>
         </div>
       </header>

@@ -95,7 +95,15 @@ export default function WorkerCategories({ onNavigate }: WorkerCategoriesProps) 
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-lg font-bold text-white mb-1">Find Workers</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => onNavigate?.('home')}
+              className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors flex-shrink-0"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-lg font-bold text-white">Find Workers</h1>
+          </div>
           <p className="text-xs text-[#5C5E72]">
             {totalWorkers} verified worker{totalWorkers !== 1 ? 's' : ''} across {categories.length} categories
           </p>
