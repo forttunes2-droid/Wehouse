@@ -27,18 +27,39 @@ function NativeInit() {
 }
 
 // ─── SERVICE WORKER REGISTRATION ──────────────────
+// Auto-updates: new deployments go live without user action
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('./sw.js')
       .then((reg) => {
         console.log('[PWA] Service Worker registered:', reg.scope);
-        // Auto-update on page load
+        // Check for updates on every page load
         reg.update().catch(() => {});
+
+        // Listen for new service worker waiting
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available — activate it and reload
+              console.log('[PWA] New version available, activating...');
+              newWorker.postMessage('SKIP_WAITING');
+            }
+          });
+        });
       })
       .catch((err) => {
         console.log('[PWA] Service Worker registration failed:', err);
       });
+
+    // When new service worker takes control, reload the page
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[PWA] New version activated, reloading...');
+      window.location.reload();
+    });
   });
 }
 
