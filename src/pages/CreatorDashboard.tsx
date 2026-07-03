@@ -14,7 +14,7 @@ import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, R
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { Input } from '@/components/ui/input';
-import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking, StaffPermission } from '@/types';
+import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking } from '@/types';
 import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -2133,20 +2133,16 @@ function HotelRoomsTab({ hotel, onBack }: { hotel: Hotel; onBack: () => void }) 
 
 
 // ─── PERMISSIONS TAB (CTO DESIGN) ──────────────────
-// ─── PERMISSIONS TAB (Redesigned) ───────────────────────────
-// Shows staff WITH permissions (removable) and WITHOUT (bulk assign)
+// ─── PERMISSIONS TAB ─────────────────────────────────────
+// Each staff gets exactly ONE permission. Simple dropdown per staff.
 
 function PermissionsTab({ profile }: { profile: Profile }) {
   const [staffList, setStaffList] = useState<Profile[]>([]);
-  const [permissions, setPermissions] = useState<Record<string, StaffPermission[]>>({});
+  const [staffPerms, setStaffPerms] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Bulk assignment state
-  const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set());
-  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
-  const [assigning, setAssigning] = useState(false);
-
-  const permissionGroups: Array<{ id: StaffPermission; label: string; desc: string }> = [
+  const permissionGroups = [
     { id: 'operations', label: 'Operations', desc: 'Listings, property management, inspections' },
     { id: 'finance', label: 'Finance', desc: 'Payments, revenue, commission, payouts' },
     { id: 'support', label: 'Customer Support', desc: 'Tickets, customer chat, complaints' },
@@ -2158,7 +2154,6 @@ function PermissionsTab({ profile }: { profile: Profile }) {
 
   async function loadStaff() {
     setLoading(true);
-    // Get all staff (role='staff') — excluding system accounts
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -2168,60 +2163,46 @@ function PermissionsTab({ profile }: { profile: Profile }) {
     const staff = (data || []).filter((s: any) => s.user_id !== 'wehouse_support');
     setStaffList(staff);
 
-    // Load permissions for each
-    const perms: Record<string, StaffPermission[]> = {};
+    // Load ONE permission per staff (the first active one)
+    const perms: Record<string, string> = {};
     for (const s of staff) {
       const { data: p } = await supabase
         .from('staff_permissions')
         .select('permission')
         .eq('staff_id', s.user_id)
-        .eq('is_active', true);
-      perms[s.user_id] = (p || []).map((x: any) => x.permission as StaffPermission);
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      if (p) perms[s.user_id] = p.permission;
     }
-    setPermissions(perms);
+    setStaffPerms(perms);
     setLoading(false);
   }
 
-  async function removePermission(staffId: string, perm: StaffPermission) {
+  async function assignPermission(staffId: string, permId: string) {
+    setSavingId(staffId);
+
+    // 1. Revoke ALL existing permissions for this staff (only one allowed)
     await supabase
       .from('staff_permissions')
       .update({ is_active: false, revoked_at: new Date().toISOString() })
       .eq('staff_id', staffId)
-      .eq('permission', perm);
-    setPermissions(prev => ({
-      ...prev,
-      [staffId]: (prev[staffId] || []).filter(p => p !== perm),
-    }));
-    toast.success(`Removed ${perm}`);
-  }
+      .eq('is_active', true);
 
-  async function handleBulkAssign() {
-    if (selectedStaffIds.size === 0) { toast.error('Select at least one staff member'); return; }
-    if (selectedPerms.size === 0) { toast.error('Select at least one permission'); return; }
-
-    setAssigning(true);
-    let count = 0;
-    for (const staffId of selectedStaffIds) {
-      for (const perm of selectedPerms) {
-        const { error } = await supabase
-          .from('staff_permissions')
-          .upsert(
-            { staff_id: staffId, permission: perm, granted_by: profile.user_id, is_active: true },
-            { onConflict: 'staff_id,permission' }
-          );
-        if (!error) count++;
-      }
+    // 2. Grant the new one
+    if (permId) {
+      await supabase
+        .from('staff_permissions')
+        .upsert(
+          { staff_id: staffId, permission: permId, granted_by: profile.user_id, is_active: true },
+          { onConflict: 'staff_id,permission' }
+        );
     }
-    setAssigning(false);
-    setSelectedStaffIds(new Set());
-    setSelectedPerms(new Set());
-    toast.success(`Assigned ${count} permissions`);
-    loadStaff();
-  }
 
-  // Split staff into two groups
-  const withPerms = staffList.filter(s => (permissions[s.user_id] || []).length > 0);
-  const withoutPerms = staffList.filter(s => (permissions[s.user_id] || []).length === 0);
+    setStaffPerms(prev => ({ ...prev, [staffId]: permId }));
+    setSavingId(null);
+    toast.success(permId ? 'Permission assigned' : 'Permission removed');
+  }
 
   if (loading) {
     return (
@@ -2232,12 +2213,12 @@ function PermissionsTab({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 p-4">
         <h3 className="text-sm font-semibold text-white">Permission Management</h3>
         <p className="text-[10px] text-[#5C5E72] mt-1">
-          {withPerms.length} staff have permissions · {withoutPerms.length} staff have no permissions
+          Each staff member gets exactly one permission. This determines what they see on their dashboard.
         </p>
       </div>
 
@@ -2247,145 +2228,54 @@ function PermissionsTab({ profile }: { profile: Profile }) {
         </div>
       )}
 
-      {/* ─── STAFF WITH PERMISSIONS ─── */}
-      {withPerms.length > 0 && (
-        <div>
-          <h4 className="text-xs font-semibold text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-            Staff With Permissions ({withPerms.length})
-          </h4>
-          <div className="space-y-2">
-            {withPerms.map(s => (
-              <div key={s.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#1A1A24] flex items-center justify-center text-xs font-bold text-[#5C5E72]">
-                    {(s.username || s.email || 'S')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-white">@{s.username || 'unknown'}</p>
-                    <p className="text-[9px] text-[#5C5E72]">{s.email}</p>
-                  </div>
+      {/* Staff list — each gets ONE permission dropdown */}
+      <div className="space-y-3">
+        {staffList.map(s => {
+          const currentPerm = staffPerms[s.user_id] || '';
+          const isSaving = savingId === s.user_id;
+          return (
+            <div key={s.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+              {/* Staff info */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-sm font-bold text-[#5C5E72]">
+                  {(s.username || s.email || 'S')[0].toUpperCase()}
                 </div>
-                {/* Their permissions as removable badges */}
-                <div className="flex flex-wrap gap-1.5">
-                  {(permissions[s.user_id] || []).map((perm: StaffPermission) => {
-                    const pg = permissionGroups.find(g => g.id === perm);
-                    return (
-                      <button
-                        key={perm}
-                        onClick={() => removePermission(s.user_id, perm)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-colors"
-                        title="Click to remove"
-                      >
-                        {pg?.label || perm}
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                      </button>
-                    );
-                  })}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">@{s.username || 'unknown'}</p>
+                  <p className="text-[10px] text-[#5C5E72]">{s.email}</p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── STAFF WITHOUT PERMISSIONS ─── */}
-      {withoutPerms.length > 0 && (
-        <div>
-          <h4 className="text-xs font-semibold text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            Staff Without Permissions ({withoutPerms.length})
-          </h4>
-
-          {/* Staff selection list */}
-          <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3 space-y-2 mb-3">
-            {withoutPerms.map(s => {
-              const checked = selectedStaffIds.has(s.user_id);
-              return (
-                <button
-                  key={s.user_id}
-                  onClick={() => {
-                    setSelectedStaffIds(prev => {
-                      const next = new Set(prev);
-                      if (checked) next.delete(s.user_id); else next.add(s.user_id);
-                      return next;
-                    });
-                  }}
-                  className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${
-                    checked ? 'bg-purple-500/5 border border-purple-500/20' : 'bg-transparent border border-transparent hover:bg-[#1A1A24]'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                    checked ? 'bg-purple-500 border-purple-500' : 'border-[#2A2A3A]'
-                  }`}>
-                    {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>}
-                  </div>
-                  <div className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-xs font-bold text-[#5C5E72] flex-shrink-0">
-                    {(s.username || s.email || 'S')[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white">@{s.username || 'unknown'}</p>
-                    <p className="text-[9px] text-[#5C5E72]">{s.email}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Permission selection (only show when staff are selected) */}
-          {selectedStaffIds.size > 0 && (
-            <div className="rounded-2xl bg-[#12121A]/60 border border-purple-500/20 p-4 space-y-3">
-              <p className="text-xs font-semibold text-white">
-                Assign permissions to {selectedStaffIds.size} staff member{selectedStaffIds.size > 1 ? 's' : ''}:
-              </p>
-              <div className="space-y-2">
-                {permissionGroups.map(pg => {
-                  const checked = selectedPerms.has(pg.id);
-                  return (
-                    <button
-                      key={pg.id}
-                      onClick={() => {
-                        setSelectedPerms(prev => {
-                          const next = new Set(prev);
-                          if (checked) next.delete(pg.id); else next.add(pg.id);
-                          return next;
-                        });
-                      }}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
-                        checked ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-[#1A1A24] border border-[#232330]'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                        checked ? 'bg-purple-500 border-purple-500' : 'border-[#2A2A3A]'
-                      }`}>
-                        {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>}
-                      </div>
-                      <div>
-                        <p className={`text-[11px] font-semibold ${checked ? 'text-purple-400' : 'text-white'}`}>{pg.label}</p>
-                        <p className="text-[9px] text-[#5C5E72]">{pg.desc}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                onClick={handleBulkAssign}
-                disabled={assigning || selectedPerms.size === 0}
-                className="w-full h-10 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2"
-              >
-                {assigning ? (
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" /></svg>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-                    Assign {selectedPerms.size} permission{selectedPerms.size > 1 ? 's' : ''} to {selectedStaffIds.size} staff
-                  </>
+                {currentPerm && (
+                  <span className="text-[9px] font-bold px-2 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    {permissionGroups.find(g => g.id === currentPerm)?.label || currentPerm}
+                  </span>
                 )}
-              </button>
+              </div>
+
+              {/* Single permission dropdown */}
+              <div className="relative">
+                <select
+                  value={currentPerm}
+                  disabled={isSaving}
+                  onChange={(e) => assignPermission(s.user_id, e.target.value)}
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-3 outline-none focus:border-purple-500 disabled:opacity-50"
+                >
+                  <option value="">No Permission Assigned</option>
+                  {permissionGroups.map(pg => (
+                    <option key={pg.id} value={pg.id}>{pg.label} — {pg.desc}</option>
+                  ))}
+                </select>
+                {isSaving && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <svg className="w-4 h-4 animate-spin text-purple-400" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }
