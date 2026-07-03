@@ -346,18 +346,30 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
           </div>
         )}
 
-        {/* ─── RESULTS ─── */}
+        {/* ─── RESULTS — sorted: online first ─── */}
         {!loading && !fetchError && filteredWorkers.length > 0 && (
           <div className="space-y-3">
-            {filteredWorkers.map(w => {
+            {/* Sort: online workers first */}
+            {[...filteredWorkers].sort((a, b) => {
+              if (a.is_online && !b.is_online) return -1;
+              if (!a.is_online && b.is_online) return 1;
+              return 0;
+            }).map(w => {
               const statusKey = w.worker_status || 'pending';
               const statusLabel = WORKER_STATUS_LABELS[statusKey] || statusKey;
               const isNearby = userCity && (w.city || '').toLowerCase().trim() === userCity.toLowerCase().trim();
+              const skills = (w.worker_skills as string[]) || [];
               return (
-                <div key={w.user_id} className="rounded-2xl p-4 bg-[#12121A] border border-[#1E1E2C] hover:border-[#3B82F6]/20 transition-colors">
+                <div key={w.user_id} className={`rounded-2xl p-4 bg-[#12121A] border hover:border-[#3B82F6]/20 transition-colors ${w.is_online ? 'border-green-500/20' : 'border-[#1E1E2C] opacity-80'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0 overflow-hidden">
-                      {w.avatar_url ? <img src={w.avatar_url} alt="" className="w-full h-full object-cover" /> : (w.full_name || w.username || 'W').charAt(0).toUpperCase()}
+                    <div className="relative flex-shrink-0">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold overflow-hidden">
+                        {w.avatar_url ? <img src={w.avatar_url} alt="" className="w-full h-full object-cover" /> : (w.full_name || w.username || 'W').charAt(0).toUpperCase()}
+                      </div>
+                      {/* Online dot on avatar */}
+                      {w.is_online && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-[#12121A]" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -366,22 +378,27 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                         {isNearby && (
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F4] border border-[#3B82F6]/20">Nearby</span>
                         )}
-                        {/* Online/Offline indicator */}
+                        {/* Online/Offline */}
                         {w.is_online ? (
                           <span className="flex items-center gap-0.5 text-[8px] font-medium text-green-400">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                            Online
+                            Online now
                           </span>
                         ) : w.last_seen ? (
-                          <span className="text-[8px] text-[#5C5E72]">
-                            {getTimeAgo(w.last_seen)}
-                          </span>
-                        ) : null}
+                          <span className="text-[8px] text-[#5C5E72]">{getTimeAgo(w.last_seen)}</span>
+                        ) : (
+                          <span className="text-[8px] text-[#5C5E72]">Offline</span>
+                        )}
                       </div>
-                      <div className="text-[10px] text-[#5C5E72] flex items-center gap-1 flex-wrap">
+                      <div className="text-[10px] text-[#5C5E72] flex items-center gap-1 flex-wrap mt-0.5">
                         <span className="px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 text-[9px] font-medium">
                           {WORKER_OCCUPATION_LABELS[w.worker_occupation || ''] || w.worker_occupation || 'General'}
                         </span>
+                        {/* Multiple skills */}
+                        {skills.slice(0, 3).map(s => (
+                          <span key={s} className="px-1.5 py-0.5 rounded-full bg-[#1A1A24] text-[#8A8B9C] border border-[#232330] text-[9px]">{s}</span>
+                        ))}
+                        {skills.length > 3 && <span className="text-[9px] text-[#5C5E72]">+{skills.length - 3}</span>}
                         {w.city && (
                           <span className="flex items-center gap-0.5">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
@@ -389,6 +406,12 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                           </span>
                         )}
                       </div>
+                      {/* Price */}
+                      {w.worker_price ? (
+                        <p className="text-xs text-green-400 font-semibold mt-0.5">From N{w.worker_price.toLocaleString()}</p>
+                      ) : (
+                        <p className="text-[10px] text-[#5C5E72] mt-0.5">Price not set</p>
+                      )}
                       {/* Job count + star rating */}
                       <WorkerStats workerId={w.user_id} />
                     </div>

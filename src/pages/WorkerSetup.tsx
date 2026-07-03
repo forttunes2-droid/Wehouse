@@ -19,6 +19,8 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
     full_name: profile.full_name || '',
     username: profile.username || '',
     worker_occupation: profile.worker_occupation || '',
+    worker_skills: (profile.worker_skills as string[]) || [],
+    worker_price: profile.worker_price || '',
     worker_bio: profile.worker_bio || '',
     bio: profile.bio || '',
     phone: profile.phone || '',
@@ -82,10 +84,13 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
     if (!form.location.city) { toast.error('Select your city'); return; }
 
     setSaving(true);
+    const priceNum = form.worker_price ? parseInt(form.worker_price as string) || 0 : 0;
     const { error } = await updateProfile(profile.user_id, {
       full_name: form.full_name.trim(),
       username: form.username.trim() || profile.username,
       worker_occupation: form.worker_occupation,
+      worker_skills: form.worker_skills.length > 0 ? form.worker_skills : null,
+      worker_price: priceNum > 0 ? priceNum : null,
       worker_bio: form.worker_bio.trim() || null,
       bio: form.bio.trim() || null,
       phone: form.phone.trim() || null,
@@ -184,24 +189,51 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
           </div>
         </div>
 
-        {/* Service Subcategory (Specialty) */}
+        {/* Multiple Skills Selection */}
         {selectedCategory && subcategories.length > 0 && (
           <div>
-            <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Specialty (Optional)</label>
+            <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Your Skills (Select all that apply)</label>
             <div className="flex flex-wrap gap-2">
-              {subcategories.map(sub => (
-                <button
-                  key={sub.id}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, worker_bio: f.worker_bio ? f.worker_bio + ` (${sub.name})` : sub.name }))}
-                  className="h-8 px-3 rounded-lg text-[11px] font-medium bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30 transition-all"
-                >
-                  {sub.name}
-                </button>
-              ))}
+              {subcategories.map(sub => {
+                const isSelected = form.worker_skills.includes(sub.name);
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      worker_skills: isSelected
+                        ? f.worker_skills.filter(s => s !== sub.name)
+                        : [...f.worker_skills, sub.name],
+                    }))}
+                    className={`h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
+                      isSelected
+                        ? 'bg-[#3B82F6]/15 border-[#3B82F6]/40 text-[#3B82F6]'
+                        : 'bg-[#1A1A24] border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
+                    }`}
+                  >
+                    {isSelected && <span className="mr-1">✓</span>}
+                    {sub.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
+
+        {/* Price */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Your Starting Price (NGN) *</label>
+          <input
+            value={form.worker_price}
+            onChange={e => setForm(f => ({ ...f, worker_price: e.target.value }))}
+            placeholder="e.g. 5000 (what you charge per job/hour)"
+            type="text"
+            inputMode="decimal"
+            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+          />
+          <p className="text-[10px] text-[#5C5E72] mt-1">This is what users see. You can discuss exact pricing in chat.</p>
+        </div>
 
         {/* Bio */}
         <div>

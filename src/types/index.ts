@@ -80,7 +80,9 @@ export interface Profile {
   privacy_activity_visible: boolean;
   // ── WORKER FIELDS ─────────────────────────────────
   worker_status: WorkerStatus | null;  // pending | verified | suspended | rejected
-  worker_occupation: string | null;   // e.g. "electrician"
+  worker_occupation: string | null;   // e.g. "electrician" (primary skill)
+  worker_skills: string[] | null;     // multiple skills e.g. ["plumbing", "electrical"]
+  worker_price: number | null;        // price worker charges (in NGN)
   worker_verified: boolean;            // approved by platform
   worker_bio: string | null;           // service description
   full_name: string | null;            // worker's real name
