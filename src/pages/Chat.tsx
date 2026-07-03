@@ -95,14 +95,29 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
       convs = data || [];
     }
 
+    // Deduplicate: keep only the most recent conversation per other participant
+    const seenParticipants = new Map<string, Conversation>();
+    for (const c of convs) {
+      const otherId = c.participant_a === profile.user_id ? c.participant_b : c.participant_a;
+      const existing = seenParticipants.get(otherId);
+      if (!existing) {
+        seenParticipants.set(otherId, c);
+      } else {
+        const existingTime = new Date(existing.last_message_at || existing.created_at).getTime();
+        const newTime = new Date(c.last_message_at || c.created_at).getTime();
+        if (newTime > existingTime) seenParticipants.set(otherId, c);
+      }
+    }
+    const deduped = Array.from(seenParticipants.values());
+
     // Sort by last message
-    convs.sort((a, b) => {
+    deduped.sort((a, b) => {
       const aTime = a.last_message_at || a.created_at;
       const bTime = b.last_message_at || b.created_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
 
-    setConversations(convs);
+    setConversations(deduped);
 
     // Fetch remaining usernames
     const userIds = convs
