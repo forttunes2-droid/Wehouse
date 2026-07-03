@@ -2288,7 +2288,6 @@ function PermissionsTab({ profile }: { profile: Profile }) {
 function SupportInboxTab({ profile }: { profile: Profile }) {
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'partner_inspection' | 'partner_support' | 'general_support'>('all');
   const [selectedConv, setSelectedConv] = useState<any | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [msgLoading, setMsgLoading] = useState(false);
@@ -2371,17 +2370,6 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
     setMessages(data || []);
     load();
   }
-
-  const filtered = activeFilter === 'all'
-    ? conversations
-    : conversations.filter((c: any) => c.conversation_type === activeFilter);
-
-  const counts = {
-    all: conversations.length,
-    partner_inspection: conversations.filter((c: any) => c.conversation_type === 'partner_inspection').length,
-    partner_support: conversations.filter((c: any) => c.conversation_type === 'partner_support').length,
-    general_support: conversations.filter((c: any) => c.conversation_type === 'general_support').length,
-  };
 
   const typeLabels: Record<string, { label: string; color: string; dot: string }> = {
     partner_inspection: { label: 'Inspection', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20', dot: 'bg-violet-400' },
@@ -2512,7 +2500,7 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
       <div className="flex items-center justify-between pb-3 border-b border-[#232330] mb-3">
         <div>
           <h3 className="text-lg font-bold text-white">Messages</h3>
-          <p className="text-[11px] text-[#5C5E72]">{counts.all} conversations</p>
+          <p className="text-[11px] text-[#5C5E72]">{conversations.length} conversations</p>
         </div>
         <button
           onClick={load}
@@ -2520,31 +2508,6 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
         </button>
-      </div>
-
-      {/* Filter tabs */}
-      <div className="flex gap-1 bg-[#1A1A24] rounded-xl p-1 mb-3">
-        {[
-          { key: 'all' as const, label: `All`, count: counts.all },
-          { key: 'partner_inspection' as const, label: `Inspection`, count: counts.partner_inspection },
-          { key: 'partner_support' as const, label: `Partner`, count: counts.partner_support },
-          { key: 'general_support' as const, label: `General`, count: counts.general_support },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setActiveFilter(f.key)}
-            className={`flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all relative ${
-              activeFilter === f.key ? 'bg-[#3B82F6] text-white' : 'text-[#8A8B9C] hover:text-white'
-            }`}
-          >
-            {f.label}
-            {f.count > 0 && (
-              <span className={`absolute -top-1 -right-0.5 w-4 h-4 rounded-full text-[8px] font-bold flex items-center justify-center ${
-                activeFilter === f.key ? 'bg-white text-[#3B82F6]' : 'bg-[#3B82F6] text-white'
-              }`}>{f.count}</span>
-            )}
-          </button>
-        ))}
       </div>
 
       {/* Error */}
@@ -2555,7 +2518,7 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
         </div>
       )}
 
-      {/* Conversations list — WhatsApp style */}
+      {/* Conversations list — simple inbox */}
       {loading ? (
         <div className="text-center py-12">
           <svg className="w-6 h-6 animate-spin mx-auto text-[#5C5E72] mb-2" viewBox="0 0 24 24">
@@ -2563,17 +2526,17 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
           </svg>
           <p className="text-xs text-[#5C5E72]">Loading conversations...</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : conversations.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </div>
           <p className="text-sm text-[#8A8B9C]">No messages yet</p>
-          <p className="text-[11px] text-[#5C5E72]/60 mt-1 max-w-[200px] mx-auto">Partner messages will appear here when they use the Inspection or Support chat</p>
+          <p className="text-[11px] text-[#5C5E72]/60 mt-1 max-w-[200px] mx-auto">Partner messages will appear here</p>
         </div>
       ) : (
         <div className="space-y-0">
-          {filtered.map((conv: any) => {
+          {conversations.map((conv: any) => {
             const typeInfo = typeLabels[conv.conversation_type] || { label: 'Chat', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20', dot: 'bg-gray-400' };
             const isUnread = conv.unread_b > 0;
             return (

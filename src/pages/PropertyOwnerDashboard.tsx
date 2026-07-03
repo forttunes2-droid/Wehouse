@@ -119,23 +119,9 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, 
     { id: 'settings', label: 'Settings' },
   ];
 
-  // Start INSPECTION chat — for property inspection requests with upload
-  async function handleInspectionChat() {
-    toast.loading('Starting inspection chat...', { id: 'start-chat' });
-    const { data: conversation, error } = await supabase.rpc('start_partner_inspection_chat', {
-      p_partner_id: profile.user_id,
-    });
-    toast.dismiss('start-chat');
-    if (error || !conversation) {
-      toast.error('Failed: ' + (error?.message || 'unknown'));
-      return;
-    }
-    if (onGoToChat) onGoToChat(conversation.id);
-  }
-
-  // Start GENERAL SUPPORT chat — for complaints/questions
-  async function handleGeneralSupport() {
-    toast.loading('Starting support chat...', { id: 'start-chat' });
+  // Start chat with WeHouse — one chat for everything (inspection uploads + questions)
+  async function handlePartnerChat() {
+    toast.loading('Opening chat...', { id: 'start-chat' });
     const { data: conversation, error } = await supabase.rpc('start_partner_support_chat', {
       p_partner_id: profile.user_id,
     });
@@ -163,23 +149,13 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, 
             <p className="text-[10px] text-[#5C5E72] truncate">{profile.email}</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Inspection Chat — upload properties for inspection */}
+            {/* One chat button — partners can type and upload files here */}
             <button
-              onClick={handleInspectionChat}
-              className="h-8 px-3 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center gap-1.5 text-violet-400 hover:text-violet-300 hover:border-violet-500/40 transition-all text-[10px] font-medium"
-              title="Send inspection properties with documents"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-              Inspection
-            </button>
-            {/* General Support — complaints/questions */}
-            <button
-              onClick={handleGeneralSupport}
-              className="h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30 transition-all text-[10px] font-medium"
-              title="General support and complaints"
+              onClick={handlePartnerChat}
+              className="h-8 px-3 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center gap-1.5 text-[#3B82F6] hover:text-[#60A5FA] hover:border-[#3B82F6]/40 transition-all text-[10px] font-medium"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-              Support
+              Chat with WeHouse
             </button>
             <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
           </div>
