@@ -25,6 +25,7 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(preSelectedCategory || null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
 
   // Booking modal
   const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
@@ -100,6 +101,17 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
       });
     }
 
+    // Subcategory filter
+    if (selectedSubcategory) {
+      const subLower = selectedSubcategory.toLowerCase();
+      result = result.filter(w => {
+        const occ = (w.worker_occupation || '').toLowerCase();
+        const skills = ((w.worker_skills as string[]) || []).join(' ').toLowerCase();
+        const bio = (w.worker_bio || '').toLowerCase();
+        return occ.includes(subLower) || skills.includes(subLower) || bio.includes(subLower);
+      });
+    }
+
     // Free-text search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -113,19 +125,19 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
       });
     }
 
-    // Sort: nearby first, then by name
+    // Sort: same city first, then by name
     result.sort((a, b) => {
       if (userCity) {
-        const aNear = (a.city || '').toLowerCase().trim() === userCity.toLowerCase().trim();
-        const bNear = (b.city || '').toLowerCase().trim() === userCity.toLowerCase().trim();
-        if (aNear && !bNear) return -1;
-        if (!aNear && bNear) return 1;
+        const aSameCity = (a.city || '').toLowerCase().trim() === userCity.toLowerCase().trim();
+        const bSameCity = (b.city || '').toLowerCase().trim() === userCity.toLowerCase().trim();
+        if (aSameCity && !bSameCity) return -1;
+        if (!aSameCity && bSameCity) return 1;
       }
       return (a.full_name || a.username || '').localeCompare(b.full_name || b.username || '');
     });
 
     return result;
-  }, [allWorkers, searchQuery, selectedState, selectedCity, selectedCategory, userCity]);
+  }, [allWorkers, searchQuery, selectedState, selectedCity, selectedCategory, selectedSubcategory, userCity]);
 
   // ─── HANDLERS ─────────────────────────────────────────
   async function handleChatWithWorker(workerId: string) {
@@ -179,7 +191,7 @@ function WorkerStats({ workerId }: { workerId: string }) {
 }
 
 const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [selectedState]);
-  const hasActiveFilters = selectedState !== '' || selectedCity !== '' || selectedCategory !== null || searchQuery.trim() !== '';
+  const hasActiveFilters = selectedState !== '' || selectedCity !== '' || selectedCategory !== null || selectedSubcategory !== null || searchQuery.trim() !== '';
 
   return (
     <div className="min-h-screen bg-transparent pb-20">
@@ -199,7 +211,7 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
           </div>
           <p className="text-xs text-[#5C5E72]">
             {loading ? 'Loading workers...' : `${filteredWorkers.length} of ${allWorkers.length} workers`}
-            {selectedCategory ? ` · Category: ${selectedCategory}` : ''}
+            {selectedCategory ? ` · Category: ${selectedCategory}${selectedSubcategory ? ` › ${selectedSubcategory}` : ''}` : ''}
             {userCity ? ` · Near: ${userCity}` : ''}
           </p>
         </div>
@@ -276,7 +288,15 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
             {categories.map(cat => (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(selectedCategory === cat.name ? null : cat.name)}
+                onClick={() => {
+                  if (selectedCategory === cat.name) {
+                    setSelectedCategory(null);
+                    setSelectedSubcategory(null);
+                  } else {
+                    setSelectedCategory(cat.name);
+                    setSelectedSubcategory(null);
+                  }
+                }}
                 className={selectedCategory === cat.name
                   ? 'h-7 px-3 rounded-full text-[10px] font-medium whitespace-nowrap bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white'
                   : 'h-7 px-3 rounded-full text-[10px] font-medium whitespace-nowrap bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
@@ -286,6 +306,34 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
           </div>
         )}
 
+        {/* ─── SUBCATEGORY CHIPS (when category selected) ─── */}
+        {selectedCategory && categories.length > 0 && (() => {
+          const cat = categories.find(c => c.name === selectedCategory);
+          const subs = cat?.subcategories || [];
+          if (subs.length === 0) return null;
+          return (
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+              <button
+                onClick={() => setSelectedSubcategory(null)}
+                className={!selectedSubcategory
+                  ? 'h-7 px-3 rounded-full text-[10px] font-medium whitespace-nowrap bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white'
+                  : 'h-7 px-3 rounded-full text-[10px] font-medium whitespace-nowrap bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#8B5CF6]/30'
+                }
+              >All {selectedCategory}</button>
+              {subs.map((sub: any) => (
+                <button
+                  key={sub.id}
+                  onClick={() => setSelectedSubcategory(selectedSubcategory === sub.name ? null : sub.name)}
+                  className={selectedSubcategory === sub.name
+                    ? 'h-7 px-3 rounded-full text-[10px] font-medium whitespace-nowrap bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white'
+                    : 'h-7 px-3 rounded-full text-[10px] font-medium whitespace-nowrap bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#8B5CF6]/30'
+                  }
+                >{sub.name}</button>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* ─── COUNT & CLEAR ─── */}
         <div className="flex items-center justify-between">
           <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">
@@ -293,7 +341,7 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
           </p>
           {hasActiveFilters && (
             <button
-              onClick={() => { setSearchQuery(''); setSelectedState(''); setSelectedCity(''); setSelectedCategory(null); }}
+              onClick={() => { setSearchQuery(''); setSelectedState(''); setSelectedCity(''); setSelectedCategory(null); setSelectedSubcategory(null); }}
               className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA]"
             >Clear all</button>
           )}
@@ -338,7 +386,7 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                 <p className="text-sm text-[#8A8B9C]">No workers match your filters</p>
                 <p className="text-xs text-[#8A8B9C]/70 mt-1">Try clearing filters or searching differently</p>
                 <button
-                  onClick={() => { setSearchQuery(''); setSelectedState(''); setSelectedCity(''); setSelectedCategory(null); }}
+                  onClick={() => { setSearchQuery(''); setSelectedState(''); setSelectedCity(''); setSelectedCategory(null); setSelectedSubcategory(null); }}
                   className="mt-3 px-4 py-2 rounded-xl bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-medium"
                 >Show all workers</button>
               </>
@@ -375,8 +423,8 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-white">{w.full_name || w.username || 'Worker'}</span>
                         <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{statusLabel}</span>
-                        {isNearby && (
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F4] border border-[#3B82F6]/20">Nearby</span>
+                        {isNearby && w.city && (
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F4] border border-[#3B82F6]/20">In {w.city}</span>
                         )}
                         {/* Online/Offline */}
                         {w.is_online ? (
