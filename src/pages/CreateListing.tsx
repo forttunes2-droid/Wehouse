@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { createListing, uploadListingImage, uploadListingVideo, getAvailableChatAgents, checkDuplicateListing } from '@/lib/supabase';
+import { createListing, uploadListingImage, uploadListingVideo, checkDuplicateListing, supabase } from '@/lib/supabase';
+// getAvailableChatAgents removed — replaced with property partner assignment
 import { ROLE_RANK } from '@/types';
 // Image hash duplicate detection removed — too many false positives
 import { Button } from '@/components/ui/button';
@@ -23,12 +24,11 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<string[]>([]);
-  const [availableAgents, setAvailableAgents] = useState<Array<{
-    user_id: string; username: string | null; role: string;
-    assigned_state: string | null; assigned_lga: string | null; state: string | null; city: string | null;
+  const [propertyPartners, setPropertyPartners] = useState<Array<{
+    user_id: string; username: string | null; full_name: string | null;
   }>>([]);
-  const [chatAgentId, setChatAgentId] = useState<string>('');
-  const [loadingAgents, setLoadingAgents] = useState(true);
+  const [assignedPartnerId, setAssignedPartnerId] = useState<string>('');
+  const [loadingPartners, setLoadingPartners] = useState(false);
 
   const [form, setForm] = useState({
     title: '',
@@ -54,27 +54,21 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     area: profile.area || '',
   });
 
-  // Load chat agents that match the LISTING location (not poster's location)
+  // Load property partners for owner assignment
   useEffect(() => {
-    if (profile.role === 'staff') {
-      // Staff posting — they ARE the chat agent automatically
-      setChatAgentId(profile.user_id);
-      setLoadingAgents(false);
-      return;
+    async function loadPartners() {
+      setLoadingPartners(true);
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, username, full_name')
+        .eq('role', 'property_partner')
+        .is('deleted_at', null)
+        .order('username', { ascending: true });
+      setPropertyPartners(data || []);
+      setLoadingPartners(false);
     }
-    // Admin+ — fetch all staff, sorted by location match (listing location first)
-    async function loadAgents() {
-      setLoadingAgents(true);
-      const { agents } = await getAvailableChatAgents(location.state, location.city);
-      const list = agents || [];
-      setAvailableAgents(list);
-      if (list.length > 0) setChatAgentId(list[0].user_id);
-      else setChatAgentId('');
-      setLoadingAgents(false);
-    }
-    // Load agents immediately — sorting updates when location changes
-    loadAgents();
-  }, [profile.role, profile.user_id, location.state, location.city]);
+    loadPartners();
+  }, []);
 
   // Image upload handler — supports multiple files at once
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +220,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       security_deposit_amount: form.sub_type === 'short_let' && form.security_deposit_amount ? Number(form.security_deposit_amount) : null,
       amenities: form.amenities.length > 0 ? form.amenities : null,
       owner_id: profile.auth_id,
-      chat_agent_id: chatAgentId || null,
+      chat_agent_id: profile.role === 'staff' ? profile.user_id : null,
+      partner_id: assignedPartnerId || null,
       submitted_by_role: profile.role,
     });
     setSaving(false);
@@ -492,62 +487,38 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           </div>
         </div>
 
-        {/* Chat Agent Assignment */}
-        <div className="glass rounded-2xl p-4 border border-[#3B82F6]/10">
-          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-            Chat Agent — Who handles enquiries
+        {/* Property Owner Assignment */}
+        <div className="glass rounded-2xl p-4 border border-violet-500/10">
+          <label className="text-xs text-violet-400 font-medium mb-2 block flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+            Property Owner
           </label>
 
-          {profile.role === 'staff' ? (
-            /* Staff posting — they ARE the agent automatically */
-            <div className="flex items-center gap-3 py-1">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">
-                {(profile.username || 'Y').charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-xs text-white font-medium">@{profile.username || 'You'} — You will handle enquiries</p>
-                <p className="text-[10px] text-amber-400/70">Users can chat or call you about this listing</p>
-              </div>
-            </div>
-          ) : loadingAgents ? (
-            /* Creator posting — loading agents */
+          {loadingPartners ? (
             <div className="flex items-center gap-2 py-2">
-              <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs text-[#5C5E72]">Loading agents...</span>
+              <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-[#5C5E72]">Loading partners...</span>
             </div>
-          ) : availableAgents.length === 0 ? (
-            <p className="text-xs text-amber-400">No staff or admin available. Assign a staff member first.</p>
+          ) : propertyPartners.length === 0 ? (
+            <p className="text-xs text-amber-400">No property partners registered yet.</p>
           ) : (
-            /* Creator posting — select agent dropdown */
             <select
-              value={chatAgentId}
-              onChange={(e) => setChatAgentId(e.target.value)}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
+              value={assignedPartnerId}
+              onChange={(e) => setAssignedPartnerId(e.target.value)}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-violet-500/50 outline-none"
             >
-              {availableAgents.map((a, idx) => {
-                // Use assigned_* with fallback to state/city for display
-                const displayCity = a.assigned_lga || a.city || 'no-city';
-                const displayState = a.assigned_state || a.state || 'no-state';
-                const normListingCity = (location.city || '').trim().toLowerCase();
-                const normListingState = (location.state || '').trim().toLowerCase();
-                const normCity = displayCity.trim().toLowerCase();
-                const normState = displayState.trim().toLowerCase();
-
-                const matchesCity = normListingCity && (normCity === normListingCity || normCity.includes(normListingCity) || normListingCity.includes(normCity));
-                const matchesState = normListingState && (normState === normListingState || normState.includes(normListingState) || normListingState.includes(normState));
-                const isMatch = matchesCity && matchesState;
-
-                return (
-                  <option key={a.user_id} value={a.user_id}>
-                    {idx === 0 && isMatch ? '✓ ' : ''}@{a.username || 'Unknown'} · {displayCity}, {displayState}
-                  </option>
-                );
-              })}
+              <option value="">WeHouse Property (no owner assigned)</option>
+              {propertyPartners.map(p => (
+                <option key={p.user_id} value={p.user_id}>
+                  @{p.username || 'Unknown'} {p.full_name ? `— ${p.full_name}` : ''}
+                </option>
+              ))}
             </select>
           )}
           <p className="text-[9px] text-[#5C5E72] mt-2">
-            Users will see only the agent&apos;s username and can chat/call about this listing. Your identity as the poster stays hidden.
+            {assignedPartnerId
+              ? 'This property will appear in the owner\'s dashboard for tracking bookings and earnings.'
+              : 'If no owner is assigned, this is a WeHouse property. Full commission and rent stay with WeHouse.'}
           </p>
         </div>
 

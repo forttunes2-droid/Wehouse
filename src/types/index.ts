@@ -152,6 +152,7 @@ export interface Listing {
   availability_status: 'available' | 'reserved' | 'closed';
   owner_id: string | null;
   chat_agent_id: string | null;  // Staff/Admin who handles enquiries for this listing
+  partner_id: string | null;      // Property partner who owns this listing (for partner dashboard tracking)
   created_at: string;
   updated_at: string;
   // ── RESERVATION FIELDS ────────────────────────────

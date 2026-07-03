@@ -1,7 +1,4 @@
--- ═══════════════════════════════════════════════════════════════
--- CREATE: property_partners table
--- ═══════════════════════════════════════════════════════════════
-
+-- Create property_partners table
 CREATE TABLE IF NOT EXISTS property_partners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id TEXT NOT NULL,
@@ -20,8 +17,5 @@ CREATE INDEX IF NOT EXISTS idx_property_partners_profile_id ON property_partners
 
 ALTER TABLE property_partners ENABLE ROW LEVEL SECURITY;
 
--- Admin/staff/creator: full access (they manage all partners)
-CREATE POLICY "partners_admin_all" ON property_partners
-  FOR ALL TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DROP POLICY IF EXISTS partners_admin_all ON property_partners;
+CREATE POLICY partners_admin_all ON property_partners FOR ALL TO authenticated USING (true) WITH CHECK (true);

@@ -314,7 +314,11 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { users: data } = await getAllUsers();
+    const { users: data, error } = await getAllUsers();
+    if (error) {
+      console.error('[Creator] getAllUsers error:', error);
+      toast.error('Failed to load users: ' + error.message);
+    }
     setUsers(data || []);
     setLoading(false);
   }, []);
@@ -475,7 +479,8 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
       ) : (
         <div className="space-y-2">
           <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">
-            {searchedUsers.length}{isToday ? " joined today" : " users"}{isManage ? '' : ' — view only'}
+            {searchedUsers.length} of {users.length} total{isToday ? " joined today" : " users"}{isManage ? '' : ' — view only'}
+            {users.length <= 5 && <span className="text-amber-400 ml-1">(only {users.length} accounts in database)</span>}
           </div>
           {searchedUsers.map(u => {
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
