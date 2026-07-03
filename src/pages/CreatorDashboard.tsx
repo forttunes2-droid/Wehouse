@@ -872,9 +872,29 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
             </div>
             {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mb-3 italic">{w.worker_bio}</p>}
             <div className="flex gap-2">
-              <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
-              <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
-              <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+              {parseWorkerStatus(w) === 'pending' && (
+                <>
+                  <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
+                  <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+                </>
+              )}
+              {parseWorkerStatus(w) === 'verified' && (
+                <>
+                  <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
+                  <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Revoke</button>
+                </>
+              )}
+              {parseWorkerStatus(w) === 'suspended' && (
+                <>
+                  <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Reinstate</button>
+                  <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+                </>
+              )}
+              {parseWorkerStatus(w) === 'rejected' && (
+                <>
+                  <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Re-approve</button>
+                </>
+              )}
             </div>
           </div>
         ))
