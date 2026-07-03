@@ -6,34 +6,16 @@ import type { AdminAuditLog, Listing, Profile, SystemSetting } from '@/types';
 // ── USERS (with soft-delete filtering) ─────────────
 
 export async function getAllUsers() {
-  // Show ALL users including deleted/suspended ones so creator can manage them
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
+  // Use RPC to bypass RLS — creator needs to see ALL users
+  const { data, error } = await supabase.rpc('admin_get_all_users');
   return { users: data as Profile[] | null, error };
 }
 
-// Get start of TODAY in the user's LOCAL timezone, returned as UTC ISO string.
-// E.g. Nigeria (UTC+1) at 8am → returns "2026-05-27T23:00:00.000Z" (midnight local = 11pm UTC prev day)
-function getLocalMidnightISO(): string {
-  const now = new Date();
-  // Create a date at local midnight (year, month, day, 0, 0, 0)
-  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  return localMidnight.toISOString();
-}
-
 export async function getUserCount() {
-  // Count ALL users including deleted/suspended (creator needs full visibility)
-  const { count, error } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true });
-  // Count ALL users created today
-  const { count: today } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', getLocalMidnightISO());
-  return { total: count || 0, today: today || 0, error };
+  // Use RPC to bypass RLS
+  const { data, error } = await supabase.rpc('admin_get_user_count');
+  if (error || !data || data.length === 0) return { total: 0, today: 0, error };
+  return { total: Number(data[0].total) || 0, today: Number(data[0].today) || 0, error: null };
 }
 
 // ── ROLE MANAGEMENT ────────────────────────────────

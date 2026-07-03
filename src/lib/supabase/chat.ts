@@ -5,56 +5,50 @@ import type { Conversation, Message } from '@/types';
 // CHAT — Completely rewritten with reliable query patterns
 // ═══════════════════════════════════════════════════════════════
 
-// Get conversations where user is participant (two separate queries, merged)
+// Get conversations where user is participant (uses RPC to bypass RLS issues)
 export async function getConversations(userId: string) {
-  // Query 1: user is participant_a
-  const { data: asA, error: errA } = await supabase
-    .from('conversations')
-    .select('*')
-    .eq('participant_a', userId)
-    .order('last_message_at', { ascending: false });
-
-  // Query 2: user is participant_b
-  const { data: asB, error: errB } = await supabase
-    .from('conversations')
-    .select('*')
-    .eq('participant_b', userId)
-    .order('last_message_at', { ascending: false });
-
-  if (errA || errB) {
-    return { conversations: null, error: errA || errB };
-  }
-
-  // Merge and deduplicate, sort by last_message_at (newest first)
-  const merged = new Map<string, Conversation>();
-  (asA || []).forEach(c => merged.set(c.id, c as Conversation));
-  (asB || []).forEach(c => merged.set(c.id, c as Conversation));
-
-  const sorted = Array.from(merged.values()).sort((a, b) => {
-    const aTime = a.last_message_at || a.created_at;
-    const bTime = b.last_message_at || b.created_at;
-    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  // Use RPC which bypasses RLS and handles the query reliably
+  const { data, error } = await supabase.rpc('get_user_conversations', {
+    p_user_id: userId,
   });
 
-  return { conversations: sorted, error: null };
+  if (error) {
+    console.error('[getConversations] RPC error:', error);
+    // Fallback: try direct query
+    const { data: asA } = await supabase
+      .from('conversations').select('*').eq('participant_a', userId);
+    const { data: asB } = await supabase
+      .from('conversations').select('*').eq('participant_b', userId);
+    const merged = new Map<string, Conversation>();
+    (asA || []).forEach((c: any) => merged.set(c.id, c as Conversation));
+    (asB || []).forEach((c: any) => merged.set(c.id, c as Conversation));
+    const sorted = Array.from(merged.values()).sort((a, b) => {
+      const aTime = a.last_message_at || a.created_at;
+      const bTime = b.last_message_at || b.created_at;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+    return { conversations: sorted, error: null };
+  }
+
+  return { conversations: (data || []) as Conversation[], error: null };
 }
 
 // For staff/admin/creator: personal conversations + ALL partner_support conversations
 export async function getStaffConversations(userId: string) {
-  // 1. Get personal conversations
-  const { conversations: personal } = await getConversations(userId);
+  // 1. Get personal conversations via RPC
+  const { data: personal, error: personalErr } = await supabase.rpc('get_user_conversations', {
+    p_user_id: userId,
+  });
+  if (personalErr) console.error('[getStaffConversations] personal error:', personalErr);
 
-  // 2. Get ALL partner_support conversations
-  const { data: support } = await supabase
-    .from('conversations')
-    .select('*')
-    .eq('conversation_type', 'partner_support')
-    .order('last_message_at', { ascending: false });
+  // 2. Get ALL partner_support conversations via RPC
+  const { data: support, error: supportErr } = await supabase.rpc('admin_get_support_conversations');
+  if (supportErr) console.error('[getStaffConversations] support error:', supportErr);
 
   // 3. Merge (personal takes priority for dedup)
   const merged = new Map<string, Conversation>();
-  (personal || []).forEach(c => merged.set(c.id, c));
-  (support || []).forEach(c => merged.set(c.id, c as Conversation));
+  (personal || []).forEach((c: any) => merged.set(c.id, c as Conversation));
+  (support || []).forEach((c: any) => merged.set(c.id, c as Conversation));
 
   const sorted = Array.from(merged.values()).sort((a, b) => {
     const aTime = a.last_message_at || a.created_at;
@@ -66,12 +60,20 @@ export async function getStaffConversations(userId: string) {
 }
 
 export async function getMessages(conversationId: string) {
-  const { data, error } = await supabase
+  // Try RPC first (bypasses RLS)
+  const { data, error } = await supabase.rpc('get_conversation_messages', {
+    p_conversation_id: conversationId,
+  });
+  if (!error && data) {
+    return { messages: data as Message[], error: null };
+  }
+  // Fallback to direct query
+  const { data: directData, error: directError } = await supabase
     .from('messages')
     .select('*')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
-  return { messages: data as Message[] | null, error };
+  return { messages: directData as Message[] | null, error: directError };
 }
 
 export async function sendMessage(conversationId: string, senderId: string, content: string) {

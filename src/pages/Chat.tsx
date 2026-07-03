@@ -277,7 +277,10 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                     ? 'bg-gradient-to-br from-violet-500 to-violet-700'
                     : 'bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F]'
                 }`}>
-                  {(usernames[otherId] || 'U').charAt(0).toUpperCase()}
+                  {conv.conversation_type === 'partner_support'
+                    ? 'W'
+                    : (usernames[otherId] || 'U').charAt(0).toUpperCase()
+                  }
                 </div>
                 {isOnline && (
                   <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-400 border-2 border-[#0A0A0F]" />
@@ -287,8 +290,14 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-sm font-semibold text-white truncate">
-                      @{usernames[otherId] || `User ${otherId.slice(-4)}`}
+                      {conv.conversation_type === 'partner_support'
+                        ? 'WeHouse Support'
+                        : `@${usernames[otherId] || `User ${otherId.slice(-4)}`}`
+                      }
                     </span>
+                    {conv.conversation_type === 'partner_support' && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 flex-shrink-0">Partner</span>
+                    )}
                     {otherRole && (
                       <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#1A1A24] border border-[#232330] text-[#5C5E72] flex-shrink-0">
                         {otherRole}
@@ -410,9 +419,14 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold block truncate">@{usernames[otherId] || otherProfile?.username || `User ${otherId.slice(-4)}`}</span>
+              <span className="text-sm font-semibold block truncate">
+                {activeConv.conversation_type === 'partner_support'
+                  ? 'WeHouse Support'
+                  : `@${usernames[otherId] || otherProfile?.username || `User ${otherId.slice(-4)}`}`
+                }
+              </span>
               {activeConv.conversation_type === 'partner_support' && (
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 flex-shrink-0">Partner Support</span>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 flex-shrink-0">Shared Inbox</span>
               )}
             </div>
             {otherProfile?.is_online ? (

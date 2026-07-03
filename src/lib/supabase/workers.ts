@@ -24,11 +24,8 @@ export function parseWorkerStatus(profile: Profile): string {
 }
 
 export async function getAllWorkers() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('role', 'worker')
-    .order('created_at', { ascending: false });
+  // Use RPC to bypass RLS
+  const { data, error } = await supabase.rpc('admin_get_all_workers');
   return { workers: data as Profile[] | null, error };
 }
 

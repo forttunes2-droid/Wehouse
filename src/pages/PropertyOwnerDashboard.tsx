@@ -940,10 +940,48 @@ function Empty({ title, desc }: { title: string; desc: string }) {
 
 function PartnerSettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    full_name: profile.full_name || '',
+    phone: profile.phone || '',
+    state: profile.state || '',
+    city: profile.city || '',
+    bio: profile.bio || '',
+  });
+
+  async function handleSave() {
+    setSaving(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: form.full_name.trim() || null,
+        phone: form.phone.trim() || null,
+        state: form.state || null,
+        city: form.city || null,
+        bio: form.bio.trim() || null,
+      })
+      .eq('user_id', profile.user_id);
+    setSaving(false);
+    if (error) {
+      toast.error('Failed to save: ' + error.message);
+    } else {
+      toast.success('Profile updated');
+      setEditing(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-white">Settings</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-white">Settings</h3>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] font-medium flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+            Edit Profile
+          </button>
+        )}
+      </div>
 
       {/* Profile Card */}
       <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
@@ -956,12 +994,55 @@ function PartnerSettingsTab({ profile, onLogout }: { profile: Profile; onLogout:
             <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
           </div>
         </div>
-        <div className="pt-2 border-t border-white/[0.04] space-y-2">
-          <InfoRow label="Role" value="Property Partner" />
-          <InfoRow label="Phone" value={profile.phone || 'Not set'} />
-          <InfoRow label="Location" value={`${profile.city || '-'}, ${profile.state || '-'}`} />
-          <InfoRow label="Joined" value={new Date(profile.created_at).toLocaleDateString()} />
-        </div>
+
+        {editing ? (
+          /* Edit Mode */
+          <div className="pt-2 border-t border-white/[0.04] space-y-3">
+            <div>
+              <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">Full Name</label>
+              <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+                className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">Phone</label>
+              <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">State</label>
+                <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
+                  className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">City</label>
+                <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                  className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">Bio</label>
+              <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} rows={3}
+                className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 focus:border-[#3B82F6]/50 outline-none resize-none" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(false)} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 h-9 rounded-lg bg-[#3B82F6] text-white text-xs font-medium disabled:opacity-40">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* View Mode */
+          <div className="pt-2 border-t border-white/[0.04] space-y-2">
+            <InfoRow label="Role" value="Property Partner" />
+            <InfoRow label="Phone" value={profile.phone || 'Not set'} />
+            <InfoRow label="Location" value={`${profile.city || '-'}, ${profile.state || '-'}`} />
+            <InfoRow label="Joined" value={new Date(profile.created_at).toLocaleDateString()} />
+            {profile.bio && <p className="text-[10px] text-[#8A8B9C] pt-1">{profile.bio}</p>}
+          </div>
+        )}
       </div>
 
       {/* Logout */}
