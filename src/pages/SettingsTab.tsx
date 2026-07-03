@@ -234,7 +234,7 @@ function GeneralSettings({ profile, isCreator, onBack }: { profile: Profile; isC
 
 
 function FinanceSettings({ onBack }: { onBack: () => void }) {
-  const [fees, setFees] = useState({
+  const defaultFees = {
     longStayCommission: 10,
     shortStayCommission: 20,
     workerCommission: 12.5,
@@ -244,10 +244,14 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
     lateFeePercent: 5,
     securityDepositPercent: 10,
     securityDepositMin: 10000,
-  });
+  };
+  const [fees, setFees] = useState({ ...defaultFees });
+  const [originalFees, setOriginalFees] = useState({ ...defaultFees });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Check if anything changed from what was loaded
+  const hasChanges = Object.keys(fees).some(k => (fees as any)[k] !== (originalFees as any)[k]);
 
   useEffect(() => {
     async function load() {
@@ -256,21 +260,22 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
         'worker_booking_fee', 'reservation_fee', 'hotel_commission_percent', 'late_fee_percent',
         'security_deposit_percent', 'security_deposit_min',
       ]);
+      const loaded = { ...defaultFees };
       if (data) {
         const map: Record<string, number> = {};
         data.forEach((r: any) => { map[r.key] = Number(r.value) || 0; });
-        setFees(f => ({
-          longStayCommission: map['long_stay_commission_percent'] || f.longStayCommission,
-          shortStayCommission: map['short_stay_commission_percent'] || f.shortStayCommission,
-          workerCommission: map['worker_commission_percent'] || f.workerCommission,
-          workerBookingFee: map['worker_booking_fee'] || f.workerBookingFee,
-          reservationFee: map['reservation_fee'] || f.reservationFee,
-          hotelCommission: map['hotel_commission_percent'] || f.hotelCommission,
-          lateFeePercent: map['late_fee_percent'] || f.lateFeePercent,
-          securityDepositPercent: map['security_deposit_percent'] || f.securityDepositPercent,
-          securityDepositMin: map['security_deposit_min'] || f.securityDepositMin,
-        }));
+        loaded.longStayCommission = map['long_stay_commission_percent'] || loaded.longStayCommission;
+        loaded.shortStayCommission = map['short_stay_commission_percent'] || loaded.shortStayCommission;
+        loaded.workerCommission = map['worker_commission_percent'] || loaded.workerCommission;
+        loaded.workerBookingFee = map['worker_booking_fee'] || loaded.workerBookingFee;
+        loaded.reservationFee = map['reservation_fee'] || loaded.reservationFee;
+        loaded.hotelCommission = map['hotel_commission_percent'] || loaded.hotelCommission;
+        loaded.lateFeePercent = map['late_fee_percent'] || loaded.lateFeePercent;
+        loaded.securityDepositPercent = map['security_deposit_percent'] || loaded.securityDepositPercent;
+        loaded.securityDepositMin = map['security_deposit_min'] || loaded.securityDepositMin;
       }
+      setFees(loaded);
+      setOriginalFees(loaded);
       setLoading(false);
     }
     load();
@@ -293,25 +298,69 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
       await supabase.from('platform_settings').upsert({ key: u.key, value: u.value }, { onConflict: 'key' });
     }
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setOriginalFees({ ...fees }); // Reset the baseline so hasChanges = false
     toast.success('Fee settings saved');
   }
 
   function FeeCard({ label, desc, value, suffix, onChange, min = 0, max = 100 }:
     { label: string; desc: string; value: number; suffix: string; onChange: (v: number) => void; min?: number; max?: number }) {
+    // Track local value as string to allow free typing (including decimals)
     const [local, setLocal] = useState(String(value));
-    useEffect(() => { setLocal(String(value)); }, [value]);
+    const [isDirty, setIsDirty] = useState(false);
+
+    // Only sync from parent on initial mount or when parent value changes AND user isn't editing
+    useEffect(() => {
+      if (!isDirty) {
+        setLocal(String(value));
+      }
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      // Allow: empty, digits, one decimal point, digits after decimal
+      if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
+        setLocal(raw);
+        setIsDirty(true);
+        // Only notify parent if it's a valid number
+        if (raw !== '' && raw !== '.') {
+          const n = Number(raw);
+          if (!isNaN(n) && n >= min && n <= max) {
+            onChange(n);
+          }
+        }
+      }
+    };
+
+    const handleBlur = () => {
+      setIsDirty(false);
+      if (local === '' || local === '.') {
+        setLocal(String(min));
+        onChange(min);
+        return;
+      }
+      const n = Number(local);
+      if (isNaN(n)) {
+        setLocal(String(value));
+        return;
+      }
+      // Clamp to range
+      const clamped = Math.max(min, Math.min(max, n));
+      setLocal(String(clamped));
+      onChange(clamped);
+    };
+
     return (
       <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
         <div className="flex items-center justify-between mb-1">
           <p className="text-sm font-semibold text-white">{label}</p>
           <div className="flex items-center gap-2">
             <input
-              type="text" inputMode="decimal" value={local}
-              onChange={e => { const r = e.target.value; if (r === '' || /^\d*\.?\d*$/.test(r)) { setLocal(r); const n = r === '' ? 0 : Number(r); if (!isNaN(n) && n >= min && n <= max) onChange(n); } }}
-              onBlur={() => { const n = local === '' ? 0 : Number(local); const c = Math.max(min, Math.min(max, isNaN(n) ? 0 : n)); setLocal(String(c)); onChange(c); }}
-              className="w-20 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-emerald-500"
+              type="text"
+              inputMode="decimal"
+              value={local}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              className="w-24 h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm text-center outline-none focus:border-emerald-500"
             />
             <span className="text-xs text-[#5C5E72] w-12">{suffix}</span>
           </div>
@@ -340,8 +389,8 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
         <FeeCard label="Long Stay Commission" desc="Monthly/yearly rentals. Lower because tenants stay long-term." value={fees.longStayCommission} suffix="%" onChange={v => setFees(f => ({ ...f, longStayCommission: v }))} max={50} />
         <FeeCard label="Short Stay Commission" desc="Daily/weekly rentals. Higher because of cleaning, turnover, management." value={fees.shortStayCommission} suffix="%" onChange={v => setFees(f => ({ ...f, shortStayCommission: v }))} max={50} />
         <FeeCard label="Reservation Fee" desc="What renters pay to hold a property for 72 hours." value={fees.reservationFee} suffix="NGN" onChange={v => setFees(f => ({ ...f, reservationFee: v }))} max={50000} />
-        <FeeCard label="Security Deposit %" desc="Percentage of rent held as security. Min amount applies." value={fees.securityDepositPercent} suffix="%" onChange={v => setFees(f => ({ ...f, securityDepositPercent: v }))} max={100} />
-        <FeeCard label="Security Deposit Min" desc="Minimum security deposit amount regardless of percentage." value={fees.securityDepositMin} suffix="NGN" onChange={v => setFees(f => ({ ...f, securityDepositMin: v }))} max={1000000} />
+        <FeeCard label="Short-Let Security Deposit %" desc="Default % for short-let only (furnished apartments with appliances). Long stay has no deposit. Each listing can override this." value={fees.securityDepositPercent} suffix="%" onChange={v => setFees(f => ({ ...f, securityDepositPercent: v }))} max={100} />
+        <FeeCard label="Short-Let Security Deposit Min" desc="Minimum deposit for short-let. Only applies when listing owner doesn't set a custom amount." value={fees.securityDepositMin} suffix="NGN" onChange={v => setFees(f => ({ ...f, securityDepositMin: v }))} max={1000000} />
         <FeeCard label="Late Payment Fee" desc="Added to overdue monthly installment payments." value={fees.lateFeePercent} suffix="%" onChange={v => setFees(f => ({ ...f, lateFeePercent: v }))} max={20} />
       </div>
 
@@ -363,18 +412,19 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
         <div className="rounded-xl bg-[#1A1A24] p-3">
           <p className="text-[10px] font-semibold text-emerald-400 mb-2">Long Stay Apartment</p>
           <p className="text-[10px] text-[#8A8B9C] leading-relaxed">
-            When a user rents for a year, WeHouse takes <span className="text-amber-400">{fees.longStayCommission}%</span> of the annual rent. 
+            When a user rents for a year+, WeHouse takes <span className="text-amber-400">{fees.longStayCommission}%</span> of the annual rent.
             The property partner receives <span className="text-emerald-400">{100 - fees.longStayCommission}%</span>.
-            Security deposit ({fees.securityDepositPercent}%, min N{fees.securityDepositMin.toLocaleString()}) is held in escrow and returned after stay.
+            No security deposit — tenant brings their own appliances.
           </p>
         </div>
 
         <div className="rounded-xl bg-[#1A1A24] p-3">
           <p className="text-[10px] font-semibold text-orange-400 mb-2">Short Stay Apartment</p>
           <p className="text-[10px] text-[#8A8B9C] leading-relaxed">
-            Daily/weekly guests cost more to manage (cleaning, turnover, key handovers). 
-            WeHouse takes <span className="text-amber-400">{fees.shortStayCommission}%</span> — higher than long stay. 
+            Daily/weekly rentals. Apartment includes furniture and appliances.
+            WeHouse takes <span className="text-amber-400">{fees.shortStayCommission}%</span> — higher because of cleaning, turnover, management.
             Partner receives <span className="text-emerald-400">{100 - fees.shortStayCommission}%</span>.
+            Security deposit (caution fee) of <span className="text-blue-400">{fees.securityDepositPercent}% (min N{fees.securityDepositMin.toLocaleString()})</span> held in escrow for appliance protection. Returned after stay if no damage. Each listing sets its own amount.
           </p>
         </div>
 
@@ -389,10 +439,19 @@ function FinanceSettings({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <button onClick={handleSave} disabled={saving}
-        className="w-full h-12 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50 active:scale-[0.98]">
-        {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Fee Settings'}
-      </button>
+      {/* Save bar — only shows when changes detected, sticky at bottom */}
+      {hasChanges && (
+        <div className="flex gap-3 sticky bottom-20 z-10 bg-[#0A0A0F]/90 backdrop-blur-sm pt-2 pb-6">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 h-11 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50 active:scale-[0.98]">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button onClick={() => { setFees({ ...originalFees }); toast.info('Changes discarded'); }} disabled={saving}
+            className="h-11 px-5 rounded-xl bg-[#1A1A24] border border-[#232330] text-[#5C5E72] font-medium hover:text-white transition-colors disabled:opacity-50">
+            Discard
+          </button>
+        </div>
+      )}
     </div>
   );
 }

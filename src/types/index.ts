@@ -146,6 +146,10 @@ export interface Listing {
   approved_by?: string | null;
   approved_at?: string | null;
   rejection_reason?: string | null;
+  // ── SECURITY DEPOSIT (CAUTION FEE) ────────────────
+  // Only applies to short_let apartments (furnished, with appliances)
+  // null/0 means no security deposit required (e.g., long_stay)
+  security_deposit_amount?: number | null;
 }
 
 export interface Enquiry {
@@ -634,10 +638,14 @@ export const RENTAL_PLANS: RentalPlan[] = [
 
 // Calculate payment breakdown for a rental plan
 // subType: 'short_let' uses higher commission (20%), 'long_stay' uses lower (10%)
+// Security deposit (caution fee) ONLY applies to short_let — furnished apartments
+// with appliances that tenants might damage. Long stay tenants bring their own.
+// Each listing sets its own security_deposit_amount (varies by furnishing quality).
 export function calculateRentalPayments(
   annualRent: number,
   durationYears: RentalDuration,
-  subType: 'short_let' | 'long_stay' = 'long_stay'
+  subType: 'short_let' | 'long_stay' = 'long_stay',
+  listingSecurityDeposit?: number | null,
 ) {
   const commissionPercent = subType === 'short_let'
     ? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT
@@ -645,11 +653,24 @@ export function calculateRentalPayments(
   const wehouseCommission = Math.round(annualRent * (commissionPercent / 100));
   const netAnnualRent = annualRent - wehouseCommission;
 
-  // Security deposit: owner's preference (default 10%, min N10,000)
-  const securityDeposit = Math.max(
-    WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN,
-    Math.round(annualRent * (WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100))
-  );
+  // Security deposit (caution fee): ONLY for short_let apartments
+  // Short lets are furnished with appliances — deposit covers potential damage.
+  // Long stay: tenant buys own appliances, no deposit needed.
+  // Each listing sets its own amount (varies by apartment quality/furnishing).
+  // If listing doesn't set one, use the global default for short_let only.
+  let securityDeposit = 0;
+  if (subType === 'short_let') {
+    if (listingSecurityDeposit != null && listingSecurityDeposit > 0) {
+      securityDeposit = listingSecurityDeposit;
+    } else {
+      // Fallback: percentage-based default
+      securityDeposit = Math.max(
+        WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN,
+        Math.round(annualRent * (WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100))
+      );
+    }
+  }
+  // long_stay: securityDeposit stays 0
 
   if (durationYears === 1) {
     return {

@@ -5,19 +5,20 @@ import type { RentalDuration } from '@/types';
 interface Props {
   annualRent: number;
   subType?: 'short_let' | 'long_stay';
+  securityDepositAmount?: number | null;
   onSelectPlan: (plan: { durationYears: RentalDuration; year1Upfront: number; monthlyInstallment: number }) => void;
 }
 
-export default function RentalPlanSelector({ annualRent, subType = 'long_stay', onSelectPlan }: Props) {
+export default function RentalPlanSelector({ annualRent, subType = 'long_stay', securityDepositAmount, onSelectPlan }: Props) {
   const [selectedDuration, setSelectedDuration] = useState<RentalDuration>(1);
 
   const breakdown = useMemo(() => {
-    return calculateRentalPayments(annualRent, selectedDuration, subType);
-  }, [annualRent, selectedDuration, subType]);
+    return calculateRentalPayments(annualRent, selectedDuration, subType, securityDepositAmount);
+  }, [annualRent, selectedDuration, subType, securityDepositAmount]);
 
   const handleSelect = (years: RentalDuration) => {
     setSelectedDuration(years);
-    const calc = calculateRentalPayments(annualRent, years, subType);
+    const calc = calculateRentalPayments(annualRent, years, subType, securityDepositAmount);
     onSelectPlan({
       durationYears: years,
       year1Upfront: calc.year1Upfront,
@@ -77,10 +78,12 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
           <span className="text-white font-medium">N{annualRent.toLocaleString()}</span>
         </div>
 
-        <div className="flex justify-between text-xs">
-          <span className="text-[#5C5E72]">Security Deposit (escrow)</span>
-          <span className="text-blue-400 font-medium">N{breakdown.securityDeposit.toLocaleString()}</span>
-        </div>
+        {subType === 'short_let' && breakdown.securityDeposit > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="text-[#5C5E72]">Security Deposit (Caution Fee)</span>
+            <span className="text-blue-400 font-medium">N{breakdown.securityDeposit.toLocaleString()}</span>
+          </div>
+        )}
 
         <div className="border-t border-white/[0.04] pt-2">
           <div className="flex justify-between text-sm">
@@ -106,10 +109,12 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
 
       <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-3">
         <p className="text-[10px] text-amber-400">
-          <strong>How it works:</strong> Click "Reserve" to notify WeHouse. 
-          A staff/agent will be assigned to guide you through inspection. 
-          After inspection, you pay rent + security deposit. 
-          {selectedDuration > 1 ? `Subsequent years are auto-deducted monthly.` : ''}
+          <strong>How it works:</strong> After paying the reservation fee, a WeHouse agent contacts you.
+          You can choose to trust us and pay, or request inspection first.
+          {subType === 'short_let' && breakdown.securityDeposit > 0
+            ? ` Security deposit (N${breakdown.securityDeposit.toLocaleString()}) applies because this apartment includes appliances/furniture. It's held in escrow and returned after your stay if no damage.`
+            : ` No security deposit needed — long stay tenants provide their own appliances.`}
+          {selectedDuration > 1 ? ` Subsequent years are paid monthly.` : ''}
         </p>
       </div>
     </div>

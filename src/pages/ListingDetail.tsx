@@ -294,6 +294,8 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
               {/* Rental Plan Selector */}
               <RentalPlanSelector
                 annualRent={listing.price || 0}
+                subType={listing.sub_type || 'long_stay'}
+                securityDepositAmount={listing.security_deposit_amount}
                 onSelectPlan={setSelectedPlan}
               />
 
@@ -330,10 +332,21 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                         <span className="text-white">N{selectedPlan.monthlyInstallment.toLocaleString()}/mo</span>
                       </div>
                     )}
-                    <div className="border-t border-[#232330] pt-1.5 flex justify-between text-[10px]">
-                      <span className="text-[#5C5E72]">Security Deposit ({WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT}%)</span>
-                      <span className="text-white">N{Math.max(Math.round(listing.price * WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100), WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN).toLocaleString()}</span>
-                    </div>
+                    {listing.sub_type === 'short_let' && (
+                      <div className="border-t border-[#232330] pt-1.5 flex justify-between text-[10px]">
+                        <span className="text-[#5C5E72]">
+                          {listing.security_deposit_amount
+                            ? `Security Deposit (set by owner)`
+                            : `Security Deposit (${WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT}%)`}
+                        </span>
+                        <span className="text-white">
+                          N{(listing.security_deposit_amount
+                            ? listing.security_deposit_amount
+                            : Math.max(Math.round(listing.price * WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100), WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN)
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <button
