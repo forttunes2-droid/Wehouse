@@ -24,15 +24,14 @@ function getLocalMidnightISO(): string {
 }
 
 export async function getUserCount() {
+  // Count ALL users including deleted/suspended (creator needs full visibility)
   const { count, error } = await supabase
     .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .is('deleted_at', null);
-  // Count users created since midnight UTC today (actual "today", not last 24h)
+    .select('*', { count: 'exact', head: true });
+  // Count ALL users created today
   const { count: today } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
-    .is('deleted_at', null)
     .gte('created_at', getLocalMidnightISO());
   return { total: count || 0, today: today || 0, error };
 }
@@ -77,8 +76,11 @@ export async function updateUserRole(
   const validation = canChangeRole(currentRole, newRole);
   if (!validation.allowed) return { error: { message: validation.reason } as any };
 
-  // 2. Update role
-  const { error } = await supabase.from('profiles').update({ role: newRole }).eq('user_id', userId);
+  // 2. Update role via RPC (bypasses RLS)
+  const { error } = await supabase.rpc('admin_update_role', {
+    target_user_id: userId,
+    new_role: newRole,
+  });
   if (error) return { error };
 
   // 3. Log to role_change_history
@@ -125,13 +127,11 @@ export async function restoreUser(userId: string) {
 
 // Toggle maintenance exemption (creator can whitelist accounts for testing during upgrades)
 export async function toggleMaintenanceExempt(userId: string, exempt: boolean) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ maintenance_exempt: exempt })
-    .eq('user_id', userId)
-    .select()
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
+  const { error } = await supabase.rpc('admin_toggle_exempt', {
+    target_user_id: userId,
+    exempt: exempt,
+  });
+  return { error };
 }
 
 export async function getAllListingsAdmin() {
@@ -170,34 +170,23 @@ export async function dismissReport(reportId: string, adminId: string) {
 }
 
 export async function suspendUser(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ worker_status: 'suspended', updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('admin_suspend_user', { target_user_id: userId });
   return { error };
 }
 
 export async function reactivateUser(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ deleted: false, deleted_at: null, worker_status: 'pending', updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('admin_reactivate_user', { target_user_id: userId });
   return { error };
 }
 
 export async function freezeUser(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ worker_status: 'suspended', updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
+  // Freeze is same as suspend
+  const { error } = await supabase.rpc('admin_suspend_user', { target_user_id: userId });
   return { error };
 }
 
 export async function banUser(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ deleted: true, deleted_at: new Date().toISOString(), worker_status: 'suspended', updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('admin_ban_user', { target_user_id: userId });
   return { error };
 }
 

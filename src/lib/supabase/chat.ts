@@ -12,6 +12,32 @@ export async function getConversations(userId: string) {
   return { conversations: data as Conversation[] | null, error };
 }
 
+// For staff/admin/creator: also fetch ALL partner_support conversations
+export async function getStaffConversations(userId: string) {
+  // 1. Get normal conversations where staff is a participant
+  const { data: myConvs } = await supabase
+    .from('conversations')
+    .select('*')
+    .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
+    .order('updated_at', { ascending: false });
+
+  // 2. Get ALL partner_support conversations (shared inbox)
+  const { data: supportConvs } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('conversation_type', 'partner_support')
+    .order('updated_at', { ascending: false });
+
+  // 3. Merge and deduplicate
+  const merged = new Map<string, Conversation>();
+  (myConvs || []).forEach(c => merged.set(c.id, c as Conversation));
+  (supportConvs || []).forEach(c => merged.set(c.id, c as Conversation));
+
+  return { conversations: Array.from(merged.values()).sort((a, b) =>
+    new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime()
+  ) };
+}
+
 export async function getMessages(conversationId: string) {
   const { data, error } = await supabase
     .from('messages')

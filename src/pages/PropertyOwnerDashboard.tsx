@@ -9,7 +9,6 @@ interface Props {
   onLogout: () => void;
   onNavigate?: (page: string) => void;
   onGoToChat?: (convId: string) => void;
-  onGoToMessages?: () => void;
 }
 
 type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'bookings' | 'earnings' | 'settings';
@@ -39,7 +38,7 @@ const AMENITIES = [
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, onGoToChat, onGoToMessages }: Props) {
+export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
   const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -174,21 +173,14 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, 
             <p className="text-[10px] text-[#5C5E72] truncate">{profile.email}</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Chat with WeHouse button */}
+            {/* Chat with WeHouse */}
             <button
               onClick={handleChatWithWeHouse}
-              className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30 transition-all"
+              className="h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30 transition-all text-[10px] font-medium"
               title="Chat with WeHouse"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-            </button>
-            {/* Messages/Inbox button */}
-            <button
-              onClick={onGoToMessages}
-              className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#3B82F6] hover:text-[#60A5FA] hover:border-[#3B82F6]/30 transition-all"
-              title="My Messages"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              Chat
             </button>
             <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
           </div>

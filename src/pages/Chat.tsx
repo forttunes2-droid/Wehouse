@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   supabase,
   getConversations,
+  getStaffConversations,
   getMessages,
   sendMessage,
   markMessagesSeen,
@@ -47,7 +48,11 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   }
 
   async function loadConversations() {
-    const { conversations: data } = await getConversations(profile.user_id);
+    // Staff/admin/creator see ALL partner_support conversations (shared inbox)
+    const isStaff = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator' || profile.role === 'creator_admin';
+    const { conversations: data } = isStaff
+      ? await getStaffConversations(profile.user_id)
+      : await getConversations(profile.user_id);
     const convs = data || [];
     setConversations(convs);
 

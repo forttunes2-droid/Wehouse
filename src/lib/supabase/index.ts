@@ -165,6 +165,7 @@ export {
 // Chat
 export {
   getConversations,
+  getStaffConversations,
   getMessages,
   sendMessage,
   markMessagesSeen,
