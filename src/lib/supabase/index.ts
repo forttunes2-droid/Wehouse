@@ -127,8 +127,10 @@ export {
   getCategoryWithSubcategories,
   createServiceCategory,
   updateServiceCategory,
+  deleteServiceCategory,
   createServiceSubcategory,
   updateServiceSubcategory,
+  deleteServiceSubcategory,
   seedSubcategoriesForCategory,
   // Worker Verification
   submitWorkerVerification,

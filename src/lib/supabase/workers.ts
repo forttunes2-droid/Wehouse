@@ -153,6 +153,22 @@ export async function updateServiceSubcategory(id: string, updates: Partial<Serv
   return { subcategory: data as ServiceSubcategory | null, error };
 }
 
+// Creator: Delete category (uses RPC to handle cascade)
+export async function deleteServiceCategory(id: string) {
+  const { error } = await supabase.rpc('delete_service_category', {
+    p_category_id: id,
+  });
+  return { error };
+}
+
+// Creator: Delete subcategory
+export async function deleteServiceSubcategory(id: string) {
+  const { error } = await supabase.rpc('delete_service_subcategory', {
+    p_subcategory_id: id,
+  });
+  return { error };
+}
+
 // Seed default subcategories for a category
 export async function seedSubcategoriesForCategory(categoryId: string, categoryName: string) {
   const { DEFAULT_SUBCATEGORIES } = await import('@/types');
