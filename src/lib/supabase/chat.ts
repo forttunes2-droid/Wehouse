@@ -1,41 +1,68 @@
 import { supabase } from './client';
 import type { Conversation, Message } from '@/types';
 
-// ─── CHAT HELPERS ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// CHAT — Completely rewritten with reliable query patterns
+// ═══════════════════════════════════════════════════════════════
 
+// Get conversations where user is participant (two separate queries, merged)
 export async function getConversations(userId: string) {
-  const { data, error } = await supabase
+  // Query 1: user is participant_a
+  const { data: asA, error: errA } = await supabase
     .from('conversations')
     .select('*')
-    .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
-    .order('updated_at', { ascending: false });
-  return { conversations: data as Conversation[] | null, error };
+    .eq('participant_a', userId)
+    .order('last_message_at', { ascending: false });
+
+  // Query 2: user is participant_b
+  const { data: asB, error: errB } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('participant_b', userId)
+    .order('last_message_at', { ascending: false });
+
+  if (errA || errB) {
+    return { conversations: null, error: errA || errB };
+  }
+
+  // Merge and deduplicate, sort by last_message_at (newest first)
+  const merged = new Map<string, Conversation>();
+  (asA || []).forEach(c => merged.set(c.id, c as Conversation));
+  (asB || []).forEach(c => merged.set(c.id, c as Conversation));
+
+  const sorted = Array.from(merged.values()).sort((a, b) => {
+    const aTime = a.last_message_at || a.created_at;
+    const bTime = b.last_message_at || b.created_at;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+
+  return { conversations: sorted, error: null };
 }
 
-// For staff/admin/creator: also fetch ALL partner_support conversations
+// For staff/admin/creator: personal conversations + ALL partner_support conversations
 export async function getStaffConversations(userId: string) {
-  // 1. Get normal conversations where staff is a participant
-  const { data: myConvs } = await supabase
-    .from('conversations')
-    .select('*')
-    .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
-    .order('updated_at', { ascending: false });
+  // 1. Get personal conversations
+  const { conversations: personal } = await getConversations(userId);
 
-  // 2. Get ALL partner_support conversations (shared inbox)
-  const { data: supportConvs } = await supabase
+  // 2. Get ALL partner_support conversations
+  const { data: support } = await supabase
     .from('conversations')
     .select('*')
     .eq('conversation_type', 'partner_support')
-    .order('updated_at', { ascending: false });
+    .order('last_message_at', { ascending: false });
 
-  // 3. Merge and deduplicate
+  // 3. Merge (personal takes priority for dedup)
   const merged = new Map<string, Conversation>();
-  (myConvs || []).forEach(c => merged.set(c.id, c as Conversation));
-  (supportConvs || []).forEach(c => merged.set(c.id, c as Conversation));
+  (personal || []).forEach(c => merged.set(c.id, c));
+  (support || []).forEach(c => merged.set(c.id, c as Conversation));
 
-  return { conversations: Array.from(merged.values()).sort((a, b) =>
-    new Date(b.last_message_at || b.created_at).getTime() - new Date(a.last_message_at || a.created_at).getTime()
-  ) };
+  const sorted = Array.from(merged.values()).sort((a, b) => {
+    const aTime = a.last_message_at || a.created_at;
+    const bTime = b.last_message_at || b.created_at;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+
+  return { conversations: sorted };
 }
 
 export async function getMessages(conversationId: string) {
@@ -57,8 +84,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
 
   if (error || !data) return { message: null, error };
 
-  // 2. Update conversation: last_message, updated_at, and unread count
-  // Get the conversation to know who the recipient is
+  // 2. Update conversation: last_message, last_message_at, unread count
   const { data: conv } = await supabase
     .from('conversations')
     .select('participant_a, participant_b')
@@ -68,15 +94,14 @@ export async function sendMessage(conversationId: string, senderId: string, cont
   if (conv) {
     const isA = conv.participant_a === senderId;
     const updateData: Record<string, any> = {
-      updated_at: new Date().toISOString(),
       last_message: content,
       last_message_at: new Date().toISOString(),
     };
-    // Increment unread count for the OTHER person
+    // Increment unread for the OTHER person
     if (isA) {
-      updateData.unread_b = (await getUnreadCount(conversationId, 'b')) + 1;
+      updateData.unread_b = { increment: 1 };
     } else {
-      updateData.unread_a = (await getUnreadCount(conversationId, 'a')) + 1;
+      updateData.unread_a = { increment: 1 };
     }
 
     await supabase
@@ -88,24 +113,15 @@ export async function sendMessage(conversationId: string, senderId: string, cont
   return { message: data as Message, error: null };
 }
 
-async function getUnreadCount(convId: string, which: 'a' | 'b'): Promise<number> {
-  const { data } = await supabase
-    .from('conversations')
-    .select(`unread_${which}`)
-    .eq('id', convId)
-    .maybeSingle();
-  return (data as any)?.[`unread_${which}`] || 0;
-}
-
 export async function markMessagesSeen(conversationId: string, userId: string) {
   // Mark messages as seen
-  const { error: msgErr } = await supabase
+  await supabase
     .from('messages')
     .update({ seen: true })
     .eq('conversation_id', conversationId)
     .neq('sender_id', userId);
 
-  // Also clear unread count for this user
+  // Clear unread count for this user
   const { data: conv } = await supabase
     .from('conversations')
     .select('participant_a')
@@ -119,8 +135,6 @@ export async function markMessagesSeen(conversationId: string, userId: string) {
       .update({ [isA ? 'unread_a' : 'unread_b']: 0 })
       .eq('id', conversationId);
   }
-
-  return { error: msgErr };
 }
 
 export async function createConversation(userA: string, userB: string, listingId?: string | null, conversationType?: string, subject?: string) {
@@ -139,7 +153,6 @@ export async function createConversation(userA: string, userB: string, listingId
   return { conversation: data as Conversation | null, error };
 }
 
-// Accept an enquiry — unlocks full conversation
 export async function acceptEnquiry(conversationId: string) {
   const { data, error } = await supabase
     .from('conversations')
@@ -150,7 +163,6 @@ export async function acceptEnquiry(conversationId: string) {
   return { conversation: data as Conversation | null, error };
 }
 
-// Close a conversation
 export async function closeConversation(conversationId: string) {
   const { data, error } = await supabase
     .from('conversations')
@@ -162,7 +174,7 @@ export async function closeConversation(conversationId: string) {
 }
 
 export async function getOrCreateConversation(userA: string, userB: string, listingId?: string | null, conversationType?: string, subject?: string) {
-  // Try direction A→B first
+  // Try direction A→B
   let q1 = supabase
     .from('conversations')
     .select('*')
@@ -182,6 +194,6 @@ export async function getOrCreateConversation(userA: string, userB: string, list
   const { data: exist2 } = await q2.maybeSingle();
   if (exist2) return { conversation: exist2 as Conversation, error: null };
 
-  // Create new conversation with listing context
+  // Create new
   return createConversation(userA, userB, listingId, conversationType, subject);
 }
