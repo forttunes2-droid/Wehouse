@@ -1,5 +1,5 @@
 // WeHouse Service Worker — Auto-updates on every deployment
-const CACHE_NAME = 'wehouse-v1';
+const CACHE_NAME = 'wehouse-v2';
 
 // Install: cache core assets
 self.addEventListener('install', (event) => {
