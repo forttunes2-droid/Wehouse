@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
   getWorkerDashboardData,
   submitWorkerVerification,
+  uploadWorkerVerificationVideo,
   getServiceCategories,
   getServiceSubcategories,
   requestWithdrawal,
@@ -321,6 +322,13 @@ function VerificationTab({ profile, verification, onUpdate }: {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Video upload state
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [verificationVideoUrl, setVerificationVideoUrl] = useState<string | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     async function load() {
       const { categories: cats } = await getServiceCategories();
@@ -339,12 +347,57 @@ function VerificationTab({ profile, verification, onUpdate }: {
     }
   }, [selectedCategory]);
 
+  function handleVideoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Only MP4, MOV, or WebM videos are allowed');
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('Video must be under 100MB (2-3 minutes recommended)');
+      return;
+    }
+
+    setVideoFile(file);
+    const preview = URL.createObjectURL(file);
+    setVideoPreviewUrl(preview);
+  }
+
+  function removeVideo() {
+    setVideoFile(null);
+    setVideoPreviewUrl(null);
+    setVerificationVideoUrl(null);
+    if (videoInputRef.current) videoInputRef.current.value = '';
+  }
+
   async function handleSubmit() {
     if (!govIdNumber.trim() || !yearsExperience || !selectedCategory || !selectedSubcategory) {
       toast.error('Please fill in all required fields');
       return;
     }
+
     setSubmitting(true);
+
+    // Upload video if selected
+    let uploadedVideoUrl = verificationVideoUrl;
+    if (videoFile && !uploadedVideoUrl) {
+      setUploadingVideo(true);
+      toast.loading('Uploading verification video...', { id: 'video-upload' });
+      const { url, error } = await uploadWorkerVerificationVideo(videoFile, profile.user_id);
+      setUploadingVideo(false);
+      toast.dismiss('video-upload');
+      if (error) {
+        toast.error('Video upload failed: ' + error.message);
+        setSubmitting(false);
+        return;
+      }
+      uploadedVideoUrl = url;
+      setVerificationVideoUrl(url);
+    }
+
     const { error } = await submitWorkerVerification({
       worker_id: profile.user_id,
       gov_id_type: govIdType as any,
@@ -352,6 +405,7 @@ function VerificationTab({ profile, verification, onUpdate }: {
       years_of_experience: parseInt(yearsExperience),
       service_category_id: selectedCategory,
       service_subcategory_id: selectedSubcategory,
+      verification_video_url: uploadedVideoUrl,
     });
     setSubmitting(false);
     if (error) {
@@ -410,6 +464,20 @@ function VerificationTab({ profile, verification, onUpdate }: {
           <InfoRow label="Experience" value={`${verification.years_of_experience} years`} />
           <InfoRow label="Service" value={verification.service_subcategory?.name || verification.service_category?.name || '—'} />
         </div>
+
+        {/* Verification Video */}
+        {verification.verification_video_url && (
+          <div className="rounded-xl bg-[#12121A] border border-[#1E1E2C] p-4 space-y-2">
+            <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Skill Demonstration Video</p>
+            <video
+              src={verification.verification_video_url}
+              className="w-full h-44 rounded-xl object-cover"
+              controls
+              preload="metadata"
+            />
+            <p className="text-[9px] text-[#5C5E72]">This video was reviewed by WeHouse admin to assess your skills.</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -494,9 +562,60 @@ function VerificationTab({ profile, verification, onUpdate }: {
           </div>
         )}
 
+        {/* Verification Video Upload */}
+        <div className="rounded-xl bg-[#12121A] border border-[#1E1E2C] p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z" /></svg>
+            <label className="text-xs text-white font-medium">Skill Demonstration Video</label>
+          </div>
+          <p className="text-[10px] text-[#5C5E72]">
+            Upload a 2-3 minute video showing your work. WeHouse admin reviews this to verify your skills. This is required for approval.
+          </p>
+
+          {!videoPreviewUrl ? (
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              className="w-full h-24 rounded-xl border-2 border-dashed border-[#2A2A3A] flex flex-col items-center justify-center text-[#5C5E72] hover:border-[#3B82F6]/50 hover:text-[#3B82F6] transition-colors"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z" /></svg>
+              <span className="text-[10px] mt-1">Tap to upload video (MP4, MOV, WebM)</span>
+              <span className="text-[9px] text-[#5C5E72]">Max 100MB</span>
+            </button>
+          ) : (
+            <div className="relative rounded-xl overflow-hidden bg-[#0A0A0F]">
+              <video
+                src={videoPreviewUrl}
+                className="w-full h-40 object-cover"
+                controls
+                preload="metadata"
+              />
+              <button
+                type="button"
+                onClick={removeVideo}
+                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center text-xs hover:bg-red-500 transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+              {uploadingVideo && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+          )}
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            onChange={handleVideoSelect}
+          />
+        </div>
+
         <button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || uploadingVideo}
           className="w-full py-2.5 rounded-xl bg-[#3B82F6] text-white text-xs font-medium hover:bg-[#2563EB] transition-colors disabled:opacity-50"
         >
           {submitting ? 'Submitting...' : 'Submit Verification'}

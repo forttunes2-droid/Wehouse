@@ -174,6 +174,35 @@ export async function seedSubcategoriesForCategory(categoryId: string, categoryN
 }
 
 // ═══════════════════════════════════════════════════════════════
+// WORKER VERIFICATION VIDEO UPLOAD
+// ═══════════════════════════════════════════════════════════════
+
+export async function uploadWorkerVerificationVideo(file: File, workerId: string) {
+  // Validate file
+  const validTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'];
+  if (!validTypes.includes(file.type)) {
+    return { url: null, error: { message: 'Only MP4, MOV, or WebM videos are allowed' } as any };
+  }
+
+  // Max 100MB for skill demonstration videos (2-3 minutes)
+  if (file.size > 100 * 1024 * 1024) {
+    return { url: null, error: { message: 'Video must be under 100MB' } as any };
+  }
+
+  const ext = file.name.split('.').pop() || 'mp4';
+  const path = `worker-verifications/${workerId}/skill-demo-${Date.now()}.${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from('worker-files')
+    .upload(path, file, { contentType: file.type, upsert: true });
+
+  if (error) return { url: null, error };
+
+  const { data: urlData } = supabase.storage.from('worker-files').getPublicUrl(data.path);
+  return { url: urlData.publicUrl, error: null };
+}
+
+// ═══════════════════════════════════════════════════════════════
 // WORKER VERIFICATION
 // ═══════════════════════════════════════════════════════════════
 

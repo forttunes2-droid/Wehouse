@@ -169,6 +169,9 @@ export interface Listing {
   // Only applies to short_let apartments (furnished, with appliances)
   // null/0 means no security deposit required (e.g., long_stay)
   security_deposit_amount?: number | null;
+  // ── CONTACT & AMENITIES ───────────────────────────
+  contact_phone?: string | null;  // Property owner's phone for inspection calls
+  amenities?: string[] | null;    // e.g. ['WiFi', 'Parking', 'Security Guard']
 }
 
 export interface Enquiry {

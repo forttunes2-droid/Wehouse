@@ -42,6 +42,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     bathrooms: '1',
     availability_status: 'available' as 'available' | 'reserved' | 'closed',
     status: 'available' as 'available' | 'reserved' | 'closed',
+    contact_phone: profile.phone || '',
+    security_deposit_amount: '',
+    amenities: [] as string[],
   });
 
   const [location, setLocation] = useState({
@@ -219,6 +222,9 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       reservation_expiry: null,
       reservation_fee_paid: false,
       chat_unlocked: false,
+      contact_phone: form.contact_phone.trim() || profile.phone || null,
+      security_deposit_amount: form.sub_type === 'short_let' && form.security_deposit_amount ? Number(form.security_deposit_amount) : null,
+      amenities: form.amenities.length > 0 ? form.amenities : null,
       owner_id: profile.auth_id,
       chat_agent_id: chatAgentId || null,
       submitted_by_role: profile.role,
@@ -376,17 +382,27 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           />
         </div>
 
-        {/* Price */}
+        {/* Price — per day for Short Let, per year for Long Stay */}
         <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Price per year (NGN) *</label>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">
+            {form.sub_type === 'short_let' ? 'Price per day (NGN) *' : 'Price per year (NGN) *'}
+          </label>
           <Input
             type="number"
             value={form.price}
             onChange={(e) => setForm({ ...form, price: e.target.value })}
             className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
-            placeholder="e.g. 600000 (yearly rent)"
+            placeholder={form.sub_type === 'short_let' ? 'e.g. 15000 (daily rate)' : 'e.g. 600000 (yearly rent)'}
             required
           />
+          <p className="text-[10px] text-[#5C5E72] mt-1">
+            {form.sub_type === 'short_let'
+              ? 'Enter the daily rental rate'
+              : form.sub_type === 'long_stay'
+                ? 'Enter the annual rental amount'
+                : 'Select Short Let or Long Stay above to set the correct price'
+            }
+          </p>
         </div>
 
         {/* Location */}
@@ -532,6 +548,82 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           )}
           <p className="text-[9px] text-[#5C5E72] mt-2">
             Users will see only the agent&apos;s username and can chat/call about this listing. Your identity as the poster stays hidden.
+          </p>
+        </div>
+
+        {/* Amenities / Badges — Clickable to toggle, review before submitting */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Amenities & Features (tap to toggle)</label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              'Furnished', 'WiFi', 'Parking', 'Security Guard', 'Air Conditioning',
+              'Generator', 'Water Supply', 'Kitchen', 'TV', 'Swimming Pool',
+              'Gym', 'Laundry', 'Balcony', 'Pop Ceiling', 'Tiled Floor',
+              'Wardrobe', 'Microwave', 'Refrigerator', '24/7 Power',
+            ].map((amenity) => {
+              const isSelected = form.amenities.includes(amenity);
+              return (
+                <button
+                  key={amenity}
+                  type="button"
+                  onClick={() => {
+                    setForm(prev => ({
+                      ...prev,
+                      amenities: isSelected
+                        ? prev.amenities.filter(a => a !== amenity)
+                        : [...prev.amenities, amenity],
+                    }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                    isSelected
+                      ? 'bg-[#3B82F6]/15 border-[#3B82F6]/40 text-[#3B82F6]'
+                      : 'bg-[#1A1A24] border-[#2A2A3A] text-[#5C5E72] hover:border-[#3B82F6]/30'
+                  }`}
+                >
+                  {isSelected && <span className="mr-1">✓</span>}
+                  {amenity}
+                </button>
+              );
+            })}
+          </div>
+          {form.amenities.length > 0 && (
+            <p className="text-[10px] text-[#3B82F6] mt-2">
+              {form.amenities.length} feature{form.amenities.length !== 1 ? 's' : ''} selected: {form.amenities.join(', ')}
+            </p>
+          )}
+        </div>
+
+        {/* Security Deposit — Only for Short Let */}
+        {form.sub_type === 'short_let' && (
+          <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-4">
+            <label className="text-xs text-blue-400 font-medium mb-1.5 block">Security Deposit (Caution Fee) — NGN</label>
+            <p className="text-[10px] text-[#5C5E72] mb-2">
+              Required for short-let apartments. Covers potential damage to furniture and appliances.
+              Held in escrow and returned after the stay if no damage.
+            </p>
+            <Input
+              type="number"
+              value={form.security_deposit_amount}
+              onChange={(e) => setForm({ ...form, security_deposit_amount: e.target.value })}
+              className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-blue-500/50"
+              placeholder="e.g. 50000"
+            />
+          </div>
+        )}
+
+        {/* Contact Phone — Required for inspection coordination */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Your Phone Number * (for inspection calls)</label>
+          <Input
+            type="tel"
+            value={form.contact_phone}
+            onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+            className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
+            placeholder="e.g. 08012345678"
+            required
+          />
+          <p className="text-[10px] text-[#5C5E72] mt-1">
+            WeHouse staff will call this number to schedule and coordinate property inspections.
           </p>
         </div>
 

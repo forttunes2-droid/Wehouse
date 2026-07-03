@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, getOrCreateConversation } from '@/lib/supabase';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -8,6 +8,7 @@ interface Props {
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
+  onGoToChat?: (convId: string) => void;
 }
 
 type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'bookings' | 'earnings';
@@ -37,7 +38,7 @@ const AMENITIES = [
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PropertyOwnerDashboard({ profile, onNavigate }: Props) {
+export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat }: Props) {
   const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -114,6 +115,34 @@ export default function PropertyOwnerDashboard({ profile, onNavigate }: Props) {
     { id: 'earnings', label: 'Earnings' },
   ];
 
+  // Start chat with WeHouse staff
+  async function handleChatWithWeHouse() {
+    // Find a staff member to chat with
+    const { data: staff } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('role', 'staff')
+      .limit(1)
+      .maybeSingle();
+
+    if (!staff) {
+      toast.error('No staff available right now. Please try again later or email support@wehouse.com.ng');
+      return;
+    }
+
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, staff.user_id);
+    if (error || !conversation) {
+      toast.error('Failed to start chat');
+      return;
+    }
+
+    if (onGoToChat) {
+      onGoToChat(conversation.id);
+    } else {
+      toast.success('Chat started! Navigate to chat to continue.');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-6">
       <Toaster position="top-center" richColors />
@@ -129,7 +158,17 @@ export default function PropertyOwnerDashboard({ profile, onNavigate }: Props) {
             <h1 className="text-lg font-bold text-white">Property Partner</h1>
             <p className="text-[10px] text-[#5C5E72] truncate">{profile.email}</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
+          <div className="flex items-center gap-2">
+            {/* Chat with WeHouse button */}
+            <button
+              onClick={handleChatWithWeHouse}
+              className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/30 transition-all"
+              title="Chat with WeHouse"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            </button>
+            <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
+          </div>
         </div>
       </header>
 

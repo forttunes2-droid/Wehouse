@@ -122,6 +122,7 @@ export {
   seedSubcategoriesForCategory,
   // Worker Verification
   submitWorkerVerification,
+  uploadWorkerVerificationVideo,
   getWorkerVerification,
   getVerificationsByStatus,
   reviewWorkerVerification,

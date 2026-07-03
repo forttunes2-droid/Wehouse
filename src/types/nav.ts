@@ -16,6 +16,7 @@ export type NavPage =
   | 'worker_setup'
   | 'worker_dashboard'
   | 'worker_discovery'
+  | 'worker_categories'
   | 'admin'
   | 'staff_dashboard'
   | 'hotels'
