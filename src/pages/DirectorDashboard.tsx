@@ -89,7 +89,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg font-bold text-white">Director Dashboard</span>
+              <span className="text-lg font-bold text-white">Admin Dashboard</span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-indigo-300 bg-white/10 border-white/20">{ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}</span>
             </div>
             <p className="text-xs text-white/60">{scopeState} · Admin Level</p>

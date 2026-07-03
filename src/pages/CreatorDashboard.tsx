@@ -7,7 +7,7 @@ import {
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
-  getPendingInspectionRequests, assignFieldOfficer,
+  assignFieldOfficer,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -2231,24 +2231,19 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
   async function load() {
     setLoading(true);
 
-    // Load user inspection requests (after reservation)
-    const { inspections: data } = await getPendingInspectionRequests();
-    setInspections(data || []);
+    // Load user inspection requests via RPC (bypasses RLS)
+    const { data: userInsp, error: userInspErr } = await supabase.rpc('admin_get_user_inspections');
+    if (userInspErr) console.error('[UserInspections] error:', userInspErr);
+    setInspections(userInsp || []);
 
-    // Load partner inspection requests (property submissions)
-    const { data: partnerData } = await supabase
-      .from('inspection_requests')
-      .select('*, profiles:user_id(username, full_name, phone, email)')
-      .in('status', ['pending', 'scheduled', 'in_progress'])
-      .order('created_at', { ascending: false });
+    // Load partner inspection requests via RPC (bypasses RLS)
+    const { data: partnerData, error: partnerErr } = await supabase.rpc('admin_get_partner_inspections');
+    if (partnerErr) console.error('[PartnerInspections] error:', partnerErr);
     setPartnerInspections(partnerData || []);
 
-    // Load field officers
-    const { data: officers } = await supabase
-      .from('profiles')
-      .select('user_id, username, full_name, phone')
-      .in('role', ['staff', 'admin', 'field_officer'])
-      .is('deleted_at', null);
+    // Load field officers via RPC
+    const { data: officers, error: officersErr } = await supabase.rpc('admin_get_field_officers');
+    if (officersErr) console.error('[FieldOfficers] error:', officersErr);
     setFieldOfficers(officers || []);
 
     setLoading(false);
@@ -2321,11 +2316,11 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
             className="w-full flex items-center gap-3 p-4 text-left"
           >
             <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center text-[#3B82F6] text-sm font-bold flex-shrink-0">
-              {(insp.profiles?.username || 'U')[0].toUpperCase()}
+              {(insp.username || 'U')[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-white truncate">@{insp.profiles?.username || 'Unknown'}</span>
+                <span className="text-sm font-semibold text-white truncate">@{insp.username || 'Unknown'}</span>
                 <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusBadge(insp.status)}`}>
                   {insp.status}
                 </span>
@@ -2354,8 +2349,9 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
               {/* User Info */}
               <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">User Details</p>
-                <p className="text-xs text-white">Name: {insp.profiles?.full_name || insp.profiles?.username || 'N/A'}</p>
-                <p className="text-xs text-white">Phone: {insp.profiles?.phone || 'Not provided'}</p>
+                <p className="text-xs text-white">Name: {insp.full_name || insp.username || 'N/A'}</p>
+                <p className="text-xs text-white">Email: {insp.owner_email || 'N/A'}</p>
+                <p className="text-xs text-white">Phone: {insp.phone || insp.owner_phone || 'Not provided'}</p>
                 <p className="text-[10px] text-[#5C5E72]">Requested: {new Date(insp.created_at).toLocaleDateString()}</p>
               </div>
 
@@ -2425,11 +2421,11 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
                   className="w-full flex items-center gap-3 p-4 text-left"
                 >
                   <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-400 text-sm font-bold flex-shrink-0">
-                    {(insp.profiles?.username || 'P')[0].toUpperCase()}
+                    {(insp.username || 'P')[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white truncate">@{insp.profiles?.username || 'Unknown'}</span>
+                      <span className="text-sm font-semibold text-white truncate">@{insp.username || 'Unknown'}</span>
                       <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusBadge(insp.status)}`}>
                         {insp.status}
                       </span>
@@ -2459,7 +2455,7 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
                     {/* Partner Info */}
                     <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
                       <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Partner Contact</p>
-                      <p className="text-xs text-white">Name: {insp.profiles?.full_name || insp.profiles?.username || 'N/A'}</p>
+                      <p className="text-xs text-white">Name: {insp.full_name || insp.username || 'N/A'}</p>
                       <p className="text-xs text-white">Email: {insp.owner_email || 'N/A'}</p>
                       <p className="text-xs text-white">Phone: {insp.owner_phone || 'Not provided'}</p>
                       <p className="text-[10px] text-[#5C5E72]">Submitted: {new Date(insp.created_at).toLocaleDateString()}</p>

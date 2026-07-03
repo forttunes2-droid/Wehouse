@@ -211,7 +211,7 @@ function StaffCoordinationTab({ profile: _profile }: { profile: Profile }) {
       const { data } = await supabase
         .from('profiles')
         .select('*')
-        .in('role', ['staff', 'admin', 'state_admin', 'assistant_state_admin', 'director'])
+        .in('role', ['staff', 'admin', 'state_admin', 'assistant_state_admin', 'creator'])
         .order('created_at', { ascending: false });
       setStaff(data || []);
       setLoading(false);
