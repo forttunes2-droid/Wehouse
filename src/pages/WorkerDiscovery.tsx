@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getAllWorkers, getCategoryWithSubcategories, getOrCreateConversation } from '@/lib/supabase';
+import { getAllWorkers, getCategoryWithSubcategories, getOrCreateConversation, supabase } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS } from '@/types';
 import type { Profile, ServiceCategory } from '@/types';
 import { toast, Toaster } from 'sonner';
@@ -131,7 +131,45 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
     }
   }
 
-  const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [selectedState]);
+  // ─── Worker Stats (jobs done + rating) ──────────
+function WorkerStats({ workerId }: { workerId: string }) {
+  const [stats, setStats] = useState({ completedJobs: 0, avgRating: 0 });
+
+  useEffect(() => {
+    async function load() {
+      const { count: jobs } = await supabase
+        .from('worker_bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('worker_id', workerId)
+        .eq('status', 'approved_released');
+
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('reviewee_id', workerId);
+
+      const avg = reviews && reviews.length > 0
+        ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length)
+        : 0;
+
+      setStats({ completedJobs: jobs || 0, avgRating: avg });
+    }
+    load();
+  }, [workerId]);
+
+  return (
+    <div className="flex items-center gap-3 mt-1">
+      <span className="text-[9px] text-[#5C5E72] flex items-center gap-0.5">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+        {stats.avgRating > 0 ? stats.avgRating.toFixed(1) : 'No ratings'}
+      </span>
+      <span className="text-[9px] text-[#5C5E72]">·</span>
+      <span className="text-[9px] text-[#5C5E72]">{stats.completedJobs} jobs done</span>
+    </div>
+  );
+}
+
+const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [selectedState]);
   const hasActiveFilters = selectedState !== '' || selectedCity !== '' || selectedCategory !== null || searchQuery.trim() !== '';
 
   return (
@@ -322,6 +360,8 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
                           </span>
                         )}
                       </div>
+                      {/* Job count + star rating */}
+                      <WorkerStats workerId={w.user_id} />
                     </div>
                   </div>
                   {w.worker_bio && <p className="text-xs text-[#8A8B9C] mt-2 line-clamp-2">{w.worker_bio}</p>}
