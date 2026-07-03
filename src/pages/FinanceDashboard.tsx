@@ -49,7 +49,7 @@ export default function FinanceDashboard({ onLogout, onNavigate }: FinanceDashbo
       {/* Monitor-only badge */}
       <div className="mx-5 mt-3 px-3 py-1.5 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center gap-2">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-        <p className="text-[10px] text-blue-400">Monitor-only mode. Payouts are processed automatically via Paystack.</p>
+        <p className="text-[10px] text-blue-400">Monitor-only mode. Payouts will be automatic via Paystack (when connected).</p>
       </div>
 
       {/* Tabs */}

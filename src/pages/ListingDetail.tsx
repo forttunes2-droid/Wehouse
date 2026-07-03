@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getListing, createEnquiry, createReservation, getPublicAgentByUserId, getOrCreateConversation } from '@/lib/supabase';
+import { getListing, createEnquiry, getPublicAgentByUserId, getOrCreateConversation } from '@/lib/supabase';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS, WEHOUSE_FEES } from '@/types';
 import type { Listing, Profile, ListingStatus, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
@@ -21,7 +21,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
   const [showReservePopup, setShowReservePopup] = useState(false);
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [sendingEnquiry, setSendingEnquiry] = useState(false);
-  const [reserving, setReserving] = useState(false);
+
   const [agentInfo, setAgentInfo] = useState<{ user_id: string; username: string | null; avatar_url: string | null; role: string; phone: string | null } | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<{ durationYears: RentalDuration; year1Upfront: number; monthlyInstallment: number } | null>(null);
@@ -79,23 +79,9 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
 
   async function handleReserve() {
     if (!profile) { toast.error('Please login first'); return; }
-    setReserving(true);
-    const { error, alreadyExists } = await createReservation(
-      listingId,
-      profile.user_id,
-      {
-        title: listing?.title || '',
-        price: listing?.price || 0,
-        location: `${listing?.city || ''}, ${listing?.state || ''}`,
-      }
-    );
-    setReserving(false);
-    if (error) { toast.error('Reservation failed: ' + error.message); return; }
-    if (alreadyExists) {
-      toast.info('You already have a pending reservation for this property');
-    } else {
-      toast.success('Reservation created! Contact support to complete.');
-    }
+    // NOTE: Online reservations require Paystack (Phase 8).
+    // Until then, we just show the rental plan breakdown.
+    // No database record is created until payment is confirmed.
     setShowReservePopup(true);
   }
 
@@ -221,8 +207,8 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
               <span className="text-xs text-[#5C5E72]">Reservation Fee (72hr hold)</span>
               <span className="text-sm font-bold text-[#3B82F6]">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
             </div>
-            <button onClick={handleReserve} disabled={reserving} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2">
-              {reserving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>Choose Rental Plan</>}
+            <button onClick={handleReserve} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>View Rental Plans
             </button>
           </div>
         )}
@@ -311,31 +297,52 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                 onSelectPlan={setSelectedPlan}
               />
 
-              {/* Pay Button */}
+              {/* Reservation Action — Online payments coming soon */}
               {selectedPlan && (
-                <div className="mt-4 space-y-2">
+                <div className="mt-4 space-y-3">
+                  {/* Coming Soon Banner */}
+                  <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2.5">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                      <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+                    </svg>
+                    <div>
+                      <p className="text-[11px] font-medium text-amber-400">Online Booking Coming Soon</p>
+                      <p className="text-[10px] text-[#5C5E72] mt-0.5">
+                        Online reservations with Paystack are not yet live.
+                        To reserve this property, contact us at support@wehouse.com.ng or use the chat below.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Fee Breakdown (informational only) */}
+                  <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1.5">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[#5C5E72]">Reservation Fee (when live)</span>
+                      <span className="text-white">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[#5C5E72]">Year 1 Rent (after inspection)</span>
+                      <span className="text-white">N{selectedPlan.year1Upfront.toLocaleString()}</span>
+                    </div>
+                    {selectedPlan.durationYears > 1 && (
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#5C5E72]">Monthly Installment (Yr 2+)</span>
+                        <span className="text-white">N{selectedPlan.monthlyInstallment.toLocaleString()}/mo</span>
+                      </div>
+                    )}
+                    <div className="border-t border-[#232330] pt-1.5 flex justify-between text-[10px]">
+                      <span className="text-[#5C5E72]">Security Deposit ({WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT}%)</span>
+                      <span className="text-white">N{Math.max(Math.round(listing.price * WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100), WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN).toLocaleString()}</span>
+                    </div>
+                  </div>
+
                   <button
-                    onClick={async () => {
-                      setReserving(true);
-                      const { error, alreadyExists } = await createReservation(
-                        listingId, profile.user_id,
-                        { title: listing.title, price: listing.price || 0, location: `${listing.city}, ${listing.state}` }
-                      );
-                      setReserving(false);
-                      if (error) { toast.error('Reservation failed: ' + error.message); return; }
-                      if (alreadyExists) { toast.info('You already have a pending reservation'); return; }
-                      toast.success('Reservation created! Complete payment via Paystack.');
-                      setShowReservePopup(false);
-                    }}
-                    disabled={reserving}
-                    className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-semibold text-sm hover:bg-[#2563EB] transition-colors disabled:opacity-50 active:scale-[0.98]"
+                    onClick={() => { toast.info('Contact support@wehouse.com.ng to reserve this property'); }}
+                    className="w-full h-12 rounded-xl bg-[#3B82F6]/30 text-[#3B82F6] font-semibold text-sm cursor-not-allowed opacity-60"
+                    disabled
                   >
-                    {reserving ? 'Creating...' : `Pay Reservation Fee N${WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()} via Paystack`}
+                    Online Reservations — Coming Soon
                   </button>
-                  <p className="text-[9px] text-center text-[#5C5E72]">
-                    The reservation fee holds this property for 72 hours. After inspection, you will pay Year 1 rent.
-                    {selectedPlan.durationYears > 1 && ` Subsequent years are N${selectedPlan.monthlyInstallment.toLocaleString()}/month via Paystack.`}
-                  </p>
                 </div>
               )}
 

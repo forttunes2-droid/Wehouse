@@ -441,6 +441,30 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </section>
 
+      {/* ═══ FIND WORKERS ═══ */}
+      <section className="mt-10 px-5 relative z-[1]">
+        <div
+          onClick={() => onNavigate('worker_discovery')}
+          className="relative rounded-2xl overflow-hidden cursor-pointer group"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-[#3B82F6]/20 to-[#7C3AED]/20 border border-[#3B82F6]/20 rounded-2xl" />
+          <div className="relative p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#3B82F6]/15 flex items-center justify-center flex-shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-white group-hover:text-[#3B82F6] transition-colors">Find Verified Workers</h3>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Electricians, plumbers, cleaners, barbers & more in your area</p>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" className="flex-shrink-0 group-hover:translate-x-1 transition-transform">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </div>
+      </section>
+
       {/* ═══ FOOTER CTA ═══ */}
       <section className="mt-10 px-5 pb-4 relative z-[1]">
         <div className="relative rounded-3xl overflow-hidden h-[200px]">

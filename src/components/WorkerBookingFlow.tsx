@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { WEHOUSE_FEES, WORKER_BOOKING_STATUS_LABELS } from '@/types';
 import type { WorkerBookingStatus } from '@/types';
+import { toast } from 'sonner';
 
 interface Props {
   workerName: string;
   workerService: string;
-  onBook: (details: { amount: number; description: string; address: string; date: string }) => void;
+  onBook?: (details: { amount: number; description: string; address: string; date: string }) => void; // Reserved for Paystack integration (Phase 8)
   bookingStatus?: WorkerBookingStatus;
   bookingDetails?: {
     agreed_amount: number;
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export default function WorkerBookingFlow({
-  workerName, workerService, onBook, bookingStatus, bookingDetails, onApproveWork, onMarkComplete,
+  workerName, workerService, onBook: _onBook, bookingStatus, bookingDetails, onApproveWork, onMarkComplete,
 }: Props) {
   const [step, setStep] = useState<'form' | 'review' | 'payment'>('form');
   const [amount, setAmount] = useState('');
@@ -32,11 +33,6 @@ export default function WorkerBookingFlow({
   const workerCommission = Math.round(numAmount * (WEHOUSE_FEES.WORKER_COMMISSION_PERCENT / 100));
   const workerReceives = numAmount - workerCommission;
   const userPays = numAmount + wehouseFee;
-
-  const handleSubmit = () => {
-    if (numAmount < 1000) return;
-    onBook({ amount: numAmount, description, address, date });
-  };
 
   // If there's an active booking, show status
   if (bookingStatus && bookingDetails) {
@@ -136,8 +132,26 @@ export default function WorkerBookingFlow({
             </p>
           </div>
 
-          <button onClick={handleSubmit} className="w-full h-11 rounded-xl bg-[#3B82F6] text-white font-semibold text-sm hover:bg-[#2563EB] transition-colors active:scale-[0.98]">
-            Pay N{userPays.toLocaleString()} via Paystack
+          {/* Coming Soon Banner */}
+          <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+            </svg>
+            <div>
+              <p className="text-[11px] font-medium text-amber-400">Online Booking Coming Soon</p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">
+                To book this worker, contact them via chat or email support@wehouse.com.ng.
+                When Paystack is connected, payment will be processed automatically with escrow protection.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => { toast.info('Contact support@wehouse.com.ng or chat with the worker to arrange booking'); }}
+            className="w-full h-11 rounded-xl bg-[#3B82F6]/30 text-[#3B82F6] font-semibold text-sm cursor-not-allowed opacity-60"
+            disabled
+          >
+            Online Booking — Coming Soon
           </button>
           <button onClick={() => setStep('form')} className="w-full h-9 text-[11px] text-[#5C5E72] hover:text-white transition-colors">
             Go Back

@@ -1,72 +1,15 @@
-import { useState } from 'react';
-import { createBlueBadgeSubscription } from '@/lib/supabase';
 import { WEHOUSE_FEES } from '@/types';
-import { toast } from 'sonner';
 
 interface BlueBadgeSubscribeProps {
   workerId: string;
   onSuccess?: () => void;
 }
 
-const BLUE_BADGE_PRICE = WEHOUSE_FEES.BLUE_BADGE_PRICE_NGN; // N1,000 per month from fee config
+// NOTE: Blue Badge subscriptions require Paystack integration.
+// This component shows the offering but does not process payments.
+// When PAYSTACK_ENABLED is true, this will redirect to Paystack checkout.
 
-export default function BlueBadgeSubscribe({ workerId, onSuccess }: BlueBadgeSubscribeProps) {
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubscribe() {
-    setLoading(true);
-
-    // Initialize Paystack payment
-    try {
-      const response = await fetch('/api/paystack/initialize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: '', // Will be filled from profile
-          amount: BLUE_BADGE_PRICE * 100, // kobo
-          metadata: {
-            type: 'blue_badge',
-            worker_id: workerId,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        // Fallback: simulate successful payment for now
-        // In production, this would redirect to Paystack
-        const mockRef = `BB_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const { error } = await createBlueBadgeSubscription(workerId, mockRef, BLUE_BADGE_PRICE);
-
-        if (error) {
-          toast.error('Subscription failed. Please try again.');
-        } else {
-          toast.success('Blue Badge activated!');
-          onSuccess?.();
-        }
-        setLoading(false);
-        return;
-      }
-
-      const data = await response.json();
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      }
-    } catch {
-      // Fallback for development
-      const mockRef = `BB_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const { error } = await createBlueBadgeSubscription(workerId, mockRef, BLUE_BADGE_PRICE);
-
-      if (error) {
-        toast.error('Subscription failed. Please try again.');
-      } else {
-        toast.success('Blue Badge activated!');
-        onSuccess?.();
-      }
-    }
-
-    setLoading(false);
-  }
-
+export default function BlueBadgeSubscribe({}: BlueBadgeSubscribeProps) {
   return (
     <div className="bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-purple-500/10 border border-blue-500/20 rounded-2xl p-5">
       <div className="flex items-center gap-3 mb-4">
@@ -100,26 +43,29 @@ export default function BlueBadgeSubscribe({ workerId, onSuccess }: BlueBadgeSub
 
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-xs text-[#5C5E72]">Monthly</p>
-          <p className="text-xl font-bold text-white">₦{BLUE_BADGE_PRICE.toLocaleString()}</p>
+          <p className="text-xs text-[#5C5E72]">Monthly (when live)</p>
+          <p className="text-xl font-bold text-white">N{WEHOUSE_FEES.BLUE_BADGE_PRICE_NGN.toLocaleString()}</p>
         </div>
-        <button
-          onClick={handleSubscribe}
-          disabled={loading}
-          className="px-5 py-2.5 rounded-xl bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Processing...' : 'Subscribe'}
-        </button>
       </div>
 
-      <p className="text-[9px] text-[#5C5E72] mt-3">
-        This is the only subscription on WeHouse. Cancel anytime. No refunds.
-      </p>
+      {/* Coming Soon Banner */}
+      <div className="mt-4 rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2.5">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+          <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+        </svg>
+        <div>
+          <p className="text-[11px] font-medium text-amber-400">Subscriptions Coming Soon</p>
+          <p className="text-[10px] text-[#5C5E72] mt-0.5">
+            Blue Badge subscriptions will be available once Paystack is connected.
+            This will be the only subscription on WeHouse.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
 
-// Blue Badge indicator chip for worker cards
+// Blue Badge indicator chip for worker cards (shown when worker has active subscription)
 export function BlueBadgeChip({ size = 'sm' }: { size?: 'sm' | 'md' }) {
   const sizeClasses = size === 'sm'
     ? 'text-[8px] px-1.5 py-0.5 gap-0.5'

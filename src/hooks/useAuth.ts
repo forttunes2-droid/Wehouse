@@ -145,6 +145,7 @@ export function useAuth() {
     if (!profile) return 'login';
     if (!profile.profile_complete && profile.role === 'worker') return 'worker_setup';
     if (!profile.profile_complete) return 'setup';
+    if (profile.role === 'worker') return 'worker_dashboard';
     if (isCreator(profile.role)) return 'creator';
     if (profile.role === 'admin') return 'admin';
     if (profile.role === 'staff') return 'staff_dashboard';
