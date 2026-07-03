@@ -2218,6 +2218,8 @@ function PermissionsTab({ profile }: { profile: Profile }) {
 
 function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
   const [inspections, setInspections] = useState<any[]>([]);
+  const [partnerInspections, setPartnerInspections] = useState<any[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<'user' | 'partner'>('user');
   const [fieldOfficers, setFieldOfficers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -2228,8 +2230,18 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
 
   async function load() {
     setLoading(true);
+
+    // Load user inspection requests (after reservation)
     const { inspections: data } = await getPendingInspectionRequests();
     setInspections(data || []);
+
+    // Load partner inspection requests (property submissions)
+    const { data: partnerData } = await supabase
+      .from('inspection_requests')
+      .select('*, profiles:user_id(username, full_name, phone, email)')
+      .in('status', ['pending', 'scheduled', 'in_progress'])
+      .order('created_at', { ascending: false });
+    setPartnerInspections(partnerData || []);
 
     // Load field officers
     const { data: officers } = await supabase
@@ -2264,30 +2276,45 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
     return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
 
-  if (inspections.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-        </div>
-        <p className="text-sm text-[#8A8B9C]">No inspection requests yet</p>
-        <p className="text-xs text-[#5C5E72] mt-1">When users request inspection after reservation, they&apos;ll appear here.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-white">User Inspection Requests</h3>
-          <p className="text-[10px] text-[#5C5E72]">{inspections.length} request{inspections.length !== 1 ? 's' : ''} · Assign field officers to pending inspections</p>
+          <h3 className="text-sm font-semibold text-white">Inspection Management</h3>
+          <p className="text-[10px] text-[#5C5E72]">
+            {inspections.length + partnerInspections.length} total active · Assign field officers
+          </p>
         </div>
         <button onClick={load} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">Refresh</button>
       </div>
 
-      {inspections.map((insp) => (
-        <div key={insp.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
+      {/* Sub-tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveSubTab('user')}
+          className={`flex-1 h-9 rounded-xl text-xs font-medium transition-all ${activeSubTab === 'user' ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'}`}
+        >
+          User ({inspections.length})
+        </button>
+        <button
+          onClick={() => setActiveSubTab('partner')}
+          className={`flex-1 h-9 rounded-xl text-xs font-medium transition-all ${activeSubTab === 'partner' ? 'bg-violet-500 text-white' : 'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'}`}
+        >
+          Partner ({partnerInspections.length})
+        </button>
+      </div>
+
+      {/* User Inspections */}
+      {activeSubTab === 'user' && (
+        <>
+          {inspections.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-[#8A8B9C]">No user inspection requests</p>
+              <p className="text-xs text-[#5C5E72] mt-1">Users request inspection after reserving a property.</p>
+            </div>
+          ) : (
+            inspections.map((insp) => (
+              <div key={insp.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
           {/* Header */}
           <button
             onClick={() => setExpandedId(expandedId === insp.id ? null : insp.id)}
@@ -2377,7 +2404,135 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
             </div>
           )}
         </div>
-      ))}
+      )))}
+        </>
+      )}
+
+      {/* Partner Inspections (Property Submissions) */}
+      {activeSubTab === 'partner' && (
+        <>
+          {partnerInspections.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-[#8A8B9C]">No partner inspection requests</p>
+              <p className="text-xs text-[#5C5E72] mt-1">Property partners submit inspection requests through their dashboard.</p>
+            </div>
+          ) : (
+            partnerInspections.map((insp: any) => (
+              <div key={insp.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
+                {/* Header */}
+                <button
+                  onClick={() => setExpandedId(expandedId === insp.id ? null : insp.id)}
+                  className="w-full flex items-center gap-3 p-4 text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-400 text-sm font-bold flex-shrink-0">
+                    {(insp.profiles?.username || 'P')[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-white truncate">@{insp.profiles?.username || 'Unknown'}</span>
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusBadge(insp.status)}`}>
+                        {insp.status}
+                      </span>
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
+                    </div>
+                    <p className="text-[10px] text-[#5C5E72] truncate">
+                      {insp.request_code} · {insp.property_address}, {insp.property_city}
+                    </p>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`flex-shrink-0 transition-transform ${expandedId === insp.id ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+
+                {/* Expanded Details */}
+                {expandedId === insp.id && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
+                    {/* Property Info */}
+                    <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
+                      <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Property Details</p>
+                      <p className="text-xs text-white">Type: {insp.property_type}</p>
+                      <p className="text-xs text-white">Address: {insp.property_address}</p>
+                      <p className="text-xs text-white">Location: {insp.property_city}, {insp.property_state}</p>
+                      {insp.bedrooms && <p className="text-xs text-white">Bedrooms: {insp.bedrooms}</p>}
+                      {insp.expected_rent && <p className="text-xs text-white">Expected Rent: N{insp.expected_rent.toLocaleString()}</p>}
+                      {insp.description && <p className="text-xs text-[#8A8B9C] mt-1">{insp.description}</p>}
+                    </div>
+
+                    {/* Partner Info */}
+                    <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
+                      <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Partner Contact</p>
+                      <p className="text-xs text-white">Name: {insp.profiles?.full_name || insp.profiles?.username || 'N/A'}</p>
+                      <p className="text-xs text-white">Email: {insp.owner_email || 'N/A'}</p>
+                      <p className="text-xs text-white">Phone: {insp.owner_phone || 'Not provided'}</p>
+                      <p className="text-[10px] text-[#5C5E72]">Submitted: {new Date(insp.created_at).toLocaleDateString()}</p>
+                    </div>
+
+                    {/* Photos */}
+                    {insp.photo_urls && insp.photo_urls.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {insp.photo_urls.map((url: string, i: number) => (
+                          <img key={i} src={url} alt="" className="w-20 h-20 rounded-xl object-cover flex-shrink-0" />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Assign Field Officer */}
+                    {insp.status === 'pending' && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Assign Field Officer</p>
+                        {fieldOfficers.length === 0 ? (
+                          <p className="text-xs text-amber-400">No field officers available. Assign staff first.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {fieldOfficers.map((officer) => (
+                              <button
+                                key={officer.user_id}
+                                onClick={async () => {
+                                  const { error } = await supabase.from('inspection_requests').update({
+                                    field_officer_id: officer.user_id,
+                                    assigned_to: officer.user_id,
+                                    status: 'scheduled',
+                                    updated_at: new Date().toISOString(),
+                                  }).eq('id', insp.id);
+                                  if (error) { toast.error('Failed: ' + error.message); return; }
+                                  toast.success(`Assigned to ${officer.username || officer.full_name}`);
+                                  load();
+                                }}
+                                className="h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[11px] text-white hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors"
+                              >
+                                @{officer.username || officer.full_name || 'Unknown'}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Assigned officer info */}
+                    {insp.field_officer_id && (
+                      <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
+                        <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
+                        <p className="text-xs text-white mt-1">
+                          {fieldOfficers.find(o => o.user_id === insp.field_officer_id)?.username || 'Unknown officer'}
+                        </p>
+                        {insp.scheduled_date && (
+                          <p className="text-[10px] text-[#5C5E72]">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Rejection */}
+                    {insp.status === 'rejected' && insp.rejection_reason && (
+                      <div className="rounded-xl bg-red-500/5 border border-red-500/10 p-3">
+                        <p className="text-[10px] text-red-400 uppercase tracking-wider">Rejection Reason</p>
+                        <p className="text-xs text-red-300 mt-1">{insp.rejection_reason}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </>
+      )}
     </div>
   );
 }

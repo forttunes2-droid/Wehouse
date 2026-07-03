@@ -67,10 +67,7 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
         .from('property_partners')
         .insert({
           profile_id: profile.user_id,
-          full_name: profile.full_name || profile.username || 'Partner',
-          email: profile.email,
-          phone: profile.phone || '',
-          is_verified: false,
+          partner_code: 'WH-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
           status: 'active',
         })
         .select('id')
@@ -92,20 +89,18 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
   useEffect(() => {
     if (!partnerId) return;
     async function loadStats() {
-      const [{ count: ap }, { count: rp }, { count: b }, { data: payouts }] = await Promise.all([
-        supabase.from('properties').select('*', { count: 'exact', head: true }).eq('partner_id', partnerId),
-        supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('partner_id', partnerId).eq('status', 'pending'),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('partner_id', partnerId),
-        supabase.from('property_payouts').select('amount').eq('partner_id', partnerId).eq('status', 'paid'),
+      const [{ count: ap }, { count: rp }, { count: b }] = await Promise.all([
+        supabase.from('listings').select('*', { count: 'exact', head: true }).eq('partner_id', profile.user_id),
+        supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('owner_id', profile.user_id).eq('status', 'pending'),
+        supabase.from('reservations').select('*', { count: 'exact', head: true }).eq('user_id', profile.user_id),
       ]);
-      const earnings = (payouts || []).reduce((s, p) => s + (p.amount || 0), 0);
       setStats({
         totalProperties: ap || 0, activeProperties: ap || 0, pendingRequests: rp || 0,
-        totalBookings: b || 0, totalEarnings: earnings,
+        totalBookings: b || 0, totalEarnings: 0,
       });
     }
     loadStats();
-  }, [partnerId]);
+  }, [partnerId, profile.user_id]);
 
   const TABS: { id: OwnerTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -203,11 +198,11 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
 
       <main className="px-5 py-4 max-w-lg mx-auto">
         {activeTab === 'overview' && <OverviewTab stats={stats} onTab={setActiveTab} />}
-        {activeTab === 'properties' && <PropertiesTab partnerId={partnerId} />}
-        {activeTab === 'request' && <RequestInspectionTab partnerId={partnerId} onSubmitted={() => setActiveTab('requests')} />}
-        {activeTab === 'requests' && <RequestsTab partnerId={partnerId} />}
-        {activeTab === 'bookings' && <BookingsTab partnerId={partnerId} />}
-        {activeTab === 'earnings' && <EarningsTab partnerId={partnerId} />}
+        {activeTab === 'properties' && <PropertiesTab profileId={profile.user_id} />}
+        {activeTab === 'request' && <RequestInspectionTab profile={profile} onSubmitted={() => setActiveTab('requests')} />}
+        {activeTab === 'requests' && <RequestsTab profileId={profile.user_id} />}
+        {activeTab === 'bookings' && <BookingsTab profileId={profile.user_id} />}
+        {activeTab === 'earnings' && <EarningsTab profileId={profile.user_id} />}
       </main>
     </div>
   );
@@ -274,19 +269,18 @@ function OverviewTab({ stats, onTab }: { stats: any; onTab: (t: OwnerTab) => voi
 // MY PROPERTIES TAB
 // ═══════════════════════════════════════════════════════════════
 
-function PropertiesTab({ partnerId }: { partnerId: string | null }) {
+function PropertiesTab({ profileId }: { profileId: string }) {
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!partnerId) { setLoading(false); return; }
     async function load() {
-      const { data } = await supabase.from('properties').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
+      const { data } = await supabase.from('listings').select('*').eq('partner_id', profileId).order('created_at', { ascending: false });
       setProperties(data || []);
       setLoading(false);
     }
     load();
-  }, [partnerId]);
+  }, [profileId]);
 
   if (loading) return <Spinner />;
   if (!properties.length) return <Empty title="No properties yet" desc="Submit an inspection request. Once approved by WeHouse staff, your properties will appear here." />;
@@ -348,7 +342,7 @@ interface DraftProperty {
   uploading: boolean;
 }
 
-function RequestInspectionTab({ partnerId, onSubmitted }: { partnerId: string | null; onSubmitted?: () => void }) {
+function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSubmitted?: () => void }) {
   const [properties, setProperties] = useState<DraftProperty[]>([]);
   const [draft, setDraft] = useState<DraftProperty>({
     id: '', category: 'apartment', sub_type: '', property_state: '', property_city: '',
@@ -408,21 +402,36 @@ function RequestInspectionTab({ partnerId, onSubmitted }: { partnerId: string | 
 
   const submitAll = async () => {
     if (properties.length === 0) { toast.error('Add at least one property'); return; }
-    if (!partnerId) { toast.error('Partner account not found'); return; }
     setSubmitting(true);
 
-    const inserts = properties.map(p => ({
-      partner_id: partnerId,
-      property_type: p.category === 'apartment' ? `apartment_${p.sub_type}` : 'hotel',
+    // Generate sequential request codes
+    const { data: maxCode } = await supabase
+      .from('inspection_requests')
+      .select('request_code')
+      .order('request_code', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let nextNum = 1;
+    if (maxCode?.request_code) {
+      const match = maxCode.request_code.match(/(\d+)$/);
+      if (match) nextNum = parseInt(match[1]) + 1;
+    }
+
+    const inserts = properties.map((p, i) => ({
+      request_code: `WHIR-${String(nextNum + i).padStart(5, '0')}`,
+      owner_id: profile.user_id,
+      owner_email: profile.email,
+      owner_phone: profile.phone || '',
       property_address: p.property_address,
       property_city: p.property_city,
       property_state: p.property_state,
+      property_type: p.category === 'apartment' ? 'apartment' : 'house',
       bedrooms: parseInt(p.bedrooms) || null,
       bathrooms: parseInt(p.bathrooms) || null,
       expected_rent: p.expected_rent ? parseFloat(p.expected_rent) : null,
       description: p.description,
-      amenities: p.amenities,
-      photo_urls: p.photoUrls,
+      amenities: p.amenities || [],
+      photo_urls: p.photoUrls || [],
       status: 'pending' as const,
     }));
 
@@ -431,7 +440,7 @@ function RequestInspectionTab({ partnerId, onSubmitted }: { partnerId: string | 
 
     if (error) { toast.error('Failed: ' + error.message); return; }
 
-    toast.success(`${properties.length} inspection request(s) submitted! WeHouse will assign a field officer.`);
+    toast.success(`${properties.length} inspection request(s) submitted! WeHouse will review and assign a field officer.`);
     setProperties([]);
     resetDraft();
     onSubmitted?.();
@@ -607,17 +616,16 @@ function RequestInspectionTab({ partnerId, onSubmitted }: { partnerId: string | 
 // MY REQUESTS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function RequestsTab({ partnerId }: { partnerId: string | null }) {
+function RequestsTab({ profileId }: { profileId: string }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!partnerId) { setLoading(false); return; }
     load();
-  }, [partnerId]);
+  }, [profileId]);
 
   async function load() {
-    const { data } = await supabase.from('inspection_requests').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('inspection_requests').select('*').eq('owner_id', profileId).order('created_at', { ascending: false });
     setRequests(data || []);
     setLoading(false);
   }
@@ -674,39 +682,41 @@ function RequestsTab({ partnerId }: { partnerId: string | null }) {
 // BOOKINGS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function BookingsTab({ partnerId }: { partnerId: string | null }) {
+function BookingsTab({ profileId }: { profileId: string }) {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!partnerId) { setLoading(false); return; }
     async function load() {
-      const { data } = await supabase.from('bookings').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
+      // Get reservations for this partner's listings
+      const { data: listings } = await supabase.from('listings').select('listing_id').eq('partner_id', profileId);
+      const listingIds = (listings || []).map((l: any) => l.listing_id);
+      if (listingIds.length === 0) { setBookings([]); setLoading(false); return; }
+      const { data } = await supabase.from('reservations').select('*').in('listing_id', listingIds).order('created_at', { ascending: false });
       setBookings(data || []);
       setLoading(false);
     }
     load();
-  }, [partnerId]);
+  }, [profileId]);
 
   if (loading) return <Spinner />;
   if (!bookings.length) return <Empty title="No bookings yet" desc="Bookings will appear here once users start reserving your listed properties." />;
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Bookings ({bookings.length})</h3>
-      {bookings.map(b => (
+      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Reservations ({bookings.length})</h3>
+      {bookings.map((b: any) => (
         <div key={b.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-white">{b.booking_code || 'Booking'}</p>
+            <p className="text-sm font-semibold text-white">{b.listing_title || 'Reservation'}</p>
             <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
               b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400' :
               b.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
               'bg-red-500/10 text-red-400'
             }`}>{b.status}</span>
           </div>
-          <p className="text-[10px] text-[#5C5E72]">Check-in: {b.check_in} · {b.nights} night(s)</p>
-          <p className="text-[10px] text-[#5C5E72]">Guest: {b.guest_name || '—'} · {b.guest_phone || '—'}</p>
-          <p className="text-xs font-semibold text-white mt-2">N{(b.total_amount || 0).toLocaleString()}</p>
+          <p className="text-[10px] text-[#5C5E72]">Amount: N{(b.amount || 0).toLocaleString()}</p>
+          <p className="text-[10px] text-[#5C5E72]">Plan: {b.rental_plan_years || 1} year(s)</p>
         </div>
       ))}
     </div>
@@ -717,19 +727,23 @@ function BookingsTab({ partnerId }: { partnerId: string | null }) {
 // EARNINGS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function EarningsTab({ partnerId }: { partnerId: string | null }) {
+function EarningsTab({ profileId }: { profileId: string }) {
   const [payouts, setPayouts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!partnerId) { setLoading(false); return; }
     async function load() {
-      const { data } = await supabase.from('property_payouts').select('*').eq('partner_id', partnerId).order('created_at', { ascending: false });
-      setPayouts(data || []);
+      // property_payouts table may not exist yet - wrap in try/catch
+      try {
+        const { data } = await supabase.from('property_payouts').select('*').eq('partner_id', profileId).order('created_at', { ascending: false });
+        setPayouts(data || []);
+      } catch {
+        setPayouts([]);
+      }
       setLoading(false);
     }
     load();
-  }, [partnerId]);
+  }, [profileId]);
 
   if (loading) return <Spinner />;
   const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
