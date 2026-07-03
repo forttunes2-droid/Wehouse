@@ -77,11 +77,153 @@ export async function cancelReservation(reservationId: string) {
   return { error };
 }
 
+export async function updateReservationPlan(reservationId: string, planYears: number) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .update({ rental_plan_years: planYears, rental_plan_selected_at: new Date().toISOString() })
+    .eq('id', reservationId)
+    .select()
+    .maybeSingle();
+  return { reservation: data as any, error };
+}
+
 export async function markSupportContacted(reservationId: string) {
   const { error } = await supabase
     .from('reservations')
     .update({ support_contacted: true, updated_at: new Date().toISOString() })
     .eq('id', reservationId);
+  return { error };
+}
+
+// ═══════════════════════════════════════════════════════════
+// USER INSPECTION REQUESTS (after reservation)
+// ═══════════════════════════════════════════════════════════
+
+export async function createInspectionRequest(
+  reservationId: string,
+  listingId: string,
+  userId: string,
+  notes?: string
+) {
+  // Check if one already exists for this reservation
+  const { data: existing } = await supabase
+    .from('user_inspection_requests')
+    .select('id')
+    .eq('reservation_id', reservationId)
+    .in('status', ['pending', 'scheduled', 'in_progress'])
+    .maybeSingle();
+
+  if (existing) {
+    return { inspection: existing as any, error: null, alreadyExists: true };
+  }
+
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .insert({
+      reservation_id: reservationId,
+      listing_id: listingId,
+      user_id: userId,
+      notes: notes || null,
+      status: 'pending',
+    })
+    .select()
+    .maybeSingle();
+
+  return { inspection: data as any, error, alreadyExists: false };
+}
+
+export async function getInspectionRequestForReservation(reservationId: string) {
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .select('*, listings(title, city, state, images)')
+    .eq('reservation_id', reservationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return { inspection: data as any, error };
+}
+
+export async function getInspectionRequestsForUser(userId: string) {
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .select('*, listings(title, city, state, images)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return { inspections: data as any[] | null, error };
+}
+
+export async function getPendingInspectionRequests() {
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .select('*, listings(title, city, state), profiles!user_inspection_requests_user_id_fkey(username, full_name, phone)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+  return { inspections: data as any[] | null, error };
+}
+
+export async function getInspectionRequestsForFieldOfficer(fieldOfficerId: string) {
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .select('*, listings(title, city, state, address, images)')
+    .eq('field_officer_id', fieldOfficerId)
+    .in('status', ['scheduled', 'in_progress'])
+    .order('scheduled_date', { ascending: true });
+  return { inspections: data as any[] | null, error };
+}
+
+export async function assignFieldOfficer(inspectionId: string, fieldOfficerId: string, scheduledDate?: string) {
+  const update: Record<string, any> = {
+    field_officer_id: fieldOfficerId,
+    status: 'scheduled',
+    updated_at: new Date().toISOString(),
+  };
+  if (scheduledDate) update.scheduled_date = scheduledDate;
+
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .update(update)
+    .eq('id', inspectionId)
+    .select()
+    .maybeSingle();
+  return { inspection: data as any, error };
+}
+
+export async function startInspection(inspectionId: string) {
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+    .eq('id', inspectionId)
+    .select()
+    .maybeSingle();
+  return { inspection: data as any, error };
+}
+
+export async function completeInspection(
+  inspectionId: string,
+  report: string,
+  condition: string,
+  photoUrls?: string[]
+) {
+  const { data, error } = await supabase
+    .from('user_inspection_requests')
+    .update({
+      status: 'completed',
+      report,
+      condition,
+      photo_urls: photoUrls || [],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', inspectionId)
+    .select()
+    .maybeSingle();
+  return { inspection: data as any, error };
+}
+
+export async function cancelInspectionRequest(inspectionId: string) {
+  const { error } = await supabase
+    .from('user_inspection_requests')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('id', inspectionId);
   return { error };
 }
 

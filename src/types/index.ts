@@ -1239,6 +1239,34 @@ export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
   partially_refunded: 'Partially Refunded',
 };
 
+// ─── USER INSPECTION REQUESTS ───────────────────────────────
+
+export type UserInspectionStatus = 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface UserInspectionRequest {
+  id: string;
+  reservation_id: string | null;
+  listing_id: string;
+  user_id: string;
+  field_officer_id: string | null;
+  status: UserInspectionStatus;
+  scheduled_date: string | null;
+  notes: string | null;
+  report: string | null;
+  condition: string | null;
+  photo_urls: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export const USER_INSPECTION_STATUS_LABELS: Record<UserInspectionStatus, string> = {
+  pending: 'Pending',
+  scheduled: 'Scheduled',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
 // ─── WITHDRAWALS ────────────────────────────────────────────
 
 export type WithdrawalStatus = 'pending' | 'processing' | 'successful' | 'failed' | 'reversed';

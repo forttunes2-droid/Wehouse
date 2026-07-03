@@ -7,6 +7,7 @@ import {
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
+  getPendingInspectionRequests, assignFieldOfficer,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
@@ -20,7 +21,7 @@ import SettingsTab from './SettingsTab';
 import ServiceCategoriesTab from './ServiceCategoriesTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -54,7 +55,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','settings','workers','services','announcements','hotels','permissions'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','reports','audit','settings','workers','services','announcements','hotels','permissions','inspections'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -84,7 +85,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
     { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
     { id: 'permissions' as AdminTab, label: 'Permissions', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
-
+    { id: 'inspections' as AdminTab, label: 'Inspections', icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' },
   ];
 
   return (
@@ -171,6 +172,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'settings' && <SettingsTab profile={profile} isCreator={isCreatorAccount} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'services' && <ServiceCategoriesTab />}
+        {activeTab === 'inspections' && <UserInspectionsTab profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'hotels' && <HotelsTab profile={profile} />}
         {activeTab === 'permissions' && <PermissionsTab profile={profile} />}
@@ -2208,5 +2210,177 @@ function PermissionsTab({ profile }: { profile: Profile }) {
     </div>
   );
 }
+
+
+// ═════════════════════════════════════════════════════════════════
+// USER INSPECTION REQUESTS TAB (Creator/Admin)
+// ═════════════════════════════════════════════════════════════════
+
+function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
+  const [inspections, setInspections] = useState<any[]>([]);
+  const [fieldOfficers, setFieldOfficers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    const { inspections: data } = await getPendingInspectionRequests();
+    setInspections(data || []);
+
+    // Load field officers
+    const { data: officers } = await supabase
+      .from('profiles')
+      .select('user_id, username, full_name, phone')
+      .in('role', ['staff', 'admin', 'field_officer'])
+      .is('deleted_at', null);
+    setFieldOfficers(officers || []);
+
+    setLoading(false);
+  }
+
+  async function handleAssign(inspectionId: string, officerId: string) {
+    const { error } = await assignFieldOfficer(inspectionId, officerId);
+    if (error) { toast.error('Failed to assign: ' + error.message); return; }
+    toast.success('Field officer assigned');
+    load();
+  }
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, string> = {
+      pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      scheduled: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      in_progress: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
+    };
+    return map[status] || 'bg-[#1A1A24] text-[#5C5E72] border-[#232330]';
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  if (inspections.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+        </div>
+        <p className="text-sm text-[#8A8B9C]">No inspection requests yet</p>
+        <p className="text-xs text-[#5C5E72] mt-1">When users request inspection after reservation, they&apos;ll appear here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-white">User Inspection Requests</h3>
+          <p className="text-[10px] text-[#5C5E72]">{inspections.length} request{inspections.length !== 1 ? 's' : ''} · Assign field officers to pending inspections</p>
+        </div>
+        <button onClick={load} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">Refresh</button>
+      </div>
+
+      {inspections.map((insp) => (
+        <div key={insp.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
+          {/* Header */}
+          <button
+            onClick={() => setExpandedId(expandedId === insp.id ? null : insp.id)}
+            className="w-full flex items-center gap-3 p-4 text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center text-[#3B82F6] text-sm font-bold flex-shrink-0">
+              {(insp.profiles?.username || 'U')[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-white truncate">@{insp.profiles?.username || 'Unknown'}</span>
+                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusBadge(insp.status)}`}>
+                  {insp.status}
+                </span>
+              </div>
+              <p className="text-[10px] text-[#5C5E72] truncate">
+                {insp.listings?.title || 'Unknown property'} — {insp.listings?.city || ''}
+              </p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`flex-shrink-0 transition-transform ${expandedId === insp.id ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+
+          {/* Expanded Details */}
+          {expandedId === insp.id && (
+            <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
+              {/* Property Info */}
+              {insp.listings && (
+                <div className="flex items-center gap-3">
+                  <img src={insp.listings.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-white">{insp.listings.title}</p>
+                    <p className="text-[10px] text-[#5C5E72]">{insp.listings.address}, {insp.listings.city}, {insp.listings.state}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* User Info */}
+              <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
+                <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">User Details</p>
+                <p className="text-xs text-white">Name: {insp.profiles?.full_name || insp.profiles?.username || 'N/A'}</p>
+                <p className="text-xs text-white">Phone: {insp.profiles?.phone || 'Not provided'}</p>
+                <p className="text-[10px] text-[#5C5E72]">Requested: {new Date(insp.created_at).toLocaleDateString()}</p>
+              </div>
+
+              {/* Notes */}
+              {insp.notes && (
+                <div className="rounded-xl bg-[#1A1A24] p-3">
+                  <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Notes</p>
+                  <p className="text-xs text-white mt-1">{insp.notes}</p>
+                </div>
+              )}
+
+              {/* Assign Field Officer */}
+              {insp.status === 'pending' && (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Assign Field Officer</p>
+                  {fieldOfficers.length === 0 ? (
+                    <p className="text-xs text-amber-400">No field officers available. Assign staff first.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {fieldOfficers.map((officer) => (
+                        <button
+                          key={officer.user_id}
+                          onClick={() => handleAssign(insp.id, officer.user_id)}
+                          className="h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[11px] text-white hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/5 transition-colors"
+                        >
+                          @{officer.username || officer.full_name || 'Unknown'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Assigned officer info */}
+              {insp.field_officer_id && (
+                <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
+                  <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
+                  <p className="text-xs text-white mt-1">
+                    {fieldOfficers.find(o => o.user_id === insp.field_officer_id)?.username || 'Unknown officer'}
+                  </p>
+                  {insp.scheduled_date && (
+                    <p className="text-[10px] text-[#5C5E72]">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 

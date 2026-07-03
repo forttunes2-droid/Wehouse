@@ -88,6 +88,16 @@ export {
   getReservationsForUser,
   cancelReservation,
   markSupportContacted,
+  updateReservationPlan,
+  createInspectionRequest,
+  getInspectionRequestForReservation,
+  getInspectionRequestsForUser,
+  getPendingInspectionRequests,
+  getInspectionRequestsForFieldOfficer,
+  assignFieldOfficer,
+  startInspection,
+  completeInspection,
+  cancelInspectionRequest,
 } from './reservations';
 
 // Roommate
