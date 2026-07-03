@@ -60,14 +60,14 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
       const listings = listingRes.listings || [];
       const today = new Date().toISOString().split('T')[0];
       setStats({
-        totalUsers: users.filter((u: any) => !u.deleted && u.state === scopeState).length,
-        staff: users.filter((u: any) => !u.deleted && u.state === scopeState && (u.role === 'staff' || u.role === 'admin' || u.role === 'staff')).length,
+        totalUsers: users.filter((u: any) => !u.deleted).length,
+        staff: users.filter((u: any) => !u.deleted && (u.role === 'staff' || u.role === 'admin')).length,
         newToday: users.filter((u: any) => u.created_at?.startsWith(today)).length,
-        listings: listings.filter((l: any) => l.state === scopeState).length,
+        listings: listings.length,
         pendingApproval: approvalRes.listings.length,
       });
     }
-    if (scopeState) loadStats();
+    loadStats();
   }, [scopeState, profile.role, profile.user_id, refreshKey]);
 
   const tabs = [
@@ -179,9 +179,9 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
   async function load() {
     setLoading(true);
     const { users: data } = await getAllUsers();
-    // Exclude current user (admin) from the list
-    const inState = (data || []).filter((u: any) => u.state === scopeState && !u.deleted && u.user_id !== profile.user_id);
-    setUsers(inState);
+    // Show ALL users (all states), exclude only deleted and current admin
+    const allUsers = (data || []).filter((u: any) => !u.deleted && u.user_id !== profile.user_id);
+    setUsers(allUsers);
     setLoading(false);
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   supabase,
   getAllUsers, getUserCount, updateUserRole, restoreUser, suspendUser, freezeUser, banUser, reactivateUser,
@@ -2250,14 +2250,24 @@ function PermissionsTab({ profile }: { profile: Profile }) {
 // SUPPORT INBOX TAB (Creator/Admin) — Shared inbox for all partner chats
 // ═════════════════════════════════════════════════════════════════
 
-function SupportInboxTab({ profile: _profile }: { profile: Profile }) {
+function SupportInboxTab({ profile }: { profile: Profile }) {
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'all' | 'partner_inspection' | 'partner_support' | 'general_support'>('all');
+  const [selectedConv, setSelectedConv] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [msgLoading, setMsgLoading] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   async function load() {
     setLoading(true);
@@ -2265,6 +2275,41 @@ function SupportInboxTab({ profile: _profile }: { profile: Profile }) {
     if (error) console.error('[SupportInbox] error:', error);
     setConversations(data || []);
     setLoading(false);
+  }
+
+  async function openConversation(conv: any) {
+    setSelectedConv(conv);
+    setMsgLoading(true);
+    const { data, error } = await supabase.rpc('get_conversation_messages', {
+      p_conversation_id: conv.id,
+    });
+    if (error) console.error('[Messages] error:', error);
+    setMessages(data || []);
+    setMsgLoading(false);
+  }
+
+  async function sendReply() {
+    if (!replyText.trim() || !selectedConv) return;
+    setSending(true);
+    const { error } = await supabase.rpc('send_support_message', {
+      p_conversation_id: selectedConv.id,
+      p_sender_id: profile.user_id,
+      p_content: replyText.trim(),
+    });
+    if (error) {
+      toast.error('Failed to send');
+      setSending(false);
+      return;
+    }
+    setReplyText('');
+    setSending(false);
+    // Refresh messages
+    const { data } = await supabase.rpc('get_conversation_messages', {
+      p_conversation_id: selectedConv.id,
+    });
+    setMessages(data || []);
+    // Refresh conversation list
+    load();
   }
 
   const filtered = activeFilter === 'all'
@@ -2284,13 +2329,115 @@ function SupportInboxTab({ profile: _profile }: { profile: Profile }) {
     general_support: { label: 'General', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
   };
 
+  // If a conversation is selected, show chat view
+  if (selectedConv) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-140px)]">
+        {/* Chat header */}
+        <div className="flex items-center gap-3 pb-3 border-b border-[#232330] mb-3">
+          <button
+            onClick={() => { setSelectedConv(null); setMessages([]); }}
+            className="w-8 h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center text-[#8A8B9C] hover:text-white"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          </button>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white font-bold text-xs">
+            {(selectedConv.participant_a || 'P').charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-white truncate">
+                {selectedConv.participant_a || 'Unknown'}
+              </span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${typeLabels[selectedConv.conversation_type]?.color || ''}`}>
+                {typeLabels[selectedConv.conversation_type]?.label || 'Chat'}
+              </span>
+            </div>
+            <p className="text-[10px] text-[#5C5E72]">WeHouse Support</p>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-1">
+          {msgLoading ? (
+            <div className="text-center py-8">
+              <svg className="w-5 h-5 animate-spin mx-auto text-[#5C5E72]" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+              </svg>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-xs text-[#5C5E72]">No messages yet</p>
+            </div>
+          ) : (
+            messages.map((msg: any) => {
+              const isMe = msg.sender_id === profile.user_id;
+              return (
+                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs ${
+                    isMe
+                      ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-br-md'
+                      : 'bg-[#1A1A24] text-white rounded-bl-md border border-white/[0.06]'
+                  }`}>
+                    {msg.file_url && (
+                      <div className="mb-1.5">
+                        {msg.file_type?.startsWith('image/') ? (
+                          <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={msg.file_url} alt={msg.file_name || 'Image'} className="max-w-[150px] max-h-[150px] rounded-lg object-cover" />
+                          </a>
+                        ) : (
+                          <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-[10px] ${isMe ? 'bg-white/10' : 'bg-[#12121A]'}`}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                            <span className="truncate max-w-[100px]">{msg.file_name || 'File'}</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    <p>{msg.content}</p>
+                    <div className={`text-[8px] mt-1 ${isMe ? 'text-white/50' : 'text-[#5C5E72]'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Reply input */}
+        <div className="flex items-center gap-2 pt-2 border-t border-[#232330]">
+          <input
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendReply()}
+            placeholder="Type your reply..."
+            className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]"
+          />
+          <button
+            onClick={sendReply}
+            disabled={!replyText.trim() || sending}
+            className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
+          >
+            {sending ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" /></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Conversation list view
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-white">Support Inbox</h3>
-          <p className="text-[11px] text-[#5C5E72]">{counts.all} conversations · All staff see all messages</p>
+          <p className="text-[11px] text-[#5C5E72]">{counts.all} conversations · Click to view messages</p>
         </div>
         <button
           onClick={load}
@@ -2341,23 +2488,27 @@ function SupportInboxTab({ profile: _profile }: { profile: Profile }) {
           {filtered.map((conv: any) => {
             const typeInfo = typeLabels[conv.conversation_type] || { label: 'Chat', color: 'text-gray-400 bg-gray-500/10 border-gray-500/20' };
             return (
-              <div key={conv.id} className="glass rounded-2xl p-4">
+              <div
+                key={conv.id}
+                onClick={() => openConversation(conv)}
+                className="glass rounded-2xl p-4 cursor-pointer hover:border-[#3B82F6]/30 transition-all"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white font-bold text-sm">
-                      {(conv.partner_name || conv.participant_a || 'P').charAt(0).toUpperCase()}
+                      {(conv.participant_a || 'P').charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-white">
-                          {conv.partner_name || conv.participant_a || 'Unknown Partner'}
+                          {conv.participant_a || 'Unknown Partner'}
                         </span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${typeInfo.color}`}>
                           {typeInfo.label}
                         </span>
                       </div>
                       <p className="text-[10px] text-[#5C5E72]">
-                        {conv.partner_email || 'No email'} · {conv.partner_role || 'partner'}
+                        ID: {conv.participant_a || 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -2365,16 +2516,12 @@ function SupportInboxTab({ profile: _profile }: { profile: Profile }) {
                     {conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : 'New'}
                   </span>
                 </div>
-                {/* Last message */}
+                {/* Last message preview */}
                 {conv.last_message && (
-                  <p className="text-xs text-[#8A8B9C] mt-2 ml-[52px]">{conv.last_message}</p>
+                  <p className="text-xs text-[#8A8B9C] mt-2 ml-[52px] truncate">{conv.last_message}</p>
                 )}
-                {/* Partner contact */}
-                {conv.partner_phone && (
-                  <p className="text-[10px] text-[#5C5E72] mt-1 ml-[52px]">
-                    Phone: {conv.partner_phone}
-                  </p>
-                )}
+                {/* Click hint */}
+                <p className="text-[10px] text-[#3B82F6] mt-1 ml-[52px]">Click to view and reply</p>
               </div>
             );
           })}
