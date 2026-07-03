@@ -290,7 +290,7 @@ export default function App() {
 
   // ─── LOGIN ────────────────────────────────────────
   if (auth.page === 'login') {
-    return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut} />;
+    return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut} showRestore={auth.showRestore} restoreUserId={auth.restoreUserId} onRestoreAccount={auth.restoreAccount} />;
   }
 
   // ─── SETUP ────────────────────────────────────────
@@ -377,7 +377,7 @@ export default function App() {
         }
         return <CreateListing profile={profile} onBack={() => goTo('home')} onSuccess={() => goTo('home')} />;
       case 'worker_dashboard':
-        return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+        return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToMessages={() => goTo('chat')} />;
       case 'worker_discovery':
         return <WorkerDiscovery userCity={profile.city} profile={profile} onGoToChat={goToChat} />;
       case 'worker_categories':
@@ -400,7 +400,7 @@ export default function App() {
         return <FieldOfficerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'property_owner':
       case 'property_partner':
-        return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
+        return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToMessages={() => goTo('chat')} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }

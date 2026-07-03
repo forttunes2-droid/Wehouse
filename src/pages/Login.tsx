@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runDiagnostics } from '@/lib/supabase';
+import { supabase, signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runDiagnostics } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
 
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker' | 'property_partner') => void;
   serverError: string;
   kickedOut?: boolean;
+  showRestore?: boolean;
+  restoreUserId?: string;
+  onRestoreAccount?: (userId: string, authId: string) => void;
 }
 
 type Mode = 'choose' | 'choose_role' | 'signin' | 'signup' | 'forgot';
@@ -75,7 +78,7 @@ function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }
 
 // ─── MAIN COMPONENT ────────────────────────────────
 
-export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginProps) {
+export default function Login({ onLoginSuccess, serverError, kickedOut, showRestore, restoreUserId, onRestoreAccount }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
   const [signupRole, setSignupRole] = useState<'user' | 'worker' | 'property_partner'>('user');
   const [email, setEmail] = useState('');
@@ -200,32 +203,41 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
           </div>
         )}
 
+        {/* Restore Account UI */}
+        {showRestore && restoreUserId && (
+          <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+            <p className="text-sm font-semibold text-amber-400 mb-1">Account Suspended</p>
+            <p className="text-xs text-amber-400/70 mb-3">Your account has been temporarily suspended. You can restore it below.</p>
+            <div className="flex gap-2 justify-center">
+              <button
+                type="button"
+                onClick={async () => {
+                  // Get the current auth session to find the auth_id
+                  const { data } = await supabase.auth.getSession();
+                  const authId = data.session?.user?.id;
+                  if (authId && onRestoreAccount) {
+                    onRestoreAccount(restoreUserId, authId);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors"
+              >
+                Restore My Account
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('choose_role'); setError(''); setEmail(''); setPassword(''); }}
+                className="px-4 py-2 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] text-xs font-medium hover:text-white transition-colors"
+              >
+                Create New Account
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Messages */}
         {displayError && (
-          <div className={`mb-4 p-3 rounded-xl border text-xs text-center leading-relaxed ${
-            displayError.toLowerCase().includes('deleted')
-              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-              : 'bg-red-500/10 border-red-500/20 text-red-400'
-          }`}>
-            <p className="mb-2">{displayError}</p>
-            {displayError.toLowerCase().includes('deleted') && (
-              <div className="flex gap-2 justify-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => { setMode('choose_role'); setError(''); setEmail(''); setPassword(''); }}
-                  className="px-3 py-1.5 rounded-lg bg-[#3B82F6] text-white text-[10px] font-medium hover:bg-[#2563EB] transition-colors"
-                >
-                  Create New Account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setError('')}
-                  className="px-3 py-1.5 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] text-[10px] font-medium hover:text-white transition-colors"
-                >
-                  Try Again
-                </button>
-              </div>
-            )}
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center leading-relaxed">
+            <p>{displayError}</p>
           </div>
         )}
         {info && (

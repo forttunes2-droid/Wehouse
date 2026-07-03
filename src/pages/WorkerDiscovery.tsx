@@ -348,6 +348,17 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                         {isNearby && (
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F4] border border-[#3B82F6]/20">Nearby</span>
                         )}
+                        {/* Online/Offline indicator */}
+                        {w.is_online ? (
+                          <span className="flex items-center gap-0.5 text-[8px] font-medium text-green-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                            Online
+                          </span>
+                        ) : w.last_seen ? (
+                          <span className="text-[8px] text-[#5C5E72]">
+                            {getTimeAgo(w.last_seen)}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-[10px] text-[#5C5E72] flex items-center gap-1 flex-wrap">
                         <span className="px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 text-[9px] font-medium">
@@ -408,4 +419,18 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
       )}
     </div>
   );
+}
+
+// Helper: format last_seen as "2m ago", "1h ago", etc.
+function getTimeAgo(isoDate: string): string {
+  const now = Date.now();
+  const then = new Date(isoDate).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
 }

@@ -170,9 +170,35 @@ export async function dismissReport(reportId: string, adminId: string) {
 }
 
 export async function suspendUser(userId: string) {
-  // Import from workers module to avoid circular dependency
-  const { updateWorkerStatus } = await import('./workers');
-  return await updateWorkerStatus(userId, 'suspended');
+  const { error } = await supabase
+    .from('profiles')
+    .update({ worker_status: 'suspended', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  return { error };
+}
+
+export async function reactivateUser(userId: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ deleted: false, deleted_at: null, worker_status: 'pending', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  return { error };
+}
+
+export async function freezeUser(userId: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ worker_status: 'suspended', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  return { error };
+}
+
+export async function banUser(userId: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ deleted: true, deleted_at: new Date().toISOString(), worker_status: 'suspended', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  return { error };
 }
 
 export async function getAuditLogs() {

@@ -22,30 +22,79 @@ export async function getMessages(conversationId: string) {
 }
 
 export async function sendMessage(conversationId: string, senderId: string, content: string) {
+  // 1. Insert the message
   const { data, error } = await supabase
     .from('messages')
     .insert({ conversation_id: conversationId, sender_id: senderId, content })
     .select()
     .maybeSingle();
 
-  // Update conversation timestamp so it appears at top of list
-  if (!error) {
+  if (error || !data) return { message: null, error };
+
+  // 2. Update conversation: last_message, updated_at, and unread count
+  // Get the conversation to know who the recipient is
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('participant_a, participant_b')
+    .eq('id', conversationId)
+    .maybeSingle();
+
+  if (conv) {
+    const isA = conv.participant_a === senderId;
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+      last_message: content,
+      last_message_at: new Date().toISOString(),
+    };
+    // Increment unread count for the OTHER person
+    if (isA) {
+      updateData.unread_b = (await getUnreadCount(conversationId, 'b')) + 1;
+    } else {
+      updateData.unread_a = (await getUnreadCount(conversationId, 'a')) + 1;
+    }
+
     await supabase
       .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', conversationId);
   }
 
-  return { message: data as Message | null, error };
+  return { message: data as Message, error: null };
+}
+
+async function getUnreadCount(convId: string, which: 'a' | 'b'): Promise<number> {
+  const { data } = await supabase
+    .from('conversations')
+    .select(`unread_${which}`)
+    .eq('id', convId)
+    .maybeSingle();
+  return (data as any)?.[`unread_${which}`] || 0;
 }
 
 export async function markMessagesSeen(conversationId: string, userId: string) {
-  const { error } = await supabase
+  // Mark messages as seen
+  const { error: msgErr } = await supabase
     .from('messages')
     .update({ seen: true })
     .eq('conversation_id', conversationId)
     .neq('sender_id', userId);
-  return { error };
+
+  // Also clear unread count for this user
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('participant_a')
+    .eq('id', conversationId)
+    .maybeSingle();
+
+  if (conv) {
+    const isA = conv.participant_a === userId;
+    await supabase
+      .from('conversations')
+      .update({ [isA ? 'unread_a' : 'unread_b']: 0 })
+      .eq('id', conversationId);
+  }
+
+  return { error: msgErr };
 }
 
 export async function createConversation(userA: string, userB: string, listingId?: string | null) {

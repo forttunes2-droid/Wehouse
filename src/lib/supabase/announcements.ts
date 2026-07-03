@@ -69,7 +69,7 @@ export async function sendAnnouncement(
         break;
       case 'all_users':
       default:
-        query = query.eq('role', 'user');
+        // Send to ALL non-deleted users regardless of role
         break;
     }
 

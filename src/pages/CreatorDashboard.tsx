@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   supabase,
-  getAllUsers, getUserCount, updateUserRole, deleteUser, restoreUser,
+  getAllUsers, getUserCount, updateUserRole, restoreUser, suspendUser, freezeUser, banUser, reactivateUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
@@ -370,19 +370,61 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
     });
   }
 
-  async function handleDelete(userId: string) {
+  async function handleSuspend(userId: string) {
     withAuth(async () => {
       const target = users.find(u => u.user_id === userId);
       if (!target) { toast.error('User not found'); return; }
-      if (isCreator(target.role)) { toast.error('Creator accounts cannot be deleted'); return; }
-      if (userId === profile.user_id) { toast.error('You cannot delete your own account from here'); return; }
+      if (isCreator(target.role)) { toast.error('Creator accounts cannot be suspended'); return; }
+      if (userId === profile.user_id) { toast.error('You cannot suspend your own account'); return; }
+      const ok = await ask({ title: 'Suspend this user?', confirmLabel: 'Suspend', variant: 'danger' });
+      if (!ok) return;
+      const { error } = await suspendUser(userId);
+      if (error) { toast.error('Failed: ' + error.message); return; }
+      await logAuditAction(profile.user_id, profile.email, 'suspend_user', 'user', userId, 'User suspended');
+      toast.success('User suspended');
+      load();
+    });
+  }
 
-      const sdOk = await ask({ title: 'Delete this user?', confirmLabel: 'Delete', variant: 'danger' });
-      if (!sdOk) return;
-      const { error } = await deleteUser(userId);
-      if (error) { toast.error('Delete failed: ' + error.message); return; }
-      await logAuditAction(profile.user_id, profile.email, 'delete_user', 'user', userId, 'User soft-deleted');
-      toast.success('User deleted');
+  async function handleFreeze(userId: string) {
+    withAuth(async () => {
+      const target = users.find(u => u.user_id === userId);
+      if (!target) { toast.error('User not found'); return; }
+      if (isCreator(target.role)) { toast.error('Creator accounts cannot be frozen'); return; }
+      const ok = await ask({ title: 'Freeze this account? User cannot login until unfrozen.', confirmLabel: 'Freeze', variant: 'danger' });
+      if (!ok) return;
+      const { error } = await freezeUser(userId);
+      if (error) { toast.error('Failed: ' + error.message); return; }
+      await logAuditAction(profile.user_id, profile.email, 'freeze_user', 'user', userId, 'User frozen');
+      toast.success('Account frozen');
+      load();
+    });
+  }
+
+  async function handleBan(userId: string) {
+    withAuth(async () => {
+      const target = users.find(u => u.user_id === userId);
+      if (!target) { toast.error('User not found'); return; }
+      if (isCreator(target.role)) { toast.error('Creator accounts cannot be banned'); return; }
+      if (userId === profile.user_id) { toast.error('You cannot ban your own account'); return; }
+      const ok = await ask({ title: 'Ban this user permanently? They can restore via support.', confirmLabel: 'Ban', variant: 'danger' });
+      if (!ok) return;
+      const { error } = await banUser(userId);
+      if (error) { toast.error('Failed: ' + error.message); return; }
+      await logAuditAction(profile.user_id, profile.email, 'ban_user', 'user', userId, 'User banned');
+      toast.success('User banned');
+      load();
+    });
+  }
+
+  async function handleReactivate(userId: string) {
+    withAuth(async () => {
+      const ok = await ask({ title: 'Reactivate this user?', confirmLabel: 'Reactivate', variant: 'info' });
+      if (!ok) return;
+      const { error } = await reactivateUser(userId);
+      if (error) { toast.error('Failed: ' + error.message); return; }
+      await logAuditAction(profile.user_id, profile.email, 'reactivate_user', 'user', userId, 'User reactivated');
+      toast.success('User reactivated');
       load();
     });
   }
@@ -439,7 +481,6 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
             const isCreatorAccount = isCreator(u.role);
             const isWorkerAccount = u.role === 'worker';
-            const canDelete = !isCreatorAccount && u.user_id !== profile.user_id;
             const isDeleted = u.deleted;
 
             return (
@@ -462,27 +503,21 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                 </div>
 
                 {isManage && (
-                  <div className="flex gap-2 mt-2.5">
-                    {isDeleted ? (
-                      <button
-                        onClick={() => handleRestore(u.user_id)}
-                        className="flex-1 h-7 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
-                      >
-                        Restore
-                      </button>
-                    ) : isCreatorAccount ? (
-                      <div className="flex-1 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
-                        Creator — cannot be changed
-                      </div>
-                    ) : isWorkerAccount ? (
-                      <div className="flex-1 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400 text-[10px] px-2 flex items-center font-medium">
-                        Worker — signed up as worker
-                      </div>
-                    ) : (
+                  <div className="flex flex-wrap gap-2 mt-2.5">
+                    {/* Status badge */}
+                    {u.deleted && (
+                      <span className="h-6 px-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] flex items-center font-bold">BANNED</span>
+                    )}
+                    {u.worker_status === 'suspended' && !u.deleted && (
+                      <span className="h-6 px-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] flex items-center font-bold">SUSPENDED</span>
+                    )}
+
+                    {/* Change Role — only for non-creator, non-worker accounts */}
+                    {!isCreatorAccount && !isWorkerAccount && !isDeleted && (
                       <select
                         value={u.role}
                         onChange={(e) => handleRole(u.user_id, e.target.value)}
-                        className="flex-1 h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
+                        className="h-7 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] px-2 text-white"
                       >
                         <option value="user">{ROLE_LABELS.user}</option>
                         <option value="staff">{ROLE_LABELS.staff}</option>
@@ -491,28 +526,67 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                       </select>
                     )}
 
-                    {!isDeleted && !isCreatorAccount && (
-                      <button
-                        onClick={() => handleExemptToggle(u.user_id, !!u.maintenance_exempt)}
-                        title={u.maintenance_exempt ? 'Can login during maintenance' : 'Allow login during maintenance'}
-                        className={`h-7 px-2 rounded-lg border text-[10px] font-medium transition-colors ${
-                          u.maintenance_exempt
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
-                            : 'bg-[#1A1A24] border-[#232330] text-[#5C5E72] hover:text-amber-400 hover:border-amber-500/30'
-                        }`}
-                      >
-                        {u.maintenance_exempt ? 'Exempt' : 'Exempt'}
-                      </button>
-                    )}
-
-                    {!isDeleted && (
-                      <button
-                        onClick={() => handleDelete(u.user_id)}
-                        disabled={!canDelete}
-                        className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        Delete
-                      </button>
+                    {/* Action buttons */}
+                    {isDeleted ? (
+                      <>
+                        <button
+                          onClick={() => handleReactivate(u.user_id)}
+                          className="h-7 px-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
+                        >
+                          Reactivate
+                        </button>
+                        <button
+                          onClick={() => handleRestore(u.user_id)}
+                          className="h-7 px-2.5 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#5C5E72] text-[10px] hover:text-white transition-colors"
+                        >
+                          Restore
+                        </button>
+                      </>
+                    ) : isCreatorAccount ? (
+                      <div className="h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
+                        Creator — protected
+                      </div>
+                    ) : (
+                      <>
+                        {/* Suspend */}
+                        <button
+                          onClick={() => handleSuspend(u.user_id)}
+                          disabled={u.user_id === profile.user_id}
+                          className="h-7 px-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors disabled:opacity-30"
+                          title="Temporarily suspend account"
+                        >
+                          Suspend
+                        </button>
+                        {/* Freeze */}
+                        <button
+                          onClick={() => handleFreeze(u.user_id)}
+                          className="h-7 px-2.5 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#5C5E72] text-[10px] hover:text-cyan-400 hover:border-cyan-500/30 transition-colors"
+                          title="Freeze account (block login)"
+                        >
+                          Freeze
+                        </button>
+                        {/* Ban */}
+                        <button
+                          onClick={() => handleBan(u.user_id)}
+                          disabled={u.user_id === profile.user_id}
+                          className="h-7 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors disabled:opacity-30"
+                          title="Ban permanently (user can restore)"
+                        >
+                          Ban
+                        </button>
+                        {/* Maintenance Exempt */}
+                        <button
+                          onClick={() => handleExemptToggle(u.user_id, !!u.maintenance_exempt)}
+                          className={`h-7 px-2 rounded-lg border text-[10px] font-medium transition-colors ${
+                            u.maintenance_exempt
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                              : 'bg-[#1A1A24] border-[#232330] text-[#5C5E72] hover:text-amber-400'
+                          }`}
+                          title="Maintenance exemption"
+                        >
+                          {u.maintenance_exempt ? 'Exempt' : 'Exmpt'}
+                        </button>
+                      </>
                     )}
                   </div>
                 )}

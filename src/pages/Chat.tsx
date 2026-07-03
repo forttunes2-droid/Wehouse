@@ -32,6 +32,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   const [officialMessages, setOfficialMessages] = useState<any[]>([]);
   const [linkedListing, setLinkedListing] = useState<Listing | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const convSubscriptionRef = useRef<any>(null);
 
   // Load everything on mount
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const convs = data || [];
     setConversations(convs);
 
-    // Fetch usernames
+    // Fetch usernames for all participants
     const userIds = convs
       .map((c) => (c.participant_a === profile.user_id ? c.participant_b : c.participant_a))
       .filter((id, i, arr) => arr.indexOf(id) === i);
@@ -64,6 +65,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
       });
       setUsernames(map);
     }
+
+    return convs;
   }
 
   async function loadOfficial() {
@@ -72,6 +75,31 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const unread = (data || []).filter((m: any) => !m.read_status).length;
     setOfficialUnread(unread);
   }
+
+  // ── Real-time subscription for conversation list updates ──
+  useEffect(() => {
+    const channel = supabase
+      .channel('chat-conversations')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+        },
+        () => {
+          // Refresh conversations when any conversation changes
+          loadConversations();
+        }
+      )
+      .subscribe();
+
+    convSubscriptionRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile.user_id]);
 
   // ── Real-time subscription for announcements ──
   useEffect(() => {
@@ -98,18 +126,16 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
 
   // Auto-open conversation from prop
   useEffect(() => {
-    if (!conversationId || conversations.length === 0) return;
+    if (!conversationId) return;
+
+    // Check if already loaded
     const conv = conversations.find((c) => c.id === conversationId);
     if (conv) {
       setActiveConv(conv);
+      return;
     }
-  }, [conversationId, conversations]);
 
-  // If conversationId provided but not found in list yet (newly created conv),
-  // fetch it directly and open it
-  useEffect(() => {
-    if (!conversationId || activeConv) return;
-
+    // If not found yet, fetch directly
     async function loadSpecificConv() {
       const { data } = await supabase
         .from('conversations')
@@ -118,13 +144,13 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
         .maybeSingle();
       if (data) {
         setActiveConv(data as Conversation);
-        // Also refresh the conversations list
+        // Refresh the conversations list
         loadConversations();
       }
     }
     loadSpecificConv();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
+  }, [conversationId, conversations.length]);
 
   // Load listing context when conversation has a linked listing
   useEffect(() => {
@@ -169,7 +195,36 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     if (!input.trim() || !activeConv) return;
     const content = input.trim();
     setInput('');
-    await sendMessage(activeConv.id, profile.user_id, content);
+
+    // Optimistically add message to UI
+    const optimisticMsg: Message = {
+      id: `optimistic-${Date.now()}`,
+      conversation_id: activeConv.id,
+      sender_id: profile.user_id,
+      content,
+      seen: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    const { message, error } = await sendMessage(activeConv.id, profile.user_id, content);
+
+    if (error) {
+      // Remove optimistic message on error
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+      toast.error('Failed to send message');
+      return;
+    }
+
+    // Replace optimistic with real message
+    if (message) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === optimisticMsg.id ? message : m))
+      );
+    }
+
+    // Refresh conversation list to update last_message
+    loadConversations();
   }
 
   // Scroll to bottom
@@ -187,11 +242,12 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const otherId =
       activeConv.participant_a === profile.user_id ? activeConv.participant_b : activeConv.participant_a;
 
-    // Is this user the agent (staff/admin) or the enquirer?
     const isAgent = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator';
     const isPending = activeConv.status === 'pending';
-    const isActive = activeConv.status === 'active';
     const isClosed = activeConv.status === 'closed';
+
+    // Can send messages if conversation is active, or if it's a new conv
+    const canSend = !isClosed;
 
     return (
       <div className="min-h-screen bg-transparent flex flex-col">
@@ -230,19 +286,18 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
             />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-white truncate">{linkedListing.title}</p>
-              <p className="text-[10px] text-[#5C5E72]">{linkedListing.city} · ₦{linkedListing.price?.toLocaleString()}/year</p>
+              <p className="text-[10px] text-[#5C5E72]">{linkedListing.city} · #{linkedListing.price?.toLocaleString()}/year</p>
             </div>
             <span className={`text-[9px] px-2 py-0.5 rounded-full flex-shrink-0 border ${
               isPending ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-              isActive ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-              'bg-[#1A1A24] text-[#5C5E72] border-[#232330]'
+              'bg-green-500/10 text-green-400 border-green-500/20'
             }`}>
-              {isPending ? 'Pending' : isActive ? 'Active' : 'Closed'}
+              {isPending ? 'Pending' : 'Active'}
             </span>
           </div>
         )}
 
-        {/* Status Banner — Accept/Decline for agent, Waiting for user */}
+        {/* Status Banner */}
         {isPending && (
           <div className="bg-amber-500/5 border-b border-amber-500/10 px-4 py-3">
             {isAgent ? (
@@ -313,8 +368,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           <div ref={bottomRef} />
         </div>
 
-        {/* Input — BLOCKED unless status is 'active' */}
-        {isActive ? (
+        {/* Input — available for all conversations except closed */}
+        {canSend ? (
           <form onSubmit={handleSend} className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 flex gap-3">
             <input
               value={input}
@@ -332,12 +387,6 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
               </svg>
             </button>
           </form>
-        ) : isPending ? (
-          <div className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 text-center">
-            <p className="text-xs text-[#5C5E72]">
-              {isAgent ? 'Accept the enquiry above to start chatting' : 'You can send more messages once the agent accepts'}
-            </p>
-          </div>
         ) : (
           <div className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 text-center">
             <p className="text-xs text-[#5C5E72]">This conversation is closed</p>
@@ -388,7 +437,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           </div>
         ) : (
           <>
-            {/* WeHouse Official — pinned at top */}
+            {/* WeHouse Official */}
             <button
               onClick={() => setShowOfficial(true)}
               className="w-full flex items-center gap-3 px-5 py-4 border-b border-[#3B82F6]/10 text-left hover:bg-[#12121A] transition-colors bg-[#3B82F6]/[0.02]"
@@ -432,7 +481,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                   </svg>
                 </div>
                 <p className="text-sm text-[#8A8B9C]">No conversations yet</p>
-                <p className="text-xs text-[#8A8B9C]/70 mt-1">Start chatting from a roommate match</p>
+                <p className="text-xs text-[#8A8B9C]/70 mt-1">Start chatting from worker profiles or property pages</p>
               </div>
             ) : (
               conversations.map((conv) => {
@@ -446,8 +495,10 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                     onClick={() => setActiveConv(conv)}
                     className="w-full flex items-center gap-3 px-5 py-4 border-b border-white/[0.04] text-left hover:bg-[#12121A] transition-colors"
                   >
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                      {(usernames[otherId] || 'U').charAt(0).toUpperCase()}
+                    <div className="relative">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        {(usernames[otherId] || 'U').charAt(0).toUpperCase()}
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -455,7 +506,9 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                           @{usernames[otherId] || `User ${otherId.slice(-4)}`}
                         </span>
                         {isUnread && (
-                          <span className="w-2 h-2 rounded-full bg-[#3B82F6] flex-shrink-0" />
+                          <span className="w-5 h-5 rounded-full bg-[#3B82F6] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 ml-2">
+                            {conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b}
+                          </span>
                         )}
                       </div>
                       <p className="text-xs text-[#8A8B9C] truncate">{conv.last_message || 'No messages yet'}</p>

@@ -21,6 +21,7 @@ interface WorkerDashboardProps {
   onLogout: () => void;
   onNavigate?: (page: string) => void;
   onGoToChat?: (convId: string) => void;
+  onGoToMessages?: () => void;
 }
 
 type WorkerTab = 'home' | 'verification' | 'bookings' | 'messages' | 'services' | 'earnings' | 'wallet' | 'reviews' | 'profile' | 'support';
@@ -48,7 +49,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   },
 };
 
-export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate, onGoToChat }: WorkerDashboardProps) {
+export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate, onGoToChat, onGoToMessages }: WorkerDashboardProps) {
   const [activeTab, setActiveTab] = useState<WorkerTab>('home');
   const status = profile.worker_status || 'pending';
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
@@ -101,9 +102,19 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
               <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Messages button */}
+            <button
+              onClick={onGoToMessages}
+              className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+              title="Messages"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            </button>
+            <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Status Banner */}

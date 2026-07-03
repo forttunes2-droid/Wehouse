@@ -1,9 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
-import { updateProfile, uploadAvatar } from '@/lib/supabase';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { updateProfile, uploadAvatar, getServiceCategories, getServiceSubcategories } from '@/lib/supabase';
 import LocationSelector from '@/components/LocationSelector';
-import { WORKER_OCCUPATIONS, WORKER_OCCUPATION_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
-import type { Profile } from '@/types';
+import type { Profile, ServiceCategory, ServiceSubcategory } from '@/types';
 
 interface WorkerSetupProps {
   profile: Profile;
@@ -30,6 +29,38 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
       area: profile.area || '',
     },
   });
+
+  // Database-driven categories
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<ServiceSubcategory[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  useEffect(() => {
+    async function load() {
+      const { categories: cats } = await getServiceCategories();
+      setCategories(cats || []);
+      // If profile already has an occupation that matches a category, pre-select it
+      if (profile.worker_occupation && cats) {
+        const match = cats.find(c => c.name === profile.worker_occupation);
+        if (match) {
+          setSelectedCategory(match.id);
+          const { subcategories: subs } = await getServiceSubcategories(match.id);
+          setSubcategories(subs || []);
+        }
+      }
+    }
+    load();
+  }, [profile.worker_occupation]);
+
+  useEffect(() => {
+    if (selectedCategory) {
+      getServiceSubcategories(selectedCategory).then(({ subcategories: subs }) => {
+        setSubcategories(subs || []);
+      });
+    } else {
+      setSubcategories([]);
+    }
+  }, [selectedCategory]);
 
   const handleAvatar = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,22 +158,50 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
           </div>
         </div>
 
-        {/* Occupation */}
+        {/* Service Category */}
         <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Occupation *</label>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Service Category *</label>
+          <p className="text-[10px] text-[#5C5E72] mb-2">Select the category that best matches your work</p>
           <div className="flex flex-wrap gap-2">
-            {WORKER_OCCUPATIONS.map(occ => (
-              <button key={occ} type="button" onClick={() => setForm(f => ({ ...f, worker_occupation: occ }))}
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  setSelectedCategory(cat.id);
+                  setForm(f => ({ ...f, worker_occupation: cat.name }));
+                }}
                 className={`h-9 px-3.5 rounded-xl text-xs font-medium transition-all ${
-                  form.worker_occupation === occ
+                  selectedCategory === cat.id
                     ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/20'
                     : 'bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30'
-                }`}>
-                {WORKER_OCCUPATION_LABELS[occ] || occ}
+                }`}
+              >
+                <span className="mr-1">{cat.icon}</span>
+                {cat.name}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Service Subcategory (Specialty) */}
+        {selectedCategory && subcategories.length > 0 && (
+          <div>
+            <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Specialty (Optional)</label>
+            <div className="flex flex-wrap gap-2">
+              {subcategories.map(sub => (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, worker_bio: f.worker_bio ? f.worker_bio + ` (${sub.name})` : sub.name }))}
+                  className="h-8 px-3 rounded-lg text-[11px] font-medium bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] hover:border-[#3B82F6]/30 transition-all"
+                >
+                  {sub.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Bio */}
         <div>
