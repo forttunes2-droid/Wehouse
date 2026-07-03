@@ -1021,6 +1021,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   // ── Role filter toggles ──
   const canIncludeWorkers = isCreator(profile.role) || profile.role === 'admin';
   const canIncludeStaff = isCreator(profile.role) || profile.role === 'admin';
+  const [includeUsers, setIncludeUsers] = useState(true);
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
   const [includePartners, setIncludePartners] = useState(false);
@@ -1053,6 +1054,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     async function updateCount() {
       setCountLoading(true);
       const { count } = await getFilteredRecipientCount(
+        includeUsers,
         includeWorkers,
         includeStaff,
         includePartners,
@@ -1066,7 +1068,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     }
     updateCount();
     return () => { cancelled = true; };
-  }, [includeWorkers, includeStaff, includePartners, sendMode, canSend, isStateScope]);
+  }, [includeUsers, includeWorkers, includeStaff, includePartners, sendMode, canSend, isStateScope]);
 
   async function loadUsers() {
     const { users: data } = await getAllUsers();
@@ -1127,9 +1129,9 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       return;
     }
 
-    // Warn if broadcast mode but no regular users exist
-    if (sendMode === 'all' && users.length === 0 && !includeWorkers && !includeStaff) {
-      toast.error('No regular users in the system. Create a user account first.', { duration: 5000 });
+    // Warn if broadcast mode but no recipients selected
+    if (sendMode === 'all' && !includeUsers && !includeWorkers && !includeStaff && !includePartners && !targetRoleFilter) {
+      toast.error('Select at least one recipient group (Users, Workers, Staff, or Partners)', { duration: 5000 });
       return;
     }
 
@@ -1153,7 +1155,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       targetType = 'specific_user';
       options = { recipientIds: selectedUsers };
     } else if (targetRoleFilter) {
-      // Role-specific targeting (new)
+      // Role-specific targeting
       switch (targetRoleFilter) {
         case 'staff': targetType = 'staff_only'; break;
         case 'admin': targetType = 'admin_only'; break;
@@ -1161,14 +1163,29 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
         default: targetType = 'all_users';
       }
       options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
-    } else if (includeWorkers && includeStaff) {
-      targetType = 'all_users'; // users + workers + staff = everyone
-      options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
-    } else if (includeWorkers) {
-      targetType = 'all_workers';
-      options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
     } else {
-      targetType = 'all_users';
+      // Build target based on toggles
+      const includeAny = includeUsers || includeWorkers || includeStaff || includePartners;
+      if (!includeAny) {
+        toast.error('Select at least one recipient group');
+        setSending(false);
+        toast.dismiss('send-announce');
+        return;
+      }
+      // Determine best target type based on toggles
+      if (includeUsers && !includeWorkers && !includeStaff && !includePartners) {
+        targetType = 'all_users'; // only normal users
+      } else if (!includeUsers && includeWorkers && !includeStaff && !includePartners) {
+        targetType = 'all_workers'; // only workers
+      } else if (!includeUsers && !includeWorkers && includeStaff && !includePartners) {
+        targetType = 'staff_only'; // only staff
+      } else if (!includeUsers && !includeWorkers && !includeStaff && includePartners) {
+        targetType = 'partners_only'; // only partners
+      } else {
+        // Mixed selection — use all_users (the backend handles filtering by role if needed)
+        // For now, all_users covers everyone and we rely on the toggles for display clarity
+        targetType = 'all_users';
+      }
       options = { scopeState: isStateScope ? scope.state : undefined, scopeLga: isStateScope ? scope.lga : undefined };
     }
 
@@ -1186,23 +1203,27 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     toast.success(`Sent to ${recipientCount || 0} recipient${(recipientCount || 0) > 1 ? 's' : ''}!`);
     setMessage('');
     setSelectedUsers([]);
+    setIncludeUsers(true);
     setIncludeWorkers(false);
     setIncludeStaff(false);
+    setIncludePartners(false);
     setTargetRoleFilter('');
     setActiveView('history');
     await loadSentMessages();
   }
 
-  // Recipient breakdown label — reflects ACTUAL target, not always "Users"
+  // Recipient breakdown label — reflects ACTUAL target
   const getRecipientBreakdown = () => {
     if (targetRoleFilter === 'staff') return 'Staff Only';
     if (targetRoleFilter === 'admin') return 'Admins Only';
     if (targetRoleFilter === 'property_partner') return 'Property Partners Only';
     if (sendMode === 'select') return `${selectedUsers.length} Selected User${selectedUsers.length !== 1 ? 's' : ''}`;
-    const parts: string[] = ['Users'];
+    const parts: string[] = [];
+    if (includeUsers) parts.push('Users');
     if (includeWorkers) parts.push('Workers');
     if (includeStaff) parts.push('Staff');
     if (includePartners) parts.push('Partners');
+    if (parts.length === 0) return 'No recipients (select at least one group)';
     return parts.join(' + ');
   };
 
@@ -1406,6 +1427,22 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                     <p className="text-[9px] text-amber-400 mt-1">This will override the default user targeting</p>
                   )}
                 </div>
+
+                {/* Include Users toggle */}
+                <button
+                  onClick={() => setIncludeUsers(!includeUsers)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                    includeUsers
+                      ? 'bg-blue-500/10 border-blue-500/30'
+                      : 'bg-[#1A1A24] border-[#2A2A3A] hover:border-[#3A3A4A]'
+                  }`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={includeUsers ? '#3B82F6' : '#5C5E72'} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                  <span className={`text-xs flex-1 text-left ${includeUsers ? 'text-blue-400' : 'text-[#8A8B9C]'}`}>Include Normal Users</span>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative ${includeUsers ? 'bg-blue-500' : 'bg-[#2A2A3A]'}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${includeUsers ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                </button>
 
                 {/* Include Workers toggle */}
                 {canIncludeWorkers && (

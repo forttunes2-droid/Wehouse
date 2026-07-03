@@ -201,16 +201,20 @@ export const getMessageRecipientCount = async (id: string | number) => {
   return { count: stats.recipient_count, error: null };
 };
 export const getFilteredRecipientCount = async (
+  includeUsers: boolean,
   includeWorkers: boolean,
   includeStaff: boolean,
   includePartners: boolean,
   scopeState?: string,
   scopeLga?: string
 ) => {
-  const allowedRoles: string[] = ['user'];
+  const allowedRoles: string[] = [];
+  if (includeUsers) allowedRoles.push('user');
   if (includeWorkers) allowedRoles.push('worker');
   if (includeStaff) allowedRoles.push('staff', 'admin');
   if (includePartners) allowedRoles.push('property_partner');
+  // Must have at least one role selected
+  if (allowedRoles.length === 0) return { count: 0, error: null };
   let query = supabase.from('profiles').select('*', { count: 'exact', head: true }).is('deleted_at', null).in('role', allowedRoles);
   if (scopeState) query = query.eq('state', scopeState);
   if (scopeLga) query = query.eq('city', scopeLga);

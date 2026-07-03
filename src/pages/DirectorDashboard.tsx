@@ -206,7 +206,7 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
     <div className="space-y-3">
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
       <div className="flex gap-2 overflow-x-auto">
-        {['', 'user', 'staff', 'admin'].map(r => (
+        {['', 'user', 'staff', 'admin', 'worker', 'property_partner'].map(r => (
           <button key={r} onClick={() => setRoleFilter(r)} className={`px-3 h-7 rounded-lg text-[10px] font-medium whitespace-nowrap ${roleFilter === r ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72]'}`}>
             {r ? ROLE_LABELS[r as keyof typeof ROLE_LABELS] || r : 'All'}
           </button>
@@ -214,24 +214,36 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
       </div>
       {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div> : (
         <div className="space-y-2">
-          {filtered.map(u => (
-            <div key={u.id} className="glass rounded-xl p-3 hover:border-indigo-500/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
+          {filtered.map(u => {
+            const isUWorker = u.role === 'worker';
+            const isUPartner = u.role === 'property_partner';
+            const isUCreator = u.role === 'creator';
+            const roleLocked = isUWorker || isUPartner || isUCreator;
+            return (
+              <div key={u.id} className="glass rounded-xl p-3 hover:border-indigo-500/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
+                    <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
+                  </div>
+                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0"><path d="M9 18l6-6-6-6" /></svg>
                 </div>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full border ${roleColors[u.role] || roleColors.user}`}>{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0"><path d="M9 18l6-6-6-6" /></svg>
+                {/* Role locked indicator for workers, partners, creators */}
+                {roleLocked ? (
+                  <div className="mt-2 px-2 py-1 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[10px] text-[#5C5E72]">
+                    {isUWorker ? 'Worker (role locked)' : isUPartner ? 'Partner (role locked)' : 'Creator (role locked)'}
+                  </div>
+                ) : (
+                  <select value={u.role} onChange={e => handleRole(u.user_id, e.target.value)} className="w-full h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[10px] px-2 mt-2 outline-none">
+                    <option value="user">{ROLE_LABELS.user}</option>
+                    <option value="staff">{ROLE_LABELS.staff}</option>
+                  </select>
+                )}
               </div>
-              <select value={u.role} onChange={e => handleRole(u.user_id, e.target.value)} className="w-full h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[10px] px-2 mt-2 outline-none">
-                <option value="user">{ROLE_LABELS.user}</option>
-                <option value="staff">{ROLE_LABELS.staff}</option>
-                <option value="admin">{ROLE_LABELS.admin}</option>
-              </select>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
