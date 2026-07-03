@@ -221,23 +221,36 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     onSelectConv: (conv: Conversation) => void;
   }) {
     const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
+    const [roleMap, setRoleMap] = useState<Record<string, string>>({});
 
     useEffect(() => {
-      async function loadOnlineStatus() {
+      async function loadProfiles() {
         const otherIds = conversations.map(c =>
           c.participant_a === profile.user_id ? c.participant_b : c.participant_a
         );
         if (otherIds.length === 0) return;
         const { data } = await supabase
           .from('profiles')
-          .select('user_id, is_online')
+          .select('user_id, is_online, role')
           .in('user_id', otherIds);
-        const map: Record<string, boolean> = {};
-        (data || []).forEach((u: any) => { map[u.user_id] = u.is_online; });
-        setOnlineMap(map);
+        const online: Record<string, boolean> = {};
+        const roles: Record<string, string> = {};
+        (data || []).forEach((u: any) => {
+          online[u.user_id] = u.is_online;
+          roles[u.user_id] = u.role;
+        });
+        setOnlineMap(online);
+        setRoleMap(roles);
       }
-      loadOnlineStatus();
+      loadProfiles();
     }, [conversations.length]);
+
+    // Type label colors
+    const typeLabel = (type?: string | null) => {
+      if (type === 'partner_support') return { text: 'Partner', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' };
+      if (type === 'enquiry') return { text: 'Enquiry', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+      return null;
+    };
 
     return (
       <>
@@ -245,6 +258,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           const otherId = conv.participant_a === profile.user_id ? conv.participant_b : conv.participant_a;
           const isUnread = conv.participant_a === profile.user_id ? conv.unread_a > 0 : conv.unread_b > 0;
           const isOnline = onlineMap[otherId];
+          const otherRole = roleMap[otherId];
+          const label = typeLabel(conv.conversation_type);
           return (
             <button
               key={conv.id}
@@ -252,7 +267,11 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
               className="w-full flex items-center gap-3 px-5 py-4 border-b border-white/[0.04] text-left hover:bg-[#12121A] transition-colors"
             >
               <div className="relative flex-shrink-0">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-sm font-bold">
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                  conv.conversation_type === 'partner_support'
+                    ? 'bg-gradient-to-br from-violet-500 to-violet-700'
+                    : 'bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F]'
+                }`}>
                   {(usernames[otherId] || 'U').charAt(0).toUpperCase()}
                 </div>
                 {isOnline && (
@@ -261,14 +280,28 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white truncate">
-                    @{usernames[otherId] || `User ${otherId.slice(-4)}`}
-                  </span>
-                  {isUnread && (
-                    <span className="w-5 h-5 rounded-full bg-[#3B82F6] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 ml-2">
-                      {conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-sm font-semibold text-white truncate">
+                      @{usernames[otherId] || `User ${otherId.slice(-4)}`}
                     </span>
-                  )}
+                    {otherRole && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#1A1A24] border border-[#232330] text-[#5C5E72] flex-shrink-0">
+                        {otherRole}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {label && (
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${label.color}`}>
+                        {label.text}
+                      </span>
+                    )}
+                    {isUnread && (
+                      <span className="w-5 h-5 rounded-full bg-[#3B82F6] text-white text-[9px] font-bold flex items-center justify-center">
+                        {conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-[#8A8B9C] truncate">{conv.last_message || 'No messages yet'}</p>
               </div>
@@ -371,7 +404,12 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-sm font-semibold block truncate">@{usernames[otherId] || otherProfile?.username || `User ${otherId.slice(-4)}`}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold block truncate">@{usernames[otherId] || otherProfile?.username || `User ${otherId.slice(-4)}`}</span>
+              {activeConv.conversation_type === 'partner_support' && (
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 flex-shrink-0">Partner Support</span>
+              )}
+            </div>
             {otherProfile?.is_online ? (
               <span className="text-[9px] text-green-400">Online now</span>
             ) : otherProfile?.last_seen ? (

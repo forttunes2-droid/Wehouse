@@ -135,7 +135,13 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
       return;
     }
 
-    const { conversation, error } = await getOrCreateConversation(profile.user_id, staffMember.user_id);
+    const { conversation, error } = await getOrCreateConversation(
+      profile.user_id,
+      staffMember.user_id,
+      null,
+      'partner_support',
+      'Property Partner Support'
+    );
     if (error || !conversation) {
       toast.error('Failed to start chat: ' + (error?.message || 'unknown error'));
       return;

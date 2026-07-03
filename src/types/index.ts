@@ -382,6 +382,8 @@ export interface Conversation {
   unread_a: number;
   unread_b: number;
   created_at: string;
+  conversation_type?: string | null;  // 'direct', 'partner_support', 'enquiry'
+  subject?: string | null;  // e.g. 'Property Partner Support'
 }
 
 export interface Message {

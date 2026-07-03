@@ -97,10 +97,17 @@ export async function markMessagesSeen(conversationId: string, userId: string) {
   return { error: msgErr };
 }
 
-export async function createConversation(userA: string, userB: string, listingId?: string | null) {
+export async function createConversation(userA: string, userB: string, listingId?: string | null, conversationType?: string, subject?: string) {
   const { data, error } = await supabase
     .from('conversations')
-    .insert({ participant_a: userA, participant_b: userB, listing_id: listingId || null, status: 'active' })
+    .insert({
+      participant_a: userA,
+      participant_b: userB,
+      listing_id: listingId || null,
+      status: 'active',
+      conversation_type: conversationType || 'direct',
+      subject: subject || null,
+    })
     .select()
     .maybeSingle();
   return { conversation: data as Conversation | null, error };
@@ -128,7 +135,7 @@ export async function closeConversation(conversationId: string) {
   return { conversation: data as Conversation | null, error };
 }
 
-export async function getOrCreateConversation(userA: string, userB: string, listingId?: string | null) {
+export async function getOrCreateConversation(userA: string, userB: string, listingId?: string | null, conversationType?: string, subject?: string) {
   // Try direction A→B first
   let q1 = supabase
     .from('conversations')
@@ -150,5 +157,5 @@ export async function getOrCreateConversation(userA: string, userB: string, list
   if (exist2) return { conversation: exist2 as Conversation, error: null };
 
   // Create new conversation with listing context
-  return createConversation(userA, userB, listingId);
+  return createConversation(userA, userB, listingId, conversationType, subject);
 }
