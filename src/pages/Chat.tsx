@@ -100,8 +100,31 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   useEffect(() => {
     if (!conversationId || conversations.length === 0) return;
     const conv = conversations.find((c) => c.id === conversationId);
-    if (conv) setActiveConv(conv);
+    if (conv) {
+      setActiveConv(conv);
+    }
   }, [conversationId, conversations]);
+
+  // If conversationId provided but not found in list yet (newly created conv),
+  // fetch it directly and open it
+  useEffect(() => {
+    if (!conversationId || activeConv) return;
+
+    async function loadSpecificConv() {
+      const { data } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .maybeSingle();
+      if (data) {
+        setActiveConv(data as Conversation);
+        // Also refresh the conversations list
+        loadConversations();
+      }
+    }
+    loadSpecificConv();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
 
   // Load listing context when conversation has a linked listing
   useEffect(() => {

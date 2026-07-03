@@ -4,6 +4,7 @@ import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS } from '@/types';
 import type { Profile, ServiceCategory } from '@/types';
 import { toast, Toaster } from 'sonner';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
+import WorkerBookingFlow from '@/components/WorkerBookingFlow';
 
 interface WorkerDiscoveryProps {
   userCity?: string | null;
@@ -22,6 +23,9 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Booking modal
+  const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
 
   // ─── FETCH WORKERS ────────────────────────────────────
   useEffect(() => {
@@ -322,12 +326,15 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
                   </div>
                   {w.worker_bio && <p className="text-xs text-[#8A8B9C] mt-2 line-clamp-2">{w.worker_bio}</p>}
                   <div className="flex items-center gap-3 mt-2">
-                    {w.phone && (
-                      <a href={`tel:${w.phone}`} className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                        Call
-                      </a>
-                    )}
+                    {/* Book — opens booking modal */}
+                    <button
+                      onClick={() => setBookingWorker(w)}
+                      className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z" /></svg>
+                      Book
+                    </button>
+                    {/* Chat — opens chat with this worker */}
                     {profile && (
                       <button onClick={() => handleChatWithWorker(w.user_id)} className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
@@ -341,6 +348,24 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
           </div>
         )}
       </div>
+
+      {/* ─── BOOKING MODAL ─── */}
+      {bookingWorker && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setBookingWorker(null)}>
+          <div className="w-full max-w-sm bg-[#12121A] border border-[#1E1E2C] rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">Book {bookingWorker.full_name || bookingWorker.username || 'Worker'}</h3>
+              <button onClick={() => setBookingWorker(null)} className="w-8 h-8 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <WorkerBookingFlow
+              workerName={bookingWorker.full_name || bookingWorker.username || 'Worker'}
+              workerService={WORKER_OCCUPATION_LABELS[bookingWorker.worker_occupation || ''] || bookingWorker.worker_occupation || ''}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
