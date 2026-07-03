@@ -465,25 +465,12 @@ function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSu
         </p>
       </div>
 
-      {/* Batch List */}
+      {/* Batch List — Expandable Preview Cards */}
       {properties.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-[#8B8DA0] uppercase tracking-wider">Added ({properties.length})</h4>
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-[#8B8DA0] uppercase tracking-wider">Added ({properties.length}) — Tap to review before submitting</h4>
           {properties.map(p => (
-            <div key={p.id} className="rounded-xl bg-[#12121A]/80 border border-violet-500/10 p-3 flex items-center gap-3">
-              {p.photoUrls[0] ? (
-                <img src={p.photoUrls[0]} alt="" className="w-10 h-10 rounded-lg object-cover" />
-              ) : (
-                <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-sm">
-                  {p.category === 'hotel' ? '🏨' : p.sub_type === 'short_let' ? '⏱' : '🏠'}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white truncate">{p.property_address}</p>
-                <p className="text-[9px] text-[#5C5E72]">{p.property_city}, {p.property_state} · {p.category === 'hotel' ? 'Hotel' : p.sub_type === 'short_let' ? 'Short Let' : 'Long Stay'}</p>
-              </div>
-              <button onClick={() => removeProperty(p.id)} className="text-[10px] text-red-400 hover:text-red-300 px-2 py-1">Remove</button>
-            </div>
+            <PropertyPreviewCard key={p.id} property={p} onRemove={() => removeProperty(p.id)} />
           ))}
         </div>
       )}
@@ -819,6 +806,113 @@ function TextArea({ label, value, onChange, placeholder, rows = 3 }: { label: st
       <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
       <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
         className="w-full rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 py-3 placeholder:text-[#5C5E72] outline-none focus:border-violet-500 resize-none" />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROPERTY PREVIEW CARD (expandable — review before submitting)
+// ═══════════════════════════════════════════════════════════════
+
+function PropertyPreviewCard({ property, onRemove }: { property: any; onRemove: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const typeLabel = property.category === 'hotel' ? 'Hotel' : property.sub_type === 'short_let' ? 'Short Let' : 'Long Stay';
+  const typeIcon = property.category === 'hotel' ? '🏨' : property.sub_type === 'short_let' ? '⏱' : '🏠';
+
+  return (
+    <div className="rounded-2xl bg-[#12121A]/80 border border-violet-500/10 overflow-hidden">
+      {/* Collapsed Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 p-3 text-left"
+      >
+        {property.photoUrls[0] ? (
+          <img src={property.photoUrls[0]} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+        ) : (
+          <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center text-lg flex-shrink-0">
+            {typeIcon}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-white truncate">{property.property_address}</p>
+          <p className="text-[9px] text-[#5C5E72]">{property.property_city}, {property.property_state} · {typeLabel}</p>
+          {property.expected_rent && <p className="text-[9px] text-violet-400">N{Number(property.expected_rent).toLocaleString()}/year</p>}
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+
+      {/* Expanded Details */}
+      {expanded && (
+        <div className="px-3 pb-3 border-t border-white/[0.04] pt-3 space-y-3">
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 gap-2">
+            {property.bedrooms && (
+              <div className="rounded-lg bg-[#1A1A24] p-2">
+                <p className="text-[9px] text-[#5C5E72]">Bedrooms</p>
+                <p className="text-xs text-white font-medium">{property.bedrooms}</p>
+              </div>
+            )}
+            {property.bathrooms && (
+              <div className="rounded-lg bg-[#1A1A24] p-2">
+                <p className="text-[9px] text-[#5C5E72]">Bathrooms</p>
+                <p className="text-xs text-white font-medium">{property.bathrooms}</p>
+              </div>
+            )}
+            {property.expected_rent && (
+              <div className="rounded-lg bg-[#1A1A24] p-2">
+                <p className="text-[9px] text-[#5C5E72]">Expected Rent</p>
+                <p className="text-xs text-white font-medium">N{Number(property.expected_rent).toLocaleString()}</p>
+              </div>
+            )}
+            <div className="rounded-lg bg-[#1A1A24] p-2">
+              <p className="text-[9px] text-[#5C5E72]">Type</p>
+              <p className="text-xs text-white font-medium">{typeLabel}</p>
+            </div>
+          </div>
+
+          {/* Description */}
+          {property.description && (
+            <div className="rounded-lg bg-[#1A1A24] p-2.5">
+              <p className="text-[9px] text-[#5C5E72] uppercase tracking-wider mb-1">Description</p>
+              <p className="text-xs text-white leading-relaxed">{property.description}</p>
+            </div>
+          )}
+
+          {/* Amenities */}
+          {property.amenities && property.amenities.length > 0 && (
+            <div>
+              <p className="text-[9px] text-[#5C5E72] uppercase tracking-wider mb-1.5">Amenities</p>
+              <div className="flex flex-wrap gap-1.5">
+                {property.amenities.map((a: string) => (
+                  <span key={a} className="text-[9px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Photos Gallery */}
+          {property.photoUrls && property.photoUrls.length > 0 && (
+            <div>
+              <p className="text-[9px] text-[#5C5E72] uppercase tracking-wider mb-1.5">Photos ({property.photoUrls.length})</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {property.photoUrls.map((url: string, i: number) => (
+                  <img key={i} src={url} alt="" className="w-20 h-20 rounded-xl object-cover flex-shrink-0" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Remove Button */}
+          <button
+            onClick={onRemove}
+            className="w-full h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            Remove This Property
+          </button>
+        </div>
+      )}
     </div>
   );
 }

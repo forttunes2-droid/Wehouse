@@ -24,7 +24,7 @@ interface WorkerDashboardProps {
   onGoToMessages?: () => void;
 }
 
-type WorkerTab = 'home' | 'verification' | 'bookings' | 'messages' | 'services' | 'earnings' | 'wallet' | 'reviews' | 'profile' | 'support';
+type WorkerTab = 'home' | 'verification' | 'bookings' | 'messages' | 'services' | 'earnings' | 'wallet' | 'reviews' | 'profile' | 'support' | 'settings';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; desc: string; icon: string }> = {
   pending: {
@@ -83,6 +83,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
     { id: 'reviews', label: 'Reviews', icon: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' },
     { id: 'profile', label: 'Profile', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z' },
     { id: 'support', label: 'Help', icon: 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-14v4M12 16h.01' },
+    { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
   ];
 
   return (
@@ -190,6 +191,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
         {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
         {activeTab === 'profile' && <ProfileTab profile={profile} onGoToSetup={onGoToSetup} />}
         {activeTab === 'support' && <SupportTab />}
+        {activeTab === 'settings' && <WorkerSettingsTab profile={profile} onLogout={onLogout} />}
       </main>
     </div>
   );
@@ -1204,6 +1206,70 @@ function EmptyState({ icon, message, submessage }: { icon: string; message: stri
       <p className="text-2xl mb-2">{icon}</p>
       <p className="text-sm text-[#5C5E72]">{message}</p>
       <p className="text-[10px] text-[#3C3D4D] mt-1">{submessage}</p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WORKER SETTINGS TAB
+// ═══════════════════════════════════════════════════════════════
+
+function WorkerSettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  return (
+    <div className="space-y-4 px-5">
+      <h3 className="text-sm font-semibold text-white">Settings</h3>
+
+      {/* Profile Card */}
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold">
+              {(profile.full_name || profile.username || 'W')[0].toUpperCase()}
+            </div>
+          )}
+          <div>
+            <p className="text-sm font-semibold text-white">{profile.full_name || profile.username || 'Worker'}</p>
+            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+          </div>
+        </div>
+        <div className="pt-2 border-t border-white/[0.04] space-y-2">
+          <InfoRow label="Role" value="Worker" />
+          <InfoRow label="Status" value={profile.worker_status || 'Pending'} />
+          <InfoRow label="Occupation" value={profile.worker_occupation || 'Not set'} />
+          <InfoRow label="Phone" value={profile.phone || 'Not set'} />
+          <InfoRow label="Location" value={`${profile.city || '-'}, ${profile.state || '-'}`} />
+          <InfoRow label="Joined" value={new Date(profile.created_at).toLocaleDateString()} />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="space-y-2">
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          className="w-full h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+          Logout
+        </button>
+      </div>
+
+      {/* Logout Confirm */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#12121A] rounded-2xl p-5 border border-[#2A2A3A] max-w-xs w-full mx-4">
+            <p className="text-sm font-semibold text-white mb-2">Logout?</p>
+            <p className="text-xs text-[#5C5E72] mb-4">Are you sure you want to log out?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
+              <button onClick={onLogout} className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-medium">Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
