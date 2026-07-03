@@ -213,13 +213,13 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
               <div>
                 <h3 className="text-sm font-semibold text-white">Reserve This Property</h3>
                 <p className="text-[11px] text-[#5C5E72] mt-0.5">
-                  Choose 1, 2, or 3 year plan. Pay N5,000 reservation fee, then Year 1 rent after WeHouse inspection.
+                  Choose 1, 2, or 3 year plan. Pay N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()} reservation fee, then Year 1 rent after WeHouse inspection.
                 </p>
               </div>
             </div>
             <div className="flex items-center justify-between mb-4 py-3 px-4 rounded-xl bg-[#1A1A24]">
               <span className="text-xs text-[#5C5E72]">Reservation Fee (72hr hold)</span>
-              <span className="text-sm font-bold text-[#3B82F6]">N5,000</span>
+              <span className="text-sm font-bold text-[#3B82F6]">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
             </div>
             <button onClick={handleReserve} disabled={reserving} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2">
               {reserving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>Choose Rental Plan</>}

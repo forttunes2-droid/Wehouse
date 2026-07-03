@@ -88,13 +88,13 @@ export default function WorkerBookingFlow({
               value={amount}
               onChange={e => setAmount(e.target.value)}
               placeholder="e.g. 5000"
-              min={1000}
+              min={WEHOUSE_FEES.WORKER_MIN_JOB_AMOUNT}
               className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6]"
             />
-            <p className="text-[9px] text-[#5C5E72] mt-1">Minimum N1,000. Agree on price with worker before booking.</p>
+            <p className="text-[9px] text-[#5C5E72] mt-1">Minimum N{WEHOUSE_FEES.WORKER_MIN_JOB_AMOUNT.toLocaleString()}. Agree on price with worker before booking.</p>
           </div>
 
-          {numAmount >= 1000 && (
+          {numAmount >= WEHOUSE_FEES.WORKER_MIN_JOB_AMOUNT && (
             <div className="rounded-xl bg-[#12121A] border border-white/[0.04] p-3 space-y-1.5">
               <h4 className="text-[10px] font-semibold text-[#8A8B9C] uppercase">Fee Breakdown</h4>
               <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Work fee</span><span className="text-white">N{numAmount.toLocaleString()}</span></div>

@@ -572,6 +572,7 @@ export const WEHOUSE_FEES = {
   // Worker bookings: user pays a small booking fee, worker pays commission
   WORKER_BOOKING_FEE_USER: 300,          // N300 per booking (user pays)
   WORKER_COMMISSION_PERCENT: 12.5,        // 12.5% of job value (worker pays)
+  WORKER_MIN_JOB_AMOUNT: 1000,            // N1,000 minimum job value
 
   // Long Stay (monthly/yearly): Lower commission — tenant stays long-term, less management
   LONG_STAY_COMMISSION_PERCENT: 10,       // 10% of annual rent (from landlord)
@@ -592,6 +593,9 @@ export const WEHOUSE_FEES = {
   // Amount is SET BY PROPERTY OWNER (default 10% of rent, min N10,000)
   SECURITY_DEPOSIT_DEFAULT_PERCENT: 10,
   SECURITY_DEPOSIT_MIN_NGN: 10000,
+
+  // Blue Badge: only subscription on WeHouse — monthly worker verification
+  BLUE_BADGE_PRICE_NGN: 1000,             // N1,000 per month
 } as const;
 
 // ═══════════════════════════════════════════════════════════════

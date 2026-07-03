@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createBlueBadgeSubscription } from '@/lib/supabase';
+import { WEHOUSE_FEES } from '@/types';
 import { toast } from 'sonner';
 
 interface BlueBadgeSubscribeProps {
@@ -7,7 +8,7 @@ interface BlueBadgeSubscribeProps {
   onSuccess?: () => void;
 }
 
-const BLUE_BADGE_PRICE = 1000; // N1,000 per month
+const BLUE_BADGE_PRICE = WEHOUSE_FEES.BLUE_BADGE_PRICE_NGN; // N1,000 per month from fee config
 
 export default function BlueBadgeSubscribe({ workerId, onSuccess }: BlueBadgeSubscribeProps) {
   const [loading, setLoading] = useState(false);
