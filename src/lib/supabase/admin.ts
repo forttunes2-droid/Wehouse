@@ -34,13 +34,16 @@ const VALID_ROLE_TRANSITIONS: Record<string, string[]> = {
 
 export function canChangeRole(currentRole: string, newRole: string): { allowed: boolean; reason?: string } {
   // Creator can do anything (except change another creator)
-  // This is checked at the UI level via validateRoleTransition
+  // Workers and property partners signed up with their role — cannot be changed
+  if (currentRole === 'worker') return { allowed: false, reason: 'Workers signed up as workers. Role cannot be changed.' };
+  if (currentRole === 'property_partner') return { allowed: false, reason: 'Property partners signed up as partners. Role cannot be changed.' };
+  if (currentRole === 'creator') return { allowed: false, reason: 'Creator role cannot be changed.' };
+  if (newRole === 'creator') return { allowed: false, reason: 'Creator role cannot be assigned.' };
+  if (newRole === 'worker') return { allowed: false, reason: 'Workers must sign up via worker registration.' };
+  if (newRole === 'property_partner') return { allowed: false, reason: 'Partners must sign up via partner registration.' };
+  // For user/staff/admin roles, check the transition matrix
   const allowed = VALID_ROLE_TRANSITIONS[currentRole] || [];
   if (!allowed.includes(newRole)) {
-    if (currentRole === 'worker') return { allowed: false, reason: 'Workers signed up as workers. Role cannot be changed.' };
-    if (currentRole === 'creator') return { allowed: false, reason: 'Creator role cannot be changed.' };
-    if (newRole === 'creator') return { allowed: false, reason: 'Creator role cannot be assigned.' };
-    if (newRole === 'worker') return { allowed: false, reason: 'Workers must sign up via worker registration.' };
     return { allowed: false, reason: `Cannot change ${currentRole} to ${newRole}.` };
   }
   return { allowed: true };

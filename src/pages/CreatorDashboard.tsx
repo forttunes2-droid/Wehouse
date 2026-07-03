@@ -499,6 +499,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
             const isCreatorAccount = isCreator(u.role);
             const isWorkerAccount = u.role === 'worker';
+            const isPartnerAccount = u.role === 'property_partner';
             const isDeleted = u.deleted;
 
             return (
@@ -530,8 +531,8 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                       <span className="h-6 px-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] flex items-center font-bold">SUSPENDED</span>
                     )}
 
-                    {/* Change Role — only for non-creator, non-worker accounts */}
-                    {!isCreatorAccount && !isWorkerAccount && !isDeleted && (
+                    {/* Change Role — only for user/staff/admin accounts */}
+                    {!isCreatorAccount && !isWorkerAccount && !isPartnerAccount && !isDeleted && (
                       <select
                         value={u.role}
                         onChange={(e) => handleRole(u.user_id, e.target.value)}
@@ -540,7 +541,6 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                         <option value="user">{ROLE_LABELS.user}</option>
                         <option value="staff">{ROLE_LABELS.staff}</option>
                         <option value="admin">{ROLE_LABELS.admin}</option>
-                        <option value="property_partner">{ROLE_LABELS.property_partner}</option>
                       </select>
                     )}
 
@@ -1023,6 +1023,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const canIncludeStaff = isCreator(profile.role) || profile.role === 'admin';
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
+  const [includePartners, setIncludePartners] = useState(false);
   // Role-specific targeting (new)
   const [targetRoleFilter, setTargetRoleFilter] = useState<string>(''); // empty = all users
   const [liveCount, setLiveCount] = useState(0);
@@ -1054,6 +1055,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       const { count } = await getFilteredRecipientCount(
         includeWorkers,
         includeStaff,
+        includePartners,
         isStateScope ? scope.state : undefined,
         isStateScope ? scope.lga : undefined
       );
@@ -1064,7 +1066,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     }
     updateCount();
     return () => { cancelled = true; };
-  }, [includeWorkers, includeStaff, sendMode, canSend, isStateScope]);
+  }, [includeWorkers, includeStaff, includePartners, sendMode, canSend, isStateScope]);
 
   async function loadUsers() {
     const { users: data } = await getAllUsers();
@@ -1200,6 +1202,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     const parts: string[] = ['Users'];
     if (includeWorkers) parts.push('Workers');
     if (includeStaff) parts.push('Staff');
+    if (includePartners) parts.push('Partners');
     return parts.join(' + ');
   };
 
@@ -1439,6 +1442,22 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                     </div>
                   </button>
                 )}
+
+                {/* Include Partners toggle */}
+                <button
+                  onClick={() => setIncludePartners(!includePartners)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                    includePartners
+                      ? 'bg-violet-500/10 border-violet-500/30'
+                      : 'bg-[#1A1A24] border-[#2A2A3A] hover:border-[#3A3A4A]'
+                  }`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={includePartners ? '#8B5CF6' : '#5C5E72'} strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>
+                  <span className={`text-xs flex-1 text-left ${includePartners ? 'text-violet-400' : 'text-[#8A8B9C]'}`}>Include Property Partners</span>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative ${includePartners ? 'bg-violet-500' : 'bg-[#2A2A3A]'}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${includePartners ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                </button>
 
                 {/* Live count */}
                 <div className="flex items-center gap-2 px-1">
