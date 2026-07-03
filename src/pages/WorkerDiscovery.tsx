@@ -38,7 +38,6 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
     const { workers: data } = await getWorkers({
       ...(occupation ? { occupation } : {}),
       ...(city ? { city } : {}),
-      status: 'verified',
     });
     // Sort: same city first
     const sorted = [...(data || [])].sort((a, b) => {

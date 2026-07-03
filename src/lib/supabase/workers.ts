@@ -8,7 +8,7 @@ export async function getWorkers(filters?: { city?: string; occupation?: string;
   if (filters?.city) query = query.eq('city', filters.city);
   if (filters?.occupation) query = query.eq('worker_occupation', filters.occupation);
   if (filters?.status) query = query.eq('worker_status', filters.status);
-  else query = query.eq('worker_status', 'verified'); // default: only verified
+  // No status filter = show all workers (pending + verified + suspended)
   const { data, error } = await query.order('created_at', { ascending: false });
   return { workers: data as Profile[] | null, error };
 }
