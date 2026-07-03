@@ -104,13 +104,51 @@ export {
   checkSearchExpiry,
 } from './roommate';
 
-// Workers
+// Workers (v2 — Categories, Verification, Wallet, Payouts)
 export {
   getWorkers,
   parseWorkerStatus,
   getAllWorkers,
   getPendingWorkers,
   updateWorkerStatus,
+  // Service Categories
+  getServiceCategories,
+  getServiceSubcategories,
+  getCategoryWithSubcategories,
+  createServiceCategory,
+  updateServiceCategory,
+  createServiceSubcategory,
+  updateServiceSubcategory,
+  seedSubcategoriesForCategory,
+  // Worker Verification
+  submitWorkerVerification,
+  getWorkerVerification,
+  getVerificationsByStatus,
+  reviewWorkerVerification,
+  // Blue Badge
+  getBlueBadgeSubscription,
+  createBlueBadgeSubscription,
+  cancelBlueBadgeSubscription,
+  // Wallet
+  getOrCreateWallet,
+  getWallet,
+  getWalletTransactions,
+  creditWallet,
+  updateWalletBankDetails,
+  // Escrow
+  createEscrowTransaction,
+  getEscrowForBooking,
+  releaseEscrow,
+  refundEscrow,
+  // Withdrawals
+  requestWithdrawal,
+  getWithdrawals,
+  // Audit
+  logFinancialEvent,
+  getFinancialAuditLogs,
+  // Dashboard
+  getWorkerDashboardData,
+  getWorkerSystemStats,
 } from './workers';
 
 // Chat

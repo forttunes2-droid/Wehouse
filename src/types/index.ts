@@ -990,6 +990,281 @@ export interface Inspection {
   updated_at: string;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// WORKER SYSTEM v2 — Categories, Verification, Wallet, Payouts
+// ═══════════════════════════════════════════════════════════════
+
+// ─── SERVICE CATEGORIES (Database-Driven) ───────────────────
+
+export interface ServiceCategory {
+  id: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceSubcategory {
+  id: string;
+  category_id: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Default subcategories seeded per category
+// These can be expanded from the Creator Dashboard
+export const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
+  'Home Services': ['Electrician', 'Plumber', 'Carpenter', 'Painter', 'Welder', 'POP Installer', 'Tiler', 'Roofer'],
+  'Cleaning': ['House Cleaning', 'Office Cleaning', 'Laundry Service', 'Deep Cleaning', 'Post-Construction Cleaning', 'Carpet Cleaning'],
+  'Beauty': ['Barber', 'Hair Stylist', 'Makeup Artist', 'Nail Technician', 'Spa Therapist', 'Tattoo Artist'],
+  'Events': ['Event Planner', 'Caterer', 'DJ', 'Photographer', 'Videographer', 'MC/Host', 'Decorator', 'Bouncer'],
+  'Moving & Delivery': ['Mover', 'Courier', 'Dispatch Rider', 'Truck Driver', 'Packaging Service'],
+  'Auto Services': ['Mechanic', 'Car Washer', 'Panel Beater', 'Auto Electrician', 'Tire Technician', 'Car Detailer'],
+  'Technology': ['Phone Repair', 'Laptop Repair', 'CCTV Installer', 'Software Developer', 'Graphic Designer', 'Network Technician'],
+  'Gardening': ['Gardener', 'Landscape Designer', 'Tree Trimmer', 'Irrigation Specialist'],
+  'Security': ['Security Guard', 'Bouncer', 'Bodyguard', 'CCTV Monitor'],
+  'Health & Care': ['Home Nurse', 'Caregiver', 'Physiotherapist', 'Midwife'],
+  'Education': ['Private Tutor', 'Music Teacher', 'Language Teacher', 'Coding Instructor'],
+  'Tailoring & Fashion': ['Tailor', 'Fashion Designer', 'Shoe Maker', 'Cap Maker'],
+  'Agriculture': ['Farm Worker', 'Poultry Expert', 'Fish Farmer', 'Crop Specialist'],
+  'Other Services': ['Errand Runner', 'Personal Assistant', 'Translator', 'Legal Assistant'],
+};
+
+// ─── WORKER VERIFICATION ────────────────────────────────────
+
+export type WorkerVerificationStatus = 'pending' | 'under_review' | 'approved' | 'rejected';
+export type GovIdType = 'nin' | 'drivers_license' | 'passport' | 'voters_card';
+
+export interface WorkerVerification {
+  id: string;
+  worker_id: string;
+  gov_id_type: GovIdType | null;
+  gov_id_number: string | null;
+  gov_id_photo_url: string | null;
+  selfie_photo_url: string | null;
+  verification_video_url: string | null;
+  years_of_experience: number;
+  service_category_id: string | null;
+  service_subcategory_id: string | null;
+  status: WorkerVerificationStatus;
+  reviewed_by: string | null;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  service_category?: ServiceCategory | null;
+  service_subcategory?: ServiceSubcategory | null;
+}
+
+export const WORKER_VERIFICATION_STATUS_LABELS: Record<WorkerVerificationStatus, string> = {
+  pending: 'Pending',
+  under_review: 'Under Review',
+  approved: 'Approved',
+  rejected: 'Rejected',
+};
+
+export const WORKER_VERIFICATION_STATUS_COLORS: Record<WorkerVerificationStatus, string> = {
+  pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  under_review: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+};
+
+// ─── BLUE BADGE SUBSCRIPTION ────────────────────────────────
+
+export type BlueBadgeStatus = 'active' | 'inactive' | 'expired' | 'cancelled';
+
+export interface BlueBadgeSubscription {
+  id: string;
+  worker_id: string;
+  status: BlueBadgeStatus;
+  started_at: string | null;
+  expires_at: string | null;
+  paystack_reference: string | null;
+  paystack_subscription_code: string | null;
+  amount_paid: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const BLUE_BADGE_STATUS_LABELS: Record<BlueBadgeStatus, string> = {
+  active: 'Active',
+  inactive: 'Inactive',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+};
+
+export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
+  active: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  inactive: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  expired: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
+};
+
+// ─── WALLETS ────────────────────────────────────────────────
+
+export interface Wallet {
+  id: string;
+  owner_id: string;
+  owner_type: 'worker' | 'property_partner';
+  available_balance: number;
+  pending_balance: number;
+  frozen_balance: number;
+  total_withdrawn: number;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
+  paystack_recipient_code: string | null;
+  is_frozen: boolean;
+  frozen_reason: string | null;
+  frozen_by: string | null;
+  frozen_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WalletTransactionType = 'credit' | 'debit' | 'escrow_release' | 'withdrawal' | 'refund' | 'commission' | 'freeze' | 'unfreeze';
+
+export interface WalletTransaction {
+  id: string;
+  wallet_id: string;
+  type: WalletTransactionType;
+  amount: number;
+  description: string | null;
+  reference: string | null;
+  balance_after: number;
+  created_at: string;
+}
+
+export const WALLET_TRANSACTION_TYPE_LABELS: Record<WalletTransactionType, string> = {
+  credit: 'Credit',
+  debit: 'Debit',
+  escrow_release: 'Escrow Released',
+  withdrawal: 'Withdrawal',
+  refund: 'Refund',
+  commission: 'Commission',
+  freeze: 'Frozen',
+  unfreeze: 'Unfrozen',
+};
+
+// ─── ESCROW TRANSACTIONS ────────────────────────────────────
+
+export type EscrowStatus = 'held' | 'released' | 'refunded' | 'disputed' | 'partially_refunded';
+export type EscrowTransactionType = 'worker_booking' | 'property_rental' | 'hotel_booking' | 'reservation';
+
+export interface EscrowTransaction {
+  id: string;
+  reference: string;
+  transaction_type: EscrowTransactionType;
+  booking_id: string | null;
+  customer_id: string;
+  worker_id: string | null;
+  partner_id: string | null;
+  gross_amount: number;
+  wehouse_commission: number;
+  net_amount: number;
+  security_deposit: number;
+  status: EscrowStatus;
+  paystack_reference: string | null;
+  paystack_transaction_id: string | null;
+  released_at: string | null;
+  released_to_wallet_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
+  held: 'Held',
+  released: 'Released',
+  refunded: 'Refunded',
+  disputed: 'Disputed',
+  partially_refunded: 'Partially Refunded',
+};
+
+// ─── WITHDRAWALS ────────────────────────────────────────────
+
+export type WithdrawalStatus = 'pending' | 'processing' | 'successful' | 'failed' | 'reversed';
+
+export interface Withdrawal {
+  id: string;
+  wallet_id: string;
+  amount: number;
+  paystack_transfer_reference: string | null;
+  paystack_transfer_code: string | null;
+  status: WithdrawalStatus;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
+  processed_at: string | null;
+  failed_reason: string | null;
+  reversed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const WITHDRAWAL_STATUS_LABELS: Record<WithdrawalStatus, string> = {
+  pending: 'Pending',
+  processing: 'Processing',
+  successful: 'Successful',
+  failed: 'Failed',
+  reversed: 'Reversed',
+};
+
+export const WITHDRAWAL_STATUS_COLORS: Record<WithdrawalStatus, string> = {
+  pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  processing: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  successful: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  failed: 'bg-red-500/10 text-red-400 border-red-500/20',
+  reversed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+};
+
+// ─── FINANCIAL AUDIT LOGS ───────────────────────────────────
+
+export type AuditEventType =
+  | 'customer_payment'
+  | 'escrow_created'
+  | 'escrow_released'
+  | 'escrow_refunded'
+  | 'withdrawal_requested'
+  | 'withdrawal_processing'
+  | 'withdrawal_successful'
+  | 'withdrawal_failed'
+  | 'withdrawal_reversed'
+  | 'wallet_frozen'
+  | 'wallet_unfrozen'
+  | 'commission_deducted'
+  | 'security_deposit_held'
+  | 'security_deposit_released'
+  | 'security_deposit_claimed'
+  | 'blue_badge_purchased'
+  | 'blue_badge_renewed'
+  | 'dispute_opened'
+  | 'dispute_resolved'
+  | 'manual_adjustment';
+
+export interface FinancialAuditLog {
+  id: string;
+  event_type: AuditEventType;
+  user_id: string | null;
+  target_user_id: string | null;
+  amount: number | null;
+  reference_id: string | null;
+  reference_type: string | null;
+  description: string | null;
+  metadata: Record<string, any>;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
 // ─── COMMISSION RULES ───────────────────────────────────────
 
 export type CommissionRuleType = 'reservation_fee' | 'listing_commission' | 'hotel_booking_fee' | 'worker_subscription' | 'owner_commission' | 'late_fee' | 'cancellation_fee';
