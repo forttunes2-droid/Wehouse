@@ -74,15 +74,13 @@ export function validateRoleTransition(
 ): { allowed: boolean; reason?: string } {
   if (isCreator(targetCurrentRole)) return { allowed: false, reason: 'Creator role cannot be modified' };
   if (isCreator(targetNewRole)) return { allowed: false, reason: 'Creator role cannot be assigned' };
-  if (targetCurrentRole === 'worker') return { allowed: false, reason: 'Worker role is locked. Workers must sign up via worker registration.' };
-  if (targetNewRole === 'worker') return { allowed: false, reason: 'Cannot assign worker role. Workers must sign up via worker registration.' };
-  // Creator can change any role (except other creators)
+  // Creator can change ANY role including workers (except other creators)
   if (isCreator(modifierRole)) {
-    const allRoles = ['user', 'staff', 'admin', 'property_partner'];
+    const allRoles = ['user', 'staff', 'admin', 'property_partner', 'worker'];
     if (allRoles.includes(targetCurrentRole) && allRoles.includes(targetNewRole)) return { allowed: true };
     return { allowed: false, reason: `Cannot change ${targetCurrentRole} to ${targetNewRole}` };
   }
-  // Admin can change roles up to staff
+  // Admin can change roles up to staff (not workers, not partners)
   if (isAdmin(modifierRole)) {
     const adminRoles = ['user', 'staff'];
     if (adminRoles.includes(targetCurrentRole) && adminRoles.includes(targetNewRole)) return { allowed: true };
