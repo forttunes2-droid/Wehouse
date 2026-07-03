@@ -166,8 +166,11 @@ export {
 export {
   getConversations,
   getStaffConversations,
+  getPartnerSupportInbox,
   getMessages,
   sendMessage,
+  editMessage,
+  deleteMessage,
   markMessagesSeen,
   createConversation,
   acceptEnquiry,

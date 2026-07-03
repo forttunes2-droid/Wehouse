@@ -396,6 +396,7 @@ export interface Message {
   content: string;
   seen: boolean;
   created_at: string;
+  edited_at?: string | null;
 }
 
 export interface Review {

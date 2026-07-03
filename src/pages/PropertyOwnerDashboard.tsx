@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, getOrCreateConversation } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -119,32 +119,14 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, 
     { id: 'settings', label: 'Settings' },
   ];
 
-  // Start chat with WeHouse staff — finds staff first, then admin, then creator
+  // Start chat with WeHouse Support — uses RPC (bypasses RLS)
   async function handleChatWithWeHouse() {
-    // Try staff first, then admin, then creator
-    let staffMember = null;
-    for (const role of ['staff', 'admin', 'creator', 'creator_admin']) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('user_id, username')
-        .eq('role', role)
-        .limit(1)
-        .maybeSingle();
-      if (data) { staffMember = data; break; }
-    }
+    toast.loading('Starting chat...', { id: 'start-chat' });
+    const { data: conversation, error } = await supabase.rpc('start_partner_support_chat', {
+      p_partner_id: profile.user_id,
+    });
+    toast.dismiss('start-chat');
 
-    if (!staffMember) {
-      toast.error('No staff available right now. Please email support@wehouse.com.ng');
-      return;
-    }
-
-    const { conversation, error } = await getOrCreateConversation(
-      profile.user_id,
-      staffMember.user_id,
-      null,
-      'partner_support',
-      'Property Partner Support'
-    );
     if (error || !conversation) {
       toast.error('Failed to start chat: ' + (error?.message || 'unknown error'));
       return;
@@ -153,7 +135,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, 
     if (onGoToChat) {
       onGoToChat(conversation.id);
     } else {
-      toast.success('Chat started with ' + (staffMember.username || 'WeHouse support'));
+      toast.success('Chat started with WeHouse Support');
     }
   }
 
@@ -659,6 +641,22 @@ function RequestsTab({ profileId }: { profileId: string }) {
               )}
               {r.notes && <p className="text-[10px] text-[#5C5E72] mt-2 italic">Note: {r.notes}</p>}
               {r.rejection_reason && <p className="text-[10px] text-red-400 mt-2">Reason: {r.rejection_reason}</p>}
+              {/* Delete button for pending requests */}
+              {r.status === 'pending' && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Delete this inspection request?')) return;
+                    const { error } = await supabase.from('inspection_requests').delete().eq('id', r.id);
+                    if (error) { toast.error('Failed to delete: ' + error.message); return; }
+                    toast.success('Request deleted');
+                    load();
+                  }}
+                  className="mt-2 text-[10px] text-red-400/70 hover:text-red-400 flex items-center gap-1 transition-colors"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  Delete Request
+                </button>
+              )}
             </div>
           </div>
         );

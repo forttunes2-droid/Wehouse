@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import {
   supabase,
   getConversations,
-  getStaffConversations,
+  getPartnerSupportInbox,
   getMessages,
   sendMessage,
+  editMessage,
+  deleteMessage,
   markMessagesSeen,
   getOfficialMessagesForUser,
   acceptEnquiry,
@@ -33,6 +35,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   const [officialMessages, setOfficialMessages] = useState<any[]>([]);
   const [linkedListing, setLinkedListing] = useState<Listing | null>(null);
   const [otherProfile, setOtherProfile] = useState<{ is_online?: boolean; last_seen?: string; username?: string } | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const convSubscriptionRef = useRef<any>(null);
 
@@ -48,28 +52,67 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   }
 
   async function loadConversations() {
-    // Staff/admin/creator see ALL partner_support conversations (shared inbox)
     const isStaff = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator' || profile.role === 'creator_admin';
-    const { conversations: data } = isStaff
-      ? await getStaffConversations(profile.user_id)
-      : await getConversations(profile.user_id);
-    const convs = data || [];
+    let convs: Conversation[] = [];
+
+    if (isStaff) {
+      // Staff: get partner support inbox (includes partner names)
+      const { conversations: inboxData } = await getPartnerSupportInbox();
+      if (inboxData) {
+        convs = inboxData.map((item: any) => ({
+          id: item.id,
+          participant_a: item.participant_a,
+          participant_b: item.participant_b,
+          status: item.status,
+          last_message: item.last_message,
+          last_message_at: item.last_message_at,
+          unread_a: item.unread_a,
+          unread_b: item.unread_b,
+          created_at: item.created_at,
+          conversation_type: item.conversation_type,
+          subject: item.subject,
+        } as Conversation));
+        // Store partner names for display
+        const partnerNames: Record<string, string> = {};
+        inboxData.forEach((item: any) => {
+          if (item.participant_a) partnerNames[item.participant_a] = item.partner_name || item.participant_a.slice(-6);
+        });
+        setUsernames(prev => ({ ...prev, ...partnerNames }));
+      }
+      // Also get personal conversations
+      const { conversations: personal } = await getConversations(profile.user_id);
+      if (personal) {
+        // Merge without duplicates
+        const existingIds = new Set(convs.map(c => c.id));
+        personal.forEach(c => { if (!existingIds.has(c.id)) convs.push(c); });
+      }
+    } else {
+      // Regular users: just their own conversations
+      const { conversations: data } = await getConversations(profile.user_id);
+      convs = data || [];
+    }
+
+    // Sort by last message
+    convs.sort((a, b) => {
+      const aTime = a.last_message_at || a.created_at;
+      const bTime = b.last_message_at || b.created_at;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+
     setConversations(convs);
 
-    // Fetch usernames for all participants
+    // Fetch remaining usernames
     const userIds = convs
-      .map((c) => (c.participant_a === profile.user_id ? c.participant_b : c.participant_a))
-      .filter((id, i, arr) => arr.indexOf(id) === i);
+      .map(c => c.participant_a === profile.user_id ? c.participant_b : c.participant_a)
+      .filter((id, i, arr) => arr.indexOf(id) === i && !usernames[id]);
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, username')
         .in('user_id', userIds);
       const map: Record<string, string> = {};
-      (profiles || []).forEach((u: any) => {
-        map[u.user_id] = u.username;
-      });
-      setUsernames(map);
+      (profiles || []).forEach((u: any) => { map[u.user_id] = u.username; });
+      setUsernames(prev => ({ ...prev, ...map }));
     }
 
     return convs;
@@ -511,20 +554,72 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {messages.map((msg) => {
             const isMe = msg.sender_id === profile.user_id;
-            return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
-                    isMe
-                      ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-br-md'
-                      : 'bg-[#1A1A24] text-white rounded-bl-md border border-white/[0.06]'
-                  }`}
-                >
-                  {msg.content}
-                  <div className={`text-[9px] mt-1 ${isMe ? 'text-white/50' : 'text-[#5C5E72]'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {isMe && msg.seen && <span className="ml-1">Seen</span>}
+            const isStaffReply = activeConv?.conversation_type === 'partner_support' && !isMe;
+            const canEdit = isMe && msg.id && !msg.id.startsWith('optimistic') && (Date.now() - new Date(msg.created_at).getTime()) < 10 * 60 * 1000;
+
+            if (editingMessageId === msg.id) {
+              return (
+                <div key={msg.id} className="flex justify-end">
+                  <div className="max-w-[75%] px-3 py-2 rounded-2xl bg-[#1A1A24] border border-[#3B82F6]/30">
+                    <input
+                      value={editContent}
+                      onChange={e => setEditContent(e.target.value)}
+                      className="w-full bg-transparent text-white text-sm outline-none mb-2"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditingMessageId(null)} className="text-[10px] text-[#5C5E72] px-2 py-1">Cancel</button>
+                      <button onClick={async () => {
+                        const { error } = await editMessage(msg.id, editContent);
+                        if (error) toast.error('Failed to edit');
+                        else {
+                          setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, content: editContent, edited_at: new Date().toISOString() } : m));
+                          setEditingMessageId(null);
+                        }
+                      }} className="text-[10px] text-[#3B82F6] px-2 py-1 font-medium">Save</button>
+                    </div>
                   </div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                <div className={`max-w-[75%] ${isStaffReply ? 'w-full' : ''}`}>
+                  {/* Staff sender label in partner support */}
+                  {isStaffReply && (
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-4 h-4 rounded-full bg-violet-500/20 flex items-center justify-center text-[8px] text-violet-400">W</span>
+                      <span className="text-[9px] text-violet-400 font-medium">WeHouse Support</span>
+                    </div>
+                  )}
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-sm ${
+                      isMe
+                        ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white rounded-br-md'
+                        : 'bg-[#1A1A24] text-white rounded-bl-md border border-white/[0.06]'
+                    }`}
+                  >
+                    {msg.content}
+                    {msg.edited_at && <span className="text-[8px] opacity-50 ml-1">(edited)</span>}
+                    <div className={`text-[9px] mt-1 ${isMe ? 'text-white/50' : 'text-[#5C5E72]'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {isMe && msg.seen && <span className="ml-1">Seen</span>}
+                    </div>
+                  </div>
+                  {/* Edit/Delete buttons (visible on hover, within 10 min) */}
+                  {canEdit && (
+                    <div className="flex gap-2 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingMessageId(msg.id); setEditContent(msg.content); }}
+                        className="text-[9px] text-[#5C5E72] hover:text-[#3B82F6]">Edit</button>
+                      <button onClick={async () => {
+                        if (!confirm('Delete this message?')) return;
+                        const { error } = await deleteMessage(msg.id);
+                        if (error) toast.error('Failed to delete');
+                        else setMessages(prev => prev.filter(m => m.id !== msg.id));
+                      }} className="text-[9px] text-[#5C5E72] hover:text-red-400">Delete</button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

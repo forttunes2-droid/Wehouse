@@ -175,6 +175,32 @@ export async function closeConversation(conversationId: string) {
   return { conversation: data as Conversation | null, error };
 }
 
+// Get partner support inbox (for staff - shows all partner conversations with partner details)
+export async function getPartnerSupportInbox() {
+  const { data, error } = await supabase.rpc('get_partner_support_inbox');
+  return { conversations: data as any[] | null, error };
+}
+
+// Message edit (within 10 minutes)
+export async function editMessage(messageId: string, newContent: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ content: newContent, edited_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .select()
+    .maybeSingle();
+  return { message: data as Message | null, error };
+}
+
+// Message delete
+export async function deleteMessage(messageId: string) {
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .eq('id', messageId);
+  return { error };
+}
+
 export async function getOrCreateConversation(userA: string, userB: string, listingId?: string | null, conversationType?: string, subject?: string) {
   // Try direction A→B
   let q1 = supabase
