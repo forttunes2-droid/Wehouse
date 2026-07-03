@@ -29,6 +29,25 @@ export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
   handyman: 'Handyman',
 };
 
+// Worker status display labels.
+// Internal DB value is 'verified' but UI shows 'Approved' because
+// 'Verified' is reserved for Blue Badge premium subscribers only.
+export const WORKER_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  verified: 'Approved',      // DB says 'verified', user sees 'Approved'
+  approved: 'Approved',
+  suspended: 'Suspended',
+  rejected: 'Rejected',
+};
+
+export const WORKER_STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  verified: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  suspended: 'bg-red-500/10 text-red-400 border-red-500/20',
+  rejected: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+};
+
 export interface Profile {
   id: string;
   auth_id: string;

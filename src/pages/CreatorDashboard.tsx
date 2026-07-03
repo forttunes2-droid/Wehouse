@@ -8,7 +8,7 @@ import {
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
 } from '@/lib/supabase';
-import { WORKER_OCCUPATION_LABELS, ROLE_LABELS } from '@/types';
+import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
 import { isCreator, validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { Input } from '@/components/ui/input';
@@ -836,14 +836,17 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-3">
-      {/* Filter tabs */}
+      {/* Filter tabs — show "Approved" not "Verified" */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {(['all', 'pending', 'verified', 'suspended', 'rejected'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`flex-shrink-0 h-8 px-3 rounded-lg text-[10px] font-medium capitalize transition-colors ${
-              filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'
-            }`}>{f}</button>
-        ))}
+        {(['all', 'pending', 'verified', 'suspended', 'rejected'] as const).map(f => {
+          const label = f === 'all' ? 'All' : WORKER_STATUS_LABELS[f] || f;
+          return (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`flex-shrink-0 h-8 px-3 rounded-lg text-[10px] font-medium transition-colors ${
+                filter === f ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72] hover:text-white'
+              }`}>{label}</button>
+          );
+        })}
       </div>
 
       {loading ? (
@@ -851,53 +854,53 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-xs text-[#5C5E72]">No worker applications</div>
       ) : (
-        filtered.map(w => (
-          <div key={w.user_id} className="glass rounded-2xl p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                {w.avatar_url ? <img src={w.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : (w.full_name || w.username || 'W').charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-white truncate">{w.full_name || w.username || '...'}</span>
-                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${
-                    parseWorkerStatus(w) === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    parseWorkerStatus(w) === 'verified' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                    parseWorkerStatus(w) === 'suspended' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                    'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                  }`}>{parseWorkerStatus(w)}</span>
+        filtered.map(w => {
+          const status = parseWorkerStatus(w);
+          const statusLabel = WORKER_STATUS_LABELS[status] || status;
+          const statusColor = WORKER_STATUS_COLORS[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+          return (
+            <div key={w.user_id} className="glass rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  {w.avatar_url ? <img src={w.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : (w.full_name || w.username || 'W').charAt(0).toUpperCase()}
                 </div>
-                <div className="text-[10px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[w.worker_occupation] || w.worker_occupation} · {w.city || 'No location'}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-white truncate">{w.full_name || w.username || '...'}</span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusColor}`}>{statusLabel}</span>
+                  </div>
+                  <div className="text-[10px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[w.worker_occupation] || w.worker_occupation} · {w.city || 'No location'}</div>
+                </div>
+              </div>
+              {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mb-3 italic">{w.worker_bio}</p>}
+              <div className="flex gap-2">
+                {status === 'pending' && (
+                  <>
+                    <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
+                    <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+                  </>
+                )}
+                {status === 'verified' && (
+                  <>
+                    <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
+                    <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Revoke</button>
+                  </>
+                )}
+                {status === 'suspended' && (
+                  <>
+                    <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Reinstate</button>
+                    <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+                  </>
+                )}
+                {status === 'rejected' && (
+                  <>
+                    <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Re-approve</button>
+                  </>
+                )}
               </div>
             </div>
-            {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mb-3 italic">{w.worker_bio}</p>}
-            <div className="flex gap-2">
-              {parseWorkerStatus(w) === 'pending' && (
-                <>
-                  <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
-                  <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
-                </>
-              )}
-              {parseWorkerStatus(w) === 'verified' && (
-                <>
-                  <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
-                  <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Revoke</button>
-                </>
-              )}
-              {parseWorkerStatus(w) === 'suspended' && (
-                <>
-                  <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Reinstate</button>
-                  <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
-                </>
-              )}
-              {parseWorkerStatus(w) === 'rejected' && (
-                <>
-                  <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Re-approve</button>
-                </>
-              )}
-            </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
