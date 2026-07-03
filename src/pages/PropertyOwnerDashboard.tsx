@@ -116,31 +116,35 @@ export default function PropertyOwnerDashboard({ profile, onNavigate, onGoToChat
     { id: 'earnings', label: 'Earnings' },
   ];
 
-  // Start chat with WeHouse staff
+  // Start chat with WeHouse staff — finds staff first, then admin, then creator
   async function handleChatWithWeHouse() {
-    // Find a staff member to chat with
-    const { data: staff } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('role', 'staff')
-      .limit(1)
-      .maybeSingle();
+    // Try staff first, then admin, then creator
+    let staffMember = null;
+    for (const role of ['staff', 'admin', 'creator', 'creator_admin']) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, username')
+        .eq('role', role)
+        .limit(1)
+        .maybeSingle();
+      if (data) { staffMember = data; break; }
+    }
 
-    if (!staff) {
-      toast.error('No staff available right now. Please try again later or email support@wehouse.com.ng');
+    if (!staffMember) {
+      toast.error('No staff available right now. Please email support@wehouse.com.ng');
       return;
     }
 
-    const { conversation, error } = await getOrCreateConversation(profile.user_id, staff.user_id);
+    const { conversation, error } = await getOrCreateConversation(profile.user_id, staffMember.user_id);
     if (error || !conversation) {
-      toast.error('Failed to start chat');
+      toast.error('Failed to start chat: ' + (error?.message || 'unknown error'));
       return;
     }
 
     if (onGoToChat) {
       onGoToChat(conversation.id);
     } else {
-      toast.success('Chat started! Navigate to chat to continue.');
+      toast.success('Chat started with ' + (staffMember.username || 'WeHouse support'));
     }
   }
 

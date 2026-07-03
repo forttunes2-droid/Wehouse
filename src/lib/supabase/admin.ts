@@ -6,10 +6,10 @@ import type { AdminAuditLog, Listing, Profile, SystemSetting } from '@/types';
 // ── USERS (with soft-delete filtering) ─────────────
 
 export async function getAllUsers() {
+  // Show ALL users including deleted/suspended ones so creator can manage them
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   return { users: data as Profile[] | null, error };
 }

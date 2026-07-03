@@ -31,6 +31,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   const [officialUnread, setOfficialUnread] = useState(0);
   const [officialMessages, setOfficialMessages] = useState<any[]>([]);
   const [linkedListing, setLinkedListing] = useState<Listing | null>(null);
+  const [otherProfile, setOtherProfile] = useState<{ is_online?: boolean; last_seen?: string; username?: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const convSubscriptionRef = useRef<any>(null);
 
@@ -163,6 +164,33 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     loadListing();
   }, [activeConv?.listing_id]);
 
+  // Load other user's profile (for online/offline status)
+  useEffect(() => {
+    if (!activeConv) { setOtherProfile(null); return; }
+    const otherId = activeConv.participant_a === profile.user_id ? activeConv.participant_b : activeConv.participant_a;
+    async function loadOtherProfile() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_online, last_seen, username')
+        .eq('user_id', otherId)
+        .maybeSingle();
+      if (data) setOtherProfile(data);
+    }
+    loadOtherProfile();
+    // Subscribe to profile changes for real-time online status
+    const channel = supabase
+      .channel(`profile-online:${otherId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `user_id=eq.${otherId}` },
+        (payload) => {
+          setOtherProfile(prev => ({ ...prev, ...payload.new }));
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeConv?.id]);
+
   // Load messages when conversation selected
   useEffect(() => {
     if (!activeConv) return;
@@ -184,6 +212,72 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
       supabase.removeChannel(channel);
     };
   }, [activeConv?.id]);
+
+  // ─── Conversation List with online status ─────────
+  function ConversationList({ conversations, profile, usernames, onSelectConv }: {
+    conversations: Conversation[];
+    profile: Profile;
+    usernames: Record<string, string>;
+    onSelectConv: (conv: Conversation) => void;
+  }) {
+    const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+      async function loadOnlineStatus() {
+        const otherIds = conversations.map(c =>
+          c.participant_a === profile.user_id ? c.participant_b : c.participant_a
+        );
+        if (otherIds.length === 0) return;
+        const { data } = await supabase
+          .from('profiles')
+          .select('user_id, is_online')
+          .in('user_id', otherIds);
+        const map: Record<string, boolean> = {};
+        (data || []).forEach((u: any) => { map[u.user_id] = u.is_online; });
+        setOnlineMap(map);
+      }
+      loadOnlineStatus();
+    }, [conversations.length]);
+
+    return (
+      <>
+        {conversations.map((conv) => {
+          const otherId = conv.participant_a === profile.user_id ? conv.participant_b : conv.participant_a;
+          const isUnread = conv.participant_a === profile.user_id ? conv.unread_a > 0 : conv.unread_b > 0;
+          const isOnline = onlineMap[otherId];
+          return (
+            <button
+              key={conv.id}
+              onClick={() => onSelectConv(conv)}
+              className="w-full flex items-center gap-3 px-5 py-4 border-b border-white/[0.04] text-left hover:bg-[#12121A] transition-colors"
+            >
+              <div className="relative flex-shrink-0">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-sm font-bold">
+                  {(usernames[otherId] || 'U').charAt(0).toUpperCase()}
+                </div>
+                {isOnline && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-400 border-2 border-[#0A0A0F]" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-white truncate">
+                    @{usernames[otherId] || `User ${otherId.slice(-4)}`}
+                  </span>
+                  {isUnread && (
+                    <span className="w-5 h-5 rounded-full bg-[#3B82F6] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 ml-2">
+                      {conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#8A8B9C] truncate">{conv.last_message || 'No messages yet'}</p>
+              </div>
+            </button>
+          );
+        })}
+      </>
+    );
+  }
 
   async function loadMessages(convId: string) {
     const { messages: data } = await getMessages(convId);
@@ -265,11 +359,24 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-xs font-bold">
-            {otherId.slice(0, 2).toUpperCase()}
+          <div className="relative">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-xs font-bold">
+              {otherId.slice(0, 2).toUpperCase()}
+            </div>
+            {/* Online indicator dot */}
+            {otherProfile?.is_online ? (
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-[#12121A]" />
+            ) : (
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#5C5E72] border-2 border-[#12121A]" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-sm font-semibold block truncate">@{usernames[otherId] || `User ${otherId.slice(-4)}`}</span>
+            <span className="text-sm font-semibold block truncate">@{usernames[otherId] || otherProfile?.username || `User ${otherId.slice(-4)}`}</span>
+            {otherProfile?.is_online ? (
+              <span className="text-[9px] text-green-400">Online now</span>
+            ) : otherProfile?.last_seen ? (
+              <span className="text-[9px] text-[#5C5E72]">{getTimeAgo(otherProfile.last_seen)}</span>
+            ) : null}
             {linkedListing && (
               <span className="text-[9px] text-[#5C5E72] truncate block">Re: {linkedListing.title}</span>
             )}
@@ -396,6 +503,20 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     );
   }
 
+// Helper: format last_seen as "2m ago", "1h ago", etc.
+function getTimeAgo(isoDate: string): string {
+  const now = Date.now();
+  const then = new Date(isoDate).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
   // ─── CHAT LIST VIEW ───────────────────────────────
 
   return (
@@ -484,38 +605,12 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                 <p className="text-xs text-[#8A8B9C]/70 mt-1">Start chatting from worker profiles or property pages</p>
               </div>
             ) : (
-              conversations.map((conv) => {
-                const otherId =
-                  conv.participant_a === profile.user_id ? conv.participant_b : conv.participant_a;
-                const isUnread =
-                  conv.participant_a === profile.user_id ? conv.unread_a > 0 : conv.unread_b > 0;
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => setActiveConv(conv)}
-                    className="w-full flex items-center gap-3 px-5 py-4 border-b border-white/[0.04] text-left hover:bg-[#12121A] transition-colors"
-                  >
-                    <div className="relative">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A5F] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                        {(usernames[otherId] || 'U').charAt(0).toUpperCase()}
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-white truncate">
-                          @{usernames[otherId] || `User ${otherId.slice(-4)}`}
-                        </span>
-                        {isUnread && (
-                          <span className="w-5 h-5 rounded-full bg-[#3B82F6] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 ml-2">
-                            {conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-[#8A8B9C] truncate">{conv.last_message || 'No messages yet'}</p>
-                    </div>
-                  </button>
-                );
-              })
+              <ConversationList
+                conversations={conversations}
+                profile={profile}
+                usernames={usernames}
+                onSelectConv={setActiveConv}
+              />
             )}
           </>
         )}

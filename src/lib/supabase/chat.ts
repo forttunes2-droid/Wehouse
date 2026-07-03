@@ -129,22 +129,25 @@ export async function closeConversation(conversationId: string) {
 }
 
 export async function getOrCreateConversation(userA: string, userB: string, listingId?: string | null) {
-  // Build the filter: same participants (either direction) AND same listing
-  let query = supabase
+  // Try direction A→B first
+  let q1 = supabase
     .from('conversations')
     .select('*')
-    .or(`and(participant_a.eq.${userA},participant_b.eq.${userB}),and(participant_a.eq.${userB},participant_b.eq.${userA})`);
+    .eq('participant_a', userA)
+    .eq('participant_b', userB);
+  if (listingId) q1 = q1.eq('listing_id', listingId);
+  const { data: exist1 } = await q1.maybeSingle();
+  if (exist1) return { conversation: exist1 as Conversation, error: null };
 
-  // If a listing_id is provided, match on it too
-  if (listingId) {
-    query = query.eq('listing_id', listingId);
-  }
-
-  const { data: existing } = await query.maybeSingle();
-
-  if (existing) {
-    return { conversation: existing as Conversation, error: null };
-  }
+  // Try direction B→A
+  let q2 = supabase
+    .from('conversations')
+    .select('*')
+    .eq('participant_a', userB)
+    .eq('participant_b', userA);
+  if (listingId) q2 = q2.eq('listing_id', listingId);
+  const { data: exist2 } = await q2.maybeSingle();
+  if (exist2) return { conversation: exist2 as Conversation, error: null };
 
   // Create new conversation with listing context
   return createConversation(userA, userB, listingId);
