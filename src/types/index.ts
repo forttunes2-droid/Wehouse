@@ -397,6 +397,9 @@ export interface Message {
   seen: boolean;
   created_at: string;
   edited_at?: string | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
 }
 
 export interface Review {

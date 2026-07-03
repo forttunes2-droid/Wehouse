@@ -76,11 +76,28 @@ export async function getMessages(conversationId: string) {
   return { messages: directData as Message[] | null, error: directError };
 }
 
-export async function sendMessage(conversationId: string, senderId: string, content: string) {
+export async function sendMessage(
+  conversationId: string,
+  senderId: string,
+  content: string,
+  file?: { file_url: string; file_name: string; file_type: string } | null
+) {
+  // Build insert data
+  const insertData: Record<string, any> = {
+    conversation_id: conversationId,
+    sender_id: senderId,
+    content,
+  };
+  if (file) {
+    insertData.file_url = file.file_url;
+    insertData.file_name = file.file_name;
+    insertData.file_type = file.file_type;
+  }
+
   // 1. Insert the message
   const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: senderId, content })
+    .insert(insertData)
     .select()
     .maybeSingle();
 
@@ -96,7 +113,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
   if (conv) {
     const isA = conv.participant_a === senderId;
     const updateData: Record<string, any> = {
-      last_message: content,
+      last_message: file ? `[${file.file_name}] ${content}` : content,
       last_message_at: new Date().toISOString(),
     };
     // Increment unread for the OTHER person

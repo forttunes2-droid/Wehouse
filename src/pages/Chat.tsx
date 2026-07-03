@@ -37,7 +37,10 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   const [otherProfile, setOtherProfile] = useState<{ is_online?: boolean; last_seen?: string; username?: string } | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const convSubscriptionRef = useRef<any>(null);
 
   // Load everything on mount
@@ -374,11 +377,55 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     setMessages(data || []);
   }
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File too large. Max 10MB');
+      return;
+    }
+    setSelectedFile(file);
+  }
+
+  async function uploadChatFile(file: File): Promise<{ url: string; name: string; type: string } | null> {
+    const ext = file.name.split('.').pop() || '';
+    const path = `chat/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('chat-files').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+    if (error) {
+      console.error('[uploadChatFile] error:', error);
+      toast.error('Failed to upload file');
+      return null;
+    }
+    const { data: urlData } = supabase.storage.from('chat-files').getPublicUrl(path);
+    return { url: urlData.publicUrl, name: file.name, type: file.type };
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || !activeConv) return;
-    const content = input.trim();
+    if ((!input.trim() && !selectedFile) || !activeConv) return;
+    const content = input.trim() || '';
     setInput('');
+
+    // Upload file if selected
+    let fileMeta: { file_url: string; file_name: string; file_type: string } | null = null;
+    if (selectedFile) {
+      setUploadingFile(true);
+      const uploaded = await uploadChatFile(selectedFile);
+      setUploadingFile(false);
+      setSelectedFile(null);
+      if (!uploaded) {
+        toast.error('File upload failed');
+        return;
+      }
+      fileMeta = {
+        file_url: uploaded.url,
+        file_name: uploaded.name,
+        file_type: uploaded.type,
+      };
+    }
 
     // Optimistically add message to UI
     const optimisticMsg: Message = {
@@ -388,10 +435,18 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
       content,
       seen: false,
       created_at: new Date().toISOString(),
+      file_url: fileMeta?.file_url || null,
+      file_name: fileMeta?.file_name || null,
+      file_type: fileMeta?.file_type || null,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
 
-    const { message, error } = await sendMessage(activeConv.id, profile.user_id, content);
+    const { message, error } = await sendMessage(
+      activeConv.id,
+      profile.user_id,
+      content,
+      fileMeta
+    );
 
     if (error) {
       // Remove optimistic message on error
@@ -600,6 +655,33 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                         : 'bg-[#1A1A24] text-white rounded-bl-md border border-white/[0.06]'
                     }`}
                   >
+                    {/* File attachment */}
+                    {msg.file_url && (
+                      <div className="mb-2">
+                        {msg.file_type?.startsWith('image/') ? (
+                          <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img
+                              src={msg.file_url}
+                              alt={msg.file_name || 'Image'}
+                              className="max-w-[200px] max-h-[200px] rounded-lg object-cover hover:opacity-90 transition-opacity"
+                            />
+                          </a>
+                        ) : (
+                          <a
+                            href={msg.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${isMe ? 'bg-white/10 hover:bg-white/20' : 'bg-[#12121A] hover:bg-[#1E1E2A]'} transition-colors`}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                            <span className="truncate max-w-[150px]">{msg.file_name || 'File'}</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
                     {msg.content}
                     {msg.edited_at && <span className="text-[8px] opacity-50 ml-1">(edited)</span>}
                     <div className={`text-[9px] mt-1 ${isMe ? 'text-white/50' : 'text-[#5C5E72]'}`}>
@@ -629,22 +711,54 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
 
         {/* Input — available for all conversations except closed */}
         {canSend ? (
-          <form onSubmit={handleSend} className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 flex gap-3">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 h-11 bg-[#1A1A24] rounded-xl px-4 text-sm text-white placeholder-[#8A8B9C] outline-none border border-[#2A2A3A] focus:border-[#3B82F6]/50 transition-colors"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="w-11 h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
-            </button>
+          <form onSubmit={handleSend} className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3">
+            {/* File attachment preview */}
+            {selectedFile && (
+              <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+                <span className="text-[11px] text-violet-400 flex-1 truncate">{selectedFile.name}</span>
+                <button type="button" onClick={() => setSelectedFile(null)} className="text-[10px] text-[#5C5E72] hover:text-red-400">Remove</button>
+              </div>
+            )}
+            <div className="flex gap-3">
+              {/* File upload button (for inspection chats) */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-11 h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] flex items-center justify-center hover:border-violet-500/30 hover:text-violet-400 transition-colors"
+                title="Attach file or photo"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,.pdf,.doc,.docx"
+                onChange={handleFileSelect}
+              />
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={activeConv?.conversation_type === 'partner_inspection' ? 'Type or attach property photos...' : 'Type a message...'}
+                className="flex-1 h-11 bg-[#1A1A24] rounded-xl px-4 text-sm text-white placeholder-[#8A8B9C] outline-none border border-[#2A2A3A] focus:border-[#3B82F6]/50 transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={(!input.trim() && !selectedFile) || uploadingFile}
+                className="w-11 h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
+              >
+                {uploadingFile ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" className="animate-spin">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </form>
         ) : (
           <div className="bg-[#12121A] border-t border-white/[0.06] px-5 py-3 text-center">
