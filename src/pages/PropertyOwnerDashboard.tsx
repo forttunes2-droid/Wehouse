@@ -45,16 +45,46 @@ export default function PropertyOwnerDashboard({ profile, onNavigate }: Props) {
     totalBookings: 0, totalEarnings: 0,
   });
 
+  // Auto-create partner record if it doesn't exist
   useEffect(() => {
-    async function loadPartner() {
-      const { data } = await supabase
+    async function ensurePartner() {
+      // Check if partner record exists
+      const { data: existing } = await supabase
         .from('property_partners')
         .select('id')
         .eq('profile_id', profile.user_id)
         .maybeSingle();
-      if (data) setPartnerId(data.id);
+
+      if (existing) {
+        setPartnerId(existing.id);
+        return;
+      }
+
+      // Auto-create partner record from profile
+      const { data: created, error } = await supabase
+        .from('property_partners')
+        .insert({
+          profile_id: profile.user_id,
+          full_name: profile.full_name || profile.username || 'Partner',
+          email: profile.email,
+          phone: profile.phone || '',
+          is_verified: false,
+          status: 'active',
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        toast.error('Failed to set up partner account: ' + error.message);
+        return;
+      }
+
+      if (created) {
+        setPartnerId(created.id);
+        toast.success('Partner account created!');
+      }
     }
-    loadPartner();
+    ensurePartner();
   }, [profile.user_id]);
 
   useEffect(() => {

@@ -119,6 +119,8 @@ export default function App() {
     if (navPage === 'creator' && !checkCreator(role)) valid = false;
     if (navPage === 'admin' && role !== 'admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
+    if (navPage === 'staff_dashboard' && role !== 'staff') valid = false;
+    if ((navPage === 'property_owner' || navPage === 'property_partner') && role !== 'property_partner') valid = false;
     if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
     // Profile sub-pages (account, privacy, security) same rules as profile
     if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
@@ -449,7 +451,7 @@ export default function App() {
         } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_partner' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {
