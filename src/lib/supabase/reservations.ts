@@ -1,9 +1,10 @@
 import { supabase } from './client';
-
+import { WEHOUSE_FEES } from '@/types';
 
 // ─── RESERVATIONS ─────────────────────────────────
-
-// ─── MANUAL RESERVATION (MVP — no Paystack) ──────
+// NOTE: This creates a reservation RECORD only. Actual payment collection
+// requires Paystack integration (Phase 8). Until then, staff manually
+// confirm payments via Creator Dashboard > Operations.
 
 export async function createReservation(
   listingId: string,
@@ -40,9 +41,9 @@ export async function createReservation(
     listing_location: listingSnapshot?.location || '',
     status: 'active',
     manual_payment_status: 'unpaid',
-    amount: 10000,
+    amount: WEHOUSE_FEES.RESERVATION_FEE, // Uses Creator-configured fee (default N5,000)
     currency: 'NGN',
-    support_phone: '+2348000000000',
+    support_phone: 'support@wehouse.com.ng', // Contact for manual payment confirmation
   }).select();
 
   return { reservation: data?.[0] as any || null, error, alreadyExists: false };
