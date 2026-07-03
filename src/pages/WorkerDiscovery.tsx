@@ -141,7 +141,7 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat }: Worke
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-lg font-bold text-white mb-1">Find Workers</h1>
+          <h1 className="text-lg font-bold text-white mb-1">Find Workers v2</h1>
           <p className="text-xs text-[#5C5E72]">
             {loading ? 'Loading workers...' : `${allWorkers.length} worker${allWorkers.length !== 1 ? 's' : ''} registered`}
             {userCity ? ` · Your location: ${userCity}` : ''}
