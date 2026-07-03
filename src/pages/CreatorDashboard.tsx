@@ -2133,13 +2133,18 @@ function HotelRoomsTab({ hotel, onBack }: { hotel: Hotel; onBack: () => void }) 
 
 
 // ─── PERMISSIONS TAB (CTO DESIGN) ──────────────────
-// Creator assigns permission groups to staff members.
-// Permission groups determine which modules appear on the Staff Dashboard.
+// ─── PERMISSIONS TAB (Redesigned) ───────────────────────────
+// Shows staff WITH permissions (removable) and WITHOUT (bulk assign)
 
 function PermissionsTab({ profile }: { profile: Profile }) {
   const [staffList, setStaffList] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<Record<string, StaffPermission[]>>({});
+  const [loading, setLoading] = useState(true);
+
+  // Bulk assignment state
+  const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set());
+  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
+  const [assigning, setAssigning] = useState(false);
 
   const permissionGroups: Array<{ id: StaffPermission; label: string; desc: string }> = [
     { id: 'operations', label: 'Operations', desc: 'Listings, property management, inspections' },
@@ -2149,24 +2154,21 @@ function PermissionsTab({ profile }: { profile: Profile }) {
     { id: 'field_officer', label: 'Field Officer', desc: 'Property inspections, photo uploads' },
   ];
 
-  useEffect(() => {
-    loadStaff();
-  }, []);
+  useEffect(() => { loadStaff(); }, []);
 
   async function loadStaff() {
     setLoading(true);
-    // Get all staff members (role = 'staff')
+    // Get all staff (role='staff') — excluding system accounts
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('role', 'staff')
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
-
-    const staff = data || [];
+    const staff = (data || []).filter((s: any) => s.user_id !== 'wehouse_support');
     setStaffList(staff);
 
-    // Load existing permissions for each staff member
+    // Load permissions for each
     const perms: Record<string, StaffPermission[]> = {};
     for (const s of staff) {
       const { data: p } = await supabase
@@ -2180,34 +2182,46 @@ function PermissionsTab({ profile }: { profile: Profile }) {
     setLoading(false);
   }
 
-  async function togglePermission(staffId: string, perm: StaffPermission, hasIt: boolean) {
-    if (hasIt) {
-      // Revoke
-      await supabase
-        .from('staff_permissions')
-        .update({ is_active: false, revoked_at: new Date().toISOString() })
-        .eq('staff_id', staffId)
-        .eq('permission', perm);
-    } else {
-      // Grant
-      await supabase
-        .from('staff_permissions')
-        .upsert(
-          { staff_id: staffId, permission: perm, granted_by: profile.user_id, is_active: true },
-          { onConflict: 'staff_id,permission' }
-        );
-    }
-
-    // Refresh
+  async function removePermission(staffId: string, perm: StaffPermission) {
+    await supabase
+      .from('staff_permissions')
+      .update({ is_active: false, revoked_at: new Date().toISOString() })
+      .eq('staff_id', staffId)
+      .eq('permission', perm);
     setPermissions(prev => ({
       ...prev,
-      [staffId]: hasIt
-        ? (prev[staffId] || []).filter(p => p !== perm)
-        : [...(prev[staffId] || []), perm],
+      [staffId]: (prev[staffId] || []).filter(p => p !== perm),
     }));
-
-    toast.success(hasIt ? 'Permission removed' : 'Permission granted');
+    toast.success(`Removed ${perm}`);
   }
+
+  async function handleBulkAssign() {
+    if (selectedStaffIds.size === 0) { toast.error('Select at least one staff member'); return; }
+    if (selectedPerms.size === 0) { toast.error('Select at least one permission'); return; }
+
+    setAssigning(true);
+    let count = 0;
+    for (const staffId of selectedStaffIds) {
+      for (const perm of selectedPerms) {
+        const { error } = await supabase
+          .from('staff_permissions')
+          .upsert(
+            { staff_id: staffId, permission: perm, granted_by: profile.user_id, is_active: true },
+            { onConflict: 'staff_id,permission' }
+          );
+        if (!error) count++;
+      }
+    }
+    setAssigning(false);
+    setSelectedStaffIds(new Set());
+    setSelectedPerms(new Set());
+    toast.success(`Assigned ${count} permissions`);
+    loadStaff();
+  }
+
+  // Split staff into two groups
+  const withPerms = staffList.filter(s => (permissions[s.user_id] || []).length > 0);
+  const withoutPerms = staffList.filter(s => (permissions[s.user_id] || []).length === 0);
 
   if (loading) {
     return (
@@ -2223,60 +2237,154 @@ function PermissionsTab({ profile }: { profile: Profile }) {
       <div className="rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 p-4">
         <h3 className="text-sm font-semibold text-white">Permission Management</h3>
         <p className="text-[10px] text-[#5C5E72] mt-1">
-          Assign permission groups to staff members. These determine which modules appear on their Staff Dashboard.
+          {withPerms.length} staff have permissions · {withoutPerms.length} staff have no permissions
         </p>
       </div>
 
-      {/* Staff List */}
-      {staffList.length === 0 ? (
+      {staffList.length === 0 && (
         <div className="text-center py-10 text-[#5C5E72] text-sm">
           No staff members yet. Change a user's role to "Staff" in the Users tab first.
         </div>
-      ) : (
-        staffList.map(s => (
-          <div key={s.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-            {/* Staff Info */}
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-sm font-bold text-[#5C5E72]">
-                {(s.username || s.email)[0].toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">@{s.username || 'unknown'}</p>
-                <p className="text-[10px] text-[#5C5E72]">{s.email}</p>
-              </div>
-            </div>
+      )}
 
-            {/* Permission Toggles */}
-            <div className="space-y-2">
-              {permissionGroups.map(pg => {
-                const hasIt = (permissions[s.user_id] || []).includes(pg.id);
-                return (
-                  <button
-                    key={pg.id}
-                    onClick={() => togglePermission(s.user_id, pg.id, hasIt)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
-                      hasIt
-                        ? 'bg-purple-500/10 border border-purple-500/30'
-                        : 'bg-[#1A1A24] border border-[#232330]'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center ${
-                      hasIt ? 'bg-purple-500 border-purple-500' : 'border-[#232330]'
-                    }`}>
-                      {hasIt && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>
-                      )}
-                    </div>
-                    <div>
-                      <p className={`text-[11px] font-semibold ${hasIt ? 'text-purple-400' : 'text-white'}`}>{pg.label}</p>
-                      <p className="text-[9px] text-[#5C5E72]">{pg.desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+      {/* ─── STAFF WITH PERMISSIONS ─── */}
+      {withPerms.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-white mb-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400" />
+            Staff With Permissions ({withPerms.length})
+          </h4>
+          <div className="space-y-2">
+            {withPerms.map(s => (
+              <div key={s.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#1A1A24] flex items-center justify-center text-xs font-bold text-[#5C5E72]">
+                    {(s.username || s.email || 'S')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-white">@{s.username || 'unknown'}</p>
+                    <p className="text-[9px] text-[#5C5E72]">{s.email}</p>
+                  </div>
+                </div>
+                {/* Their permissions as removable badges */}
+                <div className="flex flex-wrap gap-1.5">
+                  {(permissions[s.user_id] || []).map((perm: StaffPermission) => {
+                    const pg = permissionGroups.find(g => g.id === perm);
+                    return (
+                      <button
+                        key={perm}
+                        onClick={() => removePermission(s.user_id, perm)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-colors"
+                        title="Click to remove"
+                      >
+                        {pg?.label || perm}
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ))
+        </div>
+      )}
+
+      {/* ─── STAFF WITHOUT PERMISSIONS ─── */}
+      {withoutPerms.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-white mb-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            Staff Without Permissions ({withoutPerms.length})
+          </h4>
+
+          {/* Staff selection list */}
+          <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3 space-y-2 mb-3">
+            {withoutPerms.map(s => {
+              const checked = selectedStaffIds.has(s.user_id);
+              return (
+                <button
+                  key={s.user_id}
+                  onClick={() => {
+                    setSelectedStaffIds(prev => {
+                      const next = new Set(prev);
+                      if (checked) next.delete(s.user_id); else next.add(s.user_id);
+                      return next;
+                    });
+                  }}
+                  className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${
+                    checked ? 'bg-purple-500/5 border border-purple-500/20' : 'bg-transparent border border-transparent hover:bg-[#1A1A24]'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                    checked ? 'bg-purple-500 border-purple-500' : 'border-[#2A2A3A]'
+                  }`}>
+                    {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>}
+                  </div>
+                  <div className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-xs font-bold text-[#5C5E72] flex-shrink-0">
+                    {(s.username || s.email || 'S')[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white">@{s.username || 'unknown'}</p>
+                    <p className="text-[9px] text-[#5C5E72]">{s.email}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Permission selection (only show when staff are selected) */}
+          {selectedStaffIds.size > 0 && (
+            <div className="rounded-2xl bg-[#12121A]/60 border border-purple-500/20 p-4 space-y-3">
+              <p className="text-xs font-semibold text-white">
+                Assign permissions to {selectedStaffIds.size} staff member{selectedStaffIds.size > 1 ? 's' : ''}:
+              </p>
+              <div className="space-y-2">
+                {permissionGroups.map(pg => {
+                  const checked = selectedPerms.has(pg.id);
+                  return (
+                    <button
+                      key={pg.id}
+                      onClick={() => {
+                        setSelectedPerms(prev => {
+                          const next = new Set(prev);
+                          if (checked) next.delete(pg.id); else next.add(pg.id);
+                          return next;
+                        });
+                      }}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+                        checked ? 'bg-purple-500/10 border border-purple-500/30' : 'bg-[#1A1A24] border border-[#232330]'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                        checked ? 'bg-purple-500 border-purple-500' : 'border-[#2A2A3A]'
+                      }`}>
+                        {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>}
+                      </div>
+                      <div>
+                        <p className={`text-[11px] font-semibold ${checked ? 'text-purple-400' : 'text-white'}`}>{pg.label}</p>
+                        <p className="text-[9px] text-[#5C5E72]">{pg.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleBulkAssign}
+                disabled={assigning || selectedPerms.size === 0}
+                className="w-full h-10 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-30 flex items-center justify-center gap-2"
+              >
+                {assigning ? (
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" /></svg>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                    Assign {selectedPerms.size} permission{selectedPerms.size > 1 ? 's' : ''} to {selectedStaffIds.size} staff
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
