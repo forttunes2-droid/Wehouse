@@ -19,9 +19,10 @@ interface WorkerDashboardProps {
   onGoToSetup: () => void;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
+  onGoToChat?: (convId: string) => void;
 }
 
-type WorkerTab = 'home' | 'verification' | 'bookings' | 'services' | 'earnings' | 'wallet' | 'reviews' | 'profile' | 'support';
+type WorkerTab = 'home' | 'verification' | 'bookings' | 'messages' | 'services' | 'earnings' | 'wallet' | 'reviews' | 'profile' | 'support';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; desc: string; icon: string }> = {
   pending: {
@@ -31,7 +32,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   },
   verified: {
     color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20',
-    label: 'Verified Worker', desc: 'You are discoverable. Users can find and book you.',
+    label: 'Approved Worker', desc: 'Your profile is public. Users can find and book you.',
     icon: 'M20 6L9 17l-5-5',
   },
   suspended: {
@@ -46,7 +47,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   },
 };
 
-export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate }: WorkerDashboardProps) {
+export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate, onGoToChat }: WorkerDashboardProps) {
   const [activeTab, setActiveTab] = useState<WorkerTab>('home');
   const status = profile.worker_status || 'pending';
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
@@ -73,6 +74,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
     { id: 'home', label: 'Home', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
     { id: 'verification', label: 'Verify', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' },
     { id: 'bookings', label: 'Jobs', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z' },
+    { id: 'messages', label: 'Messages', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
     { id: 'wallet', label: 'Wallet', icon: 'M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22' },
     { id: 'services', label: 'Services', icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' },
     { id: 'earnings', label: 'Earnings', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
@@ -172,6 +174,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
         )}
         {activeTab === 'services' && <ServicesTab profile={profile} />}
         {activeTab === 'earnings' && <EarningsTab wallet={wallet} transactions={transactions} />}
+        {activeTab === 'messages' && <MessagesTab profile={profile} onGoToChat={onGoToChat} />}
         {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
         {activeTab === 'profile' && <ProfileTab profile={profile} onGoToSetup={onGoToSetup} />}
         {activeTab === 'support' && <SupportTab />}
@@ -886,6 +889,62 @@ function ReviewsTab({ profile }: { profile: Profile }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MESSAGES TAB
+// ═══════════════════════════════════════════════════════════════
+
+function MessagesTab({ profile, onGoToChat }: { profile: Profile; onGoToChat?: (convId: string) => void }) {
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('conversations')
+        .select('*, messages(count), last_message')
+        .or(`participant_a.eq.${profile.user_id},participant_b.eq.${profile.user_id}`)
+        .order('updated_at', { ascending: false });
+      setConversations(data || []);
+      setLoading(false);
+    }
+    load();
+  }, [profile.user_id]);
+
+  async function openChat(convId: string) {
+    if (onGoToChat) {
+      onGoToChat(convId);
+    }
+  }
+
+  if (loading) return <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (conversations.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-[#5C5E72]">No messages yet</p>
+        <p className="text-[10px] text-[#3C3D4D] mt-1">Messages from users who booked you will appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-semibold text-white mb-3">Messages</h2>
+      {conversations.map(conv => (
+        <button
+          key={conv.id}
+          onClick={() => openChat(conv.id)}
+          className="w-full text-left bg-[#12121A] border border-[#1E1E2C] rounded-xl p-3 hover:border-[#3B82F6]/20 transition-colors"
+        >
+          <p className="text-xs text-white font-medium">{conv.title || 'Chat'}</p>
+          {conv.last_message && <p className="text-[10px] text-[#5C5E72] mt-0.5 truncate">{conv.last_message}</p>}
+          <p className="text-[9px] text-[#3C3D4D] mt-1">{new Date(conv.updated_at).toLocaleDateString()}</p>
+        </button>
+      ))}
     </div>
   );
 }
