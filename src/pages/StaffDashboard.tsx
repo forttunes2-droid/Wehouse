@@ -568,8 +568,6 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [report, setReport] = useState('');
   const [condition, setCondition] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
-  // Checklist state
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   // Post property from inspection
   const [postingForInspection, setPostingForInspection] = useState<string | null>(null);
   const [postSaving, setPostSaving] = useState(false);
@@ -661,33 +659,10 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
     setPostImages(prev => [...prev, data.publicUrl]);
   }
 
-  const checklist = [
-    'Verify property photos match actual location',
-    'Check amenities are as listed',
-    'Confirm price with landlord',
-    'Document property condition',
-    'Take geotagged photos',
-    'Verify security of the area',
-  ];
-
   if (loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-4">
-      {/* Modern Checklist */}
-      <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-        <h4 className="text-sm font-semibold text-white mb-3">Inspection Checklist</h4>
-        {checklist.map((item, i) => (
-          <label key={i} className="flex items-center gap-3 py-2.5 border-b border-white/[0.04] last:border-0 cursor-pointer group">
-            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${checkedItems[i] ? 'bg-[#3B82F6] border-[#3B82F6]' : 'border-[#2A2A3A] group-hover:border-[#3B82F6]/50'}`}>
-              {checkedItems[i] && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>}
-            </div>
-            <input type="checkbox" className="hidden" checked={!!checkedItems[i]} onChange={e => setCheckedItems(prev => ({ ...prev, [i]: e.target.checked }))} />
-            <span className={`text-[11px] transition-all ${checkedItems[i] ? 'text-[#5C5E72] line-through' : 'text-[#8A8B9C]'}`}>{item}</span>
-          </label>
-        ))}
-      </div>
-
       {/* Inspections */}
       <h4 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Inspections ({inspections.length})</h4>
 
