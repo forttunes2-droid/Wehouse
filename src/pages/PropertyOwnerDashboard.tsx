@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import SettingsTab from './SettingsTab';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -9,179 +8,154 @@ interface Props {
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
-  onGoToChat?: (convId: string) => void;
+  onGoToChat?: (c?: string) => void;
 }
 
-type OwnerTab = 'overview' | 'properties' | 'request' | 'requests' | 'bookings' | 'earnings' | 'settings';
-type PropertyCategory = 'apartment' | 'hotel';
-type ApartmentSub = 'short_let' | 'long_stay';
+type PartnerTab = 'overview' | 'properties' | 'bookings' | 'occupancy' | 'earnings' | 'inspections' | 'chat' | 'settings';
 
-const AMENITIES = [
-  { key: 'consistent_water', label: 'Consistent Water' },
-  { key: 'generator', label: 'Generator' },
-  { key: 'security', label: 'Security' },
-  { key: 'parking', label: 'Parking Space' },
-  { key: 'ac', label: 'Air Conditioning' },
-  { key: 'furnished', label: 'Furnished' },
-  { key: 'wifi', label: 'Wi-Fi' },
-  { key: 'gym', label: 'Gym' },
-  { key: 'swimming_pool', label: 'Swimming Pool' },
-  { key: 'prepaid_meter', label: 'Prepaid Meter' },
-  { key: 'pop_ceiling', label: 'POP Ceiling' },
-  { key: 'wardrobe', label: 'Wardrobe' },
-  { key: 'kitchen_cabinets', label: 'Kitchen Cabinets' },
-  { key: 'balcony', label: 'Balcony' },
-  { key: 'interlocked_road', label: 'Interlocked Road' },
-  { key: 'waste_disposal', label: 'Waste Disposal' },
+const TAB_CONFIG: { key: PartnerTab; label: string; icon: string }[] = [
+  { key: 'overview', label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+  { key: 'properties', label: 'My Properties', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z' },
+  { key: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { key: 'occupancy', label: 'Occupancy', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+  { key: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'inspections', label: 'Inspections', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+  { key: 'chat', label: 'Support', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+  { key: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
 ];
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, onNavigate, onGoToChat }: Props) {
-  const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
-  const [partnerId, setPartnerId] = useState<string | null>(null);
-  const [stats, setStats] = useState({
-    totalProperties: 0, activeProperties: 0, pendingRequests: 0,
-    totalBookings: 0, totalEarnings: 0,
-  });
+export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, onNavigate: _onNavigate, onGoToChat }: Props) {
+  const [activeTab, setActiveTab] = useState<PartnerTab>('overview');
+  const [properties, setProperties] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [inspections, setInspections] = useState<any[]>([]);
+  const [stats, setStats] = useState({ totalProperties: 0, totalBookings: 0, occupancyRate: 0, totalEarnings: 0, pendingInspections: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Auto-create partner record if it doesn't exist
-  useEffect(() => {
-    async function ensurePartner() {
-      try {
-        // Check if partner record exists
-        const { data: existing } = await supabase
-          .from('property_partners')
-          .select('id')
-          .eq('profile_id', profile.user_id)
-          .maybeSingle();
+  useEffect(() => { loadAll(); }, []);
 
-        if (existing) {
-          setPartnerId(existing.id);
-          return;
-        }
+  async function loadAll() {
+    setLoading(true);
+    // Load properties WEHOUSE created for this partner (view only)
+    const { data: props } = await supabase
+      .from('listings')
+      .select('*')
+      .or(`partner_id.eq.${profile.user_id},owner_id.eq.${profile.user_id}`)
+      .eq('status', 'available')
+      .order('created_at', { ascending: false });
+    setProperties(props || []);
 
-        // Auto-create partner record from profile
-        const { data: created, error } = await supabase
-          .from('property_partners')
-          .insert({
-            profile_id: profile.user_id,
-            partner_code: 'WHP-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-            status: 'active',
-          })
-          .select('id')
-          .single();
+    // Load inspection requests this partner made
+    const { data: insps } = await supabase
+      .from('inspection_requests')
+      .select('*')
+      .eq('owner_id', profile.user_id)
+      .order('created_at', { ascending: false });
+    setInspections(insps || []);
 
-        if (error) {
-          console.error('[Partner] Create error:', error);
-          toast.error('Partner setup failed. Please refresh the page.');
-          return;
-        }
-
-        if (created) {
-          setPartnerId(created.id);
-          toast.success('Partner account ready!');
-        }
-      } catch (err: any) {
-        console.error('[Partner] Unexpected error:', err);
-        toast.error('Partner setup error. Try logging out and back in.');
-      }
+    // Load bookings for partner's properties
+    const propertyIds = (props || []).map((p: any) => p.listing_id).filter(Boolean);
+    if (propertyIds.length > 0) {
+      const { data: bks } = await supabase
+        .from('reservations')
+        .select('*')
+        .in('listing_id', propertyIds)
+        .order('created_at', { ascending: false });
+      setBookings(bks || []);
     }
-    // Delay slightly to let Supabase schema cache refresh
-    const timer = setTimeout(ensurePartner, 500);
-    return () => clearTimeout(timer);
-  }, [profile.user_id]);
 
-  useEffect(() => {
-    if (!partnerId) return;
-    async function loadStats() {
-      const [{ count: ap }, { count: rp }, { count: b }] = await Promise.all([
-        supabase.from('listings').select('*', { count: 'exact', head: true }).or(`partner_id.eq.${profile.user_id},owner_id.eq.${profile.user_id}`),
-        supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('owner_id', profile.user_id).eq('status', 'pending'),
-        supabase.from('reservations').select('*', { count: 'exact', head: true }).eq('user_id', profile.user_id),
-      ]);
-      setStats({
-        totalProperties: ap || 0, activeProperties: ap || 0, pendingRequests: rp || 0,
-        totalBookings: b || 0, totalEarnings: 0,
-      });
-    }
-    loadStats();
-  }, [partnerId, profile.user_id]);
+    // Stats
+    const totalProps = props?.length || 0;
+    const totalBks = bookings.length;
+    const occupancy = totalProps > 0 ? Math.round((totalBks / totalProps) * 100) : 0;
+    const earnings = bookings.reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
+    const pendingInsps = insps?.filter((i: any) => i.status === 'pending').length || 0;
 
-  const TABS: { id: OwnerTab; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'properties', label: 'My Properties' },
-    { id: 'request', label: 'New Request' },
-    { id: 'requests', label: 'Requests' },
-    { id: 'bookings', label: 'Bookings' },
-    { id: 'earnings', label: 'Earnings' },
-    { id: 'settings', label: 'Settings' },
-  ];
-
-  // Start chat with WeHouse — one chat for everything (inspection uploads + questions)
-  async function handlePartnerChat() {
-    toast.loading('Opening chat...', { id: 'start-chat' });
-    const { data: conversation, error } = await supabase.rpc('start_partner_support_chat', {
-      p_partner_id: profile.user_id,
-    });
-    toast.dismiss('start-chat');
-    if (error || !conversation) {
-      toast.error('Failed: ' + (error?.message || 'unknown'));
-      return;
-    }
-    if (onGoToChat) onGoToChat(conversation.id);
+    setStats({ totalProperties: totalProps, totalBookings: totalBks, occupancyRate: occupancy, totalEarnings: earnings, pendingInspections: pendingInsps });
+    setLoading(false);
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-6">
+    <div className="min-h-screen bg-[#0A0A0F] pb-20">
       <Toaster position="top-center" richColors />
 
-      {/* Header */}
-      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => onNavigate?.('home')}
-            className="w-9 h-9 rounded-xl bg-[#1A1A24] border border-[#232330] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-all">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-white">Property Partner</h1>
-            <p className="text-[10px] text-[#5C5E72] truncate">{profile.email}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* One chat button — partners can type and upload files here */}
-            <button
-              onClick={handlePartnerChat}
-              className="h-8 px-3 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center gap-1.5 text-[#3B82F6] hover:text-[#60A5FA] hover:border-[#3B82F6]/40 transition-all text-[10px] font-medium"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-              Chat with WeHouse
+      {/* ═══ HEADER ═══ */}
+      <header className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#0A0A0F] to-[#16213e]" />
+        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
+        <div className="relative px-5 pt-6 pb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                <span className="text-white font-bold text-sm">{(profile.username || profile.email || 'P')[0].toUpperCase()}</span>
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-white">Property Partner</h1>
+                <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+              </div>
+            </div>
+            <button onClick={_onLogout} className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 transition-all" title="Logout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
             </button>
-            <span className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
+          </div>
+
+          {/* Stats Row */}
+          <div className="grid grid-cols-4 gap-2">
+            <StatCard label="Properties" value={stats.totalProperties} />
+            <StatCard label="Bookings" value={stats.totalBookings} />
+            <StatCard label="Occupancy" value={`${stats.occupancyRate}%`} />
+            <StatCard label="Earnings" value={`N${(stats.totalEarnings / 1000).toFixed(0)}k`} />
           </div>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex gap-1 px-5 py-3 border-b border-white/[0.04] overflow-x-auto scrollbar-hide">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`flex-shrink-0 h-9 px-4 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
-              activeTab === t.id ? 'bg-violet-500 text-white' : 'text-[#5C5E72] hover:text-white'
-            }`}>{t.label}</button>
-        ))}
-      </div>
+      {/* ═══ TAB NAV ═══ */}
+      <nav className="sticky top-0 z-40 bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/[0.04] px-3 py-2">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+          {TAB_CONFIG.map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              className={`flex-shrink-0 flex items-center gap-1.5 h-9 px-3 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${activeTab === t.key ? 'bg-gradient-to-r from-violet-500 to-violet-700 text-white shadow-lg shadow-violet-500/25' : 'text-[#5C5E72] hover:text-white hover:bg-white/[0.05]'}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </nav>
 
-      <main className="px-5 py-4 max-w-lg mx-auto">
-        {activeTab === 'overview' && <OverviewTab stats={stats} onTab={setActiveTab} />}
-        {activeTab === 'properties' && <PropertiesTab profileId={profile.user_id} />}
-        {activeTab === 'request' && <RequestInspectionTab profile={profile} onSubmitted={() => setActiveTab('requests')} />}
-        {activeTab === 'requests' && <RequestsTab profileId={profile.user_id} />}
-        {activeTab === 'bookings' && <BookingsTab profileId={profile.user_id} />}
-        {activeTab === 'earnings' && <EarningsTab profileId={profile.user_id} />}
-        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
+      {/* ═══ TAB CONTENT ═══ */}
+      <main className="px-4 py-4">
+        {loading ? (
+          <div className="flex justify-center py-16"><div className="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <>
+            {activeTab === 'overview' && <OverviewTab stats={stats} profile={profile} onSetTab={setActiveTab} onGoToChat={onGoToChat} inspections={inspections} />}
+            {activeTab === 'properties' && <PropertiesTab properties={properties} />}
+            {activeTab === 'bookings' && <BookingsTab bookings={bookings} properties={properties} />}
+            {activeTab === 'occupancy' && <OccupancyTab properties={properties} bookings={bookings} />}
+            {activeTab === 'earnings' && <EarningsTab bookings={bookings} />}
+            {activeTab === 'inspections' && <InspectionsTab inspections={inspections} profile={profile} onGoToChat={onGoToChat} />}
+            {activeTab === 'chat' && <ChatTab profile={profile} onGoToChat={onGoToChat} />}
+            {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
+          </>
+        )}
       </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAT CARD
+// ═══════════════════════════════════════════════════════════════
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 text-center">
+      <p className="text-sm font-bold text-white">{value}</p>
+      <p className="text-[9px] text-[#5C5E72] mt-0.5">{label}</p>
     </div>
   );
 }
@@ -190,471 +164,97 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
 // OVERVIEW TAB
 // ═══════════════════════════════════════════════════════════════
 
-function OverviewTab({ stats, onTab }: { stats: any; onTab: (t: OwnerTab) => void }) {
-  const cards = [
-    { label: 'My Properties', value: stats.totalProperties, color: 'violet', tab: 'properties' as OwnerTab },
-    { label: 'Pending', value: stats.pendingRequests, color: 'amber', tab: 'requests' as OwnerTab },
-    { label: 'Bookings', value: stats.totalBookings, color: 'blue', tab: 'bookings' as OwnerTab },
-    { label: 'Earnings', value: `N${stats.totalEarnings.toLocaleString()}`, color: 'emerald', tab: 'earnings' as OwnerTab },
-  ];
-
+function OverviewTab({ stats, profile, onSetTab, onGoToChat, inspections }: {
+  stats: any; profile: Profile; onSetTab: (t: PartnerTab) => void; onGoToChat?: (_c?: string) => void; inspections: any[];
+}) {
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-5">
-        <h2 className="text-sm font-semibold text-white">Welcome to your Partner Dashboard</h2>
-        <p className="text-[10px] text-[#5C5E72] mt-1">
-          Request property inspections. WeHouse will inspect, approve, and list your properties. You track everything here.
-        </p>
-      </div>
+      <p className="text-[11px] text-[#5C5E72]">Welcome, <span className="text-white font-medium">{profile.full_name || profile.username || 'Partner'}</span>. Here&apos;s your portfolio.</p>
 
+      {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
-        {cards.map(c => (
-          <button key={c.label} onClick={() => onTab(c.tab)}
-            className={`rounded-2xl bg-gradient-to-br from-${c.color}-500/10 to-${c.color}-600/5 border border-${c.color}-500/20 p-4 text-center hover:scale-[1.02] transition-all active:scale-[0.98]`}>
-            <p className="text-lg font-extrabold text-white">{c.value}</p>
-            <p className="text-[9px] text-[#5C5E72] mt-1">{c.label}</p>
-          </button>
-        ))}
+        <QuickCard icon="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" title="My Properties" subtitle={`${stats.totalProperties} approved`} color="from-violet-500 to-violet-700" onClick={() => onSetTab('properties')} />
+        <QuickCard icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" title="Bookings" subtitle={`${stats.totalBookings} total`} color="from-blue-500 to-blue-700" onClick={() => onSetTab('bookings')} />
+        <QuickCard icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" title="Request Inspection" subtitle="For new properties" color="from-amber-500 to-amber-700" onClick={() => onSetTab('inspections')} />
+        <QuickCard icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" title="Chat Support" subtitle="Message WeHouse" color="from-emerald-500 to-emerald-700" onClick={() => onGoToChat ? onGoToChat() : onSetTab('chat')} />
       </div>
 
-      <button onClick={() => onTab('request')}
-        className="w-full rounded-2xl bg-violet-500 text-white h-12 font-semibold text-sm hover:bg-violet-600 transition-colors active:scale-[0.98]">
-        + Request New Property Inspection
-      </button>
-
-      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-        <h3 className="text-xs font-semibold text-white mb-2">How It Works</h3>
-        <ol className="space-y-2">
-          {[
-            'Request inspection — Fill property details, upload photos',
-            'WeHouse reviews — Admin assigns a field officer to inspect',
-            'Field inspection — Our staff visits, verifies, photographs',
-            'Approved & listed — Your property goes public on WeHouse',
-            'Manage bookings — Track reservations, earnings, all in one place',
-          ].map((s, i) => (
-            <li key={i} className="flex items-start gap-2 text-[10px] text-[#8A8B9C]">
-              <span className="w-5 h-5 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center text-[9px] font-bold flex-shrink-0">{i + 1}</span>
-              {s}
-            </li>
-          ))}
-        </ol>
-      </div>
+      {/* Pending Inspections Alert */}
+      {inspections.filter((i: any) => i.status === 'pending').length > 0 && (
+        <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">Inspection Pending</p>
+            <p className="text-[10px] text-[#5C5E72]">Your property inspection request is being processed.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+function QuickCard({ icon, title, subtitle, color, onClick }: { icon: string; title: string; subtitle: string; color: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="group rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 text-left hover:border-white/[0.12] transition-all active:scale-[0.98]">
+      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-lg`}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
+      </div>
+      <p className="text-xs font-semibold text-white">{title}</p>
+      <p className="text-[10px] text-[#5C5E72] mt-0.5">{subtitle}</p>
+    </button>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
-// MY PROPERTIES TAB
+// PROPERTIES TAB — VIEW ONLY (WeHouse creates listings)
 // ═══════════════════════════════════════════════════════════════
 
-function PropertiesTab({ profileId }: { profileId: string }) {
-  const [properties, setProperties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase.from('listings').select('*').or(`partner_id.eq.${profileId},owner_id.eq.${profileId}`).order('created_at', { ascending: false });
-      setProperties(data || []);
-      setLoading(false);
-    }
-    load();
-  }, [profileId]);
-
-  if (loading) return <Spinner />;
-  if (!properties.length) return <Empty title="No properties yet" desc="Submit an inspection request. Once approved by WeHouse staff, your properties will appear here." />;
+function PropertiesTab({ properties }: { properties: any[] }) {
+  if (properties.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+        </div>
+        <p className="text-sm font-semibold text-white mb-1">No Properties Yet</p>
+        <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">Request a property inspection. Once WeHouse inspects and approves your property, it will appear here.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Listed Properties ({properties.length})</h3>
+      <p className="text-xs font-semibold text-white">{properties.length} Property{properties.length !== 1 ? 'ies' : 'y'}</p>
       {properties.map(p => (
-        <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
-          <div className="h-32 bg-[#1A1A24] relative">
-            {p.images?.length > 0 ? (
+        <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
+          {p.images?.[0] && (
+            <div className="h-32 bg-[#1A1A24] relative">
               <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#5C5E72] text-xs">No photo yet</div>
-            )}
-            <span className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 rounded-full font-semibold ${
-              p.status === 'approved' || p.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
-              p.status === 'pending' ? 'bg-amber-500/20 text-amber-400' :
-              'bg-red-500/20 text-red-400'
-            }`}>{p.status || 'pending'}</span>
-          </div>
-          <div className="p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white truncate">{p.title || p.address || 'Untitled Property'}</p>
+              <div className="absolute top-2 right-2">
+                <span className="text-[9px] px-2 py-1 rounded-full bg-emerald-500/90 text-white font-medium">{p.sub_type === 'short_let' ? 'Short Let' : 'Long Stay'}</span>
+              </div>
             </div>
-            <p className="text-[10px] text-[#5C5E72]">{p.city}, {p.state} · {p.property_type}{p.sub_type ? ` (${p.sub_type === 'short_let' ? 'Short Let' : 'Long Stay'})` : ''}</p>
-            {p.amenities?.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {p.amenities.slice(0, 4).map((a: string) => (
-                  <span key={a} className="text-[8px] px-1.5 py-0.5 rounded bg-[#1A1A24] text-[#5C5E72]">{a.replace(/_/g, ' ')}</span>
-                ))}
-                {p.amenities.length > 4 && <span className="text-[8px] text-[#5C5E72]">+{p.amenities.length - 4} more</span>}
+          )}
+          <div className="p-4">
+            <p className="text-sm font-semibold text-white">{p.title}</p>
+            <p className="text-[10px] text-[#5C5E72]">{p.city}, {p.state} &middot; {p.bedrooms} bed &middot; {p.bathrooms} bath</p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-sm font-bold text-white">N{p.price?.toLocaleString()}<span className="text-[10px] text-[#5C5E72] font-normal">/{p.sub_type === 'short_let' ? 'day' : 'year'}</span></p>
+              {p.security_deposit && (
+                <p className="text-[10px] text-amber-400">Deposit: N{p.security_deposit?.toLocaleString()}</p>
+              )}
+            </div>
+            {p.sub_type === 'short_let' && (
+              <div className="mt-2 pt-2 border-t border-white/[0.04] flex gap-3">
+                {p.weekly_price && <span className="text-[10px] text-[#5C5E72]">Weekly: N{p.weekly_price?.toLocaleString()}</span>}
+                {p.monthly_price && <span className="text-[10px] text-[#5C5E72]">Monthly: N{p.monthly_price?.toLocaleString()}</span>}
               </div>
             )}
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// REQUEST INSPECTION TAB
-// ═══════════════════════════════════════════════════════════════
-
-interface DraftProperty {
-  id: string;
-  category: PropertyCategory;
-  sub_type: ApartmentSub | '';
-  property_state: string;
-  property_city: string;
-  property_address: string;
-  bedrooms: string;
-  bathrooms: string;
-  expected_rent: string;
-  description: string;
-  amenities: string[];
-  photoUrls: string[];
-  uploading: boolean;
-}
-
-function RequestInspectionTab({ profile, onSubmitted }: { profile: Profile; onSubmitted?: () => void }) {
-  const [properties, setProperties] = useState<DraftProperty[]>([]);
-  const [draft, setDraft] = useState<DraftProperty>({
-    id: '', category: 'apartment', sub_type: '', property_state: '', property_city: '',
-    property_address: '', bedrooms: '1', bathrooms: '1', expected_rent: '',
-    description: '', amenities: [], photoUrls: [], uploading: false,
-  });
-  const [submitting, setSubmitting] = useState(false);
-  // Phone is taken from profile, editable per-property in description
-
-  const availableLgas = draft.property_state ? getCitiesForState(draft.property_state) : [];
-
-  const resetDraft = () => setDraft({
-    id: '', category: 'apartment', sub_type: '', property_state: '', property_city: '',
-    property_address: '', bedrooms: '1', bathrooms: '1', expected_rent: '',
-    description: '', amenities: [], photoUrls: [], uploading: false,
-  });
-
-  const toggleAmenity = (key: string) => {
-    setDraft(d => ({
-      ...d,
-      amenities: d.amenities.includes(key) ? d.amenities.filter(a => a !== key) : [...d.amenities, key],
-    }));
-  };
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setDraft(d => ({ ...d, uploading: true }));
-    const newUrls: string[] = [];
-    for (const file of Array.from(files)) {
-      const path = `inspection-photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${file.name.split('.').pop()}`;
-      const { error } = await supabase.storage.from('listings').upload(path, file);
-      if (!error) {
-        const { data } = supabase.storage.from('listings').getPublicUrl(path);
-        newUrls.push(data.publicUrl);
-      }
-    }
-    setDraft(d => ({ ...d, photoUrls: [...d.photoUrls, ...newUrls], uploading: false }));
-  };
-
-  const addProperty = () => {
-    if (!draft.property_address || !draft.property_state || !draft.property_city) {
-      toast.error('Fill in state, LGA, and street address');
-      return;
-    }
-    if (draft.category === 'apartment' && !draft.sub_type) {
-      toast.error('Select Short Let or Long Stay');
-      return;
-    }
-    setProperties(prev => [...prev, { ...draft, id: crypto.randomUUID() }]);
-    resetDraft();
-    toast.success('Property added to batch!');
-  };
-
-  const removeProperty = (id: string) => setProperties(prev => prev.filter(p => p.id !== id));
-  const removePhoto = (url: string) => setDraft(d => ({ ...d, photoUrls: d.photoUrls.filter(u => u !== url) }));
-
-  const submitAll = async () => {
-    if (properties.length === 0) { toast.error('Add at least one property'); return; }
-    setSubmitting(true);
-
-    // Generate sequential request codes
-    const { data: maxCode } = await supabase
-      .from('inspection_requests')
-      .select('request_code')
-      .order('request_code', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    let nextNum = 1;
-    if (maxCode?.request_code) {
-      const match = maxCode.request_code.match(/(\d+)$/);
-      if (match) nextNum = parseInt(match[1]) + 1;
-    }
-
-    const inserts = properties.map((p, i) => ({
-      request_code: `WHIR-${String(nextNum + i).padStart(5, '0')}`,
-      owner_id: profile.user_id,
-      owner_email: profile.email,
-      owner_phone: profile.phone || '',
-      property_address: p.property_address,
-      property_city: p.property_city,
-      property_state: p.property_state,
-      property_type: p.category === 'apartment' ? 'apartment' : 'house',
-      bedrooms: parseInt(p.bedrooms) || null,
-      bathrooms: parseInt(p.bathrooms) || null,
-      expected_rent: p.expected_rent ? parseFloat(p.expected_rent) : null,
-      description: p.description,
-      amenities: p.amenities || [],
-      photo_urls: p.photoUrls || [],
-      status: 'pending' as const,
-    }));
-
-    const { error } = await supabase.from('inspection_requests').insert(inserts);
-    setSubmitting(false);
-
-    if (error) { toast.error('Failed: ' + error.message); return; }
-
-    toast.success(`${properties.length} inspection request(s) submitted! WeHouse will review and assign a field officer.`);
-    setProperties([]);
-    resetDraft();
-    onSubmitted?.();
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-4">
-        <h3 className="text-sm font-semibold text-white">Request Property Inspection</h3>
-        <p className="text-[10px] text-[#5C5E72] mt-1">
-          Add all properties you want inspected. WeHouse staff will visit each one.
-        </p>
-      </div>
-
-      {/* Batch List — Expandable Preview Cards */}
-      {properties.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-xs font-semibold text-[#8B8DA0] uppercase tracking-wider">Added ({properties.length}) — Tap to review before submitting</h4>
-          {properties.map(p => (
-            <PropertyPreviewCard key={p.id} property={p} onRemove={() => removeProperty(p.id)} />
-          ))}
-        </div>
-      )}
-
-      {/* Draft Form */}
-      <div className="rounded-2xl bg-[#12121A]/40 border border-white/[0.04] p-4 space-y-4">
-        <h4 className="text-xs font-semibold text-white">Property {properties.length + 1}</h4>
-
-        {/* Category: Apartment vs Hotel */}
-        <div>
-          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Property Category *</label>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { value: 'apartment' as PropertyCategory, label: 'Apartment', icon: '🏢', desc: 'Short Let or Long Stay' },
-              { value: 'hotel' as PropertyCategory, label: 'Hotel', icon: '🏨', desc: 'Hotel / Guest House' },
-            ].map(cat => (
-              <button key={cat.value} type="button"
-                onClick={() => setDraft(d => ({ ...d, category: cat.value, sub_type: '' }))}
-                className={`rounded-xl border p-3 text-center transition-all ${draft.category === cat.value ? 'border-violet-500 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24] hover:border-violet-500/30'}`}>
-                <span className="text-xl">{cat.icon}</span>
-                <p className={`text-xs font-semibold mt-1 ${draft.category === cat.value ? 'text-violet-400' : 'text-white'}`}>{cat.label}</p>
-                <p className="text-[9px] text-[#5C5E72]">{cat.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sub-type: Short Let / Long Stay (only for apartments) */}
-        {draft.category === 'apartment' && (
-          <div>
-            <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Apartment Type *</label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { value: 'short_let' as ApartmentSub, label: 'Short Let', desc: 'Daily / Weekly rental' },
-                { value: 'long_stay' as ApartmentSub, label: 'Long Stay', desc: 'Monthly / Yearly rental' },
-              ].map(st => (
-                <button key={st.value} type="button"
-                  onClick={() => setDraft(d => ({ ...d, sub_type: st.value }))}
-                  className={`rounded-xl border p-3 text-center transition-all ${draft.sub_type === st.value ? 'border-violet-500 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24]'}`}>
-                  <p className={`text-xs font-semibold ${draft.sub_type === st.value ? 'text-violet-400' : 'text-white'}`}>{st.label}</p>
-                  <p className="text-[9px] text-[#5C5E72]">{st.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Location: State → LGA → Address */}
-        <div className="space-y-3">
-          <Select label="State *" value={draft.property_state}
-            onChange={v => setDraft(d => ({ ...d, property_state: v, property_city: '' }))}
-            options={[{ value: '', label: 'Select State' }, ...NIGERIA_STATES.map(s => ({ value: s.state, label: s.state }))]} />
-
-          <Select label="Local Government (LGA) *" value={draft.property_city}
-            onChange={v => setDraft(d => ({ ...d, property_city: v }))}
-            disabled={!draft.property_state}
-            options={[{ value: '', label: draft.property_state ? 'Select LGA' : 'Select state first' }, ...availableLgas.map(l => ({ value: l, label: l }))]} />
-
-          <Input label="Full Street Address *" value={draft.property_address}
-            onChange={v => setDraft(d => ({ ...d, property_address: v }))}
-            placeholder="e.g. 15 Adeola Odeku Street, Block B, Flat 3" />
-        </div>
-
-        {/* Bedrooms / Bathrooms */}
-        <div className="grid grid-cols-2 gap-3">
-          <Select label="Bedrooms" value={draft.bedrooms}
-            onChange={v => setDraft(d => ({ ...d, bedrooms: v }))}
-            options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({ value: String(n), label: String(n) }))} />
-          <Select label="Bathrooms" value={draft.bathrooms}
-            onChange={v => setDraft(d => ({ ...d, bathrooms: v }))}
-            options={[1, 2, 3, 4, 5, 6].map(n => ({ value: String(n), label: String(n) }))} />
-        </div>
-
-        {/* Expected Rent */}
-        <Input label="Expected Rent (N/year)" value={draft.expected_rent}
-          onChange={v => setDraft(d => ({ ...d, expected_rent: v }))}
-          placeholder="e.g. 1500000" type="number" />
-
-        {/* Amenities */}
-        <div>
-          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Amenities Available</label>
-          <div className="grid grid-cols-2 gap-2">
-            {AMENITIES.map(a => (
-              <button key={a.key} type="button" onClick={() => toggleAmenity(a.key)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
-                  draft.amenities.includes(a.key) ? 'border-violet-500/50 bg-violet-500/10' : 'border-[#232330] bg-[#1A1A24]'
-                }`}>
-                <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${
-                  draft.amenities.includes(a.key) ? 'bg-violet-500 border-violet-500' : 'border-[#5C5E72]'
-                }`}>
-                  {draft.amenities.includes(a.key) && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 12l5 5L20 7" /></svg>}
-                </div>
-                <span className={`text-[10px] ${draft.amenities.includes(a.key) ? 'text-violet-400' : 'text-[#8A8B9C]'}`}>{a.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Photo Upload */}
-        <div>
-          <label className="text-[11px] text-[#8B8DA0] mb-2 block font-medium">Property Photos</label>
-          <div className="flex flex-wrap gap-2 mb-2">
-            {draft.photoUrls.map(url => (
-              <div key={url} className="relative w-16 h-16 rounded-xl overflow-hidden">
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button onClick={() => removePhoto(url)} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[8px]">x</button>
-              </div>
-            ))}
-          </div>
-          <label className={`flex items-center justify-center gap-2 h-10 rounded-xl border border-dashed cursor-pointer transition-colors ${
-            draft.uploading ? 'border-amber-500/30 text-amber-400' : 'border-violet-500/30 text-violet-400 hover:bg-violet-500/10'
-          }`}>
-            <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
-            <span className="text-xs font-semibold">{draft.uploading ? 'Uploading...' : '+ Add Photos'}</span>
-          </label>
-        </div>
-
-        {/* Description */}
-        <TextArea label="Description" value={draft.description}
-          onChange={v => setDraft(d => ({ ...d, description: v }))}
-          placeholder="Tell us about this property... What makes it special?" rows={3} />
-
-        {/* Add to Batch Button */}
-        <button type="button" onClick={addProperty}
-          className="w-full h-10 rounded-xl border border-dashed border-violet-500/30 text-violet-400 text-sm font-semibold hover:bg-violet-500/10 transition-colors">
-          + Add to Batch
-        </button>
-      </div>
-
-      {/* Submit */}
-      <button onClick={submitAll} disabled={submitting || properties.length === 0}
-        className="w-full h-12 rounded-xl bg-violet-500 text-white font-semibold hover:bg-violet-600 transition-colors disabled:opacity-40 active:scale-[0.98]">
-        {submitting ? 'Submitting...' : properties.length === 0 ? 'Add Properties Above' : `Submit ${properties.length} Property Request(s)`}
-      </button>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MY REQUESTS TAB
-// ═══════════════════════════════════════════════════════════════
-
-function RequestsTab({ profileId }: { profileId: string }) {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    load();
-  }, [profileId]);
-
-  async function load() {
-    const { data } = await supabase.from('inspection_requests').select('*').eq('owner_id', profileId).order('created_at', { ascending: false });
-    setRequests(data || []);
-    setLoading(false);
-  }
-
-  if (loading) return <Spinner />;
-  if (!requests.length) return <Empty title="No requests yet" desc="Submit your first property inspection request to get started." />;
-
-  const statusMap: Record<string, { color: string; label: string }> = {
-    pending: { color: 'bg-amber-500/10 text-amber-400', label: 'Pending' },
-    scheduled: { color: 'bg-blue-500/10 text-blue-400', label: 'Scheduled' },
-    in_progress: { color: 'bg-purple-500/10 text-purple-400', label: 'In Progress' },
-    approved: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Approved' },
-    rejected: { color: 'bg-red-500/10 text-red-400', label: 'Rejected' },
-    completed: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Completed' },
-  };
-
-  return (
-    <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Inspection Requests ({requests.length})</h3>
-      {requests.map(r => {
-        const s = statusMap[r.status] || statusMap.pending;
-        return (
-          <div key={r.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
-            {r.photo_urls?.length > 0 && (
-              <div className="h-24 bg-[#1A1A24]">
-                <img src={r.photo_urls[0]} alt="" className="w-full h-full object-cover" />
-              </div>
-            )}
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
-                {r.scheduled_date && <span className="text-[8px] text-blue-400">Scheduled: {r.scheduled_date}</span>}
-              </div>
-              <p className="text-sm font-semibold text-white">{r.property_address}</p>
-              <p className="text-[10px] text-[#5C5E72]">{r.property_city}, {r.property_state} · {r.property_type?.replace('apartment_', 'Apartment - ').replace('short_let', 'Short Let').replace('long_stay', 'Long Stay').replace('hotel', 'Hotel')}</p>
-              {r.amenities?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {r.amenities.slice(0, 5).map((a: string) => (
-                    <span key={a} className="text-[8px] px-1.5 py-0.5 rounded bg-[#1A1A24] text-[#5C5E72]">{a.replace(/_/g, ' ')}</span>
-                  ))}
-                </div>
-              )}
-              {r.notes && <p className="text-[10px] text-[#5C5E72] mt-2 italic">Note: {r.notes}</p>}
-              {r.rejection_reason && <p className="text-[10px] text-red-400 mt-2">Reason: {r.rejection_reason}</p>}
-              {/* Delete button for pending requests */}
-              {r.status === 'pending' && (
-                <button
-                  onClick={async () => {
-                    if (!confirm('Delete this inspection request?')) return;
-                    const { error } = await supabase.from('inspection_requests').delete().eq('id', r.id);
-                    if (error) { toast.error('Failed to delete: ' + error.message); return; }
-                    toast.success('Request deleted');
-                    load();
-                  }}
-                  className="mt-2 text-[10px] text-red-400/70 hover:text-red-400 flex items-center gap-1 transition-colors"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                  Delete Request
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -663,43 +263,65 @@ function RequestsTab({ profileId }: { profileId: string }) {
 // BOOKINGS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function BookingsTab({ profileId }: { profileId: string }) {
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      // Get reservations for this partner's listings
-      const { data: listings } = await supabase.from('listings').select('listing_id').or(`partner_id.eq.${profileId},owner_id.eq.${profileId}`);
-      const listingIds = (listings || []).map((l: any) => l.listing_id);
-      if (listingIds.length === 0) { setBookings([]); setLoading(false); return; }
-      const { data } = await supabase.from('reservations').select('*').in('listing_id', listingIds).order('created_at', { ascending: false });
-      setBookings(data || []);
-      setLoading(false);
-    }
-    load();
-  }, [profileId]);
-
-  if (loading) return <Spinner />;
-  if (!bookings.length) return <Empty title="No bookings yet" desc="Bookings will appear here once users start reserving your listed properties." />;
+function BookingsTab({ bookings, properties }: { bookings: any[]; properties: any[] }) {
+  if (bookings.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+        </div>
+        <p className="text-sm text-[#5C5E72]">No bookings yet</p>
+        <p className="text-[10px] text-[#5C5E72] mt-1">Bookings will appear when customers reserve your properties.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Reservations ({bookings.length})</h3>
-      {bookings.map((b: any) => (
-        <div key={b.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-white">{b.listing_title || 'Reservation'}</p>
-            <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
-              b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400' :
-              b.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
-              'bg-red-500/10 text-red-400'
-            }`}>{b.status}</span>
+      <p className="text-xs font-semibold text-white">{bookings.length} Booking{bookings.length !== 1 ? 's' : ''}</p>
+      {bookings.map(b => {
+        const prop = properties.find((p: any) => p.listing_id === b.listing_id);
+        return (
+          <div key={b.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white truncate">{prop?.title || 'Property'}</p>
+              <span className={`text-[8px] px-2 py-1 rounded-full ${b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400' : b.status === 'pending' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'}`}>{b.status}</span>
+            </div>
+            <p className="text-[10px] text-[#5C5E72] mt-1">{b.check_in} to {b.check_out}</p>
+            <p className="text-xs text-white font-bold mt-2">N{b.amount?.toLocaleString()}</p>
           </div>
-          <p className="text-[10px] text-[#5C5E72]">Amount: N{(b.amount || 0).toLocaleString()}</p>
-          <p className="text-[10px] text-[#5C5E72]">Plan: {b.rental_plan_years || 1} year(s)</p>
-        </div>
-      ))}
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OCCUPANCY TAB
+// ═══════════════════════════════════════════════════════════════
+
+function OccupancyTab({ properties, bookings }: { properties: any[]; bookings: any[] }) {
+  if (properties.length === 0) return <EmptyState icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" title="No properties to track" />;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-white">Occupancy Overview</p>
+      {properties.map(p => {
+        const propBookings = bookings.filter((b: any) => b.listing_id === p.listing_id && b.status === 'confirmed');
+        const isOccupied = propBookings.length > 0;
+        return (
+          <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white">{p.title}</p>
+              <span className={`text-[8px] px-2 py-1 rounded-full ${isOccupied ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-500/10 text-gray-400'}`}>{isOccupied ? 'Occupied' : 'Vacant'}</span>
+            </div>
+            <p className="text-[10px] text-[#5C5E72]">{p.city}, {p.state}</p>
+            {isOccupied && (
+              <p className="text-[10px] text-[#5C5E72] mt-1">{propBookings.length} active booking{propBookings.length !== 1 ? 's' : ''}</p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -708,52 +330,162 @@ function BookingsTab({ profileId }: { profileId: string }) {
 // EARNINGS TAB
 // ═══════════════════════════════════════════════════════════════
 
-function EarningsTab({ profileId }: { profileId: string }) {
-  const [payouts, setPayouts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      // property_payouts table may not exist yet - wrap in try/catch
-      try {
-        const { data } = await supabase.from('property_payouts').select('*').eq('partner_id', profileId).order('created_at', { ascending: false });
-        setPayouts(data || []);
-      } catch {
-        setPayouts([]);
-      }
-      setLoading(false);
-    }
-    load();
-  }, [profileId]);
-
-  if (loading) return <Spinner />;
-  const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
-  const totalPending = payouts.filter(p => p.status === 'pending').reduce((s, p) => s + (p.amount || 0), 0);
+function EarningsTab({ bookings }: { bookings: any[] }) {
+  const confirmedBookings = bookings.filter((b: any) => b.status === 'confirmed');
+  const totalRevenue = confirmedBookings.reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
+  const wehouseCommission = Math.round(totalRevenue * 0.1); // 10% commission
+  const netEarnings = totalRevenue - wehouseCommission;
 
   return (
     <div className="space-y-4">
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/10 p-4 text-center">
-          <p className="text-xl font-bold text-emerald-400">N{totalPaid.toLocaleString()}</p>
-          <p className="text-[9px] text-[#5C5E72]">Total Paid</p>
+        <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+          <p className="text-[10px] text-[#5C5E72]">Total Revenue</p>
+          <p className="text-lg font-bold text-white">N{totalRevenue.toLocaleString()}</p>
         </div>
-        <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-4 text-center">
-          <p className="text-xl font-bold text-amber-400">N{totalPending.toLocaleString()}</p>
-          <p className="text-[9px] text-[#5C5E72]">Pending</p>
+        <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+          <p className="text-[10px] text-[#5C5E72]">Net Earnings</p>
+          <p className="text-lg font-bold text-emerald-400">N{netEarnings.toLocaleString()}</p>
         </div>
       </div>
 
-      <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Payout History ({payouts.length})</h3>
-      {!payouts.length ? <Empty title="No payouts yet" desc="Earnings appear here once WeHouse processes bookings on your properties." /> : payouts.map(p => (
-        <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-white">{p.payout_code || 'Payout'}</p>
-            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
+      {/* Commission Breakdown */}
+      <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-2">
+        <p className="text-xs font-semibold text-white">Commission Breakdown</p>
+        <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Gross Revenue</span><span className="text-white">N{totalRevenue.toLocaleString()}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse Commission (10%)</span><span className="text-amber-400">-N{wehouseCommission.toLocaleString()}</span></div>
+        <div className="border-t border-white/[0.04] pt-2 flex justify-between text-xs"><span className="text-white font-semibold">Your Earnings</span><span className="text-emerald-400 font-bold">N{netEarnings.toLocaleString()}</span></div>
+      </div>
+
+      {/* Payment Flow */}
+      <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
+        <p className="text-[10px] text-blue-400 leading-relaxed">
+          <strong>How payments work:</strong> Customer pays WeHouse &rarr; Held in escrow &rarr; Stay completes &rarr; 10% commission deducted &rarr; Balance enters your wallet &rarr; Automatic withdrawal to your bank account.
+        </p>
+      </div>
+
+      {/* Transaction History */}
+      <p className="text-xs font-semibold text-white">Recent Transactions</p>
+      {confirmedBookings.length === 0 ? (
+        <p className="text-[11px] text-[#5C5E72] text-center py-4">No confirmed bookings yet</p>
+      ) : (
+        confirmedBookings.slice(0, 10).map(b => (
+          <div key={b.id} className="flex items-center justify-between py-2 border-b border-white/[0.04]">
+            <div>
+              <p className="text-xs text-white">Booking #{b.id?.slice(0, 8)}</p>
+              <p className="text-[9px] text-[#5C5E72]">{b.check_in} &rarr; {b.check_out}</p>
+            </div>
+            <p className="text-xs text-emerald-400">+N{(b.amount * 0.9)?.toLocaleString()}</p>
           </div>
-          <p className="text-sm font-bold text-white mt-1">N{(p.amount || 0).toLocaleString()}</p>
-          <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INSPECTIONS TAB — Partner requests inspection (cannot create listings)
+// ═══════════════════════════════════════════════════════════════
+
+function InspectionsTab({ inspections, profile, onGoToChat: _onGoToChat }: { inspections: any[]; profile: Profile; onGoToChat?: (c?: string) => void }) {
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [requestForm, setRequestForm] = useState({ property_address: '', property_city: '', property_state: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitRequest() {
+    if (!requestForm.property_address || !requestForm.property_city) {
+      toast.error('Address and city are required'); return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.from('inspection_requests').insert({
+      owner_id: profile.user_id,
+      owner_name: profile.full_name || profile.username,
+      owner_email: profile.email,
+      owner_phone: profile.phone,
+      property_address: requestForm.property_address,
+      property_city: requestForm.property_city,
+      property_state: requestForm.property_state,
+      notes: requestForm.notes,
+      status: 'pending',
+      request_code: 'INS' + Date.now().toString(36).toUpperCase(),
+      created_at: new Date().toISOString(),
+    });
+    setSubmitting(false);
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    toast.success('Inspection request submitted');
+    setShowRequestForm(false);
+    setRequestForm({ property_address: '', property_city: '', property_state: '', notes: '' });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Request New Inspection */}
+      {!showRequestForm ? (
+        <button onClick={() => setShowRequestForm(true)} className="w-full h-12 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          Request Property Inspection
+        </button>
+      ) : (
+        <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-3">
+          <p className="text-sm font-semibold text-white">Request New Inspection</p>
+          <p className="text-[10px] text-[#5C5E72]">WeHouse will inspect your property before listing it publicly.</p>
+          <input value={requestForm.property_address} onChange={e => setRequestForm(f => ({ ...f, property_address: e.target.value }))}
+            placeholder="Property address" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+          <div className="grid grid-cols-2 gap-2">
+            <input value={requestForm.property_city} onChange={e => setRequestForm(f => ({ ...f, property_city: e.target.value }))}
+              placeholder="City" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
+              placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+          </div>
+          <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))}
+            placeholder="Additional notes (optional)" rows={2}
+            className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
+          <div className="flex gap-2">
+            <button onClick={() => setShowRequestForm(false)} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs">Cancel</button>
+            <button onClick={submitRequest} disabled={submitting} className="flex-1 h-10 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white text-xs font-semibold disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Request'}</button>
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* Inspection History */}
+      <p className="text-xs font-semibold text-white">Inspection History ({inspections.length})</p>
+      {inspections.length === 0 ? (
+        <p className="text-[11px] text-[#5C5E72] text-center py-4">No inspection requests yet</p>
+      ) : (
+        inspections.map(ins => (
+          <div key={ins.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white truncate">{ins.property_address}</p>
+              <span className={`text-[8px] px-2 py-1 rounded-full ${ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' : ins.status === 'scheduled' ? 'bg-amber-500/10 text-amber-400' : 'bg-gray-500/10 text-gray-400'}`}>{ins.status}</span>
+            </div>
+            <p className="text-[10px] text-[#5C5E72]">{ins.property_city}{ins.property_state ? `, ${ins.property_state}` : ''}</p>
+            <p className="text-[9px] text-[#5C5E72] mt-1">Code: {ins.request_code}</p>
+            {ins.status === 'completed' && (
+              <p className="text-[10px] text-emerald-400 mt-2">Inspection complete. WeHouse will create the listing.</p>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT SUPPORT TAB
+// ═══════════════════════════════════════════════════════════════
+
+function ChatTab({ profile: _profile, onGoToChat }: { profile: Profile; onGoToChat?: (c?: string) => void }) {
+  return (
+    <div className="text-center py-16 space-y-4">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+      </div>
+      <p className="text-sm font-semibold text-white">Chat with WeHouse Support</p>
+      <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">Have questions about your properties, bookings, or payouts? Message our support team.</p>
+      <button onClick={() => onGoToChat?.()} className="h-11 px-8 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white font-semibold hover:opacity-90 transition-opacity">
+        Open Chat
+      </button>
     </div>
   );
 }
@@ -762,157 +494,13 @@ function EarningsTab({ profileId }: { profileId: string }) {
 // SHARED COMPONENTS
 // ═══════════════════════════════════════════════════════════════
 
-function Input({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function EmptyState({ icon, title }: { icon: string; title: string }) {
   return (
-    <div>
-      <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder:text-[#5C5E72] outline-none focus:border-violet-500" />
-    </div>
-  );
-}
-
-function Select({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
-  return (
-    <div>
-      <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
-        className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 outline-none focus:border-violet-500 disabled:opacity-40">
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function TextArea({ label, value, onChange, placeholder, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
-  return (
-    <div>
-      <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">{label}</label>
-      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
-        className="w-full rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 py-3 placeholder:text-[#5C5E72] outline-none focus:border-violet-500 resize-none" />
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PROPERTY PREVIEW CARD (expandable — review before submitting)
-// ═══════════════════════════════════════════════════════════════
-
-function PropertyPreviewCard({ property, onRemove }: { property: any; onRemove: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const typeLabel = property.category === 'hotel' ? 'Hotel' : property.sub_type === 'short_let' ? 'Short Let' : 'Long Stay';
-  const typeIcon = property.category === 'hotel' ? '🏨' : property.sub_type === 'short_let' ? '⏱' : '🏠';
-
-  return (
-    <div className="rounded-2xl bg-[#12121A]/80 border border-violet-500/10 overflow-hidden">
-      {/* Collapsed Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 p-3 text-left"
-      >
-        {property.photoUrls[0] ? (
-          <img src={property.photoUrls[0]} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-        ) : (
-          <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center text-lg flex-shrink-0">
-            {typeIcon}
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-white truncate">{property.property_address}</p>
-          <p className="text-[9px] text-[#5C5E72]">{property.property_city}, {property.property_state} · {typeLabel}</p>
-          {property.expected_rent && <p className="text-[9px] text-violet-400">N{Number(property.expected_rent).toLocaleString()}/year</p>}
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
-      </button>
-
-      {/* Expanded Details */}
-      {expanded && (
-        <div className="px-3 pb-3 border-t border-white/[0.04] pt-3 space-y-3">
-          {/* Details Grid */}
-          <div className="grid grid-cols-2 gap-2">
-            {property.bedrooms && (
-              <div className="rounded-lg bg-[#1A1A24] p-2">
-                <p className="text-[9px] text-[#5C5E72]">Bedrooms</p>
-                <p className="text-xs text-white font-medium">{property.bedrooms}</p>
-              </div>
-            )}
-            {property.bathrooms && (
-              <div className="rounded-lg bg-[#1A1A24] p-2">
-                <p className="text-[9px] text-[#5C5E72]">Bathrooms</p>
-                <p className="text-xs text-white font-medium">{property.bathrooms}</p>
-              </div>
-            )}
-            {property.expected_rent && (
-              <div className="rounded-lg bg-[#1A1A24] p-2">
-                <p className="text-[9px] text-[#5C5E72]">Expected Rent</p>
-                <p className="text-xs text-white font-medium">N{Number(property.expected_rent).toLocaleString()}</p>
-              </div>
-            )}
-            <div className="rounded-lg bg-[#1A1A24] p-2">
-              <p className="text-[9px] text-[#5C5E72]">Type</p>
-              <p className="text-xs text-white font-medium">{typeLabel}</p>
-            </div>
-          </div>
-
-          {/* Description */}
-          {property.description && (
-            <div className="rounded-lg bg-[#1A1A24] p-2.5">
-              <p className="text-[9px] text-[#5C5E72] uppercase tracking-wider mb-1">Description</p>
-              <p className="text-xs text-white leading-relaxed">{property.description}</p>
-            </div>
-          )}
-
-          {/* Amenities */}
-          {property.amenities && property.amenities.length > 0 && (
-            <div>
-              <p className="text-[9px] text-[#5C5E72] uppercase tracking-wider mb-1.5">Amenities</p>
-              <div className="flex flex-wrap gap-1.5">
-                {property.amenities.map((a: string) => (
-                  <span key={a} className="text-[9px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">{a}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Photos Gallery */}
-          {property.photoUrls && property.photoUrls.length > 0 && (
-            <div>
-              <p className="text-[9px] text-[#5C5E72] uppercase tracking-wider mb-1.5">Photos ({property.photoUrls.length})</p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {property.photoUrls.map((url: string, i: number) => (
-                  <img key={i} src={url} alt="" className="w-20 h-20 rounded-xl object-cover flex-shrink-0" />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Remove Button */}
-          <button
-            onClick={onRemove}
-            className="w-full h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-            Remove This Property
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Spinner() {
-  return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
-}
-
-function Empty({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="text-center py-10">
-      <div className="w-12 h-12 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+    <div className="text-center py-16">
+      <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
       </div>
-      <p className="text-sm font-semibold text-[#5C5E72]">{title}</p>
-      <p className="text-[10px] text-[#5C5E72] mt-1 max-w-[200px] mx-auto">{desc}</p>
+      <p className="text-sm text-[#5C5E72]">{title}</p>
     </div>
   );
 }
