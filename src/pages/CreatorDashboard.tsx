@@ -198,10 +198,8 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
       const { total, today } = await getUserCount();
       const { listings } = await getAllListingsAdmin();
       const { reports } = await getReports();
-      // Exclude wehouse_support system account from count (until SQL fix is run)
-      const hasSupport = (await supabase.from('profiles').select('user_id').eq('user_id', 'wehouse_support').maybeSingle()).data !== null;
-      const adjustedTotal = hasSupport && total ? total - 1 : total;
-      setStats({ users: adjustedTotal, listings: listings?.length || 0, reports: reports?.filter(r => r.status === 'pending').length || 0, today });
+      // admin_get_user_count RPC already excludes wehouse_support — no adjustment needed
+      setStats({ users: total, listings: listings?.length || 0, reports: reports?.filter(r => r.status === 'pending').length || 0, today });
     }
     load();
   }, []);

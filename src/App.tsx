@@ -119,6 +119,7 @@ export default function App() {
     if (navPage === 'creator' && !checkCreator(role)) valid = false;
     if (navPage === 'admin' && role !== 'admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
+    if ((navPage === 'worker_discovery' || navPage === 'worker_categories') && role === 'worker') valid = false;
     if (navPage === 'staff_dashboard' && role !== 'staff') valid = false;
     if ((navPage === 'property_owner' || navPage === 'property_partner') && role !== 'property_partner') valid = false;
     if (navPage === 'worker_categories' && role === 'property_partner') valid = false;
@@ -415,7 +416,7 @@ export default function App() {
     { id: 'search' as NavPage, label: 'Listings', icon: ListingsSvg },
     { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
     ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
-    { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+    ...(isWorker ? [] : [{ id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg }]),
   ];
 
   const isStaffRole = profile.role === 'staff';
