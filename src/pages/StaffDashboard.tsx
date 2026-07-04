@@ -568,38 +568,33 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [report, setReport] = useState('');
   const [condition, setCondition] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
-  // Post property from inspection
+  // Preview / Post property
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
   const [postingForInspection, setPostingForInspection] = useState<string | null>(null);
   const [postSaving, setPostSaving] = useState(false);
   const [postImages, setPostImages] = useState<string[]>([]);
-  const [postForm, setPostForm] = useState({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', contactPhone: '' });
+  const [postForm, setPostForm] = useState({
+    title: '', description: '', price: '', bedrooms: '1', bathrooms: '1',
+    propertyType: 'apartment', contactPhone: '',
+  });
 
   useEffect(() => { loadInspections(); }, []);
 
   async function loadInspections() {
     setLoading(true);
     try {
-      // Use RPC that bypasses RLS — field officers can always see their assignments
       const { data, error } = await supabase.rpc('get_my_inspections', {
         p_field_officer_id: profile.user_id,
       });
-      if (error) {
-        console.error('[get_my_inspections] error:', error);
-        toast.error('Failed to load inspections: ' + error.message);
-      }
+      if (error) { console.error('[get_my_inspections] error:', error); toast.error('Failed: ' + error.message); }
       setInspections(data || []);
-    } catch (e: any) {
-      console.error('[loadInspections] exception:', e);
-      toast.error('Error loading inspections');
-    }
+    } catch (e: any) { console.error('[loadInspections] exception:', e); toast.error('Error loading inspections'); }
     setLoading(false);
   }
 
   async function startInspection(id: string, source: string = 'user') {
     const { data: success, error } = await supabase.rpc('update_inspection_status', {
-      p_inspection_id: id,
-      p_new_status: 'in_progress',
-      p_source: source,
+      p_inspection_id: id, p_new_status: 'in_progress', p_source: source,
     });
     if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
     toast.success('Inspection started'); loadInspections();
@@ -608,15 +603,27 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   async function completeInspection(id: string, source: string = 'user') {
     if (!report.trim()) { toast.error('Enter a report'); return; }
     const { data: success, error } = await supabase.rpc('update_inspection_status', {
-      p_inspection_id: id,
-      p_new_status: 'completed',
-      p_source: source,
-      p_report: report,
-      p_condition: condition,
+      p_inspection_id: id, p_new_status: 'completed', p_source: source,
+      p_report: report, p_condition: condition,
     });
     if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
     toast.success('Inspection completed');
     setCompletingId(null); setReport(''); loadInspections();
+  }
+
+  // Pre-fill post form from inspection data
+  function openPostForm(ins: any) {
+    setPostingForInspection(ins.id);
+    setPostForm({
+      title: ins.property_name || `${ins.property_type || 'Property'} in ${ins.property_city || ''}`,
+      description: ins.notes || '',
+      price: '',
+      bedrooms: '1',
+      bathrooms: '1',
+      propertyType: ins.property_type || 'apartment',
+      contactPhone: ins.owner_phone || ins.contact_phone || '',
+    });
+    setPostImages([]);
   }
 
   async function submitPostProperty(inspection: any) {
@@ -629,11 +636,12 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
           title: postForm.title.trim(),
           description: postForm.description.trim() || null,
           price: parseInt(postForm.price) || 0,
-          state: inspection.property_state || inspection.listing_state || '',
-          city: inspection.property_city || inspection.listing_city || '',
-          address: inspection.property_address || inspection.listing_address || '',
+          state: inspection.property_state || '',
+          city: inspection.property_city || '',
+          address: inspection.property_address || '',
           bedrooms: parseInt(postForm.bedrooms) || 1,
           bathrooms: parseInt(postForm.bathrooms) || 1,
+          property_type: postForm.propertyType,
           sub_type: 'short_let',
           images: postImages,
           contact_phone: postForm.contactPhone.trim() || null,
@@ -644,11 +652,9 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
       if (error) { toast.error('Failed: ' + error.message); setPostSaving(false); return; }
       toast.success('Property submitted for approval');
       setPostingForInspection(null);
-      setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', contactPhone: '' });
+      setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', propertyType: 'apartment', contactPhone: '' });
       setPostImages([]);
-    } catch (e: any) {
-      toast.error('Error: ' + e.message);
-    }
+    } catch (e: any) { toast.error('Error: ' + e.message); }
     setPostSaving(false);
   }
 
@@ -664,16 +670,16 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-4">
-      {/* Inspections */}
       <h4 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Inspections ({inspections.length})</h4>
 
       {inspections.length === 0 ? <EmptyState icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" title="No inspections assigned" /> : (
         inspections.map(ins => (
           <div key={ins.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 hover:border-white/[0.1] transition-colors">
+            {/* ─── INSPECTION CARD HEADER ─── */}
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{ins.listing_title || ins.property_address || 'Property Inspection'}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-white truncate">{ins.property_name || ins.property_address || 'Property Inspection'}</p>
                   <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
                     ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
                     ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
@@ -681,13 +687,45 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
                     'bg-gray-500/10 text-gray-400'
                   }`}>{ins.status}</span>
                 </div>
-                <p className="text-[10px] text-[#5C5E72] mt-0.5">{ins.listing_address || ins.property_address || 'No address'}{ins.listing_city || ins.property_city ? `, ${ins.listing_city || ins.property_city}` : ''}</p>
-                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code || ins.id?.slice(0, 8)}</p>
-                {ins.contact_phone && <p className="text-[9px] text-[#5C5E72]">Phone: {ins.contact_phone}</p>}
+                <p className="text-[10px] text-[#5C5E72] mt-0.5">
+                  {ins.property_address || 'No address'}
+                  {ins.property_city ? `, ${ins.property_city}` : ''}
+                  {ins.property_state ? `, ${ins.property_state}` : ''}
+                </p>
+                <p className="text-[9px] text-[#5C5E72]">Code: {ins.request_code || ins.inspection_code || ins.id?.slice(0, 8)}</p>
               </div>
             </div>
 
-            {/* Complete Form */}
+            {/* ─── INSPECTION DETAIL PREVIEW ─── */}
+            {previewingId === ins.id && (
+              <div className="mt-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div><span className="text-[#5C5E72]">Property Type:</span> <span className="text-white">{ins.property_type || 'Not specified'}</span></div>
+                  <div><span className="text-[#5C5E72]">Owner:</span> <span className="text-white">{ins.owner_name || ins.owner_id?.slice(0, 12) || 'Unknown'}</span></div>
+                  <div><span className="text-[#5C5E72]">Email:</span> <span className="text-white">{ins.owner_email || 'N/A'}</span></div>
+                  <div><span className="text-[#5C5E72]">Phone:</span> <span className="text-white">{ins.owner_phone || ins.contact_phone || 'N/A'}</span></div>
+                </div>
+                {ins.notes && (
+                  <div className="pt-2 border-t border-white/[0.06]">
+                    <p className="text-[9px] text-[#5C5E72]">Inspection Notes:</p>
+                    <p className="text-[10px] text-white mt-0.5">{ins.notes}</p>
+                  </div>
+                )}
+                {ins.photo_urls && ins.photo_urls.length > 0 && (
+                  <div className="pt-2 border-t border-white/[0.06]">
+                    <p className="text-[9px] text-[#5C5E72] mb-1">Inspection Photos:</p>
+                    <div className="flex gap-1 flex-wrap">
+                      {ins.photo_urls.map((url: string, i: number) => (
+                        <img key={i} src={url} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button onClick={() => setPreviewingId(null)} className="w-full h-7 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[10px]">Hide Details</button>
+              </div>
+            )}
+
+            {/* ─── ACTION BUTTONS ─── */}
             {completingId === ins.id ? (
               <div className="mt-3 space-y-2">
                 <textarea value={report} onChange={e => setReport(e.target.value)} placeholder="Describe what you found during the inspection..." rows={3}
@@ -706,10 +744,15 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
               </div>
             ) : (
               <div className="flex gap-2 mt-3">
+                {/* View Details / Hide Details */}
+                <button onClick={() => setPreviewingId(previewingId === ins.id ? null : ins.id)}
+                  className="h-8 px-3 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">
+                  {previewingId === ins.id ? 'Hide' : 'View Details'}
+                </button>
                 {ins.status === 'scheduled' && <button onClick={() => startInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>}
                 {ins.status === 'in_progress' && <button onClick={() => setCompletingId(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>}
                 {ins.status === 'completed' && (
-                  <button onClick={() => setPostingForInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold flex items-center justify-center gap-1">
+                  <button onClick={() => openPostForm(ins)} className="flex-1 h-8 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold flex items-center justify-center gap-1">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
                     Post This Property
                   </button>
@@ -717,35 +760,96 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
               </div>
             )}
 
-            {/* Post Property Form (appears inline for completed inspections) */}
+            {/* ─── FULL PROPERTY POST FORM ─── */}
             {postingForInspection === ins.id && (
               <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-[#3B82F6]/20 space-y-3">
-                <p className="text-[11px] text-[#3B82F6] font-medium">Post the property you inspected</p>
+                <p className="text-[11px] text-[#3B82F6] font-medium">Create Listing from Inspection</p>
+                <p className="text-[9px] text-[#5C5E72]">The address and location are pre-filled from the inspection. Add the title, price, and details below.</p>
+
+                {/* Pre-filled inspection info (read-only) */}
+                <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#5C5E72]">Address:</span>
+                    <span className="text-white text-right">{ins.property_address || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#5C5E72]">City:</span>
+                    <span className="text-white">{ins.property_city || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#5C5E72]">State:</span>
+                    <span className="text-white">{ins.property_state || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#5C5E72]">Owner:</span>
+                    <span className="text-white">{ins.owner_name || ins.owner_id?.slice(0, 12) || 'N/A'}</span>
+                  </div>
+                </div>
+
+                {/* Property Title */}
                 <input value={postForm.title} onChange={e => setPostForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Property title" className="w-full h-9 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+                  placeholder="Property title (e.g. 3-Bedroom Apartment in Wuse)"
+                  className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+
+                {/* Price */}
                 <input value={postForm.price} onChange={e => setPostForm(f => ({ ...f, price: e.target.value }))}
-                  placeholder="Price (NGN)" type="text" inputMode="numeric" className="w-full h-9 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+                  placeholder="Price per year (NGN)"
+                  type="text" inputMode="numeric"
+                  className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+
+                {/* Bedrooms / Bathrooms / Property Type row */}
+                <div className="grid grid-cols-3 gap-2">
+                  <select value={postForm.bedrooms} onChange={e => setPostForm(f => ({ ...f, bedrooms: e.target.value }))}
+                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
+                    {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} Bedroom{n > 1 ? 's' : ''}</option>)}
+                  </select>
+                  <select value={postForm.bathrooms} onChange={e => setPostForm(f => ({ ...f, bathrooms: e.target.value }))}
+                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
+                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} Bathroom{n > 1 ? 's' : ''}</option>)}
+                  </select>
+                  <select value={postForm.propertyType} onChange={e => setPostForm(f => ({ ...f, propertyType: e.target.value }))}
+                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
+                    <option value="apartment">Apartment</option>
+                    <option value="house">House</option>
+                    <option value="duplex">Duplex</option>
+                    <option value="self_contain">Self Contain</option>
+                    <option value="studio">Studio</option>
+                    <option value="bungalow">Bungalow</option>
+                    <option value="mansion">Mansion</option>
+                    <option value="penthouse">Penthouse</option>
+                  </select>
+                </div>
+
+                {/* Description */}
                 <textarea value={postForm.description} onChange={e => setPostForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Description" rows={2} className="w-full rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 outline-none focus:border-[#3B82F6] resize-none" />
+                  placeholder="Describe the property — features, neighborhood, nearby amenities..." rows={3}
+                  className="w-full rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 outline-none focus:border-[#3B82F6] resize-none" />
+
+                {/* Contact Phone + Images */}
                 <div className="grid grid-cols-2 gap-2">
                   <input value={postForm.contactPhone} onChange={e => setPostForm(f => ({ ...f, contactPhone: e.target.value }))}
-                    placeholder="Contact phone" className="h-9 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
-                  <div className="flex flex-wrap gap-1">
+                    placeholder="Contact phone"
+                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+                  <div className="flex items-center gap-1 flex-wrap">
                     {postImages.map((img, i) => (
-                      <div key={i} className="relative w-9 h-9 rounded-lg overflow-hidden">
+                      <div key={i} className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
                         <img src={img} alt="" className="w-full h-full object-cover" />
                         <button onClick={() => setPostImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-bl flex items-center justify-center text-white text-[7px]">&times;</button>
                       </div>
                     ))}
-                    <label className="w-9 h-9 rounded-lg border border-dashed border-white/[0.15] flex items-center justify-center cursor-pointer hover:border-[#3B82F6]">
+                    <label className="w-10 h-10 rounded-lg border border-dashed border-white/[0.15] flex items-center justify-center cursor-pointer hover:border-[#3B82F6] flex-shrink-0">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
                       <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.currentTarget.value = ''; }} />
                     </label>
+                    <span className="text-[9px] text-[#5C5E72]">{postImages.length} photo{postImages.length !== 1 ? 's' : ''}</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setPostingForInspection(null)} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
-                  <button onClick={() => submitPostProperty(ins)} disabled={postSaving} className="flex-1 h-8 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold disabled:opacity-40">
+
+                {/* Submit / Cancel */}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setPostingForInspection(null)} className="flex-1 h-10 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
+                  <button onClick={() => submitPostProperty(ins)} disabled={postSaving}
+                    className="flex-1 h-10 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold disabled:opacity-40">
                     {postSaving ? 'Submitting...' : 'Submit for Approval'}
                   </button>
                 </div>
