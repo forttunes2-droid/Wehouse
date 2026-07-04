@@ -1137,16 +1137,13 @@ function EditView({
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 py-5 space-y-4">
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 pt-5 pb-32 space-y-3">
         {/* ═════ STEP 1: ESSENTIALS ═════ */}
-        <div className="glass rounded-2xl p-4">
-          <div className="mb-4">
-            <h3 className="text-sm font-bold text-white">Essentials</h3>
-            <p className="text-[10px] text-[#5C5E72] mt-0.5">Required for matching</p>
-          </div>
+        <div className="glass rounded-2xl p-3">
+          <h3 className="text-sm font-bold text-white mb-3">Essentials</h3>
 
           {/* Budget */}
-          <div className="mb-4">
+          <div className="mb-3">
             <label className="text-[10px] text-[#5C5E72] mb-1 block font-medium">Budget Range *</label>
             <DualRangeSlider
               min={form.budget_min}
@@ -1162,8 +1159,8 @@ function EditView({
           </div>
 
           {/* Location */}
-          <div className="mb-4">
-            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Location *</label>
+          <div className="mb-3">
+            <label className="text-[10px] text-[#5C5E72] mb-1 block font-medium">Location *</label>
             <RoommateLocationSelector
               value={{
                 preferred_state: form.preferred_state,
@@ -1175,8 +1172,8 @@ function EditView({
           </div>
 
           {/* Gender */}
-          <div className="mb-4">
-            <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Your Gender *</label>
+          <div className="mb-3">
+            <label className="text-[10px] text-[#5C5E72] mb-1 block font-medium">Your Gender *</label>
             <div className="flex gap-2">
               {(['male', 'female'] as const).map((g) => (
                 <Chip key={g} selected={form.gender === g} onClick={() => update('gender', g)}>
@@ -1269,8 +1266,8 @@ function EditView({
           )}
         </div>
 
-        {/* ═════ STEP 3: LIFESTYLE ═════ */}
-        <CollapsibleSection title="Lifestyle Preferences" subtitle="Cleanliness, sleep, visitors, duration">
+        {/* ═════ STEP 3: LIFESTYLE (collapsed by default to keep button visible) ═════ */}
+        <CollapsibleSection title="Lifestyle Preferences" subtitle="Cleanliness, sleep, visitors, duration" defaultOpen={false}>
           <div className="space-y-4">
             <div>
               <label className="text-[10px] text-[#5C5E72] mb-1.5 block font-medium">Cleanliness</label>
@@ -1330,32 +1327,32 @@ function EditView({
         </CollapsibleSection>
 
         {/* Bio */}
-        <div className="glass rounded-2xl p-4">
-          <label className="text-sm font-semibold text-white mb-1 block">About You</label>
-          <p className="text-[10px] text-[#5C5E72] mb-3">Brief intro for potential roommates</p>
+        <div className="glass rounded-2xl p-3">
+          <label className="text-xs font-semibold text-white mb-1 block">About You</label>
           <textarea
             value={form.bio}
             onChange={(e) => update('bio', e.target.value)}
-            placeholder="Your habits, hobbies, what you're looking for..."
+            placeholder="Brief intro for potential roommates..."
             rows={2}
-            className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none"
+            className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none"
           />
         </div>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={saving}
-          className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40"
-        >
-          {saving ? 'Saving...' : existingPrefs?.search_status === 'active' ? 'Update & Re-match' : isFirstTime ? 'Save & Continue' : 'Update Preferences'}
-        </button>
-
-        {!isFirstTime && (
-          <button type="button" onClick={onCancel} className="w-full h-10 rounded-xl text-sm text-[#5C5E72] hover:text-white transition-colors">
-            Cancel
+        {/* Sticky Submit Button — always visible at bottom */}
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#0A0A0F] via-[#0A0A0F] to-transparent pt-6 pb-5 px-5 z-40">
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {saving ? 'Saving...' : existingPrefs?.search_status === 'active' ? 'Update & Re-match' : isFirstTime ? 'Save & Continue' : 'Update Preferences'}
           </button>
-        )}
+          {!isFirstTime && (
+            <button type="button" onClick={onCancel} className="w-full h-10 rounded-xl text-xs text-[#5C5E72] hover:text-white transition-colors mt-1">
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </>
   );
