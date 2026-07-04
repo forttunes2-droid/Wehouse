@@ -89,10 +89,11 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
             </div>
             <button
               onClick={onLogout}
-              className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition-all"
+              className="h-9 px-3 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center gap-1.5 text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition-all text-[11px] font-medium"
               title="Logout"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+              Logout
             </button>
           </div>
 

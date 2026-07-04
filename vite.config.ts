@@ -11,15 +11,15 @@ export default defineConfig({
     inspectAttr(),
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       injectRegister: 'auto',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         maximumFileSizeToCacheInBytes: 3000000,
-        skipWaiting: true,
-        clientsClaim: true,
+        skipWaiting: false,
+        clientsClaim: false,
         cleanupOutdatedCaches: true,
-        cacheId: 'wehouse-v3',
+        cacheId: 'wehouse-v4',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/btpqlxmqaqfttmtllegx\.supabase\.co\/.*/i,

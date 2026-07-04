@@ -51,7 +51,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   },
 };
 
-export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate, onGoToChat, onGoToMessages }: WorkerDashboardProps) {
+export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate, onGoToChat }: WorkerDashboardProps) {
   const [activeTab, setActiveTab] = useState<WorkerTab>('home');
   const status = profile.worker_status || 'pending';
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
@@ -78,13 +78,9 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
     { id: 'home', label: 'Home', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
     { id: 'verification', label: 'Verify', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' },
     { id: 'bookings', label: 'Jobs', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z' },
-    { id: 'messages', label: 'Messages', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
     { id: 'wallet', label: 'Wallet', icon: 'M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22' },
     { id: 'services', label: 'Services', icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' },
-    { id: 'earnings', label: 'Earnings', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
     { id: 'reviews', label: 'Reviews', icon: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' },
-    { id: 'profile', label: 'Profile', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z' },
-    { id: 'support', label: 'Help', icon: 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-14v4M12 16h.01' },
     { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
   ];
 
@@ -106,15 +102,8 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Messages button */}
-            <button
-              onClick={onGoToMessages}
-              className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
-              title="Messages"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-            </button>
-            <button onClick={onLogout} className="text-[10px] text-[#5C5E72] hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">
+            <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/[0.06] text-[10px] text-[#5C5E72] hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
               Logout
             </button>
           </div>
@@ -310,7 +299,7 @@ function HomeTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
             <p className="text-sm font-semibold text-white truncate">{profile.full_name || profile.username || 'Worker'}</p>
             <p className="text-[10px] text-[#5C5E72]">{occupationLabel} • {profile.city || 'No location'}</p>
           </div>
-          <button onClick={() => onSetTab('profile')} className="text-[10px] text-[#3B82F6]">View</button>
+          <button onClick={() => onSetTab('settings')} className="text-[10px] text-[#3B82F6]">View</button>
         </div>
       </div>
     </div>
