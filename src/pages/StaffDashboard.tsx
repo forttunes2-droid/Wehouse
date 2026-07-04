@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
-import { supabase, getInspectionRequestsForFieldOfficer } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 // nigeria-locations import not needed in this version — location derived from inspection data
 import SettingsTab from './SettingsTab';
 import type { Profile, SupportTicket } from '@/types';
@@ -580,29 +580,43 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
 
   async function loadInspections() {
     setLoading(true);
-    const { inspections: data } = await getInspectionRequestsForFieldOfficer(profile.user_id);
-    setInspections(data || []);
+    try {
+      // Use RPC that bypasses RLS — field officers can always see their assignments
+      const { data, error } = await supabase.rpc('get_my_inspections', {
+        p_field_officer_id: profile.user_id,
+      });
+      if (error) {
+        console.error('[get_my_inspections] error:', error);
+        toast.error('Failed to load inspections: ' + error.message);
+      }
+      setInspections(data || []);
+    } catch (e: any) {
+      console.error('[loadInspections] exception:', e);
+      toast.error('Error loading inspections');
+    }
     setLoading(false);
   }
 
-  async function startInspection(id: string, source?: string) {
-    const table = source === 'partner' ? 'inspection_requests' : 'user_inspection_requests';
-    const { error } = await supabase.from(table).update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', id);
-    if (error) { toast.error('Failed: ' + error.message); return; }
+  async function startInspection(id: string, source: string = 'user') {
+    const { data: success, error } = await supabase.rpc('update_inspection_status', {
+      p_inspection_id: id,
+      p_new_status: 'in_progress',
+      p_source: source,
+    });
+    if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
     toast.success('Inspection started'); loadInspections();
   }
 
-  async function completeInspection(id: string, source?: string) {
+  async function completeInspection(id: string, source: string = 'user') {
     if (!report.trim()) { toast.error('Enter a report'); return; }
-    const table = source === 'partner' ? 'inspection_requests' : 'user_inspection_requests';
-    const updates: Record<string, any> = { status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-    if (table === 'inspection_requests') {
-      updates.notes = `Condition: ${condition}\n\nReport: ${report}`;
-    } else {
-      updates.report = report; updates.condition = condition;
-    }
-    const { error } = await supabase.from(table).update(updates).eq('id', id);
-    if (error) { toast.error('Failed: ' + error.message); return; }
+    const { data: success, error } = await supabase.rpc('update_inspection_status', {
+      p_inspection_id: id,
+      p_new_status: 'completed',
+      p_source: source,
+      p_report: report,
+      p_condition: condition,
+    });
+    if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
     toast.success('Inspection completed');
     setCompletingId(null); setReport(''); loadInspections();
   }
@@ -610,38 +624,33 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   async function submitPostProperty(inspection: any) {
     if (!postForm.title.trim() || !postForm.price) { toast.error('Title and price required'); return; }
     setPostSaving(true);
-    // Derive location from inspection data
-    const state = inspection.listings?.state || inspection.property_state || inspection.state || '';
-    const city = inspection.listings?.city || inspection.property_city || inspection.city || '';
-    const address = inspection.listings?.address || inspection.property_address || inspection.address || '';
-    // If this inspection came from a partner, link the listing to them
-    const partnerId = inspection._source === 'partner' ? (inspection.owner_id || null) : null;
-    const { error } = await supabase.from('listings').insert({
-      title: postForm.title.trim(),
-      description: postForm.description.trim() || null,
-      price: parseInt(postForm.price) || 0,
-      currency: 'NGN',
-      state, city, address,
-      bedrooms: parseInt(postForm.bedrooms) || 1,
-      bathrooms: parseInt(postForm.bathrooms) || 1,
-      property_type: 'apartment', sub_type: 'short_let',
-      images: postImages,
-      contact_phone: postForm.contactPhone.trim() || null,
-      status: 'pending_approval',
-      submitted_by_role: 'staff',
-      owner_id: profile.user_id,
-      partner_id: partnerId,
-      availability_status: 'available',
-      listing_id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+    try {
+      const { error } = await supabase.rpc('post_property_from_inspection', {
+        p_data: {
+          title: postForm.title.trim(),
+          description: postForm.description.trim() || null,
+          price: parseInt(postForm.price) || 0,
+          state: inspection.property_state || inspection.listing_state || '',
+          city: inspection.property_city || inspection.listing_city || '',
+          address: inspection.property_address || inspection.listing_address || '',
+          bedrooms: parseInt(postForm.bedrooms) || 1,
+          bathrooms: parseInt(postForm.bathrooms) || 1,
+          sub_type: 'short_let',
+          images: postImages,
+          contact_phone: postForm.contactPhone.trim() || null,
+          owner_id: profile.user_id,
+          partner_id: inspection._source === 'partner' ? inspection.owner_id : null,
+        },
+      });
+      if (error) { toast.error('Failed: ' + error.message); setPostSaving(false); return; }
+      toast.success('Property submitted for approval');
+      setPostingForInspection(null);
+      setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', contactPhone: '' });
+      setPostImages([]);
+    } catch (e: any) {
+      toast.error('Error: ' + e.message);
+    }
     setPostSaving(false);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    toast.success('Property submitted for approval');
-    setPostingForInspection(null);
-    setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', contactPhone: '' });
-    setPostImages([]);
   }
 
   async function uploadImage(file: File) {
@@ -688,7 +697,7 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{ins.listings?.title || ins.property_address || 'Property Inspection'}</p>
+                  <p className="text-sm font-semibold text-white truncate">{ins.listing_title || ins.property_address || 'Property Inspection'}</p>
                   <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
                     ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
                     ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
@@ -696,8 +705,9 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
                     'bg-gray-500/10 text-gray-400'
                   }`}>{ins.status}</span>
                 </div>
-                <p className="text-[10px] text-[#5C5E72] mt-0.5">{ins.listings?.address || ins.property_address || 'No address'}{ins.listings?.city || ins.property_city ? `, ${ins.listings?.city || ins.property_city}` : ''}</p>
-                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code || ins.request_code || ins.id?.slice(0, 8)}</p>
+                <p className="text-[10px] text-[#5C5E72] mt-0.5">{ins.listing_address || ins.property_address || 'No address'}{ins.listing_city || ins.property_city ? `, ${ins.listing_city || ins.property_city}` : ''}</p>
+                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code || ins.id?.slice(0, 8)}</p>
+                {ins.contact_phone && <p className="text-[9px] text-[#5C5E72]">Phone: {ins.contact_phone}</p>}
               </div>
             </div>
 
