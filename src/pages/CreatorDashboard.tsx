@@ -2761,39 +2761,12 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
 // USER INSPECTION REQUESTS TAB (Creator/Admin)
 // ═════════════════════════════════════════════════════════════════
 
-// Look up officer name from profiles if not in fieldOfficers list
-function OfficerName({ officerId }: { officerId: string }) {
-  const [name, setName] = useState<string | null>(null);
-  const [phone, setPhone] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from('profiles')
-        .select('full_name, username, phone')
-        .eq('user_id', officerId)
-        .maybeSingle();
-      if (data) {
-        setName(data.full_name || data.username || null);
-        setPhone(data.phone || null);
-      }
-    }
-    load();
-  }, [officerId]);
-
-  return (
-    <div className="mt-1 space-y-0.5">
-      <p className="text-xs text-white font-medium">{name || 'Unknown officer'}</p>
-      {phone && <p className="text-[10px] text-[#5C5E72]">{phone}</p>}
-    </div>
-  );
-}
-
 function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
   const [inspections, setInspections] = useState<any[]>([]);
   const [partnerInspections, setPartnerInspections] = useState<any[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'user' | 'partner'>('user');
   const [fieldOfficers, setFieldOfficers] = useState<any[]>([]);
+  const [officerMap, setOfficerMap] = useState<Record<string, {full_name?:string;username?:string;phone?:string}>>({});
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -2818,6 +2791,19 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
     const { data: officers, error: officersErr } = await supabase.rpc('admin_get_field_officers');
     if (officersErr) console.error('[FieldOfficers] error:', officersErr);
     setFieldOfficers(officers || []);
+
+    // Collect ALL unique field_officer_ids and fetch their names
+    const allInspections = [...(userInsp || []), ...(partnerData || [])];
+    const officerIds = [...new Set(allInspections.map((i: any) => i.field_officer_id).filter(Boolean))];
+    if (officerIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, username, phone')
+        .in('user_id', officerIds);
+      const map: Record<string, any> = {};
+      (profiles || []).forEach((p: any) => { map[p.user_id] = p; });
+      setOfficerMap(map);
+    }
 
     setLoading(false);
   }
@@ -2980,7 +2966,12 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
                       Unassign
                     </button>
                   </div>
-                  <OfficerName officerId={insp.field_officer_id} />
+                  <p className="text-xs text-white font-medium mt-1">
+                    {officerMap[insp.field_officer_id]?.full_name || officerMap[insp.field_officer_id]?.username || 'Unknown officer'}
+                  </p>
+                  {officerMap[insp.field_officer_id]?.phone && (
+                    <p className="text-[10px] text-[#5C5E72]">{officerMap[insp.field_officer_id].phone}</p>
+                  )}
                   {insp.scheduled_date && (
                     <p className="text-[10px] text-[#5C5E72] mt-1">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
                   )}
@@ -3113,7 +3104,12 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
                             Unassign
                           </button>
                         </div>
-                        <OfficerName officerId={insp.field_officer_id} />
+                        <p className="text-xs text-white font-medium mt-1">
+                    {officerMap[insp.field_officer_id]?.full_name || officerMap[insp.field_officer_id]?.username || 'Unknown officer'}
+                  </p>
+                  {officerMap[insp.field_officer_id]?.phone && (
+                    <p className="text-[10px] text-[#5C5E72]">{officerMap[insp.field_officer_id].phone}</p>
+                  )}
                         {insp.scheduled_date && (
                           <p className="text-[10px] text-[#5C5E72] mt-1">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
                         )}

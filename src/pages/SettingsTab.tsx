@@ -28,19 +28,36 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
 
   async function handleSaveProfile() {
     setSaving(true);
-    const { error } = await updateProfile(profile.user_id, {
+
+    // Build updates
+    const updates: any = {
       full_name: fullName.trim() || null,
       phone: phone.trim() || null,
       bio: bio.trim() || null,
       avatar_url: avatarUrl || null,
-    });
+    };
+
+    // If worker was verified, editing profile resets status to pending for re-approval
+    const wasVerified = profile.role === 'worker' && profile.worker_status === 'verified';
+    if (wasVerified) {
+      updates.worker_status = 'pending';
+      updates.worker_verified = false;
+    }
+
+    const { error } = await updateProfile(profile.user_id, updates);
     setSaving(false);
     if (error) {
       toast.error('Failed to save: ' + error.message);
       return;
     }
-    toast.success('Profile saved');
-    onUpdate({ ...profile, full_name: fullName, phone, bio, avatar_url: avatarUrl });
+
+    if (wasVerified) {
+      toast.success('Profile saved — awaiting re-approval');
+      onUpdate({ ...profile, full_name: fullName, phone, bio, avatar_url: avatarUrl, worker_status: 'pending', worker_verified: false });
+    } else {
+      toast.success('Profile saved');
+      onUpdate({ ...profile, full_name: fullName, phone, bio, avatar_url: avatarUrl });
+    }
   }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -118,6 +135,16 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
       {/* ─── PROFILE SECTION ─── */}
       {activeSection === 'profile' && (
         <div className="space-y-4">
+          {/* Warning for verified workers */}
+          {profile.role === 'worker' && profile.worker_status === 'verified' && (
+            <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
+              <p className="text-[11px] text-amber-400">
+                <strong>Note:</strong> Editing your profile will reset your status to "Awaiting Approval". 
+                You will not appear in public search until WeHouse re-approves your profile.
+              </p>
+            </div>
+          )}
+
           {/* Avatar */}
           <div className="flex items-center gap-4">
             <div

@@ -48,28 +48,29 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
   const [viewingUser, setViewingUser] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
 
-  const scopeState = profile.state || profile.state || '';
+  // Admin sees ALL data nationwide — no state filter
+  const scopeState = '';
 
   useEffect(() => {
     async function loadStats() {
       const [userRes, listingRes, approvalRes] = await Promise.all([
         getAllUsers(),
         getAllListingsAdmin(),
-        getListingsPendingApproval(profile.role, profile.user_id, scopeState),
+        getListingsPendingApproval(profile.role, profile.user_id, ''),
       ]);
       const users = userRes.users || [];
       const listings = listingRes.listings || [];
       const today = new Date().toISOString().split('T')[0];
       setStats({
-        totalUsers: users.filter((u: any) => !u.deleted).length,
-        staff: users.filter((u: any) => !u.deleted && (u.role === 'staff' || u.role === 'admin')).length,
-        newToday: users.filter((u: any) => u.created_at?.startsWith(today)).length,
+        totalUsers: users.filter((u: any) => !u.deleted && u.user_id !== 'wehouse_support').length,
+        staff: users.filter((u: any) => !u.deleted && u.user_id !== 'wehouse_support' && (u.role === 'staff' || u.role === 'admin')).length,
+        newToday: users.filter((u: any) => u.user_id !== 'wehouse_support' && u.created_at?.startsWith(today)).length,
         listings: listings.length,
         pendingApproval: approvalRes.listings.length,
       });
     }
     loadStats();
-  }, [scopeState, profile.role, profile.user_id, refreshKey]);
+  }, [profile.role, profile.user_id, refreshKey]);
 
   const tabs = [
     { id: 'overview' as AdminTab, label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
@@ -304,7 +305,7 @@ function ApprovalTabDirector({ profile, scopeState, refresh }: { profile: Profil
 
   async function load() {
     setLoading(true);
-    const { listings: data } = await getListingsPendingApproval(profile.role, profile.user_id, scopeState);
+    const { listings: data } = await getListingsPendingApproval(profile.role, profile.user_id, '');
     setListings(data || []);
     setLoading(false);
   }
