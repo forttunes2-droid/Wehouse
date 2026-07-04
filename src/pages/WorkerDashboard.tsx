@@ -13,7 +13,7 @@ import {
 import { WH_SUPPORT_EMAIL } from '@/config/wehouse';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, Wallet, WalletTransaction, BlueBadgeSubscription } from '@/types';
-import { WORKER_VERIFICATION_STATUS_COLORS, WORKER_BOOKING_STATUS_LABELS, WORKER_BOOKING_STATUS_COLORS } from '@/types';
+import { WORKER_VERIFICATION_STATUS_COLORS } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Toaster, toast } from 'sonner';
 
@@ -641,42 +641,62 @@ function VerificationTab({ profile, verification, onUpdate }: {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BOOKINGS TAB
+// BOOKINGS TAB — WITH NEGOTIATION CONVERSATIONS
 // ═══════════════════════════════════════════════════════════════
 
+import BookingNegotiationChat from '@/components/BookingNegotiationChat';
+import { getMyBookingConversations, BOOKING_STATUS_LABELS } from '@/lib/supabase/worker-bookings';
+
 function BookingsTab({ profile }: { profile: Profile }) {
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [activeChat, setActiveChat] = useState<{ conversationId: string; bookingId: string } | null>(null);
 
   useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from('worker_bookings')
-        .select('*')
-        .eq('worker_id', profile.user_id)
-        .order('created_at', { ascending: false });
-      setBookings(data || []);
-      setIsLoading(false);
-    }
-    load();
+    loadConversations();
   }, [profile.user_id]);
 
-  const filtered = filter === 'all' ? bookings : bookings.filter((b: any) => b.status === filter);
+  async function loadConversations() {
+    setIsLoading(true);
+    const { conversations: convs } = await getMyBookingConversations(profile.user_id);
+    setConversations(convs || []);
+    setIsLoading(false);
+  }
+
+  const filtered = filter === 'all'
+    ? conversations
+    : conversations.filter((c: any) => c.booking_status === filter);
 
   const filters = [
     { key: 'all', label: 'All' },
-    { key: 'paid_escrow', label: 'New' },
+    { key: 'booking_requested', label: 'New' },
+    { key: 'negotiating', label: 'Negotiate' },
+    { key: 'waiting_payment', label: 'Pending Pay' },
+    { key: 'confirmed', label: 'Confirmed' },
     { key: 'in_progress', label: 'Active' },
     { key: 'completed_pending_approval', label: 'Done' },
     { key: 'approved_released', label: 'Paid' },
   ];
 
+  // Open negotiation chat
+  if (activeChat) {
+    return (
+      <BookingNegotiationChat
+        conversationId={activeChat.conversationId}
+        bookingId={activeChat.bookingId}
+        profile={profile}
+        isWorker={true}
+        onClose={() => { setActiveChat(null); loadConversations(); }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white">My Jobs</h2>
-        <span className="text-[10px] text-[#5C5E72]">{bookings.length} total</span>
+        <span className="text-[10px] text-[#5C5E72]">{conversations.length} total</span>
       </div>
 
       {/* Filters */}
@@ -694,29 +714,46 @@ function BookingsTab({ profile }: { profile: Profile }) {
         ))}
       </div>
 
-      {/* Bookings List */}
+      {/* Conversations List */}
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon="📋" message="No jobs yet" submessage="Complete your verification to start receiving bookings" />
+        <EmptyState icon="📋" message="No jobs yet" submessage="Complete your verification to start receiving bookings. Negotiation requests will appear here." />
       ) : (
         <div className="space-y-2">
-          {filtered.map(booking => (
-            <div key={booking.id} className="bg-[#12121A] border border-[#1E1E2C] rounded-xl p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-[#5C5E72]">#{booking.booking_code}</span>
-                <span className={`text-[9px] px-2 py-0.5 rounded-full border ${WORKER_BOOKING_STATUS_COLORS[booking.status as keyof typeof WORKER_BOOKING_STATUS_COLORS] || ''}`}>
-                  {WORKER_BOOKING_STATUS_LABELS[booking.status as keyof typeof WORKER_BOOKING_STATUS_LABELS] || booking.status}
-                </span>
-              </div>
-              <p className="text-xs text-white font-medium">{booking.service_type}</p>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">{booking.description}</p>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#1E1E2C]">
-                <span className="text-xs text-emerald-400 font-medium">₦{booking.worker_receives?.toLocaleString()}</span>
-                <span className="text-[9px] text-[#5C5E72]">{new Date(booking.created_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))}
+          {filtered.map(conv => {
+            const statusInfo = BOOKING_STATUS_LABELS[conv.booking_status] || null;
+            return (
+              <button
+                key={conv.conversation_id}
+                onClick={() => setActiveChat({ conversationId: conv.conversation_id, bookingId: conv.booking_id })}
+                className="w-full text-left bg-[#12121A] border border-[#1E1E2C] rounded-xl p-3 hover:border-[#3B82F6]/30 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[#5C5E72]">#{conv.booking_code}</span>
+                    {conv.unread_count > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-[8px] text-white font-bold">{conv.unread_count}</span>
+                    )}
+                  </div>
+                  {statusInfo && (
+                    <span className={`text-[8px] px-2 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
+                  )}
+                </div>
+                <p className="text-xs text-white font-medium">{conv.service_type}</p>
+                <p className="text-[10px] text-[#5C5E72] mt-0.5">{conv.other_person_name}</p>
+                {conv.last_message && (
+                  <p className="text-[10px] text-[#8A8B9C] mt-1 truncate">{conv.last_message}</p>
+                )}
+                {conv.negotiated_amount > 0 && (
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#1E1E2C]">
+                    <span className="text-xs text-emerald-400 font-medium">₦{conv.negotiated_amount?.toLocaleString()}</span>
+                    <span className="text-[9px] text-[#5C5E72]">{new Date(conv.updated_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

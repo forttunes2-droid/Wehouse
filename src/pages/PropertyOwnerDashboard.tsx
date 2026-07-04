@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import SettingsTab from './SettingsTab';
+import PartnerSupportChat from '@/components/PartnerSupportChat';
+import { getPartnerConversations, createPartnerSupportConversation } from '@/lib/supabase/partner-support';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
 
@@ -137,8 +139,8 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
             {activeTab === 'bookings' && <BookingsTab bookings={bookings} properties={properties} />}
             {activeTab === 'occupancy' && <OccupancyTab properties={properties} bookings={bookings} />}
             {activeTab === 'earnings' && <EarningsTab bookings={bookings} />}
-            {activeTab === 'inspections' && <InspectionsTab inspections={inspections} profile={profile} onGoToChat={onGoToChat} />}
-            {activeTab === 'chat' && <ChatTab profile={profile} onGoToChat={onGoToChat} />}
+            {activeTab === 'inspections' && <InspectionsTab inspections={inspections} profile={profile} onConversationCreated={loadAll} />}
+            {activeTab === 'chat' && <ChatTab profile={profile} />}
             {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
           </>
         )}
@@ -385,12 +387,12 @@ function EarningsTab({ bookings }: { bookings: any[] }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// INSPECTIONS TAB — Partner requests inspection (cannot create listings)
+// INSPECTIONS TAB — Partner requests inspection + auto-creates support conversation
 // ═══════════════════════════════════════════════════════════════
 
-function InspectionsTab({ inspections, profile, onGoToChat: _onGoToChat }: { inspections: any[]; profile: Profile; onGoToChat?: (c?: string) => void }) {
+function InspectionsTab({ inspections, profile, onConversationCreated }: { inspections: any[]; profile: Profile; onConversationCreated?: () => void }) {
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestForm, setRequestForm] = useState({ property_address: '', property_city: '', property_state: '', notes: '' });
+  const [requestForm, setRequestForm] = useState({ property_address: '', property_city: '', property_state: '', property_name: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
 
   async function submitRequest() {
@@ -398,24 +400,56 @@ function InspectionsTab({ inspections, profile, onGoToChat: _onGoToChat }: { ins
       toast.error('Address and city are required'); return;
     }
     setSubmitting(true);
-    const { error } = await supabase.from('inspection_requests').insert({
-      owner_id: profile.user_id,
-      owner_name: profile.full_name || profile.username,
-      owner_email: profile.email,
-      owner_phone: profile.phone,
-      property_address: requestForm.property_address,
-      property_city: requestForm.property_city,
-      property_state: requestForm.property_state,
-      notes: requestForm.notes,
-      status: 'pending',
-      request_code: 'INS' + Date.now().toString(36).toUpperCase(),
-      created_at: new Date().toISOString(),
-    });
+
+    try {
+      // 1. Create inspection request
+      const { error: inspectionError } = await supabase.from('inspection_requests').insert({
+        owner_id: profile.user_id,
+        owner_name: profile.full_name || profile.username,
+        owner_email: profile.email,
+        owner_phone: profile.phone,
+        property_address: requestForm.property_address,
+        property_city: requestForm.property_city,
+        property_state: requestForm.property_state,
+        property_name: requestForm.property_name || requestForm.property_address,
+        notes: requestForm.notes,
+        status: 'pending',
+        request_code: 'INS' + Date.now().toString(36).toUpperCase(),
+        created_at: new Date().toISOString(),
+      }).select().single();
+
+      if (inspectionError) {
+        toast.error('Failed: ' + inspectionError.message);
+        setSubmitting(false);
+        return;
+      }
+
+      // 2. Auto-create partner support conversation
+      const { error: convError } = await createPartnerSupportConversation(
+        profile.user_id,
+        `Inspection Request: ${requestForm.property_name || requestForm.property_address}`,
+        requestForm.property_name || requestForm.property_address,
+        requestForm.property_address,
+        requestForm.property_city,
+        requestForm.property_state,
+        'house',
+        'long_stay'
+      );
+
+      if (convError) {
+        console.warn('Support conversation creation failed:', convError);
+        // Don't block the flow if conversation creation fails
+      }
+
+      toast.success('Inspection request submitted. WeHouse will contact you shortly.');
+      setShowRequestForm(false);
+      setRequestForm({ property_address: '', property_city: '', property_state: '', property_name: '', notes: '' });
+      onConversationCreated?.();
+    } catch (e: any) {
+      toast.error('Error: ' + e.message);
+    }
+
     setSubmitting(false);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    toast.success('Inspection request submitted');
-    setShowRequestForm(false);
-    setRequestForm({ property_address: '', property_city: '', property_state: '', notes: '' });
   }
 
   return (
@@ -429,12 +463,14 @@ function InspectionsTab({ inspections, profile, onGoToChat: _onGoToChat }: { ins
       ) : (
         <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-3">
           <p className="text-sm font-semibold text-white">Request New Inspection</p>
-          <p className="text-[10px] text-[#5C5E72]">WeHouse will inspect your property before listing it publicly.</p>
+          <p className="text-[10px] text-[#5C5E72]">WeHouse will inspect your property before listing it publicly. A support conversation will be created for tracking.</p>
+          <input value={requestForm.property_name} onChange={e => setRequestForm(f => ({ ...f, property_name: e.target.value }))}
+            placeholder="Property name (optional)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
           <input value={requestForm.property_address} onChange={e => setRequestForm(f => ({ ...f, property_address: e.target.value }))}
-            placeholder="Property address" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            placeholder="Property address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
           <div className="grid grid-cols-2 gap-2">
             <input value={requestForm.property_city} onChange={e => setRequestForm(f => ({ ...f, property_city: e.target.value }))}
-              placeholder="City" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+              placeholder="City *" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
             <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
               placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
           </div>
@@ -472,20 +508,101 @@ function InspectionsTab({ inspections, profile, onGoToChat: _onGoToChat }: { ins
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CHAT SUPPORT TAB
+// CHAT SUPPORT TAB — Partner Support Conversations
 // ═══════════════════════════════════════════════════════════════
 
-function ChatTab({ profile: _profile, onGoToChat }: { profile: Profile; onGoToChat?: (c?: string) => void }) {
+function ChatTab({ profile }: { profile: Profile }) {
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+
+  useEffect(() => { loadConversations(); }, [profile.user_id]);
+
+  async function loadConversations() {
+    setLoading(true);
+    const { conversations: convs } = await getPartnerConversations(profile.user_id);
+    setConversations(convs || []);
+    setLoading(false);
+  }
+
+  // Open chat view
+  if (activeChat) {
+    return (
+      <PartnerSupportChat
+        conversationId={activeChat}
+        profile={profile}
+        senderRole="partner"
+        onClose={() => { setActiveChat(null); loadConversations(); }}
+      />
+    );
+  }
+
+  if (loading) {
+    return <div className="flex justify-center py-16"><div className="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
   return (
-    <div className="text-center py-16 space-y-4">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">Support Conversations</p>
+          <p className="text-[10px] text-[#5C5E72]">Track your property inspections and communicate with WeHouse</p>
+        </div>
       </div>
-      <p className="text-sm font-semibold text-white">Chat with WeHouse Support</p>
-      <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">Have questions about your properties, bookings, or payouts? Message our support team.</p>
-      <button onClick={() => onGoToChat?.()} className="h-11 px-8 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white font-semibold hover:opacity-90 transition-opacity">
-        Open Chat
+
+      {/* New Request Button */}
+      <button onClick={() => {}} className="w-full h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-violet-500/20 transition-colors">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+        Request New Inspection
       </button>
+
+      {/* Conversations List */}
+      {conversations.length === 0 ? (
+        <div className="text-center py-16 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-violet-700/20 flex items-center justify-center mx-auto">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+          </div>
+          <p className="text-sm font-semibold text-white">No Support Conversations</p>
+          <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">Request a property inspection to start a support conversation with WeHouse.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {conversations.map(conv => {
+            const statusColors: Record<string, string> = {
+              open: 'bg-amber-500/10 text-amber-400',
+              assigned: 'bg-blue-500/10 text-blue-400',
+              in_progress: 'bg-violet-500/10 text-violet-400',
+              resolved: 'bg-emerald-500/10 text-emerald-400',
+              closed: 'bg-gray-500/10 text-gray-400',
+            };
+            return (
+              <button
+                key={conv.conversation_id}
+                onClick={() => setActiveChat(conv.conversation_id)}
+                className="w-full text-left rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 hover:border-violet-500/30 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-semibold text-white truncate">{conv.subject}</p>
+                  <div className="flex items-center gap-2">
+                    {conv.unread_count > 0 && (
+                      <span className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-[9px] text-white font-bold">{conv.unread_count}</span>
+                    )}
+                    <span className={`text-[8px] px-2 py-0.5 rounded-full ${statusColors[conv.status] || ''}`}>{conv.status}</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#5C5E72]">{conv.property_address}</p>
+                {conv.last_message && (
+                  <p className="text-[10px] text-[#8A8B9C] mt-1.5 truncate">{conv.last_message}</p>
+                )}
+                {conv.assigned_staff_name && (
+                  <p className="text-[9px] text-violet-400 mt-1">Assigned: {conv.assigned_staff_name}</p>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

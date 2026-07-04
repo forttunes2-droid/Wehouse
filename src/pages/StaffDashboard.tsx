@@ -625,6 +625,7 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
     try {
       const { error } = await supabase.rpc('post_property_from_inspection', {
         p_data: {
+          inspection_id: inspection.id,
           title: postForm.title.trim(),
           description: postForm.description.trim() || null,
           price: parseInt(postForm.price) || 0,
@@ -637,7 +638,7 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
           images: postImages,
           contact_phone: postForm.contactPhone.trim() || null,
           owner_id: profile.user_id,
-          partner_id: inspection._source === 'partner' ? inspection.owner_id : null,
+          partner_id: inspection.owner_id || null,
         },
       });
       if (error) { toast.error('Failed: ' + error.message); setPostSaving(false); return; }

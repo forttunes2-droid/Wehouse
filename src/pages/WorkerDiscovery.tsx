@@ -4,7 +4,8 @@ import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile, ServiceCategory } from '@/types';
 import { toast, Toaster } from 'sonner';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
-import WorkerBookingFlow from '@/components/WorkerBookingFlow';
+import { createBookingRequest } from '@/lib/supabase/worker-bookings';
+import BookingNegotiationChat from '@/components/BookingNegotiationChat';
 
 interface WorkerDiscoveryProps {
   userCity?: string | null;
@@ -30,8 +31,11 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
 
   // Booking modal
   const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
+  const [bookingForm, setBookingForm] = useState({ description: '', address: '', date: '', message: '' });
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [activeBookingChat, setActiveBookingChat] = useState<{ conversationId: string; bookingId: string; isWorker: boolean } | null>(null);
   // Track which workers user has sent booking requests to
-  const [bookedWorkers, setBookedWorkers] = useState<Set<string>>(new Set());
+  const [bookedWorkers] = useState<Set<string>>(new Set());
 
   // Apply pre-selected category when navigating from WorkerCategories
   useEffect(() => {
@@ -513,7 +517,7 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
         )}
       </div>
 
-      {/* ─── BOOKING MODAL ─── */}
+      {/* ═══ BOOKING REQUEST MODAL (Step 1: Request) ═══ */}
       {bookingWorker && (
         <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setBookingWorker(null)}>
           <div className="w-full max-w-sm bg-[#12121A] border border-[#1E1E2C] rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -523,34 +527,55 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
-            <WorkerBookingFlow
-              workerName={bookingWorker.full_name || bookingWorker.username || 'Worker'}
-              workerService={WORKER_OCCUPATION_LABELS[bookingWorker.worker_occupation || ''] || bookingWorker.worker_occupation || ''}
-              workerId={bookingWorker.user_id}
-              userId={profile?.user_id || ''}
-              onBook={({ description, address, date }) => {
-                // Create booking request in database
-                supabase.from('worker_bookings').insert({
-                  worker_id: bookingWorker.user_id,
-                  user_id: profile?.user_id,
-                  description,
-                  address,
-                  preferred_date: date || null,
-                  status: 'pending_approval',
-                  created_at: new Date().toISOString(),
-                }).then(({ error }) => {
-                  if (error) {
-                    toast.error('Failed to send booking request');
-                    console.error('Booking error:', error);
-                  } else {
-                    toast.success('Booking request sent!');
-                    setBookedWorkers(prev => new Set(prev).add(bookingWorker.user_id));
-                  }
-                });
-              }}
-            />
+            <div className="space-y-3">
+              <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
+                <p className="text-[10px] text-blue-400 leading-relaxed">
+                  <strong>How it works:</strong> Send a request. You and {bookingWorker.full_name || 'the worker'} will negotiate the price in a private chat. No payment until you both agree.
+                </p>
+              </div>
+              <input value={bookingForm.description} onChange={e => setBookingForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Describe the work needed *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
+              <input value={bookingForm.address} onChange={e => setBookingForm(f => ({ ...f, address: e.target.value }))}
+                placeholder="Your address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
+              <input type="date" value={bookingForm.date} onChange={e => setBookingForm(f => ({ ...f, date: e.target.value }))}
+                className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
+              <textarea value={bookingForm.message} onChange={e => setBookingForm(f => ({ ...f, message: e.target.value }))}
+                placeholder="Message to worker (optional)" rows={2} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-2 outline-none focus:border-[#3B82F6] resize-none" />
+              <button onClick={async () => {
+                if (!bookingForm.description || !bookingForm.address) { toast.error('Description and address required'); return; }
+                if (!profile?.user_id) { toast.error('Please log in'); return; }
+                setBookingSubmitting(true);
+                const { booking, error } = await createBookingRequest(
+                  profile.user_id, bookingWorker.user_id,
+                  WORKER_OCCUPATION_LABELS[bookingWorker.worker_occupation || ''] || 'Service',
+                  bookingForm.description, bookingForm.address, bookingForm.date, bookingForm.message
+                );
+                setBookingSubmitting(false);
+                if (error) { toast.error('Failed: ' + error.message); return; }
+                toast.success('Request sent! Open negotiation chat.');
+                setBookingWorker(null);
+                setBookingForm({ description: '', address: '', date: '', message: '' });
+                if (booking?.conversation_id) {
+                  setActiveBookingChat({ conversationId: booking.conversation_id, bookingId: booking.booking_id, isWorker: false });
+                }
+              }} disabled={bookingSubmitting}
+                className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-semibold disabled:opacity-40">
+                {bookingSubmitting ? 'Sending...' : 'Send Booking Request'}
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ BOOKING NEGOTIATION CHAT (Steps 2-8) ═══ */}
+      {activeBookingChat && profile && (
+        <BookingNegotiationChat
+          conversationId={activeBookingChat.conversationId}
+          bookingId={activeBookingChat.bookingId}
+          profile={profile}
+          isWorker={activeBookingChat.isWorker}
+          onClose={() => setActiveBookingChat(null)}
+        />
       )}
     </div>
   );
