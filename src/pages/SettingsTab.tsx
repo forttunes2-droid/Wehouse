@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { updateProfile, uploadAvatar, changePassword } from '@/lib/supabase';
+import { supabase, uploadAvatar, changePassword } from '@/lib/supabase';
+// updateProfile removed — using worker_update_profile RPC to bypass RLS
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -44,7 +45,11 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
       updates.worker_verified = false;
     }
 
-    const { error } = await updateProfile(profile.user_id, updates);
+    // Use RPC to bypass RLS (custom user_id != auth.uid() mismatch)
+    const { error } = await supabase.rpc('worker_update_profile', {
+      p_user_id: profile.user_id,
+      p_updates: updates,
+    });
     setSaving(false);
     if (error) {
       toast.error('Failed to save: ' + error.message);
