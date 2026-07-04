@@ -75,7 +75,7 @@ export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardPr
         {activeTab === 'operations' && <OperationsModule profile={profile} />}
         {activeTab === 'finance' && <FinanceModule />}
         {activeTab === 'support' && <SupportModule profile={profile} />}
-        {activeTab === 'verification' && <VerificationModule />}
+        {activeTab === 'verification' && <VerificationModule onGoToChat={onGoToChat} />}
         {activeTab === 'field_officer' && <FieldOfficerModule profile={profile} />}
       </main>
     </div>
@@ -450,7 +450,7 @@ function SupportModule({ profile }: { profile: Profile }) {
 // VERIFICATION MODULE
 // ═══════════════════════════════════════════════════════════════
 
-function VerificationModule() {
+function VerificationModule({ onGoToChat }: { onGoToChat?: (convId: string) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'pending' | 'verified' | 'suspended' | 'all'>('pending');
@@ -509,6 +509,15 @@ function VerificationModule() {
               </div>
             </div>
             <div className="flex gap-2 mt-3">
+              <button
+                onClick={async () => {
+                  const { data: conv } = await supabase.rpc('start_worker_verification_chat', { p_worker_id: w.user_id });
+                  if (conv && onGoToChat) onGoToChat(conv.id);
+                }}
+                className="flex-1 h-8 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 text-[11px] font-semibold"
+              >
+                Message Worker
+              </button>
               {w.worker_status !== 'verified' && (
                 <button onClick={() => updateStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Verify</button>
               )}

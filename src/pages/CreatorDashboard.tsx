@@ -2434,6 +2434,7 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
     partner_inspection: { label: 'Inspection', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20', dot: 'bg-violet-400' },
     partner_support: { label: 'Partner', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20', dot: 'bg-amber-400' },
     general_support: { label: 'General', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
+    worker_verification: { label: 'Worker Review', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20', dot: 'bg-blue-400' },
   };
 
   // ─── CHAT VIEW ───────────────────────────────────────────
