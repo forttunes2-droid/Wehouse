@@ -175,7 +175,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'audit' && <AuditTab />}
-        {activeTab === 'settings' && <SettingsTab profile={profile} isCreator={isCreatorAccount} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'services' && <ServiceCategoriesTab />}
         {activeTab === 'inspections' && <UserInspectionsTab profile={profile} />}

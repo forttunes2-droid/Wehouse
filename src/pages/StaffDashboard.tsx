@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
 import { supabase } from '@/lib/supabase';
+import SettingsTab from './SettingsTab';
 import type { Profile, StaffPermission, SupportTicket, Payout, CommissionRule } from '@/types';
 import { STAFF_PERMISSION_LABELS, TICKET_TYPE_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_COLORS } from '@/types';
 import type { TicketStatus } from '@/types';
@@ -13,7 +14,7 @@ interface StaffDashboardProps {
   onNavigate?: (page: string) => void;
 }
 
-type StaffTab = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer';
+type StaffTab = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'settings';
 
 export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardProps) {
   const { permissions, loading: permsLoading, hasPermission } = useStaffPermissions(profile.user_id);
@@ -26,6 +27,7 @@ export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardPr
   if (hasPermission('support')) availableTabs.push('support');
   if (hasPermission('verification')) availableTabs.push('verification');
   if (hasPermission('field_officer')) availableTabs.push('field_officer');
+  availableTabs.push('settings'); // Settings available to all staff
 
   if (permsLoading) {
     return (
@@ -64,7 +66,7 @@ export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardPr
                 : 'text-[#5C5E72] hover:text-white'
             }`}
           >
-            {tab === 'overview' ? 'Overview' : STAFF_PERMISSION_LABELS[tab as StaffPermission]}
+            {tab === 'overview' ? 'Overview' : tab === 'settings' ? 'Settings' : STAFF_PERMISSION_LABELS[tab as StaffPermission]}
           </button>
         ))}
       </nav>
@@ -77,6 +79,7 @@ export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardPr
         {activeTab === 'support' && <SupportModule profile={profile} />}
         {activeTab === 'verification' && <VerificationModule onGoToChat={onGoToChat} />}
         {activeTab === 'field_officer' && <FieldOfficerModule profile={profile} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
       </main>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import SettingsTab from './SettingsTab';
 import {
   getWorkerDashboardData,
   submitWorkerVerification,
@@ -191,7 +192,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
         {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
         {activeTab === 'profile' && <ProfileTab profile={profile} onGoToSetup={onGoToSetup} />}
         {activeTab === 'support' && <SupportTab />}
-        {activeTab === 'settings' && <WorkerSettingsTab profile={profile} onLogout={onLogout} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
       </main>
     </div>
   );
@@ -1210,66 +1211,4 @@ function EmptyState({ icon, message, submessage }: { icon: string; message: stri
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// WORKER SETTINGS TAB
-// ═══════════════════════════════════════════════════════════════
 
-function WorkerSettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  return (
-    <div className="space-y-4 px-5">
-      <h3 className="text-sm font-semibold text-white">Settings</h3>
-
-      {/* Profile Card */}
-      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold">
-              {(profile.full_name || profile.username || 'W')[0].toUpperCase()}
-            </div>
-          )}
-          <div>
-            <p className="text-sm font-semibold text-white">{profile.full_name || profile.username || 'Worker'}</p>
-            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
-          </div>
-        </div>
-        <div className="pt-2 border-t border-white/[0.04] space-y-2">
-          <InfoRow label="Role" value="Worker" />
-          <InfoRow label="Status" value={profile.worker_status || 'Pending'} />
-          <InfoRow label="Occupation" value={profile.worker_occupation || 'Not set'} />
-          <InfoRow label="Phone" value={profile.phone || 'Not set'} />
-          <InfoRow label="Location" value={`${profile.city || '-'}, ${profile.state || '-'}`} />
-          <InfoRow label="Joined" value={new Date(profile.created_at).toLocaleDateString()} />
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="space-y-2">
-        <button
-          onClick={() => setShowLogoutConfirm(true)}
-          className="w-full h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
-          Logout
-        </button>
-      </div>
-
-      {/* Logout Confirm */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#12121A] rounded-2xl p-5 border border-[#2A2A3A] max-w-xs w-full mx-4">
-            <p className="text-sm font-semibold text-white mb-2">Logout?</p>
-            <p className="text-xs text-[#5C5E72] mb-4">Are you sure you want to log out?</p>
-            <div className="flex gap-2">
-              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
-              <button onClick={onLogout} className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-medium">Logout</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

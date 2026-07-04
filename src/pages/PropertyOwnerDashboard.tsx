@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
+import SettingsTab from './SettingsTab';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
 
@@ -38,7 +39,7 @@ const AMENITIES = [
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
+export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, onNavigate, onGoToChat }: Props) {
   const [activeTab, setActiveTab] = useState<OwnerTab>('overview');
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [stats, setStats] = useState({
@@ -179,7 +180,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate, 
         {activeTab === 'requests' && <RequestsTab profileId={profile.user_id} />}
         {activeTab === 'bookings' && <BookingsTab profileId={profile.user_id} />}
         {activeTab === 'earnings' && <EarningsTab profileId={profile.user_id} />}
-        {activeTab === 'settings' && <PartnerSettingsTab profile={profile} onLogout={() => { if (onLogout) onLogout(); }} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
       </main>
     </div>
   );
@@ -900,15 +901,6 @@ function PropertyPreviewCard({ property, onRemove }: { property: any; onRemove: 
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-[10px] text-[#5C5E72]">{label}</span>
-      <span className="text-[10px] text-white">{value}</span>
-    </div>
-  );
-}
-
 function Spinner() {
   return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
 }
@@ -921,143 +913,6 @@ function Empty({ title, desc }: { title: string; desc: string }) {
       </div>
       <p className="text-sm font-semibold text-[#5C5E72]">{title}</p>
       <p className="text-[10px] text-[#5C5E72] mt-1 max-w-[200px] mx-auto">{desc}</p>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PARTNER SETTINGS TAB
-// ═══════════════════════════════════════════════════════════════
-
-function PartnerSettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    full_name: profile.full_name || '',
-    phone: profile.phone || '',
-    state: profile.state || '',
-    city: profile.city || '',
-    bio: profile.bio || '',
-  });
-
-  async function handleSave() {
-    setSaving(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        full_name: form.full_name.trim() || null,
-        phone: form.phone.trim() || null,
-        state: form.state || null,
-        city: form.city || null,
-        bio: form.bio.trim() || null,
-      })
-      .eq('user_id', profile.user_id);
-    setSaving(false);
-    if (error) {
-      toast.error('Failed to save: ' + error.message);
-    } else {
-      toast.success('Profile updated');
-      setEditing(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">Settings</h3>
-        {!editing && (
-          <button onClick={() => setEditing(true)} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] font-medium flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-            Edit Profile
-          </button>
-        )}
-      </div>
-
-      {/* Profile Card */}
-      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-lg font-bold">
-            {(profile.full_name || profile.username || 'P')[0].toUpperCase()}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">{profile.full_name || profile.username || 'Partner'}</p>
-            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
-          </div>
-        </div>
-
-        {editing ? (
-          /* Edit Mode */
-          <div className="pt-2 border-t border-white/[0.04] space-y-3">
-            <div>
-              <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">Full Name</label>
-              <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
-                className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
-            </div>
-            <div>
-              <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">Phone</label>
-              <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">State</label>
-                <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
-                  className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
-              </div>
-              <div>
-                <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">City</label>
-                <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                  className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none" />
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1 block">Bio</label>
-              <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} rows={3}
-                className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 focus:border-[#3B82F6]/50 outline-none resize-none" />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setEditing(false)} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 h-9 rounded-lg bg-[#3B82F6] text-white text-xs font-medium disabled:opacity-40">
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* View Mode */
-          <div className="pt-2 border-t border-white/[0.04] space-y-2">
-            <InfoRow label="Role" value="Property Partner" />
-            <InfoRow label="Phone" value={profile.phone || 'Not set'} />
-            <InfoRow label="Location" value={`${profile.city || '-'}, ${profile.state || '-'}`} />
-            <InfoRow label="Joined" value={new Date(profile.created_at).toLocaleDateString()} />
-            {profile.bio && <p className="text-[10px] text-[#8A8B9C] pt-1">{profile.bio}</p>}
-          </div>
-        )}
-      </div>
-
-      {/* Logout */}
-      <button
-        onClick={() => setShowLogoutConfirm(true)}
-        className="w-full h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
-        Logout
-      </button>
-
-      {/* Logout Confirm */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#12121A] rounded-2xl p-5 border border-[#2A2A3A] max-w-xs w-full mx-4">
-            <p className="text-sm font-semibold text-white mb-2">Logout?</p>
-            <p className="text-xs text-[#5C5E72] mb-4">Are you sure you want to log out?</p>
-            <div className="flex gap-2">
-              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
-              <button onClick={onLogout} className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-medium">Logout</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

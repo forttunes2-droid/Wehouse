@@ -6,12 +6,13 @@ import {
   getListingsPendingApproval, approveListing, rejectListing,
 } from '@/lib/supabase';
 import { AnnouncementsTab } from './CreatorDashboard';
+import SettingsTab from './SettingsTab';
 import UserProfileModal from '@/components/UserProfileModal';
 import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'approval' | 'reports' | 'audit' | 'announcements';
+type AdminTab = 'overview' | 'users' | 'listings' | 'approval' | 'reports' | 'audit' | 'announcements' | 'settings';
 
 interface Props {
   profile: Profile;
@@ -33,7 +34,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview','users','listings','approval','reports','audit','announcements'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','approval','reports','audit','announcements','settings'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
 
@@ -78,6 +79,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
     { id: 'reports' as AdminTab, label: 'Reports', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
     { id: 'audit' as AdminTab, label: 'Audit', icon: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
     { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M11 5.882V19.24a1.4 1.4 0 0 1-2.338.995l-3.867-3.43a1.4 1.4 0 0 0-.93-.338H2a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1.865a1.4 1.4 0 0 0 .93-.338l3.867-3.43A1.4 1.4 0 0 1 11 5.882z' },
+    { id: 'settings' as AdminTab, label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
   ];
 
   return (
@@ -162,6 +164,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
         {activeTab === 'reports' && <ReportsTabDirector profile={profile} refresh={refresh} />}
         {activeTab === 'audit' && <AuditTabDirector />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: scopeState, lga: profile.city || profile.city || '' }} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
       </div>
     </div>
   );
