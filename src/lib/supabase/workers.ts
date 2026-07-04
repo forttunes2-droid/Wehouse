@@ -15,11 +15,12 @@ export async function getWorkers(filters?: { city?: string; occupation?: string;
   return { workers: data as Profile[] | null, error };
 }
 
-// Parse worker status from profile
+// Parse worker status from profile — worker_status column is the source of truth.
+// bio emoji string is legacy fallback only.
 export function parseWorkerStatus(profile: Profile): string {
+  if (profile.worker_status) return profile.worker_status;
   const match = profile.bio?.match(/🛠️STATUS:(\w+)🛠️/);
   if (match) return match[1];
-  if (profile.worker_status) return profile.worker_status;
   return 'pending';
 }
 
@@ -50,23 +51,20 @@ export async function updateWorkerStatus(userId: string, status: 'pending' | 've
   const cleanBio = bio.replace(/🛠️STATUS:\w+🛠️/g, '').trim();
   const newBio = `🛠️STATUS:${status}🛠️ ${cleanBio}`.trim();
 
+  // Single atomic update: both bio AND worker_status in one call
   const { data: updated, error } = await supabase
     .from('profiles')
-    .update({ bio: newBio })
+    .update({
+      bio: newBio,
+      worker_status: status,
+      worker_verified: status === 'verified',
+      updated_at: new Date().toISOString(),
+    })
     .eq('user_id', userId)
     .select();
 
   if (!error && (!updated || updated.length === 0)) {
     return { error: { message: `Update succeeded but 0 rows changed for user ${userId}` } as any };
-  }
-
-  if (!error) {
-    try {
-      await supabase
-        .from('profiles')
-        .update({ worker_status: status, worker_verified: status === 'verified', updated_at: new Date().toISOString() })
-        .eq('user_id', userId);
-    } catch { /* columns may not exist, bio is the source of truth */ }
   }
 
   return { error };
