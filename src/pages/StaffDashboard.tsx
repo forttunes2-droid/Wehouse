@@ -641,8 +641,10 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
     setLoading(false);
   }
 
-  async function startInspection(id: string) {
-    const { error } = await supabase.from('user_inspection_requests').update({
+  async function startInspection(id: string, source?: string) {
+    // Try user_inspection_requests first, then inspection_requests
+    const table = source === 'partner' ? 'inspection_requests' : 'user_inspection_requests';
+    const { error } = await supabase.from(table).update({
       status: 'in_progress',
       updated_at: new Date().toISOString(),
     }).eq('id', id);
@@ -651,12 +653,13 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
     loadInspections();
   }
 
-  async function completeInspection(id: string) {
+  async function completeInspection(id: string, source?: string) {
     if (!report.trim()) { toast.error('Enter a report'); return; }
-    const { error } = await supabase.from('user_inspection_requests').update({
+    const table = source === 'partner' ? 'inspection_requests' : 'user_inspection_requests';
+    const { error } = await supabase.from(table).update({
       status: 'completed',
-      officer_report: report,
-      property_condition: condition,
+      report: report,
+      condition: condition,
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', id);
@@ -738,13 +741,13 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
                 </select>
                 <div className="flex gap-2">
                   <button onClick={() => { setCompletingId(null); setReport(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
-                  <button onClick={() => completeInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit Report</button>
+                  <button onClick={() => completeInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit Report</button>
                 </div>
               </div>
             ) : (
               <div className="flex gap-2 mt-3">
                 {ins.status === 'scheduled' && (
-                  <button onClick={() => startInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>
+                  <button onClick={() => startInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>
                 )}
                 {ins.status === 'in_progress' && (
                   <button onClick={() => setCompletingId(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>

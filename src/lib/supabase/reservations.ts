@@ -162,30 +162,83 @@ export async function getPendingInspectionRequests() {
 }
 
 export async function getInspectionRequestsForFieldOfficer(fieldOfficerId: string) {
-  const { data, error } = await supabase
-    .from('user_inspection_requests')
-    .select('*, listings(title, city, state, address, images)')
-    .eq('field_officer_id', fieldOfficerId)
-    .in('status', ['scheduled', 'in_progress'])
-    .order('scheduled_date', { ascending: true });
-  return { inspections: data as any[] | null, error };
+  // Query BOTH tables — user_inspection_requests (field_officer_id) and inspection_requests (assigned_to)
+  const [userReqs, partnerReqs] = await Promise.all([
+    supabase
+      .from('user_inspection_requests')
+      .select('*, listings(title, city, state, address, images)')
+      .eq('field_officer_id', fieldOfficerId)
+      .in('status', ['scheduled', 'in_progress'])
+      .order('scheduled_date', { ascending: true }),
+    supabase
+      .from('inspection_requests')
+      .select('*')
+      .eq('assigned_to', fieldOfficerId)
+      .in('status', ['scheduled', 'in_progress'])
+      .order('scheduled_date', { ascending: true }),
+  ]);
+
+  // Normalize partner records to match user record shape
+  const normalizedPartners = (partnerReqs.data || []).map((p: any) => ({
+    ...p,
+    _source: 'partner', // marker so UI can tell them apart
+    inspection_code: p.request_code,
+    contact_name: p.owner_id, // will be looked up by OfficerName if needed
+    contact_phone: p.owner_phone,
+    // Map property fields to listing-like structure for unified rendering
+    listings: {
+      title: p.property_address || 'Property Inspection',
+      address: p.property_address,
+      city: p.property_city,
+      state: p.property_state,
+      images: p.photo_urls || [],
+    },
+  }));
+
+  const allInspections = [
+    ...(userReqs.data || []),
+    ...normalizedPartners,
+  ];
+
+  return { inspections: allInspections, error: userReqs.error || partnerReqs.error };
 }
 
 export async function assignFieldOfficer(inspectionId: string, fieldOfficerId: string, scheduledDate?: string) {
-  const update: Record<string, any> = {
+  // Try user_inspection_requests first (field_officer_id column)
+  const userUpdate: Record<string, any> = {
     field_officer_id: fieldOfficerId,
     status: 'scheduled',
     updated_at: new Date().toISOString(),
   };
-  if (scheduledDate) update.scheduled_date = scheduledDate;
+  if (scheduledDate) userUpdate.scheduled_date = scheduledDate;
 
-  const { data, error } = await supabase
+  const userResult = await supabase
     .from('user_inspection_requests')
-    .update(update)
+    .update(userUpdate)
     .eq('id', inspectionId)
     .select()
     .maybeSingle();
-  return { inspection: data as any, error };
+
+  if (userResult.data) {
+    return { inspection: userResult.data as any, error: null };
+  }
+
+  // If not found in user_inspection_requests, try inspection_requests (assigned_to column)
+  const partnerUpdate: Record<string, any> = {
+    assigned_to: fieldOfficerId,
+    status: 'scheduled',
+    updated_at: new Date().toISOString(),
+  };
+  if (scheduledDate) partnerUpdate.scheduled_date = scheduledDate;
+
+  const partnerResult = await supabase
+    .from('inspection_requests')
+    .update(partnerUpdate)
+    .eq('id', inspectionId)
+    .select()
+    .maybeSingle();
+
+  return { inspection: partnerResult.data as any, error: partnerResult.error };
 }
 
 export async function startInspection(inspectionId: string) {
