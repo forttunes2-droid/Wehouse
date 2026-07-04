@@ -26,6 +26,7 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(preSelectedCategory || null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+  const [expandedBio, setExpandedBio] = useState<Set<string>>(new Set());
 
   // Booking modal
   const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
@@ -464,7 +465,25 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                       <WorkerStats workerId={w.user_id} />
                     </div>
                   </div>
-                  {w.worker_bio && <p className="text-xs text-[#8A8B9C] mt-2 line-clamp-2">{w.worker_bio}</p>}
+                  {w.worker_bio && (
+                    <div className="mt-2">
+                      <p className={`text-xs text-[#8A8B9C] ${expandedBio.has(w.user_id) ? '' : 'line-clamp-2'}`}>{w.worker_bio}</p>
+                      {w.worker_bio.length > 80 && (
+                        <button
+                          onClick={() => {
+                            setExpandedBio(prev => {
+                              const next = new Set(prev);
+                              if (next.has(w.user_id)) next.delete(w.user_id); else next.add(w.user_id);
+                              return next;
+                            });
+                          }}
+                          className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] mt-0.5"
+                        >
+                          {expandedBio.has(w.user_id) ? 'Show less' : 'Read more'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 mt-2">
                     {/* Book — opens booking modal */}
                     <button

@@ -242,3 +242,28 @@ export async function getOrCreateConversation(userA: string, userB: string, list
   // Create new
   return createConversation(userA, userB, listingId, conversationType, subject);
 }
+
+// Delete a conversation (soft delete — marks as deleted for the requesting user)
+export async function deleteConversation(conversationId: string, _userId: string) {
+  // For direct conversations: delete the conversation entirely
+  // For support chats: just mark messages as seen and clear unread
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('conversation_type')
+    .eq('id', conversationId)
+    .maybeSingle();
+
+  if (conv?.conversation_type === 'direct') {
+    // Hard delete direct conversations
+    await supabase.from('messages').delete().eq('conversation_id', conversationId);
+    const { error } = await supabase.from('conversations').delete().eq('id', conversationId);
+    return { error };
+  } else {
+    // For support chats: mark as archived
+    const { error } = await supabase
+      .from('conversations')
+      .update({ status: 'archived' })
+      .eq('id', conversationId);
+    return { error };
+  }
+}

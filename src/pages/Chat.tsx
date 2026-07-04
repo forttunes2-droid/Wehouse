@@ -7,6 +7,7 @@ import {
   sendMessage,
   editMessage,
   deleteMessage,
+  deleteConversation,
   markMessagesSeen,
   getOfficialMessagesForUser,
   acceptEnquiry,
@@ -353,11 +354,16 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                     <span className="text-sm font-semibold text-white truncate">
                       {conv.conversation_type === 'partner_support'
                         ? 'WeHouse Support'
+                        : conv.conversation_type === 'worker_verification'
+                        ? 'WeHouse Support'
                         : `@${usernames[otherId] || `User ${otherId.slice(-4)}`}`
                       }
                     </span>
                     {conv.conversation_type === 'partner_support' && (
                       <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 flex-shrink-0">Partner</span>
+                    )}
+                    {conv.conversation_type === 'worker_verification' && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex-shrink-0">Review</span>
                     )}
                     {otherRole && (
                       <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#1A1A24] border border-[#232330] text-[#5C5E72] flex-shrink-0">
@@ -376,6 +382,19 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                         {conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b}
                       </span>
                     )}
+                    {/* Delete conversation button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Delete this conversation?')) {
+                          deleteConversation(conv.id, profile.user_id).then(() => loadConversations());
+                        }
+                      }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="Delete conversation"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    </button>
                   </div>
                 </div>
                 <p className="text-xs text-[#8A8B9C] truncate">{conv.last_message || 'No messages yet'}</p>

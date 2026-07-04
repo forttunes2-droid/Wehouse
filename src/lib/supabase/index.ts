@@ -173,6 +173,7 @@ export {
   sendMessage,
   editMessage,
   deleteMessage,
+  deleteConversation,
   markMessagesSeen,
   createConversation,
   acceptEnquiry,

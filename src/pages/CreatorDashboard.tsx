@@ -1429,31 +1429,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
                   </div>
                 )}
 
-                {/* Base: Users always included */}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/10">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
-                  <span className="text-xs text-green-400 flex-1">Users</span>
-                  <span className="text-[9px] text-green-400/60">Always included</span>
-                </div>
-
-                {/* Role-specific targeting dropdown */}
-                <div className="px-1">
-                  <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-1.5 block">Or target specific role</label>
-                  <select
-                    value={targetRoleFilter}
-                    onChange={(e) => setTargetRoleFilter(e.target.value)}
-                    className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 outline-none focus:border-[#3B82F6]/50"
-                  >
-                    <option value="">All Users (default)</option>
-                    <option value="staff">Staff Only</option>
-                    <option value="admin">Head of Staff Only</option>
-                    <option value="admin">Admin Only</option>
-                    <option value="property_partner">Property Partners Only</option>
-                  </select>
-                  {targetRoleFilter && (
-                    <p className="text-[9px] text-amber-400 mt-1">This will override the default user targeting</p>
-                  )}
-                </div>
+                {/* Recipient group toggles — ALL off by default */}
+                <p className="text-[10px] text-[#5C5E72] mb-2">Select who receives this announcement:</p>
 
                 {/* Include Users toggle */}
                 <button
@@ -2353,36 +2330,51 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
       const { data: convs, error: err } = await supabase.rpc('admin_get_all_support_inbox');
       if (err) throw err;
 
-      // Dedupe: keep only most recent conversation per participant_a
-      const seen = new Map<string, any>();
-      for (const c of (convs || [])) {
-        const existing = seen.get(c.participant_a);
-        if (!existing || new Date(c.last_message_at || c.created_at) > new Date(existing.last_message_at || existing.created_at)) {
-          seen.set(c.participant_a, c);
+      // Filter by viewer role: 
+      // - Creator/Admin sees ALL conversations
+      // - Staff with support permission sees only partner chats
+      // - Staff with verification permission sees only worker verification chats
+      // - Others see nothing
+      let filtered = convs || [];
+      if (profile.role === 'staff') {
+        // Check staff permissions
+        const { data: perms } = await supabase
+          .from('staff_permissions')
+          .select('permission')
+          .eq('staff_id', profile.user_id)
+          .eq('is_active', true);
+        const hasSupport = (perms || []).some((p: any) => p.permission === 'support');
+        const hasVerification = (perms || []).some((p: any) => p.permission === 'verification');
+        
+        if (hasSupport && !hasVerification) {
+          filtered = filtered.filter((c: any) => c.conversation_type === 'partner_support' || c.conversation_type === 'partner_inspection');
+        } else if (hasVerification && !hasSupport) {
+          filtered = filtered.filter((c: any) => c.conversation_type === 'worker_verification');
         }
+        // If staff has both support+verification, they see both types
+        // If staff has neither, they see nothing
       }
-      const deduped = Array.from(seen.values());
 
-      // Look up partner profiles separately (avoid SQL JOIN crash)
-      const partnerIds = deduped.map((c: any) => c.participant_a).filter(Boolean);
-      if (partnerIds.length > 0) {
+      // Look up partner/worker profiles separately (avoid SQL JOIN crash)
+      const participantIds = filtered.map((c: any) => c.participant_a).filter(Boolean);
+      if (participantIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('user_id, full_name, email, phone')
-          .in('user_id', partnerIds);
+          .select('user_id, username, full_name, email, phone')
+          .in('user_id', participantIds);
         const profileMap: Record<string, any> = {};
         for (const p of (profiles || [])) profileMap[p.user_id] = p;
-        for (const c of deduped) {
+        for (const c of filtered) {
           const p = profileMap[c.participant_a];
           if (p) {
-            c.partner_name = p.full_name;
+            c.partner_name = p.full_name || p.username;
             c.partner_email = p.email;
             c.partner_phone = p.phone;
           }
         }
       }
 
-      setConversations(deduped);
+      setConversations(filtered);
     } catch (err: any) {
       console.error('[SupportInbox] error:', err);
       setError('Failed to load: ' + (err.message || 'Unknown error'));

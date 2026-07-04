@@ -85,6 +85,8 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
 
     setSaving(true);
     const priceNum = form.worker_price ? parseInt(form.worker_price as string) || 0 : 0;
+    // If worker was already verified, editing resets them to pending (requires re-approval)
+    const wasVerified = profile.worker_status === 'verified';
     const { error } = await updateProfile(profile.user_id, {
       full_name: form.full_name.trim(),
       username: form.username.trim() || profile.username,
@@ -100,6 +102,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
       area: form.location.area || null,
       avatar_url: avatarUrl,
       profile_complete: true,
+      ...(wasVerified ? { worker_status: 'pending' as const } : {}),
     });
     setSaving(false);
     if (error) { toast.error('Save failed: ' + error.message); return; }
