@@ -2761,6 +2761,34 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
 // USER INSPECTION REQUESTS TAB (Creator/Admin)
 // ═════════════════════════════════════════════════════════════════
 
+// Look up officer name from profiles if not in fieldOfficers list
+function OfficerName({ officerId }: { officerId: string }) {
+  const [name, setName] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, username, phone')
+        .eq('user_id', officerId)
+        .maybeSingle();
+      if (data) {
+        setName(data.full_name || data.username || null);
+        setPhone(data.phone || null);
+      }
+    }
+    load();
+  }, [officerId]);
+
+  return (
+    <div className="mt-1 space-y-0.5">
+      <p className="text-xs text-white font-medium">{name || 'Unknown officer'}</p>
+      {phone && <p className="text-[10px] text-[#5C5E72]">{phone}</p>}
+    </div>
+  );
+}
+
 function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
   const [inspections, setInspections] = useState<any[]>([]);
   const [partnerInspections, setPartnerInspections] = useState<any[]>([]);
@@ -2933,20 +2961,26 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
               {/* Assigned officer info */}
               {insp.field_officer_id && (
                 <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
-                  <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
-                  {(() => {
-                    const officer = fieldOfficers.find(o => o.user_id === insp.field_officer_id);
-                    return (
-                      <div className="mt-1 space-y-0.5">
-                        <p className="text-xs text-white font-medium">
-                          {officer?.full_name || officer?.username || 'Unknown officer'}
-                        </p>
-                        {officer?.phone && (
-                          <p className="text-[10px] text-[#5C5E72]">{officer.phone}</p>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
+                    <button
+                      onClick={async () => {
+                        const { error } = await supabase.from('inspection_requests').update({
+                          field_officer_id: null,
+                          assigned_to: null,
+                          status: 'pending',
+                          updated_at: new Date().toISOString(),
+                        }).eq('id', insp.id);
+                        if (error) { toast.error('Failed to unassign'); return; }
+                        toast.success('Officer unassigned');
+                        load();
+                      }}
+                      className="text-[9px] text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      Unassign
+                    </button>
+                  </div>
+                  <OfficerName officerId={insp.field_officer_id} />
                   {insp.scheduled_date && (
                     <p className="text-[10px] text-[#5C5E72] mt-1">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
                   )}
@@ -3060,20 +3094,26 @@ function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
                     {/* Assigned officer info */}
                     {insp.field_officer_id && (
                       <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
-                        <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
-                        {(() => {
-                          const officer = fieldOfficers.find(o => o.user_id === insp.field_officer_id);
-                          return (
-                            <div className="mt-1 space-y-0.5">
-                              <p className="text-xs text-white font-medium">
-                                {officer?.full_name || officer?.username || 'Unknown officer'}
-                              </p>
-                              {officer?.phone && (
-                                <p className="text-[10px] text-[#5C5E72]">{officer.phone}</p>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
+                          <button
+                            onClick={async () => {
+                              const { error } = await supabase.from('inspection_requests').update({
+                                field_officer_id: null,
+                                assigned_to: null,
+                                status: 'pending',
+                                updated_at: new Date().toISOString(),
+                              }).eq('id', insp.id);
+                              if (error) { toast.error('Failed to unassign'); return; }
+                              toast.success('Officer unassigned');
+                              load();
+                            }}
+                            className="text-[9px] text-red-400 hover:text-red-300 transition-colors"
+                          >
+                            Unassign
+                          </button>
+                        </div>
+                        <OfficerName officerId={insp.field_officer_id} />
                         {insp.scheduled_date && (
                           <p className="text-[10px] text-[#5C5E72] mt-1">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
                         )}

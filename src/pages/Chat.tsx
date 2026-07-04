@@ -40,6 +40,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   const [editContent, setEditContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any>({type: 'conv', id: ''});
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const convSubscriptionRef = useRef<any>(null);
@@ -386,9 +388,8 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm('Delete this conversation?')) {
-                          deleteConversation(conv.id, profile.user_id).then(() => loadConversations());
-                        }
+                        setDeleteTarget({ type: 'conv', id: conv.id });
+                        setShowDeleteModal(true);
                       }}
                       className="w-6 h-6 rounded-full flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                       title="Delete conversation"
@@ -728,12 +729,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                     <div className="flex gap-2 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => { setEditingMessageId(msg.id); setEditContent(msg.content); }}
                         className="text-[9px] text-[#5C5E72] hover:text-[#3B82F6]">Edit</button>
-                      <button onClick={async () => {
-                        if (!confirm('Delete this message?')) return;
-                        const { error } = await deleteMessage(msg.id);
-                        if (error) toast.error('Failed to delete');
-                        else setMessages(prev => prev.filter(m => m.id !== msg.id));
-                      }} className="text-[9px] text-[#5C5E72] hover:text-red-400">Delete</button>
+                      <button onClick={() => { setDeleteTarget({ type: 'msg', id: msg.id }); setShowDeleteModal(true); }} className="text-[9px] text-[#5C5E72] hover:text-red-400">Delete</button>
                     </div>
                   )}
                 </div>
@@ -915,6 +911,51 @@ function getTimeAgo(isoDate: string): string {
           </>
         )}
       </div>
+
+      {/* ═══ Delete Confirmation Modal ═══ */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)}>
+          <div className="bg-[#12121A] rounded-2xl border border-[#2A2A3A] p-5 max-w-xs w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-3">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+            </div>
+            <p className="text-sm font-semibold text-white text-center">
+              {deleteTarget.type === 'conv' ? 'Delete Conversation?' : 'Delete Message?'}
+            </p>
+            <p className="text-xs text-[#5C5E72] text-center mt-1">
+              {deleteTarget.type === 'conv'
+                ? 'This will remove the conversation from your list. The other person will still see it.'
+                : 'This message will be removed permanently.'}
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-xs text-white hover:bg-[#2A2A3A] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const convId = deleteTarget.id;
+                  if (deleteTarget.type === 'conv') {
+                    await deleteConversation(convId, profile.user_id);
+                    loadConversations();
+                    setActiveConv(ac => ac && (ac as any).id === convId ? null : ac);
+                  } else {
+                    const { error } = await deleteMessage(convId);
+                    if (error) toast.error('Failed to delete');
+                    else setMessages(prev => prev.filter(m => m.id !== convId));
+                  }
+                  setShowDeleteModal(false);
+                }}
+                className="flex-1 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 hover:bg-red-500/20 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

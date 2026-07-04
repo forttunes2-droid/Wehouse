@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getAllWorkers, getCategoryWithSubcategories, getOrCreateConversation, supabase } from '@/lib/supabase';
-import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS } from '@/types';
+import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile, ServiceCategory } from '@/types';
 import { toast, Toaster } from 'sonner';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
@@ -30,6 +30,8 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
 
   // Booking modal
   const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
+  // Track which workers user has sent booking requests to
+  const [bookedWorkers, setBookedWorkers] = useState<Set<string>>(new Set());
 
   // Apply pre-selected category when navigating from WorkerCategories
   useEffect(() => {
@@ -79,7 +81,8 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
 
   // ─── FILTER WORKERS ───────────────────────────────────
   const filteredWorkers = useMemo(() => {
-    let result = [...allWorkers];
+    // ONLY show verified workers to the public
+    let result = allWorkers.filter(w => w.worker_status === 'verified');
 
     // State filter
     if (selectedState) {
@@ -404,8 +407,6 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
               if (!a.is_online && b.is_online) return 1;
               return 0;
             }).map(w => {
-              const statusKey = w.worker_status || 'pending';
-              const statusLabel = WORKER_STATUS_LABELS[statusKey] || statusKey;
               const isNearby = userCity && (w.city || '').toLowerCase().trim() === userCity.toLowerCase().trim();
               const skills = (w.worker_skills as string[]) || [];
               return (
@@ -423,7 +424,6 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-white">{w.full_name || w.username || 'Worker'}</span>
-                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{statusLabel}</span>
                         {isNearby && w.city && (
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F4] border border-[#3B82F6]/20">In {w.city}</span>
                         )}
@@ -455,12 +455,6 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                           </span>
                         )}
                       </div>
-                      {/* Price */}
-                      {w.worker_price ? (
-                        <p className="text-xs text-green-400 font-semibold mt-0.5">From N{w.worker_price.toLocaleString()}</p>
-                      ) : (
-                        <p className="text-[10px] text-[#5C5E72] mt-0.5">Price not set</p>
-                      )}
                       {/* Job count + star rating */}
                       <WorkerStats workerId={w.user_id} />
                     </div>
@@ -485,19 +479,30 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-2">
-                    {/* Book — opens booking modal */}
-                    <button
-                      onClick={() => setBookingWorker(w)}
-                      className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z" /></svg>
-                      Book
-                    </button>
-                    {/* Chat — opens chat with this worker */}
+                    {/* Book — opens booking modal (always visible if logged in) */}
                     {profile && (
+                      <button
+                        onClick={() => setBookingWorker(w)}
+                        className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z" /></svg>
+                        Book
+                      </button>
+                    )}
+                    {/* Chat — only visible after booking request sent */}
+                    {profile && bookedWorkers.has(w.user_id) && (
                       <button onClick={() => handleChatWithWorker(w.user_id)} className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                         Chat
+                      </button>
+                    )}
+                    {!profile && (
+                      <button
+                        onClick={() => toast.info('Please log in to book a worker')}
+                        className="inline-flex items-center gap-1 text-[11px] text-[#5C5E72]"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z" /></svg>
+                        Book
                       </button>
                     )}
                   </div>
@@ -521,6 +526,28 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
             <WorkerBookingFlow
               workerName={bookingWorker.full_name || bookingWorker.username || 'Worker'}
               workerService={WORKER_OCCUPATION_LABELS[bookingWorker.worker_occupation || ''] || bookingWorker.worker_occupation || ''}
+              workerId={bookingWorker.user_id}
+              userId={profile?.user_id || ''}
+              onBook={({ description, address, date }) => {
+                // Create booking request in database
+                supabase.from('worker_bookings').insert({
+                  worker_id: bookingWorker.user_id,
+                  user_id: profile?.user_id,
+                  description,
+                  address,
+                  preferred_date: date || null,
+                  status: 'pending_approval',
+                  created_at: new Date().toISOString(),
+                }).then(({ error }) => {
+                  if (error) {
+                    toast.error('Failed to send booking request');
+                    console.error('Booking error:', error);
+                  } else {
+                    toast.success('Booking request sent!');
+                    setBookedWorkers(prev => new Set(prev).add(bookingWorker.user_id));
+                  }
+                });
+              }}
             />
           </div>
         </div>
