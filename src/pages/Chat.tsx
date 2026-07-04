@@ -819,7 +819,16 @@ function getTimeAgo(isoDate: string): string {
     <div className="min-h-screen bg-transparent pb-20">
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => onNavigate('home')} className="text-[#8A8B9C] hover:text-white transition-colors">
+          <button onClick={() => {
+            // Route back based on user role - don't dump everyone to home
+            const role = profile.role;
+            if (role === 'staff') onNavigate('staff_dashboard');
+            else if (role === 'worker') onNavigate('worker_dashboard');
+            else if (role === 'property_partner') onNavigate('property_partner');
+            else if (role === 'admin') onNavigate('admin');
+            else if (role === 'creator') onNavigate('creator');
+            else onNavigate('home');
+          }} className="text-[#8A8B9C] hover:text-white transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>

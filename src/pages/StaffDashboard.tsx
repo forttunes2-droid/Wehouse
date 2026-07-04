@@ -16,9 +16,31 @@ interface StaffDashboardProps {
 
 type StaffTab = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'settings';
 
-export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardProps) {
+export default function StaffDashboard({ profile, onGoToChat, onNavigate }: StaffDashboardProps) {
   const { permissions, loading: permsLoading, hasPermission } = useStaffPermissions(profile.user_id);
-  const [activeTab, setActiveTab] = useState<StaffTab>('overview');
+  const TAB_KEY = 'wh_staff_tab';
+  const [activeTab, setActiveTab] = useState<StaffTab>(() => {
+    try {
+      const saved = localStorage.getItem(TAB_KEY);
+      // Only restore if the saved tab is valid for this staff's permissions
+      if (saved && (
+        saved === 'overview' || saved === 'settings' ||
+        (saved === 'operations' && hasPermission('operations')) ||
+        (saved === 'finance' && hasPermission('finance')) ||
+        (saved === 'support' && hasPermission('support')) ||
+        (saved === 'verification' && hasPermission('verification')) ||
+        (saved === 'field_officer' && hasPermission('field_officer'))
+      )) {
+        return saved as StaffTab;
+      }
+    } catch { /* ignore */ }
+    return 'overview';
+  });
+
+  const handleSetTab = (tab: StaffTab) => {
+    setActiveTab(tab);
+    try { localStorage.setItem(TAB_KEY, tab); } catch { /* ignore */ }
+  };
 
   // Determine available tabs based on permissions
   const availableTabs: StaffTab[] = ['overview'];
@@ -44,9 +66,19 @@ export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardPr
       {/* Header */}
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-white">Staff Dashboard</h1>
-            <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+          <div className="flex items-center gap-3">
+            {/* Home button */}
+            <button
+              onClick={() => onNavigate?.('home')}
+              className="w-8 h-8 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white transition-colors"
+              title="Go to Home"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+            </button>
+            <div>
+              <h1 className="text-lg font-bold text-white">Staff Dashboard</h1>
+              <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+            </div>
           </div>
           <span className="text-[10px] px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
             {permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(', ') || 'No Permissions'}
@@ -59,7 +91,7 @@ export default function StaffDashboard({ profile, onGoToChat }: StaffDashboardPr
         {availableTabs.map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => handleSetTab(tab)}
             className={`flex-shrink-0 h-9 px-4 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
               activeTab === tab
                 ? 'bg-[#3B82F6] text-white'
