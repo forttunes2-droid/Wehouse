@@ -24,8 +24,8 @@ export async function getUserCount() {
 // Creator can change any role (except other creators)
 // Admin can change user ↔ staff
 const VALID_ROLE_TRANSITIONS: Record<string, string[]> = {
-  user: ['staff'],
-  staff: ['user'],
+  user: ['staff', 'admin'],
+  staff: ['user', 'admin'],
   admin: ['user', 'staff'],
   property_partner: [],
   worker: [],

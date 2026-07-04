@@ -1048,7 +1048,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   // ── Role filter toggles ──
   const canIncludeWorkers = isCreator(profile.role) || profile.role === 'admin';
   const canIncludeStaff = isCreator(profile.role) || profile.role === 'admin';
-  const [includeUsers, setIncludeUsers] = useState(true);
+  const [includeUsers, setIncludeUsers] = useState(false);
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
   const [includePartners, setIncludePartners] = useState(false);
@@ -1230,7 +1230,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     toast.success(`Sent to ${recipientCount || 0} recipient${(recipientCount || 0) > 1 ? 's' : ''}!`);
     setMessage('');
     setSelectedUsers([]);
-    setIncludeUsers(true);
+    setIncludeUsers(false);
     setIncludeWorkers(false);
     setIncludeStaff(false);
     setIncludePartners(false);
@@ -2349,12 +2349,44 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
   async function load() {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase.rpc('admin_get_all_support_inbox');
-    if (err) {
+    try {
+      const { data: convs, error: err } = await supabase.rpc('admin_get_all_support_inbox');
+      if (err) throw err;
+
+      // Dedupe: keep only most recent conversation per participant_a
+      const seen = new Map<string, any>();
+      for (const c of (convs || [])) {
+        const existing = seen.get(c.participant_a);
+        if (!existing || new Date(c.last_message_at || c.created_at) > new Date(existing.last_message_at || existing.created_at)) {
+          seen.set(c.participant_a, c);
+        }
+      }
+      const deduped = Array.from(seen.values());
+
+      // Look up partner profiles separately (avoid SQL JOIN crash)
+      const partnerIds = deduped.map((c: any) => c.participant_a).filter(Boolean);
+      if (partnerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, email, phone')
+          .in('user_id', partnerIds);
+        const profileMap: Record<string, any> = {};
+        for (const p of (profiles || [])) profileMap[p.user_id] = p;
+        for (const c of deduped) {
+          const p = profileMap[c.participant_a];
+          if (p) {
+            c.partner_name = p.full_name;
+            c.partner_email = p.email;
+            c.partner_phone = p.phone;
+          }
+        }
+      }
+
+      setConversations(deduped);
+    } catch (err: any) {
       console.error('[SupportInbox] error:', err);
-      setError('Failed to load conversations: ' + err.message);
+      setError('Failed to load: ' + (err.message || 'Unknown error'));
     }
-    setConversations(data || []);
     setLoading(false);
   }
 
