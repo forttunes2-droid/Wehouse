@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
-import { supabase } from '@/lib/supabase';
+import { supabase, getInspectionRequestsForFieldOfficer } from '@/lib/supabase';
 import SettingsTab from './SettingsTab';
 import type { Profile, StaffPermission, SupportTicket, Payout, CommissionRule } from '@/types';
 import { STAFF_PERMISSION_LABELS, TICKET_TYPE_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_COLORS } from '@/types';
@@ -227,6 +227,8 @@ function OperationsModule({ profile }: { profile: Profile }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     loadListings();
@@ -280,9 +282,37 @@ function OperationsModule({ profile }: { profile: Profile }) {
               }`}>{l.status}</span>
             </div>
             {l.status === 'pending_approval' && (
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => approveListing(l.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
-                <button onClick={() => { const r = prompt('Rejection reason:'); if (r) supabase.from('listings').update({ status: 'rejected', rejection_reason: r }).eq('id', l.id).then(() => { toast.success('Rejected'); loadListings(); }); }} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
+              <div className="mt-3">
+                {rejectingId === l.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)}
+                      placeholder="Reason for rejection..."
+                      rows={2}
+                      className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-red-500 resize-none"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
+                      <button
+                        onClick={() => {
+                          if (!rejectReason.trim()) return;
+                          supabase.from('listings').update({ status: 'rejected', rejection_reason: rejectReason }).eq('id', l.id).then(() => {
+                            toast.success('Rejected'); setRejectingId(null); setRejectReason(''); loadListings();
+                          });
+                        }}
+                        className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold"
+                      >
+                        Confirm Reject
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => approveListing(l.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
+                    <button onClick={() => setRejectingId(l.id)} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -407,6 +437,8 @@ function SupportModule({ profile }: { profile: Profile }) {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveNotes, setResolveNotes] = useState('');
 
   useEffect(() => {
     loadTickets();
@@ -428,11 +460,12 @@ function SupportModule({ profile }: { profile: Profile }) {
   }
 
   async function resolveTicket(ticketId: string) {
-    const notes = prompt('Resolution notes:');
-    if (!notes) return;
-    const { error } = await supabase.from('support_tickets').update({ status: 'resolved', resolution_notes: notes, resolved_at: new Date().toISOString(), resolved_by: profile.user_id }).eq('id', ticketId);
+    if (!resolveNotes.trim()) { toast.error('Enter resolution notes'); return; }
+    const { error } = await supabase.from('support_tickets').update({
+      status: 'resolved', resolution_notes: resolveNotes, resolved_at: new Date().toISOString(), resolved_by: profile.user_id
+    }).eq('id', ticketId);
     if (error) toast.error('Failed: ' + error.message);
-    else { toast.success('Ticket resolved'); loadTickets(); }
+    else { toast.success('Ticket resolved'); setResolvingId(null); setResolveNotes(''); loadTickets(); }
   }
 
   if (loading) return <LoadingSpinner />;
@@ -466,12 +499,30 @@ function SupportModule({ profile }: { profile: Profile }) {
                 <p className="text-[9px] text-[#5C5E72] mt-1">{t.customer_email} &middot; {new Date(t.created_at).toLocaleDateString()}</p>
               </div>
             </div>
-            <div className="flex gap-2 mt-3">
-              {t.status === 'open' && (
-                <button onClick={() => assignTicket(t.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Assign to Me</button>
-              )}
-              {t.status === 'in_progress' && t.assigned_to === profile.user_id && (
-                <button onClick={() => resolveTicket(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Resolve</button>
+            <div className="mt-3">
+              {resolvingId === t.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={resolveNotes}
+                    onChange={e => setResolveNotes(e.target.value)}
+                    placeholder="How was this resolved?"
+                    rows={2}
+                    className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => { setResolvingId(null); setResolveNotes(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
+                    <button onClick={() => resolveTicket(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  {t.status === 'open' && (
+                    <button onClick={() => assignTicket(t.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Assign to Me</button>
+                  )}
+                  {t.status === 'in_progress' && t.assigned_to === profile.user_id && (
+                    <button onClick={() => setResolvingId(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Resolve</button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -574,6 +625,9 @@ function VerificationModule({ onGoToChat }: { onGoToChat?: (convId: string) => v
 function FieldOfficerModule({ profile }: { profile: Profile }) {
   const [inspections, setInspections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [report, setReport] = useState('');
+  const [condition, setCondition] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
 
   useEffect(() => {
     loadInspections();
@@ -581,31 +635,34 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
 
   async function loadInspections() {
     setLoading(true);
-    const { data } = await supabase
-      .from('inspections')
-      .select('*, listings(title, address, city, state)')
-      .eq('field_officer_id', profile.user_id)
-      .order('scheduled_date', { ascending: true });
+    const { inspections: data } = await getInspectionRequestsForFieldOfficer(profile.user_id);
     setInspections(data || []);
     setLoading(false);
   }
 
   async function startInspection(id: string) {
-    await supabase.from('inspections').update({ status: 'in_progress' }).eq('id', id);
+    const { error } = await supabase.from('user_inspection_requests').update({
+      status: 'in_progress',
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    toast.success('Inspection started');
     loadInspections();
   }
 
   async function completeInspection(id: string) {
-    const report = prompt('Inspection report:');
-    if (!report) return;
-    const condition = prompt('Overall condition (excellent/good/fair/poor):') as any;
-    await supabase.from('inspections').update({
+    if (!report.trim()) { toast.error('Enter a report'); return; }
+    const { error } = await supabase.from('user_inspection_requests').update({
       status: 'completed',
+      officer_report: report,
+      property_condition: condition,
       completed_at: new Date().toISOString(),
-      report,
-      overall_condition: condition,
+      updated_at: new Date().toISOString(),
     }).eq('id', id);
+    if (error) { toast.error('Failed: ' + error.message); return; }
     toast.success('Inspection completed');
+    setCompletingId(null);
+    setReport('');
     loadInspections();
   }
 
@@ -634,14 +691,17 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
       {/* Inspections List */}
       <h4 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Inspections ({inspections.length})</h4>
       {inspections.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">No inspections assigned</div>
+        <div className="text-center py-10">
+          <p className="text-sm text-[#5C5E72]">No inspections assigned</p>
+          <p className="text-[10px] text-[#5C5E72] mt-1">Inspections assigned by the creator will appear here</p>
+        </div>
       ) : (
         inspections.map(ins => (
           <div key={ins.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{ins.listings?.title || 'Unknown Property'}</p>
+                  <p className="text-sm font-semibold text-white truncate">{ins.listings?.title || 'Property Inspection'}</p>
                   <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
                     ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
                     ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
@@ -649,18 +709,47 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
                     'bg-gray-500/10 text-gray-400'
                   }`}>{ins.status}</span>
                 </div>
-                <p className="text-[10px] text-[#5C5E72]">{ins.listings?.address}, {ins.listings?.city}</p>
-                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code} &middot; Scheduled: {ins.scheduled_date ? new Date(ins.scheduled_date).toLocaleDateString() : 'Not set'}</p>
+                <p className="text-[10px] text-[#5C5E72]">{ins.listings?.address || ins.address || 'No address'}, {ins.listings?.city || ins.city || ''}</p>
+                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code || ins.id?.slice(0, 8)} &middot; Scheduled: {ins.scheduled_date ? new Date(ins.scheduled_date).toLocaleDateString() : 'Not set'}</p>
+                {ins.contact_name && <p className="text-[9px] text-[#5C5E72]">Contact: {ins.contact_name} {ins.contact_phone && `· ${ins.contact_phone}`}</p>}
               </div>
             </div>
-            <div className="flex gap-2 mt-3">
-              {ins.status === 'scheduled' && (
-                <button onClick={() => startInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>
-              )}
-              {ins.status === 'in_progress' && (
-                <button onClick={() => completeInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>
-              )}
-            </div>
+
+            {/* Complete Form */}
+            {completingId === ins.id ? (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  value={report}
+                  onChange={e => setReport(e.target.value)}
+                  placeholder="Describe what you found during the inspection..."
+                  rows={3}
+                  className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none"
+                />
+                <select
+                  value={condition}
+                  onChange={e => setCondition(e.target.value as any)}
+                  className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 outline-none focus:border-[#3B82F6]"
+                >
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                  <option value="poor">Poor</option>
+                </select>
+                <div className="flex gap-2">
+                  <button onClick={() => { setCompletingId(null); setReport(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
+                  <button onClick={() => completeInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit Report</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 mt-3">
+                {ins.status === 'scheduled' && (
+                  <button onClick={() => startInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>
+                )}
+                {ins.status === 'in_progress' && (
+                  <button onClick={() => setCompletingId(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>
+                )}
+              </div>
+            )}
           </div>
         ))
       )}
