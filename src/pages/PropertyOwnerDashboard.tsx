@@ -98,7 +98,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
     if (!partnerId) return;
     async function loadStats() {
       const [{ count: ap }, { count: rp }, { count: b }] = await Promise.all([
-        supabase.from('listings').select('*', { count: 'exact', head: true }).eq('partner_id', profile.user_id),
+        supabase.from('listings').select('*', { count: 'exact', head: true }).or(`partner_id.eq.${profile.user_id},owner_id.eq.${profile.user_id}`),
         supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('owner_id', profile.user_id).eq('status', 'pending'),
         supabase.from('reservations').select('*', { count: 'exact', head: true }).eq('user_id', profile.user_id),
       ]);
@@ -253,7 +253,7 @@ function PropertiesTab({ profileId }: { profileId: string }) {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('listings').select('*').eq('partner_id', profileId).order('created_at', { ascending: false });
+      const { data } = await supabase.from('listings').select('*').or(`partner_id.eq.${profileId},owner_id.eq.${profileId}`).order('created_at', { ascending: false });
       setProperties(data || []);
       setLoading(false);
     }
@@ -670,7 +670,7 @@ function BookingsTab({ profileId }: { profileId: string }) {
   useEffect(() => {
     async function load() {
       // Get reservations for this partner's listings
-      const { data: listings } = await supabase.from('listings').select('listing_id').eq('partner_id', profileId);
+      const { data: listings } = await supabase.from('listings').select('listing_id').or(`partner_id.eq.${profileId},owner_id.eq.${profileId}`);
       const listingIds = (listings || []).map((l: any) => l.listing_id);
       if (listingIds.length === 0) { setBookings([]); setLoading(false); return; }
       const { data } = await supabase.from('reservations').select('*').in('listing_id', listingIds).order('created_at', { ascending: false });

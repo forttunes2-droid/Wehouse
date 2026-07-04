@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
 import { supabase, getInspectionRequestsForFieldOfficer } from '@/lib/supabase';
-import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
+// nigeria-locations import not needed in this version — location derived from inspection data
 import SettingsTab from './SettingsTab';
-import type { Profile, StaffPermission, SupportTicket, Payout, CommissionRule } from '@/types';
+import type { Profile, SupportTicket } from '@/types';
 import { STAFF_PERMISSION_LABELS, TICKET_TYPE_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_COLORS } from '@/types';
 import type { TicketStatus } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -17,13 +17,22 @@ interface StaffDashboardProps {
 
 type StaffTab = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'settings';
 
-export default function StaffDashboard({ profile, onGoToChat, onNavigate }: StaffDashboardProps) {
+const TAB_ICONS: Record<StaffTab, string> = {
+  overview: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+  operations: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+  finance: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  support: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  verification: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+  field_officer: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z',
+  settings: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
+};
+
+export default function StaffDashboard({ profile, onLogout, onGoToChat, onNavigate }: StaffDashboardProps) {
   const { permissions, loading: permsLoading, hasPermission } = useStaffPermissions(profile.user_id);
   const TAB_KEY = 'wh_staff_tab';
   const [activeTab, setActiveTab] = useState<StaffTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      // Only restore if the saved tab is valid for this staff's permissions
       if (saved && (
         saved === 'overview' || saved === 'settings' ||
         (saved === 'operations' && hasPermission('operations')) ||
@@ -31,9 +40,7 @@ export default function StaffDashboard({ profile, onGoToChat, onNavigate }: Staf
         (saved === 'support' && hasPermission('support')) ||
         (saved === 'verification' && hasPermission('verification')) ||
         (saved === 'field_officer' && hasPermission('field_officer'))
-      )) {
-        return saved as StaffTab;
-      }
+      )) return saved as StaffTab;
     } catch { /* ignore */ }
     return 'overview';
   });
@@ -43,78 +50,143 @@ export default function StaffDashboard({ profile, onGoToChat, onNavigate }: Staf
     try { localStorage.setItem(TAB_KEY, tab); } catch { /* ignore */ }
   };
 
-  // Determine available tabs based on permissions
   const availableTabs: StaffTab[] = ['overview'];
   if (hasPermission('operations')) availableTabs.push('operations');
   if (hasPermission('finance')) availableTabs.push('finance');
   if (hasPermission('support')) availableTabs.push('support');
   if (hasPermission('verification')) availableTabs.push('verification');
   if (hasPermission('field_officer')) availableTabs.push('field_officer');
-  availableTabs.push('settings'); // Settings available to all staff
+  availableTabs.push('settings');
 
   if (permsLoading) {
     return (
       <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-6">
+    <div className="min-h-screen bg-[#0A0A0F] pb-24">
       <Toaster position="top-center" richColors />
 
-      {/* Header */}
-      <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Home button */}
-            <button
-              onClick={() => onNavigate?.('home')}
-              className="w-8 h-8 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white transition-colors"
-              title="Go to Home"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-            </button>
-            <div>
-              <h1 className="text-lg font-bold text-white">
-                {permissions.length > 0
-                  ? permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(' + ')
-                  : 'Staff'}
-              </h1>
-              <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+      {/* ═══ MODERN HEADER ═══ */}
+      <header className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#0A0A0F] to-[#16213e]" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
+        <div className="relative px-5 pt-6 pb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <span className="text-white font-bold text-sm">{(profile.username || profile.email)[0].toUpperCase()}</span>
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-white">
+                  {permissions.length > 0 ? permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(' & ') : 'Staff Portal'}
+                </h1>
+                <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+              </div>
             </div>
+            <button
+              onClick={onLogout}
+              className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition-all"
+              title="Logout"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+            </button>
           </div>
+
+          {/* Stats Row */}
+          <StaffStats profile={profile} permissions={permissions} />
         </div>
       </header>
 
-      {/* Module Navigation */}
-      <nav className="flex gap-1 px-5 py-3 border-b border-white/[0.04] overflow-x-auto scrollbar-hide">
-        {availableTabs.map(tab => (
-          <button
-            key={tab}
-            onClick={() => handleSetTab(tab)}
-            className={`flex-shrink-0 h-9 px-4 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
-              activeTab === tab
-                ? 'bg-[#3B82F6] text-white'
-                : 'text-[#5C5E72] hover:text-white'
-            }`}
-          >
-            {tab === 'overview' ? 'Overview' : tab === 'settings' ? 'Settings' : STAFF_PERMISSION_LABELS[tab as StaffPermission]}
-          </button>
-        ))}
+      {/* ═══ MODERN TAB NAV ═══ */}
+      <nav className="sticky top-0 z-40 bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/[0.04] px-3 py-2">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+          {availableTabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => handleSetTab(tab)}
+              className={`flex-shrink-0 flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
+                activeTab === tab
+                  ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/25'
+                  : 'text-[#5C5E72] hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d={TAB_ICONS[tab]} />
+              </svg>
+              {tab === 'field_officer' ? 'Field' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
       </nav>
 
-      {/* Module Content */}
-      <main className="px-5 py-4">
-        {activeTab === 'overview' && <OverviewModule profile={profile} permissions={permissions} onGoToChat={onGoToChat} />}
+      {/* ═══ TAB CONTENT ═══ */}
+      <main className="px-4 py-4">
+        {activeTab === 'overview' && <OverviewModule profile={profile} permissions={permissions} onGoToChat={onGoToChat} onNavigate={onNavigate} onSetTab={handleSetTab} />}
         {activeTab === 'operations' && <OperationsModule profile={profile} />}
         {activeTab === 'finance' && <FinanceModule />}
-        {activeTab === 'support' && <SupportModule profile={profile} />}
-        {activeTab === 'verification' && <VerificationModule onGoToChat={onGoToChat} />}
+        {activeTab === 'support' && <SupportModule profile={profile} onGoToChat={onGoToChat} />}
+        {activeTab === 'verification' && <VerificationModule profile={profile} onGoToChat={onGoToChat} />}
         {activeTab === 'field_officer' && <FieldOfficerModule profile={profile} />}
-        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
       </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATS BAR
+// ═══════════════════════════════════════════════════════════════
+
+function StaffStats({ profile, permissions }: { profile: Profile; permissions: string[] }) {
+  const [stats, setStats] = useState({ inspections: 0, tickets: 0, listings: 0, workers: 0 });
+
+  useEffect(() => {
+    async function load() {
+      const promises = [];
+      if (permissions.includes('field_officer')) {
+        promises.push(supabase.from('user_inspection_requests').select('*', { count: 'exact', head: true }).eq('field_officer_id', profile.user_id).in('status', ['scheduled', 'in_progress']));
+      }
+      if (permissions.includes('support')) {
+        promises.push(supabase.from('support_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'));
+      }
+      if (permissions.includes('operations')) {
+        promises.push(supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval'));
+      }
+      if (permissions.includes('verification')) {
+        promises.push(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'worker').eq('worker_status', 'pending'));
+      }
+      const results = await Promise.all(promises);
+      const s: any = {};
+      let idx = 0;
+      if (permissions.includes('field_officer')) s.inspections = results[idx++]?.count || 0;
+      if (permissions.includes('support')) s.tickets = results[idx++]?.count || 0;
+      if (permissions.includes('operations')) s.listings = results[idx++]?.count || 0;
+      if (permissions.includes('verification')) s.workers = results[idx++]?.count || 0;
+      setStats(s);
+    }
+    load();
+  }, [permissions, profile.user_id]);
+
+  const statItems = [];
+  if (permissions.includes('field_officer')) statItems.push({ label: 'Inspections', value: stats.inspections, color: 'from-blue-500 to-blue-600' });
+  if (permissions.includes('support')) statItems.push({ label: 'Open Tickets', value: stats.tickets, color: 'from-amber-500 to-amber-600' });
+  if (permissions.includes('operations')) statItems.push({ label: 'Pending', value: stats.listings, color: 'from-emerald-500 to-emerald-600' });
+  if (permissions.includes('verification')) statItems.push({ label: 'To Review', value: stats.workers, color: 'from-purple-500 to-purple-600' });
+
+  if (statItems.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {statItems.map(s => (
+        <div key={s.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+          <p className="text-lg font-bold text-white">{s.value}</p>
+          <p className="text-[10px] text-[#5C5E72]">{s.label}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -123,101 +195,44 @@ export default function StaffDashboard({ profile, onGoToChat, onNavigate }: Staf
 // OVERVIEW MODULE
 // ═══════════════════════════════════════════════════════════════
 
-function OverviewModule({ profile, permissions }: { profile: Profile; permissions: StaffPermission[]; onGoToChat?: (convId?: string) => void }) {
-  const [stats, setStats] = useState({ tickets: 0, inspections: 0, listings: 0, workers: 0, messages: 0 });
-  const [activities, setActivities] = useState<any[]>([]);
-
-  useEffect(() => {
-    async function load() {
-      const promises = [];
-      if (permissions.includes('support')) promises.push(supabase.from('support_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'));
-      if (permissions.includes('field_officer')) promises.push(supabase.from('inspections').select('*', { count: 'exact', head: true }).eq('field_officer_id', profile.user_id).eq('status', 'scheduled'));
-      if (permissions.includes('operations')) promises.push(supabase.from('listings').select('*', { count: 'exact', head: true }).is('deleted_at', null));
-      if (permissions.includes('verification')) promises.push(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'worker').eq('worker_status', 'pending'));
-      promises.push(supabase.from('conversations').select('*', { count: 'exact', head: true }));
-
-      const results = await Promise.all(promises);
-      let idx = 0;
-      const s = { tickets: 0, inspections: 0, listings: 0, workers: 0, messages: results[results.length - 1]?.count || 0 };
-      if (permissions.includes('support')) s.tickets = results[idx++]?.count || 0;
-      if (permissions.includes('field_officer')) s.inspections = results[idx++]?.count || 0;
-      if (permissions.includes('operations')) s.listings = results[idx++]?.count || 0;
-      if (permissions.includes('verification')) s.workers = results[idx++]?.count || 0;
-      setStats(s);
-
-      // Load recent activity
-      const { data: acts } = await supabase
-        .from('staff_activity_log')
-        .select('*')
-        .eq('staff_id', profile.user_id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setActivities(acts || []);
-    }
-    load();
-  }, [profile.user_id, permissions]);
-
+function OverviewModule({ profile, permissions, onGoToChat: _onGoToChat, onNavigate: _onNavigate, onSetTab }: {
+  profile: Profile; permissions: string[]; onGoToChat: (c?: string) => void; onNavigate?: (p: string) => void; onSetTab: (t: StaffTab) => void;
+}) {
   return (
     <div className="space-y-4">
-      {/* Quick Stats */}
+      <p className="text-[11px] text-[#5C5E72]">Welcome back, <span className="text-white font-medium">{profile.full_name || profile.username || 'Staff'}</span>. Here&apos;s your overview.</p>
+
+      {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
-        {permissions.includes('support') && stats.tickets > 0 && (
-          <div className="rounded-2xl bg-red-500/5 border border-red-500/10 p-4 text-center">
-            <p className="text-2xl font-bold text-red-400">{stats.tickets}</p>
-            <p className="text-[10px] text-[#5C5E72]">Open Tickets</p>
-          </div>
+        {permissions.includes('field_officer') && (
+          <QuickCard icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" title="My Inspections" subtitle="View assigned inspections" color="from-blue-500 to-blue-600" onClick={() => onSetTab('field_officer')} />
         )}
-        {permissions.includes('field_officer') && stats.inspections > 0 && (
-          <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-4 text-center">
-            <p className="text-2xl font-bold text-amber-400">{stats.inspections}</p>
-            <p className="text-[10px] text-[#5C5E72]">Pending Inspections</p>
-          </div>
+        {permissions.includes('support') && (
+          <QuickCard icon="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="Support Tickets" subtitle="Handle customer issues" color="from-amber-500 to-amber-600" onClick={() => onSetTab('support')} />
         )}
         {permissions.includes('operations') && (
-          <div className="rounded-2xl bg-blue-500/5 border border-blue-500/10 p-4 text-center">
-            <p className="text-2xl font-bold text-blue-400">{stats.listings}</p>
-            <p className="text-[10px] text-[#5C5E72]">Listings</p>
-          </div>
+          <QuickCard icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" title="Properties" subtitle="Review & manage listings" color="from-emerald-500 to-emerald-600" onClick={() => onSetTab('operations')} />
         )}
         {permissions.includes('verification') && (
-          <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/10 p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{stats.workers}</p>
-            <p className="text-[10px] text-[#5C5E72]">Pending Workers</p>
-          </div>
+          <QuickCard icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" title="Worker Review" subtitle="Approve worker applications" color="from-purple-500 to-purple-600" onClick={() => onSetTab('verification')} />
         )}
-      </div>
-
-      {/* My Modules */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Modules</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {permissions.map(perm => (
-            <div key={perm} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-              <p className="text-sm font-semibold text-white">{STAFF_PERMISSION_LABELS[perm]}</p>
-              <p className="text-[10px] text-[#5C5E72] mt-1">Active permission</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Recent Activity</h3>
-        {activities.length === 0 ? (
-          <div className="text-center py-6 text-[#5C5E72] text-sm">No recent activity</div>
-        ) : (
-          activities.map(a => (
-            <div key={a.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-3">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]" />
-                <p className="text-[11px] text-white flex-1">{a.action}</p>
-                <span className="text-[9px] text-[#5C5E72]">{new Date(a.created_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))
+        {permissions.includes('finance') && (
+          <QuickCard icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="Finance" subtitle="Payouts & commissions" color="from-rose-500 to-rose-600" onClick={() => onSetTab('finance')} />
         )}
       </div>
     </div>
+  );
+}
+
+function QuickCard({ icon, title, subtitle, color, onClick }: { icon: string; title: string; subtitle: string; color: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="group relative rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 text-left hover:border-white/[0.12] hover:bg-white/[0.04] transition-all active:scale-[0.98]">
+      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-lg`}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
+      </div>
+      <p className="text-xs font-semibold text-white group-hover:text-blue-400 transition-colors">{title}</p>
+      <p className="text-[10px] text-[#5C5E72] mt-0.5">{subtitle}</p>
+    </button>
   );
 }
 
@@ -232,81 +247,68 @@ function OperationsModule({ profile }: { profile: Profile }) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  useEffect(() => {
-    loadListings();
-  }, [statusFilter]);
+  useEffect(() => { loadListings(); }, [statusFilter]);
 
   async function loadListings() {
     setLoading(true);
     let query = supabase.from('listings').select('*').is('deleted_at', null).order('created_at', { ascending: false });
     if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-    const { data } = await query.limit(50);
+    const { data } = await query;
     setListings(data || []);
     setLoading(false);
   }
 
   async function approveListing(id: string) {
     const { error } = await supabase.from('listings').update({ status: 'available', approved_by: profile.user_id, approved_at: new Date().toISOString() }).eq('id', id);
-    if (error) toast.error('Failed: ' + error.message);
-    else { toast.success('Listing approved'); loadListings(); }
+    if (error) { toast.error('Failed'); return; }
+    toast.success('Approved'); loadListings();
   }
 
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Property Management</h3>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[11px] px-2">
+        <p className="text-xs font-semibold text-white">Property Management</p>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-8 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-[10px] px-2 outline-none">
           <option value="all">All</option>
-          <option value="available">Available</option>
-          <option value="reserved">Reserved</option>
+          <option value="available">Live</option>
           <option value="pending_approval">Pending</option>
-          <option value="closed">Closed</option>
+          <option value="rejected">Rejected</option>
         </select>
       </div>
 
       {listings.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">No listings found</div>
+        <div className="text-center py-16">
+          <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+          </div>
+          <p className="text-sm text-[#5C5E72]">No listings</p>
+        </div>
       ) : (
         listings.map(l => (
-          <div key={l.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+          <div key={l.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 hover:border-white/[0.12] transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{l.title}</p>
                 <p className="text-[10px] text-[#5C5E72]">{l.city}, {l.state} &middot; {l.bedrooms} bed &middot; N{l.price?.toLocaleString()}</p>
               </div>
-              <span className={`text-[9px] px-2 py-0.5 rounded-full ${
-                l.status === 'available' ? 'bg-emerald-500/10 text-emerald-400' :
-                l.status === 'reserved' ? 'bg-amber-500/10 text-amber-400' :
-                l.status === 'pending_approval' ? 'bg-blue-500/10 text-blue-400' :
-                'bg-gray-500/10 text-gray-400'
+              <span className={`text-[9px] px-2 py-1 rounded-full border ${
+                l.status === 'available' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                l.status === 'pending_approval' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                'bg-red-500/10 text-red-400 border-red-500/20'
               }`}>{l.status}</span>
             </div>
             {l.status === 'pending_approval' && (
               <div className="mt-3">
                 {rejectingId === l.id ? (
                   <div className="space-y-2">
-                    <textarea
-                      value={rejectReason}
-                      onChange={e => setRejectReason(e.target.value)}
-                      placeholder="Reason for rejection..."
-                      rows={2}
-                      className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-red-500 resize-none"
-                    />
+                    <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection..." rows={2}
+                      className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-red-500 resize-none" />
                     <div className="flex gap-2">
-                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
-                      <button
-                        onClick={() => {
-                          if (!rejectReason.trim()) return;
-                          supabase.from('listings').update({ status: 'rejected', rejection_reason: rejectReason }).eq('id', l.id).then(() => {
-                            toast.success('Rejected'); setRejectingId(null); setRejectReason(''); loadListings();
-                          });
-                        }}
-                        className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold"
-                      >
-                        Confirm Reject
-                      </button>
+                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
+                      <button onClick={() => { if (!rejectReason.trim()) return; supabase.from('listings').update({ status: 'rejected', rejection_reason: rejectReason }).eq('id', l.id).then(() => { toast.success('Rejected'); setRejectingId(null); setRejectReason(''); loadListings(); }); }}
+                        className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
                     </div>
                   </div>
                 ) : (
@@ -329,103 +331,65 @@ function OperationsModule({ profile }: { profile: Profile }) {
 // ═══════════════════════════════════════════════════════════════
 
 function FinanceModule() {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'payouts' | 'rules'>('overview');
-  const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [rules, setRules] = useState<CommissionRule[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState<'payouts' | 'rules'>('payouts');
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      const [{ data: p }, { data: r }] = await Promise.all([
-        supabase.from('payouts').select('*, property_owners(full_name)').order('created_at', { ascending: false }).limit(20),
-        supabase.from('commission_rules').select('*').eq('is_active', true).order('rule_type'),
-      ]);
-      setPayouts(p || []);
-      setRules(r || []);
-      setLoading(false);
-    }
-    load();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const totalPending = payouts.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  async function loadData() {
+    setLoading(true);
+    const [{ data: p }, { data: r }] = await Promise.all([
+      supabase.from('payouts').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('commission_rules').select('*').order('created_at', { ascending: false }),
+    ]);
+    setPayouts(p || []);
+    setRules(r || []);
+    setLoading(false);
+  }
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1">
-        {(['overview', 'payouts', 'rules'] as const).map(t => (
-          <button key={t} onClick={() => setActiveSubTab(t)} className={`flex-1 h-8 rounded-lg text-[11px] font-semibold ${activeSubTab === t ? 'bg-emerald-500 text-white' : 'text-[#5C5E72]'}`}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+      <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
+        {(['payouts', 'rules'] as const).map(t => (
+          <button key={t} onClick={() => setActiveSubTab(t)}
+            className={`flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all ${activeSubTab === t ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
+            {t === 'payouts' ? 'Payouts' : 'Commission Rules'}
           </button>
         ))}
       </div>
 
-      {activeSubTab === 'overview' && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/10 p-4 text-center">
-              <p className="text-xl font-bold text-emerald-400">N{totalPaid.toLocaleString()}</p>
-              <p className="text-[9px] text-[#5C5E72]">Total Paid Out</p>
-            </div>
-            <div className="rounded-2xl bg-amber-500/5 border border-amber-500/10 p-4 text-center">
-              <p className="text-xl font-bold text-amber-400">N{totalPending.toLocaleString()}</p>
-              <p className="text-[9px] text-[#5C5E72]">Pending Payouts</p>
-            </div>
-          </div>
-          <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-            <p className="text-sm font-semibold text-white mb-2">Commission Rules ({rules.length})</p>
-            {rules.map(r => (
-              <div key={r.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
-                <span className="text-[11px] text-[#8A8B9C]">{r.name}</span>
-                <span className="text-[11px] text-emerald-400">{r.percentage ? `${r.percentage}%` : `N${r.flat_amount?.toLocaleString()}`}</span>
+      {activeSubTab === 'payouts' && (
+        payouts.length === 0 ? <EmptyState icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="No payouts yet" /> : (
+          <div className="space-y-2">
+            {payouts.map(p => (
+              <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">{(p as any).profiles?.full_name || 'Unknown'}</p>
+                  <span className={`text-[9px] px-2 py-1 rounded-full ${p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
+                </div>
+                <p className="text-xs text-white font-bold mt-1">N{p.amount?.toLocaleString()}</p>
+                <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {activeSubTab === 'payouts' && (
-        <div className="space-y-3">
-          {payouts.length === 0 ? (
-            <div className="text-center py-10 text-[#5C5E72] text-sm">No payouts yet</div>
-          ) : payouts.map(p => (
-            <div key={p.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-white">{(p as any).property_owners?.full_name || 'Unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-white">N{p.amount.toLocaleString()}</p>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                    p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' :
-                    p.status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
-                    'bg-red-500/10 text-red-400'
-                  }`}>{p.status}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        )
       )}
 
       {activeSubTab === 'rules' && (
-        <div className="space-y-3">
-          {rules.length === 0 ? (
-            <div className="text-center py-10 text-[#5C5E72] text-sm">No commission rules set</div>
-          ) : rules.map(r => (
-            <div key={r.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-              <p className="text-sm font-semibold text-white">{r.name}</p>
-              <p className="text-[10px] text-[#5C5E72]">{r.description}</p>
-              <div className="flex gap-4 mt-2 text-[10px] text-[#5C5E72]">
-                <span>Type: {r.rule_type}</span>
-                <span>{r.percentage ? `${r.percentage}%` : `N${r.flat_amount}`}</span>
-                <span>Min: N{r.min_amount}</span>
-                <span>Max: N{r.max_amount}</span>
+        rules.length === 0 ? <EmptyState icon="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" title="No commission rules" /> : (
+          <div className="space-y-2">
+            {rules.map(r => (
+              <div key={r.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+                <p className="text-sm font-semibold text-white">{r.name}</p>
+                <p className="text-[10px] text-[#5C5E72]">{r.description}</p>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
@@ -435,16 +399,14 @@ function FinanceModule() {
 // SUPPORT MODULE
 // ═══════════════════════════════════════════════════════════════
 
-function SupportModule({ profile }: { profile: Profile }) {
+function SupportModule({ profile, onGoToChat: _onGoToChat }: { profile: Profile; onGoToChat: (c?: string) => void }) {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [resolveNotes, setResolveNotes] = useState('');
 
-  useEffect(() => {
-    loadTickets();
-  }, [statusFilter]);
+  useEffect(() => { loadTickets(); }, [statusFilter]);
 
   async function loadTickets() {
     setLoading(true);
@@ -455,41 +417,36 @@ function SupportModule({ profile }: { profile: Profile }) {
     setLoading(false);
   }
 
-  async function assignTicket(ticketId: string) {
-    const { error } = await supabase.from('support_tickets').update({ assigned_to: profile.user_id, status: 'in_progress' }).eq('id', ticketId);
-    if (error) toast.error('Failed: ' + error.message);
-    else { toast.success('Ticket assigned to you'); loadTickets(); }
+  async function assignTicket(id: string) {
+    const { error } = await supabase.from('support_tickets').update({ assigned_to: profile.user_id, status: 'in_progress' }).eq('id', id);
+    if (error) toast.error('Failed');
+    else { toast.success('Assigned to you'); loadTickets(); }
   }
 
-  async function resolveTicket(ticketId: string) {
-    if (!resolveNotes.trim()) { toast.error('Enter resolution notes'); return; }
-    const { error } = await supabase.from('support_tickets').update({
-      status: 'resolved', resolution_notes: resolveNotes, resolved_at: new Date().toISOString(), resolved_by: profile.user_id
-    }).eq('id', ticketId);
-    if (error) toast.error('Failed: ' + error.message);
-    else { toast.success('Ticket resolved'); setResolvingId(null); setResolveNotes(''); loadTickets(); }
+  async function resolveTicket(id: string) {
+    if (!resolveNotes.trim()) { toast.error('Enter notes'); return; }
+    const { error } = await supabase.from('support_tickets').update({ status: 'resolved', resolution_notes: resolveNotes, resolved_at: new Date().toISOString(), resolved_by: profile.user_id }).eq('id', id);
+    if (error) toast.error('Failed');
+    else { toast.success('Resolved'); setResolvingId(null); setResolveNotes(''); loadTickets(); }
   }
 
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">Support Tickets ({tickets.length})</h3>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TicketStatus | 'all')} className="h-8 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[11px] px-2">
+        <p className="text-xs font-semibold text-white">Tickets ({tickets.length})</p>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TicketStatus | 'all')} className="h-8 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-[10px] px-2 outline-none">
           <option value="all">All</option>
           <option value="open">Open</option>
           <option value="in_progress">In Progress</option>
           <option value="resolved">Resolved</option>
-          <option value="escalated">Escalated</option>
         </select>
       </div>
 
-      {tickets.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">No tickets</div>
-      ) : (
+      {tickets.length === 0 ? <EmptyState icon="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="No tickets" /> : (
         tickets.map(t => (
-          <div key={t.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+          <div key={t.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -498,32 +455,22 @@ function SupportModule({ profile }: { profile: Profile }) {
                 </div>
                 <p className="text-[10px] text-[#5C5E72] mt-1">{t.ticket_code} &middot; {TICKET_TYPE_LABELS[t.type]} &middot; <span className={TICKET_PRIORITY_COLORS[t.priority]}>{t.priority}</span></p>
                 <p className="text-[11px] text-[#8A8B9C] mt-2">{t.description}</p>
-                <p className="text-[9px] text-[#5C5E72] mt-1">{t.customer_email} &middot; {new Date(t.created_at).toLocaleDateString()}</p>
               </div>
             </div>
             <div className="mt-3">
               {resolvingId === t.id ? (
                 <div className="space-y-2">
-                  <textarea
-                    value={resolveNotes}
-                    onChange={e => setResolveNotes(e.target.value)}
-                    placeholder="How was this resolved?"
-                    rows={2}
-                    className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none"
-                  />
+                  <textarea value={resolveNotes} onChange={e => setResolveNotes(e.target.value)} placeholder="How was this resolved?" rows={2}
+                    className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none" />
                   <div className="flex gap-2">
-                    <button onClick={() => { setResolvingId(null); setResolveNotes(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
+                    <button onClick={() => { setResolvingId(null); setResolveNotes(''); }} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
                     <button onClick={() => resolveTicket(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit</button>
                   </div>
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  {t.status === 'open' && (
-                    <button onClick={() => assignTicket(t.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Assign to Me</button>
-                  )}
-                  {t.status === 'in_progress' && t.assigned_to === profile.user_id && (
-                    <button onClick={() => setResolvingId(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Resolve</button>
-                  )}
+                  {t.status === 'open' && <button onClick={() => assignTicket(t.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Assign to Me</button>}
+                  {t.status === 'in_progress' && t.assigned_to === profile.user_id && <button onClick={() => setResolvingId(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Resolve</button>}
                 </div>
               )}
             </div>
@@ -538,79 +485,70 @@ function SupportModule({ profile }: { profile: Profile }) {
 // VERIFICATION MODULE
 // ═══════════════════════════════════════════════════════════════
 
-function VerificationModule({ onGoToChat }: { onGoToChat?: (convId: string) => void }) {
+function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { profile: Profile; onGoToChat: (c?: string) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'pending' | 'verified' | 'suspended' | 'all'>('pending');
 
-  useEffect(() => {
-    loadWorkers();
-  }, [filter]);
+  useEffect(() => { loadWorkers(); }, [filter]);
 
   async function loadWorkers() {
     setLoading(true);
-    let query = supabase.from('profiles').select('*').eq('role', 'worker');
+    let query = supabase.from('profiles').select('*').eq('role', 'worker').order('created_at', { ascending: false });
     if (filter !== 'all') query = query.eq('worker_status', filter);
-    const { data } = await query.order('created_at', { ascending: false });
+    const { data } = await query;
     setWorkers(data || []);
     setLoading(false);
   }
 
-  async function updateStatus(userId: string, status: 'verified' | 'suspended' | 'rejected') {
-    const { error } = await supabase.from('profiles').update({ worker_status: status, worker_verified: status === 'verified' }).eq('user_id', userId);
-    if (error) toast.error('Failed: ' + error.message);
-    else { toast.success(`Worker ${status}`); loadWorkers(); }
+  async function setStatus(userId: string, status: 'verified' | 'suspended' | 'rejected') {
+    const { error } = await supabase.from('profiles').update({ worker_status: status, updated_at: new Date().toISOString() }).eq('user_id', userId);
+    if (error) { toast.error('Failed'); return; }
+    toast.success(`Worker ${status}`);
+    loadWorkers();
   }
 
   if (loading) return <LoadingSpinner />;
 
+  const statusColors: Record<string, string> = { pending: 'bg-amber-500/10 text-amber-400', verified: 'bg-emerald-500/10 text-emerald-400', suspended: 'bg-red-500/10 text-red-400', rejected: 'bg-gray-500/10 text-gray-400' };
+
   return (
-    <div className="space-y-4">
-      <div className="flex gap-1">
+    <div className="space-y-3">
+      <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
         {(['pending', 'verified', 'suspended', 'all'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`flex-1 h-8 rounded-lg text-[11px] font-semibold ${filter === f ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
+          <button key={f} onClick={() => setFilter(f)}
+            className={`flex-1 h-8 rounded-lg text-[10px] font-semibold transition-all ${filter === f ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
 
-      {workers.length === 0 ? (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">No {filter} workers</div>
-      ) : (
+      {workers.length === 0 ? <EmptyState icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" title={`No ${filter} workers`} /> : (
         workers.map(w => (
-          <div key={w.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+          <div key={w.user_id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-sm font-bold text-[#5C5E72]">
-                {(w.full_name || w.username || w.email)[0].toUpperCase()}
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-sm font-bold">
+                {(w.full_name || w.username || 'W')[0].toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{w.full_name || w.username || 'Unnamed'}</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
-                    w.worker_status === 'verified' ? 'bg-emerald-500/10 text-emerald-400' :
-                    w.worker_status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
-                    'bg-red-500/10 text-red-400'
-                  }`}>{w.worker_status}</span>
-                </div>
+                <p className="text-sm font-semibold text-white truncate">{w.full_name || w.username || '...'}</p>
                 <p className="text-[10px] text-[#5C5E72]">{w.worker_occupation || 'No occupation'} &middot; {w.city || 'No location'}</p>
-                {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mt-1">{w.worker_bio}</p>}
               </div>
+              <span className={`text-[8px] px-2 py-1 rounded-full ${statusColors[w.worker_status] || ''}`}>{w.worker_status}</span>
             </div>
+            {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mt-2 italic line-clamp-2">{w.worker_bio}</p>}
             <div className="flex gap-2 mt-3">
-              <button
-                onClick={async () => {
-                  const { data: conv } = await supabase.rpc('start_worker_verification_chat', { p_worker_id: w.user_id });
-                  if (conv && onGoToChat) onGoToChat(conv.id);
-                }}
-                className="flex-1 h-8 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 text-[11px] font-semibold"
-              >
-                Message Worker
-              </button>
-              {w.worker_status !== 'verified' && (
-                <button onClick={() => updateStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Verify</button>
+              {w.worker_status === 'pending' && (
+                <>
+                  <button onClick={() => setStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
+                  <button onClick={() => setStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
+                </>
               )}
-              {w.worker_status !== 'suspended' && (
-                <button onClick={() => updateStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Suspend</button>
+              {w.worker_status === 'verified' && (
+                <button onClick={() => setStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">Suspend</button>
+              )}
+              {w.worker_status === 'suspended' && (
+                <button onClick={() => setStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Reinstate</button>
               )}
             </div>
           </div>
@@ -621,7 +559,7 @@ function VerificationModule({ onGoToChat }: { onGoToChat?: (convId: string) => v
 }
 
 // ═══════════════════════════════════════════════════════════════
-// FIELD OFFICER MODULE
+// FIELD OFFICER MODULE — WITH POST PROPERTY ON COMPLETED INSPECTIONS
 // ═══════════════════════════════════════════════════════════════
 
 function FieldOfficerModule({ profile }: { profile: Profile }) {
@@ -630,19 +568,15 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [report, setReport] = useState('');
   const [condition, setCondition] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
-  // Post listing form state
-  const [showPostForm, setShowPostForm] = useState(false);
+  // Checklist state
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  // Post property from inspection
+  const [postingForInspection, setPostingForInspection] = useState<string | null>(null);
   const [postSaving, setPostSaving] = useState(false);
   const [postImages, setPostImages] = useState<string[]>([]);
-  const [uploadingPostImage, setUploadingPostImage] = useState(false);
-  const [postForm, setPostForm] = useState({
-    title: '', description: '', price: '', address: '', state: '', city: '',
-    bedrooms: '1', bathrooms: '1', propertyType: 'apartment', contactPhone: '',
-  });
+  const [postForm, setPostForm] = useState({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', contactPhone: '' });
 
-  useEffect(() => {
-    loadInspections();
-  }, []);
+  useEffect(() => { loadInspections(); }, []);
 
   async function loadInspections() {
     setLoading(true);
@@ -652,64 +586,51 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   }
 
   async function startInspection(id: string, source?: string) {
-    // Try user_inspection_requests first, then inspection_requests
     const table = source === 'partner' ? 'inspection_requests' : 'user_inspection_requests';
-    const { error } = await supabase.from(table).update({
-      status: 'in_progress',
-      updated_at: new Date().toISOString(),
-    }).eq('id', id);
+    const { error } = await supabase.from(table).update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { toast.error('Failed: ' + error.message); return; }
-    toast.success('Inspection started');
-    loadInspections();
+    toast.success('Inspection started'); loadInspections();
   }
 
   async function completeInspection(id: string, source?: string) {
     if (!report.trim()) { toast.error('Enter a report'); return; }
     const table = source === 'partner' ? 'inspection_requests' : 'user_inspection_requests';
-    // Different tables have different column names
-    const updates: Record<string, any> = {
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const updates: Record<string, any> = { status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     if (table === 'inspection_requests') {
-      // inspection_requests uses 'notes' column (no 'report' or 'condition')
       updates.notes = `Condition: ${condition}\n\nReport: ${report}`;
     } else {
-      // user_inspection_requests has 'report' and 'condition' columns
-      updates.report = report;
-      updates.condition = condition;
+      updates.report = report; updates.condition = condition;
     }
     const { error } = await supabase.from(table).update(updates).eq('id', id);
     if (error) { toast.error('Failed: ' + error.message); return; }
     toast.success('Inspection completed');
-    setCompletingId(null);
-    setReport('');
-    loadInspections();
+    setCompletingId(null); setReport(''); loadInspections();
   }
 
-  async function submitPostListing() {
-    if (!postForm.title.trim() || !postForm.price || !postForm.address || !postForm.state || !postForm.city) {
-      toast.error('Title, price, address, state and city are required'); return;
-    }
+  async function submitPostProperty(inspection: any) {
+    if (!postForm.title.trim() || !postForm.price) { toast.error('Title and price required'); return; }
     setPostSaving(true);
+    // Derive location from inspection data
+    const state = inspection.listings?.state || inspection.property_state || inspection.state || '';
+    const city = inspection.listings?.city || inspection.property_city || inspection.city || '';
+    const address = inspection.listings?.address || inspection.property_address || inspection.address || '';
+    // If this inspection came from a partner, link the listing to them
+    const partnerId = inspection._source === 'partner' ? (inspection.owner_id || null) : null;
     const { error } = await supabase.from('listings').insert({
       title: postForm.title.trim(),
       description: postForm.description.trim() || null,
       price: parseInt(postForm.price) || 0,
       currency: 'NGN',
-      state: postForm.state,
-      city: postForm.city,
-      address: postForm.address.trim(),
+      state, city, address,
       bedrooms: parseInt(postForm.bedrooms) || 1,
       bathrooms: parseInt(postForm.bathrooms) || 1,
-      property_type: 'apartment',
-      sub_type: postForm.propertyType as any,
+      property_type: 'apartment', sub_type: 'short_let',
       images: postImages,
       contact_phone: postForm.contactPhone.trim() || null,
       status: 'pending_approval',
       submitted_by_role: 'staff',
       owner_id: profile.user_id,
+      partner_id: partnerId,
       availability_status: 'available',
       listing_id: crypto.randomUUID(),
       created_at: new Date().toISOString(),
@@ -718,243 +639,130 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
     setPostSaving(false);
     if (error) { toast.error('Failed: ' + error.message); return; }
     toast.success('Property submitted for approval');
-    setShowPostForm(false);
-    setPostForm({ title: '', description: '', price: '', address: '', state: '', city: '', bedrooms: '1', bathrooms: '1', propertyType: 'apartment', contactPhone: '' });
+    setPostingForInspection(null);
+    setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', contactPhone: '' });
     setPostImages([]);
   }
 
-  async function uploadPostImage(file: File) {
-    setUploadingPostImage(true);
+  async function uploadImage(file: File) {
     const path = `field_officer/${profile.user_id}/${Date.now()}_${file.name}`;
     const { error } = await supabase.storage.from('listing-images').upload(path, file, { contentType: file.type });
-    if (error) { toast.error('Upload failed'); setUploadingPostImage(false); return; }
+    if (error) { toast.error('Upload failed'); return; }
     const { data } = supabase.storage.from('listing-images').getPublicUrl(path);
     setPostImages(prev => [...prev, data.publicUrl]);
-    setUploadingPostImage(false);
-    toast.success('Image uploaded');
   }
+
+  const checklist = [
+    'Verify property photos match actual location',
+    'Check amenities are as listed',
+    'Confirm price with landlord',
+    'Document property condition',
+    'Take geotagged photos',
+    'Verify security of the area',
+  ];
 
   if (loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-4">
-      {/* Inspection Checklist */}
-      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+      {/* Modern Checklist */}
+      <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
         <h4 className="text-sm font-semibold text-white mb-3">Inspection Checklist</h4>
-        {[
-          'Verify property photos match actual location',
-          'Check amenities are as listed',
-          'Confirm price with landlord',
-          'Document property condition',
-          'Take geotagged photos',
-          'Verify security of the area',
-        ].map((item, i) => (
-          <div key={i} className="flex items-center gap-3 py-2 border-b border-white/[0.04] last:border-0">
-            <div className="w-5 h-5 rounded border-2 border-[#232330]" />
-            <span className="text-[11px] text-[#8A8B9C]">{item}</span>
-          </div>
+        {checklist.map((item, i) => (
+          <label key={i} className="flex items-center gap-3 py-2.5 border-b border-white/[0.04] last:border-0 cursor-pointer group">
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${checkedItems[i] ? 'bg-[#3B82F6] border-[#3B82F6]' : 'border-[#2A2A3A] group-hover:border-[#3B82F6]/50'}`}>
+              {checkedItems[i] && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>}
+            </div>
+            <input type="checkbox" className="hidden" checked={!!checkedItems[i]} onChange={e => setCheckedItems(prev => ({ ...prev, [i]: e.target.checked }))} />
+            <span className={`text-[11px] transition-all ${checkedItems[i] ? 'text-[#5C5E72] line-through' : 'text-[#8A8B9C]'}`}>{item}</span>
+          </label>
         ))}
       </div>
 
-      {/* Post Listing Button */}
-      <button
-        onClick={() => setShowPostForm(true)}
-        className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-        Post a Property
-      </button>
-
-      {/* Post Listing Form Modal */}
-      {showPostForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowPostForm(false)}>
-          <div className="bg-[#12121A] rounded-t-2xl sm:rounded-2xl border border-[#2A2A3A] w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-[#12121A] border-b border-[#2A2A3A] px-5 py-3 flex items-center justify-between z-10">
-              <p className="text-sm font-semibold text-white">Post Property</p>
-              <button onClick={() => setShowPostForm(false)} className="w-7 h-7 rounded-full bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <p className="text-[11px] text-[#5C5E72]">Fill in the property details. It will be reviewed before going public.</p>
-
-              {/* Title */}
-              <div>
-                <label className="text-[11px] text-[#8A8B9C] mb-1 block">Property Title *</label>
-                <input value={postForm.title} onChange={e => setPostForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="e.g. 3 Bedroom Apartment in Lekki"
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="text-[11px] text-[#8A8B9C] mb-1 block">Description</label>
-                <textarea value={postForm.description} onChange={e => setPostForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Describe the property..."
-                  rows={3}
-                  className="w-full rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 py-2 outline-none focus:border-[#3B82F6] resize-none" />
-              </div>
-
-              {/* Price + Type */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">Price (NGN) *</label>
-                  <input value={postForm.price} onChange={e => setPostForm(f => ({ ...f, price: e.target.value }))}
-                    placeholder="e.g. 500000" type="text" inputMode="numeric"
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">Type</label>
-                  <select value={postForm.propertyType} onChange={e => setPostForm(f => ({ ...f, propertyType: e.target.value }))}
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
-                    <option value="short_let">Short Let</option>
-                    <option value="long_stay">Long Stay</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Address */}
-              <div>
-                <label className="text-[11px] text-[#8A8B9C] mb-1 block">Address *</label>
-                <input value={postForm.address} onChange={e => setPostForm(f => ({ ...f, address: e.target.value }))}
-                  placeholder="e.g. 15 Admiralty Way, Lekki Phase 1"
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-              </div>
-
-              {/* State + City */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">State *</label>
-                  <select value={postForm.state} onChange={e => setPostForm(f => ({ ...f, state: e.target.value, city: '' }))}
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
-                    <option value="">Select</option>
-                    {NIGERIA_STATES.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">City *</label>
-                  <select value={postForm.city} onChange={e => setPostForm(f => ({ ...f, city: e.target.value }))}
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
-                    <option value="">Select</option>
-                    {getCitiesForState(postForm.state).map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Bedrooms + Bathrooms */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">Beds</label>
-                  <select value={postForm.bedrooms} onChange={e => setPostForm(f => ({ ...f, bedrooms: e.target.value }))}
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
-                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">Baths</label>
-                  <select value={postForm.bathrooms} onChange={e => setPostForm(f => ({ ...f, bathrooms: e.target.value }))}
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
-                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] text-[#8A8B9C] mb-1 block">Phone</label>
-                  <input value={postForm.contactPhone} onChange={e => setPostForm(f => ({ ...f, contactPhone: e.target.value }))}
-                    placeholder="+234..."
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-                </div>
-              </div>
-
-              {/* Image Upload */}
-              <div>
-                <label className="text-[11px] text-[#8A8B9C] mb-1 block">Property Images</label>
-                <div className="flex flex-wrap gap-2">
-                  {postImages.map((img, i) => (
-                    <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden">
-                      <img src={img} alt="" className="w-full h-full object-cover" />
-                      <button onClick={() => setPostImages(prev => prev.filter((_, idx) => idx !== i))}
-                        className="absolute top-0 right-0 w-5 h-5 bg-red-500 rounded-bl-lg flex items-center justify-center text-white text-[9px]">&times;</button>
-                    </div>
-                  ))}
-                  <label className="w-16 h-16 rounded-lg border-2 border-dashed border-[#232330] flex items-center justify-center cursor-pointer hover:border-[#3B82F6] transition-colors">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-                    <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPostImage(f); e.currentTarget.value = ''; }} />
-                  </label>
-                  {uploadingPostImage && <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />}
-                </div>
-              </div>
-
-              {/* Submit */}
-              <button onClick={submitPostListing} disabled={postSaving}
-                className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40">
-                {postSaving ? 'Submitting...' : 'Submit for Approval'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Inspections List */}
+      {/* Inspections */}
       <h4 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Inspections ({inspections.length})</h4>
-      {inspections.length === 0 ? (
-        <div className="text-center py-10">
-          <p className="text-sm text-[#5C5E72]">No inspections assigned</p>
-          <p className="text-[10px] text-[#5C5E72] mt-1">Inspections assigned by the creator will appear here</p>
-        </div>
-      ) : (
+
+      {inspections.length === 0 ? <EmptyState icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" title="No inspections assigned" /> : (
         inspections.map(ins => (
-          <div key={ins.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+          <div key={ins.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 hover:border-white/[0.1] transition-colors">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{ins.listings?.title || 'Property Inspection'}</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${
+                  <p className="text-sm font-semibold text-white truncate">{ins.listings?.title || ins.property_address || 'Property Inspection'}</p>
+                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
                     ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
                     ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
                     ins.status === 'scheduled' ? 'bg-amber-500/10 text-amber-400' :
                     'bg-gray-500/10 text-gray-400'
                   }`}>{ins.status}</span>
                 </div>
-                <p className="text-[10px] text-[#5C5E72]">{ins.listings?.address || ins.address || 'No address'}, {ins.listings?.city || ins.city || ''}</p>
-                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code || ins.id?.slice(0, 8)} &middot; Scheduled: {ins.scheduled_date ? new Date(ins.scheduled_date).toLocaleDateString() : 'Not set'}</p>
-                {ins.contact_name && <p className="text-[9px] text-[#5C5E72]">Contact: {ins.contact_name} {ins.contact_phone && `· ${ins.contact_phone}`}</p>}
+                <p className="text-[10px] text-[#5C5E72] mt-0.5">{ins.listings?.address || ins.property_address || 'No address'}{ins.listings?.city || ins.property_city ? `, ${ins.listings?.city || ins.property_city}` : ''}</p>
+                <p className="text-[9px] text-[#5C5E72]">Code: {ins.inspection_code || ins.request_code || ins.id?.slice(0, 8)}</p>
               </div>
             </div>
 
             {/* Complete Form */}
             {completingId === ins.id ? (
               <div className="mt-3 space-y-2">
-                <textarea
-                  value={report}
-                  onChange={e => setReport(e.target.value)}
-                  placeholder="Describe what you found during the inspection..."
-                  rows={3}
-                  className="w-full rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none"
-                />
-                <select
-                  value={condition}
-                  onChange={e => setCondition(e.target.value as any)}
-                  className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 outline-none focus:border-[#3B82F6]"
-                >
+                <textarea value={report} onChange={e => setReport(e.target.value)} placeholder="Describe what you found during the inspection..." rows={3}
+                  className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none" />
+                <select value={condition} onChange={e => setCondition(e.target.value as any)}
+                  className="w-full h-9 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]">
                   <option value="excellent">Excellent</option>
                   <option value="good">Good</option>
                   <option value="fair">Fair</option>
                   <option value="poor">Poor</option>
                 </select>
                 <div className="flex gap-2">
-                  <button onClick={() => { setCompletingId(null); setReport(''); }} className="flex-1 h-8 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-[11px]">Cancel</button>
+                  <button onClick={() => { setCompletingId(null); setReport(''); }} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
                   <button onClick={() => completeInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit Report</button>
                 </div>
               </div>
             ) : (
               <div className="flex gap-2 mt-3">
-                {ins.status === 'scheduled' && (
-                  <button onClick={() => startInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>
+                {ins.status === 'scheduled' && <button onClick={() => startInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>}
+                {ins.status === 'in_progress' && <button onClick={() => setCompletingId(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>}
+                {ins.status === 'completed' && (
+                  <button onClick={() => setPostingForInspection(ins.id)} className="flex-1 h-8 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold flex items-center justify-center gap-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                    Post This Property
+                  </button>
                 )}
-                {ins.status === 'in_progress' && (
-                  <button onClick={() => setCompletingId(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>
-                )}
+              </div>
+            )}
+
+            {/* Post Property Form (appears inline for completed inspections) */}
+            {postingForInspection === ins.id && (
+              <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-[#3B82F6]/20 space-y-3">
+                <p className="text-[11px] text-[#3B82F6] font-medium">Post the property you inspected</p>
+                <input value={postForm.title} onChange={e => setPostForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Property title" className="w-full h-9 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+                <input value={postForm.price} onChange={e => setPostForm(f => ({ ...f, price: e.target.value }))}
+                  placeholder="Price (NGN)" type="text" inputMode="numeric" className="w-full h-9 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+                <textarea value={postForm.description} onChange={e => setPostForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Description" rows={2} className="w-full rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 outline-none focus:border-[#3B82F6] resize-none" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={postForm.contactPhone} onChange={e => setPostForm(f => ({ ...f, contactPhone: e.target.value }))}
+                    placeholder="Contact phone" className="h-9 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
+                  <div className="flex flex-wrap gap-1">
+                    {postImages.map((img, i) => (
+                      <div key={i} className="relative w-9 h-9 rounded-lg overflow-hidden">
+                        <img src={img} alt="" className="w-full h-full object-cover" />
+                        <button onClick={() => setPostImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-bl flex items-center justify-center text-white text-[7px]">&times;</button>
+                      </div>
+                    ))}
+                    <label className="w-9 h-9 rounded-lg border border-dashed border-white/[0.15] flex items-center justify-center cursor-pointer hover:border-[#3B82F6]">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                      <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.currentTarget.value = ''; }} />
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setPostingForInspection(null)} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
+                  <button onClick={() => submitPostProperty(ins)} disabled={postSaving} className="flex-1 h-8 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold disabled:opacity-40">
+                    {postSaving ? 'Submitting...' : 'Submit for Approval'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -964,12 +772,25 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   );
 }
 
-// ─── LOADING SPINNER ───────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// SHARED COMPONENTS
+// ═══════════════════════════════════════════════════════════════
 
 function LoadingSpinner() {
   return (
-    <div className="flex justify-center py-10">
-      <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+    <div className="flex justify-center py-16">
+      <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function EmptyState({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div className="text-center py-16">
+      <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
+      </div>
+      <p className="text-sm text-[#5C5E72]">{title}</p>
     </div>
   );
 }
