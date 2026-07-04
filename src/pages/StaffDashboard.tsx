@@ -575,7 +575,7 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
   const [postImages, setPostImages] = useState<string[]>([]);
   const [postForm, setPostForm] = useState({
     title: '', description: '', price: '', bedrooms: '1', bathrooms: '1',
-    propertyType: 'apartment', contactPhone: '',
+    subType: 'short_let' as 'short_let' | 'long_stay', contactPhone: '',
   });
 
   useEffect(() => { loadInspections(); }, []);
@@ -620,7 +620,7 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
       price: '',
       bedrooms: '1',
       bathrooms: '1',
-      propertyType: ins.property_type || 'apartment',
+      subType: 'short_let',
       contactPhone: ins.owner_phone || ins.contact_phone || '',
     });
     setPostImages([]);
@@ -641,8 +641,8 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
           address: inspection.property_address || '',
           bedrooms: parseInt(postForm.bedrooms) || 1,
           bathrooms: parseInt(postForm.bathrooms) || 1,
-          property_type: postForm.propertyType,
-          sub_type: 'short_let',
+          property_type: 'apartment',
+          sub_type: postForm.subType,
           images: postImages,
           contact_phone: postForm.contactPhone.trim() || null,
           owner_id: profile.user_id,
@@ -652,7 +652,7 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
       if (error) { toast.error('Failed: ' + error.message); setPostSaving(false); return; }
       toast.success('Property submitted for approval');
       setPostingForInspection(null);
-      setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', propertyType: 'apartment', contactPhone: '' });
+      setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', subType: 'short_let', contactPhone: '' });
       setPostImages([]);
     } catch (e: any) { toast.error('Error: ' + e.message); }
     setPostSaving(false);
@@ -793,12 +793,12 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
 
                 {/* Price */}
                 <input value={postForm.price} onChange={e => setPostForm(f => ({ ...f, price: e.target.value }))}
-                  placeholder="Price per year (NGN)"
+                  placeholder={postForm.subType === 'short_let' ? 'Price per day (NGN)' : 'Price per year (NGN)'}
                   type="text" inputMode="numeric"
                   className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
 
-                {/* Bedrooms / Bathrooms / Property Type row */}
-                <div className="grid grid-cols-3 gap-2">
+                {/* Bedrooms / Bathrooms row + Short Let / Long Stay toggle */}
+                <div className="grid grid-cols-2 gap-2">
                   <select value={postForm.bedrooms} onChange={e => setPostForm(f => ({ ...f, bedrooms: e.target.value }))}
                     className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
                     {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} Bedroom{n > 1 ? 's' : ''}</option>)}
@@ -807,17 +807,26 @@ function FieldOfficerModule({ profile }: { profile: Profile }) {
                     className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
                     {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} Bathroom{n > 1 ? 's' : ''}</option>)}
                   </select>
-                  <select value={postForm.propertyType} onChange={e => setPostForm(f => ({ ...f, propertyType: e.target.value }))}
-                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
-                    <option value="apartment">Apartment</option>
-                    <option value="house">House</option>
-                    <option value="duplex">Duplex</option>
-                    <option value="self_contain">Self Contain</option>
-                    <option value="studio">Studio</option>
-                    <option value="bungalow">Bungalow</option>
-                    <option value="mansion">Mansion</option>
-                    <option value="penthouse">Penthouse</option>
-                  </select>
+                </div>
+
+                {/* Short Let / Long Stay toggle */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setPostForm(f => ({ ...f, subType: 'short_let' }))}
+                    className={`h-10 rounded-lg text-xs font-medium border transition-colors ${
+                      postForm.subType === 'short_let'
+                        ? 'bg-[#3B82F6]/15 border-[#3B82F6]/40 text-[#3B82F6]'
+                        : 'bg-white/[0.03] border-white/[0.08] text-[#5C5E72]'
+                    }`}>
+                    Short Let (Daily)
+                  </button>
+                  <button onClick={() => setPostForm(f => ({ ...f, subType: 'long_stay' }))}
+                    className={`h-10 rounded-lg text-xs font-medium border transition-colors ${
+                      postForm.subType === 'long_stay'
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                        : 'bg-white/[0.03] border-white/[0.08] text-[#5C5E72]'
+                    }`}>
+                    Long Stay (Yearly)
+                  </button>
                 </div>
 
                 {/* Description */}
