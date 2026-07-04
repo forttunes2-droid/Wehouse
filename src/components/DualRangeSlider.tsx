@@ -167,12 +167,16 @@ export default function DualRangeSlider({
           <input
             type="number"
             min={floor}
-            max={safeMax - step}
+            max={ceiling}
             step={step}
             value={safeMin}
             onChange={(e) => {
               const val = Number(e.target.value);
-              if (!isNaN(val) && val >= floor && val < safeMax) onChange(val, safeMax);
+              if (isNaN(val)) return;
+              const clamped = Math.max(floor, Math.min(val, ceiling));
+              // If min exceeds max, push max up to maintain gap
+              const newMin = Math.min(clamped, safeMax - step);
+              onChange(newMin, Math.max(newMin + step, safeMax));
             }}
             className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
           />
@@ -181,13 +185,17 @@ export default function DualRangeSlider({
           <label className="text-[9px] text-[#5C5E72] mb-1 block">Max (₦)</label>
           <input
             type="number"
-            min={safeMin + step}
+            min={floor}
             max={ceiling}
             step={step}
             value={safeMax}
             onChange={(e) => {
               const val = Number(e.target.value);
-              if (!isNaN(val) && val > safeMin && val <= ceiling) onChange(safeMin, val);
+              if (isNaN(val)) return;
+              const clamped = Math.max(floor, Math.min(val, ceiling));
+              // If max drops below min, push min down to maintain gap
+              const newMax = Math.max(clamped, safeMin + step);
+              onChange(Math.min(safeMin, newMax - step), newMax);
             }}
             className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
           />
