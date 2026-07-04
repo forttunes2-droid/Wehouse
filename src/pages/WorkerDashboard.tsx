@@ -10,6 +10,7 @@ import {
   requestWithdrawal,
   updateWalletBankDetails,
 } from '@/lib/supabase';
+import { WH_SUPPORT_EMAIL } from '@/config/wehouse';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, Wallet, WalletTransaction, BlueBadgeSubscription } from '@/types';
 import { WORKER_VERIFICATION_STATUS_COLORS, WORKER_BOOKING_STATUS_LABELS, WORKER_BOOKING_STATUS_COLORS } from '@/types';
@@ -30,7 +31,7 @@ type WorkerTab = 'home' | 'verification' | 'bookings' | 'messages' | 'services' 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; desc: string; icon: string }> = {
   pending: {
     color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20',
-    label: 'Pending Verification', desc: 'Complete your verification to start receiving bookings.',
+    label: 'Awaiting Approval', desc: 'Your profile edit is being reviewed by WeHouse.',
     icon: 'M12 8v4M12 16h.01',
   },
   verified: {
@@ -40,7 +41,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   },
   suspended: {
     color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20',
-    label: 'Suspended', desc: 'Contact support@wehouse.com.ng for more information.',
+    label: 'Suspended', desc: 'Contact WeHouse support for more information.',
     icon: 'M18 6L6 18M6 6l12 12',
   },
   rejected: {
@@ -1141,7 +1142,7 @@ function SupportTab({}: {}) {
           </div>
           <div>
             <p className="text-xs font-medium text-white">Email Support</p>
-            <p className="text-[10px] text-[#5C5E72]">support@wehouse.com.ng</p>
+            <p className="text-[10px] text-[#5C5E72]">{WH_SUPPORT_EMAIL}</p>
           </div>
         </div>
       </div>
