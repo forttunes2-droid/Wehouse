@@ -76,13 +76,14 @@ export default function StaffDashboard({ profile, onGoToChat, onNavigate }: Staf
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
             </button>
             <div>
-              <h1 className="text-lg font-bold text-white">Staff Dashboard</h1>
+              <h1 className="text-lg font-bold text-white">
+                {permissions.length > 0
+                  ? permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(' + ')
+                  : 'Staff'}
+              </h1>
               <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
             </div>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            {permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(', ') || 'No Permissions'}
-          </span>
         </div>
       </header>
 

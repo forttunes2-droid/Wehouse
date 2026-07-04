@@ -33,10 +33,8 @@ const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
-const OperationsDashboard = lazy(() => import('@/pages/OperationsDashboard'));
-const WorkerVerificationDashboard = lazy(() => import('@/pages/WorkerVerificationDashboard'));
-const FinanceDashboard = lazy(() => import('@/pages/FinanceDashboard'));
-const FieldOfficerDashboard = lazy(() => import('@/pages/FieldOfficerDashboard'));
+// NOTE: Old standalone dashboards (Operations, Finance, WorkerVerification, FieldOfficer) are
+// deprecated. All staff use the unified StaffDashboard with permission-based tabs.
 const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
 
 
@@ -394,14 +392,12 @@ export default function App() {
         return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} profile={profile} /> : null;
       case 'hotel_booking':
         return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
+      // Legacy permission dashboards — redirect all to unified staff dashboard
       case 'operations':
-        return <OperationsDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'worker_verification':
-        return <WorkerVerificationDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'finance':
-        return <FinanceDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'field_officer':
-        return <FieldOfficerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+        return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'property_owner':
       case 'property_partner':
         return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
