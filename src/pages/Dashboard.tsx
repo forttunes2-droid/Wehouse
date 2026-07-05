@@ -325,7 +325,11 @@ export default function Dashboard({
         {(profile.bio || profile.occupation || profile.school || profile.preferred_location || profile.gender) && (
           <div className="glass rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-white mb-3">About</h3>
-            {profile.bio && <p className="text-xs text-[#8B8DA0] mb-3 leading-relaxed">{profile.bio}</p>}
+            {profile.bio && (
+              <p className="text-xs text-[#8B8DA0] mb-3 leading-relaxed">
+                {profile.bio.replace(/🛠️STATUS:\w+🛠️\s*/g, '').trim() || 'No bio yet'}
+              </p>
+            )}
             <div className="space-y-2.5">
               {profile.gender && (
                 <div className="flex justify-between text-xs">
