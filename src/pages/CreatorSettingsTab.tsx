@@ -27,9 +27,163 @@ const SETTING_CATEGORIES = [
   { id: 'support', label: 'Support', icon: '🎧' },
   { id: 'notification', label: 'Notifications', icon: '🔔' },
   { id: 'legal', label: 'Legal', icon: '⚖️' },
-  { id: 'toggle', label: 'Toggles', icon: '🎚️' },
+  { id: 'features', label: 'Toggles', icon: '🎚️' },
   { id: 'appearance', label: 'Appearance', icon: '🎨' },
   { id: 'security', label: 'Security', icon: '🔒' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// FALLBACK DEFAULTS — All 127 settings so Creator can see them
+// even before the database SQL is run.
+// ═══════════════════════════════════════════════════════════════
+
+const DEFAULT_SETTINGS: Setting[] = [
+  // COMPANY (13)
+  { id: '1', key: 'company_name', value: 'WeHouse Nigeria', category: 'company', label: 'Company Name', description: 'Legal company name', data_type: 'string' },
+  { id: '2', key: 'company_short_name', value: 'WeHouse', category: 'company', label: 'Short Name', description: 'Display name', data_type: 'string' },
+  { id: '3', key: 'company_slogan', value: 'Find Your Perfect Home', category: 'company', label: 'Slogan', description: 'Brand slogan', data_type: 'string' },
+  { id: '4', key: 'company_website', value: 'https://wehouse.ng', category: 'company', label: 'Website URL', description: 'Official website', data_type: 'string' },
+  { id: '5', key: 'company_email', value: 'support@wehouse.ng', category: 'company', label: 'Support Email', description: 'Primary support email', data_type: 'string' },
+  { id: '6', key: 'company_phone', value: '', category: 'company', label: 'Support Phone', description: 'Primary support phone', data_type: 'string' },
+  { id: '7', key: 'company_address', value: '', category: 'company', label: 'Office Address', description: 'Physical office address', data_type: 'string' },
+  { id: '8', key: 'company_cac_number', value: '', category: 'company', label: 'CAC Registration', description: 'Corporate Affairs Commission number', data_type: 'string' },
+  { id: '9', key: 'company_logo_url', value: '', category: 'company', label: 'Logo URL', description: 'Company logo image URL', data_type: 'string' },
+  { id: '10', key: 'company_favicon_url', value: '', category: 'company', label: 'Favicon URL', description: 'Browser favicon URL', data_type: 'string' },
+  { id: '11', key: 'company_whatsapp', value: '', category: 'company', label: 'WhatsApp Number', description: 'WhatsApp business number', data_type: 'string' },
+  { id: '12', key: 'company_telegram', value: '', category: 'company', label: 'Telegram Username', description: 'Telegram support handle', data_type: 'string' },
+  { id: '13', key: 'company_social_links', value: '{}', category: 'company', label: 'Social Media Links', description: 'JSON: {facebook, twitter, instagram, linkedin}', data_type: 'json' },
+
+  // FINANCE (26)
+  { id: '14', key: 'commission_rate_worker', value: '10', category: 'finance', label: 'Worker Commission (%)', description: 'Percentage taken from worker bookings', data_type: 'number' },
+  { id: '15', key: 'commission_rate_partner', value: '8', category: 'finance', label: 'Partner Commission (%)', description: 'Percentage taken from property partner earnings', data_type: 'number' },
+  { id: '16', key: 'commission_rate_hotel', value: '12', category: 'finance', label: 'Hotel Commission (%)', description: 'Percentage taken from hotel bookings', data_type: 'number' },
+  { id: '17', key: 'commission_rate_listing', value: '5', category: 'finance', label: 'Listing Commission (%)', description: 'Percentage taken from property listings', data_type: 'number' },
+  { id: '18', key: 'booking_fee_fixed', value: '500', category: 'finance', label: 'Fixed Booking Fee (N)', description: 'Flat fee added to every booking', data_type: 'number' },
+  { id: '19', key: 'booking_fee_percentage', value: '2', category: 'finance', label: 'Booking Fee (%)', description: 'Percentage fee on bookings', data_type: 'number' },
+  { id: '20', key: 'escrow_hold_days', value: '3', category: 'finance', label: 'Escrow Hold (Days)', description: 'Days to hold payment in escrow before release', data_type: 'number' },
+  { id: '21', key: 'minimum_withdrawal', value: '1000', category: 'finance', label: 'Minimum Withdrawal (N)', description: 'Minimum amount for withdrawal requests', data_type: 'number' },
+  { id: '22', key: 'withdrawal_fee', value: '50', category: 'finance', label: 'Withdrawal Fee (N)', description: 'Flat fee per withdrawal', data_type: 'number' },
+  { id: '23', key: 'withdrawal_processing_days', value: '1-3', category: 'finance', label: 'Withdrawal Processing', description: 'Business days to process withdrawals', data_type: 'string' },
+  { id: '24', key: 'refund_policy_days', value: '7', category: 'finance', label: 'Refund Window (Days)', description: 'Days within which refunds are allowed', data_type: 'number' },
+  { id: '25', key: 'inspection_fee', value: '3000', category: 'finance', label: 'Inspection Fee (N)', description: 'Fee charged for property inspection requests', data_type: 'number' },
+  { id: '26', key: 'late_cancellation_fee', value: '1000', category: 'finance', label: 'Late Cancellation Fee (N)', description: 'Fee for late booking cancellations', data_type: 'number' },
+  { id: '27', key: 'withdrawal_daily_limit', value: '50000', category: 'finance', label: 'Daily Withdrawal Limit (N)', description: 'Maximum withdrawal amount per day', data_type: 'number' },
+  { id: '28', key: 'withdrawal_weekly_limit', value: '200000', category: 'finance', label: 'Weekly Withdrawal Limit (N)', description: 'Maximum withdrawal amount per week', data_type: 'number' },
+  { id: '29', key: 'withdrawal_monthly_limit', value: '500000', category: 'finance', label: 'Monthly Withdrawal Limit (N)', description: 'Maximum withdrawal amount per month', data_type: 'number' },
+  { id: '30', key: 'escrow_auto_release', value: 'true', category: 'finance', label: 'Auto Release Escrow', description: 'Automatically release escrow after hold period', data_type: 'boolean' },
+  { id: '31', key: 'escrow_dispute_window_days', value: '7', category: 'finance', label: 'Escrow Dispute Window (Days)', description: 'Days after completion to open a dispute', data_type: 'number' },
+  { id: '32', key: 'security_deposit_default_percentage', value: '10', category: 'finance', label: 'Security Deposit Default (%)', description: 'Default security deposit as % of rent', data_type: 'number' },
+  { id: '33', key: 'security_deposit_max_amount', value: '500000', category: 'finance', label: 'Security Deposit Max (N)', description: 'Maximum security deposit amount', data_type: 'number' },
+  { id: '34', key: 'security_deposit_min_amount', value: '10000', category: 'finance', label: 'Security Deposit Min (N)', description: 'Minimum security deposit amount', data_type: 'number' },
+  { id: '35', key: 'security_deposit_refund_days', value: '14', category: 'finance', label: 'Security Deposit Refund (Days)', description: 'Days to refund security deposit after move-out', data_type: 'number' },
+  { id: '36', key: 'reservation_fee', value: '5000', category: 'finance', label: 'Reservation Fee (N)', description: 'Fee to reserve a property for 72 hours', data_type: 'number' },
+  { id: '37', key: 'late_payment_fee_percent', value: '5', category: 'finance', label: 'Late Payment Fee (%)', description: 'Fee on overdue installment payments', data_type: 'number' },
+  { id: '38', key: 'worker_booking_fee_user', value: '300', category: 'finance', label: 'Worker Booking Fee (N)', description: 'Fee user pays per worker booking', data_type: 'number' },
+  { id: '39', key: 'worker_min_job_amount', value: '1000', category: 'finance', label: 'Worker Min Job (N)', description: 'Minimum job value for workers', data_type: 'number' },
+  { id: '40', key: 'currency_symbol', value: 'N', category: 'finance', label: 'Currency Symbol', description: 'Displayed currency symbol', data_type: 'string' },
+  { id: '41', key: 'currency_code', value: 'NGN', category: 'finance', label: 'Currency Code', description: 'ISO currency code', data_type: 'string' },
+
+  // PAYMENT (8)
+  { id: '42', key: 'paystack_enabled', value: 'true', category: 'payment', label: 'Paystack Enabled', description: 'Enable Paystack payments', data_type: 'boolean' },
+  { id: '43', key: 'paystack_public_key', value: '', category: 'payment', label: 'Paystack Public Key', description: 'Paystack public API key', data_type: 'string' },
+  { id: '44', key: 'paystack_secret_key', value: '', category: 'payment', label: 'Paystack Secret Key', description: 'Paystack secret API key (encrypted)', data_type: 'string' },
+  { id: '45', key: 'flutterwave_enabled', value: 'false', category: 'payment', label: 'Flutterwave Enabled', description: 'Enable Flutterwave payments', data_type: 'boolean' },
+  { id: '46', key: 'flutterwave_public_key', value: '', category: 'payment', label: 'Flutterwave Public Key', description: 'Flutterwave public API key', data_type: 'string' },
+  { id: '47', key: 'flutterwave_secret_key', value: '', category: 'payment', label: 'Flutterwave Secret Key', description: 'Flutterwave secret API key (encrypted)', data_type: 'string' },
+  { id: '48', key: 'payment_test_mode', value: 'true', category: 'payment', label: 'Test Mode', description: 'Use test/sandbox mode for payments', data_type: 'boolean' },
+  { id: '49', key: 'auto_payout_enabled', value: 'false', category: 'payment', label: 'Auto Payout', description: 'Automatically process payouts', data_type: 'boolean' },
+
+  // PROPERTY (8)
+  { id: '50', key: 'property_verification_required', value: 'true', category: 'property', label: 'Verification Required', description: 'Require verification before listing properties', data_type: 'boolean' },
+  { id: '51', key: 'property_inspection_required', value: 'true', category: 'property', label: 'Inspection Required', description: 'Require inspection before approving listings', data_type: 'boolean' },
+  { id: '52', key: 'max_listings_per_partner', value: '50', category: 'property', label: 'Max Listings Per Partner', description: 'Maximum properties a partner can list', data_type: 'number' },
+  { id: '53', key: 'listing_approval_mode', value: 'manual', category: 'property', label: 'Listing Approval', description: 'manual or auto approval of listings', data_type: 'string' },
+  { id: '54', key: 'property_photos_min', value: '3', category: 'property', label: 'Min Photos Required', description: 'Minimum photos per listing', data_type: 'number' },
+  { id: '55', key: 'property_photos_max', value: '20', category: 'property', label: 'Max Photos Allowed', description: 'Maximum photos per listing', data_type: 'number' },
+  { id: '56', key: 'featured_listing_price', value: '5000', category: 'property', label: 'Featured Listing Price (N)', description: 'Cost to feature a listing', data_type: 'number' },
+  { id: '57', key: 'property_types_allowed', value: '["apartment","house","duplex","studio","self_contain","office","warehouse","land","hotel","hostel","lodge","resort"]', category: 'property', label: 'Allowed Property Types', description: 'JSON array of allowed property types', data_type: 'json' },
+
+  // WORKER (9)
+  { id: '58', key: 'worker_verification_required', value: 'true', category: 'worker', label: 'Verification Required', description: 'Workers must be verified before booking', data_type: 'boolean' },
+  { id: '59', key: 'worker_id_verification_required', value: 'true', category: 'worker', label: 'ID Verification Required', description: 'Government ID required for workers', data_type: 'boolean' },
+  { id: '60', key: 'worker_video_intro_required', value: 'true', category: 'worker', label: 'Video Intro Required', description: 'Require video introduction', data_type: 'boolean' },
+  { id: '61', key: 'worker_approval_mode', value: 'manual', category: 'worker', label: 'Worker Approval', description: 'manual or auto approval of workers', data_type: 'string' },
+  { id: '62', key: 'blue_badge_price', value: '5000', category: 'worker', label: 'Blue Badge Price (N)', description: 'Monthly cost for blue badge', data_type: 'number' },
+  { id: '63', key: 'max_skills_per_worker', value: '5', category: 'worker', label: 'Max Skills', description: 'Maximum services a worker can offer', data_type: 'number' },
+  { id: '64', key: 'worker_search_radius_default', value: '25', category: 'worker', label: 'Default Search Radius (km)', description: 'Default radius for worker search', data_type: 'number' },
+  { id: '65', key: 'worker_categories', value: '["cleaning","plumbing","electrical","carpentry","painting","hvac","security","gardening","moving","appliance_repair"]', category: 'worker', label: 'Worker Categories', description: 'JSON array of service categories', data_type: 'json' },
+  { id: '66', key: 'worker_status_flow', value: 'pending,paid,public', category: 'worker', label: 'Status Flow', description: 'Comma-separated worker status progression', data_type: 'string' },
+
+  // BOOKING (8)
+  { id: '67', key: 'booking_advance_hours', value: '24', category: 'booking', label: 'Min Advance Booking (hrs)', description: 'Minimum hours before booking start', data_type: 'number' },
+  { id: '68', key: 'booking_max_duration_days', value: '365', category: 'booking', label: 'Max Booking Duration (days)', description: 'Maximum length of a booking', data_type: 'number' },
+  { id: '69', key: 'booking_cancellation_hours', value: '48', category: 'booking', label: 'Cancellation Window (hrs)', description: 'Hours before booking when cancellation is free', data_type: 'number' },
+  { id: '70', key: 'booking_reschedule_allowed', value: 'true', category: 'booking', label: 'Allow Reschedule', description: 'Users can reschedule bookings', data_type: 'boolean' },
+  { id: '71', key: 'booking_max_reschedules', value: '2', category: 'booking', label: 'Max Reschedules', description: 'Maximum times a booking can be rescheduled', data_type: 'number' },
+  { id: '72', key: 'negotiation_enabled', value: 'true', category: 'booking', label: 'Price Negotiation', description: 'Allow price negotiation on bookings', data_type: 'boolean' },
+  { id: '73', key: 'instant_booking_enabled', value: 'true', category: 'booking', label: 'Instant Booking', description: 'Allow instant booking without approval', data_type: 'boolean' },
+  { id: '74', key: 'booking_reminder_hours', value: '24', category: 'booking', label: 'Reminder (hrs before)', description: 'Send reminder before booking', data_type: 'number' },
+
+  // SUPPORT (7)
+  { id: '75', key: 'support_chat_enabled', value: 'true', category: 'support', label: 'Live Chat', description: 'Enable live chat support', data_type: 'boolean' },
+  { id: '76', key: 'support_email_enabled', value: 'true', category: 'support', label: 'Email Support', description: 'Enable email support tickets', data_type: 'boolean' },
+  { id: '77', key: 'support_phone_enabled', value: 'false', category: 'support', label: 'Phone Support', description: 'Enable phone support', data_type: 'boolean' },
+  { id: '78', key: 'support_hours', value: 'Mon-Fri 9AM-6PM WAT', category: 'support', label: 'Support Hours', description: 'Customer support operating hours', data_type: 'string' },
+  { id: '79', key: 'support_response_time_hours', value: '24', category: 'support', label: 'Response Time (hrs)', description: 'Maximum response time', data_type: 'number' },
+  { id: '80', key: 'ticket_auto_close_days', value: '7', category: 'support', label: 'Auto Close Tickets (days)', description: 'Days before auto-closing resolved tickets', data_type: 'number' },
+  { id: '81', key: 'escalation_enabled', value: 'true', category: 'support', label: 'Auto Escalation', description: 'Automatically escalate unresolved tickets', data_type: 'boolean' },
+
+  // NOTIFICATION (9)
+  { id: '82', key: 'email_notifications_enabled', value: 'true', category: 'notification', label: 'Email Notifications', description: 'Send email notifications', data_type: 'boolean' },
+  { id: '83', key: 'push_notifications_enabled', value: 'true', category: 'notification', label: 'Push Notifications', description: 'Send push notifications', data_type: 'boolean' },
+  { id: '84', key: 'sms_notifications_enabled', value: 'false', category: 'notification', label: 'SMS Notifications', description: 'Send SMS notifications', data_type: 'boolean' },
+  { id: '85', key: 'notification_booking_confirm', value: 'true', category: 'notification', label: 'Booking Confirmations', description: 'Notify on booking confirmation', data_type: 'boolean' },
+  { id: '86', key: 'notification_payment', value: 'true', category: 'notification', label: 'Payment Updates', description: 'Notify on payment events', data_type: 'boolean' },
+  { id: '87', key: 'notification_messages', value: 'true', category: 'notification', label: 'New Messages', description: 'Notify on new messages', data_type: 'boolean' },
+  { id: '88', key: 'notification_reviews', value: 'true', category: 'notification', label: 'Reviews', description: 'Notify on new reviews', data_type: 'boolean' },
+  { id: '89', key: 'notification_promotions', value: 'false', category: 'notification', label: 'Promotions', description: 'Send promotional notifications', data_type: 'boolean' },
+  { id: '90', key: 'digest_email_frequency', value: 'never', category: 'notification', label: 'Digest Email', description: 'never, daily, or weekly digest', data_type: 'string' },
+
+  // LEGAL (9)
+  { id: '91', key: 'terms_version', value: '1.0', category: 'legal', label: 'Terms Version', description: 'Current terms of service version', data_type: 'string' },
+  { id: '92', key: 'privacy_version', value: '1.0', category: 'legal', label: 'Privacy Version', description: 'Current privacy policy version', data_type: 'string' },
+  { id: '93', key: 'terms_last_updated', value: '', category: 'legal', label: 'Terms Last Updated', description: 'Date terms were last updated', data_type: 'string' },
+  { id: '94', key: 'privacy_last_updated', value: '', category: 'legal', label: 'Privacy Last Updated', description: 'Date privacy policy was updated', data_type: 'string' },
+  { id: '95', key: 'cookie_consent_required', value: 'true', category: 'legal', label: 'Cookie Consent', description: 'Require cookie consent banner', data_type: 'boolean' },
+  { id: '96', key: 'gdpr_compliance_enabled', value: 'false', category: 'legal', label: 'GDPR Compliance', description: 'Enable GDPR compliance features', data_type: 'boolean' },
+  { id: '97', key: 'minimum_age', value: '18', category: 'legal', label: 'Minimum Age', description: 'Minimum user age requirement', data_type: 'number' },
+  { id: '98', key: 'dispute_resolution', value: 'arbitration', category: 'legal', label: 'Dispute Resolution', description: 'arbitration, mediation, or court', data_type: 'string' },
+  { id: '99', key: 'refund_policy_text', value: '', category: 'legal', label: 'Refund Policy', description: 'Full refund policy text displayed to users', data_type: 'textarea' },
+
+  // FEATURES (12)
+  { id: '100', key: 'feature_hotels_enabled', value: 'true', category: 'features', label: 'Hotels Module', description: 'Enable hotel bookings', data_type: 'boolean' },
+  { id: '101', key: 'feature_workers_enabled', value: 'true', category: 'features', label: 'Workers Module', description: 'Enable worker services', data_type: 'boolean' },
+  { id: '102', key: 'feature_roommate_enabled', value: 'true', category: 'features', label: 'Roommate Module', description: 'Enable roommate matching', data_type: 'boolean' },
+  { id: '103', key: 'feature_property_partners_enabled', value: 'true', category: 'features', label: 'Property Partners', description: 'Enable property partner program', data_type: 'boolean' },
+  { id: '104', key: 'feature_blue_badge_enabled', value: 'true', category: 'features', label: 'Blue Badge', description: 'Enable blue badge subscription', data_type: 'boolean' },
+  { id: '105', key: 'feature_negotiation_enabled', value: 'true', category: 'features', label: 'Price Negotiation', description: 'Enable price negotiation', data_type: 'boolean' },
+  { id: '106', key: 'feature_inspections_enabled', value: 'true', category: 'features', label: 'Inspections', description: 'Enable property inspections', data_type: 'boolean' },
+  { id: '107', key: 'feature_analytics_enabled', value: 'true', category: 'features', label: 'Analytics', description: 'Enable analytics dashboard', data_type: 'boolean' },
+  { id: '108', key: 'feature_referral_enabled', value: 'false', category: 'features', label: 'Referral Program', description: 'Enable referral system', data_type: 'boolean' },
+  { id: '109', key: 'feature_loyalty_enabled', value: 'false', category: 'features', label: 'Loyalty Program', description: 'Enable loyalty points', data_type: 'boolean' },
+  { id: '110', key: 'maintenance_mode', value: 'false', category: 'features', label: 'Maintenance Mode', description: 'Put site in maintenance mode', data_type: 'boolean' },
+  { id: '111', key: 'registration_open', value: 'true', category: 'features', label: 'Open Registration', description: 'Allow new user registration', data_type: 'boolean' },
+
+  // APPEARANCE (5)
+  { id: '112', key: 'theme_primary_color', value: '#3B82F6', category: 'appearance', label: 'Primary Color', description: 'Main brand color', data_type: 'string' },
+  { id: '113', key: 'theme_secondary_color', value: '#8B5CF6', category: 'appearance', label: 'Secondary Color', description: 'Accent color', data_type: 'string' },
+  { id: '114', key: 'theme_dark_mode_default', value: 'true', category: 'appearance', label: 'Dark Mode Default', description: 'Default to dark mode', data_type: 'boolean' },
+  { id: '115', key: 'app_name', value: 'WeHouse', category: 'appearance', label: 'App Name', description: 'Displayed app name', data_type: 'string' },
+  { id: '116', key: 'meta_description', value: 'Find your perfect home in Nigeria. Rent apartments, book hotels, hire verified workers.', category: 'appearance', label: 'Meta Description', description: 'SEO meta description', data_type: 'string' },
+
+  // SECURITY (7)
+  { id: '117', key: 'max_login_attempts', value: '5', category: 'security', label: 'Max Login Attempts', description: 'Failed attempts before lockout', data_type: 'number' },
+  { id: '118', key: 'login_lockout_minutes', value: '30', category: 'security', label: 'Lockout Duration (min)', description: 'Minutes to lock account', data_type: 'number' },
+  { id: '119', key: 'session_timeout_hours', value: '24', category: 'security', label: 'Session Timeout (hrs)', description: 'Hours before session expires', data_type: 'number' },
+  { id: '120', key: 'password_min_length', value: '8', category: 'security', label: 'Min Password Length', description: 'Minimum password characters', data_type: 'number' },
+  { id: '121', key: 'mfa_required_for_staff', value: 'false', category: 'security', label: 'MFA for Staff', description: 'Require MFA for staff accounts', data_type: 'boolean' },
+  { id: '122', key: 'audit_log_retention_days', value: '90', category: 'security', label: 'Audit Log Retention', description: 'Days to keep audit logs', data_type: 'number' },
+  { id: '123', key: 'data_backup_frequency', value: 'daily', category: 'security', label: 'Backup Frequency', description: 'How often to backup data', data_type: 'string' },
 ];
 
 type SettingsView = 'settings' | 'categories' | 'property_types';
@@ -98,8 +252,12 @@ function PlatformSettings({ profile: _profile }: { profile: Profile }) {
   async function loadSettings() {
     setLoading(true);
     const { data, error } = await supabase.rpc('get_platform_settings');
-    if (error) {
-      toast.error('Failed to load settings: ' + error.message);
+    if (error || !data || data.length === 0) {
+      // Database not set up yet — use built-in defaults so Creator can still see everything
+      if (error) {
+        toast.error('Database not set up. Run the platform_settings SQL. Showing defaults.');
+      }
+      setSettings(DEFAULT_SETTINGS);
       setLoading(false);
       return;
     }
