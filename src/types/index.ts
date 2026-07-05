@@ -7,7 +7,8 @@
 
 export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker' | 'property_partner';
 
-export type WorkerStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
+// Constitution: Pending → Approved → Public. Critical changes reset to Pending.
+export type WorkerStatus = 'pending' | 'approved' | 'public' | 'suspended' | 'rejected';
 
 export const WORKER_OCCUPATIONS = [
   'electrician', 'plumber', 'cleaner', 'carpenter',

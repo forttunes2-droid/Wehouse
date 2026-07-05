@@ -32,7 +32,7 @@ const SETTING_CATEGORIES = [
   { id: 'security', label: 'Security', icon: '🔒' },
 ];
 
-type SettingsView = 'settings' | 'categories';
+type SettingsView = 'settings' | 'categories' | 'property_types';
 
 export default function CreatorSettingsTab({ profile }: CreatorSettingsTabProps) {
   const [view, setView] = useState<SettingsView>('settings');
@@ -63,9 +63,19 @@ export default function CreatorSettingsTab({ profile }: CreatorSettingsTabProps)
         >
           Service Categories
         </button>
+        <button
+          onClick={() => setView('property_types')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            view === 'property_types'
+              ? 'bg-[#3B82F6]/15 text-[#3B82F6] border border-[#3B82F6]/20'
+              : 'bg-[#12121A] text-[#5C5E72] border border-[#1E1E2C] hover:text-white'
+          }`}
+        >
+          Property Types
+        </button>
       </div>
 
-      {view === 'settings' ? <PlatformSettings profile={profile} /> : <CategoryManager profile={profile} />}
+      {view === 'settings' ? <PlatformSettings profile={profile} /> : view === 'categories' ? <CategoryManager profile={profile} /> : <PropertyTypeManager profile={profile} />}
     </div>
   );
 }
@@ -629,6 +639,169 @@ function CategoryManager({ profile: _profile }: { profile: Profile }) {
         {visibleCategories.length === 0 && (
           <div className="text-center py-10">
             <p className="text-sm text-[#5C5E72]">No categories found</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROPERTY TYPE MANAGER
+// ═══════════════════════════════════════════════════════════════
+
+function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
+  const [types, setTypes] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newType, setNewType] = useState('');
+
+  const ICON_MAP: Record<string, string> = {
+    apartment: '🏢', hotel: '🏨', house: '🏠', duplex: '🏘️',
+    studio: '🛋️', self_contain: '🚪', 'self-contain': '🚪',
+    hostel: '🛏️', lodge: '🏕️', resort: '🏖️',
+    office: '🏢', warehouse: '🏭', land: '🌿',
+    short_let: '⏱️', long_stay: '📅',
+  };
+
+  function toLabel(value: string): string {
+    return value.split(/[_\-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+
+  function getIcon(value: string): string {
+    return ICON_MAP[value] || '🏠';
+  }
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.rpc('get_platform_setting', { p_key: 'property_types_allowed' });
+    if (!error && data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) { setTypes(parsed); setLoading(false); return; }
+      } catch { /* ignore */ }
+    }
+    // Fallback defaults
+    setTypes(['apartment', 'house', 'duplex', 'studio', 'self_contain', 'office', 'warehouse', 'land', 'hotel', 'hostel', 'lodge', 'resort']);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function saveTypes(newTypes: string[]) {
+    setSaving(true);
+    const { error } = await supabase.rpc('update_platform_setting', {
+      p_key: 'property_types_allowed',
+      p_value: JSON.stringify(newTypes),
+    });
+    setSaving(false);
+    if (error) { toast.error('Failed to save: ' + error.message); return false; }
+    setTypes(newTypes);
+    toast.success('Property types saved');
+    return true;
+  }
+
+  function handleAdd() {
+    const clean = newType.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!clean) { toast.error('Enter a property type'); return; }
+    if (types.includes(clean)) { toast.error('Type already exists'); return; }
+    const updated = [...types, clean];
+    saveTypes(updated);
+    setNewType('');
+  }
+
+  function handleRemove(value: string) {
+    if (!confirm(`Remove "${toLabel(value)}"? Existing listings using this type will still work.`)) return;
+    const updated = types.filter(t => t !== value);
+    saveTypes(updated);
+  }
+
+  function handleMove(index: number, direction: -1 | 1) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= types.length) return;
+    const updated = [...types];
+    [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+    saveTypes(updated);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-white">Property Types</h2>
+          <p className="text-[11px] text-[#5C5E72]">{types.length} types configured. These appear when creating listings and partner registrations.</p>
+        </div>
+        {saving && <div className="w-5 h-5 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />}
+      </div>
+
+      {/* Add new type */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newType}
+          onChange={e => setNewType(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="e.g. Penthouse, Bungalow..."
+          className="flex-1 h-10 rounded-xl bg-[#12121A] border border-[#1E1E2C] text-white text-sm px-4 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none"
+        />
+        <button
+          onClick={handleAdd}
+          className="h-10 px-4 rounded-xl bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-semibold border border-[#3B82F6]/20 hover:bg-[#3B82F6]/25 transition-colors"
+        >
+          + Add Type
+        </button>
+      </div>
+
+      {/* Types list */}
+      <div className="space-y-2">
+        {types.map((t, i) => (
+          <div key={t} className="glass rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">{getIcon(t)}</span>
+              <div>
+                <p className="text-xs font-medium text-white">{toLabel(t)}</p>
+                <p className="text-[10px] text-[#5C5E72] font-mono">{t}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleMove(i, -1)}
+                disabled={i === 0}
+                className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-30 transition-colors"
+                title="Move up"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
+              </button>
+              <button
+                onClick={() => handleMove(i, 1)}
+                disabled={i === types.length - 1}
+                className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-30 transition-colors"
+                title="Move down"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+              <button
+                onClick={() => handleRemove(t)}
+                className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-red-400 transition-colors"
+                title="Remove"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {types.length === 0 && (
+          <div className="text-center py-10">
+            <p className="text-sm text-[#5C5E72]">No property types configured</p>
           </div>
         )}
       </div>
