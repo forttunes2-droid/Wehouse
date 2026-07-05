@@ -49,7 +49,10 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('company_address', '', 'company', 'Office Address', 'Physical office address', 'string'),
 ('company_cac_number', '', 'company', 'CAC Registration', 'Corporate Affairs Commission number', 'string'),
 ('company_logo_url', '', 'company', 'Logo URL', 'Company logo image URL', 'string'),
-('company_favicon_url', '', 'company', 'Favicon URL', 'Browser favicon URL', 'string');
+('company_favicon_url', '', 'company', 'Favicon URL', 'Browser favicon URL', 'string'),
+('company_whatsapp', '', 'company', 'WhatsApp Number', 'WhatsApp business number', 'string'),
+('company_telegram', '', 'company', 'Telegram Username', 'Telegram support handle', 'string'),
+('company_social_links', '{}', 'company', 'Social Media Links', 'JSON: {facebook, twitter, instagram, linkedin}', 'json');
 
 -- FINANCIAL SETTINGS
 INSERT INTO platform_settings (key, value, category, label, description, data_type) VALUES
@@ -64,7 +67,16 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('withdrawal_fee', '50', 'finance', 'Withdrawal Fee (N)', 'Flat fee per withdrawal', 'number'),
 ('withdrawal_processing_days', '1-3', 'finance', 'Withdrawal Processing', 'Business days to process withdrawals', 'string'),
 ('refund_policy_days', '7', 'finance', 'Refund Policy (Days)', 'Days within which refunds are allowed', 'number'),
+('inspection_fee', '3000', 'finance', 'Inspection Fee (N)', 'Fee charged for property inspection requests', 'number'),
 ('late_cancellation_fee', '1000', 'finance', 'Late Cancellation Fee (N)', 'Fee for late booking cancellations', 'number'),
+('withdrawal_daily_limit', '50000', 'finance', 'Daily Withdrawal Limit (N)', 'Maximum withdrawal amount per day', 'number'),
+('withdrawal_weekly_limit', '200000', 'finance', 'Weekly Withdrawal Limit (N)', 'Maximum withdrawal amount per week', 'number'),
+('withdrawal_monthly_limit', '500000', 'finance', 'Monthly Withdrawal Limit (N)', 'Maximum withdrawal amount per month', 'number'),
+('escrow_auto_release', 'true', 'finance', 'Auto Release Escrow', 'Automatically release escrow after hold period', 'boolean'),
+('escrow_dispute_window_days', '7', 'finance', 'Escrow Dispute Window (Days)', 'Days after completion to open a dispute', 'number'),
+('security_deposit_default_percentage', '10', 'finance', 'Security Deposit Default (%)', 'Default security deposit as % of rent', 'number'),
+('security_deposit_max_amount', '500000', 'finance', 'Security Deposit Max (N)', 'Maximum security deposit amount', 'number'),
+('security_deposit_refund_days', '14', 'finance', 'Security Deposit Refund (Days)', 'Days to refund security deposit after move-out', 'number'),
 ('currency_symbol', 'N', 'finance', 'Currency Symbol', 'Displayed currency symbol', 'string'),
 ('currency_code', 'NGN', 'finance', 'Currency Code', 'ISO currency code', 'string');
 
@@ -144,7 +156,8 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('cookie_consent_required', 'true', 'legal', 'Cookie Consent', 'Require cookie consent banner', 'boolean'),
 ('gdpr_compliance_enabled', 'false', 'legal', 'GDPR Compliance', 'Enable GDPR compliance features', 'boolean'),
 ('minimum_age', '18', 'legal', 'Minimum Age', 'Minimum user age requirement', 'number'),
-('dispute_resolution', 'arbitration', 'legal', 'Dispute Resolution', 'arbitration, mediation, or court', 'string');
+('dispute_resolution', 'arbitration', 'legal', 'Dispute Resolution', 'arbitration, mediation, or court', 'string'),
+('refund_policy_text', '', 'legal', 'Refund Policy', 'Full refund policy text displayed to users', 'textarea');
 
 -- FEATURE TOGGLES
 INSERT INTO platform_settings (key, value, category, label, description, data_type) VALUES
