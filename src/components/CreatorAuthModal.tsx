@@ -17,23 +17,24 @@ export default function CreatorAuthModal() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
 
-  // Check if password needs first-time setup
+  // Check if password is already set in profiles.creator_auth_password
   useEffect(() => {
     if (!showModal) return;
     async function check() {
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!userId) { setMode('setup'); return; }
+
+      // Check profiles table for creator_auth_password
       const { data } = await supabase
-        .from('platform_settings')
-        .select('value')
-        .eq('key', 'creator_auth_hash')
-        .maybeSingle();
-      const { data: enabled } = await supabase
-        .from('platform_settings')
-        .select('value')
-        .eq('key', 'creator_auth_enabled')
+        .from('profiles')
+        .select('creator_auth_password, creator_auth_enabled')
+        .eq('auth_id', userId)
         .maybeSingle();
 
-      // If no hash set yet, show setup. Otherwise just ask for password.
-      if (!data?.value || enabled?.value !== 'true') {
+      // If no password hash set yet, show setup. Otherwise ask for password.
+      if (!data?.creator_auth_password || !data?.creator_auth_enabled) {
         setMode('setup');
       } else {
         setMode('enter');
@@ -76,7 +77,7 @@ export default function CreatorAuthModal() {
     if (!password.trim()) { setLocalError('Enter new password'); return; }
     if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
     if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
-    await setPassword(password);
+    await setPassword(password, oldPassword);
     // Modal closes automatically on success
   }
 

@@ -6,7 +6,7 @@ interface CreatorAuthContextType {
   requestAuth: (onSuccess?: () => void) => void;
   /** Directly verify a password (used by the modal). */
   verifyPassword: (password: string) => Promise<boolean>;
-  /** Set/change the creator password. */
+  /** Set/change the creator password. Pass oldPassword to verify before changing. */
   setPassword: (newPassword: string, oldPassword?: string) => Promise<boolean>;
   /** Dismiss the modal without verifying. */
   dismissRequest: () => void;
@@ -85,7 +85,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setPassword = useCallback(async (newPassword: string): Promise<boolean> => {
+  const setPassword = useCallback(async (newPassword: string, oldPassword?: string): Promise<boolean> => {
     setIsLoading(true);
     setError('');
 
@@ -96,6 +96,19 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       setError('Not logged in');
       setIsLoading(false);
       return false;
+    }
+
+    // If oldPassword provided (change mode), verify it first
+    if (oldPassword) {
+      const { data: verified } = await supabase.rpc('verify_creator_auth', {
+        p_user_id: userId,
+        p_password: oldPassword,
+      });
+      if (!verified) {
+        setError('Current password is incorrect');
+        setIsLoading(false);
+        return false;
+      }
     }
 
     const { data, error: rpcError } = await supabase.rpc('set_creator_auth', {
