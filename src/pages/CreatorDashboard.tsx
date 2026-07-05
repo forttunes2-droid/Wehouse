@@ -24,6 +24,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import ServiceCategoriesTab from './ServiceCategoriesTab';
 import SettingsTab from './SettingsTab';
+import CreatorSettingsTab from './CreatorSettingsTab';
 import { Toaster, toast } from 'sonner';
 
 type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections' | 'support';
@@ -181,7 +182,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'audit' && <AuditTab />}
 
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
-        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
+        {activeTab === 'settings' && (isCreatorAccount ? <CreatorSettingsTab profile={profile} /> : <SettingsTab profile={profile} onUpdate={() => {}} />)}
         {activeTab === 'services' && <ServiceCategoriesTab />}
         {activeTab === 'inspections' && <UserInspectionsTab profile={profile} />}
         {activeTab === 'support' && <SupportInboxTab profile={profile} />}
