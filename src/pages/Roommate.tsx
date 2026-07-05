@@ -28,7 +28,7 @@ const GENDER_PREF_OPTIONS = [
   { value: 'female', label: 'Female' },
 ];
 
-const BUDGET_FLOOR = 180000;
+const BUDGET_FLOOR = 150000;
 const BUDGET_CEILING = 5000000;
 const BUDGET_STEP = 10000;
 
@@ -1100,12 +1100,10 @@ function EditView({
         preferred_area: form.preferred_area || null,
         bio: form.bio,
         school_name: showStudent ? form.school_name || null : null,
-        campus: showStudent ? form.campus || null : null,
         faculty: showStudent ? form.faculty || null : null,
         department: showStudent ? form.department || null : null,
         level: showStudent ? form.level || null : null,
         school_match: showStudent ? form.school_match : false,
-        campus_match: showStudent ? form.campus_match : false,
       });
     } catch (err: any) {
       toast.error('Something went wrong: ' + (err.message || 'Please try again'));

@@ -53,12 +53,13 @@ export async function sendBookingMessage(conversationId: string, senderId: strin
   return { messageId: data, error };
 }
 
-// Step 4: Worker accepts booking with negotiated price
-export async function workerAcceptBooking(bookingId: string, workerId: string, negotiatedAmount: number) {
+// Step 4: Worker accepts booking with negotiated price and schedule date
+export async function workerAcceptBooking(bookingId: string, workerId: string, negotiatedAmount: number, scheduledDate?: string) {
   const { data, error } = await supabase.rpc('worker_accept_booking', {
     p_booking_id: bookingId,
     p_worker_id: workerId,
     p_negotiated_amount: negotiatedAmount,
+    p_scheduled_date: scheduledDate || null,
   });
   return { success: data, error };
 }

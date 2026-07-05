@@ -411,7 +411,7 @@ export default function App() {
   };
 
   // ── Roommate access: only regular users and workers ──
-  const canAccessRoommate = profile.role === 'user' || profile.role === 'worker';
+  const canAccessRoommate = profile.role === 'user';
 
   // Bottom nav — dynamically built per role
   const baseTabs = [

@@ -31,7 +31,7 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
 
   // Booking modal
   const [bookingWorker, setBookingWorker] = useState<Profile | null>(null);
-  const [bookingForm, setBookingForm] = useState({ description: '', address: '', date: '', message: '' });
+  const [bookingForm, setBookingForm] = useState({ description: '', address: '', message: '' });
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [activeBookingChat, setActiveBookingChat] = useState<{ conversationId: string; bookingId: string; isWorker: boolean } | null>(null);
   // Track which workers user has sent booking requests to
@@ -537,8 +537,6 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                 placeholder="Describe the work needed *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
               <input value={bookingForm.address} onChange={e => setBookingForm(f => ({ ...f, address: e.target.value }))}
                 placeholder="Your address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
-              <input type="date" value={bookingForm.date} onChange={e => setBookingForm(f => ({ ...f, date: e.target.value }))}
-                className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]" />
               <textarea value={bookingForm.message} onChange={e => setBookingForm(f => ({ ...f, message: e.target.value }))}
                 placeholder="Message to worker (optional)" rows={2} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-2 outline-none focus:border-[#3B82F6] resize-none" />
               <button onClick={async () => {
@@ -548,13 +546,13 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                 const { booking, error } = await createBookingRequest(
                   profile.user_id, bookingWorker.user_id,
                   WORKER_OCCUPATION_LABELS[bookingWorker.worker_occupation || ''] || 'Service',
-                  bookingForm.description, bookingForm.address, bookingForm.date, bookingForm.message
+                  bookingForm.description, bookingForm.address, '', bookingForm.message
                 );
                 setBookingSubmitting(false);
                 if (error) { toast.error('Failed: ' + error.message); return; }
                 toast.success('Request sent! Open negotiation chat.');
                 setBookingWorker(null);
-                setBookingForm({ description: '', address: '', date: '', message: '' });
+                setBookingForm({ description: '', address: '', message: '' });
                 if (booking?.conversation_id) {
                   setActiveBookingChat({ conversationId: booking.conversation_id, bookingId: booking.booking_id, isWorker: false });
                 }
