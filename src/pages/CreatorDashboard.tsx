@@ -415,8 +415,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
       console.error('[Creator] getAllUsers error:', error);
       toast.error('Failed to load users: ' + error.message);
     }
-    // Filter out the wehouse_support system account — it's not a real user
-    setUsers((data || []).filter((u: any) => u.user_id !== 'wehouse_support'));
+    setUsers(data || []);
     setLoading(false);
   }, []);
 
@@ -1310,7 +1309,6 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
       !u.deleted &&
       !u.deleted_at &&
       u.user_id !== profile.user_id &&
-      u.user_id !== 'wehouse_support' &&
       u.role === 'user'
     );
     if (isStateScope) {
@@ -2381,12 +2379,12 @@ function PermissionsTab({ profile }: { profile: Profile }) {
       .eq('role', 'staff')
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
-    const staff = (data || []).filter((s: any) => s.user_id !== 'wehouse_support');
-    setStaffList(staff);
+    const staffData = data || [];
+    setStaffList(staffData);
 
     // Load ONE permission per staff (the first active one)
     const perms: Record<string, string> = {};
-    for (const s of staff) {
+    for (const s of staffData) {
       const { data: p } = await supabase
         .from('staff_permissions')
         .select('permission')

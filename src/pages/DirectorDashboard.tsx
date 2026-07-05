@@ -62,7 +62,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
       const listings = listingRes.listings || [];
       const today = new Date().toISOString().split('T')[0];
       // Robust active user filter (checks both deleted flag and deleted_at)
-      const isActive = (u: any) => !u.deleted && !u.deleted_at && u.user_id !== 'wehouse_support';
+      const isActive = (u: any) => !u.deleted && !u.deleted_at;
       setStats({
         totalUsers: users.filter(isActive).length,
         staff: users.filter((u: any) => isActive(u) && u.role === 'staff').length,

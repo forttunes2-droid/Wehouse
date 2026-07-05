@@ -213,7 +213,7 @@ export default function CreatorSettingsTab({ profile }: CreatorSettingsTabProps)
           <SettingRow label="Telegram" description="Support Telegram handle">
             <input
               type="text"
-              placeholder="@wehouse_support"
+              placeholder="@wehousesupport"
               value={settings.support_telegram || ''}
               onChange={(e) => setSettings(prev => ({ ...prev, support_telegram: e.target.value }))}
               onBlur={(e) => updateSetting('support_telegram', e.target.value)}
