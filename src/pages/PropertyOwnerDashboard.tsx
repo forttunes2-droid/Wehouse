@@ -13,16 +13,22 @@ interface Props {
   onGoToChat?: (c?: string) => void;
 }
 
-type PartnerTab = 'overview' | 'properties' | 'bookings' | 'occupancy' | 'earnings' | 'inspections' | 'chat' | 'settings';
+// Property Partner tabs per Constitution: Overview, My Properties, Inspection Requests, Bookings, Occupancy, Wallet, Withdraw, Earnings, Contracts, Messages, Support, Profile, Settings
+type PartnerTab = 'overview' | 'properties' | 'inspections' | 'bookings' | 'occupancy' | 'wallet' | 'withdraw' | 'earnings' | 'contracts' | 'messages' | 'support' | 'profile' | 'settings';
 
 const TAB_CONFIG: { key: PartnerTab; label: string; icon: string }[] = [
   { key: 'overview', label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
   { key: 'properties', label: 'My Properties', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z' },
+  { key: 'inspections', label: 'Inspections', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
   { key: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { key: 'occupancy', label: 'Occupancy', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+  { key: 'wallet', label: 'Wallet', icon: 'M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22' },
+  { key: 'withdraw', label: 'Withdraw', icon: 'M12 19l7-7-7-7M5 12h14' },
   { key: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { key: 'inspections', label: 'Inspections', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
-  { key: 'chat', label: 'Support', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+  { key: 'contracts', label: 'Contracts', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { key: 'messages', label: 'Messages', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+  { key: 'support', label: 'Support', icon: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 9v4m0 4h.01' },
+  { key: 'profile', label: 'Profile', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' },
   { key: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
 ];
 
@@ -134,13 +140,19 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
           <>
+            {/* Constitution tabs: Overview, My Properties, Inspection Requests, Bookings, Occupancy, Wallet, Withdraw, Earnings, Contracts, Messages, Support, Profile, Settings */}
             {activeTab === 'overview' && <OverviewTab stats={stats} profile={profile} onSetTab={setActiveTab} onGoToChat={onGoToChat} inspections={inspections} />}
             {activeTab === 'properties' && <PropertiesTab properties={properties} />}
+            {activeTab === 'inspections' && <InspectionsTab inspections={inspections} profile={profile} onConversationCreated={loadAll} />}
             {activeTab === 'bookings' && <BookingsTab bookings={bookings} properties={properties} />}
             {activeTab === 'occupancy' && <OccupancyTab properties={properties} bookings={bookings} />}
+            {activeTab === 'wallet' && <WalletTab profile={profile} />}
+            {activeTab === 'withdraw' && <WithdrawTab profile={profile} />}
             {activeTab === 'earnings' && <EarningsTab bookings={bookings} />}
-            {activeTab === 'inspections' && <InspectionsTab inspections={inspections} profile={profile} onConversationCreated={loadAll} />}
-            {activeTab === 'chat' && <ChatTab profile={profile} />}
+            {activeTab === 'contracts' && <ContractsTab profile={profile} />}
+            {activeTab === 'messages' && <MessagesTab profile={profile} />}
+            {activeTab === 'support' && <SupportTab profile={profile} />}
+            {activeTab === 'profile' && <ProfileTab profile={profile} onLogout={_onLogout} />}
             {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
           </>
         )}
@@ -178,7 +190,7 @@ function OverviewTab({ stats, profile, onSetTab, onGoToChat, inspections }: {
         <QuickCard icon="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" title="My Properties" subtitle={`${stats.totalProperties} approved`} color="from-violet-500 to-violet-700" onClick={() => onSetTab('properties')} />
         <QuickCard icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" title="Bookings" subtitle={`${stats.totalBookings} total`} color="from-blue-500 to-blue-700" onClick={() => onSetTab('bookings')} />
         <QuickCard icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" title="Request Inspection" subtitle="For new properties" color="from-amber-500 to-amber-700" onClick={() => onSetTab('inspections')} />
-        <QuickCard icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" title="Chat Support" subtitle="Message WeHouse" color="from-emerald-500 to-emerald-700" onClick={() => onGoToChat ? onGoToChat() : onSetTab('chat')} />
+        <QuickCard icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" title="Chat Support" subtitle="Message WeHouse" color="from-emerald-500 to-emerald-700" onClick={() => onGoToChat ? onGoToChat() : onSetTab('messages')} />
       </div>
 
       {/* Pending Inspections Alert */}
@@ -524,7 +536,7 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
 // CHAT SUPPORT TAB — Partner Support Conversations
 // ═══════════════════════════════════════════════════════════════
 
-function ChatTab({ profile }: { profile: Profile }) {
+function MessagesTab({ profile }: { profile: Profile }) {
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeChat, setActiveChat] = useState<string | null>(null);
@@ -616,6 +628,245 @@ function ChatTab({ profile }: { profile: Profile }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WALLET TAB
+// ═══════════════════════════════════════════════════════════════
+
+function WalletTab({ profile }: { profile: Profile }) {
+  const [wallet, setWallet] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data: w } = await supabase.from('wallets').select('*').eq('user_id', profile.user_id).maybeSingle();
+    setWallet(w);
+    const { data: tx } = await supabase.from('wallet_transactions').select('*').eq('user_id', profile.user_id).order('created_at', { ascending: false }).limit(20);
+    setTransactions(tx || []);
+    setLoading(false);
+  }
+
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  const balance = wallet?.balance || 0;
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-4">
+        <p className="text-[10px] text-[#5C5E72]">Wallet Balance</p>
+        <p className="text-2xl font-bold text-white mt-1">₦{balance.toLocaleString()}</p>
+      </div>
+      {transactions.length === 0 ? (
+        <EmptyState icon="M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22" title="No transactions yet" />
+      ) : (
+        <div className="space-y-2">
+          {transactions.map((tx: any) => (
+            <div key={tx.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-white capitalize">{tx.type}</p>
+                <p className="text-[9px] text-[#5C5E72]">{new Date(tx.created_at).toLocaleDateString()}</p>
+              </div>
+              <span className={`text-xs font-bold ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {tx.amount > 0 ? '+' : ''}₦{Math.abs(tx.amount).toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WITHDRAW TAB
+// ═══════════════════════════════════════════════════════════════
+
+function WithdrawTab({ profile }: { profile: Profile }) {
+  const [amount, setAmount] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [wallet, setWallet] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.from('wallets').select('*').eq('user_id', profile.user_id).maybeSingle().then(({ data }) => setWallet(data));
+  }, [profile.user_id]);
+
+  async function handleWithdraw() {
+    const amt = parseFloat(amount);
+    if (!amt || amt < 1000) { toast.error('Minimum withdrawal is ₦1,000'); return; }
+    if (!bankName || !accountNumber || !accountName) { toast.error('Please fill all bank details'); return; }
+    setProcessing(true);
+    await supabase.from('withdrawal_requests').insert({
+      user_id: profile.user_id,
+      amount: amt,
+      bank_name: bankName,
+      account_number: accountNumber,
+      account_name: accountName,
+      status: 'pending',
+    });
+    toast.success('Withdrawal request submitted');
+    setAmount('');
+    setProcessing(false);
+  }
+
+  const available = wallet?.balance || 0;
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-4">
+        <p className="text-[10px] text-[#5C5E72]">Available Balance</p>
+        <p className="text-2xl font-bold text-white mt-1">₦{available.toLocaleString()}</p>
+      </div>
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <h4 className="text-xs font-semibold text-white">Withdraw Funds</h4>
+        <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (₦)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-3 outline-none focus:border-violet-500" />
+        <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Bank Name" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-3 outline-none focus:border-violet-500" />
+        <input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="Account Number" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-3 outline-none focus:border-violet-500" />
+        <input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="Account Name" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-3 outline-none focus:border-violet-500" />
+        <button onClick={handleWithdraw} disabled={processing} className="w-full h-10 rounded-xl bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-400 disabled:opacity-50 transition-colors">
+          {processing ? 'Processing...' : 'Request Withdrawal'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONTRACTS TAB
+// ═══════════════════════════════════════════════════════════════
+
+function ContractsTab({ profile }: { profile: Profile }) {
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from('partner_contracts').select('*').eq('partner_id', profile.user_id).order('created_at', { ascending: false });
+    setContracts(data || []);
+    setLoading(false);
+  }
+
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 p-4">
+        <h3 className="text-sm font-semibold text-white">Contracts</h3>
+        <p className="text-[10px] text-[#5C5E72] mt-1">Your property management agreements.</p>
+      </div>
+      {contracts.length === 0 ? (
+        <EmptyState icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" title="No contracts yet" />
+      ) : (
+        <div className="space-y-2">
+          {contracts.map((c: any) => (
+            <div key={c.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3">
+              <p className="text-xs font-semibold text-white">{c.title || 'Contract'}</p>
+              <p className="text-[10px] text-[#5C5E72] mt-1">{c.description}</p>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-2 inline-block ${
+                c.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                c.status === 'pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>{c.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPPORT TAB
+// ═══════════════════════════════════════════════════════════════
+
+function SupportTab({ profile }: { profile: Profile }) {
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from('support_tickets').select('*').eq('user_id', profile.user_id).order('created_at', { ascending: false });
+    setTickets(data || []);
+    setLoading(false);
+  }
+
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 p-4">
+        <h3 className="text-sm font-semibold text-white">Support</h3>
+        <p className="text-[10px] text-[#5C5E72] mt-1">Get help with your properties and account.</p>
+      </div>
+      {tickets.length === 0 ? (
+        <EmptyState icon="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 9v4m0 4h.01" title="No support tickets" />
+      ) : (
+        <div className="space-y-2">
+          {tickets.map((t: any) => (
+            <div key={t.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3">
+              <p className="text-xs font-semibold text-white">{t.subject}</p>
+              <p className="text-[10px] text-[#5C5E72] mt-1">{t.message}</p>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-2 inline-block ${
+                t.status === 'open' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'
+              }`}>{t.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROFILE TAB
+// ═══════════════════════════════════════════════════════════════
+
+function ProfileTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-6 text-center">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center mx-auto mb-3">
+          <span className="text-white font-bold text-lg">{(profile.username || profile.email || 'P')[0].toUpperCase()}</span>
+        </div>
+        <h3 className="text-base font-bold text-white">@{profile.username || 'Unknown'}</h3>
+        <p className="text-[11px] text-[#5C5E72] mt-1">{profile.email}</p>
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 mt-2 inline-block">Property Partner</span>
+      </div>
+
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <InfoRow label="Full Name" value={profile.full_name || 'Not set'} />
+        <InfoRow label="Phone" value={profile.phone || 'Not set'} />
+        <InfoRow label="Location" value={profile.city || profile.state || 'Not set'} />
+        <InfoRow label="Joined" value={profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'} />
+      </div>
+
+      <button
+        onClick={onLogout}
+        className="w-full h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors"
+      >
+        Logout
+      </button>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[10px] text-[#5C5E72]">{label}</span>
+      <span className="text-[11px] text-white font-medium">{value}</span>
     </div>
   );
 }

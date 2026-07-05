@@ -3,11 +3,10 @@ import {
   supabase,
   getAllUsers, getCreatorDashboardStats, updateUserRole, restoreUser, suspendUser, freezeUser, banUser, reactivateUser,
   getAllListingsAdmin, deleteListing, getReports,
-  resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
+  resolveReport, dismissReport, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
   getFilteredRecipientCount, checkAnnouncementTables, toggleMaintenanceExempt,
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
-  assignFieldOfficer,
   getNotifications, getUnreadNotificationCount, markNotificationsRead,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
@@ -21,14 +20,18 @@ import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelB
 import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
-import ServiceCategoriesTab from './ServiceCategoriesTab';
+import StaffListTab from './StaffListTab';
+import BookingsTab from './BookingsTab';
+import VerificationTab from './VerificationTab';
 import SettingsTab from './SettingsTab';
 import CreatorSettingsTab from './CreatorSettingsTab';
-import FinanceSettingsTab from './FinanceSettingsTab';
 import PartnersTab from './PartnersTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'finance' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections' | 'support' | 'partners';
+// Admin/Creator tabs per Constitution
+// Admin: Overview, Users, Workers, Property Partners, Staff, Listings, Bookings, Reports, Support, Verification
+// Creator adds: Settings (Platform + Finance)
+type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification' | 'settings';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -62,7 +65,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','settings','finance','workers','services','announcements','hotels','permissions','inspections','support','partners'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','workers','partners','staff','listings','bookings','reports','support','verification','settings'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -80,22 +83,21 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     handleSetTab('users');
   }, [handleSetTab]);
 
+  // Admin/Creator tabs per Constitution
+  // Admin: Overview, Users, Workers, Partners, Staff, Listings, Bookings, Reports, Support, Verification
+  // Creator adds: Settings (Platform + Finance)
   const tabs = [
     { id: 'overview' as AdminTab, label: 'Overview', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'users' as AdminTab, label: 'Users', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
-    { id: 'listings' as AdminTab, label: 'Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
-    { id: 'reports' as AdminTab, label: 'Reports', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01' },
-    { id: 'audit' as AdminTab, label: 'Audit', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
     { id: 'workers' as AdminTab, label: 'Workers', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z' },
-    { id: 'services' as AdminTab, label: 'Services', icon: 'M4 6h16M4 12h16M4 18h16M6 6l2-2h8l2 2M6 18l2 2h8l2-2' },
-    { id: 'announcements' as AdminTab, label: 'Announce', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4' },
-    { id: 'hotels' as AdminTab, label: 'Hotels', icon: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM2 20h20M12 11v-6M9 11v-2M15 11v-2' },
-    { id: 'permissions' as AdminTab, label: 'Permissions', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
-    { id: 'inspections' as AdminTab, label: 'Inspections', icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' },
     { id: 'partners' as AdminTab, label: 'Partners', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
-    { id: 'support' as AdminTab, label: 'Support Inbox', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
-    { id: 'finance' as AdminTab, label: 'Finance', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
-    { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
+    { id: 'staff' as AdminTab, label: 'Staff', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11V7a3 3 0 0 1 6 0v4' },
+    { id: 'listings' as AdminTab, label: 'Listings', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
+    { id: 'bookings' as AdminTab, label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z' },
+    { id: 'reports' as AdminTab, label: 'Reports', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01' },
+    { id: 'support' as AdminTab, label: 'Support', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+    { id: 'verification' as AdminTab, label: 'Verification', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' },
+    ...(isCreatorAccount ? [{ id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' }] : []),
   ];
 
   return (
@@ -180,20 +182,15 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
       <main className="max-w-lg mx-auto px-5 pb-6">
         {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => goToUsers('manage')} onGoToUsersView={() => goToUsers('view')} onGoToUsersToday={() => goToUsers('today')} onGoToTab={handleSetTab} />}
         {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} />}
-        {activeTab === 'listings' && <ListingsTab profile={profile} />}
-        {activeTab === 'reports' && <ReportsTab profile={profile} />}
-        {activeTab === 'audit' && <AuditTab />}
-
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
         {activeTab === 'partners' && <PartnersTab />}
-        {activeTab === 'finance' && <FinanceSettingsTab profile={profile} />}
-        {activeTab === 'settings' && (isCreatorAccount ? <CreatorSettingsTab profile={profile} /> : <SettingsTab profile={profile} onUpdate={() => {}} />)}
-        {activeTab === 'services' && <ServiceCategoriesTab />}
-        {activeTab === 'inspections' && <UserInspectionsTab profile={profile} />}
+        {activeTab === 'staff' && <StaffListTab />}
+        {activeTab === 'listings' && <ListingsTab profile={profile} />}
+        {activeTab === 'bookings' && <BookingsTab />}
+        {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'support' && <SupportInboxTab profile={profile} />}
-        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
-        {activeTab === 'hotels' && <HotelsTab profile={profile} />}
-        {activeTab === 'permissions' && <PermissionsTab profile={profile} />}
+        {activeTab === 'verification' && <VerificationTab />}
+        {activeTab === 'settings' && (isCreatorAccount ? <CreatorSettingsTab profile={profile} /> : <SettingsTab profile={profile} onUpdate={() => {}} />)}
 
       </main>
     </div>
@@ -234,7 +231,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 
   // Middle row: Operations
   const opStats = [
-    { label: 'Pending Inspections', value: stats.pendingInspections, color: 'from-amber-500 to-[#F59E0B]', alert: stats.pendingInspections > 0, onClick: () => onGoToTab?.('inspections') },
+    { label: 'Pending Inspections', value: stats.pendingInspections, color: 'from-amber-500 to-[#F59E0B]', alert: stats.pendingInspections > 0, onClick: () => onGoToTab?.('verification') },
     { label: 'Pending Verifications', value: stats.pendingVerifications, color: 'from-[#3B82F6] to-[#2563EB]', alert: stats.pendingVerifications > 0, onClick: () => onGoToTab?.('workers') },
     { label: 'Active Bookings', value: stats.activeWorkerBookings, color: 'from-emerald-500 to-[#10B981]', onClick: () => onGoToTab?.('support') },
     { label: 'New Today', value: stats.todaySignups, color: 'from-cyan-500 to-[#06B6D4]', onClick: onGoToUsersToday },
@@ -245,7 +242,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
     { label: 'Total Revenue', value: `₦${stats.totalRevenue.toLocaleString()}`, color: 'from-green-500 to-[#22C55E]' },
     { label: 'Pending Payouts', value: `₦${stats.pendingPayouts.toLocaleString()}`, color: 'from-orange-500 to-[#F97316]', alert: stats.pendingPayouts > 0 },
     { label: 'Escrow Balance', value: `₦${stats.escrowBalance.toLocaleString()}`, color: 'from-indigo-500 to-[#6366F1]' },
-    { label: 'Staff', value: stats.totalStaff, color: 'from-[#8B5CF6] to-[#7C3AED]', onClick: () => onGoToTab?.('permissions') },
+    { label: 'Staff', value: stats.totalStaff, color: 'from-[#8B5CF6] to-[#7C3AED]', onClick: () => onGoToTab?.('staff') },
   ];
 
   return (
@@ -972,40 +969,6 @@ function ReportsTab({ profile }: { profile: Profile }) {
 }
 
 // ─── AUDIT ─────────────────────────────────────────
-function AuditTab() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const { logs: data } = await getAuditLogs();
-      setLogs(data || []);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  return (
-    <div className="space-y-2">
-      {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
-      ) : logs.length === 0 ? (
-        <div className="text-center py-16 text-xs text-[#5C5E72]">No audit logs yet</div>
-      ) : (
-        logs.map(l => (
-          <div key={l.id} className="glass rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{l.action}</span>
-              <span className="text-[10px] text-[#5C5E72]">{new Date(l.created_at).toLocaleString()}</span>
-            </div>
-            <p className="text-xs text-white">{l.admin_email}</p>
-            {l.details && <p className="text-[10px] text-[#5C5E72] mt-0.5">{l.details}</p>}
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
 
 // ─── SETTINGS ──────────────────────────────────────
 // ─── WORKER APPLICATIONS TAB ───────────────────────
@@ -2354,153 +2317,7 @@ function HotelRoomsTab({ hotel, onBack }: { hotel: Hotel; onBack: () => void }) 
 }
 
 
-// ─── PERMISSIONS TAB (CTO DESIGN) ──────────────────
-// ─── PERMISSIONS TAB ─────────────────────────────────────
-// Each staff gets exactly ONE permission. Simple dropdown per staff.
 
-function PermissionsTab({ profile }: { profile: Profile }) {
-  const [staffList, setStaffList] = useState<Profile[]>([]);
-  const [staffPerms, setStaffPerms] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
-
-  const permissionGroups = [
-    { id: 'operations', label: 'Operations', desc: 'Listings, property management, inspections' },
-    { id: 'finance', label: 'Finance', desc: 'Payments, revenue, commission, payouts' },
-    { id: 'support', label: 'Customer Support', desc: 'Tickets, customer chat, complaints' },
-    { id: 'verification', label: 'Worker Verification', desc: 'Review docs, approve/reject workers' },
-    { id: 'field_officer', label: 'Field Officer', desc: 'Property inspections, photo uploads' },
-  ];
-
-  useEffect(() => { loadStaff(); }, []);
-
-  async function loadStaff() {
-    setLoading(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'staff')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-    const staffData = data || [];
-    setStaffList(staffData);
-
-    // Load ONE permission per staff (the first active one)
-    const perms: Record<string, string> = {};
-    for (const s of staffData) {
-      const { data: p } = await supabase
-        .from('staff_permissions')
-        .select('permission')
-        .eq('staff_id', s.user_id)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-      if (p) perms[s.user_id] = p.permission;
-    }
-    setStaffPerms(perms);
-    setLoading(false);
-  }
-
-  async function assignPermission(staffId: string, permId: string) {
-    setSavingId(staffId);
-
-    // 1. Revoke ALL existing permissions for this staff (only one allowed)
-    await supabase
-      .from('staff_permissions')
-      .update({ is_active: false, revoked_at: new Date().toISOString() })
-      .eq('staff_id', staffId)
-      .eq('is_active', true);
-
-    // 2. Grant the new one
-    if (permId) {
-      await supabase
-        .from('staff_permissions')
-        .upsert(
-          { staff_id: staffId, permission: permId, granted_by: profile.user_id, is_active: true },
-          { onConflict: 'staff_id,permission' }
-        );
-    }
-
-    setStaffPerms(prev => ({ ...prev, [staffId]: permId }));
-    setSavingId(null);
-    toast.success(permId ? 'Permission assigned' : 'Permission removed');
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-10">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 p-4">
-        <h3 className="text-sm font-semibold text-white">Permission Management</h3>
-        <p className="text-[10px] text-[#5C5E72] mt-1">
-          Each staff member gets exactly one permission. This determines what they see on their dashboard.
-        </p>
-      </div>
-
-      {staffList.length === 0 && (
-        <div className="text-center py-10 text-[#5C5E72] text-sm">
-          No staff members yet. Change a user's role to "Staff" in the Users tab first.
-        </div>
-      )}
-
-      {/* Staff list — each gets ONE permission dropdown */}
-      <div className="space-y-3">
-        {staffList.map(s => {
-          const currentPerm = staffPerms[s.user_id] || '';
-          const isSaving = savingId === s.user_id;
-          return (
-            <div key={s.user_id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4">
-              {/* Staff info */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-sm font-bold text-[#5C5E72]">
-                  {(s.username || s.email || 'S')[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white">@{s.username || 'unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72]">{s.email}</p>
-                </div>
-                {currentPerm && (
-                  <span className="text-[9px] font-bold px-2 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                    {permissionGroups.find(g => g.id === currentPerm)?.label || currentPerm}
-                  </span>
-                )}
-              </div>
-
-              {/* Single permission dropdown */}
-              <div className="relative">
-                <select
-                  value={currentPerm}
-                  disabled={isSaving}
-                  onChange={(e) => assignPermission(s.user_id, e.target.value)}
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-xs px-3 outline-none focus:border-purple-500 disabled:opacity-50"
-                >
-                  <option value="">No Permission Assigned</option>
-                  {permissionGroups.map(pg => (
-                    <option key={pg.id} value={pg.id}>{pg.label} — {pg.desc}</option>
-                  ))}
-                </select>
-                {isSaving && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <svg className="w-4 h-4 animate-spin text-purple-400" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 
 // ═════════════════════════════════════════════════════════════════
@@ -2861,382 +2678,6 @@ function SupportInboxTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════
-// USER INSPECTION REQUESTS TAB (Creator/Admin)
-// ═════════════════════════════════════════════════════════════════
-
-function UserInspectionsTab({ profile: _profile }: { profile: Profile }) {
-  const [inspections, setInspections] = useState<any[]>([]);
-  const [partnerInspections, setPartnerInspections] = useState<any[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<'user' | 'partner'>('user');
-  const [fieldOfficers, setFieldOfficers] = useState<any[]>([]);
-  const [officerMap, setOfficerMap] = useState<Record<string, {full_name?:string;username?:string;phone?:string}>>({});
-  const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    setLoading(true);
-
-    // Load user inspection requests via RPC (bypasses RLS)
-    const { data: userInsp, error: userInspErr } = await supabase.rpc('admin_get_user_inspections');
-    if (userInspErr) console.error('[UserInspections] error:', userInspErr);
-    setInspections(userInsp || []);
-
-    // Load partner inspection requests via RPC (bypasses RLS)
-    const { data: partnerData, error: partnerErr } = await supabase.rpc('admin_get_partner_inspections');
-    if (partnerErr) console.error('[PartnerInspections] error:', partnerErr);
-    setPartnerInspections(partnerData || []);
-
-    // Load field officers via RPC
-    const { data: officers, error: officersErr } = await supabase.rpc('admin_get_field_officers');
-    if (officersErr) console.error('[FieldOfficers] error:', officersErr);
-    setFieldOfficers(officers || []);
-
-    // Collect ALL unique field_officer_ids and fetch their names
-    const allInspections = [...(userInsp || []), ...(partnerData || [])];
-    const officerIds = [...new Set(allInspections.map((i: any) => i.field_officer_id).filter(Boolean))];
-    if (officerIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, username, phone')
-        .in('user_id', officerIds);
-      const map: Record<string, any> = {};
-      (profiles || []).forEach((p: any) => { map[p.user_id] = p; });
-      setOfficerMap(map);
-    }
-
-    setLoading(false);
-  }
-
-  async function handleAssign(inspectionId: string, officerId: string) {
-    const { error } = await assignFieldOfficer(inspectionId, officerId);
-    if (error) { toast.error('Failed to assign: ' + error.message); return; }
-    toast.success('Field officer assigned');
-    load();
-  }
-
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-      scheduled: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-      in_progress: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-      completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-      cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
-    };
-    return map[status] || 'bg-[#1A1A24] text-[#5C5E72] border-[#232330]';
-  };
-
-  if (loading) {
-    return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-white">Inspection Management</h3>
-          <p className="text-[10px] text-[#5C5E72]">
-            {inspections.length + partnerInspections.length} total active · Assign field officers
-          </p>
-        </div>
-        <button onClick={load} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">Refresh</button>
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveSubTab('user')}
-          className={`flex-1 h-9 rounded-xl text-xs font-medium transition-all ${activeSubTab === 'user' ? 'bg-[#3B82F6] text-white' : 'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'}`}
-        >
-          User ({inspections.length})
-        </button>
-        <button
-          onClick={() => setActiveSubTab('partner')}
-          className={`flex-1 h-9 rounded-xl text-xs font-medium transition-all ${activeSubTab === 'partner' ? 'bg-violet-500 text-white' : 'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'}`}
-        >
-          Partner ({partnerInspections.length})
-        </button>
-      </div>
-
-      {/* User Inspections */}
-      {activeSubTab === 'user' && (
-        <>
-          {inspections.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-sm text-[#8A8B9C]">No user inspection requests</p>
-              <p className="text-xs text-[#5C5E72] mt-1">Users request inspection after reserving a property.</p>
-            </div>
-          ) : (
-            inspections.map((insp) => (
-              <div key={insp.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
-          {/* Header */}
-          <button
-            onClick={() => setExpandedId(expandedId === insp.id ? null : insp.id)}
-            className="w-full flex items-center gap-3 p-4 text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center text-[#3B82F6] text-sm font-bold flex-shrink-0">
-              {(insp.username || 'U')[0].toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-white truncate">@{insp.username || 'Unknown'}</span>
-                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusBadge(insp.status)}`}>
-                  {insp.status}
-                </span>
-              </div>
-              <p className="text-[10px] text-[#5C5E72] truncate">
-                {insp.listings?.title || 'Unknown property'} — {insp.listings?.city || ''}
-              </p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`flex-shrink-0 transition-transform ${expandedId === insp.id ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
-          </button>
-
-          {/* Expanded Details */}
-          {expandedId === insp.id && (
-            <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
-              {/* Property Info */}
-              {insp.listings && (
-                <div className="flex items-center gap-3">
-                  <img src={insp.listings.images?.[0] || 'https://placehold.co/60x60/1A1A24/5C5E72?text=No+Image'} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-white">{insp.listings.title}</p>
-                    <p className="text-[10px] text-[#5C5E72]">{insp.listings.address}, {insp.listings.city}, {insp.listings.state}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* User Info */}
-              <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
-                <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">User Details</p>
-                <p className="text-xs text-white">Name: {insp.full_name || insp.username || 'N/A'}</p>
-                <p className="text-xs text-white">Email: {insp.owner_email || 'N/A'}</p>
-                <p className="text-xs text-white">Phone: {insp.phone || insp.owner_phone || 'Not provided'}</p>
-                <p className="text-[10px] text-[#5C5E72]">Requested: {new Date(insp.created_at).toLocaleDateString()}</p>
-              </div>
-
-              {/* Notes */}
-              {insp.notes && (
-                <div className="rounded-xl bg-[#1A1A24] p-3">
-                  <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Notes</p>
-                  <p className="text-xs text-white mt-1">{insp.notes}</p>
-                </div>
-              )}
-
-              {/* Assign Field Officer */}
-              {insp.status === 'pending' && (
-                <div className="space-y-2">
-                  <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Assign Field Officer</p>
-                  {fieldOfficers.length === 0 ? (
-                    <p className="text-xs text-amber-400">No field officers available. Assign staff first.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {fieldOfficers.map((officer) => (
-                        <button
-                          key={officer.user_id}
-                          onClick={() => handleAssign(insp.id, officer.user_id)}
-                          className="h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[11px] text-white hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/5 transition-colors"
-                        >
-                          @{officer.username || officer.full_name || 'Unknown'}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Assigned officer info */}
-              {insp.field_officer_id && (
-                <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
-                    <button
-                      onClick={async () => {
-                        const { error } = await supabase.from('inspection_requests').update({
-                          field_officer_id: null,
-                          assigned_to: null,
-                          status: 'pending',
-                          updated_at: new Date().toISOString(),
-                        }).eq('id', insp.id);
-                        if (error) { toast.error('Failed to unassign'); return; }
-                        toast.success('Officer unassigned');
-                        load();
-                      }}
-                      className="text-[9px] text-red-400 hover:text-red-300 transition-colors"
-                    >
-                      Unassign
-                    </button>
-                  </div>
-                  <p className="text-xs text-white font-medium mt-1">
-                    {officerMap[insp.field_officer_id]?.full_name || officerMap[insp.field_officer_id]?.username || 'Unknown officer'}
-                  </p>
-                  {officerMap[insp.field_officer_id]?.phone && (
-                    <p className="text-[10px] text-[#5C5E72]">{officerMap[insp.field_officer_id].phone}</p>
-                  )}
-                  {insp.scheduled_date && (
-                    <p className="text-[10px] text-[#5C5E72] mt-1">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )))}
-        </>
-      )}
-
-      {/* Partner Inspections (Property Submissions) */}
-      {activeSubTab === 'partner' && (
-        <>
-          {partnerInspections.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-sm text-[#8A8B9C]">No partner inspection requests</p>
-              <p className="text-xs text-[#5C5E72] mt-1">Property partners submit inspection requests through their dashboard.</p>
-            </div>
-          ) : (
-            partnerInspections.map((insp: any) => (
-              <div key={insp.id} className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] overflow-hidden">
-                {/* Header */}
-                <button
-                  onClick={() => setExpandedId(expandedId === insp.id ? null : insp.id)}
-                  className="w-full flex items-center gap-3 p-4 text-left"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-400 text-sm font-bold flex-shrink-0">
-                    {(insp.username || 'P')[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white truncate">@{insp.username || 'Unknown'}</span>
-                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusBadge(insp.status)}`}>
-                        {insp.status}
-                      </span>
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Partner</span>
-                    </div>
-                    <p className="text-[10px] text-[#5C5E72] truncate">
-                      {insp.request_code} · {insp.property_address}, {insp.property_city}
-                    </p>
-                  </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`flex-shrink-0 transition-transform ${expandedId === insp.id ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
-                </button>
-
-                {/* Expanded Details */}
-                {expandedId === insp.id && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
-                    {/* Property Info */}
-                    <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
-                      <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Property Details</p>
-                      <p className="text-xs text-white">Type: {insp.property_type}</p>
-                      <p className="text-xs text-white">Address: {insp.property_address}</p>
-                      <p className="text-xs text-white">Location: {insp.property_city}, {insp.property_state}</p>
-                      {insp.bedrooms && <p className="text-xs text-white">Bedrooms: {insp.bedrooms}</p>}
-                      {insp.expected_rent && <p className="text-xs text-white">Expected Rent: N{insp.expected_rent.toLocaleString()}</p>}
-                      {insp.description && <p className="text-xs text-[#8A8B9C] mt-1">{insp.description}</p>}
-                    </div>
-
-                    {/* Partner Info */}
-                    <div className="rounded-xl bg-[#1A1A24] p-3 space-y-1">
-                      <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Partner Contact</p>
-                      <p className="text-xs text-white">Name: {insp.full_name || insp.username || 'N/A'}</p>
-                      <p className="text-xs text-white">Email: {insp.owner_email || 'N/A'}</p>
-                      <p className="text-xs text-white">Phone: {insp.owner_phone || 'Not provided'}</p>
-                      <p className="text-[10px] text-[#5C5E72]">Submitted: {new Date(insp.created_at).toLocaleDateString()}</p>
-                    </div>
-
-                    {/* Photos */}
-                    {insp.photo_urls && insp.photo_urls.length > 0 && (
-                      <div className="flex gap-2 overflow-x-auto pb-1">
-                        {insp.photo_urls.map((url: string, i: number) => (
-                          <img key={i} src={url} alt="" className="w-20 h-20 rounded-xl object-cover flex-shrink-0" />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Assign Field Officer */}
-                    {insp.status === 'pending' && (
-                      <div className="space-y-2">
-                        <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Assign Field Officer</p>
-                        {fieldOfficers.length === 0 ? (
-                          <p className="text-xs text-amber-400">No field officers available. Assign staff first.</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {fieldOfficers.map((officer) => (
-                              <button
-                                key={officer.user_id}
-                                onClick={async () => {
-                                  const { error } = await supabase.from('inspection_requests').update({
-                                    field_officer_id: officer.user_id,
-                                    assigned_to: officer.user_id,
-                                    status: 'scheduled',
-                                    updated_at: new Date().toISOString(),
-                                  }).eq('id', insp.id);
-                                  if (error) { toast.error('Failed: ' + error.message); return; }
-                                  toast.success(`Assigned to ${officer.username || officer.full_name}`);
-                                  load();
-                                }}
-                                className="h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-[11px] text-white hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors"
-                              >
-                                @{officer.username || officer.full_name || 'Unknown'}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Assigned officer info */}
-                    {insp.field_officer_id && (
-                      <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] text-blue-400 uppercase tracking-wider">Assigned Officer</p>
-                          <button
-                            onClick={async () => {
-                              const { error } = await supabase.from('inspection_requests').update({
-                                field_officer_id: null,
-                                assigned_to: null,
-                                status: 'pending',
-                                updated_at: new Date().toISOString(),
-                              }).eq('id', insp.id);
-                              if (error) { toast.error('Failed to unassign'); return; }
-                              toast.success('Officer unassigned');
-                              load();
-                            }}
-                            className="text-[9px] text-red-400 hover:text-red-300 transition-colors"
-                          >
-                            Unassign
-                          </button>
-                        </div>
-                        <p className="text-xs text-white font-medium mt-1">
-                    {officerMap[insp.field_officer_id]?.full_name || officerMap[insp.field_officer_id]?.username || 'Unknown officer'}
-                  </p>
-                  {officerMap[insp.field_officer_id]?.phone && (
-                    <p className="text-[10px] text-[#5C5E72]">{officerMap[insp.field_officer_id].phone}</p>
-                  )}
-                        {insp.scheduled_date && (
-                          <p className="text-[10px] text-[#5C5E72] mt-1">Scheduled: {new Date(insp.scheduled_date).toLocaleString()}</p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Rejection */}
-                    {insp.status === 'rejected' && insp.rejection_reason && (
-                      <div className="rounded-xl bg-red-500/5 border border-red-500/10 p-3">
-                        <p className="text-[10px] text-red-400 uppercase tracking-wider">Rejection Reason</p>
-                        <p className="text-xs text-red-300 mt-1">{insp.rejection_reason}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </>
-      )}
-    </div>
-  );
-}
 
 
 

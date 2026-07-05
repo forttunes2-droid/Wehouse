@@ -29,4 +29,6 @@ export type NavPage =
   | 'property_owner'
   | 'property_partner'
   | 'my_bookings'
-  | 'my_reservations';
+  | 'my_reservations'
+  | 'messages'
+  | 'wallet';

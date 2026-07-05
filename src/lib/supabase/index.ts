@@ -288,3 +288,11 @@ export {
   uploadHotelImage,
   uploadRoomImage,
 } from './hotels';
+
+// Platform Settings
+export {
+  getPlatformSettings,
+  getPlatformSetting,
+  updatePlatformSetting,
+  getTypedSetting,
+} from './platform-settings';

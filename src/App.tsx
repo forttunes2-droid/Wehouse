@@ -38,6 +38,7 @@ const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
 const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
 const MyBookings = lazy(() => import('@/pages/MyBookings'));
 const MyReservations = lazy(() => import('@/pages/MyReservations'));
+const UserWalletPage = lazy(() => import('@/pages/UserWalletPage'));
 
 
 // ─── SKELETON LOADER ──────────────────────────────
@@ -80,7 +81,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings', 'my_reservations'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings', 'my_reservations', 'messages', 'wallet'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -411,6 +412,10 @@ export default function App() {
         return <MyBookings profile={profile} onBack={() => goTo('profile')} />;
       case 'my_reservations':
         return <MyReservations profile={profile} onBack={() => goTo('profile')} />;
+      case 'messages':
+        return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
+      case 'wallet':
+        return <UserWalletPage profile={profile} onBack={() => goTo('profile')} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
@@ -419,11 +424,14 @@ export default function App() {
   // ── Roommate access: ONLY regular users (not workers, not staff, not admin) ──
   const canAccessRoommate = profile.role === 'user';
 
-  // Bottom nav — dynamically built per role
+  // Bottom nav per Constitution: Home, Search, Saved, Bookings, Worker Bookings, Hotel Bookings, Roommate, Messages, Notifications, Wallet History, Support, Profile, Settings
   const baseTabs = [
     { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-    { id: 'search' as NavPage, label: 'Listings', icon: ListingsSvg },
+    { id: 'search' as NavPage, label: 'Search', icon: ListingsSvg },
+    { id: 'saved' as NavPage, label: 'Saved', icon: SavedSvg },
     { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+    { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+    { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
     ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
     ...(isWorker ? [] : [{ id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg }]),
   ];
@@ -533,6 +541,30 @@ function WrenchSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  );
+}
+
+function SavedSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function MessagesSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  );
+}
+
+function WalletSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22" />
     </svg>
   );
 }

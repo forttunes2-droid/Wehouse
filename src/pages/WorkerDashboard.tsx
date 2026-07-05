@@ -26,7 +26,8 @@ interface WorkerDashboardProps {
   onGoToMessages?: () => void;
 }
 
-type WorkerTab = 'home' | 'verification' | 'bookings' | 'messages' | 'services' | 'earnings' | 'wallet' | 'reviews' | 'profile' | 'support' | 'settings';
+// Worker tabs per Constitution: Overview, Bookings, Calendar, Wallet, Withdraw, Reviews, Services, Availability, Messages, Notifications, Verification Status, Profile, Settings
+type WorkerTab = 'overview' | 'bookings' | 'calendar' | 'wallet' | 'withdraw' | 'reviews' | 'services' | 'availability' | 'messages' | 'notifications' | 'verification_status' | 'profile' | 'support' | 'settings';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; desc: string; icon: string }> = {
   pending: {
@@ -52,7 +53,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
 };
 
 export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavigate, onGoToChat }: WorkerDashboardProps) {
-  const [activeTab, setActiveTab] = useState<WorkerTab>('home');
+  const [activeTab, setActiveTab] = useState<WorkerTab>('overview');
   const status = profile.worker_status || 'pending';
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
 
@@ -78,13 +79,20 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
   // They must be approved by admin/creator first
   const canAccessVerification = status !== 'pending';
 
+  // Constitution tabs: Overview, Bookings, Calendar, Wallet, Withdraw, Reviews, Services, Availability, Messages, Notifications, Verification Status, Profile, Settings
   const tabs: { id: WorkerTab; label: string; icon: string }[] = [
-    { id: 'home', label: 'Home', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
-    ...(canAccessVerification ? [{ id: 'verification' as WorkerTab, label: 'Verify', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' }] : []),
-    { id: 'bookings', label: 'Jobs', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z' },
+    { id: 'overview', label: 'Overview', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
+    { id: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { id: 'calendar', label: 'Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
     { id: 'wallet', label: 'Wallet', icon: 'M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22' },
-    { id: 'services', label: 'Services', icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' },
+    { id: 'withdraw', label: 'Withdraw', icon: 'M12 19l7-7-7-7M5 12h14' },
     { id: 'reviews', label: 'Reviews', icon: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' },
+    { id: 'services', label: 'Services', icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' },
+    { id: 'availability', label: 'Availability', icon: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' },
+    { id: 'messages', label: 'Messages', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+    { id: 'notifications', label: 'Alerts', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
+    ...(canAccessVerification ? [{ id: 'verification_status' as WorkerTab, label: 'Status', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' }] : []),
+    { id: 'profile', label: 'Profile', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' },
     { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
   ];
 
@@ -156,8 +164,9 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
 
       {/* Content */}
       <main className="px-5 py-4 max-w-lg mx-auto">
-        {activeTab === 'home' && (
-          <HomeTab
+        {/* Constitution tabs: Overview, Bookings, Calendar, Wallet, Withdraw, Reviews, Services, Availability, Messages, Notifications, Verification Status, Profile, Settings */}
+        {activeTab === 'overview' && (
+          <OverviewTab
             profile={profile}
             wallet={wallet}
             blueBadge={blueBadge}
@@ -165,7 +174,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
             onSetTab={setActiveTab}
           />
         )}
-        {activeTab === 'verification' && (
+        {activeTab === 'verification_status' && (
           <VerificationTab
             profile={profile}
             verification={verification}
@@ -173,6 +182,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
           />
         )}
         {activeTab === 'bookings' && <BookingsTab profile={profile} />}
+        {activeTab === 'calendar' && <CalendarTab profile={profile} />}
         {activeTab === 'wallet' && (
           <WalletTab
             wallet={wallet}
@@ -180,10 +190,12 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
             onUpdate={loadDashboardData}
           />
         )}
+        {activeTab === 'withdraw' && <WithdrawTab wallet={wallet} profile={profile} onUpdate={loadDashboardData} />}
         {activeTab === 'services' && <ServicesTab profile={profile} />}
-        {activeTab === 'earnings' && <EarningsTab wallet={wallet} transactions={transactions} />}
-        {activeTab === 'messages' && <MessagesTab profile={profile} onGoToChat={onGoToChat} />}
         {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
+        {activeTab === 'availability' && <AvailabilityTab profile={profile} />}
+        {activeTab === 'messages' && <MessagesTab profile={profile} onGoToChat={onGoToChat} />}
+        {activeTab === 'notifications' && <NotificationsTab userId={profile.user_id} />}
         {activeTab === 'profile' && <ProfileTab profile={profile} onGoToSetup={onGoToSetup} />}
         {activeTab === 'support' && <SupportTab />}
         {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
@@ -193,10 +205,10 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HOME TAB
+// OVERVIEW TAB (was HomeTab)
 // ═══════════════════════════════════════════════════════════════
 
-function HomeTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
+function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
   profile: Profile;
   wallet: Wallet | null;
   blueBadge: BlueBadgeSubscription | null;
@@ -283,7 +295,7 @@ function HomeTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
         </div>
       ) : (
         <button
-          onClick={() => onSetTab('verification')}
+          onClick={() => onSetTab('verification_status')}
           className="w-full bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-blue-500/40 transition-colors"
         >
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -303,7 +315,7 @@ function HomeTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
         <div className="grid grid-cols-2 gap-2">
           <QuickActionButton label="Edit Profile" icon="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" onClick={onGoToSetup} />
           <QuickActionButton label="My Jobs" icon="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z" onClick={() => onSetTab('bookings')} />
-          <QuickActionButton label="Verification" icon="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0" onClick={() => onSetTab('verification')} />
+          <QuickActionButton label="Verification" icon="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0" onClick={() => onSetTab('verification_status')} />
           <QuickActionButton label="Withdraw" icon="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" onClick={() => onSetTab('wallet')} />
         </div>
       </div>
@@ -983,47 +995,6 @@ function ServicesTab({ profile }: { profile: Profile }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// EARNINGS TAB
-// ═══════════════════════════════════════════════════════════════
-
-function EarningsTab({ wallet, transactions }: { wallet: Wallet | null; transactions: WalletTransaction[] }) {
-  const totalEarned = transactions
-    .filter(tx => tx.type === 'escrow_release' || tx.type === 'credit')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-
-  const thisMonth = transactions
-    .filter(tx => {
-      const txDate = new Date(tx.created_at);
-      const now = new Date();
-      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
-    })
-    .filter(tx => tx.type === 'escrow_release' || tx.type === 'credit')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-sm font-semibold text-white">Earnings</h2>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
-          <p className="text-lg font-bold text-white">₦{totalEarned.toLocaleString()}</p>
-          <p className="text-[10px] text-[#5C5E72]">Total Earned</p>
-        </div>
-        <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4">
-          <p className="text-lg font-bold text-white">₦{thisMonth.toLocaleString()}</p>
-          <p className="text-[10px] text-[#5C5E72]">This Month</p>
-        </div>
-      </div>
-
-      <div className="bg-[#12121A] border border-[#1E1E2C] rounded-2xl p-4">
-        <p className="text-[10px] text-[#5C5E72] mb-2">Available for Withdrawal</p>
-        <p className="text-xl font-bold text-emerald-400">₦{(wallet?.available_balance || 0).toLocaleString()}</p>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
 // REVIEWS TAB
 // ═══════════════════════════════════════════════════════════════
 
@@ -1264,6 +1235,293 @@ function EmptyState({ icon, message, submessage }: { icon: string; message: stri
       <p className="text-2xl mb-2">{icon}</p>
       <p className="text-sm text-[#5C5E72]">{message}</p>
       <p className="text-[10px] text-[#3C3D4D] mt-1">{submessage}</p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CALENDAR TAB
+// ═══════════════════════════════════════════════════════════════
+
+function CalendarTab({ profile }: { profile: Profile }) {
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from('worker_bookings')
+      .select('*')
+      .eq('worker_id', profile.user_id)
+      .order('scheduled_date', { ascending: true });
+    setEvents(data || []);
+    setLoading(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 p-4">
+        <h3 className="text-sm font-semibold text-white">Schedule</h3>
+        <p className="text-[10px] text-[#5C5E72] mt-1">Your upcoming jobs and availability.</p>
+      </div>
+      {events.length === 0 ? (
+        <EmptyState icon="📅" message="No scheduled events" submessage="Your bookings will appear here." />
+      ) : (
+        <div className="space-y-2">
+          {events.map((e: any) => (
+            <div key={e.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-4">
+              <p className="text-xs font-semibold text-white">{e.service_type || 'Booking'}</p>
+              <p className="text-[10px] text-[#5C5E72] mt-1">
+                {e.scheduled_date ? new Date(e.scheduled_date).toLocaleDateString() : 'No date'}
+              </p>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-2 inline-block ${
+                e.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                e.status === 'pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                'bg-[#1A1A24] text-[#5C5E72] border border-[#232330]'
+              }`}>{e.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WITHDRAW TAB
+// ═══════════════════════════════════════════════════════════════
+
+function WithdrawTab({ wallet, profile, onUpdate }: { wallet: Wallet | null; profile: Profile; onUpdate: () => void }) {
+  const [amount, setAmount] = useState('');
+  const [bankName, setBankName] = useState(wallet?.bank_name || '');
+  const [accountNumber, setAccountNumber] = useState(wallet?.bank_account_number || '');
+  const [accountName, setAccountName] = useState(wallet?.bank_account_name || '');
+  const [processing, setProcessing] = useState(false);
+
+  const available = wallet?.available_balance || 0;
+  const minWithdraw = 1000;
+
+  async function handleWithdraw() {
+    const amt = parseFloat(amount);
+    if (!amt || amt < minWithdraw) { toast.error(`Minimum withdrawal is ₦${minWithdraw.toLocaleString()}`); return; }
+    if (amt > available) { toast.error('Insufficient balance'); return; }
+    if (!bankName || !accountNumber || !accountName) { toast.error('Please fill in all bank details'); return; }
+
+    setProcessing(true);
+    try {
+      // Save bank details first
+      await updateWalletBankDetails(profile.user_id, { bank_name: bankName, bank_account_number: accountNumber, bank_account_name: accountName });
+      // Request withdrawal
+      await requestWithdrawal(profile.user_id, amt);
+      toast.success('Withdrawal request submitted');
+      setAmount('');
+      onUpdate();
+    } catch (e: any) {
+      toast.error(e.message || 'Withdrawal failed');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-4">
+        <p className="text-[10px] text-[#5C5E72]">Available Balance</p>
+        <p className="text-2xl font-bold text-white mt-1">₦{available.toLocaleString()}</p>
+      </div>
+
+      <div className="rounded-2xl bg-[#12121A]/60 border border-white/[0.04] p-4 space-y-3">
+        <h4 className="text-xs font-semibold text-white">Withdraw Funds</h4>
+        <div>
+          <label className="text-[10px] text-[#5C5E72] mb-1 block">Amount (₦)</label>
+          <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`Min ₦${minWithdraw.toLocaleString()}`} className="bg-[#1A1A24] border-[#232330] text-white" />
+        </div>
+        <div>
+          <label className="text-[10px] text-[#5C5E72] mb-1 block">Bank Name</label>
+          <Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. GTBank" className="bg-[#1A1A24] border-[#232330] text-white" />
+        </div>
+        <div>
+          <label className="text-[10px] text-[#5C5E72] mb-1 block">Account Number</label>
+          <Input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="10-digit account number" className="bg-[#1A1A24] border-[#232330] text-white" />
+        </div>
+        <div>
+          <label className="text-[10px] text-[#5C5E72] mb-1 block">Account Name</label>
+          <Input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="Full account name" className="bg-[#1A1A24] border-[#232330] text-white" />
+        </div>
+        <button
+          onClick={handleWithdraw}
+          disabled={processing || !amount || parseFloat(amount) < minWithdraw}
+          className="w-full h-10 rounded-xl bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {processing ? 'Processing...' : 'Request Withdrawal'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AVAILABILITY TAB
+// ═══════════════════════════════════════════════════════════════
+
+function AvailabilityTab({ profile }: { profile: Profile }) {
+  const [availability, setAvailability] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const timeSlots = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
+
+  useEffect(() => {
+    loadAvailability();
+  }, []);
+
+  async function loadAvailability() {
+    const { data } = await supabase
+      .from('worker_availability')
+      .select('*')
+      .eq('worker_id', profile.user_id);
+    const map: Record<string, boolean> = {};
+    (data || []).forEach((a: any) => {
+      map[`${a.day}-${a.time_slot}`] = a.is_available;
+    });
+    setAvailability(map);
+  }
+
+  async function toggleSlot(day: string, slot: string) {
+    const key = `${day}-${slot}`;
+    const newValue = !availability[key];
+    setSaving(true);
+    await supabase.from('worker_availability').upsert({
+      worker_id: profile.user_id,
+      day,
+      time_slot: slot,
+      is_available: newValue,
+    }, { onConflict: 'worker_id,day,time_slot' });
+    setAvailability(prev => ({ ...prev, [key]: newValue }));
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 p-4">
+        <h3 className="text-sm font-semibold text-white">Availability</h3>
+        <p className="text-[10px] text-[#5C5E72] mt-1">Set your working hours. Users can book you during available slots.</p>
+      </div>
+
+      {saving && (
+        <div className="text-center">
+          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {days.map(day => (
+          <div key={day} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3">
+            <p className="text-xs font-semibold text-white mb-2">{day}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {timeSlots.map(slot => {
+                const isAvail = availability[`${day}-${slot}`];
+                return (
+                  <button
+                    key={slot}
+                    onClick={() => toggleSlot(day, slot)}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-medium border transition-all ${
+                      isAvail
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : 'bg-[#1A1A24] border-[#232330] text-[#5C5E72]'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS TAB
+// ═══════════════════════════════════════════════════════════════
+
+function NotificationsTab({ userId }: { userId: string }) {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    load();
+    const sub = supabase
+      .channel(`worker_notifications:${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, [userId]);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    setNotifications(data || []);
+    setLoading(false);
+  }
+
+  async function markRead(id: string) {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 p-4">
+        <h3 className="text-sm font-semibold text-white">Notifications</h3>
+        <p className="text-[10px] text-[#5C5E72] mt-1">Stay updated on your bookings and account.</p>
+      </div>
+      {notifications.length === 0 ? (
+        <EmptyState icon="🔔" message="No notifications" submessage="New alerts will appear here." />
+      ) : (
+        notifications.map(n => (
+          <button
+            key={n.id}
+            onClick={() => markRead(n.id)}
+            className={`w-full text-left rounded-xl p-3 border transition-all ${
+              n.is_read
+                ? 'bg-[#12121A]/30 border-white/[0.02]'
+                : 'bg-[#12121A]/60 border-white/[0.04]'
+            }`}
+          >
+            <p className={`text-xs ${n.is_read ? 'text-[#8A8B9C]' : 'text-white font-medium'}`}>{n.title}</p>
+            <p className="text-[10px] text-[#5C5E72] mt-0.5">{n.body}</p>
+            <p className="text-[9px] text-[#3C3D4D] mt-1">{new Date(n.created_at).toLocaleDateString()}</p>
+          </button>
+        ))
+      )}
     </div>
   );
 }
