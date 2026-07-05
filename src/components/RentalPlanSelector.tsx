@@ -14,18 +14,13 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
   const lateFeePercent = getNumber('late_payment_fee_percent', 5);
-  const shortCommission = getNumber('commission_rate_listing', 20); // short_let uses listing commission
-  const longCommission = getNumber('commission_rate_listing', 10);  // long_stay uses listing commission
-  const depositDefaultPct = getNumber('security_deposit_default_percentage', 10);
-  const depositMin = getNumber('security_deposit_min_amount', 10000);
+  const commissionRate = getNumber('commission_rate_listing', 5);
 
   const feeConfig = useMemo(() => ({
-    shortStayCommissionPercent: shortCommission,
-    longStayCommissionPercent: longCommission,
-    securityDepositDefaultPercent: depositDefaultPct,
-    securityDepositMinNgn: depositMin,
+    shortStayCommissionPercent: commissionRate,
+    longStayCommissionPercent: commissionRate,
     reservationFee,
-  }), [shortCommission, longCommission, depositDefaultPct, depositMin, reservationFee]);
+  }), [commissionRate, reservationFee]);
 
   const [selectedDuration, setSelectedDuration] = useState<RentalDuration>(1);
 

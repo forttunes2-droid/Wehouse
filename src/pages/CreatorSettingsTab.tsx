@@ -58,8 +58,6 @@ const DEFAULT_SETTINGS: Setting[] = [
   { id: '15', key: 'commission_rate_partner', value: '8', category: 'finance', label: 'Partner Commission (%)', description: 'Percentage taken from property partner earnings', data_type: 'number' },
   { id: '16', key: 'commission_rate_hotel', value: '12', category: 'finance', label: 'Hotel Commission (%)', description: 'Percentage taken from hotel bookings', data_type: 'number' },
   { id: '17', key: 'commission_rate_listing', value: '5', category: 'finance', label: 'Listing Commission (%)', description: 'Percentage taken from property listings', data_type: 'number' },
-  { id: '18', key: 'booking_fee_fixed', value: '500', category: 'finance', label: 'Fixed Booking Fee (N)', description: 'Flat fee added to every booking', data_type: 'number' },
-  { id: '19', key: 'booking_fee_percentage', value: '2', category: 'finance', label: 'Booking Fee (%)', description: 'Percentage fee on bookings', data_type: 'number' },
   { id: '20', key: 'escrow_hold_days', value: '3', category: 'finance', label: 'Escrow Hold (Days)', description: 'Days to hold payment in escrow before release', data_type: 'number' },
   { id: '21', key: 'minimum_withdrawal', value: '1000', category: 'finance', label: 'Minimum Withdrawal (N)', description: 'Minimum amount for withdrawal requests', data_type: 'number' },
   { id: '22', key: 'withdrawal_fee', value: '50', category: 'finance', label: 'Withdrawal Fee (N)', description: 'Flat fee per withdrawal', data_type: 'number' },
@@ -72,16 +70,11 @@ const DEFAULT_SETTINGS: Setting[] = [
   { id: '29', key: 'withdrawal_monthly_limit', value: '500000', category: 'finance', label: 'Monthly Withdrawal Limit (N)', description: 'Maximum withdrawal amount per month', data_type: 'number' },
   { id: '30', key: 'escrow_auto_release', value: 'true', category: 'finance', label: 'Auto Release Escrow', description: 'Automatically release escrow after hold period', data_type: 'boolean' },
   { id: '31', key: 'escrow_dispute_window_days', value: '7', category: 'finance', label: 'Escrow Dispute Window (Days)', description: 'Days after completion to open a dispute', data_type: 'number' },
-  { id: '32', key: 'security_deposit_default_percentage', value: '10', category: 'finance', label: 'Security Deposit Default (%)', description: 'Default security deposit as % of rent', data_type: 'number' },
-  { id: '33', key: 'security_deposit_max_amount', value: '500000', category: 'finance', label: 'Security Deposit Max (N)', description: 'Maximum security deposit amount', data_type: 'number' },
-  { id: '34', key: 'security_deposit_min_amount', value: '10000', category: 'finance', label: 'Security Deposit Min (N)', description: 'Minimum security deposit amount', data_type: 'number' },
-  { id: '35', key: 'security_deposit_refund_days', value: '14', category: 'finance', label: 'Security Deposit Refund (Days)', description: 'Days to refund security deposit after move-out', data_type: 'number' },
-  { id: '36', key: 'reservation_fee', value: '5000', category: 'finance', label: 'Reservation Fee (N)', description: 'Fee to reserve a property for 72 hours', data_type: 'number' },
-  { id: '37', key: 'late_payment_fee_percent', value: '5', category: 'finance', label: 'Late Payment Fee (%)', description: 'Fee on overdue installment payments', data_type: 'number' },
-  { id: '38', key: 'worker_booking_fee_user', value: '300', category: 'finance', label: 'Worker Booking Fee (N)', description: 'Fee user pays per worker booking', data_type: 'number' },
-  { id: '39', key: 'worker_min_job_amount', value: '1000', category: 'finance', label: 'Worker Min Job (N)', description: 'Minimum job value for workers', data_type: 'number' },
-  { id: '40', key: 'currency_symbol', value: 'N', category: 'finance', label: 'Currency Symbol', description: 'Displayed currency symbol', data_type: 'string' },
-  { id: '41', key: 'currency_code', value: 'NGN', category: 'finance', label: 'Currency Code', description: 'ISO currency code', data_type: 'string' },
+  { id: '32', key: 'security_deposit_refund_days', value: '14', category: 'finance', label: 'Security Deposit Refund (Days)', description: 'Days to refund security deposit after move-out', data_type: 'number' },
+  { id: '33', key: 'reservation_fee', value: '5000', category: 'finance', label: 'Reservation Fee (N)', description: 'Fee to reserve a property for 72 hours', data_type: 'number' },
+  { id: '34', key: 'late_payment_fee_percent', value: '5', category: 'finance', label: 'Late Payment Fee (%)', description: 'Fee on overdue installment payments', data_type: 'number' },
+  { id: '35', key: 'currency_symbol', value: 'N', category: 'finance', label: 'Currency Symbol', description: 'Displayed currency symbol', data_type: 'string' },
+  { id: '36', key: 'currency_code', value: 'NGN', category: 'finance', label: 'Currency Code', description: 'ISO currency code', data_type: 'string' },
 
   // PAYMENT (8)
   { id: '42', key: 'paystack_enabled', value: 'true', category: 'payment', label: 'Paystack Enabled', description: 'Enable Paystack payments', data_type: 'boolean' },
@@ -824,16 +817,17 @@ function CategoryManager({ profile: _profile }: { profile: Profile }) {
 
 function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
   const [types, setTypes] = useState<string[]>([]);
+  const [subtypes, setSubtypes] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newType, setNewType] = useState('');
+  const [newSubtype, setNewSubtype] = useState<Record<string, string>>({});
 
   const ICON_MAP: Record<string, string> = {
     apartment: '🏢', hotel: '🏨', house: '🏠', duplex: '🏘️',
     studio: '🛋️', self_contain: '🚪', 'self-contain': '🚪',
     hostel: '🛏️', lodge: '🏕️', resort: '🏖️',
     office: '🏢', warehouse: '🏭', land: '🌿',
-    short_let: '⏱️', long_stay: '📅',
   };
 
   function toLabel(value: string): string {
@@ -846,15 +840,32 @@ function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
 
   async function load() {
     setLoading(true);
-    const { data, error } = await supabase.rpc('get_platform_setting', { p_key: 'property_types_allowed' });
-    if (!error && data) {
-      try {
-        const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) { setTypes(parsed); setLoading(false); return; }
-      } catch { /* ignore */ }
+    // Load types
+    const { data: typesData } = await supabase.rpc('get_platform_setting', { p_key: 'property_types_allowed' });
+    let loadedTypes: string[] = [];
+    if (typesData) {
+      try { const parsed = JSON.parse(typesData); if (Array.isArray(parsed)) loadedTypes = parsed; } catch { }
+    }
+    if (loadedTypes.length === 0) {
+      loadedTypes = ['apartment', 'house', 'duplex', 'studio', 'self_contain', 'office', 'warehouse', 'land', 'hotel', 'hostel', 'lodge', 'resort'];
+    }
+    setTypes(loadedTypes);
+
+    // Load subtypes
+    const { data: subData } = await supabase.rpc('get_platform_setting', { p_key: 'property_subtypes' });
+    let loadedSubtypes: Record<string, string[]> = {};
+    if (subData) {
+      try { loadedSubtypes = JSON.parse(subData); } catch { }
     }
     // Fallback defaults
-    setTypes(['apartment', 'house', 'duplex', 'studio', 'self_contain', 'office', 'warehouse', 'land', 'hotel', 'hostel', 'lodge', 'resort']);
+    if (Object.keys(loadedSubtypes).length === 0) {
+      loadedSubtypes = {
+        apartment: ['Short Stay', 'Long Stay'],
+        house: ['Bungalow', 'Duplex', 'Terrace', 'Semi-Detached', 'Detached'],
+        hotel: ['Standard', 'Deluxe', 'Suite'],
+      };
+    }
+    setSubtypes(loadedSubtypes);
     setLoading(false);
   }
 
@@ -862,38 +873,63 @@ function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
 
   async function saveTypes(newTypes: string[]) {
     setSaving(true);
-    const { error } = await supabase.rpc('update_platform_setting', {
+    await supabase.rpc('update_platform_setting', {
       p_key: 'property_types_allowed',
       p_value: JSON.stringify(newTypes),
     });
     setSaving(false);
-    if (error) { toast.error('Failed to save: ' + error.message); return false; }
     setTypes(newTypes);
-    toast.success('Property types saved');
-    return true;
   }
 
-  function handleAdd() {
+  async function saveSubtypes(newSubtypes: Record<string, string[]>) {
+    setSaving(true);
+    await supabase.rpc('update_platform_setting', {
+      p_key: 'property_subtypes',
+      p_value: JSON.stringify(newSubtypes),
+    });
+    setSaving(false);
+    setSubtypes(newSubtypes);
+  }
+
+  function handleAddType() {
     const clean = newType.trim().toLowerCase().replace(/\s+/g, '_');
     if (!clean) { toast.error('Enter a property type'); return; }
     if (types.includes(clean)) { toast.error('Type already exists'); return; }
-    const updated = [...types, clean];
-    saveTypes(updated);
+    saveTypes([...types, clean]);
     setNewType('');
   }
 
-  function handleRemove(value: string) {
+  function handleRemoveType(value: string) {
     if (!confirm(`Remove "${toLabel(value)}"? Existing listings using this type will still work.`)) return;
-    const updated = types.filter(t => t !== value);
-    saveTypes(updated);
+    saveTypes(types.filter(t => t !== value));
+    // Also remove its subtypes
+    const newSubtypes = { ...subtypes };
+    delete newSubtypes[value];
+    saveSubtypes(newSubtypes);
   }
 
-  function handleMove(index: number, direction: -1 | 1) {
+  function handleMoveType(index: number, direction: -1 | 1) {
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= types.length) return;
     const updated = [...types];
     [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
     saveTypes(updated);
+  }
+
+  function handleAddSubtype(parentType: string) {
+    const val = (newSubtype[parentType] || '').trim();
+    if (!val) { toast.error('Enter a sub-type name'); return; }
+    const current = subtypes[parentType] || [];
+    if (current.includes(val)) { toast.error('Sub-type already exists'); return; }
+    const updated = { ...subtypes, [parentType]: [...current, val] };
+    saveSubtypes(updated);
+    setNewSubtype(prev => ({ ...prev, [parentType]: '' }));
+  }
+
+  function handleRemoveSubtype(parentType: string, subtype: string) {
+    const current = subtypes[parentType] || [];
+    const updated = { ...subtypes, [parentType]: current.filter(s => s !== subtype) };
+    saveSubtypes(updated);
   }
 
   if (loading) {
@@ -909,73 +945,58 @@ function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-white">Property Types</h2>
-          <p className="text-[11px] text-[#5C5E72]">{types.length} types configured. These appear when creating listings and partner registrations.</p>
+          <p className="text-[11px] text-[#5C5E72]">{types.length} types. Add sub-types under each type (e.g., Apartment → Short Stay, Long Stay).</p>
         </div>
         {saving && <div className="w-5 h-5 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />}
       </div>
 
       {/* Add new type */}
       <div className="flex gap-2">
-        <input
-          type="text"
-          value={newType}
-          onChange={e => setNewType(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="e.g. Penthouse, Bungalow..."
-          className="flex-1 h-10 rounded-xl bg-[#12121A] border border-[#1E1E2C] text-white text-sm px-4 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none"
-        />
-        <button
-          onClick={handleAdd}
-          className="h-10 px-4 rounded-xl bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-semibold border border-[#3B82F6]/20 hover:bg-[#3B82F6]/25 transition-colors"
-        >
-          + Add Type
-        </button>
+        <input type="text" value={newType} onChange={e => setNewType(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddType()} placeholder="e.g. Penthouse, Mansion..." className="flex-1 h-10 rounded-xl bg-[#12121A] border border-[#1E1E2C] text-white text-sm px-4 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none" />
+        <button onClick={handleAddType} className="h-10 px-4 rounded-xl bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-semibold border border-[#3B82F6]/20 hover:bg-[#3B82F6]/25 transition-colors">+ Add Type</button>
       </div>
 
-      {/* Types list */}
-      <div className="space-y-2">
-        {types.map((t, i) => (
-          <div key={t} className="glass rounded-xl p-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">{getIcon(t)}</span>
-              <div>
-                <p className="text-xs font-medium text-white">{toLabel(t)}</p>
-                <p className="text-[10px] text-[#5C5E72] font-mono">{t}</p>
+      {/* Types list with subtypes */}
+      <div className="space-y-3">
+        {types.map((t, i) => {
+          const typeSubtypes = subtypes[t] || [];
+          return (
+            <div key={t} className="glass rounded-xl overflow-hidden">
+              {/* Type header */}
+              <div className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{getIcon(t)}</span>
+                  <div>
+                    <p className="text-xs font-semibold text-white">{toLabel(t)}</p>
+                    <p className="text-[10px] text-[#5C5E72] font-mono">{t} · {typeSubtypes.length} sub-types</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => handleMoveType(i, -1)} disabled={i === 0} className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-30 transition-colors" title="Move up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg></button>
+                  <button onClick={() => handleMoveType(i, 1)} disabled={i === types.length - 1} className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-30 transition-colors" title="Move down"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg></button>
+                  <button onClick={() => handleRemoveType(t)} className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-red-400 transition-colors" title="Remove"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
+                </div>
+              </div>
+
+              {/* Subtypes */}
+              <div className="border-t border-[#1E1E2C] px-3 py-2">
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {typeSubtypes.map(sub => (
+                    <span key={sub} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
+                      {sub}
+                      <button onClick={() => handleRemoveSubtype(t, sub)} className="hover:text-red-400" title="Remove">×</button>
+                    </span>
+                  ))}
+                  {typeSubtypes.length === 0 && <p className="text-[10px] text-[#3A3A4A] italic">No sub-types yet</p>}
+                </div>
+                <div className="flex gap-2">
+                  <input type="text" value={newSubtype[t] || ''} onChange={e => setNewSubtype(prev => ({ ...prev, [t]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddSubtype(t)} placeholder={`Add sub-type under ${toLabel(t)}...`} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none" />
+                  <button onClick={() => handleAddSubtype(t)} className="h-8 px-3 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] text-[10px] font-semibold hover:bg-[#3B82F6]/20 transition-colors">+ Add</button>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => handleMove(i, -1)}
-                disabled={i === 0}
-                className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-30 transition-colors"
-                title="Move up"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
-              </button>
-              <button
-                onClick={() => handleMove(i, 1)}
-                disabled={i === types.length - 1}
-                className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-30 transition-colors"
-                title="Move down"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-              <button
-                onClick={() => handleRemove(t)}
-                className="w-7 h-7 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-red-400 transition-colors"
-                title="Remove"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {types.length === 0 && (
-          <div className="text-center py-10">
-            <p className="text-sm text-[#5C5E72]">No property types configured</p>
-          </div>
-        )}
+          );
+        })}
       </div>
     </div>
   );

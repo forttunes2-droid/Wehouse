@@ -29,8 +29,6 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
   ];
 
   const feeSettings: FinanceSetting[] = [
-    { key: 'booking_fee_fixed', label: 'Fixed Booking Fee', description: 'Flat fee per booking', prefix: 'N' },
-    { key: 'booking_fee_percentage', label: 'Booking Fee %', description: 'Percentage fee on bookings', suffix: '%' },
     { key: 'inspection_fee', label: 'Inspection Fee', description: 'Fee for property inspections', prefix: 'N' },
     { key: 'late_cancellation_fee', label: 'Late Cancellation Fee', description: 'Fee for late cancellations', prefix: 'N' },
     { key: 'withdrawal_fee', label: 'Withdrawal Fee', description: 'Flat fee per withdrawal', prefix: 'N' },
@@ -50,9 +48,7 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
   ];
 
   const depositSettings: FinanceSetting[] = [
-    { key: 'security_deposit_default_percentage', label: 'Default Deposit %', description: 'Default security deposit % of rent', suffix: '%' },
-    { key: 'security_deposit_max_amount', label: 'Max Deposit', description: 'Maximum security deposit cap', prefix: 'N' },
-    { key: 'security_deposit_refund_days', label: 'Refund Days', description: 'Days to refund after move-out', suffix: 'days' },
+    { key: 'security_deposit_refund_days', label: 'Refund Days', description: 'Days to refund security deposit after move-out', suffix: 'days' },
     { key: 'refund_policy_days', label: 'Refund Window', description: 'Days within which refunds are allowed', suffix: 'days' },
   ];
 

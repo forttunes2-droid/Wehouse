@@ -54,19 +54,17 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('company_telegram', '', 'company', 'Telegram Username', 'Telegram support handle', 'string'),
 ('company_social_links', '{}', 'company', 'Social Media Links', 'JSON: {facebook, twitter, instagram, linkedin}', 'json');
 
--- FINANCIAL SETTINGS
+-- FINANCIAL SETTINGS (WeHouse commissions, fees, and limits)
 INSERT INTO platform_settings (key, value, category, label, description, data_type) VALUES
-('commission_rate_worker', '10', 'finance', 'Worker Commission (%)', 'Percentage taken from worker bookings', 'number'),
-('commission_rate_partner', '8', 'finance', 'Partner Commission (%)', 'Percentage taken from property partner earnings', 'number'),
-('commission_rate_hotel', '12', 'finance', 'Hotel Commission (%)', 'Percentage taken from hotel bookings', 'number'),
-('commission_rate_listing', '5', 'finance', 'Listing Commission (%)', 'Percentage taken from property listings', 'number'),
-('booking_fee_fixed', '500', 'finance', 'Fixed Booking Fee (N)', 'Flat fee added to every booking', 'number'),
-('booking_fee_percentage', '2', 'finance', 'Booking Fee (%)', 'Percentage fee on bookings', 'number'),
+('commission_rate_worker', '10', 'finance', 'Worker Commission (%)', 'Percentage WeHouse takes from worker payments', 'number'),
+('commission_rate_partner', '8', 'finance', 'Partner Commission (%)', 'Percentage WeHouse takes from property partner earnings', 'number'),
+('commission_rate_hotel', '12', 'finance', 'Hotel Commission (%)', 'Percentage WeHouse takes from hotel bookings', 'number'),
+('commission_rate_listing', '5', 'finance', 'Listing Commission (%)', 'Percentage WeHouse takes from property listings', 'number'),
 ('escrow_hold_days', '3', 'finance', 'Escrow Hold (Days)', 'Days to hold payment in escrow before release', 'number'),
 ('minimum_withdrawal', '1000', 'finance', 'Minimum Withdrawal (N)', 'Minimum amount for withdrawal requests', 'number'),
 ('withdrawal_fee', '50', 'finance', 'Withdrawal Fee (N)', 'Flat fee per withdrawal', 'number'),
 ('withdrawal_processing_days', '1-3', 'finance', 'Withdrawal Processing', 'Business days to process withdrawals', 'string'),
-('refund_policy_days', '7', 'finance', 'Refund Policy (Days)', 'Days within which refunds are allowed', 'number'),
+('refund_policy_days', '7', 'finance', 'Refund Window (Days)', 'Days within which refunds are allowed', 'number'),
 ('inspection_fee', '3000', 'finance', 'Inspection Fee (N)', 'Fee charged for property inspection requests', 'number'),
 ('late_cancellation_fee', '1000', 'finance', 'Late Cancellation Fee (N)', 'Fee for late booking cancellations', 'number'),
 ('withdrawal_daily_limit', '50000', 'finance', 'Daily Withdrawal Limit (N)', 'Maximum withdrawal amount per day', 'number'),
@@ -74,14 +72,9 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('withdrawal_monthly_limit', '500000', 'finance', 'Monthly Withdrawal Limit (N)', 'Maximum withdrawal amount per month', 'number'),
 ('escrow_auto_release', 'true', 'finance', 'Auto Release Escrow', 'Automatically release escrow after hold period', 'boolean'),
 ('escrow_dispute_window_days', '7', 'finance', 'Escrow Dispute Window (Days)', 'Days after completion to open a dispute', 'number'),
-('security_deposit_default_percentage', '10', 'finance', 'Security Deposit Default (%)', 'Default security deposit as % of rent', 'number'),
-('security_deposit_max_amount', '500000', 'finance', 'Security Deposit Max (N)', 'Maximum security deposit amount', 'number'),
 ('security_deposit_refund_days', '14', 'finance', 'Security Deposit Refund (Days)', 'Days to refund security deposit after move-out', 'number'),
-('security_deposit_min_amount', '10000', 'finance', 'Security Deposit Min (N)', 'Minimum security deposit amount', 'number'),
 ('reservation_fee', '5000', 'finance', 'Reservation Fee (N)', 'Fee to reserve a property for 72 hours', 'number'),
 ('late_payment_fee_percent', '5', 'finance', 'Late Payment Fee (%)', 'Fee on overdue installment payments', 'number'),
-('worker_booking_fee_user', '300', 'finance', 'Worker Booking Fee (N)', 'Fee user pays per worker booking', 'number'),
-('worker_min_job_amount', '1000', 'finance', 'Worker Min Job (N)', 'Minimum job value for workers', 'number'),
 ('currency_symbol', 'N', 'finance', 'Currency Symbol', 'Displayed currency symbol', 'string'),
 ('currency_code', 'NGN', 'finance', 'Currency Code', 'ISO currency code', 'string');
 
@@ -105,7 +98,8 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('property_photos_min', '3', 'property', 'Min Photos Required', 'Minimum photos per listing', 'number'),
 ('property_photos_max', '20', 'property', 'Max Photos Allowed', 'Maximum photos per listing', 'number'),
 ('featured_listing_price', '5000', 'property', 'Featured Listing Price (N)', 'Cost to feature a listing', 'number'),
-('property_types_allowed', '["apartment","house","duplex","studio","self_contain","office","warehouse","land"]', 'property', 'Allowed Property Types', 'JSON array of allowed property types', 'json');
+('property_types_allowed', '["apartment","house","duplex","studio","self_contain","office","warehouse","land","hotel","hostel","lodge","resort"]', 'property', 'Allowed Property Types', 'JSON array of allowed property types', 'json'),
+('property_subtypes', '{"apartment":["Short Stay","Long Stay"],"house":["Bungalow","Duplex","Terrace","Semi-Detached","Detached"],"hotel":["Standard","Deluxe","Suite"]}', 'property', 'Property Sub-types', 'JSON: {propertyType: [subType1, subType2]}', 'json');
 
 -- WORKER SETTINGS
 INSERT INTO platform_settings (key, value, category, label, description, data_type) VALUES

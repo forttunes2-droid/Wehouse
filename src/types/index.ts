@@ -670,16 +670,13 @@ export const RENTAL_PLANS: RentalPlan[] = [
 ];
 
 // Calculate payment breakdown for a rental plan
-// subType: 'short_let' uses higher commission (20%), 'long_stay' uses lower (10%)
+// subType: 'short_let' uses higher commission, 'long_stay' uses lower
 // Security deposit (caution fee) ONLY applies to short_let — furnished apartments
 // with appliances that tenants might damage. Long stay tenants bring their own.
 // Each listing sets its own security_deposit_amount (varies by furnishing quality).
 export interface RentalFeeConfig {
-  shortStayCommissionPercent?: number;   // default: 20
-  longStayCommissionPercent?: number;    // default: 10
-  securityDepositDefaultPercent?: number; // default: 10
-  securityDepositMinNgn?: number;         // default: 10000
-  reservationFee?: number;                // default: 5000
+  commissionPercent?: number;   // default: 5% (from commission_rate_listing)
+  reservationFee?: number;      // default: 5000
 }
 
 export function calculateRentalPayments(
@@ -690,26 +687,18 @@ export function calculateRentalPayments(
   feeConfig?: RentalFeeConfig,
 ) {
   const cfg = feeConfig || {};
-  const shortCommission = cfg.shortStayCommissionPercent ?? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT;
-  const longCommission = cfg.longStayCommissionPercent ?? WEHOUSE_FEES.LONG_STAY_COMMISSION_PERCENT;
-  const depositDefaultPct = cfg.securityDepositDefaultPercent ?? WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT;
-  const depositMin = cfg.securityDepositMinNgn ?? WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN;
+  const commissionRate = cfg.commissionPercent ?? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT;
   const resFee = cfg.reservationFee ?? WEHOUSE_FEES.RESERVATION_FEE;
 
-  const commissionPercent = subType === 'short_let' ? shortCommission : longCommission;
+  const commissionPercent = commissionRate;
   const wehouseCommission = Math.round(annualRent * (commissionPercent / 100));
   const netAnnualRent = annualRent - wehouseCommission;
 
+  // Security deposit: use listing's set amount, or zero if not set
+  // WeHouse does NOT enforce min/max — partner sets freely per listing
   let securityDeposit = 0;
-  if (subType === 'short_let') {
-    if (listingSecurityDeposit != null && listingSecurityDeposit > 0) {
-      securityDeposit = listingSecurityDeposit;
-    } else {
-      securityDeposit = Math.max(
-        depositMin,
-        Math.round(annualRent * (depositDefaultPct / 100))
-      );
-    }
+  if (subType === 'short_let' && listingSecurityDeposit != null && listingSecurityDeposit > 0) {
+    securityDeposit = listingSecurityDeposit;
   }
 
   if (durationYears === 1) {
