@@ -40,7 +40,7 @@ export async function getPendingWorkers() {
   return { workers: data as Profile[] | null, error };
 }
 
-export async function updateWorkerStatus(userId: string, status: 'pending' | 'approved' | 'public' | 'suspended' | 'rejected') {
+export async function updateWorkerStatus(userId: string, status: 'pending' | 'paid' | 'public' | 'suspended' | 'rejected') {
   const { data: row } = await supabase
     .from('profiles')
     .select('bio')
@@ -57,7 +57,7 @@ export async function updateWorkerStatus(userId: string, status: 'pending' | 'ap
     .update({
       bio: newBio,
       worker_status: status,
-      worker_verified: status === 'approved' || status === 'public',
+      worker_verified: status === 'paid' || status === 'public',
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId)
@@ -281,7 +281,7 @@ export async function reviewWorkerVerification(
   if (!error && data) {
     // Also update the worker's profile status
     const workerId = data.worker_id;
-    const newStatus = status === 'approved' ? 'approved' : 'rejected';
+    const newStatus = status === 'approved' ? 'paid' : 'rejected';
     await updateWorkerStatus(workerId, newStatus);
   }
 
@@ -592,7 +592,7 @@ export async function getWorkerSystemStats() {
     workers: {
       total: workers?.length || 0,
       pending: workers?.filter(w => w.worker_status === 'pending').length || 0,
-      approved: workers?.filter(w => w.worker_status === 'approved').length || 0,
+      paid: workers?.filter(w => w.worker_status === 'paid').length || 0,
       suspended: workers?.filter(w => w.worker_status === 'suspended').length || 0,
     },
     verifications: {

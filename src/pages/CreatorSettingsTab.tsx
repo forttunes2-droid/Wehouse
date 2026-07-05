@@ -608,9 +608,21 @@ function CategoryManager({ profile: _profile }: { profile: Profile }) {
               </div>
 
               {/* Subcategories */}
-              {catSubs.length > 0 && (
-                <div className="border-t border-[#1E1E2C] px-3.5 py-2">
-                  <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Subcategories</p>
+              <div className="border-t border-[#1E1E2C] px-3.5 py-2">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Subcategories ({catSubs.length})</p>
+                  <button
+                    onClick={() => {
+                      setEditingSub(null);
+                      setSubForm({ name: '', category_id: cat.id, sort_order: catSubs.length });
+                      setShowSubForm(true);
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-[#3B82F6]/10 text-[#3B82F6] hover:bg-[#3B82F6]/20 transition-colors"
+                  >
+                    + Add Subcategory
+                  </button>
+                </div>
+                {catSubs.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {catSubs.map(sub => (
                       <span
@@ -630,8 +642,10 @@ function CategoryManager({ profile: _profile }: { profile: Profile }) {
                       </span>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-[10px] text-[#3A3A4A] italic">No subcategories yet. Click "+ Add Subcategory" to create one.</p>
+                )}
+              </div>
             </div>
           );
         })}

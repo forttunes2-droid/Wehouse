@@ -77,8 +77,8 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
     if (isWorker && occupation.trim()) {
       updates.worker_occupation = occupation.trim();
     }
-    const wasApproved = isWorker && profile.worker_status === 'approved';
-    if (wasApproved && (fullName !== profile.full_name || bio !== profile.bio || occupation !== (profile.worker_occupation || ''))) {
+    const wasPaid = isWorker && profile.worker_status === 'paid';
+    if (wasPaid && (fullName !== profile.full_name || bio !== profile.bio || occupation !== (profile.worker_occupation || ''))) {
       updates.worker_status = 'pending';
       updates.worker_verified = false;
     }
@@ -88,7 +88,7 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
     });
     setSaving(false);
     if (error) { toast.error('Failed to save: ' + error.message); return; }
-    if (wasApproved && updates.worker_status === 'pending') {
+    if (wasPaid && updates.worker_status === 'pending') {
       toast.success('Profile saved — awaiting re-approval');
     } else {
       toast.success('Profile saved');
@@ -185,7 +185,7 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
       {/* ─── PROFILE SECTION ─── */}
       {activeSection === 'profile' && (
         <div className="space-y-4">
-          {isWorker && profile.worker_status === 'approved' && (
+          {isWorker && profile.worker_status === 'paid' && (
             <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
               <p className="text-[11px] text-amber-400"><strong>Note:</strong> Editing profile will reset status to "Awaiting Approval".</p>
             </div>

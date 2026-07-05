@@ -489,7 +489,7 @@ function SupportModule({ profile, onGoToChat: _onGoToChat }: { profile: Profile;
 function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { profile: Profile; onGoToChat: (c?: string) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'pending' | 'approved' | 'suspended' | 'all'>('pending');
+  const [filter, setFilter] = useState<'pending' | 'paid' | 'suspended' | 'all'>('pending');
 
   useEffect(() => { loadWorkers(); }, [filter]);
 
@@ -502,7 +502,7 @@ function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { pr
     setLoading(false);
   }
 
-  async function setStatus(userId: string, status: 'approved' | 'suspended' | 'rejected') {
+  async function setStatus(userId: string, status: 'paid' | 'suspended' | 'rejected') {
     const { error } = await supabase.from('profiles').update({ worker_status: status, updated_at: new Date().toISOString() }).eq('user_id', userId);
     if (error) { toast.error('Failed'); return; }
     toast.success(`Worker ${status}`);
@@ -516,7 +516,7 @@ function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { pr
   return (
     <div className="space-y-3">
       <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
-        {(['pending', 'approved', 'suspended', 'all'] as const).map(f => (
+        {(['pending', 'paid', 'suspended', 'all'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`flex-1 h-8 rounded-lg text-[10px] font-semibold transition-all ${filter === f ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
             {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -541,15 +541,15 @@ function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { pr
             <div className="flex gap-2 mt-3">
               {w.worker_status === 'pending' && (
                 <>
-                  <button onClick={() => setStatus(w.user_id, 'approved')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
+                  <button onClick={() => setStatus(w.user_id, 'paid')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
                   <button onClick={() => setStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
                 </>
               )}
-              {w.worker_status === 'approved' && (
+              {w.worker_status === 'paid' && (
                 <button onClick={() => setStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">Suspend</button>
               )}
               {w.worker_status === 'suspended' && (
-                <button onClick={() => setStatus(w.user_id, 'approved')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Reinstate</button>
+                <button onClick={() => setStatus(w.user_id, 'paid')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Reinstate</button>
               )}
             </div>
           </div>

@@ -88,7 +88,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
     setSaving(true);
     const priceNum = form.worker_price ? parseInt(form.worker_price as string) || 0 : 0;
     // If worker was already verified, editing resets them to pending (requires re-approval)
-    const wasApproved = profile.worker_status === 'approved';
+    const wasApproved = profile.worker_status === 'paid';
     const { error } = await updateProfile(profile.user_id, {
       full_name: form.full_name.trim(),
       username: form.username.trim() || profile.username,
