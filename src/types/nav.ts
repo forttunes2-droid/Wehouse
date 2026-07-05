@@ -27,4 +27,5 @@ export type NavPage =
   | 'finance'
   | 'field_officer'
   | 'property_owner'
-  | 'property_partner';
+  | 'property_partner'
+  | 'my_bookings';

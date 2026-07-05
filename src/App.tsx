@@ -36,6 +36,7 @@ const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
 // NOTE: Old standalone dashboards (Operations, Finance, WorkerVerification, FieldOfficer) are
 // deprecated. All staff use the unified StaffDashboard with permission-based tabs.
 const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
+const MyBookings = lazy(() => import('@/pages/MyBookings'));
 
 
 // ─── SKELETON LOADER ──────────────────────────────
@@ -78,7 +79,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -402,6 +403,8 @@ export default function App() {
       case 'property_owner':
       case 'property_partner':
         return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
+      case 'my_bookings':
+        return <MyBookings profile={profile} onBack={() => goTo('profile')} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
