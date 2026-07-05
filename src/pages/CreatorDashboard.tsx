@@ -11,9 +11,8 @@ import {
   getNotifications, getUnreadNotificationCount, markNotificationsRead,
 } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
-// Creator is identified by user_id, NOT by role (role is 'user' in DB)
-const PLATFORM_OWNER_ID = 'wehouse_support';
-function isPlatformOwner(userId: string): boolean { return userId === PLATFORM_OWNER_ID; }
+// Creator is identified by role='creator' in the database
+const checkIsCreator = (profile: Profile): boolean => profile.role === 'creator';
 
 import { validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
@@ -58,7 +57,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     _onLogout();
   }, [_onLogout, clearAuth]);
   // Persist dashboard sub-tab across refreshes
-  const DASHBOARD_TAB_KEY = isPlatformOwner(profile.user_id) ? 'wh_creator_tab' : 'wh_admin_tab';
+  const DASHBOARD_TAB_KEY = checkIsCreator(profile) ? 'wh_creator_tab' : 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
@@ -73,7 +72,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     setActiveTab(tab);
     localStorage.setItem(DASHBOARD_TAB_KEY, tab);
   }, [DASHBOARD_TAB_KEY]);
-  const isCreatorAccount = isPlatformOwner(profile.user_id);
+  const isCreatorAccount = checkIsCreator(profile);
 
   const goToUsers = useCallback((mode: 'manage' | 'view' | 'today') => {
     setUsersViewMode(mode);
@@ -452,7 +451,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
       if (userId === profile.user_id) { toast.error('You cannot change your own role'); return; }
 
       // Platform owner always has creator rights regardless of DB role
-      const isOwner = isPlatformOwner(profile.user_id);
+      const isOwner = checkIsCreator(profile);
       const changerRole = isOwner ? 'creator' : profile.role === 'admin' ? 'admin' : 'staff';
 
       // Validate using the permission matrix (pass 'creator' if platform owner)
@@ -480,7 +479,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
     withAuth(async () => {
       const target = users.find(u => u.user_id === userId);
       if (!target) { toast.error('User not found'); return; }
-      if (isPlatformOwner(target.user_id)) { toast.error('Creator account cannot be suspended'); return; }
+      if (checkIsCreator(target)) { toast.error('Creator account cannot be suspended'); return; }
       if (userId === profile.user_id) { toast.error('You cannot suspend your own account'); return; }
       const ok = await ask({ title: 'Suspend this user?', confirmLabel: 'Suspend', variant: 'danger' });
       if (!ok) return;
@@ -496,7 +495,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
     withAuth(async () => {
       const target = users.find(u => u.user_id === userId);
       if (!target) { toast.error('User not found'); return; }
-      if (isPlatformOwner(target.user_id)) { toast.error('Creator account cannot be frozen'); return; }
+      if (checkIsCreator(target)) { toast.error('Creator account cannot be frozen'); return; }
       const ok = await ask({ title: 'Freeze this account? User cannot login until unfrozen.', confirmLabel: 'Freeze', variant: 'danger' });
       if (!ok) return;
       const { error } = await freezeUser(userId);
@@ -511,7 +510,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
     withAuth(async () => {
       const target = users.find(u => u.user_id === userId);
       if (!target) { toast.error('User not found'); return; }
-      if (isPlatformOwner(target.user_id)) { toast.error('Creator account cannot be banned'); return; }
+      if (checkIsCreator(target)) { toast.error('Creator account cannot be banned'); return; }
       if (userId === profile.user_id) { toast.error('You cannot ban your own account'); return; }
       const ok = await ask({ title: 'Ban this user permanently? They can restore via support.', confirmLabel: 'Ban', variant: 'danger' });
       if (!ok) return;
@@ -610,7 +609,7 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
           </div>
           {searchedUsers.map(u => {
             const roleBadge = ROLE_COLORS[u.role] || ROLE_COLORS.user;
-            const isCreatorAccount = isPlatformOwner(u.user_id);
+            const isCreatorAccount = checkIsCreator(u);
             const isDeleted = u.deleted;
 
             return (
@@ -1230,7 +1229,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const canSend = canSendAnnouncements(profile.role);
   const isCreatorScope = scope === 'all';
   const isStateScope = !isCreatorScope && typeof scope === 'object';
-  const isCreatorAccount = isPlatformOwner(profile.user_id);
+  const isCreatorAccount = checkIsCreator(profile);
 
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
@@ -1245,8 +1244,8 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   const { ask, dialogProps } = useConfirm();
 
   // ── Role filter toggles ──
-  const canIncludeWorkers = isPlatformOwner(profile.user_id) || profile.role === 'admin';
-  const canIncludeStaff = isPlatformOwner(profile.user_id) || profile.role === 'admin';
+  const canIncludeWorkers = checkIsCreator(profile) || profile.role === 'admin';
+  const canIncludeStaff = checkIsCreator(profile) || profile.role === 'admin';
   const [includeUsers, setIncludeUsers] = useState(false);
   const [includeWorkers, setIncludeWorkers] = useState(false);
   const [includeStaff, setIncludeStaff] = useState(false);
@@ -1337,7 +1336,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   }, [userSearch, users]);
 
   async function loadSentMessages() {
-    const isCreatorRole = isPlatformOwner(profile.user_id);
+    const isCreatorRole = checkIsCreator(profile);
     const { messages } = isCreatorRole
       ? await getAllAnnouncements()
       : await getAnnouncementsSentBy(profile.user_id);
@@ -1381,7 +1380,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
     setSending(true);
     toast.loading('Sending...', { id: 'send-announce' });
 
-    const senderRole = isPlatformOwner(profile.user_id) ? 'creator' : 'admin';
+    const senderRole = checkIsCreator(profile) ? 'creator' : 'admin';
 
     // Build target type and options
     let targetType: AnnouncementTargetType;
@@ -1760,7 +1759,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
           <div className="p-4 border-b border-[#1E1E2C] flex items-center justify-between">
             <h3 className="text-sm font-bold text-white">
               {canSend
-                ? (isPlatformOwner(profile.user_id) ? 'All Official Messages' : 'Your Sent Messages')
+                ? (checkIsCreator(profile) ? 'All Official Messages' : 'Your Sent Messages')
                 : 'Official Messages'}
             </h3>
             <span className="text-[10px] text-[#5C5E72]">{sentMessages.length} total</span>
@@ -1777,7 +1776,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
               sentMessages.map((m: any) => {
                 const count = m.recipient_count ?? 0;
                 const readCount = m.read_count ?? 0;
-                const isCreatorView = isPlatformOwner(profile.user_id);
+                const isCreatorView = checkIsCreator(profile);
                 return (
                   <div key={m.id} className="px-4 py-3 border-b border-[#1E1E2C]/50 hover:bg-[#12121A] transition-colors">
                     {/* Title */}
