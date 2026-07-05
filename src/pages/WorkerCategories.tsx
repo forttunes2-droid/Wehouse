@@ -31,7 +31,7 @@ export default function WorkerCategories({ onNavigate }: WorkerCategoriesProps) 
         .from('profiles')
         .select('user_id, worker_occupation, worker_bio')
         .eq('role', 'worker')
-        .eq('worker_status', 'paid');
+        .eq('worker_status', 'approved_for_verification');
 
       const workerList = (workers || []) as Profile[];
       setTotalWorkers(workerList.length);

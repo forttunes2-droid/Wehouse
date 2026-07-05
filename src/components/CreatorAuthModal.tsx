@@ -76,7 +76,7 @@ export default function CreatorAuthModal() {
     if (!password.trim()) { setLocalError('Enter new password'); return; }
     if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
     if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
-    await setPassword(password, oldPassword);
+    await setPassword(password);
     // Modal closes automatically on success
   }
 

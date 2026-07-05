@@ -10,7 +10,16 @@ interface WorkerVerificationDashboardProps {
   onNavigate?: (page: string) => void;
 }
 
-type WorkerTab = 'pending' | 'paid' | 'suspended' | 'all';
+type WorkerTab = 'pending' | 'approved_for_verification' | 'suspended' | 'all';
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  approved_for_verification: 'Blue Tick',
+  reviewing: 'Reviewing',
+  verified: 'Verified',
+  suspended: 'Suspended',
+  rejected: 'Rejected',
+};
 
 export default function WorkerVerificationDashboard({ profile }: WorkerVerificationDashboardProps) {
   const [activeTab, setActiveTab] = useState<WorkerTab>('pending');
@@ -38,10 +47,10 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
     loadWorkers();
   }, [activeTab]);
 
-  async function updateStatus(userId: string, status: 'paid' | 'suspended' | 'rejected') {
+  async function updateStatus(userId: string, status: 'approved_for_verification' | 'suspended' | 'rejected') {
     const { error } = await supabase
       .from('profiles')
-      .update({ worker_status: status, worker_verified: status === 'paid', updated_at: new Date().toISOString() })
+      .update({ worker_status: status, worker_verified: status === 'approved_for_verification', updated_at: new Date().toISOString() })
       .eq('user_id', userId);
 
     if (error) {
@@ -60,9 +69,9 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
     w.full_name?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const counts = {
+  const counts: Record<string, number> = {
     pending: workers.filter(w => w.worker_status === 'pending').length,
-    paid: workers.filter(w => w.worker_status === 'paid').length,
+    approved_for_verification: workers.filter(w => w.worker_status === 'approved_for_verification').length,
     suspended: workers.filter(w => w.worker_status === 'suspended').length,
     all: workers.length,
   };
@@ -78,7 +87,7 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 px-5 py-4">
-        {(['pending', 'paid', 'suspended'] as const).map(tab => (
+        {(['pending', 'approved_for_verification', 'suspended'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -88,8 +97,8 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
                 : 'bg-[#12121A]/60 border border-white/[0.04]'
             }`}
           >
-            <p className={`text-lg font-bold ${activeTab === tab ? 'text-[#3B82F6]' : 'text-white'}`}>{counts[tab]}</p>
-            <p className="text-[9px] text-[#5C5E72] capitalize">{tab}</p>
+            <p className={`text-lg font-bold ${activeTab === tab ? 'text-[#3B82F6]' : 'text-white'}`}>{counts[tab] ?? 0}</p>
+            <p className="text-[9px] text-[#5C5E72]">{STATUS_LABELS[tab] || tab}</p>
           </button>
         ))}
       </div>
@@ -124,10 +133,10 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
 }
 
 // ─── WORKER CARD ───────────────────────────────────
-function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatus: (id: string, status: 'paid' | 'suspended' | 'rejected') => void }) {
+function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatus: (id: string, status: 'approved_for_verification' | 'suspended' | 'rejected') => void }) {
   const [expanded, setExpanded] = useState(false);
 
-  const statusColor = worker.worker_status === 'paid' ? 'text-emerald-400 bg-emerald-500/10' :
+  const statusColor = worker.worker_status === 'approved_for_verification' ? 'text-emerald-400 bg-emerald-500/10' :
     worker.worker_status === 'pending' ? 'text-amber-400 bg-amber-500/10' :
     'text-red-400 bg-red-500/10';
 
@@ -142,7 +151,7 @@ function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatu
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-white truncate">{worker.full_name || worker.username || 'Unnamed'}</p>
               <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${statusColor}`}>
-                {worker.worker_status}
+                {STATUS_LABELS[worker.worker_status || ''] || worker.worker_status}
               </span>
             </div>
             <p className="text-[10px] text-[#5C5E72]">{worker.email}</p>
@@ -168,9 +177,9 @@ function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatu
             <span>Joined: {new Date(worker.created_at).toLocaleDateString()}</span>
           </div>
           <div className="flex gap-2">
-            {worker.worker_status !== 'paid' && (
+            {worker.worker_status !== 'approved_for_verification' && (
               <button
-                onClick={() => onUpdateStatus(worker.user_id, 'paid')}
+                onClick={() => onUpdateStatus(worker.user_id, 'approved_for_verification')}
                 className="flex-1 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold hover:bg-emerald-500/20"
               >
                 Verify

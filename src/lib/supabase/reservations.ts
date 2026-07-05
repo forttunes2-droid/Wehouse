@@ -17,7 +17,7 @@ export async function createReservation(
     .select('*')
     .eq('listing_id', listingId)
     .eq('user_id', userId)
-    .in('status', ['pending', 'paid', 'inspection_scheduled'])
+    .in('status', ['pending', 'approved_for_verification', 'inspection_scheduled'])
     .maybeSingle();
 
   if (existing) {
@@ -55,7 +55,7 @@ export async function getReservationForListing(listingId: string, userId: string
     .select('*')
     .eq('listing_id', listingId)
     .eq('user_id', userId)
-    .in('status', ['pending', 'paid', 'inspection_scheduled'])
+    .in('status', ['pending', 'approved_for_verification', 'inspection_scheduled'])
     .maybeSingle();
   return { reservation: data as any, error };
 }

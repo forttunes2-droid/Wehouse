@@ -46,7 +46,17 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError('');
 
+    // Get current user_id
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+    if (!userId) {
+      setError('Not logged in');
+      setIsLoading(false);
+      return false;
+    }
+
     const { data, error: rpcError } = await supabase.rpc('verify_creator_auth', {
+      p_user_id: userId,
       p_password: password,
     });
 
@@ -75,17 +85,26 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setPassword = useCallback(async (newPassword: string, oldPassword?: string): Promise<boolean> => {
+  const setPassword = useCallback(async (newPassword: string): Promise<boolean> => {
     setIsLoading(true);
     setError('');
 
+    // Get current user_id
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+    if (!userId) {
+      setError('Not logged in');
+      setIsLoading(false);
+      return false;
+    }
+
     const { data, error: rpcError } = await supabase.rpc('set_creator_auth', {
-      p_new_password: newPassword,
-      p_old_password: oldPassword || null,
+      p_user_id: userId,
+      p_password: newPassword,
     });
 
     if (rpcError) {
-      setError('Failed to set password');
+      setError('Failed to set password: ' + rpcError.message);
       setIsLoading(false);
       return false;
     }
@@ -102,7 +121,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       cb?.();
       return true;
     } else {
-      setError(oldPassword ? 'Old password is incorrect' : 'Password must be at least 6 characters');
+      setError('Password must be at least 4 characters');
       setIsLoading(false);
       return false;
     }

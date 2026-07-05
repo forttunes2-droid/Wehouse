@@ -7,8 +7,9 @@
 
 export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker' | 'property_partner';
 
-// Constitution: Pending → Paid (blue tick) → Public. Video review required before going public.
-export type WorkerStatus = 'pending' | 'paid' | 'public' | 'suspended' | 'rejected';
+// Constitution: Pending → Approved for Verification (blue tick) → Verified (public)
+// Database CHECK constraint values: pending, approved_for_verification, reviewing, verified, suspended, rejected
+export type WorkerStatus = 'pending' | 'approved_for_verification' | 'reviewing' | 'verified' | 'suspended' | 'rejected';
 
 export const WORKER_OCCUPATIONS = [
   'electrician', 'plumber', 'cleaner', 'carpenter',
@@ -1369,7 +1370,7 @@ export interface CommissionRule {
 
 // ─── PAYOUTS ────────────────────────────────────────────────
 
-export type PayoutStatus = 'pending' | 'processing' | 'paid' | 'failed' | 'cancelled';
+export type PayoutStatus = 'pending' | 'processing' | 'approved_for_verification' | 'failed' | 'cancelled';
 
 export interface Payout {
   id: string;

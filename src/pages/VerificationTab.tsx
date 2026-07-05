@@ -33,7 +33,7 @@ export default function VerificationTab() {
       alert('Failed: ' + error.message);
       return;
     }
-    await supabase.from('profiles').update({ worker_status: 'paid' }).eq('user_id', userId);
+    await supabase.from('profiles').update({ worker_status: 'approved_for_verification' }).eq('user_id', userId);
     loadPendingVerifications();
   }
 

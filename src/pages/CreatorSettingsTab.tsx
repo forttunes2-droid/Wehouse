@@ -105,7 +105,7 @@ const DEFAULT_SETTINGS: Setting[] = [
   { id: '63', key: 'max_skills_per_worker', value: '5', category: 'worker', label: 'Max Skills', description: 'Maximum services a worker can offer', data_type: 'number' },
   { id: '64', key: 'worker_search_radius_default', value: '25', category: 'worker', label: 'Default Search Radius (km)', description: 'Default radius for worker search', data_type: 'number' },
   { id: '65', key: 'worker_categories', value: '["cleaning","plumbing","electrical","carpentry","painting","hvac","security","gardening","moving","appliance_repair"]', category: 'worker', label: 'Worker Categories', description: 'JSON array of service categories', data_type: 'json' },
-  { id: '66', key: 'worker_status_flow', value: 'pending,paid,public', category: 'worker', label: 'Status Flow', description: 'Comma-separated worker status progression', data_type: 'string' },
+  { id: '66', key: 'worker_status_flow', value: 'pending,approved_for_verification,verified', category: 'worker', label: 'Status Flow', description: 'Comma-separated worker status progression', data_type: 'string' },
 
   // BOOKING (8)
   { id: '67', key: 'booking_advance_hours', value: '24', category: 'booking', label: 'Min Advance Booking (hrs)', description: 'Minimum hours before booking start', data_type: 'number' },
