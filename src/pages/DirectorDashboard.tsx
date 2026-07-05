@@ -43,7 +43,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
     localStorage.setItem(TAB_KEY, tab);
   }, []);
 
-  const [stats, setStats] = useState({ totalUsers: 0, staff: 0, newToday: 0, listings: 0, pendingApproval: 0 });
+  const [stats, setStats] = useState({ totalUsers: 0, staff: 0, admins: 0, newToday: 0, listings: 0, pendingApproval: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingUser, setViewingUser] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
@@ -61,10 +61,13 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
       const users = userRes.users || [];
       const listings = listingRes.listings || [];
       const today = new Date().toISOString().split('T')[0];
+      // Robust active user filter (checks both deleted flag and deleted_at)
+      const isActive = (u: any) => !u.deleted && !u.deleted_at && u.user_id !== 'wehouse_support';
       setStats({
-        totalUsers: users.filter((u: any) => !u.deleted && u.user_id !== 'wehouse_support').length,
-        staff: users.filter((u: any) => !u.deleted && u.user_id !== 'wehouse_support' && (u.role === 'staff' || u.role === 'admin')).length,
-        newToday: users.filter((u: any) => u.user_id !== 'wehouse_support' && u.created_at?.startsWith(today)).length,
+        totalUsers: users.filter(isActive).length,
+        staff: users.filter((u: any) => isActive(u) && u.role === 'staff').length,
+        admins: users.filter((u: any) => isActive(u) && u.role === 'admin').length,
+        newToday: users.filter((u: any) => isActive(u) && u.created_at?.startsWith(today)).length,
         listings: listings.length,
         pendingApproval: approvalRes.listings.length,
       });
@@ -108,16 +111,17 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-2">
           {[
             { label: 'Users', value: stats.totalUsers },
-            { label: 'Staff+', value: stats.staff },
+            { label: 'Admins', value: stats.admins },
+            { label: 'Staff', value: stats.staff },
             { label: 'Listings', value: stats.listings },
             { label: 'Pending', value: stats.pendingApproval, highlight: stats.pendingApproval > 0 },
           ].map(s => (
-            <div key={s.label} className={`bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center ${s.highlight ? 'ring-2 ring-amber-400/50' : ''}`}>
-              <div className="text-2xl font-bold text-white">{s.value}</div>
-              <div className="text-[10px] text-white/60">{s.label}</div>
+            <div key={s.label} className={`bg-white/10 backdrop-blur-sm rounded-xl p-2 text-center ${s.highlight ? 'ring-2 ring-amber-400/50' : ''}`}>
+              <div className="text-lg font-bold text-white">{s.value}</div>
+              <div className="text-[9px] text-white/60">{s.label}</div>
             </div>
           ))}
         </div>

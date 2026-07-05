@@ -19,7 +19,7 @@ export default defineConfig({
         skipWaiting: false,
         clientsClaim: false,
         cleanupOutdatedCaches: true,
-        cacheId: 'wehouse-v4',
+        cacheId: 'wehouse-v5' + Date.now(),
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/btpqlxmqaqfttmtllegx\.supabase\.co\/.*/i,

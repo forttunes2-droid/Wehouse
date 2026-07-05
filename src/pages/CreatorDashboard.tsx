@@ -1452,7 +1452,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
       {/* Compose View */}
       {canSend && activeView === 'compose' && (
-        <div className="glass rounded-2xl overflow-hidden">
+        <div className="glass rounded-2xl overflow-hidden mb-6">
           {/* DB Status Warning */}
           {!dbStatus.ok && (
             <div className="p-3 bg-red-500/10 border-b border-red-500/20">
@@ -1690,7 +1690,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
               </div>
             )}
 
-            <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your announcement..." rows={4} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3" />
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your announcement..." rows={3} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {sendMode === 'all' ? (

@@ -13,8 +13,9 @@ interface AuthState {
 }
 
 // ─── LOGOUT CLEANUP ────────────────────────────────
-function wipeOnLogout() {
+async function wipeOnLogout() {
   try {
+    // 1. Clear all localStorage
     const keys: string[] = [];
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
@@ -22,6 +23,22 @@ function wipeOnLogout() {
     }
     keys.forEach((k) => localStorage.removeItem(k));
     sessionStorage.clear();
+
+    // 2. Unregister service worker (clears PWA cache)
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        await reg.unregister();
+      }
+    }
+
+    // 3. Clear all caches
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      for (const name of cacheNames) {
+        await caches.delete(name);
+      }
+    }
   } catch { /* ignore */ }
 }
 
@@ -168,7 +185,7 @@ export function useAuth() {
     const blocked = await shouldBlockForMaintenance(profile);
     if (blocked) {
       weTriggeredSignOutRef.current = true;
-      await supabase.auth.signOut(); wipeOnLogout();
+      await supabase.auth.signOut(); await wipeOnLogout();
       setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
       return false;
     }
@@ -215,7 +232,7 @@ export function useAuth() {
           weTriggeredSignOutRef.current = false;
           return;
         }
-        wipeOnLogout();
+        wipeOnLogout().catch(() => {});
         setState({ page: 'login', profile: null, isLoading: false, error: '' });
       }
     });
@@ -262,14 +279,14 @@ export function useAuth() {
       const maintOn = await isMaintenanceModeOn();
       if (maintOn) {
         weTriggeredSignOutRef.current = true;
-        await supabase.auth.signOut(); wipeOnLogout();
+        await supabase.auth.signOut(); await wipeOnLogout();
         setState({ page: 'login', profile: null, isLoading: false, error: 'WeHouse is currently under maintenance. Please check back later.' });
         return;
       }
       const regClosed = await isRegistrationClosed();
       if (regClosed) {
         weTriggeredSignOutRef.current = true;
-        await supabase.auth.signOut(); wipeOnLogout();
+        await supabase.auth.signOut(); await wipeOnLogout();
         setState({ page: 'login', profile: null, isLoading: false, error: 'New registrations are currently closed. Please check back later.' });
         return;
       }
@@ -331,7 +348,7 @@ export function useAuth() {
     const sessionId = getStoredSessionId();
     if (sessionId) await deactivateUserSession(sessionId).catch(() => {});
     if (userId && authId) await endSession(userId, authId).catch(() => {});
-    await supabase.auth.signOut({ scope: 'global' }); wipeOnLogout();
+    await supabase.auth.signOut({ scope: 'global' }); await wipeOnLogout();
     setState({ page: 'login', profile: null, isLoading: false, error: '', kickedOut: false });
     setTimeout(() => window.location.reload(), 100);
   }, [state.profile]);
