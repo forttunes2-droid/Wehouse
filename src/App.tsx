@@ -37,6 +37,7 @@ const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
 // deprecated. All staff use the unified StaffDashboard with permission-based tabs.
 const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
 const MyBookings = lazy(() => import('@/pages/MyBookings'));
+const MyReservations = lazy(() => import('@/pages/MyReservations'));
 
 
 // ─── SKELETON LOADER ──────────────────────────────
@@ -79,7 +80,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings', 'my_reservations'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -127,7 +128,7 @@ export default function App() {
     if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
     // Profile sub-pages (account, privacy, security) same rules as profile
     if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
-    if (navPage === 'roommate' && role !== 'user' && role !== 'worker') valid = false;
+    if (navPage === 'roommate' && role !== 'user') valid = false;
 
     if (!valid) {
       setNavPage('home');
@@ -383,7 +384,7 @@ export default function App() {
       case 'worker_dashboard':
         return <WorkerDashboard profile={profile} onGoToSetup={() => goTo('worker_setup')} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToMessages={() => goTo('chat')} />;
       case 'worker_discovery':
-        return <WorkerDiscovery userCity={profile.city} profile={profile} onGoToChat={goToChat} preSelectedCategory={workerCategory} onNavigate={(p) => goTo(p as NavPage)} />;
+        return <WorkerDiscovery userCity={profile.city} profile={profile} preSelectedCategory={workerCategory} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'worker_categories':
         return <WorkerCategories onNavigate={(p) => goTo(p as NavPage)} profile={profile} />;
       case 'worker_setup':
@@ -405,12 +406,14 @@ export default function App() {
         return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
       case 'my_bookings':
         return <MyBookings profile={profile} onBack={() => goTo('profile')} />;
+      case 'my_reservations':
+        return <MyReservations profile={profile} onBack={() => goTo('profile')} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
   };
 
-  // ── Roommate access: only regular users and workers ──
+  // ── Roommate access: ONLY regular users (not workers, not staff, not admin) ──
   const canAccessRoommate = profile.role === 'user';
 
   // Bottom nav — dynamically built per role

@@ -219,6 +219,8 @@ export {
 export {
   getAllUsers,
   getUserCount,
+  getCreatorDashboardStats,
+  type CreatorDashboardStats,
   canChangeRole,
   updateUserRole,
   getRoleChangeHistory,

@@ -289,6 +289,41 @@ export default function Dashboard({
           </button>
         )}
 
+        {/* My Reservations */}
+        {onNavigate && (
+          <button
+            onClick={() => onNavigate('my_reservations')}
+            className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#8B5CF6]/10 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2">
+                  <path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z" />
+                  <path d="m2 20h20" />
+                  <path d="M12 11v-6" />
+                  <path d="M9 11v-2" />
+                  <path d="M15 11v-2" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-semibold text-white">My Reservations</div>
+                <div className="text-[10px] text-[#5C5E72]">View your hotel bookings</div>
+              </div>
+            </div>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#5C5E72"
+              strokeWidth="2"
+              className="group-hover:translate-x-0.5 transition-transform"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        )}
+
         {/* Account Center */}
         {onGoToAccount && (
           <button

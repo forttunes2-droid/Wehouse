@@ -28,4 +28,5 @@ export type NavPage =
   | 'field_officer'
   | 'property_owner'
   | 'property_partner'
-  | 'my_bookings';
+  | 'my_bookings'
+  | 'my_reservations';

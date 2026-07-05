@@ -193,7 +193,8 @@ function UsersTabDirector({ profile, scopeState, refresh, onViewUser }: { profil
     const target = users.find(u => u.user_id === userId);
     if (!target) return;
     if (userId === profile.user_id) { toast.error('Cannot change own role'); return; }
-    const { error } = await updateUserRole(userId, newRole, target.role, profile.user_id, profile.email, target.email);
+    const changerRole = (profile.role === 'creator' ? 'creator' : profile.role === 'admin' ? 'admin' : 'staff') as 'creator' | 'admin' | 'staff';
+    const { error } = await updateUserRole(userId, newRole, target.role, profile.user_id, profile.email, target.email, changerRole);
     if (error) { toast.error(error.message || 'Failed'); return; }
     toast.success('Role updated');
     load();

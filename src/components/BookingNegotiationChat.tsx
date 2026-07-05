@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { getBookingMessages, sendBookingMessage, workerAcceptBooking, workerStartJob, workerMarkComplete, customerConfirmCompletion, customerRaiseDispute, cancelBooking, getBookingDetails } from '@/lib/supabase/worker-bookings';
+import {
+  getBookingMessages, sendBookingMessage,
+  uploadBookingChatImage,
+  workerAcceptBooking, workerStartJob, workerMarkComplete,
+  customerConfirmCompletion, customerRaiseDispute, cancelBooking, getBookingDetails,
+} from '@/lib/supabase/worker-bookings';
 import { BOOKING_STATUS_LABELS } from '@/lib/supabase/worker-bookings';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
@@ -101,12 +106,35 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
     loadAll();
   }
 
-  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    // For now, send as a message reference
-    toast.info('Photo upload: ' + file.name + ' (sharing coming soon)');
+    setSending(true);
+    toast.loading('Uploading photo...', { id: 'photo-upload' });
+    const { url, error } = await uploadBookingChatImage(file, conversationId);
+    if (error || !url) {
+      toast.dismiss('photo-upload');
+      toast.error('Upload failed: ' + (error?.message || 'Unknown error'));
+      setSending(false);
+      e.target.value = '';
+      return;
+    }
+    // Send image URL as message content
+    const { error: sendErr } = await sendBookingMessage(conversationId, profile.user_id, url);
+    toast.dismiss('photo-upload');
+    setSending(false);
     e.target.value = '';
+    if (sendErr) {
+      toast.error('Failed to send photo');
+      return;
+    }
+    loadAll();
+  }
+
+  // Detect if a message content is an image URL
+  function isImageUrl(content: string): boolean {
+    if (!content || typeof content !== 'string') return false;
+    return content.startsWith('http') && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content);
   }
 
   const statusInfo = booking?.status ? BOOKING_STATUS_LABELS[booking.status] : null;
@@ -120,7 +148,7 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0A0A0F] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-[#0A0A0F] flex flex-col" style={{ height: '100dvh' }}>
       {/* ═══ HEADER ═══ */}
       <header className="bg-[#12121A] border-b border-white/[0.06] px-4 py-3 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -153,6 +181,25 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
               <div className="h-full bg-gradient-to-r from-[#3B82F6] to-[#2563EB] rounded-full transition-all" style={{ width: getProgressWidth(booking.status) }} />
             </div>
             <p className="text-[10px] text-[#5C5E72] mt-1">{statusInfo?.description}</p>
+
+            {/* Worker Guide — simple 3-step flow */}
+            {isWorker && booking.status === 'booking_requested' && (
+              <div className="mt-2 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10 space-y-1">
+                <p className="text-[9px] text-blue-400 font-semibold">How to confirm:</p>
+                <div className="flex items-center gap-1.5 text-[9px] text-[#5C5E72]">
+                  <span className="w-4 h-4 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-[8px] font-bold flex-shrink-0">1</span>
+                  Tap "Accept Booking" below
+                </div>
+                <div className="flex items-center gap-1.5 text-[9px] text-[#5C5E72]">
+                  <span className="w-4 h-4 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-[8px] font-bold flex-shrink-0">2</span>
+                  Enter your price + pick a date
+                </div>
+                <div className="flex items-center gap-1.5 text-[9px] text-[#5C5E72]">
+                  <span className="w-4 h-4 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-[8px] font-bold flex-shrink-0">3</span>
+                  Customer pays, then you start the job
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -232,14 +279,26 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
 
         {messages.map(msg => {
           const isMe = msg.sender_id === profile.user_id;
+          const isImage = isImageUrl(msg.content);
           return (
             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${isMe ? 'bg-[#3B82F6] text-white rounded-br-md' : 'bg-white/[0.05] text-white rounded-bl-md'}`}>
-                {!isMe && <p className="text-[9px] text-[#5C5E72] mb-0.5">{msg.sender_name}</p>}
-                <p className="text-xs leading-relaxed">{msg.content}</p>
-                <p className={`text-[9px] mt-1 ${isMe ? 'text-blue-200' : 'text-[#5C5E72]'}`}>
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
+              <div className={`max-w-[75%] rounded-2xl overflow-hidden ${isMe ? 'bg-[#3B82F6] text-white rounded-br-md' : 'bg-white/[0.05] text-white rounded-bl-md'} ${isImage ? 'p-1.5' : 'px-4 py-2.5'}`}>
+                {!isMe && !isImage && <p className="text-[9px] text-[#5C5E72] mb-0.5">{msg.sender_name}</p>}
+                {isImage ? (
+                  <div className="space-y-1">
+                    <img src={msg.content} alt="Shared" className="max-w-full rounded-xl cursor-pointer" onClick={() => window.open(msg.content, '_blank')} />
+                    <p className={`text-[9px] px-1 ${isMe ? 'text-blue-200' : 'text-[#5C5E72]'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs leading-relaxed">{msg.content}</p>
+                    <p className={`text-[9px] mt-1 ${isMe ? 'text-blue-200' : 'text-[#5C5E72]'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -247,8 +306,8 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
         <div ref={bottomRef} />
       </div>
 
-      {/* ═══ INPUT — MOBILE SAFE ═══ */}
-      <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 pt-3 pb-5" style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))' }}>
+      {/* ═══ INPUT — MOBILE SAFE with extra bottom padding ═══ */}
+      <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 pt-3 pb-8" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom) + 16px)' }}>
         {['booking_requested', 'negotiating', 'confirmed', 'in_progress', 'completed_pending_approval'].includes(booking?.status) ? (
           <div className="flex items-center gap-2">
             {/* Photo button */}

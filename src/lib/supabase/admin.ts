@@ -12,37 +12,193 @@ export async function getAllUsers() {
 }
 
 export async function getUserCount(callerRole: 'admin' | 'creator' = 'admin') {
-  // Use RPC to bypass RLS — pass caller role so admin sees 10 (no creator), creator sees 11 (all)
-  const { data, error } = await supabase.rpc('admin_get_user_count', { p_caller_role: callerRole });
-  if (error || !data || data.length === 0) return { total: 0, today: 0, error };
-  return { total: Number(data[0].total) || 0, today: Number(data[0].today) || 0, error: null };
+  // PRIMARY: Direct query — always works, no RPC needed
+  let query = supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null);
+
+  // Admin does NOT see creator account in their count
+  // Creator sees EVERYTHING including themselves
+  if (callerRole === 'admin') {
+    query = query.neq('role', 'creator');
+  }
+
+  const { count, error } = await query;
+  if (error) {
+    // FALLBACK: Try RPC if direct query fails
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_get_user_count', { p_caller_role: callerRole });
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return { total: Number(rpcData[0].total) || 0, today: Number(rpcData[0].today) || 0, error: null };
+    }
+    return { total: 0, today: 0, error };
+  }
+
+  // Count users created today
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const { count: todayCount } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .gte('created_at', todayStart.toISOString());
+
+  return { total: count || 0, today: todayCount || 0, error: null };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMPREHENSIVE CREATOR DASHBOARD STATS — Direct Queries
+// ═══════════════════════════════════════════════════════════════
+
+export interface CreatorDashboardStats {
+  totalUsers: number;
+  totalWorkers: number;
+  totalPartners: number;
+  totalStaff: number;
+  totalAdmins: number;
+  totalListings: number;
+  pendingInspections: number;
+  pendingVerifications: number;
+  activeWorkerBookings: number;
+  totalRevenue: number;
+  pendingPayouts: number;
+  escrowBalance: number;
+  todaySignups: number;
+}
+
+export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashboardStats | null; error: any }> {
+  // Run all counts in parallel for speed
+  const [
+    usersRes, workersRes, partnersRes, staffRes, adminsRes,
+    listingsRes, inspectionsRes, verificationsRes,
+    workerBookingsRes, escrowRes, walletRes
+  ] = await Promise.all([
+    // Total users (excluding soft-deleted)
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).is('deleted_at', null),
+    // Workers
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'worker').is('deleted_at', null),
+    // Property Partners
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'property_partner').is('deleted_at', null),
+    // Staff
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'staff').is('deleted_at', null),
+    // Admins
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'admin').is('deleted_at', null),
+    // Listings
+    supabase.from('listings').select('*', { count: 'exact', head: true }).is('deleted_at', null),
+    // Pending Inspections
+    supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    // Pending Worker Verifications
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'worker').eq('worker_status', 'pending').is('deleted_at', null),
+    // Active Worker Bookings
+    supabase.from('worker_bookings').select('*', { count: 'exact', head: true }).is('deleted_at', null).in('status', ['booking_requested', 'negotiating', 'confirmed', 'in_progress']),
+    // Escrow
+    supabase.from('escrow_transactions').select('amount').eq('status', 'held'),
+    // Wallets (pending payouts)
+    supabase.from('worker_wallets').select('pending_balance'),
+  ]);
+
+  // Calculate totals
+  const escrowTotal = (escrowRes.data || []).reduce((s: number, r: any) => s + (r.amount || 0), 0);
+  const pendingTotal = (walletRes.data || []).reduce((s: number, r: any) => s + (r.pending_balance || 0), 0);
+
+  // Today's signups
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const { count: todayCount } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .gte('created_at', todayStart.toISOString());
+
+  return {
+    stats: {
+      totalUsers: usersRes.count || 0,
+      totalWorkers: workersRes.count || 0,
+      totalPartners: partnersRes.count || 0,
+      totalStaff: staffRes.count || 0,
+      totalAdmins: adminsRes.count || 0,
+      totalListings: listingsRes.count || 0,
+      pendingInspections: inspectionsRes.count || 0,
+      pendingVerifications: verificationsRes.count || 0,
+      activeWorkerBookings: workerBookingsRes.count || 0,
+      totalRevenue: escrowTotal + pendingTotal,
+      pendingPayouts: pendingTotal,
+      escrowBalance: escrowTotal,
+      todaySignups: todayCount || 0,
+    },
+    error: null,
+  };
 }
 
 // ── ROLE MANAGEMENT ────────────────────────────────
 
-// Valid role transitions — simplified hierarchy
-// Creator can change any role (except other creators)
-// Admin can change user ↔ staff
-const VALID_ROLE_TRANSITIONS: Record<string, string[]> = {
-  user: ['staff', 'admin'],
-  staff: ['user', 'admin'],
-  admin: ['user', 'staff'],
-  property_partner: [],
-  worker: [],
-  creator: [],
+// ═══════════════════════════════════════════════════════════════
+// ROLE HIERARCHY — ENFORCED THROUGHOUT PLATFORM
+// Creator > Admin > Staff > Property Partner > Worker > User
+// ═══════════════════════════════════════════════════════════════
+
+// Base transitions (Creator can do ALL of these + admin promotions)
+const BASE_TRANSITIONS: Record<string, string[]> = {
+  user: ['staff'],           // User can become Staff
+  staff: ['user'],           // Staff can be demoted to User
+  admin: ['user', 'staff'],  // Admin can be demoted
+  property_partner: [],      // Partners sign up as partners — fixed
+  worker: [],                // Workers sign up as workers — fixed
+  creator: [],               // Creator never changes
 };
 
-export function canChangeRole(currentRole: string, newRole: string): { allowed: boolean; reason?: string } {
-  // Creator can do anything (except change another creator)
-  // Workers and property partners signed up with their role — cannot be changed
+/**
+ * Check if a role change is allowed.
+ * @param currentRole — the user's current role
+ * @param newRole — the desired new role
+ * @param changerRole — who is making the change ('creator' | 'admin' | 'staff')
+ */
+export function canChangeRole(
+  currentRole: string,
+  newRole: string,
+  changerRole: 'creator' | 'admin' | 'staff' = 'creator'
+): { allowed: boolean; reason?: string } {
+  // Nobody can change a Creator (not even another Creator)
+  if (currentRole === 'creator') return { allowed: false, reason: 'Creator role is immutable.' };
+  // Nobody can assign Creator role
+  if (newRole === 'creator') return { allowed: false, reason: 'Creator role cannot be assigned.' };
+  // Workers and Partners have fixed roles from signup
   if (currentRole === 'worker') return { allowed: false, reason: 'Workers signed up as workers. Role cannot be changed.' };
   if (currentRole === 'property_partner') return { allowed: false, reason: 'Property partners signed up as partners. Role cannot be changed.' };
-  if (currentRole === 'creator') return { allowed: false, reason: 'Creator role cannot be changed.' };
-  if (newRole === 'creator') return { allowed: false, reason: 'Creator role cannot be assigned.' };
   if (newRole === 'worker') return { allowed: false, reason: 'Workers must sign up via worker registration.' };
   if (newRole === 'property_partner') return { allowed: false, reason: 'Partners must sign up via partner registration.' };
-  // For user/staff/admin roles, check the transition matrix
-  const allowed = VALID_ROLE_TRANSITIONS[currentRole] || [];
+
+  // Admin promotion: ONLY Creator can promote someone TO admin
+  // Admin demotion: Creator can demote admin → user/staff
+  if (newRole === 'admin') {
+    if (changerRole !== 'creator') {
+      return { allowed: false, reason: 'Only the Creator can create Admins.' };
+    }
+    // Creator can promote User or Staff to Admin
+    if (currentRole === 'user' || currentRole === 'staff') {
+      return { allowed: true };
+    }
+    return { allowed: false, reason: `Cannot promote ${currentRole} directly to Admin.` };
+  }
+
+  // Admin making changes: can only manage users and staff (not other admins)
+  if (changerRole === 'admin') {
+    if (currentRole === 'admin') {
+      return { allowed: false, reason: 'Admins cannot modify other Admins. Contact Creator.' };
+    }
+    // Admin can: user ↔ staff
+    const allowed = BASE_TRANSITIONS[currentRole] || [];
+    if (!allowed.includes(newRole)) {
+      return { allowed: false, reason: `As Admin, you cannot change ${currentRole} to ${newRole}.` };
+    }
+    return { allowed: true };
+  }
+
+  // Creator can do any valid base transition + admin promotions
+  const allowed = changerRole === 'creator'
+    ? [...(BASE_TRANSITIONS[currentRole] || []), 'admin'] // Creator gets admin too
+    : (BASE_TRANSITIONS[currentRole] || []);
+
   if (!allowed.includes(newRole)) {
     return { allowed: false, reason: `Cannot change ${currentRole} to ${newRole}.` };
   }
@@ -55,10 +211,11 @@ export async function updateUserRole(
   currentRole: string,
   changedBy: string,
   changedByEmail: string,
-  userEmail: string
+  userEmail: string,
+  changerRole: 'creator' | 'admin' | 'staff' = 'creator'
 ) {
-  // 1. Validate transition
-  const validation = canChangeRole(currentRole, newRole);
+  // 1. Validate transition with role hierarchy
+  const validation = canChangeRole(currentRole, newRole, changerRole);
   if (!validation.allowed) return { error: { message: validation.reason } as any };
 
   // 2. Update role via RPC (bypasses RLS)

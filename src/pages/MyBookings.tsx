@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { getMyBookingConversations, BOOKING_STATUS_LABELS } from '@/lib/supabase/worker-bookings';
+import { getMyBookingConversations, BOOKING_STATUS_LABELS, deleteBooking } from '@/lib/supabase/worker-bookings';
 import BookingNegotiationChat from '@/components/BookingNegotiationChat';
 import type { Profile } from '@/types';
+import { toast, Toaster } from 'sonner';
 
 interface MyBookingsProps {
   profile: Profile;
@@ -23,6 +24,17 @@ export default function MyBookings({ profile, onBack }: MyBookingsProps) {
     const { conversations: convs } = await getMyBookingConversations(profile.user_id);
     setConversations(convs || []);
     setLoading(false);
+  }
+
+  async function handleDelete(bookingId: string) {
+    if (!confirm('Delete this booking? It will be removed from your list.')) return;
+    const { success, error } = await deleteBooking(bookingId, profile.user_id);
+    if (error || !success) {
+      toast.error('Failed to delete: ' + (error?.message || 'Not authorized'));
+      return;
+    }
+    toast.success('Booking deleted');
+    loadConversations();
   }
 
   const filtered = filter === 'all'
@@ -53,8 +65,12 @@ export default function MyBookings({ profile, onBack }: MyBookingsProps) {
     );
   }
 
+  // Bookings that can be deleted: cancelled, refunded, or approved_released (completed)
+  const deletableStatuses = ['cancelled', 'refunded', 'approved_released'];
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] pb-6">
+      <Toaster position="top-center" richColors />
       {/* Header */}
       <header className="sticky top-0 z-40 bg-[#0A0A0F]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
         <div className="flex items-center gap-3">
@@ -133,6 +149,16 @@ export default function MyBookings({ profile, onBack }: MyBookingsProps) {
                       <span className="text-xs text-emerald-400 font-medium">₦{conv.negotiated_amount?.toLocaleString()}</span>
                       <span className="text-[9px] text-[#5C5E72]">{new Date(conv.updated_at).toLocaleDateString()}</span>
                     </div>
+                  )}
+                  {/* Delete button for completed/cancelled bookings */}
+                  {deletableStatuses.includes(conv.booking_status) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(conv.booking_id); }}
+                      className="mt-2 w-full h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                      Delete Booking
+                    </button>
                   )}
                 </button>
               );

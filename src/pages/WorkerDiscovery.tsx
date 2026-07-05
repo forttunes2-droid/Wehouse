@@ -1,21 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getAllWorkers, getCategoryWithSubcategories, getOrCreateConversation, supabase } from '@/lib/supabase';
+import { getAllWorkers, getCategoryWithSubcategories, supabase } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile, ServiceCategory } from '@/types';
 import { toast, Toaster } from 'sonner';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
-import { createBookingRequest } from '@/lib/supabase/worker-bookings';
+import { createBookingRequest, getUserActiveBookings } from '@/lib/supabase/worker-bookings';
 import BookingNegotiationChat from '@/components/BookingNegotiationChat';
 
 interface WorkerDiscoveryProps {
   userCity?: string | null;
   profile?: Profile | null;
-  onGoToChat?: (convId: string) => void;
   onNavigate?: (page: string) => void;
   preSelectedCategory?: string | null;
 }
 
-export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavigate, preSelectedCategory }: WorkerDiscoveryProps) {
+export default function WorkerDiscovery({ userCity, profile, onNavigate, preSelectedCategory }: WorkerDiscoveryProps) {
   const [allWorkers, setAllWorkers] = useState<Profile[]>([]);
   const [categories, setCategories] = useState<(ServiceCategory & { subcategories: any[] })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,8 +33,8 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
   const [bookingForm, setBookingForm] = useState({ description: '', address: '', message: '' });
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [activeBookingChat, setActiveBookingChat] = useState<{ conversationId: string; bookingId: string; isWorker: boolean } | null>(null);
-  // Track which workers user has sent booking requests to
-  const [bookedWorkers] = useState<Set<string>>(new Set());
+  // Track which workers user has active bookings with
+  const [activeBookings, setActiveBookings] = useState<Map<string, { status: string; bookingId: string }>>(new Map());
 
   // Apply pre-selected category when navigating from WorkerCategories
   useEffect(() => {
@@ -43,6 +42,21 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
       setSelectedCategory(preSelectedCategory);
     }
   }, [preSelectedCategory]);
+
+  // Fetch user's active bookings to show "already booked" indicator
+  useEffect(() => {
+    const uid = profile?.user_id;
+    if (!uid) return;
+    async function load(userId: string) {
+      const { bookings } = await getUserActiveBookings(userId);
+      const map = new Map<string, { status: string; bookingId: string }>();
+      bookings.forEach((b: any) => {
+        map.set(b.worker_id, { status: b.status, bookingId: b.id });
+      });
+      setActiveBookings(map);
+    }
+    load(uid);
+  }, [profile?.user_id]);
 
   // ─── FETCH WORKERS ────────────────────────────────────
   useEffect(() => {
@@ -146,19 +160,6 @@ export default function WorkerDiscovery({ userCity, profile, onGoToChat, onNavig
 
     return result;
   }, [allWorkers, searchQuery, selectedState, selectedCity, selectedCategory, selectedSubcategory, userCity]);
-
-  // ─── HANDLERS ─────────────────────────────────────────
-  async function handleChatWithWorker(workerId: string) {
-    if (!profile) { toast.error('Please log in to chat'); return; }
-    if (workerId === profile.user_id) { toast.error('Cannot chat with yourself'); return; }
-    const { conversation, error } = await getOrCreateConversation(profile.user_id, workerId);
-    if (error) { toast.error('Failed to start chat'); return; }
-    if (conversation && onGoToChat) {
-      onGoToChat(conversation.id);
-    } else {
-      toast.success('Chat started!');
-    }
-  }
 
   // ─── Worker Stats (jobs done + rating) ──────────
 function WorkerStats({ workerId }: { workerId: string }) {
@@ -488,8 +489,26 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-2">
-                    {/* Book — opens booking modal (always visible if logged in) */}
-                    {profile && (
+                    {/* Already booked indicator — replaces Book button */}
+                    {profile && activeBookings.has(w.user_id) ? (
+                      <>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 8v4M12 16h.01" /><circle cx="12" cy="12" r="10" /></svg>
+                          Booking in progress
+                        </span>
+                        <button onClick={() => {
+                          const b = activeBookings.get(w.user_id);
+                          if (b?.bookingId) {
+                            // Navigate to my_bookings page
+                            onNavigate?.('my_bookings');
+                          }
+                        }} className="inline-flex items-center gap-1 text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                          View
+                        </button>
+                      </>
+                    ) : profile ? (
+                      /* Book — opens booking modal */
                       <button
                         onClick={() => setBookingWorker(w)}
                         className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors"
@@ -497,15 +516,7 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z" /></svg>
                         Book
                       </button>
-                    )}
-                    {/* Chat — only visible after booking request sent */}
-                    {profile && bookedWorkers.has(w.user_id) && (
-                      <button onClick={() => handleChatWithWorker(w.user_id)} className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                        Chat
-                      </button>
-                    )}
-                    {!profile && (
+                    ) : (
                       <button
                         onClick={() => toast.info('Please log in to book a worker')}
                         className="inline-flex items-center gap-1 text-[11px] text-[#5C5E72]"

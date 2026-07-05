@@ -74,9 +74,13 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
     loadDashboardData();
   }, [loadDashboardData]);
 
+  // Worker verification flow: pending workers CANNOT access verification tab
+  // They must be approved by admin/creator first
+  const canAccessVerification = status !== 'pending';
+
   const tabs: { id: WorkerTab; label: string; icon: string }[] = [
     { id: 'home', label: 'Home', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10' },
-    { id: 'verification', label: 'Verify', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' },
+    ...(canAccessVerification ? [{ id: 'verification' as WorkerTab, label: 'Verify', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' }] : []),
     { id: 'bookings', label: 'Jobs', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z' },
     { id: 'wallet', label: 'Wallet', icon: 'M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22' },
     { id: 'services', label: 'Services', icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' },
@@ -221,12 +225,27 @@ function HomeTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
 
   return (
     <div className="space-y-4">
-      {/* Quick Stats */}
+      {/* Pending Approval Notice — only for new signups */}
+      {profile.worker_status === 'pending' && (
+        <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-amber-400">Awaiting Admin Approval</p>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">Your worker profile is pending review. Once approved by WeHouse admin, you will unlock the verification tab to submit your ID and skill video. After verification is approved, you will get the blue tick and appear in search results.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Stats — all tappable */}
       <div className="grid grid-cols-4 gap-2">
-        <QuickStat icon="👁️" label="Views" value={stats.views} />
-        <QuickStat icon="📋" label="Jobs" value={stats.bookings} />
-        <QuickStat icon="✅" label="Done" value={stats.completedJobs} />
-        <QuickStat icon="💰" label="Balance" value={`₦${(wallet?.available_balance || 0).toLocaleString()}`} />
+        <QuickStat icon="👁️" label="Views" value={stats.views} onClick={() => { /* Views has no dedicated tab, stays on home */ }} />
+        <QuickStat icon="📋" label="Jobs" value={stats.bookings} onClick={() => onSetTab('bookings')} />
+        <QuickStat icon="✅" label="Done" value={stats.completedJobs} onClick={() => onSetTab('bookings')} />
+        <QuickStat icon="💰" label="Balance" value={`₦${(wallet?.available_balance || 0).toLocaleString()}`} onClick={() => onSetTab('wallet')} />
       </div>
 
       {/* Wallet Summary */}
@@ -1197,13 +1216,16 @@ function SupportTab({}: {}) {
 // SHARED COMPONENTS
 // ═══════════════════════════════════════════════════════════════
 
-function QuickStat({ icon, label, value }: { icon: string; label: string; value: string | number }) {
+function QuickStat({ icon, label, value, onClick }: { icon: string; label: string; value: string | number; onClick?: () => void }) {
   return (
-    <div className="bg-[#12121A] border border-[#1E1E2C] rounded-xl p-2.5 text-center">
+    <button
+      onClick={onClick}
+      className={`bg-[#12121A] border border-[#1E1E2C] rounded-xl p-2.5 text-center w-full transition-all active:scale-[0.97] hover:border-[#3B82F6]/30 ${onClick ? 'cursor-pointer' : ''}`}
+    >
       <p className="text-base">{icon}</p>
       <p className="text-[11px] font-bold text-white mt-0.5">{value}</p>
       <p className="text-[8px] text-[#5C5E72]">{label}</p>
-    </div>
+    </button>
   );
 }
 

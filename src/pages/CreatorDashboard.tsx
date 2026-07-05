@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   supabase,
-  getAllUsers, getUserCount, updateUserRole, restoreUser, suspendUser, freezeUser, banUser, reactivateUser,
+  getAllUsers, getCreatorDashboardStats, updateUserRole, restoreUser, suspendUser, freezeUser, banUser, reactivateUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, getAuditLogs, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
@@ -189,42 +189,108 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
 
 // ─── OVERVIEW ──────────────────────────────────────
 function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoToUsersView, onGoToUsersToday, onGoToTab }: { profile: Profile; isCreator: boolean; onGoToNewListing?: () => void; onGoToUsers?: () => void; onGoToUsersView?: () => void; onGoToUsersToday?: () => void; onGoToTab?: (tab: AdminTab) => void }) {
-  const [stats, setStats] = useState({ users: 0, listings: 0, reports: 0, today: 0 });
+  const [stats, setStats] = useState({
+    totalUsers: 0, totalWorkers: 0, totalPartners: 0, totalStaff: 0, totalAdmins: 0,
+    totalListings: 0, pendingInspections: 0, pendingVerifications: 0,
+    activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const { total, today } = await getUserCount('creator');
-      const { listings } = await getAllListingsAdmin();
-      const { reports } = await getReports();
-      // Creator sees all 11 users (including self). Admin sees 10 (excluding creator).
-      setStats({ users: total, listings: listings?.length || 0, reports: reports?.filter(r => r.status === 'pending').length || 0, today });
+      const { stats: s } = await getCreatorDashboardStats();
+      if (s) setStats(s);
+      setLoading(false);
     }
     load();
   }, []);
 
-  const statCards = [
-    { label: 'Total Users', value: stats.users, color: isCreator ? 'from-purple-500 to-[#7C3AED]' : 'from-[#3B82F6] to-[#2563EB]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', onClick: onGoToUsersView },
-    { label: 'Listings', value: stats.listings, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', onClick: () => onGoToTab?.('listings') },
-    { label: 'Pending Reports', value: stats.reports, color: stats.reports > 0 ? 'from-[#EF4444] to-[#DC2626]' : 'from-[#6B7280] to-[#4B5563]', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', onClick: () => onGoToTab?.('reports') },
-    { label: 'New Today', value: stats.today, color: isCreator ? 'from-purple-400 to-purple-600' : 'from-[#8B5CF6] to-[#7C3AED]', icon: 'M12 5v14M5 12h14', onClick: onGoToUsersToday },
+  // Top row: Critical counts
+  const topStats = [
+    { label: 'Total Users', value: stats.totalUsers, color: 'from-purple-500 to-[#7C3AED]', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', onClick: onGoToUsersView },
+    { label: 'Workers', value: stats.totalWorkers, color: 'from-pink-500 to-[#EC4899]', icon: 'M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2zM10 4h4v3h-4V4z', onClick: () => onGoToTab?.('workers') },
+    { label: 'Partners', value: stats.totalPartners, color: 'from-violet-500 to-[#8B5CF6]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10', onClick: () => onGoToTab?.('permissions') },
+    { label: 'Listings', value: stats.totalListings, color: 'from-[#10B981] to-[#059669]', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', onClick: () => onGoToTab?.('listings') },
+  ];
+
+  // Middle row: Operations
+  const opStats = [
+    { label: 'Pending Inspections', value: stats.pendingInspections, color: 'from-amber-500 to-[#F59E0B]', alert: stats.pendingInspections > 0, onClick: () => onGoToTab?.('inspections') },
+    { label: 'Pending Verifications', value: stats.pendingVerifications, color: 'from-[#3B82F6] to-[#2563EB]', alert: stats.pendingVerifications > 0, onClick: () => onGoToTab?.('workers') },
+    { label: 'Active Bookings', value: stats.activeWorkerBookings, color: 'from-emerald-500 to-[#10B981]', onClick: () => onGoToTab?.('support') },
+    { label: 'New Today', value: stats.todaySignups, color: 'from-cyan-500 to-[#06B6D4]', onClick: onGoToUsersToday },
+  ];
+
+  // Bottom row: Financials (Creator only)
+  const finStats = [
+    { label: 'Total Revenue', value: `₦${stats.totalRevenue.toLocaleString()}`, color: 'from-green-500 to-[#22C55E]' },
+    { label: 'Pending Payouts', value: `₦${stats.pendingPayouts.toLocaleString()}`, color: 'from-orange-500 to-[#F97316]', alert: stats.pendingPayouts > 0 },
+    { label: 'Escrow Balance', value: `₦${stats.escrowBalance.toLocaleString()}`, color: 'from-indigo-500 to-[#6366F1]' },
+    { label: 'Staff', value: stats.totalStaff, color: 'from-[#8B5CF6] to-[#7C3AED]', onClick: () => onGoToTab?.('permissions') },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Stats Grid — clickable, navigates to respective tabs */}
-      <div className="grid grid-cols-2 gap-3">
-        {statCards.map(c => (
-          <button
-            key={c.label}
-            onClick={c.onClick}
-            className={`bg-gradient-to-br ${c.color} rounded-2xl p-4 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
-          >
-            <svg className="absolute top-3 right-3 w-8 h-8 text-white/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
-            <div className="text-2xl font-bold text-white relative z-10">{c.value}</div>
-            <div className="text-[10px] text-white/70 relative z-10">{c.label}</div>
-          </button>
-        ))}
+      {loading && (
+        <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
+          <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          Loading platform stats...
+        </div>
+      )}
+
+      {/* ═══ ROW 1: Platform Scale ═══ */}
+      <div>
+        <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Platform</p>
+        <div className="grid grid-cols-2 gap-2">
+          {topStats.map(c => (
+            <button
+              key={c.label}
+              onClick={c.onClick}
+              className={`bg-gradient-to-br ${c.color} rounded-2xl p-3.5 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
+            >
+              <svg className="absolute top-2.5 right-2.5 w-7 h-7 text-white/15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
+              <div className="text-xl font-bold text-white relative z-10">{c.value}</div>
+              <div className="text-[9px] text-white/70 relative z-10">{c.label}</div>
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* ═══ ROW 2: Operations ═══ */}
+      <div>
+        <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Operations</p>
+        <div className="grid grid-cols-4 gap-2">
+          {opStats.map(c => (
+            <button
+              key={c.label}
+              onClick={c.onClick}
+              className={`rounded-xl p-2.5 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
+            >
+              <div className={`text-sm font-bold ${c.alert ? 'text-red-400' : 'text-white'}`}>{c.value}</div>
+              <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-red-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══ ROW 3: Financials (Creator Only) ═══ */}
+      {isCreator && (
+        <div>
+          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Finance</p>
+          <div className="grid grid-cols-4 gap-2">
+            {finStats.map(c => (
+              <button
+                key={c.label}
+                onClick={c.onClick}
+                className={`rounded-xl p-2.5 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
+              >
+                <div className={`text-[11px] font-bold ${c.alert ? 'text-orange-400' : 'text-emerald-400'}`}>{c.value}</div>
+                <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-orange-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       {onGoToNewListing && (
@@ -280,22 +346,20 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
         <div className="glass rounded-2xl p-5 border border-purple-500/10">
           <h3 className="text-sm font-semibold text-purple-400 mb-3">Creator Tools</h3>
           <div className="space-y-2 text-xs">
-            <div className="flex items-center gap-2 text-white">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
-              Full platform control
-            </div>
-            <div className="flex items-center gap-2 text-white">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
-              Admin management
-            </div>
-            <div className="flex items-center gap-2 text-white">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
-              System settings
-            </div>
-            <div className="flex items-center gap-2 text-white">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
-              Critical controls
-            </div>
+            {[
+              'Full platform control — view everything',
+              'Create and remove Admins',
+              'Promote User → Staff, Staff → Admin',
+              'Demote Admin → Staff',
+              'Suspend anyone except Creator',
+              'Manage inspections, bookings, finances',
+              'Configure platform settings',
+            ].map(tool => (
+              <div key={tool} className="flex items-center gap-2 text-white">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
+                {tool}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -371,10 +435,11 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
       }
 
       // Execute the change
+      const changerRole = (profile.role === 'creator' ? 'creator' : profile.role === 'admin' ? 'admin' : 'staff') as 'creator' | 'admin' | 'staff';
       const { error } = await updateUserRole(
         userId, newRole, target.role,
         profile.user_id, profile.email,
-        target.email
+        target.email, changerRole
       );
       if (error) { toast.error(error.message || 'Failed'); return; }
 

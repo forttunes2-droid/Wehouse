@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { compressImageFile } from './utils';
 
 // ═══════════════════════════════════════════════════════════════
 // WORKER BOOKING NEGOTIATION API
@@ -137,6 +138,68 @@ export async function getWorkerBookings(workerId: string) {
     .select('*, profiles!worker_bookings_user_id_fkey(full_name, phone)')
     .eq('worker_id', workerId)
     .order('created_at', { ascending: false });
+  return { bookings: data || [], error };
+}
+
+// Upload image to booking chat
+export async function uploadBookingChatImage(file: File, conversationId: string) {
+  try {
+    const compressed = await compressImageFile(file, 1920, 0.85);
+    const fileName = `${conversationId}/${Date.now()}.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from('chat-files')
+      .upload(fileName, compressed, { contentType: 'image/jpeg' });
+    if (uploadError) {
+      if (uploadError.message?.includes('bucket') || uploadError.message?.includes('Bucket')) {
+        return { url: null, error: { message: 'Storage not configured. Ask admin to run storage setup SQL.' } as any };
+      }
+      return { url: null, error: uploadError };
+    }
+    const { data: urlData } = supabase.storage.from('chat-files').getPublicUrl(fileName);
+    return { url: urlData.publicUrl, error: null };
+  } catch (e: any) {
+    return { url: null, error: { message: e.message || 'Upload failed' } as any };
+  }
+}
+
+// Send booking message with image
+export async function sendBookingImageMessage(conversationId: string, senderId: string, imageUrl: string) {
+  const { data, error } = await supabase.rpc('send_booking_message', {
+    p_conversation_id: conversationId,
+    p_sender_id: senderId,
+    p_content: imageUrl,
+    p_message_type: 'image',
+  });
+  return { messageId: data, error };
+}
+
+// Delete booking (soft delete — sets deleted_at)
+export async function deleteBooking(bookingId: string, userId: string) {
+  // Only allow if user is the customer or worker for this booking
+  const { data: booking, error: fetchErr } = await supabase
+    .from('worker_bookings')
+    .select('user_id, worker_id')
+    .eq('id', bookingId)
+    .single();
+  if (fetchErr) return { success: false, error: fetchErr };
+  if (booking.user_id !== userId && booking.worker_id !== userId) {
+    return { success: false, error: { message: 'Not authorized to delete this booking' } as any };
+  }
+  const { error } = await supabase
+    .from('worker_bookings')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', bookingId);
+  return { success: !error, error };
+}
+
+// Get user's active bookings (for "already booked" check)
+export async function getUserActiveBookings(userId: string) {
+  const { data, error } = await supabase
+    .from('worker_bookings')
+    .select('id, worker_id, status')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .in('status', ['booking_requested', 'negotiating', 'waiting_payment', 'confirmed', 'in_progress', 'completed_pending_approval']);
   return { bookings: data || [], error };
 }
 
