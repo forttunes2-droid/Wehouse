@@ -56,15 +56,23 @@ export interface CreatorDashboardStats {
   todaySignups: number;
 }
 
-export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashboardStats | null; error: any }> {
-  // Use getAllUsers() which uses RPC (bypasses RLS) — this WORKS
+export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashboardStats; error: any }> {
+  const ZERO_STATS: CreatorDashboardStats = {
+    totalUsers: 0, totalWorkers: 0, totalPartners: 0, totalStaff: 0, totalAdmins: 0,
+    totalListings: 0, pendingInspections: 0, pendingVerifications: 0,
+    activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups: 0,
+  };
+
+  // Use getAllUsers() which uses RPC (bypasses RLS)
   const { users, error: usersErr } = await getAllUsers();
+
   if (usersErr || !users) {
-    return { stats: null, error: usersErr };
+    // RPC failed — return zero stats with the error so UI can show it
+    return { stats: ZERO_STATS, error: usersErr };
   }
 
   // Count from the array (reliable, bypasses RLS)
-  const activeUsers = users.filter((u: any) => !u.deleted);
+  const activeUsers = users.filter((u: any) => !u.deleted && !u.deleted_at);
   const totalUsers = activeUsers.length;
   const totalWorkers = activeUsers.filter((u: any) => u.role === 'worker').length;
   const totalPartners = activeUsers.filter((u: any) => u.role === 'property_partner').length;
@@ -80,7 +88,7 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
     return created >= todayStart;
   }).length;
 
-  // Try direct queries for other tables (some may work, some may be blocked by RLS)
+  // Direct queries for other tables (RLS may block some)
   const [{ count: listingsCount }, { count: inspectionsCount }, { count: bookingsCount }] = await Promise.all([
     supabase.from('listings').select('*', { count: 'exact', head: true }).is('deleted_at', null),
     supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -89,19 +97,12 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
 
   return {
     stats: {
-      totalUsers,
-      totalWorkers,
-      totalPartners,
-      totalStaff,
-      totalAdmins,
+      totalUsers, totalWorkers, totalPartners, totalStaff, totalAdmins,
       totalListings: listingsCount || 0,
       pendingInspections: inspectionsCount || 0,
       pendingVerifications,
       activeWorkerBookings: bookingsCount || 0,
-      totalRevenue: 0,
-      pendingPayouts: 0,
-      escrowBalance: 0,
-      todaySignups,
+      totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups,
     },
     error: null,
   };

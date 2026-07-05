@@ -199,11 +199,17 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
     activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
-      const { stats: s } = await getCreatorDashboardStats();
-      if (s) setStats(s);
+      setLoading(true);
+      setLoadError(null);
+      const { stats: s, error } = await getCreatorDashboardStats();
+      if (error) {
+        setLoadError('Database error: ' + (error.message || 'Cannot load stats. Make sure admin SQL functions are installed.'));
+      }
+      setStats(s);
       setLoading(false);
     }
     load();
@@ -239,6 +245,13 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
         <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
           <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
           Loading platform stats...
+        </div>
+      )}
+
+      {loadError && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3">
+          <p className="text-[11px] text-red-400 font-medium">{loadError}</p>
+          <p className="text-[9px] text-[#5C5E72] mt-1">Run the SQL setup in Supabase to fix this.</p>
         </div>
       )}
 
@@ -1216,6 +1229,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
+  const [usersLoadError, setUsersLoadError] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const [message, setMessage] = useState('');
   const [sendMode, setSendMode] = useState<'all' | 'select'>('all');
@@ -1278,11 +1292,21 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
   }, [includeUsers, includeWorkers, includeStaff, includePartners, sendMode, canSend, isStateScope]);
 
   async function loadUsers() {
-    const { users: data } = await getAllUsers();
+    setUsersLoadError(null);
+    const { users: data, error } = await getAllUsers();
+    if (error || !data) {
+      const msg = error?.message || 'Database error';
+      setUsersLoadError(msg);
+      setUsers([]);
+      setFilteredUsers([]);
+      return;
+    }
     // ONLY regular users (role='user') — no workers, staff, or admins
-    let list = (data || []).filter((u: any) =>
+    let list = data.filter((u: any) =>
       !u.deleted &&
+      !u.deleted_at &&
       u.user_id !== profile.user_id &&
+      u.user_id !== 'wehouse_support' &&
       u.role === 'user'
     );
     if (isStateScope) {
@@ -1596,14 +1620,23 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
 
                 {/* Show warning if no regular users exist */}
                 {users.length === 0 && (
-                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className={`p-3 rounded-lg border ${usersLoadError ? 'bg-red-500/10 border-red-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
                     <div className="flex items-start gap-2">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={usersLoadError ? '#EF4444' : '#F59E0B'} strokeWidth="2" className="flex-shrink-0 mt-0.5">
                         <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
                       </svg>
                       <div>
-                        <p className="text-[11px] text-amber-400 font-medium">No regular users found</p>
-                        <p className="text-[10px] text-amber-400/70">Announcements only reach users with role='user'. Create a test user account to verify delivery.</p>
+                        {usersLoadError ? (
+                          <>
+                            <p className="text-[11px] text-red-400 font-medium">Database Error</p>
+                            <p className="text-[10px] text-red-400/70">{usersLoadError}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] text-amber-400 font-medium">No regular users found</p>
+                            <p className="text-[10px] text-amber-400/70">Announcements only reach users with role='user'. Create a test user account to verify delivery.</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
