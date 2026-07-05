@@ -87,7 +87,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
   ];
 
   return (
-    <div className="min-h-screen bg-transparent pb-6">
+    <div className="min-h-[100dvh] bg-transparent pb-nav overflow-y-auto scrollable-content">
       <Toaster position="top-center" toastOptions={{ style: { background: '#1A1A24', color: '#fff', border: '1px solid #232330' } }} />
 
       {/* Header */}

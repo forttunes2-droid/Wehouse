@@ -320,7 +320,7 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
       </div>
 
       {/* ═══ INPUT — Fixed at bottom, always reachable ═══ */}
-      <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 pt-3 pb-6">
+      <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 pt-3 pb-safe chat-input-container">
         {['booking_requested', 'negotiating', 'confirmed', 'in_progress', 'completed_pending_approval'].includes(booking?.status) ? (
           <div className="flex items-center gap-2">
             {/* Photo button */}

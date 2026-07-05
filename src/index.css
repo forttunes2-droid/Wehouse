@@ -328,3 +328,73 @@
 .card-shine:hover::before {
   left: 100%;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL SCROLLING & KEYBOARD FIX
+   Every page must be fully scrollable.
+   No button or input should be hidden behind keyboard.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Root must use dynamic viewport height */
+html, body, #root {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+/* Ensure all main content areas scroll properly */
+.scrollable-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: 120px;
+}
+
+/* Scrollbar styling */
+.scrollable-content::-webkit-scrollbar {
+  width: 3px;
+}
+.scrollable-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollable-content::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+}
+
+/* Keep focused inputs visible when keyboard opens */
+input:focus, textarea:focus {
+  scroll-margin-bottom: 100px;
+}
+
+/* Bottom safe area padding — prevents content being hidden by bottom nav */
+.pb-safe {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+/* Extra padding for pages with bottom nav */
+.pb-nav {
+  padding-bottom: max(80px, env(safe-area-inset-bottom) + 64px);
+}
+
+/* Pages with keyboard input need extra bottom padding */
+.keyboard-page {
+  padding-bottom: max(120px, env(safe-area-inset-bottom) + 100px);
+}
+
+/* Prevent fixed elements from blocking taps */
+.bottom-nav-fixed {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ensure forms are scrollable */
+form {
+  min-height: 0;
+}
+
+/* Chat input must stay above keyboard */
+.chat-input-container {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  background: var(--wh-surface);
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}

@@ -449,7 +449,7 @@ export default function App() {
   return (
     <CreatorAuthProvider>
       <Suspense fallback={<PageSkeleton />}>
-        <div className="page-transition min-h-screen bg-[#0A0A0F]">
+        <div className="page-transition min-h-[100dvh] bg-[#0A0A0F] overflow-y-auto scrollable-content">
           {renderPage()}
         </div>
 

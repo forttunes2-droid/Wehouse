@@ -89,7 +89,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-nav overflow-y-auto scrollable-content">
       <Toaster position="top-center" richColors theme="dark" />
 
       {/* Header */}
