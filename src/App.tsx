@@ -112,8 +112,12 @@ export default function App() {
   const isCreator = checkCreator(auth.profile?.role || '');
 
   // ─── Validate restored page against user role ─────
+  // Runs ONCE after auth loads — prevents redirect loops
+  const validatedRef = useRef(false);
   useEffect(() => {
     if (auth.isLoading || !auth.profile) return;
+    if (validatedRef.current) return; // Only validate once
+    validatedRef.current = true;
 
     const role = auth.profile.role;
     let valid = true;
@@ -126,7 +130,6 @@ export default function App() {
     if ((navPage === 'property_owner' || navPage === 'property_partner') && role !== 'property_partner') valid = false;
     if (navPage === 'worker_categories' && role === 'property_partner') valid = false;
     if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
-    // Profile sub-pages (account, privacy, security) same rules as profile
     if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
     if (navPage === 'roommate' && role !== 'user') valid = false;
 

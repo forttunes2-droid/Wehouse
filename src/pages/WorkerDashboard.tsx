@@ -749,7 +749,15 @@ function BookingsTab({ profile }: { profile: Profile }) {
                   )}
                 </div>
                 <p className="text-xs text-white font-medium">{conv.service_type}</p>
-                <p className="text-[10px] text-[#5C5E72] mt-0.5">{conv.other_person_name}</p>
+                {/* Worker sees who booked them */}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="w-4 h-4 rounded-full bg-[#3B82F6]/20 flex items-center justify-center">
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                  </div>
+                  <p className="text-[10px] text-[#8A8B9C]">
+                    Booked by <span className="text-[#3B82F6] font-medium">@{conv.other_person_username || conv.other_person_name}</span>
+                  </p>
+                </div>
                 {conv.last_message && (
                   <p className="text-[10px] text-[#8A8B9C] mt-1 truncate">{conv.last_message}</p>
                 )}

@@ -28,12 +28,67 @@ export async function createBookingRequest(
   return { booking: data?.[0] || null, error: null };
 }
 
-// Get all booking conversations for a user (customer or worker)
+// Get all booking conversations for a user (customer or worker) — with real profile data
 export async function getMyBookingConversations(userId: string) {
-  const { data, error } = await supabase.rpc('get_my_booking_conversations', {
-    p_user_id: userId,
+  // Direct query: get bookings where user is worker or customer
+  const { data: bookings, error: bookingErr } = await supabase
+    .from('worker_bookings')
+    .select(`
+      id, booking_code, status, service_type, description, address,
+      negotiated_amount, scheduled_date, created_at, updated_at,
+      user_id, worker_id, deleted_at
+    `)
+    .or(`user_id.eq.${userId},worker_id.eq.${userId}`)
+    .is('deleted_at', null)
+    .order('updated_at', { ascending: false });
+
+  if (bookingErr || !bookings || bookings.length === 0) {
+    return { conversations: [], error: bookingErr };
+  }
+
+  // Get conversation IDs
+  const { data: convs } = await supabase
+    .from('booking_conversations')
+    .select('id, booking_id')
+    .in('booking_id', bookings.map(b => b.id));
+  const convMap = new Map((convs || []).map(c => [c.booking_id, c.id]));
+
+  // Get customer profiles
+  const customerIds = [...new Set(bookings.map(b => b.user_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('user_id, username, full_name, avatar_url')
+    .in('user_id', customerIds);
+  const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+
+  // Build enriched conversations with real customer data
+  const conversations = bookings.map(b => {
+    const isWorkerView = b.worker_id === userId;
+    const customerProfile = profileMap.get(b.user_id);
+    return {
+      conversation_id: convMap.get(b.id) || b.id,
+      booking_id: b.id,
+      booking_code: b.booking_code,
+      booking_status: b.status,
+      service_type: b.service_type,
+      description: b.description,
+      address: b.address,
+      negotiated_amount: b.negotiated_amount || 0,
+      scheduled_date: b.scheduled_date,
+      created_at: b.created_at,
+      updated_at: b.updated_at,
+      other_person_name: isWorkerView
+        ? (customerProfile?.full_name || customerProfile?.username || 'Customer')
+        : 'Worker',
+      other_person_username: isWorkerView
+        ? (customerProfile?.username || '')
+        : '',
+      customer_user_id: b.user_id,
+      customer_avatar: customerProfile?.avatar_url || null,
+    };
   });
-  return { conversations: data || [], error };
+
+  return { conversations, error: null };
 }
 
 // Get booking messages
@@ -125,10 +180,43 @@ export async function cancelBooking(bookingId: string, cancellerId: string, reas
 
 // Get single booking details
 export async function getBookingDetails(bookingId: string) {
-  const { data, error } = await supabase.rpc('get_booking_details', {
-    p_booking_id: bookingId,
-  });
-  return { booking: data?.[0] || null, error };
+  // Direct query with customer profile
+  const { data: booking, error } = await supabase
+    .from('worker_bookings')
+    .select(`
+      id, booking_code, status, service_type, description, address,
+      negotiated_amount, scheduled_date, created_at, updated_at,
+      user_id, worker_id
+    `)
+    .eq('id', bookingId)
+    .single();
+
+  if (error || !booking) return { booking: null, error };
+
+  // Get customer profile
+  const { data: customer } = await supabase
+    .from('profiles')
+    .select('user_id, username, full_name, avatar_url, phone')
+    .eq('user_id', booking.user_id)
+    .single();
+
+  // Get worker profile
+  const { data: worker } = await supabase
+    .from('profiles')
+    .select('user_id, username, full_name, avatar_url')
+    .eq('user_id', booking.worker_id)
+    .single();
+
+  return {
+    booking: {
+      ...booking,
+      user_name: customer?.full_name || customer?.username || 'Customer',
+      customer_username: customer?.username || '',
+      customer_phone: customer?.phone || '',
+      worker_name: worker?.full_name || worker?.username || 'Worker',
+    },
+    error: null,
+  };
 }
 
 // Get all bookings for a worker

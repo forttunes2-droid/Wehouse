@@ -158,7 +158,9 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-white truncate">
-                {isWorker ? booking?.user_name : booking?.worker_name}
+                {isWorker
+                  ? (booking?.customer_username ? `@${booking.customer_username}` : booking?.user_name || 'Customer')
+                  : booking?.worker_name}
               </p>
               {statusInfo && (
                 <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
@@ -265,15 +267,22 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
       </header>
 
       {/* ═══ MESSAGES ═══ */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {/* Booking Info Card */}
         {booking && (
-          <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
-            <p className="text-[10px] text-blue-400 uppercase tracking-wider mb-1">Booking Details</p>
-            <p className="text-xs text-white">{booking.description}</p>
-            <p className="text-[10px] text-[#5C5E72] mt-1">{booking.address}</p>
-            {booking.scheduled_date && <p className="text-[10px] text-emerald-400 mt-1">Scheduled: {new Date(booking.scheduled_date).toLocaleDateString()}</p>}
-            {booking.negotiated_amount > 0 && <p className="text-[10px] text-emerald-400">Agreed: N{booking.negotiated_amount?.toLocaleString()}</p>}
+          <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3 space-y-1.5">
+            <p className="text-[10px] text-blue-400 uppercase tracking-wider">Booking Details</p>
+            {/* WHO booked — critical for worker */}
+            {isWorker && booking?.customer_username && (
+              <div className="flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                <p className="text-[11px] text-[#3B82F6] font-medium">Booked by @{booking.customer_username}</p>
+              </div>
+            )}
+            <p className="text-xs text-white">{booking.description || 'No description'}</p>
+            {booking.address && <p className="text-[10px] text-[#5C5E72]">{booking.address}</p>}
+            {booking.scheduled_date && <p className="text-[10px] text-emerald-400">Scheduled: {new Date(booking.scheduled_date).toLocaleDateString()}</p>}
+            {booking.negotiated_amount > 0 && <p className="text-[10px] text-emerald-400 font-medium">Agreed: ₦{booking.negotiated_amount?.toLocaleString()}</p>}
           </div>
         )}
 
@@ -306,8 +315,8 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
         <div ref={bottomRef} />
       </div>
 
-      {/* ═══ INPUT — MOBILE SAFE with extra bottom padding ═══ */}
-      <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 pt-3 pb-8" style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom) + 16px)' }}>
+      {/* ═══ INPUT — Fixed at bottom, always reachable ═══ */}
+      <div className="flex-shrink-0 bg-[#12121A] border-t border-white/[0.06] px-4 pt-3 pb-6">
         {['booking_requested', 'negotiating', 'confirmed', 'in_progress', 'completed_pending_approval'].includes(booking?.status) ? (
           <div className="flex items-center gap-2">
             {/* Photo button */}
