@@ -23,9 +23,10 @@ import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import ServiceCategoriesTab from './ServiceCategoriesTab';
+import SettingsTab from './SettingsTab';
 import { Toaster, toast } from 'sonner';
 
-type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections' | 'support';
+type AdminTab = 'overview' | 'users' | 'listings' | 'reports' | 'audit' | 'settings' | 'workers' | 'services' | 'announcements' | 'hotels' | 'permissions' | 'inspections' | 'support';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -59,7 +60,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','listings','reports','audit','workers','services','announcements','hotels','permissions','inspections','support'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','listings','reports','audit','settings','workers','services','announcements','hotels','permissions','inspections','support'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -90,6 +91,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'permissions' as AdminTab, label: 'Permissions', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
     { id: 'inspections' as AdminTab, label: 'Inspections', icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' },
     { id: 'support' as AdminTab, label: 'Support Inbox', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+    { id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
   ];
 
   return (
@@ -179,6 +181,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'audit' && <AuditTab />}
 
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
+        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
         {activeTab === 'services' && <ServiceCategoriesTab />}
         {activeTab === 'inspections' && <UserInspectionsTab profile={profile} />}
         {activeTab === 'support' && <SupportInboxTab profile={profile} />}

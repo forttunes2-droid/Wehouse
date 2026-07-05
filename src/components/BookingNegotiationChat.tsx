@@ -5,6 +5,7 @@ import {
   workerAcceptBooking, workerStartJob, workerMarkComplete,
   customerConfirmCompletion, customerRaiseDispute, cancelBooking, getBookingDetails,
 } from '@/lib/supabase/worker-bookings';
+import { supabase } from '@/lib/supabase';
 import { BOOKING_STATUS_LABELS } from '@/lib/supabase/worker-bookings';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
@@ -60,8 +61,11 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
     const amount = parseInt(acceptAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
     if (!acceptDate) { toast.error('Pick a schedule date'); return; }
-    const { success, error } = await workerAcceptBooking(bookingId, profile.user_id, amount, acceptDate);
+    // Step 1: Accept with price
+    const { success, error } = await workerAcceptBooking(bookingId, profile.user_id, amount);
     if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
+    // Step 2: Update scheduled date separately
+    await supabase.from('worker_bookings').update({ scheduled_date: acceptDate }).eq('id', bookingId);
     toast.success('Booking accepted! Customer will now pay.');
     setShowAcceptForm(false);
     loadAll();

@@ -8,6 +8,16 @@ import type { AdminAuditLog, Listing, Profile, SystemSetting } from '@/types';
 export async function getAllUsers() {
   // Use RPC to bypass RLS — creator needs to see ALL users
   const { data, error } = await supabase.rpc('admin_get_all_users');
+  if (error) {
+    // Fallback: if RPC fails, try direct query (for debugging)
+    const { data: directData, error: directErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    if (directErr) return { users: null, error: directErr };
+    return { users: directData as Profile[] | null, error: null };
+  }
   return { users: data as Profile[] | null, error };
 }
 
