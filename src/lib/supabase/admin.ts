@@ -11,9 +11,9 @@ export async function getAllUsers() {
   return { users: data as Profile[] | null, error };
 }
 
-export async function getUserCount() {
-  // Use RPC to bypass RLS
-  const { data, error } = await supabase.rpc('admin_get_user_count');
+export async function getUserCount(callerRole: 'admin' | 'creator' = 'admin') {
+  // Use RPC to bypass RLS — pass caller role so admin sees 10 (no creator), creator sees 11 (all)
+  const { data, error } = await supabase.rpc('admin_get_user_count', { p_caller_role: callerRole });
   if (error || !data || data.length === 0) return { total: 0, today: 0, error };
   return { total: Number(data[0].total) || 0, today: Number(data[0].today) || 0, error: null };
 }

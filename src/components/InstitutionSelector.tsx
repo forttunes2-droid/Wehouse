@@ -307,14 +307,12 @@ interface InstitutionSelectorProps {
     school_name: string;
     campus: string;
     faculty: string;
-    department: string;
     level: string;
   };
   onChange: (v: {
     school_name: string;
     campus: string;
     faculty: string;
-    department: string;
     level: string;
   }) => void;
 }
@@ -430,27 +428,16 @@ export default function InstitutionSelector({ value, onChange }: InstitutionSele
         </div>
       )}
 
-      {/* Faculty & Department */}
+      {/* Faculty (optional) */}
       {value.school_name && (
-        <div className="grid grid-cols-2 gap-3 animate-fadeIn">
-          <div>
-            <label className="text-[10px] text-[#5C5E72] mb-1 block">Faculty</label>
-            <input
-              value={value.faculty}
-              onChange={(e) => update('faculty', e.target.value)}
-              placeholder="e.g. Engineering"
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-[#5C5E72] mb-1 block">Department</label>
-            <input
-              value={value.department}
-              onChange={(e) => update('department', e.target.value)}
-              placeholder="e.g. Computer Science"
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
-            />
-          </div>
+        <div className="animate-fadeIn">
+          <label className="text-[10px] text-[#5C5E72] mb-1 block">Faculty / Department (optional)</label>
+          <input
+            value={value.faculty}
+            onChange={(e) => update('faculty', e.target.value)}
+            placeholder="e.g. Engineering, Computer Science..."
+            className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
+          />
         </div>
       )}
 

@@ -214,6 +214,11 @@ function QuickCard({ icon, title, subtitle, color, onClick }: { icon: string; ti
 // ═══════════════════════════════════════════════════════════════
 
 function PropertiesTab({ properties }: { properties: any[] }) {
+  const [stateFilter, setStateFilter] = useState('all');
+
+  const uniqueStates = Array.from(new Set(properties.map(p => p.state).filter(Boolean))).sort();
+  const filtered = stateFilter === 'all' ? properties : properties.filter(p => p.state === stateFilter);
+
   if (properties.length === 0) {
     return (
       <div className="text-center py-16">
@@ -228,8 +233,16 @@ function PropertiesTab({ properties }: { properties: any[] }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-white">{properties.length} Property{properties.length !== 1 ? 'ies' : 'y'}</p>
-      {properties.map(p => (
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-white">{filtered.length} Property{filtered.length !== 1 ? 'ies' : 'y'}</p>
+        {/* State filter dropdown */}
+        <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
+          className="h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-[10px] px-2 outline-none focus:border-[#3B82F6]">
+          <option value="all">All States</option>
+          {uniqueStates.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      {filtered.map(p => (
         <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
           {p.images?.[0] && (
             <div className="h-32 bg-[#1A1A24] relative">

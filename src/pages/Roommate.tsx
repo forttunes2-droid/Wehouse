@@ -1061,7 +1061,6 @@ function EditView({
     school_name: existingPrefs?.school_name || '',
     campus: existingPrefs?.campus || '',
     faculty: existingPrefs?.faculty || '',
-    department: existingPrefs?.department || '',
     level: existingPrefs?.level || '',
     school_match: existingPrefs?.school_match ?? true,
     campus_match: existingPrefs?.campus_match ?? true,
@@ -1100,10 +1099,11 @@ function EditView({
         preferred_area: form.preferred_area || null,
         bio: form.bio,
         school_name: showStudent ? form.school_name || null : null,
+        campus: showStudent ? form.campus || null : null,
         faculty: showStudent ? form.faculty || null : null,
-        department: showStudent ? form.department || null : null,
         level: showStudent ? form.level || null : null,
         school_match: showStudent ? form.school_match : false,
+        campus_match: showStudent ? form.campus_match : false,
       });
     } catch (err: any) {
       toast.error('Something went wrong: ' + (err.message || 'Please try again'));
@@ -1229,7 +1229,6 @@ function EditView({
                     school_name: form.school_name,
                     campus: form.campus,
                     faculty: form.faculty,
-                    department: form.department,
                     level: form.level,
                   }}
                   onChange={(v) => setForm((f) => ({ ...f, ...v }))}

@@ -428,6 +428,11 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-white">{w.full_name || w.username || 'Worker'}</span>
+                        {/* Blue verified badge — WeHouse approved */}
+                        <span className="flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20" title="WeHouse Verified">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>
+                          Verified
+                        </span>
                         {isNearby && w.city && (
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F4] border border-[#3B82F6]/20">In {w.city}</span>
                         )}
