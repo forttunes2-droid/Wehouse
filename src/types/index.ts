@@ -673,36 +673,43 @@ export const RENTAL_PLANS: RentalPlan[] = [
 // Security deposit (caution fee) ONLY applies to short_let — furnished apartments
 // with appliances that tenants might damage. Long stay tenants bring their own.
 // Each listing sets its own security_deposit_amount (varies by furnishing quality).
+export interface RentalFeeConfig {
+  shortStayCommissionPercent?: number;   // default: 20
+  longStayCommissionPercent?: number;    // default: 10
+  securityDepositDefaultPercent?: number; // default: 10
+  securityDepositMinNgn?: number;         // default: 10000
+  reservationFee?: number;                // default: 5000
+}
+
 export function calculateRentalPayments(
   annualRent: number,
   durationYears: RentalDuration,
   subType: 'short_let' | 'long_stay' = 'long_stay',
   listingSecurityDeposit?: number | null,
+  feeConfig?: RentalFeeConfig,
 ) {
-  const commissionPercent = subType === 'short_let'
-    ? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT
-    : WEHOUSE_FEES.LONG_STAY_COMMISSION_PERCENT;
+  const cfg = feeConfig || {};
+  const shortCommission = cfg.shortStayCommissionPercent ?? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT;
+  const longCommission = cfg.longStayCommissionPercent ?? WEHOUSE_FEES.LONG_STAY_COMMISSION_PERCENT;
+  const depositDefaultPct = cfg.securityDepositDefaultPercent ?? WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT;
+  const depositMin = cfg.securityDepositMinNgn ?? WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN;
+  const resFee = cfg.reservationFee ?? WEHOUSE_FEES.RESERVATION_FEE;
+
+  const commissionPercent = subType === 'short_let' ? shortCommission : longCommission;
   const wehouseCommission = Math.round(annualRent * (commissionPercent / 100));
   const netAnnualRent = annualRent - wehouseCommission;
 
-  // Security deposit (caution fee): ONLY for short_let apartments
-  // Short lets are furnished with appliances — deposit covers potential damage.
-  // Long stay: tenant buys own appliances, no deposit needed.
-  // Each listing sets its own amount (varies by apartment quality/furnishing).
-  // If listing doesn't set one, use the global default for short_let only.
   let securityDeposit = 0;
   if (subType === 'short_let') {
     if (listingSecurityDeposit != null && listingSecurityDeposit > 0) {
       securityDeposit = listingSecurityDeposit;
     } else {
-      // Fallback: percentage-based default
       securityDeposit = Math.max(
-        WEHOUSE_FEES.SECURITY_DEPOSIT_MIN_NGN,
-        Math.round(annualRent * (WEHOUSE_FEES.SECURITY_DEPOSIT_DEFAULT_PERCENT / 100))
+        depositMin,
+        Math.round(annualRent * (depositDefaultPct / 100))
       );
     }
   }
-  // long_stay: securityDeposit stays 0
 
   if (durationYears === 1) {
     return {
@@ -711,13 +718,12 @@ export function calculateRentalPayments(
       landlordReceives: netAnnualRent,
       year1Upfront: annualRent,
       monthlyInstallments: [] as { month: number; amount: number }[],
-      reservationFee: WEHOUSE_FEES.RESERVATION_FEE,
+      reservationFee: resFee,
       securityDeposit,
       commissionPercent,
     };
   }
 
-  // For 2+ years: Year 1 upfront, rest split monthly
   const year1Upfront = annualRent;
   const remainingYears = durationYears - 1;
   const remainingTotal = annualRent * remainingYears;
@@ -733,7 +739,7 @@ export function calculateRentalPayments(
     landlordReceives: netAnnualRent * durationYears,
     year1Upfront,
     monthlyInstallments: installments,
-    reservationFee: WEHOUSE_FEES.RESERVATION_FEE,
+    reservationFee: resFee,
     securityDeposit,
     commissionPercent,
   };

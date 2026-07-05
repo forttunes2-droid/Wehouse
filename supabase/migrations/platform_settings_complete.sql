@@ -77,6 +77,11 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('security_deposit_default_percentage', '10', 'finance', 'Security Deposit Default (%)', 'Default security deposit as % of rent', 'number'),
 ('security_deposit_max_amount', '500000', 'finance', 'Security Deposit Max (N)', 'Maximum security deposit amount', 'number'),
 ('security_deposit_refund_days', '14', 'finance', 'Security Deposit Refund (Days)', 'Days to refund security deposit after move-out', 'number'),
+('security_deposit_min_amount', '10000', 'finance', 'Security Deposit Min (N)', 'Minimum security deposit amount', 'number'),
+('reservation_fee', '5000', 'finance', 'Reservation Fee (N)', 'Fee to reserve a property for 72 hours', 'number'),
+('late_payment_fee_percent', '5', 'finance', 'Late Payment Fee (%)', 'Fee on overdue installment payments', 'number'),
+('worker_booking_fee_user', '300', 'finance', 'Worker Booking Fee (N)', 'Fee user pays per worker booking', 'number'),
+('worker_min_job_amount', '1000', 'finance', 'Worker Min Job (N)', 'Minimum job value for workers', 'number'),
 ('currency_symbol', 'N', 'finance', 'Currency Symbol', 'Displayed currency symbol', 'string'),
 ('currency_code', 'NGN', 'finance', 'Currency Code', 'ISO currency code', 'string');
 

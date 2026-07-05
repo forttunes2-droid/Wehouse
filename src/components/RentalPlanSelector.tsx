@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { RENTAL_PLANS, calculateRentalPayments, WEHOUSE_FEES } from '@/types';
+import { RENTAL_PLANS, calculateRentalPayments } from '@/types';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { RentalDuration } from '@/types';
 
 interface Props {
@@ -10,15 +11,31 @@ interface Props {
 }
 
 export default function RentalPlanSelector({ annualRent, subType = 'long_stay', securityDepositAmount, onSelectPlan }: Props) {
+  const { getNumber } = usePlatformSettings();
+  const reservationFee = getNumber('reservation_fee', 5000);
+  const lateFeePercent = getNumber('late_payment_fee_percent', 5);
+  const shortCommission = getNumber('commission_rate_listing', 20); // short_let uses listing commission
+  const longCommission = getNumber('commission_rate_listing', 10);  // long_stay uses listing commission
+  const depositDefaultPct = getNumber('security_deposit_default_percentage', 10);
+  const depositMin = getNumber('security_deposit_min_amount', 10000);
+
+  const feeConfig = useMemo(() => ({
+    shortStayCommissionPercent: shortCommission,
+    longStayCommissionPercent: longCommission,
+    securityDepositDefaultPercent: depositDefaultPct,
+    securityDepositMinNgn: depositMin,
+    reservationFee,
+  }), [shortCommission, longCommission, depositDefaultPct, depositMin, reservationFee]);
+
   const [selectedDuration, setSelectedDuration] = useState<RentalDuration>(1);
 
   const breakdown = useMemo(() => {
-    return calculateRentalPayments(annualRent, selectedDuration, subType, securityDepositAmount);
-  }, [annualRent, selectedDuration, subType, securityDepositAmount]);
+    return calculateRentalPayments(annualRent, selectedDuration, subType, securityDepositAmount, feeConfig);
+  }, [annualRent, selectedDuration, subType, securityDepositAmount, feeConfig]);
 
   const handleSelect = (years: RentalDuration) => {
     setSelectedDuration(years);
-    const calc = calculateRentalPayments(annualRent, years, subType, securityDepositAmount);
+    const calc = calculateRentalPayments(annualRent, years, subType, securityDepositAmount, feeConfig);
     onSelectPlan({
       durationYears: years,
       year1Upfront: calc.year1Upfront,
@@ -62,7 +79,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
 
         <div className="flex justify-between text-xs">
           <span className="text-[#5C5E72]">Reservation Fee</span>
-          <span className="text-[#3B82F6] font-bold">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
+          <span className="text-[#3B82F6] font-bold">N{reservationFee.toLocaleString()}</span>
         </div>
         <p className="text-[9px] text-[#5C5E72]">
           This holds the property for 72 hours. A WeHouse agent will contact you to schedule inspection.
@@ -103,7 +120,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
 
         <p className="text-[9px] text-[#5C5E72] mt-1">
           Security deposit is held by WeHouse and returned after your stay if no damage.
-          Late payments attract {WEHOUSE_FEES.LATE_PAYMENT_FEE_PERCENT}% fee.
+          Late payments attract {lateFeePercent}% fee.
         </p>
       </div>
 

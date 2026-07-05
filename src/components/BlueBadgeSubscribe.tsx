@@ -1,15 +1,15 @@
-import { WEHOUSE_FEES } from '@/types';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 
 interface BlueBadgeSubscribeProps {
   workerId: string;
   onSuccess?: () => void;
 }
 
-// NOTE: Blue Badge subscriptions require Paystack integration.
-// This component shows the offering but does not process payments.
-// When PAYSTACK_ENABLED is true, this will redirect to Paystack checkout.
-
+// Blue Badge price is read from platform_settings — editable by Creator
 export default function BlueBadgeSubscribe({}: BlueBadgeSubscribeProps) {
+  const { getNumber, loading } = usePlatformSettings();
+  const price = getNumber('blue_badge_price', 5000);
+
   return (
     <div className="bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-purple-500/10 border border-blue-500/20 rounded-2xl p-5">
       <div className="flex items-center gap-3 mb-4">
@@ -43,12 +43,13 @@ export default function BlueBadgeSubscribe({}: BlueBadgeSubscribeProps) {
 
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-xs text-[#5C5E72]">Monthly (when live)</p>
-          <p className="text-xl font-bold text-white">N{WEHOUSE_FEES.BLUE_BADGE_PRICE_NGN.toLocaleString()}</p>
+          <p className="text-xs text-[#5C5E72]">Monthly</p>
+          <p className="text-xl font-bold text-white">
+            {loading ? '...' : `N${price.toLocaleString()}`}
+          </p>
         </div>
       </div>
 
-      {/* Coming Soon Banner */}
       <div className="mt-4 rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2.5">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
           <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
@@ -57,7 +58,6 @@ export default function BlueBadgeSubscribe({}: BlueBadgeSubscribeProps) {
           <p className="text-[11px] font-medium text-amber-400">Subscriptions Coming Soon</p>
           <p className="text-[10px] text-[#5C5E72] mt-0.5">
             Blue Badge subscriptions will be available once Paystack is connected.
-            This will be the only subscription on WeHouse.
           </p>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function BlueBadgeSubscribe({}: BlueBadgeSubscribeProps) {
   );
 }
 
-// Blue Badge indicator chip for worker cards (shown when worker has active subscription)
+// Blue Badge indicator chip for worker cards
 export function BlueBadgeChip({ size = 'sm' }: { size?: 'sm' | 'md' }) {
   const sizeClasses = size === 'sm'
     ? 'text-[8px] px-1.5 py-0.5 gap-0.5'

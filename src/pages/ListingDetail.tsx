@@ -4,7 +4,8 @@ import {
   getReservationForListing, createReservation, updateReservationPlan,
   createInspectionRequest, getInspectionRequestForReservation, supabase,
 } from '@/lib/supabase';
-import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS, WEHOUSE_FEES } from '@/types';
+import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing, Profile, ListingStatus, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
 import { Toaster, toast } from 'sonner';
@@ -28,6 +29,9 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
   const [popupView, setPopupView] = useState<PopupView>('plans');
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [sendingEnquiry, setSendingEnquiry] = useState(false);
+
+  const { getNumber } = usePlatformSettings();
+  const reservationFee = getNumber('reservation_fee', 5000);
 
   const [agentInfo, setAgentInfo] = useState<{ user_id: string; username: string | null; avatar_url: string | null; role: string; phone: string | null } | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
@@ -338,13 +342,13 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                   <div>
                     <h3 className="text-sm font-semibold text-white">Reserve This Property</h3>
                     <p className="text-[11px] text-[#5C5E72] mt-0.5">
-                      Choose 1, 2, or 3 year plan. Pay N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()} reservation fee, then Year 1 rent after WeHouse inspection.
+                      Choose 1, 2, or 3 year plan. Pay N{reservationFee.toLocaleString()} reservation fee, then Year 1 rent after WeHouse inspection.
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mb-4 py-3 px-4 rounded-xl bg-[#1A1A24]">
                   <span className="text-xs text-[#5C5E72]">Reservation Fee (72hr hold)</span>
-                  <span className="text-sm font-bold text-[#3B82F6]">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
+                  <span className="text-sm font-bold text-[#3B82F6]">N{reservationFee.toLocaleString()}</span>
                 </div>
                 <button onClick={handleReserve} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>View Rental Plans
@@ -514,7 +518,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-[#5C5E72]">Reservation Fee</span>
-                      <span className="text-[#3B82F6] font-bold">N{WEHOUSE_FEES.RESERVATION_FEE.toLocaleString()}</span>
+                      <span className="text-[#3B82F6] font-bold">N{reservationFee.toLocaleString()}</span>
                     </div>
                     {selectedPlan && (
                       <div className="flex justify-between text-xs border-t border-[#232330] pt-2">
