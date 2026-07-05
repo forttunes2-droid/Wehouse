@@ -13,7 +13,7 @@ CREATE TABLE platform_settings (
   category VARCHAR(50) NOT NULL,
   label VARCHAR(255) NOT NULL,
   description TEXT,
-  data_type VARCHAR(20) NOT NULL DEFAULT 'string', -- string, number, boolean, json
+  data_type VARCHAR(20) NOT NULL DEFAULT 'string',
   editable BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -25,11 +25,11 @@ ALTER TABLE platform_settings ENABLE ROW LEVEL SECURITY;
 -- Everyone can read settings
 CREATE POLICY platform_settings_select ON platform_settings FOR SELECT USING (true);
 
--- Only creator/admin can modify
+-- Only creator/admin can modify (auth_id is TEXT, auth.uid() is UUID, cast needed)
 CREATE POLICY platform_settings_modify ON platform_settings FOR ALL
   USING (EXISTS (
-    SELECT 1 FROM profiles 
-    WHERE auth_id = auth.uid() 
+    SELECT 1 FROM profiles
+    WHERE auth_id = auth.uid()::text
     AND role IN ('creator', 'admin')
     AND deleted_at IS NULL
   ));
@@ -80,7 +80,7 @@ INSERT INTO platform_settings (key, value, category, label, description, data_ty
 ('auto_payout_enabled', 'false', 'payment', 'Auto Payout', 'Automatically process payouts', 'boolean');
 
 -- PROPERTY SETTINGS
-INSERT INTO platform_settings (key, value, category, 'property', 'label', 'description', 'data_type') VALUES
+INSERT INTO platform_settings (key, value, category, label, description, data_type) VALUES
 ('property_verification_required', 'true', 'property', 'Verification Required', 'Require verification before listing properties', 'boolean'),
 ('property_inspection_required', 'true', 'property', 'Inspection Required', 'Require inspection before approving listings', 'boolean'),
 ('max_listings_per_partner', '50', 'property', 'Max Listings Per Partner', 'Maximum properties a partner can list', 'number'),
@@ -223,16 +223,16 @@ AS $$
 DECLARE
   v_user_role TEXT;
 BEGIN
-  SELECT role INTO v_user_role FROM profiles WHERE auth_id = auth.uid() AND deleted_at IS NULL;
-  
+  SELECT role INTO v_user_role FROM profiles WHERE auth_id = auth.uid()::text AND deleted_at IS NULL;
+
   IF v_user_role NOT IN ('creator', 'admin') THEN
     RAISE EXCEPTION 'Only creator or admin can update platform settings';
   END IF;
-  
-  UPDATE platform_settings 
-  SET value = p_value, updated_at = NOW() 
+
+  UPDATE platform_settings
+  SET value = p_value, updated_at = NOW()
   WHERE key = p_key AND editable = true;
-  
+
   RETURN FOUND;
 END;
 $$;
@@ -243,19 +243,3 @@ GRANT EXECUTE ON FUNCTION get_platform_setting TO authenticated;
 GRANT EXECUTE ON FUNCTION update_platform_setting TO authenticated;
 GRANT EXECUTE ON FUNCTION get_platform_settings TO anon;
 GRANT EXECUTE ON FUNCTION get_platform_setting TO anon;
-
--- ═══════════════════════════════════════════════════════════════
--- DELETE wehouse_support ACCOUNT (was artificial, not needed)
--- ═══════════════════════════════════════════════════════════════
--- NOTE: Only run this after confirming the creator account (WHU-0001) works properly
--- Uncomment the lines below when ready:
-
--- DELETE FROM profiles WHERE user_id = 'wehouse_support';
--- DELETE FROM auth.users WHERE email = 'support@wehouse.ng';
-
--- ═══════════════════════════════════════════════════════════════
--- VERIFY CREATOR ACCOUNT EXISTS
--- ═══════════════════════════════════════════════════════════════
--- The creator should be identified by role='creator', not by user_id
--- Ensure exactly one creator exists:
--- SELECT user_id, email, role FROM profiles WHERE role = 'creator';
