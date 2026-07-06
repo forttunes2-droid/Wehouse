@@ -32,70 +32,84 @@ interface DbSetting {
 
 const SETTING_GROUPS = [
   {
+    id: 'commissions',
+    label: 'Commissions',
+    settings: [
+      { key: 'worker_commission', label: 'Worker Commission (%)', description: 'Percentage WeHouse earns from completed worker jobs. Example: 10% of N20,000 = N2,000 to WeHouse', type: 'number', defaultValue: '10' },
+      { key: 'property_commission', label: 'Property Commission (%)', description: 'Percentage WeHouse earns from Long Stay and Short Let bookings', type: 'number', defaultValue: '5' },
+      { key: 'hotel_commission', label: 'Hotel Commission (%)', description: 'Percentage WeHouse earns from hotel bookings', type: 'number', defaultValue: '12' },
+      { key: 'vat_percent', label: 'VAT (%)', description: 'VAT percentage if VAT registered. Set to 0 to disable.', type: 'number', defaultValue: '0' },
+    ] as SettingDef[],
+  },
+  {
     id: 'company',
-    label: 'Company Info',
+    label: 'Company',
     settings: [
-      { key: 'company_name', label: 'Company Name', description: 'Legal company name displayed across the platform', type: 'text', defaultValue: 'WeHouse Nigeria' },
-      { key: 'company_short_name', label: 'Short Name', description: 'Short display name', type: 'text', defaultValue: 'WeHouse' },
-      { key: 'company_slogan', label: 'Slogan', description: 'Brand slogan/tagline', type: 'text', defaultValue: 'Find Your Perfect Home' },
-      { key: 'company_email', label: 'Support Email', description: 'Primary support email address', type: 'email', defaultValue: 'support@wehouse.ng' },
-      { key: 'company_phone', label: 'Support Phone', description: 'Customer support phone number', type: 'text', defaultValue: '' },
-      { key: 'company_address', label: 'Office Address', description: 'Physical office address', type: 'textarea', defaultValue: '' },
-      { key: 'company_whatsapp', label: 'WhatsApp Number', description: 'WhatsApp business number', type: 'text', defaultValue: '' },
-      { key: 'company_website', label: 'Website URL', description: 'Official website URL', type: 'url', defaultValue: 'https://wehouse.ng' },
-      { key: 'company_cac', label: 'CAC Number', description: 'Corporate Affairs Commission number', type: 'text', defaultValue: '' },
+      { key: 'company_name', label: 'Company Name', description: 'Legal business name displayed on the platform', type: 'text', defaultValue: 'WeHouse Nigeria' },
+      { key: 'company_logo', label: 'Company Logo URL', description: 'URL to company logo image', type: 'url', defaultValue: '' },
+      { key: 'currency', label: 'Currency', description: 'Platform currency code', type: 'text', defaultValue: 'NGN' },
     ] as SettingDef[],
   },
   {
-    id: 'legal',
-    label: 'Legal',
+    id: 'contact',
+    label: 'Contact',
     settings: [
-      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Full privacy policy text shown to users. HTML supported.', type: 'textarea', defaultValue: '' },
-      { key: 'terms_of_service', label: 'Terms of Service', description: 'Full terms of service text shown to users. HTML supported.', type: 'textarea', defaultValue: '' },
-      { key: 'refund_policy', label: 'Refund Policy', description: 'Refund policy text shown to users', type: 'textarea', defaultValue: '' },
-      { key: 'cookie_notice', label: 'Cookie Notice', description: 'Cookie consent banner text', type: 'textarea', defaultValue: 'We use cookies to improve your experience on WeHouse.' },
-      { key: 'minimum_age', label: 'Minimum Age', description: 'Minimum age requirement for users', type: 'number', defaultValue: '18' },
-    ] as SettingDef[],
-  },
-  {
-    id: 'finance',
-    label: 'Financial',
-    settings: [
-      { key: 'commission_rate_worker', label: 'Worker Commission (%)', description: 'Percentage WeHouse takes from worker bookings', type: 'number', defaultValue: '10' },
-      { key: 'commission_rate_partner', label: 'Partner Commission (%)', description: 'Percentage from property partner earnings', type: 'number', defaultValue: '8' },
-      { key: 'commission_rate_hotel', label: 'Hotel Commission (%)', description: 'Percentage from hotel bookings', type: 'number', defaultValue: '12' },
-      { key: 'minimum_withdrawal', label: 'Min Withdrawal (N)', description: 'Minimum amount for withdrawal', type: 'number', defaultValue: '1000' },
-      { key: 'withdrawal_fee', label: 'Withdrawal Fee (N)', description: 'Flat fee per withdrawal', type: 'number', defaultValue: '50' },
-      { key: 'inspection_fee', label: 'Inspection Fee (N)', description: 'Fee for property inspection', type: 'number', defaultValue: '3000' },
-      { key: 'blue_badge_price', label: 'Blue Badge Price (N)', description: 'Monthly cost for worker blue badge', type: 'number', defaultValue: '5000' },
-      { key: 'currency_symbol', label: 'Currency Symbol', description: 'Displayed currency symbol', type: 'text', defaultValue: 'N' },
+      { key: 'support_email', label: 'Support Email', description: 'Primary support email address', type: 'email', defaultValue: 'support@wehouse.ng' },
+      { key: 'support_phone', label: 'Support Phone', description: 'Customer support phone number', type: 'text', defaultValue: '' },
+      { key: 'whatsapp_number', label: 'WhatsApp Number', description: 'Business WhatsApp for support', type: 'text', defaultValue: '' },
+      { key: 'telegram_link', label: 'Telegram Link', description: 'Telegram support group link', type: 'url', defaultValue: '' },
+      { key: 'company_address', label: 'Company Address', description: 'Physical office address', type: 'textarea', defaultValue: '' },
     ] as SettingDef[],
   },
   {
     id: 'payment',
     label: 'Payment',
     settings: [
-      { key: 'paystack_public_key', label: 'Paystack Public Key', description: 'Paystack public API key for client-side payments', type: 'text', defaultValue: '' },
-      { key: 'paystack_secret_key', label: 'Paystack Secret Key', description: 'Secret key for server-side verification (webhooks)', type: 'text', defaultValue: '' },
-      { key: 'payment_test_mode', label: 'Test Mode', description: 'Use Paystack sandbox for all transactions', type: 'toggle', defaultValue: 'true' },
-      { key: 'auto_payout', label: 'Auto Payout', description: 'Automatically transfer worker earnings', type: 'toggle', defaultValue: 'false' },
-      { key: 'paystack_commission_bearer', label: 'Commission Bearer', description: 'subaccount = worker pays fee, account = WeHouse pays fee', type: 'text', defaultValue: 'subaccount' },
-      { key: 'auto_confirm_webhook', label: 'Auto-Confirm via Webhook', description: 'Trust webhook for payment confirmation (more reliable)', type: 'toggle', defaultValue: 'true' },
+      { key: 'paystack_public_key', label: 'Paystack Public Key', description: 'Paystack public key for client-side payments', type: 'text', defaultValue: '' },
+      { key: 'paystack_secret_key', label: 'Paystack Secret Key', description: 'Paystack secret key for server transfers', type: 'text', defaultValue: '' },
+      { key: 'payment_test_mode', label: 'Test Mode', description: 'Enable Paystack sandbox mode', type: 'toggle', defaultValue: 'true' },
     ] as SettingDef[],
   },
   {
-    id: 'property',
-    label: 'Property',
+    id: 'auth',
+    label: 'Auth',
     settings: [
-      { key: 'listing_approval', label: 'Listing Approval', description: 'manual or auto approval of new listings', type: 'text', defaultValue: 'manual' },
-      { key: 'max_listings_partner', label: 'Max Listings Per Partner', description: 'Maximum properties a partner can list', type: 'number', defaultValue: '50' },
-      { key: 'min_photos', label: 'Min Photos Required', description: 'Minimum photos per listing', type: 'number', defaultValue: '3' },
-      { key: 'max_photos', label: 'Max Photos Allowed', description: 'Maximum photos per listing', type: 'number', defaultValue: '20' },
+      { key: 'google_oauth_client_id', label: 'Google OAuth Client ID', description: 'Google OAuth client ID for login', type: 'text', defaultValue: '' },
     ] as SettingDef[],
   },
   {
-    id: 'worker',
-    label: 'Workers',
+    id: 'legal',
+    label: 'Legal',
+    settings: [
+      { key: 'terms_conditions', label: 'Terms & Conditions', description: 'Full terms displayed to users', type: 'textarea', defaultValue: '' },
+      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Full privacy policy displayed to users', type: 'textarea', defaultValue: '' },
+      { key: 'cancellation_policy', label: 'Cancellation Policy', description: 'Booking cancellation policy', type: 'textarea', defaultValue: '' },
+    ] as SettingDef[],
+  },
+  {
+    id: 'rules',
+    label: 'Rules',
+    settings: [
+      { key: 'booking_rules', label: 'Booking Rules', description: 'Rules for property bookings', type: 'textarea', defaultValue: '' },
+      { key: 'roommate_rules', label: 'Roommate Rules', description: 'Rules for roommate matching', type: 'textarea', defaultValue: '' },
+      { key: 'worker_verification_rules', label: 'Worker Verification Rules', description: 'Requirements for worker verification', type: 'textarea', defaultValue: '' },
+      { key: 'property_inspection_rules', label: 'Property Inspection Rules', description: 'Rules for property inspections', type: 'textarea', defaultValue: '' },
+      { key: 'hotel_approval_rules', label: 'Hotel Approval Rules', description: 'Requirements for hotel approval', type: 'textarea', defaultValue: '' },
+    ] as SettingDef[],
+  },
+  {
+    id: 'platform',
+    label: 'Platform',
+    settings: [
+      { key: 'maintenance_mode', label: 'Maintenance Mode', description: 'Put entire platform in maintenance mode', type: 'toggle', defaultValue: 'false' },
+      { key: 'wallet_minimum_withdrawal', label: 'Min Withdrawal (N)', description: 'Minimum amount workers/partners can withdraw', type: 'number', defaultValue: '1000' },
+      { key: 'escrow_auto_release_days', label: 'Escrow Auto-Release (Days)', description: 'Days before escrow auto-releases after job completion', type: 'number', defaultValue: '7' },
+      { key: 'dispute_period_days', label: 'Dispute Period (Days)', description: 'Days after completion to open a dispute', type: 'number', defaultValue: '3' },
+    ] as SettingDef[],
+  },
+  {
+    id: 'features',
+    label: 'Features',
     settings: [
       { key: 'worker_approval', label: 'Worker Approval', description: 'manual or auto approval', type: 'text', defaultValue: 'manual' },
       { key: 'worker_video_required', label: 'Video Intro Required', description: 'Require workers to submit a video', type: 'toggle', defaultValue: 'true' },
@@ -169,7 +183,7 @@ function PlatformSettings() {
   const [dbSettings, setDbSettings] = useState<DbSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [activeGroup, setActiveGroup] = useState('company');
+  const [activeGroup, setActiveGroup] = useState('commissions');
 
   // Load all settings from database on mount
   useEffect(() => {
