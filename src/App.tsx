@@ -42,6 +42,11 @@ const FinanceDashboard = lazy(() => import('@/pages/FinanceDashboard'));
 const WorkerWallet = lazy(() => import('@/pages/WorkerWallet'));
 const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
 const MyBookings = lazy(() => import('@/pages/MyBookings'));
+const JobsPage = lazy(() => import('@/pages/JobsPage'));
+const CalendarPage = lazy(() => import('@/pages/CalendarPage'));
+const PropertiesPage = lazy(() => import('@/pages/PropertiesPage'));
+const ManagementPage = lazy(() => import('@/pages/ManagementPage'));
+const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const MyReservations = lazy(() => import('@/pages/MyReservations'));
 const UserWalletPage = lazy(() => import('@/pages/UserWalletPage'));
 
@@ -428,6 +433,19 @@ export default function App() {
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
       case 'wallet':
         return <UserWalletPage profile={profile} onBack={() => goTo('profile')} />;
+      // ── Role-specific primary tabs (Constitution) ──
+      case 'jobs':
+        return <JobsPage profile={profile} />;
+      case 'calendar':
+        return <CalendarPage profile={profile} />;
+      case 'properties':
+        return <PropertiesPage profile={profile} />;
+      case 'management':
+        return isCreatorRole ? <CreatorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :
+               isAdminRole ? <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :
+               <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
+      case 'analytics':
+        return <AnalyticsPage profile={profile} />;
       default:
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
     }
@@ -443,16 +461,73 @@ export default function App() {
   const isCreatorRole = checkCreator(userRole);
   const canAccessRoommate = isUserRole;
 
-  // ── Bottom nav: ONE unified 5-tab navigation for ALL roles ──
-  // Home | Explore | Saved | Messages | Account
-  // Role-specific features accessed from Account page
-  const tabs = useMemo(() => [
-    { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-    { id: 'explore' as NavPage, label: 'Explore', icon: ExploreSvg },
-    { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
-    { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-    { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-  ], []);
+  // ── Bottom nav per Constitution — EXACT 5 tabs per role ──
+  // User:       Home | Explore | Saved | Messages | Account
+  // Worker:     Home | Jobs    | Calendar | Messages | Account
+  // Partner:    Home | Properties | Messages | Wallet | Account
+  // Staff:      Home | Management | Analytics | Messages | Account
+  // Admin:      Home | Management | Analytics | Messages | Account
+  // Creator:    Home | Management | Analytics | Messages | Account
+  const tabs = useMemo(() => {
+    // CREATOR
+    if (isCreatorRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // ADMIN
+    if (isAdminRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // STAFF
+    if (isStaffRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // WORKER
+    if (isWorkerRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'jobs' as NavPage, label: 'Jobs', icon: BriefcaseSvg },
+        { id: 'calendar' as NavPage, label: 'Calendar', icon: CalendarSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // PROPERTY PARTNER
+    if (isPropertyPartner) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'properties' as NavPage, label: 'Properties', icon: BuildingSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // USER (default)
+    return [
+      { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+      { id: 'explore' as NavPage, label: 'Explore', icon: ExploreSvg },
+      { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
+      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+      { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+    ];
+  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
 
   return (
     <CreatorAuthProvider>

@@ -1,10 +1,20 @@
 export type NavPage =
+  // ── Primary Bottom Nav Tabs ──
   | 'home'
   | 'explore'
-  | 'search'
   | 'saved'
-  | 'roommate'
+  | 'messages'
   | 'profile'
+  // ── Role-specific primary tabs ──
+  | 'jobs'
+  | 'calendar'
+  | 'properties'
+  | 'management'
+  | 'analytics'
+  | 'wallet'
+  // ── Legacy / internal ──
+  | 'search'
+  | 'roommate'
   | 'activity'
   | 'detail'
   | 'creator'
@@ -32,6 +42,4 @@ export type NavPage =
   | 'property_owner'
   | 'property_partner'
   | 'my_bookings'
-  | 'my_reservations'
-  | 'messages'
-  | 'wallet';
+  | 'my_reservations';
