@@ -3,6 +3,7 @@ import {
   supabase, getAllUsers,
   getAllListingsAdmin, deleteListing, getReports,
 } from '@/lib/supabase';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
 import { AnnouncementsTab } from './CreatorDashboard';
 import type { Profile, Listing } from '@/types';
@@ -394,6 +395,7 @@ function StaffTabDirector({ profile }: { profile: Profile }) {
 function ListingsTabDirector({ refresh }: { refresh: () => void }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { requestAuth } = useAdminAuth();
 
   useEffect(() => { load(); }, []);
 
@@ -404,11 +406,15 @@ function ListingsTabDirector({ refresh }: { refresh: () => void }) {
     setLoading(false);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this listing?')) return;
+  async function doDelete(id: string) {
     const { error } = await deleteListing(id);
     if (error) { toast.error('Failed'); return; }
     toast.success('Deleted'); load(); refresh();
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this listing?')) return;
+    requestAuth(() => doDelete(id));
   }
 
   return (
@@ -500,6 +506,7 @@ function SupportTabDirector() {
 function VerificationTabDirector({ refresh }: { refresh: () => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { requestAuth } = useAdminAuth();
 
   useEffect(() => { load(); }, []);
 
@@ -514,8 +521,7 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
     setLoading(false);
   }
 
-  async function handleGrantAccess(userId: string) {
-    // Grant blue tick access — worker can now fill verification info
+  async function doGrantAccess(userId: string) {
     const { error } = await supabase.from('profiles').update({
       worker_status: 'approved_for_verification',
       updated_at: new Date().toISOString(),
@@ -525,8 +531,7 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
     load(); refresh();
   }
 
-  async function handleApprove(userId: string) {
-    // Final approval — worker goes public
+  async function doApprove(userId: string) {
     const { error } = await supabase.from('profiles').update({
       worker_status: 'verified',
       worker_verified: true,
@@ -537,8 +542,7 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
     load(); refresh();
   }
 
-  async function handleReject(userId: string) {
-    if (!confirm('Reject this worker?')) return;
+  async function doReject(userId: string) {
     const { error } = await supabase.from('profiles').update({
       worker_status: 'rejected',
       worker_verified: false,
@@ -547,6 +551,19 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
     if (error) { toast.error('Failed: ' + error.message); return; }
     toast.success('Worker rejected');
     load(); refresh();
+  }
+
+  async function handleGrantAccess(userId: string) {
+    requestAuth(() => doGrantAccess(userId));
+  }
+
+  async function handleApprove(userId: string) {
+    requestAuth(() => doApprove(userId));
+  }
+
+  async function handleReject(userId: string) {
+    if (!confirm('Reject this worker?')) return;
+    requestAuth(() => doReject(userId));
   }
 
   return (

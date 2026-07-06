@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } fro
 import { toast } from 'sonner';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
+import { AdminAuthProvider } from '@/hooks/useAdminAuth';
 import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/supabase';
 import CreatorAuthModal from '@/components/CreatorAuthModal';
+import AdminAuthModal from '@/components/AdminAuthModal';
 import SupportChat from '@/components/SupportChat';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
@@ -509,6 +511,7 @@ export default function App() {
 
   return (
     <CreatorAuthProvider>
+    <AdminAuthProvider>
       <Suspense fallback={<PageSkeleton />}>
         <div className="page-transition min-h-[100dvh] bg-[#0A0A0F] overflow-y-auto scrollable-content">
           {renderPage()}
@@ -516,6 +519,9 @@ export default function App() {
 
         {/* Creator Authorization Modal — only for creator, gates critical actions */}
         {isCreator && <CreatorAuthModal />}
+
+        {/* Admin Authorization Modal — for admin/staff, gates critical actions */}
+        {(isAdminRole || isStaffRole) && <AdminAuthModal />}
 
         {/* AI Support Chat — always available for help */}
         <SupportChat profile={auth.profile ? {
@@ -557,6 +563,7 @@ export default function App() {
         </nav>
       )}
       </Suspense>
+    </AdminAuthProvider>
     </CreatorAuthProvider>
   );
 }
