@@ -440,68 +440,71 @@ export default function App() {
   const isCreatorRole = checkCreator(userRole);
   const canAccessRoommate = isUserRole;
 
-  // ── Bottom nav per Constitution (dynamically generated per role) ──
-  // Creator/Admin/Staff: Home, Hotels, Messages, Workers, [RoleTab]
-  // Worker: Home, Hotels, Messages, Profile
-  // Property Partner: Home, Hotels, Messages, Workers, Partner
-  // User: Home, Search, Saved, Hotels, Messages, Wallet, Roommates, Workers, Profile
+  // ── Bottom nav per Constitution — EXACT 5 tabs per role ──
+  // User: Home, Explore, Saved, Messages, Account
+  // Worker: Home, Jobs, Calendar, Messages, Account
+  // Property Partner: Home, Properties, Messages, Wallet, Account
+  // Staff: Home, Operations, Messages, Reports, Account
+  // Admin: Home, Management, Analytics, Messages, Account
+  // Creator: Home, Management, Analytics, Messages, Account
   const tabs = useMemo(() => {
-    // Creator
+    // CREATOR
     if (isCreatorRole) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'creator' as NavPage, label: 'Management', icon: ManageSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
-        { id: 'creator' as NavPage, label: 'Creator', icon: AdminSvg },
+        { id: 'admin' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
       ];
     }
-    // Admin
+    // ADMIN
     if (isAdminRole) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'admin' as NavPage, label: 'Management', icon: ManageSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
-        { id: 'admin' as NavPage, label: 'Admin', icon: AdminSvg },
+        { id: 'staff_dashboard' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
       ];
     }
-    // Staff
+    // STAFF
     if (isStaffRole) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'staff_dashboard' as NavPage, label: 'Operations', icon: WrenchSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
-        { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg },
+        { id: 'finance_dashboard' as NavPage, label: 'Reports', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
       ];
     }
-    // Worker
+    // WORKER
     if (isWorkerRole) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'worker_dashboard' as NavPage, label: 'Jobs', icon: BriefcaseSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg },
+        { id: 'worker_categories' as NavPage, label: 'Calendar', icon: CalendarSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
       ];
     }
-    // Property Partner
+    // PROPERTY PARTNER
     if (isPropertyPartner) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'property_partner' as NavPage, label: 'Properties', icon: BuildingSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
-        { id: 'property_partner' as NavPage, label: 'Partner', icon: AdminSvg },
+        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
       ];
     }
-    // User (default) — 5 tabs per Constitution
+    // USER (default) — 5 tabs per Constitution
     return [
       { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-      { id: 'search' as NavPage, label: 'Explore', icon: ListingsSvg },
-      { id: 'messages' as NavPage, label: 'Inbox', icon: MessagesSvg },
-      { id: 'worker_categories' as NavPage, label: 'Services', icon: WrenchSvg },
-      { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg },
+      { id: 'search' as NavPage, label: 'Explore', icon: ExploreSvg },
+      { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
+      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+      { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
     ];
   }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
 
@@ -572,6 +575,7 @@ function HomeSvg({ size, active }: { size: number; active: boolean }) {
     </svg>
   );
 }
+// @ts-ignore — kept for backward compatibility
 function ListingsSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -616,6 +620,62 @@ function HotelSvg({ size, active }: { size: number; active: boolean }) {
   );
 }
 
+function ExploreSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" />
+    </svg>
+  );
+}
+function BookmarkSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+function ManageSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+function ChartSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 20V10M12 20V4M6 20v-6" />
+    </svg>
+  );
+}
+function BriefcaseSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  );
+}
+function CalendarSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+function BuildingSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-4-2" /><path d="M9 9h1M9 13h1M9 17h1" />
+    </svg>
+  );
+}
+function WalletSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22" />
+    </svg>
+  );
+}
 function AdminSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

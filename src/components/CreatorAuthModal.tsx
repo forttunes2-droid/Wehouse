@@ -3,12 +3,22 @@ import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { supabase } from '@/lib/supabase';
 
 /**
- * CreatorAuthModal — Simple password gate.
- *
- * ONLY appears when the user tries a critical action and needs auth.
- * After password is set once, this modal never shows "setup" again —
- * it only asks for the existing password.
+ * Get stable creator user_id (WHU-XXXXX) — same logic as the hook.
+ * Using stable ID means the password survives across devices and sessions.
  */
+async function getStableCreatorId(): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: p1 } = await supabase.from('profiles').select('user_id').eq('auth_id', user.id).maybeSingle();
+    if (p1?.user_id) return p1.user_id;
+    const { data: p2 } = await supabase.from('profiles').select('user_id').eq('email', user.email).eq('role', 'creator').maybeSingle();
+    if (p2?.user_id) return p2.user_id;
+    const { data: p3 } = await supabase.from('profiles').select('user_id').eq('role', 'creator').maybeSingle();
+    return p3?.user_id || null;
+  } catch { return null; }
+}
+
 export default function CreatorAuthModal() {
   const { showModal, verifyPassword, setPassword, dismissRequest, error, isLoading } = useCreatorAuth();
   const [mode, setMode] = useState<'enter' | 'setup' | 'change'>('enter');
@@ -17,27 +27,28 @@ export default function CreatorAuthModal() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
 
-  // Check if password is already set — uses RPC to bypass RLS when auth_id is NULL
+  // Check if password is already set — uses stable user_id
   useEffect(() => {
     if (!showModal) return;
     async function check() {
-      // Get current user
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData?.user?.id;
-      if (!userId) { setMode('setup'); return; }
+      const stableId = await getStableCreatorId();
+      if (!stableId) { setMode('setup'); return; }
 
-      // Use RPC to check status — bypasses RLS for creator with NULL auth_id
-      const { data: status } = await supabase.rpc('get_creator_auth_status_v2', {
-        p_user_id: userId,
-      });
+      // Try v2 status function, fallback to old
+      let status: any = null;
+      const v2Result = await supabase.rpc('get_creator_auth_status_v2', { p_user_id: stableId });
+      if (v2Result.error?.message?.includes('does not exist')) {
+        const oldResult = await supabase.rpc('get_creator_auth_status', { p_user_id: stableId });
+        status = oldResult.data;
+      } else {
+        status = v2Result.data;
+      }
 
-      // If no password hash set yet, show setup. Otherwise ask for password.
       if (status?.has_password && status?.enabled) {
         setMode('enter');
       } else {
         setMode('setup');
       }
-      // Reset fields
       setPasswordInput('');
       setOldPassword('');
       setConfirmPassword('');
@@ -55,7 +66,6 @@ export default function CreatorAuthModal() {
     setLocalError('');
     if (!password.trim()) { setLocalError('Enter your password'); return; }
     await verifyPassword(password);
-    // Modal closes automatically on success, stays open on failure
   }
 
   async function handleSetup(e: React.FormEvent) {
@@ -65,11 +75,9 @@ export default function CreatorAuthModal() {
     if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
     if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
     const success = await setPassword(password);
-    if (!success) {
-      // Error is already set in the hook, but add a fallback
+    if (!success && !error) {
       setLocalError('Failed to save password. Run the SQL fix in Supabase first.');
     }
-    // On success, modal closes automatically
   }
 
   async function handleChange(e: React.FormEvent) {
@@ -80,7 +88,6 @@ export default function CreatorAuthModal() {
     if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
     if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
     await setPassword(password, oldPassword);
-    // Modal closes automatically on success
   }
 
   return (
@@ -99,34 +106,17 @@ export default function CreatorAuthModal() {
             <div className="px-6 pt-8 pb-4 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-[#7C3AED] flex items-center justify-center mx-auto mb-3 shadow-lg shadow-purple-500/20">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
               </div>
               <h2 className="text-lg font-bold text-white">Enter Password</h2>
               <p className="text-xs text-[#5C5E72] mt-1">Required for this action</p>
             </div>
             <form onSubmit={handleEnter} className="px-6 pb-6 space-y-3">
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Authorization password"
-                autoFocus
-                className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none transition-colors"
-              />
-              {displayError && (
-                <p className="text-xs text-red-400 flex items-center gap-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
-                  {displayError}
-                </p>
-              )}
-              <button type="submit" disabled={isLoading} className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-[#7C3AED] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40">
-                {isLoading ? 'Verifying...' : 'Continue'}
-              </button>
-              <button type="button" onClick={() => { setMode('change'); setLocalError(''); setPasswordInput(''); }} className="w-full h-9 rounded-xl text-[11px] text-[#5C5E72] hover:text-white transition-colors">
-                Change Password
-              </button>
+              <input type="password" value={password} onChange={(e) => setPasswordInput(e.target.value)} placeholder="Authorization password" autoFocus className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none transition-colors" />
+              {displayError && <p className="text-xs text-red-400 flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>{displayError}</p>}
+              <button type="submit" disabled={isLoading} className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-[#7C3AED] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40">{isLoading ? 'Verifying...' : 'Continue'}</button>
+              <button type="button" onClick={() => { setMode('change'); setLocalError(''); setPasswordInput(''); }} className="w-full h-9 rounded-xl text-[11px] text-[#5C5E72] hover:text-white transition-colors">Change Password</button>
             </form>
           </>
         )}
@@ -136,19 +126,14 @@ export default function CreatorAuthModal() {
           <>
             <div className="px-6 pt-8 pb-4 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-[#7C3AED] flex items-center justify-center mx-auto mb-3 shadow-lg shadow-purple-500/20">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
               </div>
               <h2 className="text-lg font-bold text-white">Set Your Password</h2>
-              <p className="text-xs text-[#5C5E72] mt-1">Protect critical actions</p>
+              <p className="text-xs text-[#5C5E72] mt-1">Protect critical platform actions</p>
             </div>
             <form onSubmit={handleSetup} className="px-6 pb-6 space-y-3">
               <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3">
-                <p className="text-[11px] text-amber-400/80 leading-relaxed">
-                  This password protects settings changes, role management, and user actions. You'll only enter it when doing these actions.
-                </p>
+                <p className="text-[11px] text-amber-400/80 leading-relaxed">This password protects settings changes, role management, and user actions. You will only enter it when doing these actions.</p>
               </div>
               <input type="password" value={password} onChange={(e) => setPasswordInput(e.target.value)} placeholder="New password (min 6 characters)" autoFocus className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none transition-colors" />
               <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none transition-colors" />
