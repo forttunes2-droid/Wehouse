@@ -14,6 +14,7 @@ import type { NavPage } from '@/types/nav';
 // Lazy load pages for performance
 const Home = lazy(() => import('@/pages/Home'));
 const Search = lazy(() => import('@/pages/Search'));
+const Explore = lazy(() => import('@/pages/Explore'));
 const Saved = lazy(() => import('@/pages/Saved'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetail'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
@@ -85,7 +86,7 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings', 'my_reservations', 'messages', 'wallet'];
+const RESTORABLE_PAGES: NavPage[] = ['home', 'explore', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings', 'my_reservations', 'messages', 'wallet'];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
@@ -324,6 +325,8 @@ export default function App() {
     switch (navPage) {
       case 'home':
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={canList} onGoToNewListing={goToNewListing} />;
+      case 'explore':
+        return <Explore profile={profile} savedIds={savedIds} onToggleSave={handleToggleSave} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;
       case 'search':
         return <Search onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} savedIds={savedIds} onToggleSave={handleToggleSave} />;
       case 'saved':
@@ -440,73 +443,16 @@ export default function App() {
   const isCreatorRole = checkCreator(userRole);
   const canAccessRoommate = isUserRole;
 
-  // ── Bottom nav per Constitution — EXACT 5 tabs per role ──
-  // User: Home, Explore, Saved, Messages, Account
-  // Worker: Home, Jobs, Calendar, Messages, Account
-  // Property Partner: Home, Properties, Messages, Wallet, Account
-  // Staff: Home, Operations, Messages, Reports, Account
-  // Admin: Home, Management, Analytics, Messages, Account
-  // Creator: Home, Management, Analytics, Messages, Account
-  const tabs = useMemo(() => {
-    // CREATOR
-    if (isCreatorRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'creator' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'admin' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // ADMIN
-    if (isAdminRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'admin' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'staff_dashboard' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // STAFF
-    if (isStaffRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'staff_dashboard' as NavPage, label: 'Operations', icon: WrenchSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'finance_dashboard' as NavPage, label: 'Reports', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // WORKER
-    if (isWorkerRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'worker_dashboard' as NavPage, label: 'Jobs', icon: BriefcaseSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'worker_categories' as NavPage, label: 'Calendar', icon: CalendarSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // PROPERTY PARTNER
-    if (isPropertyPartner) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'property_partner' as NavPage, label: 'Properties', icon: BuildingSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // USER (default) — 5 tabs per Constitution
-    return [
-      { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-      { id: 'search' as NavPage, label: 'Explore', icon: ExploreSvg },
-      { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
-      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-      { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-    ];
-  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
+  // ── Bottom nav: ONE unified 5-tab navigation for ALL roles ──
+  // Home | Explore | Saved | Messages | Account
+  // Role-specific features accessed from Account page
+  const tabs = useMemo(() => [
+    { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+    { id: 'explore' as NavPage, label: 'Explore', icon: ExploreSvg },
+    { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
+    { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+    { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+  ], []);
 
   return (
     <CreatorAuthProvider>
@@ -531,7 +477,7 @@ export default function App() {
         } : null} />
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'saved' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && navPage !== 'worker_discovery' && (
+      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && navPage !== 'worker_discovery' && (
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-lg mx-auto flex items-center justify-around py-1">
             {tabs.map((tab) => {

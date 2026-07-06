@@ -1,5 +1,6 @@
 export type NavPage =
   | 'home'
+  | 'explore'
   | 'search'
   | 'saved'
   | 'roommate'
