@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { updateProfile, uploadAvatar, getServiceCategories, getServiceSubcategories } from '@/lib/supabase';
+import { updateProfile, uploadAvatar, getServiceCategories, getServiceSubcategories, supabase } from '@/lib/supabase';
+import { initializePaystackPopup, generatePaymentReference } from '@/lib/paystack-marketplace';
 import LocationSelector from '@/components/LocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile, ServiceCategory, ServiceSubcategory } from '@/types';
@@ -14,6 +15,9 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url);
+  const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
+  const [paying, setPaying] = useState(false);
+  const [verificationFee, setVerificationFee] = useState<number>(5000);
 
   const [form, setForm] = useState({
     full_name: profile.full_name || '',
@@ -37,6 +41,15 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [subcategories, setSubcategories] = useState<ServiceSubcategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  // Load verification fee from platform settings
+  useEffect(() => {
+    async function loadFee() {
+      const { data } = await supabase.rpc('get_setting_v2', { p_key: 'worker_verification_fee' });
+      if (data) setVerificationFee(parseInt(data) || 5000);
+    }
+    loadFee();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -108,21 +121,136 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
     });
     setSaving(false);
     if (error) { toast.error('Save failed: ' + error.message); return; }
-    toast.success('Profile submitted for review!');
+    // Go to payment step — Pay verification fee for blue tick
+    setStep('payment');
+  }
+
+  async function handlePaystackPayment() {
+    setPaying(true);
+    const reference = generatePaymentReference();
+
+    // Get Paystack public key from settings
+    const { data: pk } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_public_key' });
+    if (!pk) {
+      toast.error('Paystack not configured. Contact support.');
+      setPaying(false);
+      return;
+    }
+
+    // Load Paystack script and open payment
+    initializePaystackPopup({
+      publicKey: pk,
+      email: profile.email,
+      amountKobo: verificationFee * 100,
+      reference,
+      metadata: {
+        worker_user_id: profile.user_id,
+        payment_type: 'worker_verification',
+        worker_name: form.full_name || profile.username,
+      },
+      onSuccess: async (ref: string) => {
+        // Payment succeeded — auto-grant blue tick (approved_for_verification)
+        const { error: updateError } = await supabase.from('profiles').update({
+          worker_status: 'approved_for_verification',
+          worker_verified: true,
+          updated_at: new Date().toISOString(),
+        }).eq('user_id', profile.user_id);
+
+        if (updateError) {
+          toast.error('Payment successful but status update failed. Contact support.');
+          setPaying(false);
+          return;
+        }
+
+        // Record the payment (non-critical)
+        try {
+          await supabase.rpc('record_worker_verification_payment', {
+            p_user_id: profile.user_id,
+            p_reference: ref,
+            p_amount: verificationFee,
+          });
+        } catch (_) { /* ignore */ }
+
+        toast.success('Payment successful! Blue tick granted. WeHouse will review your profile.');
+        setStep('success');
+        setPaying(false);
+      },
+      onCancel: () => {
+        toast.info('Payment cancelled. Your profile is saved but not verified yet.');
+        setPaying(false);
+      },
+    });
+  }
+
+  function handleSkipPayment() {
+    toast.info('You can verify later from your profile.');
+    onComplete();
+  }
+
+  function handleSuccessDone() {
     onComplete();
   }
 
   const initials = (form.full_name || profile.email[0]).charAt(0).toUpperCase();
+
+  if (step === 'success') {
+    return (
+      <div className="min-h-screen bg-transparent pb-20 flex items-center justify-center px-5">
+        <Toaster position="top-center" richColors />
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <h2 className="text-lg font-bold text-white mb-2">Blue Tick Granted!</h2>
+          <p className="text-sm text-[#5C5E72] mb-1">Your verification payment was successful.</p>
+          <p className="text-sm text-[#5C5E72] mb-6">WeHouse will review your profile and approve you to go public.</p>
+          <button onClick={handleSuccessDone} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity">
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
 
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
-        <h1 className="text-base font-semibold text-white">Worker Profile Setup</h1>
-        <p className="text-[10px] text-[#5C5E72]">Complete your profile for verification</p>
+        <h1 className="text-base font-semibold text-white">
+          {step === 'payment' ? 'Verification Payment' : 'Worker Profile Setup'}
+        </h1>
+        <p className="text-[10px] text-[#5C5E72]">
+          {step === 'payment' ? 'Pay verification fee to get your blue tick' : 'Complete your profile for verification'}
+        </p>
       </header>
 
+      {/* STEP 2: PAYMENT */}
+      {step === 'payment' && (
+        <div className="max-w-lg mx-auto px-5 py-8 space-y-5">
+          <div className="glass rounded-2xl p-5 text-center border border-blue-500/10">
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-3">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+            </div>
+            <h3 className="text-sm font-semibold text-white mb-1">Get Verified on WeHouse</h3>
+            <p className="text-[11px] text-[#5C5E72] mb-4">Pay the one-time verification fee to get your blue tick. WeHouse will then review your profile.</p>
+            <div className="rounded-xl bg-[#1A1A24] p-4 mb-4">
+              <p className="text-[10px] text-[#5C5E72]">Verification Fee</p>
+              <p className="text-2xl font-bold text-white">N{verificationFee.toLocaleString()}</p>
+              <p className="text-[9px] text-[#5C5E72] mt-1">One-time payment · Blue tick included</p>
+            </div>
+            <button onClick={handlePaystackPayment} disabled={paying} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2">
+              {paying ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><path d="M1 10h22" /></svg>Pay with Paystack</>}
+            </button>
+            <button onClick={handleSkipPayment} disabled={paying} className="w-full mt-3 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium hover:bg-[#2A2A3A] transition-colors">
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 1: FORM */}
+      {step === 'form' && (
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 py-5 space-y-5">
         {/* Status Banner */}
         <div className="glass rounded-2xl p-4 border border-amber-500/10 flex items-start gap-3">
@@ -267,6 +395,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
           {saving ? 'Submitting...' : 'Submit for Verification'}
         </button>
       </form>
+      )}
     </div>
   );
 }

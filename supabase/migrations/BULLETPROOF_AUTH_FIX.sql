@@ -163,9 +163,38 @@ GRANT EXECUTE ON FUNCTION public.set_admin_auth_v2 TO authenticated;
 GRANT EXECUTE ON FUNCTION public.verify_admin_auth_v2 TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_admin_auth_status_v2 TO authenticated;
 
+-- STEP 9: Record worker verification payment + auto-grant blue tick
+CREATE OR REPLACE FUNCTION public.record_worker_verification_payment(
+  p_user_id TEXT,
+  p_reference TEXT,
+  p_amount NUMERIC
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- Insert payment record
+  INSERT INTO worker_payments (worker_user_id, amount, paystack_reference, status, payment_type, created_at)
+  VALUES (p_user_id, p_amount, p_reference, 'success', 'verification', NOW())
+  ON CONFLICT DO NOTHING;
+  
+  -- Auto-grant blue tick
+  UPDATE profiles 
+  SET worker_status = 'approved_for_verification',
+      worker_verified = TRUE,
+      updated_at = NOW()
+  WHERE user_id = p_user_id;
+  
+  RETURN FOUND;
+END;
+$$;
+
+-- Grant permission
+GRANT EXECUTE ON FUNCTION public.record_worker_verification_payment TO authenticated;
+
 -- ═══════════════════════════════════════════════════════════════
 -- DONE. All functions are now bulletproof.
 -- 
 -- For Creator:  set_creator_auth_v2 / verify_creator_auth_v2 / get_creator_auth_status_v2
 -- For Admin:    set_admin_auth_v2 / verify_admin_auth_v2 / get_admin_auth_status_v2
+-- Worker:       record_worker_verification_payment (auto blue tick after Paystack)
 -- ═══════════════════════════════════════════════════════════════

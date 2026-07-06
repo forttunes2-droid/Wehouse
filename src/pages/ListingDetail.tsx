@@ -32,6 +32,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
 
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
+  const [paystackReady, setPaystackReady] = useState(false);
 
   const [agentInfo, setAgentInfo] = useState<{ user_id: string; username: string | null; avatar_url: string | null; role: string; phone: string | null } | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
@@ -47,6 +48,9 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
     async function load() {
       const { listing: data } = await getListing(listingId);
       setListing(data);
+      // Check if Paystack is configured — only show fees when payments work
+      const { data: pk } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_public_key' });
+      setPaystackReady(!!pk);
       if (data?.chat_agent_id) {
         const { agent } = await getPublicAgentByUserId(data.chat_agent_id);
         setAgentInfo(agent);
@@ -342,14 +346,18 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                   <div>
                     <h3 className="text-sm font-semibold text-white">Reserve This Property</h3>
                     <p className="text-[11px] text-[#5C5E72] mt-0.5">
-                      Choose 1, 2, or 3 year plan. Pay N{reservationFee.toLocaleString()} reservation fee, then Year 1 rent after WeHouse inspection.
+                      {paystackReady 
+                        ? `Choose 1, 2, or 3 year plan. Pay N${reservationFee.toLocaleString()} reservation fee, then Year 1 rent after WeHouse inspection.`
+                        : 'Choose a rental plan and submit your reservation. WeHouse will contact you to arrange payment and inspection.'}
                     </p>
                   </div>
                 </div>
+                {paystackReady && (
                 <div className="flex items-center justify-between mb-4 py-3 px-4 rounded-xl bg-[#1A1A24]">
                   <span className="text-xs text-[#5C5E72]">Reservation Fee (72hr hold)</span>
                   <span className="text-sm font-bold text-[#3B82F6]">N{reservationFee.toLocaleString()}</span>
                 </div>
+                )}
                 <button onClick={handleReserve} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>View Rental Plans
                 </button>
@@ -451,13 +459,6 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
 
                   {selectedPlan && (
                     <div className="mt-4 space-y-3">
-                      {/* Paystack coming soon notice */}
-                      <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
-                        <p className="text-[10px] text-amber-400">
-                          <strong>Paystack coming soon.</strong> For now, reservation is recorded. You&apos;ll pay the reservation fee when Paystack is connected.
-                        </p>
-                      </div>
-
                       <button
                         onClick={popupView === 'edit_plan' ? () => handleSaveEditedPlan(selectedPlan.durationYears) : handleReserveWithPlan}
                         disabled={reserving}
@@ -516,10 +517,12 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                       <span className="text-[#5C5E72]">Plan</span>
                       <span className="text-white">{reservation.rental_plan_years || selectedPlan?.durationYears || 1} Year{((reservation.rental_plan_years || selectedPlan?.durationYears || 1) > 1) ? 's' : ''}</span>
                     </div>
+                    {paystackReady && (
                     <div className="flex justify-between text-xs">
                       <span className="text-[#5C5E72]">Reservation Fee</span>
                       <span className="text-[#3B82F6] font-bold">N{reservationFee.toLocaleString()}</span>
                     </div>
+                    )}
                     {selectedPlan && (
                       <div className="flex justify-between text-xs border-t border-[#232330] pt-2">
                         <span className="text-[#5C5E72]">Year 1 Rent</span>

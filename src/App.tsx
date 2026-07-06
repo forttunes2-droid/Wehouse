@@ -495,19 +495,15 @@ export default function App() {
         { id: 'property_partner' as NavPage, label: 'Partner', icon: AdminSvg },
       ];
     }
-    // User (default)
+    // User (default) — 5 tabs per Constitution
     return [
       { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-      { id: 'search' as NavPage, label: 'Search', icon: ListingsSvg },
-      { id: 'saved' as NavPage, label: 'Saved', icon: SavedSvg },
-      { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
-      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-      { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
-      ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
-      { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+      { id: 'search' as NavPage, label: 'Explore', icon: ListingsSvg },
+      { id: 'messages' as NavPage, label: 'Inbox', icon: MessagesSvg },
+      { id: 'worker_categories' as NavPage, label: 'Services', icon: WrenchSvg },
       { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg },
     ];
-  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner, canAccessRoommate]);
+  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
 
   return (
     <CreatorAuthProvider>
@@ -583,13 +579,6 @@ function ListingsSvg({ size, active }: { size: number; active: boolean }) {
     </svg>
   );
 }
-function UsersSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
 function ProfileSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -605,26 +594,10 @@ function WrenchSvg({ size, active }: { size: number; active: boolean }) {
   );
 }
 
-function SavedSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
 function MessagesSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-    </svg>
-  );
-}
-
-function WalletSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22" />
     </svg>
   );
 }
