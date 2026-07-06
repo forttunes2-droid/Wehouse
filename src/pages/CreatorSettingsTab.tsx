@@ -75,9 +75,12 @@ const SETTING_GROUPS = [
     id: 'payment',
     label: 'Payment',
     settings: [
-      { key: 'paystack_public_key', label: 'Paystack Public Key', description: 'Paystack public API key for payments', type: 'text', defaultValue: '' },
-      { key: 'payment_test_mode', label: 'Test Mode', description: 'Enable test/sandbox mode', type: 'toggle', defaultValue: 'true' },
-      { key: 'auto_payout', label: 'Auto Payout', description: 'Automatically process payouts', type: 'toggle', defaultValue: 'false' },
+      { key: 'paystack_public_key', label: 'Paystack Public Key', description: 'Paystack public API key for client-side payments', type: 'text', defaultValue: '' },
+      { key: 'paystack_secret_key', label: 'Paystack Secret Key', description: 'Secret key for server-side verification (webhooks)', type: 'text', defaultValue: '' },
+      { key: 'payment_test_mode', label: 'Test Mode', description: 'Use Paystack sandbox for all transactions', type: 'toggle', defaultValue: 'true' },
+      { key: 'auto_payout', label: 'Auto Payout', description: 'Automatically transfer worker earnings', type: 'toggle', defaultValue: 'false' },
+      { key: 'paystack_commission_bearer', label: 'Commission Bearer', description: 'subaccount = worker pays fee, account = WeHouse pays fee', type: 'text', defaultValue: 'subaccount' },
+      { key: 'auto_confirm_webhook', label: 'Auto-Confirm via Webhook', description: 'Trust webhook for payment confirmation (more reliable)', type: 'toggle', defaultValue: 'true' },
     ] as SettingDef[],
   },
   {

@@ -9,6 +9,7 @@ import {
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
   getNotifications, getUnreadNotificationCount, markNotificationsRead,
 } from '@/lib/supabase';
+import { getCommissionSummary } from '@/lib/paystack-marketplace';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
 // Creator is identified by role='creator' in the database
 const checkIsCreator = (profile: Profile): boolean => profile.role === 'creator';
@@ -206,6 +207,9 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
     totalListings: 0, pendingInspections: 0, pendingVerifications: 0,
     activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups: 0,
   });
+  const [commission, setCommission] = useState({
+    total_collected: 0, total_settled: 0, total_pending: 0, total_payments: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -213,15 +217,19 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
     async function load() {
       setLoading(true);
       setLoadError(null);
-      const { stats: s, error } = await getCreatorDashboardStats();
+      const [{ stats: s, error }, comm] = await Promise.all([
+        getCreatorDashboardStats(),
+        isCreator ? getCommissionSummary('month') : Promise.resolve({ total_collected: 0, total_settled: 0, total_pending: 0, total_payments: 0 }),
+      ]);
       if (error) {
         setLoadError('Database error: ' + (error.message || 'Cannot load stats. Make sure admin SQL functions are installed.'));
       }
       setStats(s);
+      setCommission(comm);
       setLoading(false);
     }
     load();
-  }, []);
+  }, [isCreator]);
 
   // Top row: Critical counts
   const topStats = [
@@ -312,6 +320,26 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
                 <div className={`text-[11px] font-bold ${c.alert ? 'text-orange-400' : 'text-emerald-400'}`}>{c.value}</div>
                 <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-orange-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
               </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ROW 4: Commission Summary (Creator Only) ═══ */}
+      {isCreator && (
+        <div>
+          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Commission Ledger (This Month)</p>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Collected', value: `₦${Number(commission.total_collected || 0).toLocaleString()}`, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+              { label: 'Pending', value: `₦${Number(commission.total_pending || 0).toLocaleString()}`, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+              { label: 'Settled', value: `₦${Number(commission.total_settled || 0).toLocaleString()}`, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+              { label: 'Payments', value: commission.total_payments || 0, color: 'text-white', bg: 'bg-[#12121A] border-[#1E1E2C]' },
+            ].map(c => (
+              <div key={c.label} className={`rounded-xl p-2.5 text-center ${c.bg} border`}>
+                <div className={`text-[11px] font-bold ${c.color}`}>{c.value}</div>
+                <div className="text-[8px] text-[#5C5E72] mt-0.5">{c.label}</div>
+              </div>
             ))}
           </div>
         </div>
