@@ -31,7 +31,7 @@ import { Toaster, toast } from 'sonner';
 // Admin/Creator tabs per Constitution
 // Admin: Overview, Users, Workers, Property Partners, Staff, Listings, Bookings, Reports, Support, Verification
 // Creator adds: Settings (Platform + Finance)
-type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification' | 'settings';
+type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification' | 'announcements' | 'settings';
 
 interface CreatorDashboardProps {
   profile: Profile;
@@ -65,7 +65,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(DASHBOARD_TAB_KEY);
-      return saved && ['overview','users','workers','partners','staff','listings','bookings','reports','support','verification','settings'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','workers','partners','staff','listings','bookings','reports','support','verification','announcements','settings'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
@@ -97,6 +97,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
     { id: 'reports' as AdminTab, label: 'Reports', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01' },
     { id: 'support' as AdminTab, label: 'Support', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
     { id: 'verification' as AdminTab, label: 'Verification', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0' },
+    { id: 'announcements' as AdminTab, label: 'Announcements', icon: 'M11 5.882V19.24a1.76 1.76 0 0 1-3.417.592l-3.083-6.167A1.76 1.76 0 0 0 3 12.76H2a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1a1.76 1.76 0 0 0 1.5-.905l3.083-6.166A1.76 1.76 0 0 1 11 1.647V5.882zM15 8a5 5 0 0 1 0 8M18.5 5a9 9 0 0 1 0 14' },
     ...(isCreatorAccount ? [{ id: 'settings' as AdminTab, label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' }] : []),
   ];
 
@@ -190,6 +191,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'reports' && <ReportsTab profile={profile} />}
         {activeTab === 'support' && <SupportInboxTab profile={profile} />}
         {activeTab === 'verification' && <VerificationTab />}
+        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'settings' && (isCreatorAccount ? <CreatorSettingsTab profile={profile} /> : <SettingsTab profile={profile} onUpdate={() => {}} />)}
 
       </main>

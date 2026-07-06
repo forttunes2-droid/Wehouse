@@ -245,16 +245,19 @@ function PlatformSettings({ profile: _profile }: { profile: Profile }) {
   async function loadSettings() {
     setLoading(true);
     const { data, error } = await supabase.rpc('get_platform_settings');
-    if (error || !data || data.length === 0) {
-      // Database not set up yet — use built-in defaults so Creator can still see everything
-      if (error) {
-        toast.error('Database not set up. Run the platform_settings SQL. Showing defaults.');
-      }
+    if (error) {
+      // Silently fall back to defaults — no toast, user doesn't need to know
+      console.warn('[Settings] RPC error (using defaults):', error.message);
       setSettings(DEFAULT_SETTINGS);
       setLoading(false);
       return;
     }
-    setSettings(data || []);
+    // Use DB data if available, otherwise fall back to defaults
+    if (data && data.length > 0) {
+      setSettings(data);
+    } else {
+      setSettings(DEFAULT_SETTINGS);
+    }
     setLoading(false);
   }
 
@@ -567,12 +570,6 @@ function CategoryManager({ profile: _profile }: { profile: Profile }) {
     setShowCatForm(true);
   }
 
-  function openNewSub() {
-    setEditingSub(null);
-    setSubForm({ name: '', category_id: categories[0]?.id || '', sort_order: 0 });
-    setShowSubForm(true);
-  }
-
   const visibleCategories = showHidden ? categories : categories.filter(c => c.is_active);
   const activeCount = categories.filter(c => c.is_active).length;
   const hiddenCount = categories.filter(c => !c.is_active).length;
@@ -599,13 +596,10 @@ function CategoryManager({ profile: _profile }: { profile: Profile }) {
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Add Category Button */}
       <div className="flex gap-2">
         <button onClick={openNewCat} className="px-3 py-2 rounded-xl bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-semibold border border-[#3B82F6]/20 hover:bg-[#3B82F6]/25 transition-colors">
           + New Category
-        </button>
-        <button onClick={openNewSub} className="px-3 py-2 rounded-xl bg-[#12121A] text-[#5C5E72] text-xs font-semibold border border-[#1E1E2C] hover:text-white transition-colors">
-          + New Subcategory
         </button>
       </div>
 

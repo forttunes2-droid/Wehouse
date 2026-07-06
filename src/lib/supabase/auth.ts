@@ -18,11 +18,10 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function signInWithGoogle() {
+  const redirectUrl = `${window.location.origin}/`;
   return supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/`,
-    },
+    options: { redirectTo: redirectUrl },
   });
 }
 
