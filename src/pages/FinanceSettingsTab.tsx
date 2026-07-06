@@ -59,7 +59,7 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
   async function loadSettings() {
     setLoading(true);
     // Load ALL settings, not just finance category, since we need refund_policy_text etc
-    const { data, error } = await supabase.rpc('get_platform_settings');
+    const { data, error } = await supabase.rpc('get_all_settings_v2');
     if (error) {
       toast.error('Failed to load: ' + error.message);
       setLoading(false);
@@ -73,7 +73,7 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
 
   async function updateSetting(key: string, value: string) {
     setSaving(key);
-    const { error } = await supabase.rpc('update_platform_setting', {
+    const { error } = await supabase.rpc('set_setting_v2', {
       p_key: key,
       p_value: value,
     });

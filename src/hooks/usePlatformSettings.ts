@@ -11,7 +11,7 @@ async function loadSettingsInternal(): Promise<Record<string, string>> {
 
   cachePromise = (async () => {
     try {
-      const { data, error } = await supabase.rpc('get_platform_settings');
+      const { data, error } = await supabase.rpc('get_all_settings_v2');
       if (error || !data) {
         console.warn('[PlatformSettings] Failed to load, using defaults:', error?.message);
         return {};

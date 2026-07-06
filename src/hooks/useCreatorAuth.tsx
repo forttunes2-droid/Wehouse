@@ -55,7 +55,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    const { data, error: rpcError } = await supabase.rpc('verify_creator_auth', {
+    const { data, error: rpcError } = await supabase.rpc('verify_creator_auth_v2', {
       p_user_id: userId,
       p_password: password,
     });
@@ -100,7 +100,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
 
     // If oldPassword provided (change mode), verify it first
     if (oldPassword) {
-      const { data: verified } = await supabase.rpc('verify_creator_auth', {
+      const { data: verified } = await supabase.rpc('verify_creator_auth_v2', {
         p_user_id: userId,
         p_password: oldPassword,
       });
@@ -111,7 +111,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const { data, error: rpcError } = await supabase.rpc('set_creator_auth', {
+    const { data, error: rpcError } = await supabase.rpc('set_creator_auth_v2', {
       p_user_id: userId,
       p_password: newPassword,
     });

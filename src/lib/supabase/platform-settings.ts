@@ -4,18 +4,18 @@ import { supabase } from './client';
  * Get all platform settings, optionally filtered by category.
  */
 export async function getPlatformSettings(category?: string) {
-  const { data, error } = await supabase.rpc('get_platform_settings', {
-    p_category: category || null,
-  });
+  const { data, error } = await supabase.rpc('get_all_settings_v2');
   if (error) throw error;
-  return data || [];
+  const all = data || [];
+  if (category) return all.filter((s: any) => s.category === category);
+  return all;
 }
 
 /**
  * Get a single platform setting by key.
  */
 export async function getPlatformSetting(key: string): Promise<string | null> {
-  const { data, error } = await supabase.rpc('get_platform_setting', {
+  const { data, error } = await supabase.rpc('get_setting_v2', {
     p_key: key,
   });
   if (error) throw error;
@@ -26,7 +26,7 @@ export async function getPlatformSetting(key: string): Promise<string | null> {
  * Update a platform setting (creator/admin only).
  */
 export async function updatePlatformSetting(key: string, value: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc('update_platform_setting', {
+  const { data, error } = await supabase.rpc('set_setting_v2', {
     p_key: key,
     p_value: value,
   });

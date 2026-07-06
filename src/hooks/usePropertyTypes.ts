@@ -44,7 +44,7 @@ export function usePropertyTypes() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_platform_setting', { p_key: 'property_types_allowed' });
+      const { data, error } = await supabase.rpc('get_setting_v2', { p_key: 'property_types_allowed' });
       if (!error && data) {
         try {
           const parsed = JSON.parse(data);

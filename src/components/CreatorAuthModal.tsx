@@ -27,7 +27,7 @@ export default function CreatorAuthModal() {
       if (!userId) { setMode('setup'); return; }
 
       // Use RPC to check status — bypasses RLS for creator with NULL auth_id
-      const { data: status } = await supabase.rpc('get_creator_auth_status', {
+      const { data: status } = await supabase.rpc('get_creator_auth_status_v2', {
         p_user_id: userId,
       });
 

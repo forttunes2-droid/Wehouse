@@ -176,7 +176,7 @@ function PlatformSettings() {
   async function loadAllSettings() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_platform_settings');
+      const { data, error } = await supabase.rpc('get_all_settings_v2');
       if (!error && data && data.length > 0) {
         // Filter to only our known categories
         const knownCategories = SETTING_GROUPS.map(g => g.id);
@@ -214,7 +214,7 @@ function PlatformSettings() {
     setSaving(key);
     try {
       // Try RPC first
-      const { error } = await supabase.rpc('update_platform_setting', {
+      const { error } = await supabase.rpc('set_setting_v2', {
         p_key: key,
         p_value: value,
       });
@@ -701,13 +701,13 @@ function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
 
   async function load() {
     setLoading(true);
-    const { data: typesData } = await supabase.rpc('get_platform_setting', { p_key: 'property_types_allowed' });
+    const { data: typesData } = await supabase.rpc('get_setting_v2', { p_key: 'property_types_allowed' });
     let loadedTypes: string[] = [];
     if (typesData) { try { const p = JSON.parse(typesData); if (Array.isArray(p)) loadedTypes = p; } catch { } }
     if (loadedTypes.length === 0) loadedTypes = ['apartment', 'house', 'duplex', 'studio', 'self_contain', 'office', 'warehouse', 'land', 'hotel', 'hostel', 'lodge', 'resort'];
     setTypes(loadedTypes);
 
-    const { data: subData } = await supabase.rpc('get_platform_setting', { p_key: 'property_subtypes' });
+    const { data: subData } = await supabase.rpc('get_setting_v2', { p_key: 'property_subtypes' });
     let loadedSubtypes: Record<string, string[]> = {};
     if (subData) { try { loadedSubtypes = JSON.parse(subData); } catch { } }
     if (Object.keys(loadedSubtypes).length === 0) {
@@ -721,14 +721,14 @@ function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
 
   async function saveTypes(newTypes: string[]) {
     setSaving(true);
-    await supabase.rpc('update_platform_setting', { p_key: 'property_types_allowed', p_value: JSON.stringify(newTypes) });
+    await supabase.rpc('set_setting_v2', { p_key: 'property_types_allowed', p_value: JSON.stringify(newTypes) });
     setSaving(false);
     setTypes(newTypes);
   }
 
   async function saveSubtypes(newSubtypes: Record<string, string[]>) {
     setSaving(true);
-    await supabase.rpc('update_platform_setting', { p_key: 'property_subtypes', p_value: JSON.stringify(newSubtypes) });
+    await supabase.rpc('set_setting_v2', { p_key: 'property_subtypes', p_value: JSON.stringify(newSubtypes) });
     setSaving(false);
     setSubtypes(newSubtypes);
   }
