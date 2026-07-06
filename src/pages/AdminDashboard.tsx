@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  getAllUsers, updateUserRole,
+  supabase, getAllUsers, updateUserRole,
   getAllListingsAdmin, deleteListing, getReports,
 } from '@/lib/supabase';
 import UserProfileModal from '@/components/UserProfileModal';
@@ -29,7 +29,7 @@ const roleColors: Record<string, string> = {
 };
 */
 
-export default function DirectorDashboard({ profile, onLogout, onNavigate }: Props) {
+export default function AdminDashboard({ profile, onLogout, onNavigate }: Props) {
   const TAB_KEY = 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
@@ -293,8 +293,8 @@ function WorkersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   approved_for_verification: 'Blue Tick',
-  reviewing: 'Reviewing',
-  verified: 'Verified',
+  profile_under_review: 'Under Review',
+  verified: 'Public',
   suspended: 'Suspended',
   rejected: 'Rejected',
 };
@@ -302,7 +302,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500/10 text-amber-400',
   approved_for_verification: 'bg-blue-500/10 text-blue-400',
-  reviewing: 'bg-purple-500/10 text-purple-400',
+  profile_under_review: 'bg-purple-500/10 text-purple-400',
   verified: 'bg-emerald-500/10 text-emerald-400',
   suspended: 'bg-red-500/10 text-red-400',
   rejected: 'bg-gray-500/10 text-gray-400',
@@ -365,14 +365,6 @@ function StaffTabDirector({ profile, refresh }: { profile: Profile; refresh: () 
     setLoading(false);
   }
 
-  async function handleDemote(userId: string) {
-    if (!confirm('Demote this staff member to regular user?')) return;
-    const { error } = await updateUserRole(userId, 'user', 'staff', profile.user_id, profile.email || '', '', profile.role as any);
-    if (error) { toast.error(error.message || 'Failed'); return; }
-    toast.success('Staff demoted to user');
-    load(); refresh();
-  }
-
   return (
     <div className="space-y-3">
       {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div> : (
@@ -386,7 +378,7 @@ function StaffTabDirector({ profile, refresh }: { profile: Profile; refresh: () 
                   <p className="text-xs font-medium text-white truncate">@{s.username || 'unknown'}</p>
                   <p className="text-[10px] text-[#5C5E72] truncate">{s.email}</p>
                 </div>
-                <button onClick={() => handleDemote(s.user_id)} className="h-7 px-3 rounded-lg bg-red-500/10 text-red-400 text-[10px] border border-red-500/20 hover:bg-red-500/20 transition-colors">Demote</button>
+                <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">Staff</span>
               </div>
             </div>
           ))}
@@ -514,14 +506,27 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
   async function load() {
     setLoading(true);
     const { users: data } = await getAllUsers();
+    // Show workers: pending (need access granted), approved_for_verification (have blue tick), profile_under_review (ready for final review)
     const pending = (data || []).filter((u: any) =>
-      u.role === 'worker' && (u.worker_status === 'pending' || u.worker_status === 'approved_for_verification') && !u.deleted
+      u.role === 'worker' && ['pending', 'approved_for_verification', 'profile_under_review'].includes(u.worker_status) && !u.deleted
     );
     setWorkers(pending);
     setLoading(false);
   }
 
+  async function handleGrantAccess(userId: string) {
+    // Grant blue tick access — worker can now fill verification info
+    const { error } = await supabase.from('profiles').update({
+      worker_status: 'approved_for_verification',
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', userId);
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    toast.success('Blue tick granted — worker can now proceed with verification');
+    load(); refresh();
+  }
+
   async function handleApprove(userId: string) {
+    // Final approval — worker goes public
     const { error } = await supabase.from('profiles').update({
       worker_status: 'verified',
       worker_verified: true,
@@ -562,8 +567,20 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => handleApprove(w.user_id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">Approve & Publish</button>
-                <button onClick={() => handleReject(w.user_id)} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors">Reject</button>
+                {w.worker_status === 'pending' && (
+                  <button onClick={() => handleGrantAccess(w.user_id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors">Grant Access</button>
+                )}
+                {w.worker_status === 'approved_for_verification' && (
+                  <div className="flex-1 h-8 rounded-lg bg-blue-500/5 text-blue-400/60 text-xs font-medium border border-blue-500/10 flex items-center justify-center">
+                    Worker filling info...
+                  </div>
+                )}
+                {w.worker_status === 'profile_under_review' && (
+                  <>
+                    <button onClick={() => handleApprove(w.user_id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">Approve & Publish</button>
+                    <button onClick={() => handleReject(w.user_id)} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors">Reject</button>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -572,5 +589,3 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
     </div>
   );
 }
-
-import { supabase } from '@/lib/supabase';

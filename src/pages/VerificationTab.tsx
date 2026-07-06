@@ -15,7 +15,7 @@ export default function VerificationTab() {
       .from('profiles')
       .select('*')
       .eq('role', 'worker')
-      .in('worker_status', ['pending', 'approved_for_verification', 'reviewing'])
+      .in('worker_status', ['pending', 'approved_for_verification', 'profile_under_review'])
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (!error && data) {
@@ -73,11 +73,11 @@ export default function VerificationTab() {
             </div>
             <span className={`text-[10px] px-2 py-0.5 rounded-full ${
               w.worker_status === 'pending' ? 'bg-amber-500/10 text-amber-400' :
-              w.worker_status === 'reviewing' ? 'bg-blue-500/10 text-blue-400' :
+              w.worker_status === 'profile_under_review' ? 'bg-blue-500/10 text-blue-400' :
               'bg-purple-500/10 text-purple-400'
             }`}>{w.worker_status}</span>
           </div>
-          {w.worker_status === 'reviewing' && (
+          {w.worker_status === 'profile_under_review' && (
             <button
               onClick={() => handleApprove(w.user_id)}
               className="mt-2 w-full h-8 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"

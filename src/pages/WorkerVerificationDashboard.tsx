@@ -15,7 +15,7 @@ type WorkerTab = 'pending' | 'approved_for_verification' | 'suspended' | 'all';
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   approved_for_verification: 'Blue Tick',
-  reviewing: 'Reviewing',
+  profile_under_review: 'Under Review',
   verified: 'Verified',
   suspended: 'Suspended',
   rejected: 'Rejected',

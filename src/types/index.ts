@@ -7,9 +7,9 @@
 
 export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker' | 'property_partner';
 
-// Constitution: Pending → Approved for Verification (blue tick) → Verified (public)
-// Database CHECK constraint values: pending, approved_for_verification, reviewing, verified, suspended, rejected
-export type WorkerStatus = 'pending' | 'approved_for_verification' | 'reviewing' | 'verified' | 'suspended' | 'rejected';
+// Constitution: Pending → Approved for Verification (blue tick) → Profile Under Review → Verified (public)
+// Database CHECK constraint values: pending, approved_for_verification, profile_under_review, verified, suspended, rejected
+export type WorkerStatus = 'pending' | 'approved_for_verification' | 'profile_under_review' | 'verified' | 'suspended' | 'rejected';
 
 export const WORKER_OCCUPATIONS = [
   'electrician', 'plumber', 'cleaner', 'carpenter',

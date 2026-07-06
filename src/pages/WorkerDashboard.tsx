@@ -32,12 +32,22 @@ type WorkerTab = 'overview' | 'bookings' | 'calendar' | 'wallet' | 'withdraw' | 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; desc: string; icon: string }> = {
   pending: {
     color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20',
-    label: 'Awaiting Approval', desc: 'Your profile edit is being reviewed by WeHouse.',
+    label: 'Pending', desc: 'Request verification access to begin your profile setup.',
+    icon: 'M12 8v4M12 16h.01',
+  },
+  approved_for_verification: {
+    color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20',
+    label: 'Blue Tick', desc: 'Access granted. Complete your profile and submit for review.',
+    icon: 'M20 6L9 17l-5-5',
+  },
+  profile_under_review: {
+    color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20',
+    label: 'Under Review', desc: 'Your profile is being reviewed. You will be public once review is completed.',
     icon: 'M12 8v4M12 16h.01',
   },
   verified: {
     color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20',
-    label: 'Approved Worker', desc: 'Your profile is public. Users can find and book you.',
+    label: 'Public', desc: 'Your profile is public. Users can find and book you.',
     icon: 'M20 6L9 17l-5-5',
   },
   suspended: {

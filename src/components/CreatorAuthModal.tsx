@@ -64,8 +64,12 @@ export default function CreatorAuthModal() {
     if (!password.trim()) { setLocalError('Enter a password'); return; }
     if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
     if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
-    await setPassword(password);
-    // Modal closes automatically on success
+    const success = await setPassword(password);
+    if (!success) {
+      // Error is already set in the hook, but add a fallback
+      setLocalError('Failed to save password. Run the SQL fix in Supabase first.');
+    }
+    // On success, modal closes automatically
   }
 
   async function handleChange(e: React.FormEvent) {

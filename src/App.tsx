@@ -16,7 +16,7 @@ const Saved = lazy(() => import('@/pages/Saved'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetail'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const CreatorDashboard = lazy(() => import('@/pages/CreatorDashboard'));
-const AdminDashboard = lazy(() => import('@/pages/DirectorDashboard'));
+const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 const Roommate = lazy(() => import('@/pages/Roommate'));
 const Chat = lazy(() => import('@/pages/Chat'));
 const ProfileEdit = lazy(() => import('@/pages/ProfileEdit'));
@@ -424,17 +424,27 @@ export default function App() {
   // ── Roommate access: ONLY regular users (not workers, not staff, not admin) ──
   const canAccessRoommate = profile.role === 'user';
 
-  // Bottom nav per Constitution: Home, Search, Saved, Bookings, Worker Bookings, Hotel Bookings, Roommate, Messages, Notifications, Wallet History, Support, Profile, Settings
-  const baseTabs = [
-    { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-    { id: 'search' as NavPage, label: 'Search', icon: ListingsSvg },
-    { id: 'saved' as NavPage, label: 'Saved', icon: SavedSvg },
-    { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
-    { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-    { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
-    ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
-    ...(isWorker ? [] : [{ id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg }]),
-  ];
+  // Bottom nav per Constitution — role-aware
+  // Admin/Creator: Home, Hotels, Messages, Workers
+  // User: Home, Search, Saved, Hotels, Messages, Wallet, Roommates, Workers
+  // Worker: Home, Hotels, Messages
+  const baseTabs = isAdminRole || isCreator
+    ? [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+      ]
+    : [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'search' as NavPage, label: 'Search', icon: ListingsSvg },
+        { id: 'saved' as NavPage, label: 'Saved', icon: SavedSvg },
+        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
+        ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
+        ...(isWorker ? [] : [{ id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg }]),
+      ];
 
   const isStaffRole = profile.role === 'staff';
   const isAdminRole = profile.role === 'admin';
