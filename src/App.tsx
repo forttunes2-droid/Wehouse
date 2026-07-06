@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { toast } from 'sonner';
 import { useAuth, canCreateListings, isCreator as checkCreator } from '@/hooks/useAuth';
 import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
@@ -108,7 +108,6 @@ export default function App() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState<Error | null>(null);
-  const isWorker = auth.profile?.role === 'worker';
   const canList = canCreateListings(auth.profile?.role || '');
   const isCreator = checkCreator(auth.profile?.role || '');
 
@@ -421,47 +420,84 @@ export default function App() {
     }
   };
 
-  // ── Roommate access: ONLY regular users (not workers, not staff, not admin) ──
-  const canAccessRoommate = profile.role === 'user';
-  const isStaffRole = profile.role === 'staff';
-  const isAdminRole = profile.role === 'admin';
-  const isPropertyPartner = profile.role === 'property_partner';
+  // ── Role flags ──
+  const userRole = profile?.role || '';
+  const isStaffRole = userRole === 'staff';
+  const isAdminRole = userRole === 'admin';
+  const isPropertyPartner = userRole === 'property_partner';
+  const isWorkerRole = userRole === 'worker';
+  const isUserRole = userRole === 'user';
+  const isCreatorRole = checkCreator(userRole);
+  const canAccessRoommate = isUserRole;
 
-  // Bottom nav per Constitution — role-aware
-  // Admin/Creator: Home, Hotels, Messages, Workers
-  // User: Home, Search, Saved, Hotels, Messages, Wallet, Roommates, Workers
-  // Worker: Home, Hotels, Messages
-  const baseTabs = isAdminRole || isCreator
-    ? [
+  // ── Bottom nav per Constitution (dynamically generated per role) ──
+  // Creator/Admin/Staff: Home, Hotels, Messages, Workers, [RoleTab]
+  // Worker: Home, Hotels, Messages, Profile
+  // Property Partner: Home, Hotels, Messages, Workers, Partner
+  // User: Home, Search, Saved, Hotels, Messages, Wallet, Roommates, Workers, Profile
+  const tabs = useMemo(() => {
+    // Creator
+    if (isCreatorRole) {
+      return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
         { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
         { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
-      ]
-    : [
+        { id: 'creator' as NavPage, label: 'Creator', icon: AdminSvg },
+      ];
+    }
+    // Admin
+    if (isAdminRole) {
+      return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'search' as NavPage, label: 'Search', icon: ListingsSvg },
-        { id: 'saved' as NavPage, label: 'Saved', icon: SavedSvg },
         { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
-        ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
-        ...(isWorker ? [] : [{ id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg }]),
+        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+        { id: 'admin' as NavPage, label: 'Admin', icon: AdminSvg },
       ];
-
-  const roleTab = isWorker
-    ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
-    : isCreator
-    ? { id: 'creator' as NavPage, label: 'Creator', icon: AdminSvg }
-    : isAdminRole
-    ? { id: 'admin' as NavPage, label: 'Admin', icon: AdminSvg }
-    : isStaffRole
-    ? { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg }
-    : isPropertyPartner
-    ? { id: 'property_partner' as NavPage, label: 'Partner', icon: AdminSvg }
-    : { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg };
-
-  const tabs = [...baseTabs, roleTab];
+    }
+    // Staff
+    if (isStaffRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+        { id: 'staff_dashboard' as NavPage, label: 'Staff', icon: StaffSvg },
+      ];
+    }
+    // Worker
+    if (isWorkerRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg },
+      ];
+    }
+    // Property Partner
+    if (isPropertyPartner) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+        { id: 'property_partner' as NavPage, label: 'Partner', icon: AdminSvg },
+      ];
+    }
+    // User (default)
+    return [
+      { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+      { id: 'search' as NavPage, label: 'Search', icon: ListingsSvg },
+      { id: 'saved' as NavPage, label: 'Saved', icon: SavedSvg },
+      { id: 'hotels' as NavPage, label: 'Hotels', icon: HotelSvg },
+      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+      { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
+      ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
+      { id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg },
+      { id: 'profile' as NavPage, label: 'Profile', icon: ProfileSvg },
+    ];
+  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner, canAccessRoommate]);
 
   return (
     <CreatorAuthProvider>
