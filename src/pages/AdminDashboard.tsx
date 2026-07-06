@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  supabase, getAllUsers, updateUserRole,
+  supabase, getAllUsers,
   getAllListingsAdmin, deleteListing, getReports,
 } from '@/lib/supabase';
 import UserProfileModal from '@/components/UserProfileModal';
@@ -169,7 +169,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         {activeTab === 'users' && <UsersTabDirector profile={profile} onViewUser={setViewingUser} />}
         {activeTab === 'workers' && <WorkersTabDirector onViewUser={setViewingUser} />}
         {activeTab === 'partners' && <PartnersTabDirector onViewUser={setViewingUser} />}
-        {activeTab === 'staff' && <StaffTabDirector profile={profile} refresh={refresh} />}
+        {activeTab === 'staff' && <StaffTabDirector profile={profile} />}
         {activeTab === 'listings' && <ListingsTabDirector refresh={refresh} />}
         {activeTab === 'bookings' && <BookingsTabDirector />}
         {activeTab === 'reports' && <ReportsTabDirector />}
@@ -351,7 +351,7 @@ function PartnersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void
 // ═══════════════════════════════════════════════════════════
 // STAFF TAB
 // ═══════════════════════════════════════════════════════════
-function StaffTabDirector({ profile, refresh }: { profile: Profile; refresh: () => void }) {
+function StaffTabDirector({ profile }: { profile: Profile }) {
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

@@ -423,6 +423,9 @@ export default function App() {
 
   // ── Roommate access: ONLY regular users (not workers, not staff, not admin) ──
   const canAccessRoommate = profile.role === 'user';
+  const isStaffRole = profile.role === 'staff';
+  const isAdminRole = profile.role === 'admin';
+  const isPropertyPartner = profile.role === 'property_partner';
 
   // Bottom nav per Constitution — role-aware
   // Admin/Creator: Home, Hotels, Messages, Workers
@@ -445,10 +448,6 @@ export default function App() {
         ...(canAccessRoommate ? [{ id: 'roommate' as NavPage, label: 'Roommates', icon: UsersSvg }] : []),
         ...(isWorker ? [] : [{ id: 'worker_categories' as NavPage, label: 'Workers', icon: WrenchSvg }]),
       ];
-
-  const isStaffRole = profile.role === 'staff';
-  const isAdminRole = profile.role === 'admin';
-  const isPropertyPartner = profile.role === 'property_partner';
 
   const roleTab = isWorker
     ? { id: 'worker_dashboard' as NavPage, label: 'Profile', icon: ProfileSvg }
