@@ -61,7 +61,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (rpcError) {
-      setError('Verification failed');
+      setError('Verification error: ' + rpcError.message);
       setIsLoading(false);
       return false;
     }
@@ -134,7 +134,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       cb?.();
       return true;
     } else {
-      setError('Password must be at least 4 characters');
+      setError('Could not save password. Please try again.');
       setIsLoading(false);
       return false;
     }

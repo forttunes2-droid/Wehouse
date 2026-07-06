@@ -17,7 +17,7 @@ export default function CreatorAuthModal() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
 
-  // Check if password is already set in profiles.creator_auth_password
+  // Check if password is already set — uses RPC to bypass RLS when auth_id is NULL
   useEffect(() => {
     if (!showModal) return;
     async function check() {
@@ -26,18 +26,16 @@ export default function CreatorAuthModal() {
       const userId = userData?.user?.id;
       if (!userId) { setMode('setup'); return; }
 
-      // Check profiles table for creator_auth_password
-      const { data } = await supabase
-        .from('profiles')
-        .select('creator_auth_password, creator_auth_enabled')
-        .eq('auth_id', userId)
-        .maybeSingle();
+      // Use RPC to check status — bypasses RLS for creator with NULL auth_id
+      const { data: status } = await supabase.rpc('get_creator_auth_status', {
+        p_user_id: userId,
+      });
 
       // If no password hash set yet, show setup. Otherwise ask for password.
-      if (!data?.creator_auth_password || !data?.creator_auth_enabled) {
-        setMode('setup');
-      } else {
+      if (status?.has_password && status?.enabled) {
         setMode('enter');
+      } else {
+        setMode('setup');
       }
       // Reset fields
       setPasswordInput('');

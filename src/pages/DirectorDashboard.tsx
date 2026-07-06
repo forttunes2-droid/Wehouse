@@ -4,12 +4,13 @@ import {
   getAllListingsAdmin, deleteListing, getReports,
 } from '@/lib/supabase';
 import UserProfileModal from '@/components/UserProfileModal';
+import { AnnouncementsTab } from './CreatorDashboard';
 import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
 
-// Constitution: Admin Tabs: Overview, Users, Workers, Property Partners, Staff, Listings, Bookings, Reports, Support, Verification
-type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification';
+// Constitution: Admin Tabs: Overview, Users, Workers, Property Partners, Staff, Listings, Bookings, Reports, Support, Verification, Announcements
+type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification' | 'announcements';
 
 interface Props {
   profile: Profile;
@@ -33,7 +34,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview','users','workers','partners','staff','listings','bookings','reports','support','verification'].includes(saved) ? saved as AdminTab : 'overview';
+      return saved && ['overview','users','workers','partners','staff','listings','bookings','reports','support','verification','announcements'].includes(saved) ? saved as AdminTab : 'overview';
     } catch { return 'overview'; }
   });
 
@@ -85,6 +86,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
     { id: 'reports' as AdminTab, label: 'Reports' },
     { id: 'support' as AdminTab, label: 'Support' },
     { id: 'verification' as AdminTab, label: 'Verify' },
+    { id: 'announcements' as AdminTab, label: 'Announcements' },
   ];
 
   return (
@@ -173,6 +175,7 @@ export default function DirectorDashboard({ profile, onLogout, onNavigate }: Pro
         {activeTab === 'reports' && <ReportsTabDirector />}
         {activeTab === 'support' && <SupportTabDirector />}
         {activeTab === 'verification' && <VerificationTabDirector refresh={refresh} />}
+        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
       </div>
 
       {/* User Profile Viewer */}
