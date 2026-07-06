@@ -33,8 +33,10 @@ const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
-// NOTE: Old standalone dashboards (Operations, Finance, WorkerVerification, FieldOfficer) are
-// deprecated. All staff use the unified StaffDashboard with permission-based tabs.
+// Finance Dashboard for finance staff — full platform financial monitoring
+const FinanceDashboard = lazy(() => import('@/pages/FinanceDashboard'));
+// Worker/Partner Wallet — balance, transactions, withdrawal
+const WorkerWallet = lazy(() => import('@/pages/WorkerWallet'));
 const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboard'));
 const MyBookings = lazy(() => import('@/pages/MyBookings'));
 const MyReservations = lazy(() => import('@/pages/MyReservations'));
@@ -398,12 +400,18 @@ export default function App() {
         return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} profile={profile} /> : null;
       case 'hotel_booking':
         return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
-      // Legacy permission dashboards — redirect all to unified staff dashboard
+      // Legacy permission dashboards
       case 'operations':
       case 'worker_verification':
-      case 'finance':
       case 'field_officer':
         return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
+      // Finance Dashboard — full financial monitoring for finance staff
+      case 'finance_dashboard':
+      case 'finance':
+        return <FinanceDashboard profile={profile} onLogout={auth.logout} />;
+      // Worker/Partner Wallet — balance, transactions, withdrawals
+      case 'worker_wallet':
+        return <WorkerWallet profile={profile} />;
       case 'property_owner':
       case 'property_partner':
         return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;

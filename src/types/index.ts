@@ -102,6 +102,12 @@ export interface Profile {
   updated_by: string | null;      // Who last updated
   // ── MAINTENANCE ───────────────────────────────────
   maintenance_exempt: boolean;     // Can login during maintenance mode (for testing)
+  // ── PAYMENT / PAYOUT ──────────────────────────────
+  bank_name: string | null;
+  bank_code: string | null;
+  bank_account_number: string | null;
+  paystack_subaccount_code: string | null;
+  paystack_transfer_recipient: string | null;
   // ── PREMIUM REMOVED ──────────────────────────────
   // No user-facing premium. Revenue from reservations, hotels, workers only.
 }

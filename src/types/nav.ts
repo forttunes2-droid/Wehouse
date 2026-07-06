@@ -25,6 +25,8 @@ export type NavPage =
   | 'operations'
   | 'worker_verification'
   | 'finance'
+  | 'finance_dashboard'
+  | 'worker_wallet'
   | 'field_officer'
   | 'property_owner'
   | 'property_partner'
