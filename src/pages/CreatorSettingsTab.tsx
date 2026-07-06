@@ -19,6 +19,17 @@ interface SettingDef {
   defaultValue: string;
 }
 
+interface DbSetting {
+  id: number;
+  key: string;
+  value: string;
+  category: string;
+  label: string;
+  description: string;
+  data_type: string;
+  is_active: boolean;
+}
+
 const SETTING_GROUPS = [
   {
     id: 'company',
@@ -152,50 +163,63 @@ export default function CreatorSettingsTab({ profile }: CreatorSettingsTabProps)
 // ═══════════════════════════════════════════════════════════════
 
 function PlatformSettings() {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [dbSettings, setDbSettings] = useState<DbSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState('company');
 
-  // Load all settings on mount
+  // Load all settings from database on mount
   useEffect(() => {
     loadAllSettings();
   }, []);
 
   async function loadAllSettings() {
     setLoading(true);
-
-    // Start with all defaults
-    const defaults: Record<string, string> = {};
-    SETTING_GROUPS.forEach(g => g.settings.forEach(s => { defaults[s.key] = s.defaultValue; }));
-
-    // Try to load from database
     try {
       const { data, error } = await supabase.rpc('get_platform_settings');
       if (!error && data && data.length > 0) {
-        data.forEach((row: any) => {
-          if (row.key && row.value !== null && row.value !== undefined) {
-            defaults[row.key] = String(row.value);
-          }
-        });
+        // Filter to only our known categories
+        const knownCategories = SETTING_GROUPS.map(g => g.id);
+        const filtered = (data as DbSetting[]).filter(s => knownCategories.includes(s.category));
+        if (filtered.length > 0) {
+          setDbSettings(filtered);
+          setLoading(false);
+          return;
+        }
       }
     } catch {
-      // RPC not available, use defaults
+      // RPC failed
     }
-
-    setValues(defaults);
+    // If DB load failed or returned nothing, seed from hardcoded defaults
+    const defaults: DbSetting[] = [];
+    SETTING_GROUPS.forEach(g => {
+      g.settings.forEach((s, i) => {
+        defaults.push({
+          id: i,
+          key: s.key,
+          value: s.defaultValue,
+          category: g.id,
+          label: s.label,
+          description: s.description,
+          data_type: s.type,
+          is_active: true,
+        });
+      });
+    });
+    setDbSettings(defaults);
     setLoading(false);
   }
 
   async function saveSetting(key: string, value: string) {
     setSaving(key);
     try {
+      // Try RPC first
       const { error } = await supabase.rpc('update_platform_setting', {
         p_key: key,
         p_value: value,
       });
       if (error) {
-        // If RPC fails, try direct table insert/update
+        // Fallback: direct table upsert
         const { error: upsertError } = await supabase
           .from('platform_settings')
           .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
@@ -205,12 +229,25 @@ function PlatformSettings() {
           return;
         }
       }
-      setValues(prev => ({ ...prev, [key]: value }));
+      setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
       toast.success('Saved');
     } catch (e: any) {
       toast.error('Save failed: ' + (e.message || 'Unknown error'));
     }
     setSaving(null);
+  }
+
+  // Map DB data_type to UI type
+  function dbTypeToUiType(dt: string): SettingDef['type'] {
+    switch (dt) {
+      case 'toggle': return 'toggle';
+      case 'textarea': return 'textarea';
+      case 'number': return 'number';
+      case 'email': return 'email';
+      case 'url': return 'url';
+      case 'color': return 'color';
+      default: return 'text';
+    }
   }
 
   if (loading) {
@@ -221,7 +258,9 @@ function PlatformSettings() {
     );
   }
 
-  const currentGroup = SETTING_GROUPS.find(g => g.id === activeGroup) || SETTING_GROUPS[0];
+  // Get unique categories from DB settings
+  const categories = [...new Set(dbSettings.map(s => s.category))];
+  const currentSettings = dbSettings.filter(s => s.category === activeGroup);
 
   return (
     <div className="space-y-4">
@@ -231,32 +270,50 @@ function PlatformSettings() {
 
       {/* Group Tabs */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-        {SETTING_GROUPS.map(g => (
-          <button
-            key={g.id}
-            onClick={() => setActiveGroup(g.id)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-              activeGroup === g.id
-                ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
-                : 'bg-[#12121A] text-[#5C5E72] hover:text-white'
-            }`}
-          >
-            {g.label}
-          </button>
-        ))}
+        {SETTING_GROUPS.map(g => {
+          const hasSettings = categories.includes(g.id);
+          return (
+            <button
+              key={g.id}
+              onClick={() => setActiveGroup(g.id)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                activeGroup === g.id
+                  ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
+                  : hasSettings
+                    ? 'bg-[#12121A] text-[#5C5E72] hover:text-white'
+                    : 'bg-[#12121A] text-[#3A3A4A] cursor-not-allowed'
+              }`}
+              disabled={!hasSettings}
+            >
+              {g.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Settings for active group */}
       <div className="space-y-3">
-        {currentGroup.settings.map(setting => (
+        {currentSettings.map(setting => (
           <SettingField
             key={setting.key}
-            def={setting}
-            value={values[setting.key] ?? setting.defaultValue}
+            def={{
+              key: setting.key,
+              label: setting.label,
+              description: setting.description,
+              type: dbTypeToUiType(setting.data_type),
+              defaultValue: setting.value,
+            }}
+            value={setting.value}
             saving={saving === setting.key}
             onSave={(val) => saveSetting(setting.key, val)}
           />
         ))}
+
+        {currentSettings.length === 0 && (
+          <div className="text-center py-10">
+            <p className="text-sm text-[#5C5E72]">No settings in this category</p>
+          </div>
+        )}
       </div>
     </div>
   );
