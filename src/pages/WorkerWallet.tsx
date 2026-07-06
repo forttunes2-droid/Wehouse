@@ -64,11 +64,18 @@ export default function WorkerWallet({ profile }: WorkerWalletProps) {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
     if (!wallet || amount > wallet.available_balance) { toast.error('Insufficient balance'); return; }
+    if (!profile.bank_code || !profile.bank_account_number) {
+      toast.error('Bank details not set. Add them in Profile Settings.');
+      return;
+    }
 
     setProcessing(true);
     const { data, error } = await supabase.rpc('create_withdrawal_request', {
       p_user_id: profile.user_id,
       p_amount: amount,
+      p_bank_name: profile.bank_name || '',
+      p_bank_code: profile.bank_code || '',
+      p_account_number: profile.bank_account_number || '',
     });
     setProcessing(false);
 
