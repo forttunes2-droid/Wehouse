@@ -200,8 +200,6 @@ export default function App() {
     return () => window.removeEventListener('error', handler);
   }, []);
 
-  if (error) return <ErrorFallback reset={() => { setError(null); window.location.reload(); }} />;
-
   // Load saved listings
   useEffect(() => {
     if (auth.profile?.user_id) {
@@ -323,6 +321,9 @@ export default function App() {
 
   const profile = auth.profile;
   if (!profile) return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;
+
+  // Show error fallback after all hooks have run
+  if (error) return <ErrorFallback reset={() => { setError(null); window.location.reload(); }} />;
 
   // ─── PAGE ROUTER ──────────────────────────────────
   const renderPage = () => {
