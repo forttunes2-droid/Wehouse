@@ -258,8 +258,8 @@ export default function Dashboard({
           )}
         </div>
 
-        {/* My Bookings */}
-        {onNavigate && (
+        {/* My Bookings — only for users and workers (the ones who book services) */}
+        {onNavigate && (profile.role === 'user' || profile.role === 'worker') && (
           <button
             onClick={() => onNavigate('my_bookings')}
             className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
@@ -289,8 +289,8 @@ export default function Dashboard({
           </button>
         )}
 
-        {/* My Reservations */}
-        {onNavigate && (
+        {/* My Reservations — only for users (the ones who book hotels) */}
+        {onNavigate && profile.role === 'user' && (
           <button
             onClick={() => onNavigate('my_reservations')}
             className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
