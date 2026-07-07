@@ -9,20 +9,28 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250722-001 -->
-    <script>window.WH_VERSION='20250722-001';</script>
-    <!-- Prevent any service worker from controlling this page -->
+    <!-- Version: 20250722-002 -->
+    <script>window.WH_VERSION='20250722-002';</script>
+    <!-- EMERGENCY: Unregister old service worker and reload fresh -->
     <script>
-      if ('serviceWorker' in navigator) {
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+        var reloaded = sessionStorage.getItem('sw_killed');
+        if (reloaded) { sessionStorage.removeItem('sw_killed'); return; }
         navigator.serviceWorker.getRegistrations().then(function(regs) {
-          regs.forEach(function(reg) { reg.unregister(); });
-        });
-        if (window.caches) {
-          caches.keys().then(function(names) {
-            names.forEach(function(name) { caches.delete(name); });
+          if (regs.length === 0) return;
+          var promises = regs.map(function(r) { return r.unregister(); });
+          if (window.caches) {
+            caches.keys().then(function(names) {
+              names.forEach(function(n) { caches.delete(n); });
+            });
+          }
+          Promise.all(promises).then(function() {
+            sessionStorage.setItem('sw_killed', '1');
+            window.location.reload();
           });
-        }
-      }
+        });
+      })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -55,28 +63,6 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Force service worker update on every load
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=20250721').then(function(reg) {
-          // Check for updates immediately
-          reg.update();
-          // If new worker is waiting, force it to activate
-          reg.addEventListener('updatefound', function() {
-            var newWorker = reg.installing;
-            newWorker.addEventListener('statechange', function() {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New version available, force activate
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-              }
-            });
-          });
-        }).catch(function() {});
-        // When new worker takes control, reload to get fresh code
-        navigator.serviceWorker.addEventListener('controllerchange', function() {
-          window.location.reload();
-        });
-      }
-    </script>
+
   </body>
 </html>

@@ -2,6 +2,7 @@ import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
 
 // ─── NATIVE INIT ──────────────────────────────────
@@ -29,7 +30,9 @@ function NativeInit() {
 // ─── RENDER ───────────────────────────────────────
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <NativeInit />
-    <App />
+    <ErrorBoundary>
+      <NativeInit />
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

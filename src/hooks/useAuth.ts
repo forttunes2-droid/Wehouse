@@ -197,7 +197,10 @@ export function useAuth() {
     if (processedAuthIdRef.current === authId) { console.log('[Auth] Dedup loadProfile', authId.slice(0,8)); return; }
     processedAuthIdRef.current = authId;
     try {
-      const { profile, error } = await getProfileByAuthId(authId);
+      // Get email from Supabase auth for fallback matching
+      const { data: userData } = await supabase.auth.getUser();
+      const email = userData?.user?.email;
+      const { profile, error } = await getProfileByAuthId(authId, email);
       if (error || !profile) { setState({ page: 'login', profile: null, isLoading: false, error: '' }); return; }
       const allowed = await allowEntry(profile);
       if (allowed) setState({ profile, page: determinePage(profile), isLoading: false, error: '' });

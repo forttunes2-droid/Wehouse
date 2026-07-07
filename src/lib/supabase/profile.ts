@@ -13,13 +13,30 @@ export async function getProfile(userId: string) {
   return { profile: data as Profile | null, error };
 }
 
-export async function getProfileByAuthId(authId: string) {
+export async function getProfileByAuthId(authId: string, email?: string) {
+  // Try auth_id match first
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('auth_id', authId)
     .maybeSingle();
-  return { profile: data as Profile | null, error };
+  if (data) return { profile: data as Profile | null, error: null };
+
+  // Fallback: match by email (for users with mismatched auth_id)
+  if (email) {
+    const { data: byEmail, error: emailErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
+    if (byEmail) {
+      // Link auth_id for future logins
+      await supabase.from('profiles').update({ auth_id: authId }).eq('user_id', byEmail.user_id);
+      return { profile: byEmail as Profile | null, error: null };
+    }
+  }
+
+  return { profile: null, error };
 }
 
 // Public agent info — only safe fields exposed to users viewing a listing
