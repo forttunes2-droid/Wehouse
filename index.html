@@ -11,35 +11,22 @@
     <meta http-equiv="Expires" content="-1" />
     <!-- Version: 20250722-002 -->
     <script>window.WH_VERSION='20250722-002';</script>
-    <!-- EMERGENCY: Force install kill-switch service worker -->
+    <!-- EMERGENCY: One-time cache kill -->
     <script>
       (function() {
         if (!('serviceWorker' in navigator)) return;
-        // Already reloaded after kill? Continue normally.
-        if (sessionStorage.getItem('sw_killed')) { sessionStorage.removeItem('sw_killed'); return; }
-        // Force register the kill-switch SW (triggers update check against old SW)
-        navigator.serviceWorker.register('/sw.js').then(function(reg) {
-          // Listen for new worker to activate
-          reg.addEventListener('updatefound', function() {
-            var newWorker = reg.installing;
-            newWorker.addEventListener('statechange', function() {
-              if (newWorker.state === 'activated') {
-                sessionStorage.setItem('sw_killed', '1');
-                window.location.reload();
-              }
-            });
-          });
-          // If kill-switch already active, reload fresh
-          if (reg.active && !reg.waiting && !reg.installing) {
-            reg.active.postMessage('KILL');
-          }
+        // Check if we already killed the old SW in this session
+        if (sessionStorage.getItem('sw_done')) return;
+        // Check if any SW is controlling this page
+        if (!navigator.serviceWorker.controller) return;
+        // Old SW is active - register kill-switch to replace it
+        navigator.serviceWorker.register('/sw.js').then(function() {
+          // Kill-switch will activate, clear caches, reload page, then unregister
+          sessionStorage.setItem('sw_done', '1');
         }).catch(function() {
-          // If registration fails, try manual unregister + reload
+          // Fallback: manual unregister
           navigator.serviceWorker.getRegistrations().then(function(regs) {
-            Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
-              sessionStorage.setItem('sw_killed', '1');
-              window.location.reload();
-            });
+            Promise.all(regs.map(function(r) { return r.unregister(); }));
           });
         });
       })();
