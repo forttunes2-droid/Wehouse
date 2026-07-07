@@ -157,12 +157,12 @@ export default function AnalyticsPage({ profile }: { profile: Profile | null }) 
     loadStats();
   }, [isCreator]);
 
-  const formatCurrency = (n: number) =>
-    n >= 1000000
-      ? `N${(n / 1000000).toFixed(1)}M`
-      : n >= 1000
-        ? `N${(n / 1000).toFixed(1)}K`
-        : `N${n.toLocaleString()}`;
+  const formatCurrency = (n: number) => {
+    if (n === 0) return 'N0.00';
+    if (n >= 1000000) return `N${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `N${(n / 1000).toFixed(1)}K`;
+    return `N${n.toLocaleString()}`;
+  };
 
   // Render different cards based on role
   const renderCards = () => {

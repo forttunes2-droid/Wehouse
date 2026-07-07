@@ -10,14 +10,25 @@ export default function CreatorAuthModal() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
 
-  // Check if password already set on mount
+  // Check if password already set on mount — localStorage first, SQL fallback
   useEffect(() => {
     if (!showModal) return;
     async function check() {
+      // Check localStorage (app-first password)
+      try {
+        const hasLocalPw = !!localStorage.getItem('wh_creator_pw_hash');
+        if (hasLocalPw) { setMode('enter'); setPasswordInput(''); setOldPassword(''); setConfirmPassword(''); setLocalError(''); return; }
+      } catch { /* ignore */ }
+
+      // Fallback: check SQL
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setMode('setup'); return; }
-      const { data } = await supabase.rpc('creator_auth_status_v3', { p_auth_id: user.id });
-      setMode(data?.has_password ? 'enter' : 'setup');
+      try {
+        const { data } = await supabase.rpc('creator_auth_status_v3', { p_auth_id: user.id });
+        setMode(data?.has_password ? 'enter' : 'setup');
+      } catch {
+        setMode('setup'); // SQL function may not exist
+      }
       setPasswordInput(''); setOldPassword(''); setConfirmPassword(''); setLocalError('');
     }
     check();

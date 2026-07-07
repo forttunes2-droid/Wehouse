@@ -197,10 +197,26 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
           {sentMessages.length === 0 && <p className="text-sm text-[#5C5E72] text-center py-8">No announcements yet</p>}
           {sentMessages.map((msg: any) => (
             <div key={msg.id} className="p-4 rounded-2xl bg-[#1A1A24] border border-[#2A2A3A]">
+              {/* Sender info */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[9px] font-bold">
+                  {(msg.sender_name || 'W').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-white">{msg.sender_name || 'WeHouse'}</p>
+                  <p className="text-[9px] text-[#5C5E72]">{msg.sender_role || 'System'}</p>
+                </div>
+                <span className="ml-auto text-[9px] text-[#5C5E72]">{new Date(msg.created_at).toLocaleString()}</span>
+              </div>
+              {/* Message content */}
               <p className="text-sm text-white whitespace-pre-wrap">{msg.content}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-[#5C5E72]">{new Date(msg.created_at).toLocaleString()}</span>
-                <button onClick={() => handleDeleteMessage(msg.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
+              {/* Target info */}
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.04]">
+                <span className="text-[9px] text-[#5C5E72]">
+                  {msg.target_type === 'all_users' ? 'Sent to all users' : `Sent to ${msg.target_type}`}
+                  {msg.scope_state && ` • ${msg.scope_state}${msg.scope_lga ? `, ${msg.scope_lga}` : ''}`}
+                </span>
+                {canSend && <button onClick={() => handleDeleteMessage(msg.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>}
               </div>
             </div>
           ))}
