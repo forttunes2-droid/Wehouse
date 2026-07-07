@@ -9,28 +9,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250721-001 -->
-    <script>window.WH_VERSION='20250721-001';</script>
-    <!-- NUCLEAR: Force unregister all old service workers -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          regs.forEach(function(reg) {
-            console.log('[SW] Unregistering old service worker:', reg.scope);
-            reg.unregister();
-          });
-        });
-        // Also clear all caches
-        if (window.caches) {
-          caches.keys().then(function(names) {
-            names.forEach(function(name) {
-              console.log('[SW] Deleting cache:', name);
-              caches.delete(name);
-            });
-          });
-        }
-      }
-    </script>
+    <!-- Version: 20250721-002 -->
+    <script>window.WH_VERSION='20250721-002';</script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
