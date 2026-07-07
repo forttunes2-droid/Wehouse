@@ -6,6 +6,8 @@ import { Toaster, toast } from 'sonner';
 interface HotelBookingProps {
   hotelId: number;
   roomId: number;
+  checkIn?: string;
+  checkOut?: string;
   profile: { user_id: string; username: string | null; phone: string | null };
   onBack: () => void;
   onComplete: () => void;
@@ -42,13 +44,13 @@ function StarRating({ value, onChange, size = 24 }: { value: number; onChange?: 
   );
 }
 
-export default function HotelBooking({ hotelId, roomId, profile, onBack, onComplete }: HotelBookingProps) {
+export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn, checkOut: prefillCheckOut, profile, onBack, onComplete }: HotelBookingProps) {
   const [room, setRoom] = useState<(HotelRoom & { hotels: Hotel }) | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Booking form
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
+  // Booking form — prefill dates if passed from HotelDetail (non-reservation flow)
+  const [checkIn, setCheckIn] = useState(prefillCheckIn || '');
+  const [checkOut, setCheckOut] = useState(prefillCheckOut || '');
   const [guestCount, setGuestCount] = useState(1);
   const [guestName, setGuestName] = useState(profile.username || '');
   const [guestPhone, setGuestPhone] = useState(profile.phone || '');

@@ -128,6 +128,17 @@ const SETTING_GROUPS = [
       { key: 'registration_open', label: 'Open Registration', description: 'Allow new signups', type: 'toggle', defaultValue: 'true' },
     ] as SettingDef[],
   },
+  {
+    id: 'hotel_reservation',
+    label: 'Hotel Reservation',
+    settings: [
+      { key: 'hotel_reservation_enabled', label: 'Hotel Reservation Enabled', description: 'Require reservation before hotel booking', type: 'toggle', defaultValue: 'false' },
+      { key: 'hotel_reservation_fee_type', label: 'Reservation Fee Type', description: 'fixed_amount or per_day', type: 'text', defaultValue: 'fixed_amount' },
+      { key: 'hotel_reservation_amount', label: 'Reservation Amount (N)', description: 'Reservation fee in Naira', type: 'number', defaultValue: '5000' },
+      { key: 'hotel_reservation_expiry_hours', label: 'Reservation Expiry (Hours)', description: 'Hours before reservation expires', type: 'number', defaultValue: '48' },
+      { key: 'hotel_reservation_refund_policy', label: 'Refund Policy', description: 'Refund policy for hotel reservations', type: 'textarea', defaultValue: 'Reservation fee is refundable if cancelled within 24 hours of booking.' },
+    ] as SettingDef[],
+  },
 ];
 
 // Build a flat map of all settings for quick lookup

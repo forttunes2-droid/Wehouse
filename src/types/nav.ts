@@ -33,6 +33,7 @@ export type NavPage =
   | 'hotels'
   | 'hotel_detail'
   | 'hotel_booking'
+  | 'hotel_reservation'
   | 'operations'
   | 'worker_verification'
   | 'finance'

@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { getHotelById, getHotelReviews, addHotelReview } from '@/lib/supabase';
 import type { Hotel, HotelRoom, HotelReview } from '@/types';
 import { Toaster, toast } from 'sonner';
+import { useHotelReservationSettings, calculateReservationFee } from '@/hooks/useHotelReservationSettings';
 
 interface HotelDetailProps {
   hotelId: number;
   onBack: () => void;
-  onBook: (hotelId: number, roomId: number) => void;
+  onBook: (hotelId: number, roomId: number, checkIn: string, checkOut: string) => void;
+  onReserve: (hotelId: number, roomId: number) => void; // Called when reservation mode is ON
   profile: { user_id: string; username: string | null };
 }
 
-export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelDetailProps) {
+export default function HotelDetail({ hotelId, onBack, onBook, onReserve, profile }: HotelDetailProps) {
   const [hotel, setHotel] = useState<(Hotel & { hotel_rooms: HotelRoom[] }) | null>(null);
   const [reviews, setReviews] = useState<(HotelReview & { profiles: { username: string | null; avatar_url: string | null } })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +23,13 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
+
+  // Date selection (for non-reservation flow)
+  const [checkIn, setCheckIn] = useState('');
+  const [checkOut, setCheckOut] = useState('');
+
+  // Hotel reservation settings from Creator
+  const reservationSettings = useHotelReservationSettings();
 
   useEffect(() => {
     loadHotel();
@@ -35,7 +44,6 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
       return;
     }
     setHotel(h);
-    // Load reviews
     const { reviews: r } = await getHotelReviews(hotelId);
     setReviews(r || []);
     if (h.hotel_rooms?.[0]) setSelectedRoom(h.hotel_rooms[0]);
@@ -47,21 +55,57 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
     setSubmittingReview(true);
     const { error } = await addHotelReview(hotelId, profile.user_id, reviewRating, reviewComment || undefined);
     setSubmittingReview(false);
-    if (error) {
-      toast.error('Failed to submit review');
-      return;
-    }
+    if (error) { toast.error('Failed to submit review'); return; }
     toast.success('Review submitted!');
     setShowReviewForm(false);
     setReviewComment('');
     setReviewRating(5);
-    // Refresh reviews
     const { reviews: r } = await getHotelReviews(hotelId);
     setReviews(r || []);
-    // Refresh hotel to get updated rating
     const { hotel: h } = await getHotelById(hotelId);
     if (h) setHotel(h);
   }
+
+  // Date helpers
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  const getMinCheckOut = () => {
+    if (!checkIn) return tomorrowStr;
+    const dayAfter = new Date(checkIn);
+    dayAfter.setDate(dayAfter.getDate() + 1);
+    return dayAfter.toISOString().split('T')[0];
+  };
+
+  const calculateNights = () => {
+    if (!checkIn || !checkOut) return 0;
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diff = end.getTime() - start.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const nights = calculateNights();
+  const totalPrice = selectedRoom && nights > 0 ? nights * selectedRoom.price_per_night : 0;
+  const reservationFee = reservationSettings.enabled
+    ? calculateReservationFee(reservationSettings, nights)
+    : 0;
+
+  // Handle proceed button
+  const handleProceed = () => {
+    if (!selectedRoom) return;
+
+    if (reservationSettings.enabled) {
+      // Reservation ON: go to reservation flow
+      onReserve(hotelId, selectedRoom.room_id);
+    } else {
+      // Reservation OFF: need dates first
+      if (!checkIn || !checkOut) { toast.error('Select check-in and check-out dates'); return; }
+      if (nights <= 0) { toast.error('Check-out must be after check-in'); return; }
+      onBook(hotelId, selectedRoom.room_id, checkIn, checkOut);
+    }
+  };
 
   if (loading) {
     return (
@@ -92,13 +136,9 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
       <div className="relative">
         <img src={images[currentImage]} alt={hotel.name} className="w-full aspect-[16/10] object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-
-        {/* Back button */}
         <button onClick={onBack} className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
         </button>
-
-        {/* Image dots */}
         {images.length > 1 && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
             {images.map((_, i) => (
@@ -115,35 +155,26 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
           <div>
             <h1 className="text-lg font-bold text-white">{hotel.name}</h1>
             <div className="flex items-center gap-1 mt-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-              </svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               <p className="text-xs text-[#5C5E72]">{hotel.city}, {hotel.state}{hotel.area ? ` · ${hotel.area}` : ''}</p>
             </div>
           </div>
           {hotel.rating > 0 && (
             <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B" stroke="none">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
               <span className="text-xs font-bold text-amber-400">{hotel.rating}</span>
             </div>
           )}
         </div>
 
-        {/* Description */}
-        {hotel.description && (
-          <p className="text-xs text-[#8B8DA0] leading-relaxed mb-4">{hotel.description}</p>
-        )}
+        {hotel.description && <p className="text-xs text-[#8B8DA0] leading-relaxed mb-4">{hotel.description}</p>}
 
         {/* Amenities */}
         <div className="mb-5">
           <h3 className="text-xs font-semibold text-white mb-2">Amenities</h3>
           <div className="flex flex-wrap gap-1.5">
             {displayedAmenities.map(a => (
-              <span key={a} className="text-[10px] font-medium text-[#8B8DA0] bg-[#1A1A24] border border-[#2A2A3A] px-2.5 py-1 rounded-full">
-                {a}
-              </span>
+              <span key={a} className="text-[10px] font-medium text-[#8B8DA0] bg-[#1A1A24] border border-[#2A2A3A] px-2.5 py-1 rounded-full">{a}</span>
             ))}
           </div>
           {allAmenities.length > 8 && (
@@ -156,9 +187,7 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
         {/* Address */}
         {hotel.address && (
           <div className="flex items-start gap-2 mb-5 p-3 rounded-xl bg-[#1A1A24] border border-[#2A2A3A]">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="mt-0.5 flex-shrink-0">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-            </svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="mt-0.5 flex-shrink-0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
             <p className="text-xs text-[#8B8DA0]">{hotel.address}</p>
           </div>
         )}
@@ -188,9 +217,7 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#3B82F6]">SELECTED</span>
                         )}
                       </div>
-                      {room.description && (
-                        <p className="text-[10px] text-[#5C5E72] mb-2">{room.description}</p>
-                      )}
+                      {room.description && <p className="text-[10px] text-[#5C5E72] mb-2">{room.description}</p>}
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1 text-[10px] text-[#8B8DA0]">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
@@ -203,7 +230,6 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
                           </span>
                         )}
                       </div>
-                      {/* Room amenities */}
                       {room.amenities && room.amenities.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {room.amenities.slice(0, 4).map(a => (
@@ -223,14 +249,74 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
           )}
         </div>
 
-        {/* Book Now Button */}
+        {/* ─── DATE SELECTION (only when reservation is OFF) ─── */}
+        {!reservationSettings.enabled && selectedRoom && (
+          <div className="mb-5 p-4 rounded-2xl bg-[#12121A] border border-[#2A2A3A]">
+            <h3 className="text-sm font-semibold text-white mb-3">Select Dates</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-[#5C5E72] mb-1 block">Check-in</label>
+                <input
+                  type="date"
+                  value={checkIn}
+                  min={tomorrowStr}
+                  onChange={(e) => { setCheckIn(e.target.value); if (checkOut && e.target.value >= checkOut) setCheckOut(''); }}
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-[#5C5E72] mb-1 block">Check-out</label>
+                <input
+                  type="date"
+                  value={checkOut}
+                  min={getMinCheckOut()}
+                  onChange={(e) => setCheckOut(e.target.value)}
+                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
+                />
+              </div>
+            </div>
+            {nights > 0 && (
+              <div className="mt-3 pt-3 border-t border-[#2A2A3A]">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-[#5C5E72]">{nights} night{nights !== 1 ? 's' : ''} × ₦{selectedRoom.price_per_night.toLocaleString()}</span>
+                  <span className="text-white font-semibold">₦{totalPrice.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── RESERVATION INFO (only when reservation is ON) ─── */}
+        {reservationSettings.enabled && selectedRoom && (
+          <div className="mb-5 p-4 rounded-2xl bg-[#3B82F6]/5 border border-[#3B82F6]/20">
+            <div className="flex items-start gap-2 mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <div>
+                <p className="text-xs font-semibold text-white">Reservation Required</p>
+                <p className="text-[10px] text-[#5C5E72] mt-0.5">
+                  A reservation fee of <span className="text-[#3B82F6] font-semibold">₦{reservationFee.toLocaleString()}</span> is required before booking.
+                  {reservationSettings.feeType === 'per_day' && ' (Per day rate)'}
+                </p>
+                <p className="text-[9px] text-[#5C5E72] mt-1">
+                  Expires in {reservationSettings.expiryHours} hours. {reservationSettings.refundPolicy}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── PROCEED BUTTON ─── */}
         {selectedRoom && (
           <button
-            onClick={() => onBook(hotel.hotel_id, selectedRoom.room_id)}
-            className="w-full h-13 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity py-3.5 flex items-center justify-center gap-2 mb-6"
+            onClick={handleProceed}
+            disabled={!reservationSettings.enabled && (!checkIn || !checkOut)}
+            className="w-full h-13 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity py-3.5 flex items-center justify-center gap-2 mb-6 disabled:opacity-40"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-            Book {selectedRoom.room_type} — ₦{selectedRoom.price_per_night.toLocaleString()}/night
+            {reservationSettings.enabled ? (
+              <>Proceed with Reservation — ₦{reservationFee.toLocaleString()}</>
+            ) : (
+              <>Proceed with Booking{nights > 0 ? ` — ₦${totalPrice.toLocaleString()}` : ''}</>
+            )}
           </button>
         )}
 
@@ -238,19 +324,15 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white">Reviews ({reviews.length})</h3>
-            <button
-              onClick={() => setShowReviewForm(!showReviewForm)}
-              className="text-[10px] text-[#3B82F6] font-medium"
-            >
+            <button onClick={() => setShowReviewForm(!showReviewForm)} className="text-[10px] text-[#3B82F6] font-medium">
               {showReviewForm ? 'Cancel' : 'Write a Review'}
             </button>
           </div>
 
-          {/* Review Form */}
           {showReviewForm && (
             <div className="glass rounded-2xl p-4 border border-[#2A2A3A] mb-4">
               <div className="flex items-center gap-1 mb-3">
-                {[1, 2, 3, 4, 5].map(star => (
+                {[1,2,3,4,5].map(star => (
                   <button key={star} onClick={() => setReviewRating(star)} className="p-0.5">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill={star <= reviewRating ? '#F59E0B' : 'none'} stroke={star <= reviewRating ? '#F59E0B' : '#5C5E72'} strokeWidth="1.5">
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -259,24 +341,15 @@ export default function HotelDetail({ hotelId, onBack, onBook, profile }: HotelD
                 ))}
                 <span className="text-xs text-[#5C5E72] ml-2">{reviewRating}/5</span>
               </div>
-              <textarea
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="Share your experience..."
-                rows={3}
-                className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3"
-              />
-              <button
-                onClick={handleSubmitReview}
-                disabled={submittingReview}
-                className="w-full h-9 rounded-xl bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40"
-              >
+              <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder="Share your experience..." rows={3}
+                className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3" />
+              <button onClick={handleSubmitReview} disabled={submittingReview}
+                className="w-full h-9 rounded-xl bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40">
                 {submittingReview ? 'Submitting...' : 'Submit Review'}
               </button>
             </div>
           )}
 
-          {/* Review List */}
           {reviews.length === 0 ? (
             <p className="text-xs text-[#5C5E72] text-center py-4">No reviews yet. Be the first to review!</p>
           ) : (

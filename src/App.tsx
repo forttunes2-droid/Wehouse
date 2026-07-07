@@ -36,6 +36,7 @@ const StaffDashboard = lazy(() => import('@/pages/StaffDashboard'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetail'));
 const HotelBooking = lazy(() => import('@/pages/HotelBooking'));
+const HotelReservation = lazy(() => import('@/pages/HotelReservation'));
 // Finance Dashboard for finance staff — full platform financial monitoring
 const FinanceDashboard = lazy(() => import('@/pages/FinanceDashboard'));
 // Worker/Partner Wallet — balance, transactions, withdrawal
@@ -113,6 +114,9 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [hotelId, setHotelId] = useState<number | null>(null);
   const [hotelRoomId, setHotelRoomId] = useState<number | null>(null);
+  const [hotelCheckIn, setHotelCheckIn] = useState<string>('');
+  const [hotelCheckOut, setHotelCheckOut] = useState<string>('');
+  const [hotelReservationMode, setHotelReservationMode] = useState<boolean>(false);
   const [chatConvId, setChatConvId] = useState<string | null>(null);
   const [workerCategory, setWorkerCategory] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -363,9 +367,10 @@ export default function App() {
   const goToPrivacy = useCallback(() => handleSetNavPage('privacy'), [handleSetNavPage]);
   const goToSecurity = useCallback(() => handleSetNavPage('security'), [handleSetNavPage]);
   const goToNewListing = useCallback(() => handleSetNavPage('new_listing'), [handleSetNavPage]);
-  const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); handleSetNavPage('hotels'); }, [handleSetNavPage]);
-  const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); handleSetNavPage('hotel_detail'); }, [handleSetNavPage]);
-  const goToHotelBooking = useCallback((hId: number, rId: number) => { setHotelId(hId); setHotelRoomId(rId); handleSetNavPage('hotel_booking'); }, [handleSetNavPage]);
+  const goToHotel = useCallback(() => { setHotelId(null); setHotelRoomId(null); setHotelCheckIn(''); setHotelCheckOut(''); setHotelReservationMode(false); handleSetNavPage('hotels'); }, [handleSetNavPage]);
+  const goToHotelDetail = useCallback((id: number) => { setHotelId(id); setHotelRoomId(null); setHotelCheckIn(''); setHotelCheckOut(''); setHotelReservationMode(false); handleSetNavPage('hotel_detail'); }, [handleSetNavPage]);
+  const goToHotelBooking = useCallback((hId: number, rId: number, checkIn?: string, checkOut?: string) => { setHotelId(hId); setHotelRoomId(rId); setHotelCheckIn(checkIn || ''); setHotelCheckOut(checkOut || ''); setHotelReservationMode(false); handleSetNavPage('hotel_booking'); }, [handleSetNavPage]);
+  const goToHotelReservation = useCallback((hId: number, rId: number) => { setHotelId(hId); setHotelRoomId(rId); setHotelCheckIn(''); setHotelCheckOut(''); setHotelReservationMode(true); handleSetNavPage('hotel_reservation'); }, [handleSetNavPage]);
 
   // ─── LOADING ──────────────────────────────────────
   if (auth.isLoading) {
@@ -500,9 +505,11 @@ export default function App() {
       case 'hotels':
         return <HotelsHome onNavigate={(p: string, id?: string) => p === 'hotel_detail' && id ? goToHotelDetail(Number(id)) : goTo(p as NavPage)} />;
       case 'hotel_detail':
-        return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} profile={profile} /> : null;
+        return hotelId ? <HotelDetail hotelId={hotelId} onBack={goToHotel} onBook={goToHotelBooking} onReserve={goToHotelReservation} profile={profile} /> : null;
       case 'hotel_booking':
-        return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
+        return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} checkIn={hotelCheckIn} checkOut={hotelCheckOut} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
+      case 'hotel_reservation':
+        return hotelId && hotelRoomId ? <HotelReservation hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onProceedToBooking={(hId, rId) => goToHotelBooking(hId, rId)} onComplete={goToHotel} /> : null;
       // Legacy permission dashboards
       case 'operations':
       case 'worker_verification':
