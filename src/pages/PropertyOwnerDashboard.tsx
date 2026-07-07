@@ -639,43 +639,92 @@ function MessagesTab({ profile }: { profile: Profile }) {
 function WalletTab({ profile }: { profile: Profile }) {
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
+    // Wallet balances
     const { data: w } = await supabase.from('wallets').select('*').eq('user_id', profile.user_id).maybeSingle();
     setWallet(w);
+    // Transaction history
     const { data: tx } = await supabase.from('wallet_transactions').select('*').eq('user_id', profile.user_id).order('created_at', { ascending: false }).limit(20);
     setTransactions(tx || []);
+    // Withdrawal history
+    const { data: wd } = await supabase.from('withdrawal_requests').select('*').eq('user_id', profile.user_id).order('created_at', { ascending: false }).limit(20);
+    setWithdrawals(wd || []);
     setLoading(false);
   }
 
   if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
 
-  const balance = wallet?.balance || 0;
+  // Per Constitution Part 5: Wallet contains Available Balance, Pending Balance, Total Earnings
+  const availableBalance = wallet?.balance || 0;
+  const pendingBalance = wallet?.pending_balance || 0;
+  const totalEarnings = wallet?.total_earnings || 0;
+
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-4">
-        <p className="text-[10px] text-[#5C5E72]">Wallet Balance</p>
-        <p className="text-2xl font-bold text-white mt-1">₦{balance.toLocaleString()}</p>
+      {/* Balance Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-4">
+          <p className="text-[10px] text-[#5C5E72] uppercase tracking-wide">Available</p>
+          <p className="text-xl font-bold text-white mt-1">₦{availableBalance.toLocaleString()}</p>
+          <p className="text-[9px] text-[#5C5E72] mt-0.5">Can withdraw</p>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 p-4">
+          <p className="text-[10px] text-[#5C5E72] uppercase tracking-wide">Pending</p>
+          <p className="text-xl font-bold text-white mt-1">₦{pendingBalance.toLocaleString()}</p>
+          <p className="text-[9px] text-[#5C5E72] mt-0.5">Processing</p>
+        </div>
       </div>
-      {transactions.length === 0 ? (
-        <EmptyState icon="M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22" title="No transactions yet" />
-      ) : (
-        <div className="space-y-2">
-          {transactions.map((tx: any) => (
-            <div key={tx.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white capitalize">{tx.type}</p>
-                <p className="text-[9px] text-[#5C5E72]">{new Date(tx.created_at).toLocaleDateString()}</p>
+      <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20 p-4">
+        <p className="text-[10px] text-[#5C5E72] uppercase tracking-wide">Total Earnings</p>
+        <p className="text-2xl font-bold text-white mt-1">₦{totalEarnings.toLocaleString()}</p>
+      </div>
+
+      {/* Transaction History */}
+      <div>
+        <h4 className="text-xs font-semibold text-white mb-2">Transaction History</h4>
+        {transactions.length === 0 ? (
+          <p className="text-[10px] text-[#5C5E72] py-4 text-center">No transactions yet</p>
+        ) : (
+          <div className="space-y-2">
+            {transactions.map((tx: any) => (
+              <div key={tx.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-white capitalize">{tx.type?.replace(/_/g, ' ')}</p>
+                  <p className="text-[9px] text-[#5C5E72]">{new Date(tx.created_at).toLocaleDateString()}</p>
+                </div>
+                <span className={`text-xs font-bold ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {tx.amount > 0 ? '+' : ''}₦{Math.abs(tx.amount).toLocaleString()}
+                </span>
               </div>
-              <span className={`text-xs font-bold ${tx.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {tx.amount > 0 ? '+' : ''}₦{Math.abs(tx.amount).toLocaleString()}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Withdrawal History */}
+      {withdrawals.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-white mb-2">Withdrawal History</h4>
+          <div className="space-y-2">
+            {withdrawals.map((wd: any) => (
+              <div key={wd.id} className="rounded-xl bg-[#12121A]/60 border border-white/[0.04] p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-white">Withdrawal</p>
+                  <p className="text-[9px] text-[#5C5E72]">{wd.bank_name} • {new Date(wd.created_at).toLocaleDateString()}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-red-400">-₦{wd.amount.toLocaleString()}</span>
+                  <p className={`text-[9px] capitalize ${wd.status === 'completed' ? 'text-emerald-400' : wd.status === 'processing' ? 'text-amber-400' : 'text-[#5C5E72]'}`}>{wd.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -702,16 +751,48 @@ function WithdrawTab({ profile }: { profile: Profile }) {
     const amt = parseFloat(amount);
     if (!amt || amt < 1000) { toast.error('Minimum withdrawal is ₦1,000'); return; }
     if (!bankName || !accountNumber || !accountName) { toast.error('Please fill all bank details'); return; }
+
+    // CRITICAL: Verify available balance per Constitution Part 5
+    if (amt > available) { toast.error(`Insufficient balance. Available: ₦${available.toLocaleString()}`); return; }
+
     setProcessing(true);
+
+    // 1. Deduct from wallet immediately
+    const { error: walletErr } = await supabase.rpc('deduct_wallet_balance', {
+      p_user_id: profile.user_id,
+      p_amount: amt,
+    });
+
+    if (walletErr) {
+      toast.error('Failed to process withdrawal: ' + walletErr.message);
+      setProcessing(false);
+      return;
+    }
+
+    // 2. Record withdrawal request
     await supabase.from('withdrawal_requests').insert({
       user_id: profile.user_id,
       amount: amt,
       bank_name: bankName,
       account_number: accountNumber,
       account_name: accountName,
-      status: 'pending',
+      status: 'processing', // processing → paystack will handle transfer
     });
-    toast.success('Withdrawal request submitted');
+
+    // 3. Record transaction
+    await supabase.from('transactions').insert({
+      user_id: profile.user_id,
+      type: 'withdrawal',
+      amount: amt,
+      status: 'completed',
+      description: `Wallet withdrawal to ${bankName} (${accountNumber})`,
+    });
+
+    // 4. Refresh wallet
+    const { data: updatedWallet } = await supabase.from('wallets').select('*').eq('user_id', profile.user_id).maybeSingle();
+    setWallet(updatedWallet);
+
+    toast.success(`₦${amt.toLocaleString()} withdrawal processed`);
     setAmount('');
     setProcessing(false);
   }
