@@ -322,7 +322,7 @@ export function useAuth() {
       createUserSession(newProfile.user_id, authId).catch(() => {});
     } catch (e: any) {
       console.error('[Auth] handleLoginSuccess crashed:', e);
-      setState({ page: 'login', profile: null, isLoading: false, error: 'Login failed: ' + (e?.message || 'Unknown error. Please try again.') });
+      setState({ page: 'login', profile: null, isLoading: false, error: 'Login failed. Please try again.' });
     } finally {
       handlingLoginRef.current = false;
     }

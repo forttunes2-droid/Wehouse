@@ -9,62 +9,37 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250707-007 -->
-    <script>window.WH_VERSION='20250707-007';</script>
-
-    <!-- EMERGENCY: Kill old service worker + clear caches -->
+    <!-- Version: 20250707-008 -->
+    <script>window.WH_VERSION='20250707-008';</script>
+    <!-- EMERGENCY: One-time cache kill -->
     <script>
       (function() {
-        // Already cleared this session — let React load normally
-        if (sessionStorage.getItem('wh_cleared')) return;
-
-        // No service worker support or no SW controlling this page
-        if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
-          // Still mark as cleared so we don't check again this session
-          sessionStorage.setItem('wh_cleared', '1');
-          return;
-        }
-
-        // OLD SW IS ACTIVE — kill it before React loads
-        // 1. Hide React root so stale app doesn't render
-        document.documentElement.style.display = 'none';
-
-        // 2. Mark that we're clearing (prevents loop on reload)
-        sessionStorage.setItem('wh_cleared', '1');
-
-        // 3. Unregister ALL existing SWs, then register new kill-switch SW
-        //    The new SW takes over via skipWaiting + clients.claim,
-        //    clears all caches, then self-destructs.
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          return Promise.all(regs.map(function(r) { return r.unregister(); }));
-        }).then(function() {
-          // Register new kill-switch SW — it will take over immediately
-          return navigator.serviceWorker.register('/sw.js');
-        }).catch(function(err) {
-          // Registration failed — fall back to just clearing caches
-          console.error('[KillSwitch] SW registration failed:', err);
-          if ('caches' in window) {
-            return caches.keys().then(function(names) {
-              return Promise.all(names.map(function(n) { return caches.delete(n); }));
-            });
-          }
-        }).then(function() {
-          // Give the new SW 1 second to activate, claim, and clear caches
-          setTimeout(function() {
-            // Hard reload — bypasses any remaining cache
-            window.location.reload(true);
-          }, 1000);
+        if (!('serviceWorker' in navigator)) return;
+        // Check if we already killed the old SW in this session
+        if (sessionStorage.getItem('sw_done')) return;
+        // Check if any SW is controlling this page
+        if (!navigator.serviceWorker.controller) return;
+        // Old SW is active - register kill-switch to replace it
+        navigator.serviceWorker.register('/sw.js').then(function() {
+          // Kill-switch will activate, clear caches, reload page, then unregister
+          sessionStorage.setItem('sw_done', '1');
+        }).catch(function() {
+          // Fallback: manual unregister
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            Promise.all(regs.map(function(r) { return r.unregister(); }));
+          });
         });
       })();
     </script>
-
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="WeHouse" />
     <meta name="msapplication-TileColor" content="#0A0A0F" />
     <meta name="msapplication-tap-highlight" content="no" />
+
+    <!-- No PWA manifest - prevents service worker caching -->
 
     <!-- Icons -->
     <link rel="icon" type="image/png" href="/icon-192.png" />
@@ -77,7 +52,9 @@
     <title>WeHouse</title>
 
     <style>
+      /* Prevent flash of white on load */
       html, body { background: #0A0A0F; }
+      /* Safe area padding for notched devices */
       .safe-area-top { padding-top: env(safe-area-inset-top); }
       .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
@@ -85,5 +62,6 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
   </body>
 </html>
