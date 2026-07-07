@@ -5,7 +5,7 @@ import {
 } from '@/lib/supabase';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
-import { AnnouncementsTab } from './CreatorDashboard';
+import { AnnouncementsTab } from '@/components/AnnouncementsTab';
 import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
