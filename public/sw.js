@@ -1,6 +1,6 @@
 // WeHouse Service Worker — Auto-updates on every deployment
 // Cache version changes on every build to force fresh content
-const CACHE_VERSION = '20250720';
+const CACHE_VERSION = '20250721';
 const CACHE_NAME = `wehouse-${CACHE_VERSION}`;
 
 // Install: claim clients immediately

@@ -9,8 +9,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250707-001 -->
-    <script>window.WH_VERSION='20250707-001';</script>
+    <!-- Version: 20250721-001 -->
+    <script>window.WH_VERSION='20250721-001';</script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
@@ -46,7 +46,7 @@
     <script>
       // Force service worker update on every load
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+        navigator.serviceWorker.register('/sw.js?v=20250721').then(function(reg) {
           // Check for updates immediately
           reg.update();
           // If new worker is waiting, force it to activate
