@@ -9,26 +9,48 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250707-003 -->
-    <script>window.WH_VERSION='20250707-003';</script>
-    <!-- EMERGENCY: One-time cache kill -->
+    <!-- Version: 20250707-004 -->
+    <script>window.WH_VERSION='20250707-004';</script>
+    <!-- EMERGENCY: Nuclear cache kill — works on ALL devices including iOS Safari -->
     <script>
       (function() {
-        if (!('serviceWorker' in navigator)) return;
-        // Check if we already killed the old SW in this session
-        if (sessionStorage.getItem('sw_done')) return;
-        // Check if any SW is controlling this page
-        if (!navigator.serviceWorker.controller) return;
-        // Old SW is active - register kill-switch to replace it
-        navigator.serviceWorker.register('/sw.js').then(function() {
-          // Kill-switch will activate, clear caches, reload page, then unregister
-          sessionStorage.setItem('sw_done', '1');
-        }).catch(function() {
-          // Fallback: manual unregister
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            Promise.all(regs.map(function(r) { return r.unregister(); }));
+        // Only run once per session to prevent infinite reloads
+        if (sessionStorage.getItem('wh_nuked')) return;
+        sessionStorage.setItem('wh_nuked', '1');
+
+        var hasSW = 'serviceWorker' in navigator;
+        var hasCache = 'caches' in window;
+
+        function nuke() {
+          var promises = [];
+
+          // 1. Unregister ALL service workers
+          if (hasSW) {
+            promises.push(
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                return Promise.all(regs.map(function(r) { return r.unregister(); }));
+              })
+            );
+          }
+
+          // 2. Delete ALL caches
+          if (hasCache) {
+            promises.push(
+              caches.keys().then(function(names) {
+                return Promise.all(names.map(function(n) { return caches.delete(n); }));
+              })
+            );
+          }
+
+          // 3. Always reload — even if promises fail
+          return Promise.all(promises).catch(function() {}).then(function() {
+            // Hard reload with cache bypass
+            window.location.reload(true);
           });
-        });
+        }
+
+        // Run immediately
+        nuke();
       })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
