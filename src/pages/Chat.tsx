@@ -947,13 +947,21 @@ function getTimeAgo(isoDate: string): string {
                 onClick={async () => {
                   const convId = deleteTarget.id;
                   if (deleteTarget.type === 'conv') {
-                    await deleteConversation(convId, profile.user_id);
-                    loadConversations();
-                    setActiveConv(ac => ac && (ac as any).id === convId ? null : ac);
+                    const { error } = await deleteConversation(convId, profile.user_id);
+                    if (error) {
+                      toast.error('Failed to delete conversation');
+                    } else {
+                      toast.success('Conversation deleted');
+                      loadConversations();
+                      setActiveConv(ac => ac && (ac as any).id === convId ? null : ac);
+                    }
                   } else {
                     const { error } = await deleteMessage(convId);
-                    if (error) toast.error('Failed to delete');
-                    else setMessages(prev => prev.filter(m => m.id !== convId));
+                    if (error) toast.error('Failed to delete message');
+                    else {
+                      toast.success('Message deleted');
+                      setMessages(prev => prev.filter(m => m.id !== convId));
+                    }
                   }
                   setShowDeleteModal(false);
                 }}

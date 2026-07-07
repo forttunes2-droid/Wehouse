@@ -354,9 +354,17 @@ export function useAuth() {
     const sessionId = getStoredSessionId();
     if (sessionId) await deactivateUserSession(sessionId).catch(() => {});
     if (userId && authId) await endSession(userId, authId).catch(() => {});
-    await supabase.auth.signOut({ scope: 'global' }); await wipeOnLogout();
+    // Mark that WE are triggering sign-out so the SIGNED_OUT event
+    // listener skips its own cleanup — prevents double wipeOnLogout
+    weTriggeredSignOutRef.current = true;
+    // Reset all internal auth refs so the next login starts fresh
+    processedAuthIdRef.current = null;
+    handlingLoginRef.current = false;
+    await supabase.auth.signOut({ scope: 'global' });
+    await wipeOnLogout();
     setState({ page: 'login', profile: null, isLoading: false, error: '', kickedOut: false });
-    setTimeout(() => window.location.reload(), 100);
+    // Hard reload with cache bypass — ensures no stale state from bfcache
+    setTimeout(() => { window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now(); }, 300);
   }, [state.profile]);
 
   // ─── Session heartbeat (no aggressive kicking) ───

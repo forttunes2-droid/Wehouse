@@ -243,18 +243,22 @@ export async function getOrCreateConversation(userA: string, userB: string, list
   return createConversation(userA, userB, listingId, conversationType, subject);
 }
 
-// Delete a conversation (soft delete — marks as deleted for the requesting user)
-export async function deleteConversation(conversationId: string, _userId: string) {
-  // For direct conversations: delete the conversation entirely
-  // For support chats: just mark messages as seen and clear unread
+// Delete a conversation — verifies user is a participant first
+export async function deleteConversation(conversationId: string, userId: string) {
+  // Verify the user is actually a participant in this conversation
   const { data: conv } = await supabase
     .from('conversations')
-    .select('conversation_type')
+    .select('conversation_type, participant_a, participant_b')
     .eq('id', conversationId)
     .maybeSingle();
 
-  if (conv?.conversation_type === 'direct') {
-    // Hard delete direct conversations
+  if (!conv) return { error: new Error('Conversation not found') };
+
+  const isParticipant = conv.participant_a === userId || conv.participant_b === userId;
+  if (!isParticipant) return { error: new Error('Not a participant') };
+
+  if (conv.conversation_type === 'direct') {
+    // Delete messages first, then the conversation
     await supabase.from('messages').delete().eq('conversation_id', conversationId);
     const { error } = await supabase.from('conversations').delete().eq('id', conversationId);
     return { error };
