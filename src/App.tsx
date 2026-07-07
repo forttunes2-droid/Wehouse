@@ -121,6 +121,79 @@ export default function App() {
   const canList = canCreateListings(auth.profile?.role || '');
   const isCreator = checkCreator(auth.profile?.role || '');
 
+  // Role flags — must be computed before any conditional returns
+  const profile = auth.profile;
+  const userRole = profile?.role || '';
+  const isStaffRole = userRole === 'staff';
+  const isAdminRole = userRole === 'admin';
+  const isPropertyPartner = userRole === 'property_partner';
+  const isWorkerRole = userRole === 'worker';
+  const isUserRole = userRole === 'user';
+  const isCreatorRole = checkCreator(userRole);
+  const canAccessRoommate = isUserRole;
+
+  // ── Bottom nav tabs — MUST be before any conditional returns (React hooks rule)
+  const tabs = useMemo(() => {
+    // CREATOR
+    if (isCreatorRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // ADMIN
+    if (isAdminRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // STAFF
+    if (isStaffRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // WORKER
+    if (isWorkerRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'jobs' as NavPage, label: 'Jobs', icon: BriefcaseSvg },
+        { id: 'calendar' as NavPage, label: 'Calendar', icon: CalendarSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // PROPERTY PARTNER
+    if (isPropertyPartner) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'properties' as NavPage, label: 'Properties', icon: BuildingSvg },
+        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // USER (default)
+    return [
+      { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+      { id: 'explore' as NavPage, label: 'Explore', icon: ExploreSvg },
+      { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
+      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
+      { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+    ];
+  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
+
   // ─── Validate restored page against user role ─────
   // Runs ONCE after auth loads — prevents redirect loops
   const validatedRef = useRef(false);
@@ -319,7 +392,6 @@ export default function App() {
     return <WorkerSetup profile={auth.profile} onComplete={() => { auth.handleSetupComplete(auth.profile!); }} />;
   }
 
-  const profile = auth.profile;
   if (!profile) return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;
 
   // Show error fallback after all hooks have run
@@ -472,83 +544,8 @@ export default function App() {
     }
   };
 
-  // ── Role flags ──
-  const userRole = profile?.role || '';
-  const isStaffRole = userRole === 'staff';
-  const isAdminRole = userRole === 'admin';
-  const isPropertyPartner = userRole === 'property_partner';
-  const isWorkerRole = userRole === 'worker';
-  const isUserRole = userRole === 'user';
-  const isCreatorRole = checkCreator(userRole);
-  const canAccessRoommate = isUserRole;
-
   // ── Bottom nav per Constitution — EXACT 5 tabs per role ──
-  // User:       Home | Explore | Saved | Messages | Account
-  // Worker:     Home | Jobs    | Calendar | Messages | Account
-  // Partner:    Home | Properties | Messages | Wallet | Account
-  // Staff:      Home | Management | Analytics | Messages | Account
-  // Admin:      Home | Management | Analytics | Messages | Account
-  // Creator:    Home | Management | Analytics | Messages | Account
-  const tabs = useMemo(() => {
-    // CREATOR
-    if (isCreatorRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // ADMIN
-    if (isAdminRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // STAFF
-    if (isStaffRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // WORKER
-    if (isWorkerRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'jobs' as NavPage, label: 'Jobs', icon: BriefcaseSvg },
-        { id: 'calendar' as NavPage, label: 'Calendar', icon: CalendarSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // PROPERTY PARTNER
-    if (isPropertyPartner) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'properties' as NavPage, label: 'Properties', icon: BuildingSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // USER (default)
-    return [
-      { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-      { id: 'explore' as NavPage, label: 'Explore', icon: ExploreSvg },
-      { id: 'saved' as NavPage, label: 'Saved', icon: BookmarkSvg },
-      { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-      { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-    ];
-  }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
+  // (tabs computed earlier to satisfy React hooks rules)
 
   return (
     <CreatorAuthProvider>
