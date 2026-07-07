@@ -9,8 +9,21 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250721-002 -->
-    <script>window.WH_VERSION='20250721-002';</script>
+    <!-- Version: 20250722-001 -->
+    <script>window.WH_VERSION='20250722-001';</script>
+    <!-- Prevent any service worker from controlling this page -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) { reg.unregister(); });
+        });
+        if (window.caches) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) { caches.delete(name); });
+          });
+        }
+      }
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
@@ -19,8 +32,7 @@
     <meta name="msapplication-TileColor" content="#0A0A0F" />
     <meta name="msapplication-tap-highlight" content="no" />
 
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- No PWA manifest - prevents service worker caching -->
 
     <!-- Icons -->
     <link rel="icon" type="image/png" href="/icon-192.png" />
