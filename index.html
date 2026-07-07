@@ -9,48 +9,47 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250707-005 -->
-    <script>window.WH_VERSION='20250707-005';</script>
-    <!-- EMERGENCY: Nuclear cache kill — works on ALL devices including iOS Safari -->
+    <!-- Version: 20250707-006 -->
+    <script>window.WH_VERSION='20250707-006';</script>
+    <!-- EMERGENCY: Cache kill — retries up to 3x with cache-busting URL -->
     <script>
       (function() {
-        // Only run once per session to prevent infinite reloads
-        if (sessionStorage.getItem('wh_nuked')) return;
-        sessionStorage.setItem('wh_nuked', '1');
+        var count = parseInt(sessionStorage.getItem('wh_kill_count') || '0');
 
-        var hasSW = 'serviceWorker' in navigator;
-        var hasCache = 'caches' in window;
-
-        function nuke() {
+        function clearAll() {
           var promises = [];
-
-          // 1. Unregister ALL service workers
-          if (hasSW) {
+          if ('serviceWorker' in navigator) {
             promises.push(
               navigator.serviceWorker.getRegistrations().then(function(regs) {
                 return Promise.all(regs.map(function(r) { return r.unregister(); }));
               })
             );
           }
-
-          // 2. Delete ALL caches
-          if (hasCache) {
+          if ('caches' in window) {
             promises.push(
               caches.keys().then(function(names) {
                 return Promise.all(names.map(function(n) { return caches.delete(n); }));
               })
             );
           }
-
-          // 3. Always reload — even if promises fail
-          return Promise.all(promises).catch(function() {}).then(function() {
-            // Hard reload with cache bypass
-            window.location.reload(true);
-          });
+          return Promise.all(promises).catch(function() {});
         }
 
-        // Run immediately
-        nuke();
+        // Always clear SWs/caches silently (fast, no reload needed)
+        clearAll();
+
+        // If old SW might still be serving stale HTML, force a fresh load
+        // (up to 3 attempts, each with a unique cache-busting URL)
+        if (count < 3) {
+          sessionStorage.setItem('wh_kill_count', String(count + 1));
+          var url = window.location.href.split('?')[0].split('#')[0];
+          var sep = url.indexOf('?') === -1 ? '?' : '&';
+          var freshUrl = url + sep + '_fresh=' + Date.now();
+          // Use replace so back button doesn't loop
+          setTimeout(function() {
+            window.location.replace(freshUrl);
+          }, 100);
+        }
       })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
