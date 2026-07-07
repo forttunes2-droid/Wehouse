@@ -27,7 +27,7 @@ interface WorkerDashboardProps {
 }
 
 // Worker tabs per Constitution: Overview, Bookings, Calendar, Wallet, Withdraw, Reviews, Services, Availability, Messages, Notifications, Verification Status, Profile, Settings
-type WorkerTab = 'overview' | 'bookings' | 'calendar' | 'wallet' | 'withdraw' | 'reviews' | 'services' | 'availability' | 'messages' | 'notifications' | 'verification_status' | 'profile' | 'support' | 'settings';
+type WorkerTab = 'overview' | 'bookings' | 'calendar' | 'wallet' | 'withdraw' | 'reviews' | 'services' | 'availability' | 'messages' | 'notifications' | 'verification_status' | 'profile' | 'settings';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; desc: string; icon: string }> = {
   pending: {
@@ -207,7 +207,6 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
         {activeTab === 'messages' && <MessagesTab profile={profile} onGoToChat={onGoToChat} />}
         {activeTab === 'notifications' && <NotificationsTab userId={profile.user_id} />}
         {activeTab === 'profile' && <ProfileTab profile={profile} onGoToSetup={onGoToSetup} />}
-        {activeTab === 'support' && <SupportTab />}
         {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={(_p) => {}} />}
       </main>
     </div>

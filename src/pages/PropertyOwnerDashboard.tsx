@@ -53,7 +53,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
       .from('listings')
       .select('*')
       .or(`partner_id.eq.${profile.user_id},owner_id.eq.${profile.user_id}`)
-      .eq('status', 'available')
+      .eq('availability_status', 'available')
       .order('created_at', { ascending: false });
     setProperties(props || []);
 
@@ -66,7 +66,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
     setInspections(insps || []);
 
     // Load bookings for partner's properties
-    const propertyIds = (props || []).map((p: any) => p.listing_id).filter(Boolean);
+    const propertyIds = (props || []).map((p: any) => p.id).filter(Boolean);
     if (propertyIds.length > 0) {
       const { data: bks } = await supabase
         .from('reservations')

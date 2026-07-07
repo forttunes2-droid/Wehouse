@@ -327,6 +327,26 @@ export default function App() {
   // ─── PAGE ROUTER ──────────────────────────────────
   const renderPage = () => {
     const props = { profile, savedIds, onToggleSave: handleToggleSave };
+
+    // ─── ROLE GUARDS: prevent unauthorized access to role-specific pages ──
+    const roleGuards: Record<string, boolean> = {
+      creator: isCreatorRole,
+      admin: isAdminRole,
+      staff_dashboard: isStaffRole,
+      worker_dashboard: isWorkerRole,
+      property_partner: isPropertyPartner,
+      management: isCreatorRole || isAdminRole || isStaffRole,
+      analytics: isCreatorRole || isAdminRole || isStaffRole,
+      jobs: isWorkerRole,
+      calendar: isWorkerRole,
+      properties: isPropertyPartner,
+    };
+    if (roleGuards[navPage] === false) {
+      toast.error('You do not have permission to access this page');
+      handleSetNavPage('home');
+      return null;
+    }
+
     switch (navPage) {
       case 'home':
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={canList} onGoToNewListing={goToNewListing} />;
