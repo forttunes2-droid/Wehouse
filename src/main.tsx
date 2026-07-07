@@ -26,6 +26,20 @@ function NativeInit() {
   return null;
 }
 
+// ─── SERVICE WORKER KILL SWITCH ──────────────────
+// Installs a one-time SW that wipes all caches and unregisters itself
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => {
+        console.log('[SW Kill Switch] Registered');
+        // Force update check
+        reg.update();
+      })
+      .catch(() => {});
+  });
+}
+
 // ─── RENDER ───────────────────────────────────────
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
