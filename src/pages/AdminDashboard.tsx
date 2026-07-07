@@ -6,6 +6,7 @@ import {
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
 import { AnnouncementsTab } from '@/components/AnnouncementsTab';
+import BookingsTab from './BookingsTab';
 import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -53,9 +54,11 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
 
   useEffect(() => {
     async function loadStats() {
-      const [userRes, listingRes] = await Promise.all([
+      const [userRes, listingRes, bookingsRes, reportsRes] = await Promise.all([
         getAllUsers(),
         getAllListingsAdmin(),
+        supabase.from('worker_bookings').select('*', { count: 'exact', head: true }),
+        getReports(),
       ]);
       const users = userRes.users || [];
       const listings = listingRes.listings || [];
@@ -67,8 +70,8 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         partners: users.filter((u: any) => isActive(u) && u.role === 'property_partner').length,
         staff: users.filter((u: any) => isActive(u) && u.role === 'staff').length,
         listings: listings.length,
-        bookings: 0, // TODO: from bookings table
-        reports: 0,  // TODO: from reports
+        bookings: bookingsRes.count || 0,
+        reports: reportsRes.reports?.length || 0,
         pendingVerifications: users.filter((u: any) => isActive(u) && u.role === 'worker' && u.worker_status === 'pending').length,
       });
     }
@@ -172,7 +175,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         {activeTab === 'partners' && <PartnersTabDirector onViewUser={setViewingUser} />}
         {activeTab === 'staff' && <StaffTabDirector profile={profile} />}
         {activeTab === 'listings' && <ListingsTabDirector refresh={refresh} />}
-        {activeTab === 'bookings' && <BookingsTabDirector />}
+        {activeTab === 'bookings' && <BookingsTab />}
         {activeTab === 'reports' && <ReportsTabDirector />}
         {activeTab === 'support' && <SupportTabDirector />}
         {activeTab === 'verification' && <VerificationTabDirector refresh={refresh} />}
@@ -444,15 +447,6 @@ function ListingsTabDirector({ refresh }: { refresh: () => void }) {
 // ═══════════════════════════════════════════════════════════
 // BOOKINGS TAB (placeholder)
 // ═══════════════════════════════════════════════════════════
-function BookingsTabDirector() {
-  return (
-    <div className="text-center py-10">
-      <p className="text-sm text-[#5C5E72]">Bookings management coming soon</p>
-      <p className="text-[10px] text-[#3A3A4A] mt-2">View and manage all platform bookings</p>
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════
 // REPORTS TAB
 // ═══════════════════════════════════════════════════════════
