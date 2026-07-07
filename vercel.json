@@ -14,19 +14,6 @@
         {
           "key": "Expires",
           "value": "0"
-        },
-        {
-          "key": "Clear-Site-Data",
-          "value": "\"cache\", \"storage\""
-        }
-      ]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate, max-age=0"
         }
       ]
     }
