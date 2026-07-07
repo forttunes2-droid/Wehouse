@@ -199,11 +199,28 @@ function StaffStats({ profile, permissions }: { profile: Profile; permissions: s
 function OverviewModule({ profile, permissions, onGoToChat: _onGoToChat, onNavigate: _onNavigate, onSetTab }: {
   profile: Profile; permissions: string[]; onGoToChat: (c?: string) => void; onNavigate?: (p: string) => void; onSetTab: (t: StaffTab) => void;
 }) {
+  // Staff with NO assigned modules — show clear message per Constitution
+  if (permissions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <h2 className="text-sm font-semibold text-white mb-2">No Modules Assigned</h2>
+        <p className="text-[11px] text-[#5C5E72] max-w-[260px] leading-relaxed">
+          You do not have any staff modules assigned yet. Contact your admin or creator to assign you to Operations, Finance, Support, Verification, or Field Officer modules.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-[#5C5E72]">Welcome back, <span className="text-white font-medium">{profile.full_name || profile.username || 'Staff'}</span>. Here&apos;s your overview.</p>
 
-      {/* Quick Actions */}
+      {/* Quick Actions — only show modules the staff has permission for */}
       <div className="grid grid-cols-2 gap-3">
         {permissions.includes('field_officer') && (
           <QuickCard icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" title="My Inspections" subtitle="View assigned inspections" color="from-blue-500 to-blue-600" onClick={() => onSetTab('field_officer')} />
