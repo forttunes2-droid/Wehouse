@@ -320,6 +320,9 @@ export function useAuth() {
       setState({ profile: newProfile, page: 'setup', isLoading: false, error: '', kickedOut: false });
       trackSession(newProfile.user_id, authId).catch(() => {});
       createUserSession(newProfile.user_id, authId).catch(() => {});
+    } catch (e: any) {
+      console.error('[Auth] handleLoginSuccess crashed:', e);
+      setState({ page: 'login', profile: null, isLoading: false, error: 'Login failed: ' + (e?.message || 'Unknown error. Please try again.') });
     } finally {
       handlingLoginRef.current = false;
     }
