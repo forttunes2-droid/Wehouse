@@ -106,9 +106,9 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
       }
 
       if (category === 'workers') {
-        const { data: profs } = await supabase.from('profiles').select('worker_occupation').eq('role', 'worker').eq('worker_status', 'verified').not('worker_occupation', 'is', null).limit(1000);
+        const { data: profs } = await supabase.from('profiles').select('worker_occupation').eq('role', 'worker').is('deleted_at', null).not('worker_occupation', 'is', null).limit(1000);
         opts.profession = [...new Set((profs || []).map((p: any) => p.worker_occupation).filter(Boolean))];
-        const { data: cities } = await supabase.from('profiles').select('city').eq('role', 'worker').eq('worker_status', 'verified').not('city', 'is', null).limit(1000);
+        const { data: cities } = await supabase.from('profiles').select('city').eq('role', 'worker').is('deleted_at', null).not('city', 'is', null).limit(1000);
         opts.city = [...new Set((cities || []).map((c: any) => c.city).filter(Boolean))];
       }
 
@@ -203,8 +203,8 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
             .from('profiles')
             .select('user_id, username, full_name, worker_occupation, worker_skills, worker_price, avatar_url, city, state, worker_status, worker_verified, worker_rating')
             .eq('role', 'worker')
-            .eq('worker_status', 'verified')
             .is('deleted_at', null)
+            .order('worker_verified', { ascending: false })
             .order('worker_rating', { ascending: false })
             .range(offset, offset + limit - 1);
 
@@ -482,7 +482,7 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
         {/* Workers */}
         {activeCategory === 'workers' && (
           <>
-            {/* CTA to full worker marketplace */}
+            {/* CTA to full worker marketplace — ALWAYS at top */}
             <button onClick={() => onNavigate('worker_discovery')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform mb-3">
               <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
@@ -508,6 +508,11 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
                     {worker.worker_price ? <span className="text-xs font-medium text-[#3B82F6]">N{Number(worker.worker_price).toLocaleString()}</span> : null}
                     {worker.worker_rating ? <span className="text-[10px] text-amber-400 flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>{worker.worker_rating}</span> : null}
                     <span className="text-[10px] text-[#5C5E72]">{worker.city || 'Nigeria'}</span>
+                    {worker.worker_status === 'verified' ? (
+                      <span className="text-[9px] text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full">Verified</span>
+                    ) : worker.worker_status === 'pending' ? (
+                      <span className="text-[9px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full">Pending</span>
+                    ) : null}
                   </div>
                 </div>
               </button>
