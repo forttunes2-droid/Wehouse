@@ -586,8 +586,8 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
           </div>
         )}
 
-        {/* Staff/Admin notice */}
-        {!canDeleteAccount && !isCreator && (
+        {/* Admin notice — Staff sees nothing (no delete UI at all) */}
+        {!canDeleteAccount && !isCreator && profile.role === 'admin' && (
           <div className="pt-4 border-t border-white/[0.04]">
             <h3 className="text-[10px] font-semibold text-[#5C5E72] uppercase tracking-widest mb-4 px-1">
               Account
@@ -603,7 +603,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
                 <div>
                   <p className="text-sm font-medium text-white">Account Managed</p>
                   <p className="text-[11px] text-[#5C5E72] mt-0.5">
-                    {profile.role === 'staff' ? 'Staff' : 'Admin'} accounts cannot be self-deleted. Contact the creator to remove your account.
+                    Admin accounts cannot be self-deleted. Contact the creator to remove your account.
                   </p>
                 </div>
               </div>
