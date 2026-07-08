@@ -40,7 +40,7 @@ export async function getPendingWorkers() {
   return { workers: data as Profile[] | null, error };
 }
 
-export async function updateWorkerStatus(userId: string, status: 'pending' | 'approved_for_verification' | 'public' | 'suspended' | 'rejected') {
+export async function updateWorkerStatus(userId: string, status: string) {
   const { data: row } = await supabase
     .from('profiles')
     .select('bio')
@@ -51,13 +51,17 @@ export async function updateWorkerStatus(userId: string, status: 'pending' | 'ap
   const cleanBio = bio.replace(/🛠️STATUS:\w+🛠️/g, '').trim();
   const newBio = `🛠️STATUS:${status}🛠️ ${cleanBio}`.trim();
 
-  // Single atomic update: both bio AND worker_status in one call
+  // worker_verified = true if worker has completed verification process
+  // (verification_paid, verified) — they get golden tick
+  // Only 'verified' workers go public in Explore
+  const hasCompletedVerification = status === 'verification_paid' || status === 'verified' || status === 'declined';
+
   const { data: updated, error } = await supabase
     .from('profiles')
     .update({
       bio: newBio,
       worker_status: status,
-      worker_verified: status === 'approved_for_verification' || status === 'public',
+      worker_verified: hasCompletedVerification,
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId)

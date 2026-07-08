@@ -36,16 +36,20 @@ export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
 // 'Verified' is reserved for Blue Badge premium subscribers only.
 export const WORKER_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
-  verified: 'Approved',      // DB says 'verified', user sees 'Approved'
+  verification_paid: 'Awaiting Review',  // Completed verification, paid, awaiting WeHouse review
+  verified: 'Approved',                  // WeHouse approved, worker is public
   approved: 'Approved',
+  declined: 'Declined',                  // WeHouse declined, can resubmit
   suspended: 'Suspended',
   rejected: 'Rejected',
 };
 
 export const WORKER_STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  verification_paid: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   verified: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  declined: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   suspended: 'bg-red-500/10 text-red-400 border-red-500/20',
   rejected: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
 };

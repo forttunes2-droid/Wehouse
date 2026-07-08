@@ -199,6 +199,8 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
           break;
         }
         case 'workers': {
+          // Per Constitution: ONLY verified workers go public.
+          // verification_paid = golden tick but NOT public yet.
           let q = supabase
             .from('profiles')
             .select('user_id, username, full_name, worker_occupation, worker_skills, worker_price, avatar_url, city, state, worker_status, worker_verified, worker_rating')

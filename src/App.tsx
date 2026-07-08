@@ -397,38 +397,19 @@ export default function App() {
     return <WorkerSetup profile={auth.profile} onComplete={() => { auth.handleSetupComplete(auth.profile!); }} />;
   }
 
-  if (!profile) return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;
-
   // Show error fallback after all hooks have run
   if (error) return <ErrorFallback reset={() => { setError(null); window.location.reload(); }} />;
 
   // ─── PAGE ROUTER ──────────────────────────────────
+  // NOTE: Role guards are handled by the validation useEffect (line ~204).
+  // DO NOT add guards here — render functions must be pure, no side effects.
   const renderPage = () => {
-    const props = { profile, savedIds, onToggleSave: handleToggleSave };
-
-    // ─── ROLE GUARDS: prevent unauthorized access to role-specific pages ──
-    // SKIP guards while auth is still loading — prevents redirect on refresh
-    // before profile is available. Validation effect (line ~204) handles this
-    // AFTER auth finishes loading.
-    if (!auth.isLoading) {
-      const roleGuards: Record<string, boolean> = {
-        creator: isCreatorRole,
-        admin: isAdminRole,
-        staff_dashboard: isStaffRole,
-        worker_dashboard: isWorkerRole,
-        property_partner: isPropertyPartner,
-        management: isCreatorRole || isAdminRole || isStaffRole,
-        analytics: isCreatorRole || isAdminRole || isStaffRole,
-        jobs: isWorkerRole,
-        calendar: isWorkerRole,
-        properties: isPropertyPartner,
-      };
-      if (roleGuards[navPage] === false) {
-        toast.error('You do not have permission to access this page');
-        handleSetNavPage('home');
-        return null;
-      }
+    // Not logged in — show login page
+    if (!profile) {
+      return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;
     }
+
+    const props = { profile, savedIds, onToggleSave: handleToggleSave };
 
     switch (navPage) {
       case 'home':

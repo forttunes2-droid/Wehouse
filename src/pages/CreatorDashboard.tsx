@@ -1007,7 +1007,7 @@ function ReportsTab({ profile }: { profile: Profile }) {
 function WorkerApplicationsTab({ profile }: { profile: Profile }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved_for_verification' | 'suspended' | 'rejected'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'verification_paid' | 'verified' | 'declined' | 'suspended' | 'rejected'>('all');
   const [viewingWorker, setViewingWorker] = useState<any | null>(null);
 
   const load = useCallback(async () => {
@@ -1019,7 +1019,7 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleStatus(userId: string, status: 'approved_for_verification' | 'suspended' | 'rejected') {
+  async function handleStatus(userId: string, status: string) {
     const { error } = await updateWorkerStatus(userId, status);
     if (error) {
       toast.error('Save failed: ' + (error.message || 'Unknown error'));
@@ -1042,7 +1042,7 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
     <div className="space-y-3">
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {(['all', 'pending', 'approved_for_verification', 'suspended', 'rejected'] as const).map(f => {
+        {(['all', 'pending', 'verification_paid', 'verified', 'declined', 'suspended', 'rejected'] as const).map(f => {
           const label = f === 'all' ? 'All' : WORKER_STATUS_LABELS[f] || f;
           return (
             <button key={f} onClick={() => setFilter(f)}
@@ -1093,28 +1093,44 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
                 )}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {/* pending: hasn't started verification */}
                 {status === 'pending' && (
                   <>
-                    <button onClick={() => handleStatus(w.user_id, 'approved_for_verification')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
-                    <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
+                    <span className="text-[9px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full border border-amber-500/20">Awaiting verification</span>
                   </>
                 )}
-                {status === 'approved_for_verification' && (
+                {/* verification_paid: completed verification, ready for review */}
+                {status === 'verification_paid' && (
+                  <>
+                    <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
+                    <button onClick={() => handleStatus(w.user_id, 'declined')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Decline</button>
+                  </>
+                )}
+                {/* verified: approved, public */}
+                {status === 'verified' && (
                   <>
                     <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
-                    <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Revoke</button>
                   </>
                 )}
+                {/* declined: review declined, can resubmit */}
+                {status === 'declined' && (
+                  <>
+                    <span className="text-[9px] text-red-400 bg-red-500/10 px-2 py-1 rounded-full border border-red-500/20">Can resubmit</span>
+                    <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve Anyway</button>
+                  </>
+                )}
+                {/* suspended: was public, suspended */}
                 {status === 'suspended' && (
                   <>
-                    <button onClick={() => handleStatus(w.user_id, 'approved_for_verification')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Reinstate</button>
+                    <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Reinstate</button>
                     <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Reject</button>
                   </>
                 )}
+                {/* rejected: permanently rejected */}
                 {status === 'rejected' && (
                   <>
-                    <button onClick={() => handleStatus(w.user_id, 'approved_for_verification')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Re-approve</button>
+                    <button onClick={() => handleStatus(w.user_id, 'verification_paid')} className="flex-1 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] hover:bg-blue-500/20 transition-colors">Allow Re-submit</button>
                   </>
                 )}
               </div>
