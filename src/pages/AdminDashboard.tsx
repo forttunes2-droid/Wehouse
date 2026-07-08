@@ -72,7 +72,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         listings: listings.length,
         bookings: bookingsRes.count || 0,
         reports: reportsRes.reports?.length || 0,
-        pendingVerifications: users.filter((u: any) => isActive(u) && u.role === 'worker' && u.worker_status === 'pending').length,
+        pendingVerifications: users.filter((u: any) => isActive(u) && u.role === 'worker' && u.worker_status === 'profile_under_review').length,
       });
     }
     loadStats();
@@ -178,7 +178,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         {activeTab === 'bookings' && <BookingsTab />}
         {activeTab === 'reports' && <ReportsTabDirector />}
         {activeTab === 'support' && <SupportTabDirector />}
-        {activeTab === 'verification' && <VerificationTabDirector refresh={refresh} />}
+        {activeTab === 'verification' && <VerificationTabDirector refresh={refresh} profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
       </div>
 
@@ -556,7 +556,7 @@ function SupportTabDirector() {
 // ═══════════════════════════════════════════════════════════
 // VERIFICATION TAB — Worker verification approval
 // ═══════════════════════════════════════════════════════════
-function VerificationTabDirector({ refresh }: { refresh: () => void }) {
+function VerificationTabDirector({ refresh, profile }: { refresh: () => void; profile: Profile }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { requestAuth } = useAdminAuth();
@@ -566,23 +566,24 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
   async function load() {
     setLoading(true);
     const { users: data } = await getAllUsers();
-    // Show workers: pending (need access granted), approved_for_verification (have blue tick), profile_under_review (ready for final review)
-    const pending = (data || []).filter((u: any) =>
-      u.role === 'worker' && ['pending', 'approved_for_verification', 'profile_under_review'].includes(u.worker_status) && !u.deleted
+    // Constitution: Admin ONLY reviews workers with status = 'profile_under_review'
+    // These workers have: paid, uploaded docs + video, and clicked "Submit Verification Request"
+    const reviewQueue = (data || []).filter((u: any) =>
+      u.role === 'worker' && u.worker_status === 'profile_under_review' && !u.deleted
     );
-    setWorkers(pending);
+    setWorkers(reviewQueue);
     setLoading(false);
   }
 
-  async function doGrantAccess(userId: string) {
-    const { error } = await supabase.from('profiles').update({
-      worker_status: 'approved_for_verification',
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', userId);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    toast.success('Blue tick granted — worker can now proceed with verification');
-    load(); refresh();
-  }
+  /* ── Per Constitution: Admin ONLY reviews workers who have:
+      1. Completed all info  2. Paid via Paystack  3. Uploaded Gov ID + Skill Video
+      4. Clicked "Submit Verification Request"  5. Status = profile_under_review
+      Admin NEVER grants access — workers get Golden Badge by paying.
+      Admin ONLY reviews submitted applications and approves/rejects. ── */
+
+  const [selectedWorker, setSelectedWorker] = useState<any>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectForm, setShowRejectForm] = useState(false);
 
   async function doApprove(userId: string) {
     const { error } = await supabase.from('profiles').update({
@@ -591,23 +592,43 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
       updated_at: new Date().toISOString(),
     }).eq('user_id', userId);
     if (error) { toast.error('Failed: ' + error.message); return; }
+    // Record the review
+    try {
+      await supabase.from('worker_verification_reviews').insert({
+        worker_id: userId,
+        reviewer_id: profile.user_id,
+        reviewer_role: profile.role,
+        action: 'approved',
+      });
+    } catch (_) { /* non-critical */ }
     toast.success('Worker approved and published');
+    setSelectedWorker(null);
     load(); refresh();
   }
 
   async function doReject(userId: string) {
+    if (!rejectReason.trim()) { toast.error('Please provide a rejection reason'); return; }
     const { error } = await supabase.from('profiles').update({
       worker_status: 'rejected',
       worker_verified: false,
       updated_at: new Date().toISOString(),
     }).eq('user_id', userId);
     if (error) { toast.error('Failed: ' + error.message); return; }
-    toast.success('Worker rejected');
+    // Record the review with rejection reason
+    try {
+      await supabase.from('worker_verification_reviews').insert({
+        worker_id: userId,
+        reviewer_id: profile.user_id,
+        reviewer_role: profile.role,
+        action: 'rejected',
+        rejection_reason: rejectReason.trim(),
+      });
+    } catch (_) { /* non-critical */ }
+    toast.success('Worker rejected — reason recorded');
+    setSelectedWorker(null);
+    setShowRejectForm(false);
+    setRejectReason('');
     load(); refresh();
-  }
-
-  async function handleGrantAccess(userId: string) {
-    requestAuth(() => doGrantAccess(userId));
   }
 
   async function handleApprove(userId: string) {
@@ -615,47 +636,183 @@ function VerificationTabDirector({ refresh }: { refresh: () => void }) {
   }
 
   async function handleReject(userId: string) {
-    if (!confirm('Reject this worker?')) return;
     requestAuth(() => doReject(userId));
+  }
+
+  // Detail view: admin reviews the full worker application
+  if (selectedWorker) {
+    const w = selectedWorker;
+    return (
+      <div className="space-y-4">
+        {/* Back button */}
+        <button onClick={() => setSelectedWorker(null)} className="flex items-center gap-1.5 text-[10px] text-[#5C5E72] hover:text-white transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          Back to Review Queue
+        </button>
+
+        {/* Worker Profile Summary */}
+        <div className="glass rounded-2xl p-4 border border-violet-500/20">
+          <div className="flex items-center gap-3 mb-3">
+            {w.avatar_url ? (
+              <img src={w.avatar_url} alt="" className="w-14 h-14 rounded-2xl object-cover" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white font-bold">{(w.username || 'W')[0].toUpperCase()}</div>
+            )}
+            <div>
+              <p className="text-sm font-bold text-white">{w.full_name || w.username || 'Unknown'}</p>
+              <p className="text-[10px] text-[#5C5E72]">@{w.username} · {w.email}</p>
+              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 mt-1 inline-block">Under Review</span>
+            </div>
+          </div>
+
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <InfoPill label="Occupation" value={w.worker_occupation || 'Not set'} />
+            <InfoPill label="Skills" value={w.worker_skills?.join(', ') || 'Not set'} />
+            <InfoPill label="Experience" value={w.worker_experience || 'Not set'} />
+            <InfoPill label="Service Area" value={`${w.city || ''}, ${w.state || ''}`} />
+            <InfoPill label="Phone" value={w.phone || 'Not set'} />
+            <InfoPill label="Price" value={w.worker_price ? `N${w.worker_price.toLocaleString()}` : 'Not set'} />
+          </div>
+          {w.worker_bio && (
+            <div className="rounded-lg bg-white/[0.02] p-2">
+              <p className="text-[9px] text-[#5C5E72]">About</p>
+              <p className="text-[11px] text-white">{w.worker_bio}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Government ID */}
+        <div className="glass rounded-2xl p-4 border border-amber-500/20">
+          <p className="text-xs font-semibold text-white mb-2">Government ID (Identity Verification)</p>
+          {w.worker_gov_id_url ? (
+            <div className="rounded-lg overflow-hidden bg-[#1A1A24]">
+              <img src={w.worker_gov_id_url} alt="Government ID" className="w-full max-h-48 object-contain" />
+            </div>
+          ) : (
+            <p className="text-[10px] text-amber-400">No Government ID uploaded</p>
+          )}
+        </div>
+
+        {/* Additional Documents */}
+        {w.worker_cert_url && (
+          <div className="glass rounded-2xl p-4 border border-blue-500/20">
+            <p className="text-xs font-semibold text-white mb-2">Additional Documents</p>
+            <div className="rounded-lg overflow-hidden bg-[#1A1A24]">
+              <img src={w.worker_cert_url} alt="Certificate" className="w-full max-h-48 object-contain" />
+            </div>
+          </div>
+        )}
+
+        {/* Skill Demonstration Video */}
+        <div className="glass rounded-2xl p-4 border border-emerald-500/20">
+          <p className="text-xs font-semibold text-white mb-2">2-3 Minute Skill Demonstration Video</p>
+          {w.worker_video_url ? (
+            <video src={w.worker_video_url} controls className="w-full rounded-lg max-h-64 object-contain" />
+          ) : (
+            <p className="text-[10px] text-red-400">No skill demonstration video uploaded</p>
+          )}
+          <p className="text-[9px] text-[#5C5E72] mt-2">
+            This video is ONLY for evaluating the worker&apos;s professional skills.
+            It is NOT used for identity verification.
+          </p>
+        </div>
+
+        {/* Actions */}
+        {!showRejectForm ? (
+          <div className="flex gap-3">
+            <button onClick={() => handleApprove(w.user_id)} className="flex-1 h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-emerald-500/20">
+              Approve & Publish
+            </button>
+            <button onClick={() => setShowRejectForm(true)} className="flex-1 h-11 rounded-xl bg-gradient-to-r from-red-500 to-red-700 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-red-500/20">
+              Reject
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-white">Rejection Reason</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Explain why this worker was rejected so they can fix it..."
+              rows={3}
+              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 placeholder-[#5C5E72] focus:border-red-500/50 outline-none resize-none"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowRejectForm(false); setRejectReason(''); }} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
+              <button onClick={() => handleReject(w.user_id)} className="flex-1 h-10 rounded-xl bg-gradient-to-r from-red-500 to-red-700 text-white text-xs font-semibold hover:opacity-90 transition-opacity">Confirm Rejection</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-3">
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div> : (
+      {/* Info banner */}
+      <div className="rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
+        <p className="text-[10px] text-violet-400 leading-relaxed">
+          <strong>Review Queue:</strong> These workers have completed verification payment,
+          uploaded their Government ID and Skill Demonstration Video, and submitted their
+          request for review. Review each application carefully before approving or rejecting.
+        </p>
+      </div>
+
+      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div> : (
         <div className="space-y-2">
-          {workers.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No workers pending verification</p>}
+          {workers.length === 0 && (
+            <div className="text-center py-10">
+              <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <p className="text-sm font-semibold text-white mb-1">No Workers to Review</p>
+              <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">
+                Workers will appear here after they complete payment, upload their documents,
+                and submit their verification request.
+              </p>
+            </div>
+          )}
           {workers.map(w => (
-            <div key={w.id} className="glass rounded-xl p-3">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white text-sm font-bold">{(w.username || 'W').charAt(0).toUpperCase()}</div>
+            <button key={w.id} onClick={() => setSelectedWorker(w)} className="w-full text-left glass rounded-xl p-3 hover:border-violet-500/30 transition-colors">
+              <div className="flex items-center gap-3">
+                {w.avatar_url ? (
+                  <img src={w.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-sm font-bold">{(w.username || 'W')[0].toUpperCase()}</div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-white">@{w.username || 'unknown'}</p>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${STATUS_COLORS[w.worker_status]}`}>{STATUS_LABELS[w.worker_status]}</span>
+                    <p className="text-xs font-semibold text-white">{w.full_name || w.username || 'Unknown'}</p>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Under Review</span>
                   </div>
                   <p className="text-[10px] text-[#5C5E72]">{w.worker_occupation || 'No occupation'} · {w.email}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {w.worker_status === 'pending' && (
-                  <button onClick={() => handleGrantAccess(w.user_id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors">Grant Access</button>
-                )}
-                {w.worker_status === 'approved_for_verification' && (
-                  <div className="flex-1 h-8 rounded-lg bg-blue-500/5 text-blue-400/60 text-xs font-medium border border-blue-500/10 flex items-center justify-center">
-                    Worker filling info...
+                  <div className="flex items-center gap-3 mt-1">
+                    {w.worker_gov_id_url && <span className="text-[8px] text-emerald-400">ID Uploaded</span>}
+                    {w.worker_video_url && <span className="text-[8px] text-emerald-400">Video Uploaded</span>}
+                    {w.worker_cert_url && <span className="text-[8px] text-blue-400">Docs Uploaded</span>}
                   </div>
-                )}
-                {w.worker_status === 'profile_under_review' && (
-                  <>
-                    <button onClick={() => handleApprove(w.user_id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">Approve & Publish</button>
-                    <button onClick={() => handleReject(w.user_id)} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors">Reject</button>
-                  </>
-                )}
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER: InfoPill for review detail view
+// ═══════════════════════════════════════════════════════════════
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-white/[0.02] p-2">
+      <p className="text-[9px] text-[#5C5E72]">{label}</p>
+      <p className="text-[11px] text-white truncate">{value}</p>
     </div>
   );
 }
