@@ -235,23 +235,35 @@ function PlatformSettings() {
   async function saveSetting(key: string, value: string) {
     setSaving(key);
     try {
+      // Find the setting definition to get label
+      const group = SETTING_GROUPS.find(g => g.id === activeGroup);
+      const settingDef = group?.settings.find(s => s.key === key);
+      const label = settingDef?.label || key;
+
       // Try RPC first
       const { error } = await supabase.rpc('set_setting_v2', {
         p_key: key,
         p_value: value,
       });
       if (error) {
-        // Fallback: direct table upsert
+        // Fallback: direct table upsert — include ALL required fields
         const { error: upsertError } = await supabase
           .from('platform_settings')
-          .upsert({ key, value, category: activeGroup, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+          .upsert({
+            key,
+            value,
+            label,
+            category: activeGroup,
+            data_type: settingDef?.type || 'text',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'key' });
         if (upsertError) {
           toast.error('Failed to save: ' + upsertError.message);
           setSaving(null);
           return;
         }
       }
-      setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+      setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value, label } : s));
       toast.success('Saved');
     } catch (e: any) {
       toast.error('Save failed: ' + (e.message || 'Unknown error'));

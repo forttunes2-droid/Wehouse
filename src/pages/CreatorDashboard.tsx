@@ -1077,19 +1077,21 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
                 </div>
               </div>
 
-              {/* Truncated bio with View Profile */}
-              {w.worker_bio && (
-                <div className="mb-3">
+              {/* View Profile — ALWAYS visible for every worker */}
+              <div className="mb-3">
+                {w.worker_bio ? (
                   <p className="text-[10px] text-[#8A8B9C] italic leading-relaxed">
                     {truncateBio(w.worker_bio)}
-                    {w.worker_bio.length > 100 && (
-                      <button onClick={() => setViewingWorker(w)} className="ml-1 text-[#3B82F6] not-italic hover:text-[#60A5FA] transition-colors">
-                        View Profile
-                      </button>
-                    )}
+                    <button onClick={() => setViewingWorker(w)} className="ml-1 text-[#3B82F6] not-italic hover:text-[#60A5FA] transition-colors">
+                      View Full Profile
+                    </button>
                   </p>
-                </div>
-              )}
+                ) : (
+                  <button onClick={() => setViewingWorker(w)} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
+                    View Profile
+                  </button>
+                )}
+              </div>
 
               <div className="flex gap-2">
                 {status === 'pending' && (

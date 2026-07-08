@@ -9,6 +9,61 @@ import type { Profile } from '@/types';
 
 const checkIsCreator = (p: Profile): boolean => p.role === 'creator';
 
+// Individual announcement card — shows full content prominently
+function AnnouncementCard({ msg, canSend, onDelete }: { msg: any; canSend: boolean; onDelete: (id: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const content = msg.content || '';
+  const isLong = content.length > 200;
+  const displayContent = expanded || !isLong ? content : content.slice(0, 200) + '...';
+
+  return (
+    <div className="rounded-2xl bg-[#1A1A24] border border-[#2A2A3A] overflow-hidden">
+      {/* Header: sender + meta */}
+      <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+          {(msg.sender_name || 'W').charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-semibold text-white truncate">{msg.sender_name || 'WeHouse'}</p>
+          <p className="text-[9px] text-[#5C5E72]">
+            {msg.sender_role || 'System'} · {new Date(msg.created_at).toLocaleString()}
+          </p>
+        </div>
+        <span className="text-[9px] text-[#5C5E72] bg-white/[0.04] px-2 py-0.5 rounded-full flex-shrink-0">
+          {msg.target_type === 'all_users' ? 'All Users' : msg.target_type}
+        </span>
+      </div>
+
+      {/* CONTENT — the main focus */}
+      <div className="px-4 pb-3">
+        <button
+          onClick={() => isLong && setExpanded(!expanded)}
+          className={`w-full text-left ${isLong ? 'cursor-pointer' : ''}`}
+        >
+          <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{displayContent}</p>
+          {isLong && (
+            <span className="text-[10px] text-[#3B82F6] mt-1 block">
+              {expanded ? 'Show less' : 'Read more'}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Footer: scope + delete */}
+      <div className="px-4 py-2 border-t border-white/[0.04] flex items-center justify-between">
+        <span className="text-[9px] text-[#5C5E72]">
+          {msg.scope_state ? `${msg.scope_state}${msg.scope_lga ? `, ${msg.scope_lga}` : ''}` : 'Platform-wide'}
+        </span>
+        {canSend && (
+          <button onClick={() => onDelete(msg.id)} className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors">
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 'all' | { state: string; lga: string } }) {
   const canSend = canSendAnnouncements(profile.role);
   const isCreatorScope = scope === 'all';
@@ -196,29 +251,7 @@ export function AnnouncementsTab({ profile, scope }: { profile: Profile; scope: 
         <div className="space-y-3">
           {sentMessages.length === 0 && <p className="text-sm text-[#5C5E72] text-center py-8">No announcements yet</p>}
           {sentMessages.map((msg: any) => (
-            <div key={msg.id} className="p-4 rounded-2xl bg-[#1A1A24] border border-[#2A2A3A]">
-              {/* Sender info */}
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[9px] font-bold">
-                  {(msg.sender_name || 'W').charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-white">{msg.sender_name || 'WeHouse'}</p>
-                  <p className="text-[9px] text-[#5C5E72]">{msg.sender_role || 'System'}</p>
-                </div>
-                <span className="ml-auto text-[9px] text-[#5C5E72]">{new Date(msg.created_at).toLocaleString()}</span>
-              </div>
-              {/* Message content */}
-              <p className="text-sm text-white whitespace-pre-wrap">{msg.content}</p>
-              {/* Target info */}
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.04]">
-                <span className="text-[9px] text-[#5C5E72]">
-                  {msg.target_type === 'all_users' ? 'Sent to all users' : `Sent to ${msg.target_type}`}
-                  {msg.scope_state && ` • ${msg.scope_state}${msg.scope_lga ? `, ${msg.scope_lga}` : ''}`}
-                </span>
-                {canSend && <button onClick={() => handleDeleteMessage(msg.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>}
-              </div>
-            </div>
+            <AnnouncementCard key={msg.id} msg={msg} canSend={canSend} onDelete={handleDeleteMessage} />
           ))}
         </div>
       )}
