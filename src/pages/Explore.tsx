@@ -480,44 +480,74 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
         ))}
 
         {/* Workers */}
-        {activeCategory === 'workers' && results.map((worker: any) => (
-          <button key={worker.user_id} onClick={() => onNavigate('worker_discovery')} className="w-full text-left glass rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-              {worker.avatar_url ? <img src={worker.avatar_url} alt="" className="w-full h-full rounded-xl object-cover" /> : (worker.full_name || worker.username || 'W').charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-white truncate">{worker.full_name || worker.username || 'Worker'}</h3>
-                {worker.worker_verified && <svg width="12" height="12" viewBox="0 0 24 24" fill="#3B82F6" stroke="none"><path d="M9 12l2 2 4-4M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" /></svg>}
+        {activeCategory === 'workers' && (
+          <>
+            {/* CTA to full worker marketplace */}
+            <button onClick={() => onNavigate('worker_discovery')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform mb-3">
+              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
               </div>
-              <p className="text-[11px] text-[#5C5E72] truncate">{worker.worker_occupation || 'Service Provider'}</p>
-              <div className="flex items-center gap-3 mt-1">
-                {worker.worker_price ? <span className="text-xs font-medium text-[#3B82F6]">N{Number(worker.worker_price).toLocaleString()}</span> : null}
-                {worker.worker_rating ? <span className="text-[10px] text-amber-400 flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>{worker.worker_rating}</span> : null}
-                <span className="text-[10px] text-[#5C5E72]">{worker.city || 'Nigeria'}</span>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-semibold text-white">Browse All Workers</p>
+                <p className="text-[10px] text-[#5C5E72]">Categories, filters, book and message workers</p>
               </div>
-            </div>
-          </button>
-        ))}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+            {results.map((worker: any) => (
+              <button key={worker.user_id} onClick={() => onNavigate('worker_discovery')} className="w-full text-left glass rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                  {worker.avatar_url ? <img src={worker.avatar_url} alt="" className="w-full h-full rounded-xl object-cover" /> : (worker.full_name || worker.username || 'W').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-white truncate">{worker.full_name || worker.username || 'Worker'}</h3>
+                    {worker.worker_verified && <svg width="12" height="12" viewBox="0 0 24 24" fill="#3B82F6" stroke="none"><path d="M9 12l2 2 4-4M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" /></svg>}
+                  </div>
+                  <p className="text-[11px] text-[#5C5E72] truncate">{worker.worker_occupation || 'Service Provider'}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    {worker.worker_price ? <span className="text-xs font-medium text-[#3B82F6]">N{Number(worker.worker_price).toLocaleString()}</span> : null}
+                    {worker.worker_rating ? <span className="text-[10px] text-amber-400 flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>{worker.worker_rating}</span> : null}
+                    <span className="text-[10px] text-[#5C5E72]">{worker.city || 'Nigeria'}</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </>
+        )}
 
         {/* Roommates */}
-        {activeCategory === 'roommates' && results.map((rm: any) => (
-          <button key={rm.id} onClick={() => onNavigate('roommate')} className="w-full text-left glass rounded-2xl p-4 active:scale-[0.98] transition-transform">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-700 flex items-center justify-center text-white text-sm font-bold">
-                {(rm.occupation || 'R').charAt(0).toUpperCase()}
+        {activeCategory === 'roommates' && (
+          <>
+            {/* CTA to set preferences */}
+            <button onClick={() => onNavigate('roommate')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform mb-3">
+              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-white truncate">{rm.occupation || 'Looking for roommate'}</h3>
-                <p className="text-[10px] text-[#5C5E72]">{rm.city}, {rm.state} · {rm.gender || 'Any gender'}</p>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-semibold text-white">Find Your Roommate</p>
+                <p className="text-[10px] text-[#5C5E72]">Set preferences — gender, budget, lifestyle, location</p>
               </div>
-            </div>
-            <div className="flex items-center gap-3 text-[11px]">
-              {rm.budget && <span className="text-[#3B82F6] font-medium">Budget: N{Number(rm.budget).toLocaleString()}</span>}
-              {rm.looking_for && <span className="text-[#5C5E72]">Looking: {rm.looking_for}</span>}
-            </div>
-          </button>
-        ))}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+            {results.map((rm: any) => (
+              <button key={rm.id} onClick={() => onNavigate('roommate')} className="w-full text-left glass rounded-2xl p-4 active:scale-[0.98] transition-transform">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-700 flex items-center justify-center text-white text-sm font-bold">
+                    {(rm.occupation || 'R').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-white truncate">{rm.occupation || 'Looking for roommate'}</h3>
+                    <p className="text-[10px] text-[#5C5E72]">{rm.city}, {rm.state} · {rm.gender || 'Any gender'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-[11px]">
+                  {rm.budget && <span className="text-[#3B82F6] font-medium">Budget: N{Number(rm.budget).toLocaleString()}</span>}
+                  {rm.looking_for && <span className="text-[#5C5E72]">Looking: {rm.looking_for}</span>}
+                </div>
+              </button>
+            ))}
+          </>
+        )}
 
         {/* Loading */}
         {loading && (
