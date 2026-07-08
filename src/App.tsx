@@ -405,6 +405,16 @@ export default function App() {
   // NOTE: Role guards are handled by the validation useEffect (line ~204).
   // DO NOT add guards here — render functions must be pure, no side effects.
   const renderPage = () => {
+    // Auth still loading — show spinner (prevents Login flash on refresh)
+    if (auth.isLoading) {
+      return (
+        <div className="min-h-[100dvh] bg-[#0A0A0F] flex flex-col items-center justify-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-[#5C5E72]">Loading WeHouse...</p>
+        </div>
+      );
+    }
+
     // Not logged in — show login page
     if (!profile) {
       return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} />;

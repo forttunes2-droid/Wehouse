@@ -72,6 +72,8 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
   });
   // Users view mode: 'manage'=full controls, 'view'=read-only list, 'today'=today's signups only
   const [usersViewMode, setUsersViewMode] = useState<'manage' | 'view' | 'today'>('manage');
+  // Shared viewing state for profile detail modal (used by Users, Workers, Partners, Staff tabs)
+  const [viewingProfile, setViewingProfile] = useState<any | null>(null);
 
   // Save tab change to localStorage
   const handleSetTab = useCallback((tab: AdminTab) => {
@@ -184,8 +186,8 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
       {/* Content */}
       <main className="max-w-lg mx-auto px-5 pb-6">
         {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => goToUsers('manage')} onGoToUsersView={() => goToUsers('view')} onGoToUsersToday={() => goToUsers('today')} onGoToTab={handleSetTab} />}
-        {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} />}
-        {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} />}
+        {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} onViewProfile={(u) => setViewingProfile(u)} />}
+        {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} viewingProfile={viewingProfile} setViewingProfile={setViewingProfile} />}
         {activeTab === 'partners' && <PartnersTab />}
         {activeTab === 'staff' && <StaffListTab />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
@@ -422,7 +424,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 }
 
 // ─── USERS ─────────────────────────────────────────
-function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode?: 'manage' | 'view' | 'today' }) {
+function UsersTab({ profile, viewMode = 'manage', onViewProfile }: { profile: Profile; viewMode?: 'manage' | 'view' | 'today'; onViewProfile?: (u: any) => void }) {
   const { ask, dialogProps } = useConfirm();
   const { requestAuth } = useCreatorAuth();
   const [users, setUsers] = useState<any[]>([]);
@@ -659,6 +661,15 @@ function UsersTab({ profile, viewMode = 'manage' }: { profile: Profile; viewMode
                     </div>
                     <div className="text-[10px] text-[#5C5E72] truncate">{u.email}</div>
                   </div>
+                  {/* View Profile — all user types */}
+                  {onViewProfile && (
+                    <button
+                      onClick={() => onViewProfile(u)}
+                      className="h-7 px-2.5 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-[10px] hover:bg-[#3B82F6]/20 transition-colors flex-shrink-0"
+                    >
+                      View Profile
+                    </button>
+                  )}
                 </div>
 
                 {isManage && (
@@ -1004,11 +1015,13 @@ function ReportsTab({ profile }: { profile: Profile }) {
 // ─── SETTINGS ──────────────────────────────────────
 // ─── WORKER APPLICATIONS TAB ───────────────────────
 
-function WorkerApplicationsTab({ profile }: { profile: Profile }) {
+function WorkerApplicationsTab({ profile, viewingProfile, setViewingProfile }: { profile: Profile; viewingProfile: any | null; setViewingProfile: (p: any | null) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verification_paid' | 'verified' | 'declined' | 'suspended' | 'rejected'>('all');
-  const [viewingWorker, setViewingWorker] = useState<any | null>(null);
+  // Status flow per Constitution: pending → verification_paid → verified | declined
+  const VALID_WORKER_STATUSES = ['pending', 'verification_paid', 'verified', 'declined', 'suspended', 'rejected'];
+  // viewingProfile is managed at CreatorDashboard level, not here
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1043,7 +1056,9 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {(['all', 'pending', 'verification_paid', 'verified', 'declined', 'suspended', 'rejected'] as const).map(f => {
-          const label = f === 'all' ? 'All' : WORKER_STATUS_LABELS[f] || f;
+          const count = f === 'all' ? workers.length : workers.filter((w: any) => w.worker_status === f).length;
+          if (f !== 'all' && count === 0) return null; // Hide empty status tabs
+          const label = f === 'all' ? `All (${workers.length})` : `${WORKER_STATUS_LABELS[f] || f} (${count})`;
           return (
             <button key={f} onClick={() => setFilter(f)}
               className={`flex-shrink-0 h-8 px-3 rounded-lg text-[10px] font-medium transition-colors ${
@@ -1082,12 +1097,12 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
                 {w.worker_bio ? (
                   <p className="text-[10px] text-[#8A8B9C] italic leading-relaxed">
                     {truncateBio(w.worker_bio)}
-                    <button onClick={() => setViewingWorker(w)} className="ml-1 text-[#3B82F6] not-italic hover:text-[#60A5FA] transition-colors">
+                    <button onClick={() => setViewingProfile(w)} className="ml-1 text-[#3B82F6] not-italic hover:text-[#60A5FA] transition-colors">
                       View Full Profile
                     </button>
                   </p>
                 ) : (
-                  <button onClick={() => setViewingWorker(w)} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
+                  <button onClick={() => setViewingProfile(w)} className="text-[10px] text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
                     View Profile
                   </button>
                 )}
@@ -1140,13 +1155,13 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
       )}
 
       {/* ═══ Worker Profile Modal ═══ */}
-      {viewingWorker && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setViewingWorker(null)}>
+      {viewingProfile && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setViewingProfile(null)}>
           <div className="bg-[#12121A] rounded-t-2xl sm:rounded-2xl border border-[#2A2A3A] w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="sticky top-0 bg-[#12121A] border-b border-[#2A2A3A] px-5 py-3 flex items-center justify-between z-10">
               <p className="text-sm font-semibold text-white">Worker Profile</p>
-              <button onClick={() => setViewingWorker(null)} className="w-7 h-7 rounded-full bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white">
+              <button onClick={() => setViewingProfile(null)} className="w-7 h-7 rounded-full bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </button>
             </div>
@@ -1155,16 +1170,16 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
               {/* Avatar & Name */}
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                  {viewingWorker.avatar_url ? <img src={viewingWorker.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : (viewingWorker.full_name || viewingWorker.username || 'W').charAt(0).toUpperCase()}
+                  {viewingProfile.avatar_url ? <img src={viewingProfile.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : (viewingProfile.full_name || viewingProfile.username || 'W').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-white">{viewingWorker.full_name || viewingWorker.username || 'Unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72]">@{viewingWorker.username || 'no-username'}</p>
+                  <p className="text-sm font-bold text-white">{viewingProfile.full_name || viewingProfile.username || 'Unknown'}</p>
+                  <p className="text-[10px] text-[#5C5E72]">@{viewingProfile.username || 'no-username'}</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${WORKER_STATUS_COLORS[parseWorkerStatus(viewingWorker)] || ''}`}>
-                      {WORKER_STATUS_LABELS[parseWorkerStatus(viewingWorker)] || 'Unknown'}
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${WORKER_STATUS_COLORS[parseWorkerStatus(viewingProfile)] || ''}`}>
+                      {WORKER_STATUS_LABELS[parseWorkerStatus(viewingProfile)] || 'Unknown'}
                     </span>
-                    <span className="text-[8px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[viewingWorker.worker_occupation] || viewingWorker.worker_occupation}</span>
+                    <span className="text-[8px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[viewingProfile.worker_occupation] || viewingProfile.worker_occupation}</span>
                   </div>
                 </div>
               </div>
@@ -1173,47 +1188,47 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
               <div className="rounded-xl bg-[#1A1A24] p-3 space-y-2">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Contact</p>
                 <div className="space-y-1">
-                  {viewingWorker.email && (
+                  {viewingProfile.email && (
                     <div className="flex items-center gap-2 text-xs text-white">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-                      {viewingWorker.email}
+                      {viewingProfile.email}
                     </div>
                   )}
-                  {viewingWorker.phone && (
+                  {viewingProfile.phone && (
                     <div className="flex items-center gap-2 text-xs text-white">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                      {viewingWorker.phone}
+                      {viewingProfile.phone}
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-xs text-[#8A8B9C]">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                    {viewingWorker.city ? `${viewingWorker.city}, ${viewingWorker.state || 'Nigeria'}` : (viewingWorker.state || 'Location not set')}
+                    {viewingProfile.city ? `${viewingProfile.city}, ${viewingProfile.state || 'Nigeria'}` : (viewingProfile.state || 'Location not set')}
                   </div>
                 </div>
               </div>
 
               {/* Full Bio */}
-              {viewingWorker.worker_bio && (
+              {viewingProfile.worker_bio && (
                 <div className="rounded-xl bg-[#1A1A24] p-3">
                   <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1">About</p>
-                  <p className="text-xs text-white leading-relaxed whitespace-pre-wrap">{viewingWorker.worker_bio}</p>
+                  <p className="text-xs text-white leading-relaxed whitespace-pre-wrap">{viewingProfile.worker_bio}</p>
                 </div>
               )}
 
               {/* Verification Media */}
-              {(viewingWorker.id_card_url || viewingWorker.verification_video_url) && (
+              {(viewingProfile.id_card_url || viewingProfile.verification_video_url) && (
                 <div className="rounded-xl bg-[#1A1A24] p-3 space-y-2">
                   <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Verification</p>
-                  {viewingWorker.id_card_url && (
+                  {viewingProfile.id_card_url && (
                     <div>
                       <p className="text-[10px] text-[#5C5E72] mb-1">ID Card</p>
-                      <img src={viewingWorker.id_card_url} alt="ID Card" className="w-full h-32 object-contain rounded-lg bg-black" />
+                      <img src={viewingProfile.id_card_url} alt="ID Card" className="w-full h-32 object-contain rounded-lg bg-black" />
                     </div>
                   )}
-                  {viewingWorker.verification_video_url && (
+                  {viewingProfile.verification_video_url && (
                     <div>
                       <p className="text-[10px] text-[#5C5E72] mb-1">Video</p>
-                      <video src={viewingWorker.verification_video_url} controls className="w-full h-40 rounded-lg bg-black" />
+                      <video src={viewingProfile.verification_video_url} controls className="w-full h-40 rounded-lg bg-black" />
                     </div>
                   )}
                 </div>
@@ -1221,11 +1236,11 @@ function WorkerApplicationsTab({ profile }: { profile: Profile }) {
 
               {/* Dates */}
               <div className="text-[10px] text-[#5C5E72]">
-                Joined: {viewingWorker.created_at ? new Date(viewingWorker.created_at).toLocaleDateString() : 'Unknown'}
+                Joined: {viewingProfile.created_at ? new Date(viewingProfile.created_at).toLocaleDateString() : 'Unknown'}
               </div>
 
               {/* Close */}
-              <button onClick={() => setViewingWorker(null)} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-xs text-white hover:bg-[#2A2A3A] transition-colors">
+              <button onClick={() => setViewingProfile(null)} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-xs text-white hover:bg-[#2A2A3A] transition-colors">
                 Close
               </button>
             </div>
