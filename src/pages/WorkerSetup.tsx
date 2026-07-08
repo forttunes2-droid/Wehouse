@@ -149,10 +149,12 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
         worker_name: form.full_name || profile.username,
       },
       onSuccess: async (ref: string) => {
-        // Payment succeeded — auto-grant blue tick (approved_for_verification)
+        // Payment succeeded — Golden Badge appears
+        // Status = 'approved_for_verification' (payment done, NOT approved yet)
+        // worker_verified stays FALSE — only admin/creator can set to TRUE
         const { error: updateError } = await supabase.from('profiles').update({
           worker_status: 'approved_for_verification',
-          worker_verified: true,
+          worker_verified: false, // NOT verified yet — admin must approve
           updated_at: new Date().toISOString(),
         }).eq('user_id', profile.user_id);
 
@@ -171,7 +173,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
           });
         } catch (_) { /* ignore */ }
 
-        toast.success('Payment successful! Blue tick granted. WeHouse will review your profile.');
+        toast.success('Payment successful! Your Golden Verification Badge is now active.');
         setStep('success');
         setPaying(false);
       },
@@ -198,14 +200,22 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
       <div className="min-h-screen bg-transparent pb-20 flex items-center justify-center px-5">
         <Toaster position="top-center" richColors />
         <div className="text-center max-w-sm">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M5 13l4 4L19 7" /></svg>
+          {/* Golden Badge */}
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/30">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
           </div>
-          <h2 className="text-lg font-bold text-white mb-2">Blue Tick Granted!</h2>
+          <h2 className="text-lg font-bold text-amber-400 mb-2">Golden Badge Active!</h2>
           <p className="text-sm text-[#5C5E72] mb-1">Your verification payment was successful.</p>
-          <p className="text-sm text-[#5C5E72] mb-6">WeHouse will review your profile and approve you to go public.</p>
-          <button onClick={handleSuccessDone} className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity">
-            Done
+          <p className="text-sm text-[#5C5E72] mb-4">Your Golden Badge proves payment is complete.</p>
+          <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-3 mb-4">
+            <p className="text-[10px] text-amber-400 leading-relaxed">
+              <strong>Next step:</strong> Go to your Worker Dashboard &gt; Verification Status tab.
+              Upload your Government ID and Skill Demonstration Video, then click
+              &quot;Submit Verification Request&quot; to send your application to WeHouse for review.
+            </p>
+          </div>
+          <button onClick={handleSuccessDone} className="w-full h-12 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 text-white font-semibold shadow-lg shadow-amber-500/20 hover:opacity-90 transition-opacity">
+            Go to Dashboard
           </button>
         </div>
       </div>

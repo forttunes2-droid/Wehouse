@@ -87,12 +87,16 @@ export interface Profile {
   privacy_search_visible: boolean;
   privacy_activity_visible: boolean;
   // ── WORKER FIELDS ─────────────────────────────────
-  worker_status: WorkerStatus | null;  // pending | verified | suspended | rejected
+  worker_status: WorkerStatus | null;  // pending → approved_for_verification → profile_under_review → verified/rejected
   worker_occupation: string | null;   // e.g. "electrician" (primary skill)
   worker_skills: string[] | null;     // multiple skills e.g. ["plumbing", "electrical"]
   worker_price: number | null;        // price worker charges (in NGN)
-  worker_verified: boolean;            // approved by platform
+  worker_verified: boolean;            // approved by platform (ONLY set by admin/creator)
   worker_bio: string | null;           // service description
+  worker_experience: string | null;    // years of experience
+  worker_gov_id_url: string | null;    // government ID document URL
+  worker_cert_url: string | null;      // additional certificates/docs URL
+  worker_video_url: string | null;     // 2-3 min skill demonstration video URL
   full_name: string | null;            // worker's real name
   // ─────────────────────────────────────────────────
   created_at: string;

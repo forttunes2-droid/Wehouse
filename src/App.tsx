@@ -519,14 +519,30 @@ export default function App() {
       case 'finance':
         return <FinanceDashboard profile={profile} onLogout={auth.logout} />;
       // Worker/Partner Wallet — balance, transactions, withdrawals
+      // ONLY workers and property_partners can access wallets
       case 'worker_wallet':
+        if (profile.role !== 'worker' && profile.role !== 'property_partner') {
+          toast.error('Wallet is only available for workers and property partners');
+          handleSetNavPage('home');
+          return null;
+        }
         return <WorkerWallet profile={profile} />;
       case 'property_owner':
       case 'property_partner':
         return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
       case 'my_bookings':
+        // Only users and workers can access bookings
+        if (profile.role !== 'user' && profile.role !== 'worker') {
+          handleSetNavPage('home');
+          return null;
+        }
         return <MyBookings profile={profile} onBack={() => goTo('profile')} />;
       case 'my_reservations':
+        // Only users can access reservations (hotel reservations)
+        if (profile.role !== 'user' && profile.role !== 'worker') {
+          handleSetNavPage('home');
+          return null;
+        }
         return <MyReservations profile={profile} onBack={() => goTo('profile')} />;
       case 'messages':
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
@@ -538,6 +554,11 @@ export default function App() {
       case 'calendar':
         return <CalendarPage profile={profile} />;
       case 'properties':
+        // Only property partners can access the Properties tab
+        if (profile.role !== 'property_partner') {
+          handleSetNavPage('home');
+          return null;
+        }
         return <PropertiesPage profile={profile} />;
       case 'management':
         return isCreatorRole ? <CreatorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :

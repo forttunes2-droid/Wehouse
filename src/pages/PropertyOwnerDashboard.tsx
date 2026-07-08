@@ -417,7 +417,19 @@ function EarningsTab({ bookings }: { bookings: any[] }) {
 
 function InspectionsTab({ inspections, profile, onConversationCreated }: { inspections: any[]; profile: Profile; onConversationCreated?: () => void }) {
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestForm, setRequestForm] = useState({ property_address: '', property_city: '', property_state: '', property_name: '', notes: '' });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [requestForm, setRequestForm] = useState({
+    property_name: '',
+    property_address: '',
+    property_city: '',
+    property_state: '',
+    property_type: 'house',
+    bedrooms: '',
+    bathrooms: '',
+    expected_rent: '',
+    description: '',
+    notes: ''
+  });
   const [submitting, setSubmitting] = useState(false);
 
   async function submitRequest() {
@@ -430,16 +442,20 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
       // 1. Create inspection request
       const { error: inspectionError } = await supabase.from('inspection_requests').insert({
         owner_id: profile.user_id,
-        owner_name: profile.full_name || profile.username,
         owner_email: profile.email,
         owner_phone: profile.phone,
         property_address: requestForm.property_address,
         property_city: requestForm.property_city,
         property_state: requestForm.property_state,
         property_name: requestForm.property_name || requestForm.property_address,
+        property_type: requestForm.property_type,
+        bedrooms: requestForm.bedrooms ? parseInt(requestForm.bedrooms) : null,
+        bathrooms: requestForm.bathrooms ? parseInt(requestForm.bathrooms) : null,
+        expected_rent: requestForm.expected_rent ? parseFloat(requestForm.expected_rent) : null,
+        description: requestForm.description,
         notes: requestForm.notes,
         status: 'pending',
-        request_code: 'INS' + Date.now().toString(36).toUpperCase(),
+        request_code: 'WHIR-' + Math.floor(10000 + Math.random() * 90000),
         created_at: new Date().toISOString(),
       }).select().single();
 
@@ -457,18 +473,20 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
         requestForm.property_address,
         requestForm.property_city,
         requestForm.property_state,
-        'house',
+        requestForm.property_type,
         'long_stay'
       );
 
       if (convError) {
         console.warn('Support conversation creation failed:', convError);
-        // Don't block the flow if conversation creation fails
       }
 
       toast.success('Inspection request submitted. WeHouse will contact you shortly.');
       setShowRequestForm(false);
-      setRequestForm({ property_address: '', property_city: '', property_state: '', property_name: '', notes: '' });
+      setRequestForm({
+        property_name: '', property_address: '', property_city: '', property_state: '',
+        property_type: 'house', bedrooms: '', bathrooms: '', expected_rent: '', description: '', notes: ''
+      });
       onConversationCreated?.();
     } catch (e: any) {
       toast.error('Error: ' + e.message);
@@ -476,6 +494,15 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
 
     setSubmitting(false);
   }
+
+  const statusConfig: Record<string, { color: string; label: string; icon: string }> = {
+    pending: { color: 'bg-amber-500/10 text-amber-400', label: 'Pending', icon: 'M12 8v4l3 3' },
+    scheduled: { color: 'bg-blue-500/10 text-blue-400', label: 'Scheduled', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    in_progress: { color: 'bg-violet-500/10 text-violet-400', label: 'In Progress', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+    completed: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Completed', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    approved: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Approved', icon: 'M5 13l4 4L19 7' },
+    rejected: { color: 'bg-red-500/10 text-red-400', label: 'Rejected', icon: 'M6 18L18 6M6 6l12 12' },
+  };
 
   return (
     <div className="space-y-4">
@@ -487,47 +514,204 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
         </button>
       ) : (
         <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-3">
-          <p className="text-sm font-semibold text-white">Request New Inspection</p>
-          <p className="text-[10px] text-[#5C5E72]">WeHouse will inspect your property before listing it publicly. A support conversation will be created for tracking.</p>
-          <input value={requestForm.property_name} onChange={e => setRequestForm(f => ({ ...f, property_name: e.target.value }))}
-            placeholder="Property name (optional)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-          <input value={requestForm.property_address} onChange={e => setRequestForm(f => ({ ...f, property_address: e.target.value }))}
-            placeholder="Property address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-          <div className="grid grid-cols-2 gap-2">
-            <input value={requestForm.property_city} onChange={e => setRequestForm(f => ({ ...f, property_city: e.target.value }))}
-              placeholder="City *" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-            <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
-              placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white">Request New Inspection</p>
+            <button onClick={() => setShowRequestForm(false)} className="text-[#5C5E72] hover:text-white">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
-          <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))}
-            placeholder="Additional notes (optional)" rows={2}
-            className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
-          <div className="flex gap-2">
-            <button onClick={() => setShowRequestForm(false)} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs">Cancel</button>
+          <p className="text-[10px] text-[#5C5E72]">Fill in your property details. WeHouse will inspect and approve it before listing.</p>
+
+          <div className="space-y-3">
+            <input value={requestForm.property_name} onChange={e => setRequestForm(f => ({ ...f, property_name: e.target.value }))}
+              placeholder="Property name (e.g. Sunset Apartments)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            <input value={requestForm.property_address} onChange={e => setRequestForm(f => ({ ...f, property_address: e.target.value }))}
+              placeholder="Full property address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            <div className="grid grid-cols-2 gap-2">
+              <input value={requestForm.property_city} onChange={e => setRequestForm(f => ({ ...f, property_city: e.target.value }))}
+                placeholder="City *" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+              <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
+                placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <select value={requestForm.property_type} onChange={e => setRequestForm(f => ({ ...f, property_type: e.target.value }))}
+                className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-violet-500">
+                <option value="house">House</option>
+                <option value="apartment">Apartment</option>
+                <option value="self_contain">Self Contain</option>
+                <option value="mini_flat">Mini Flat</option>
+                <option value="duplex">Duplex</option>
+                <option value="bungalow">Bungalow</option>
+                <option value="mansion">Mansion</option>
+              </select>
+              <input type="number" value={requestForm.bedrooms} onChange={e => setRequestForm(f => ({ ...f, bedrooms: e.target.value }))}
+                placeholder="Beds" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+              <input type="number" value={requestForm.bathrooms} onChange={e => setRequestForm(f => ({ ...f, bathrooms: e.target.value }))}
+                placeholder="Baths" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            </div>
+            <input type="number" value={requestForm.expected_rent} onChange={e => setRequestForm(f => ({ ...f, expected_rent: e.target.value }))}
+              placeholder="Expected rent (N/year)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            <textarea value={requestForm.description} onChange={e => setRequestForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Property description (e.g. fenced compound, parking space, water supply)" rows={2}
+              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
+            <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Additional notes for the inspector (optional)" rows={2}
+              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => setShowRequestForm(false)} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
             <button onClick={submitRequest} disabled={submitting} className="flex-1 h-10 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white text-xs font-semibold disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Request'}</button>
           </div>
         </div>
       )}
 
-      {/* Inspection History */}
-      <p className="text-xs font-semibold text-white">Inspection History ({inspections.length})</p>
+      {/* Inspection History — FULL DETAILS */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-white">Inspection History</p>
+        <span className="text-[10px] text-[#5C5E72]">{inspections.length} request{inspections.length !== 1 ? 's' : ''}</span>
+      </div>
+
       {inspections.length === 0 ? (
-        <p className="text-[11px] text-[#5C5E72] text-center py-4">No inspection requests yet</p>
-      ) : (
-        inspections.map(ins => (
-          <div key={ins.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white truncate">{ins.property_address}</p>
-              <span className={`text-[8px] px-2 py-1 rounded-full ${ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' : ins.status === 'scheduled' ? 'bg-amber-500/10 text-amber-400' : 'bg-gray-500/10 text-gray-400'}`}>{ins.status}</span>
-            </div>
-            <p className="text-[10px] text-[#5C5E72]">{ins.property_city}{ins.property_state ? `, ${ins.property_state}` : ''}</p>
-            <p className="text-[9px] text-[#5C5E72] mt-1">Code: {ins.request_code}</p>
-            {ins.status === 'completed' && (
-              <p className="text-[10px] text-emerald-400 mt-2">Inspection complete. WeHouse will create the listing.</p>
-            )}
+        <div className="text-center py-10">
+          <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
-        ))
+          <p className="text-sm font-semibold text-white mb-1">No Inspections Yet</p>
+          <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">Request a property inspection above. WeHouse will visit, verify, and list your property.</p>
+        </div>
+      ) : (
+        inspections.map(ins => {
+          const cfg = statusConfig[ins.status] || statusConfig.pending;
+          const isExpanded = expandedId === ins.id;
+          return (
+            <div key={ins.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
+              {/* Header — Always visible */}
+              <button onClick={() => setExpandedId(isExpanded ? null : ins.id)} className="w-full p-4 text-left">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{ins.property_name || ins.property_address}</p>
+                    <p className="text-[10px] text-[#5C5E72] mt-0.5">{ins.property_address}</p>
+                    <p className="text-[9px] text-[#5C5E72]">{ins.property_city}{ins.property_state ? `, ${ins.property_state}` : ''}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={`text-[8px] px-2 py-1 rounded-full ${cfg.color} font-medium`}>{cfg.label}</span>
+                    <span className="text-[8px] text-[#5C5E72]">{ins.request_code}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[9px] text-[#5C5E72]">Requested {new Date(ins.created_at).toLocaleDateString()}</p>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
+                </div>
+              </button>
+
+              {/* Expanded Details */}
+              {isExpanded && (
+                <div className="px-4 pb-4 border-t border-white/[0.04] pt-3 space-y-3">
+                  {/* Property Details Grid */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {ins.property_type && (
+                      <div className="rounded-lg bg-white/[0.02] p-2">
+                        <p className="text-[9px] text-[#5C5E72]">Property Type</p>
+                        <p className="text-[11px] text-white capitalize">{ins.property_type.replace(/_/g, ' ')}</p>
+                      </div>
+                    )}
+                    {(ins.bedrooms || ins.bathrooms) && (
+                      <div className="rounded-lg bg-white/[0.02] p-2">
+                        <p className="text-[9px] text-[#5C5E72]">Rooms</p>
+                        <p className="text-[11px] text-white">{ins.bedrooms || '-'} bed &middot; {ins.bathrooms || '-'} bath</p>
+                      </div>
+                    )}
+                    {ins.expected_rent && (
+                      <div className="rounded-lg bg-white/[0.02] p-2">
+                        <p className="text-[9px] text-[#5C5E72]">Expected Rent</p>
+                        <p className="text-[11px] text-white">N{Number(ins.expected_rent).toLocaleString()}/year</p>
+                      </div>
+                    )}
+                    {ins.scheduled_date && (
+                      <div className="rounded-lg bg-white/[0.02] p-2">
+                        <p className="text-[9px] text-[#5C5E72]">Scheduled Date</p>
+                        <p className="text-[11px] text-white">{new Date(ins.scheduled_date).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Assigned Field Officer */}
+                  {ins.assigned_to && (
+                    <div className="rounded-lg bg-violet-500/5 border border-violet-500/10 p-3">
+                      <p className="text-[9px] text-violet-400 font-medium mb-1">Assigned Field Officer</p>
+                      <p className="text-[11px] text-white">{ins.assigned_officer_name || ins.assigned_to}</p>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  {ins.description && (
+                    <div>
+                      <p className="text-[9px] text-[#5C5E72] mb-1">Description</p>
+                      <p className="text-[11px] text-white leading-relaxed">{ins.description}</p>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {ins.notes && (
+                    <div>
+                      <p className="text-[9px] text-[#5C5E72] mb-1">Inspector Notes</p>
+                      <p className="text-[11px] text-white/80 leading-relaxed">{ins.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Rejection Reason */}
+                  {ins.rejection_reason && (
+                    <div className="rounded-lg bg-red-500/5 border border-red-500/10 p-3">
+                      <p className="text-[9px] text-red-400 font-medium mb-1">Rejection Reason</p>
+                      <p className="text-[11px] text-red-300">{ins.rejection_reason}</p>
+                    </div>
+                  )}
+
+                  {/* Photo URLs */}
+                  {ins.photo_urls && ins.photo_urls.length > 0 && (
+                    <div>
+                      <p className="text-[9px] text-[#5C5E72] mb-2">Inspection Photos ({ins.photo_urls.length})</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {ins.photo_urls.map((url: string, i: number) => (
+                          <img key={i} src={url} alt={`Inspection ${i + 1}`} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timeline */}
+                  <div className="space-y-2 pt-1">
+                    <p className="text-[9px] text-[#5C5E72] font-medium">Timeline</p>
+                    <div className="space-y-1.5">
+                      <TimelineItem label="Request submitted" date={ins.created_at} color="emerald" />
+                      {ins.scheduled_date && <TimelineItem label="Inspection scheduled" date={ins.scheduled_date} color="blue" />}
+                      {ins.completed_at && <TimelineItem label="Inspection completed" date={ins.completed_at} color="violet" />}
+                      {ins.updated_at !== ins.created_at && <TimelineItem label="Last updated" date={ins.updated_at} color="amber" />}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })
       )}
+    </div>
+  );
+}
+
+// Timeline item for inspection detail view
+function TimelineItem({ label, date, color }: { label: string; date: string; color: string }) {
+  const colorMap: Record<string, string> = {
+    emerald: 'bg-emerald-500',
+    blue: 'bg-blue-500',
+    violet: 'bg-violet-500',
+    amber: 'bg-amber-500',
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-1.5 h-1.5 rounded-full ${colorMap[color] || 'bg-[#5C5E72]'} flex-shrink-0`} />
+      <p className="text-[10px] text-[#5C5E72]">{label}</p>
+      <p className="text-[9px] text-[#5C5E72] ml-auto">{new Date(date).toLocaleDateString()}</p>
     </div>
   );
 }
@@ -569,18 +753,10 @@ function MessagesTab({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-white">Support Conversations</p>
-          <p className="text-[10px] text-[#5C5E72]">Track your property inspections and communicate with WeHouse</p>
-        </div>
+      <div>
+        <p className="text-sm font-semibold text-white">Support Conversations</p>
+        <p className="text-[10px] text-[#5C5E72] mt-0.5">Track your property inspections and communicate with WeHouse staff. New conversations are created automatically when you submit an inspection request.</p>
       </div>
-
-      {/* New Request Button */}
-      <button onClick={() => {}} className="w-full h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-violet-500/20 transition-colors">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-        Request New Inspection
-      </button>
 
       {/* Conversations List */}
       {conversations.length === 0 ? (
