@@ -114,12 +114,6 @@ const SETTING_GROUPS = [
       { key: 'worker_approval', label: 'Worker Approval', description: 'manual or auto approval', type: 'text', defaultValue: 'manual' },
       { key: 'worker_video_required', label: 'Video Intro Required', description: 'Require workers to submit a video', type: 'toggle', defaultValue: 'true' },
       { key: 'max_skills_worker', label: 'Max Skills Per Worker', description: 'Maximum services a worker can offer', type: 'number', defaultValue: '5' },
-    ] as SettingDef[],
-  },
-  {
-    id: 'features',
-    label: 'Features',
-    settings: [
       { key: 'feature_hotels', label: 'Hotels Module', description: 'Enable hotel bookings', type: 'toggle', defaultValue: 'true' },
       { key: 'feature_workers', label: 'Workers Module', description: 'Enable worker services', type: 'toggle', defaultValue: 'true' },
       { key: 'feature_roommate', label: 'Roommate Matching', description: 'Enable roommate matching', type: 'toggle', defaultValue: 'true' },
@@ -250,7 +244,7 @@ function PlatformSettings() {
         // Fallback: direct table upsert
         const { error: upsertError } = await supabase
           .from('platform_settings')
-          .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+          .upsert({ key, value, category: activeGroup, updated_at: new Date().toISOString() }, { onConflict: 'key' });
         if (upsertError) {
           toast.error('Failed to save: ' + upsertError.message);
           setSaving(null);
