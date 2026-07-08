@@ -17,7 +17,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url);
   const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
   const [paying, setPaying] = useState(false);
-  const [verificationFee, setVerificationFee] = useState<number>(5000);
+  const [verificationFee, setVerificationFee] = useState<number>(0);
 
   const [form, setForm] = useState({
     full_name: profile.full_name || '',

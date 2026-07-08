@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+// NOTE: All financial rates (commission, fees) come from Creator Platform Settings
+// Do NOT hardcode percentages. Use get_setting_v2() to load from platform_settings.
 import SettingsTab from './SettingsTab';
 import PartnerSupportChat from '@/components/PartnerSupportChat';
 import { getPartnerConversations, createPartnerSupportConversation } from '@/lib/supabase/partner-support';
@@ -360,7 +362,18 @@ function OccupancyTab({ properties, bookings }: { properties: any[]; bookings: a
 function EarningsTab({ bookings }: { bookings: any[] }) {
   const confirmedBookings = bookings.filter((b: any) => b.status === 'confirmed');
   const totalRevenue = confirmedBookings.reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
-  const wehouseCommission = Math.round(totalRevenue * 0.1); // 10% commission
+  // Commission rate comes from Creator Platform Settings (default 10%)
+  const [commissionRate, setCommissionRate] = useState(10);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('get_setting_v2', { p_key: 'partner_commission_rate' });
+        const rate = data ? parseFloat(data) : 0;
+        if (rate > 0 && rate < 100) setCommissionRate(rate);
+      } catch (_) { /* use default */ }
+    })();
+  }, []);
+  const wehouseCommission = Math.round(totalRevenue * (commissionRate / 100));
   const netEarnings = totalRevenue - wehouseCommission;
 
   return (
@@ -381,14 +394,14 @@ function EarningsTab({ bookings }: { bookings: any[] }) {
       <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-2">
         <p className="text-xs font-semibold text-white">Commission Breakdown</p>
         <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">Gross Revenue</span><span className="text-white">N{totalRevenue.toLocaleString()}</span></div>
-        <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse Commission (10%)</span><span className="text-amber-400">-N{wehouseCommission.toLocaleString()}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-[#5C5E72]">WeHouse Commission ({commissionRate}%)</span><span className="text-amber-400">-N{wehouseCommission.toLocaleString()}</span></div>
         <div className="border-t border-white/[0.04] pt-2 flex justify-between text-xs"><span className="text-white font-semibold">Your Earnings</span><span className="text-emerald-400 font-bold">N{netEarnings.toLocaleString()}</span></div>
       </div>
 
       {/* Payment Flow */}
       <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-3">
         <p className="text-[10px] text-blue-400 leading-relaxed">
-          <strong>How payments work:</strong> Customer pays WeHouse &rarr; Held in escrow &rarr; Stay completes &rarr; 10% commission deducted &rarr; Balance enters your wallet &rarr; Automatic withdrawal to your bank account.
+          <strong>How payments work:</strong> Customer pays WeHouse &rarr; Held in escrow &rarr; Stay completes &rarr; {commissionRate}% commission deducted &rarr; Balance enters your wallet &rarr; Automatic withdrawal to your bank account.
         </p>
       </div>
 
@@ -403,7 +416,7 @@ function EarningsTab({ bookings }: { bookings: any[] }) {
               <p className="text-xs text-white">Booking #{b.id?.slice(0, 8)}</p>
               <p className="text-[9px] text-[#5C5E72]">{b.check_in} &rarr; {b.check_out}</p>
             </div>
-            <p className="text-xs text-emerald-400">+N{(b.amount * 0.9)?.toLocaleString()}</p>
+            <p className="text-xs text-emerald-400">+N{(b.amount * (1 - commissionRate / 100))?.toLocaleString()}</p>
           </div>
         ))
       )}

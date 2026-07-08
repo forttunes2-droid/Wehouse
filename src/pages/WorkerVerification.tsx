@@ -275,15 +275,22 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
       return;
     }
 
-    // Notify creator/admin
+    // Notify creator/admin — find creator dynamically, don't hardcode ID
     try {
-      await supabase.from('notifications').insert({
-        user_id: 'WHU-00001', // Creator
-        type: 'verification_issue',
-        title: 'Worker Verification Submitted',
-        body: `${form.full_name || profile.username} has submitted their verification request for review.`,
-        is_read: false,
-      });
+      const { data: creator } = await supabase.from('profiles')
+        .select('user_id')
+        .eq('role', 'creator')
+        .limit(1)
+        .single();
+      if (creator?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: creator.user_id,
+          type: 'verification_issue',
+          title: 'Worker Verification Submitted',
+          body: `${form.full_name || profile.username} has submitted their verification request for review.`,
+          is_read: false,
+        });
+      }
     } catch (_) { /* non-critical */ }
 
     setSubmitting(false);
