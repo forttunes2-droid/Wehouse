@@ -407,22 +407,27 @@ export default function App() {
     const props = { profile, savedIds, onToggleSave: handleToggleSave };
 
     // ─── ROLE GUARDS: prevent unauthorized access to role-specific pages ──
-    const roleGuards: Record<string, boolean> = {
-      creator: isCreatorRole,
-      admin: isAdminRole,
-      staff_dashboard: isStaffRole,
-      worker_dashboard: isWorkerRole,
-      property_partner: isPropertyPartner,
-      management: isCreatorRole || isAdminRole || isStaffRole,
-      analytics: isCreatorRole || isAdminRole || isStaffRole,
-      jobs: isWorkerRole,
-      calendar: isWorkerRole,
-      properties: isPropertyPartner,
-    };
-    if (roleGuards[navPage] === false) {
-      toast.error('You do not have permission to access this page');
-      handleSetNavPage('home');
-      return null;
+    // SKIP guards while auth is still loading — prevents redirect on refresh
+    // before profile is available. Validation effect (line ~204) handles this
+    // AFTER auth finishes loading.
+    if (!auth.isLoading) {
+      const roleGuards: Record<string, boolean> = {
+        creator: isCreatorRole,
+        admin: isAdminRole,
+        staff_dashboard: isStaffRole,
+        worker_dashboard: isWorkerRole,
+        property_partner: isPropertyPartner,
+        management: isCreatorRole || isAdminRole || isStaffRole,
+        analytics: isCreatorRole || isAdminRole || isStaffRole,
+        jobs: isWorkerRole,
+        calendar: isWorkerRole,
+        properties: isPropertyPartner,
+      };
+      if (roleGuards[navPage] === false) {
+        toast.error('You do not have permission to access this page');
+        handleSetNavPage('home');
+        return null;
+      }
     }
 
     switch (navPage) {

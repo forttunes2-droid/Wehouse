@@ -189,13 +189,11 @@ export default function Dashboard({
       </header>
 
       <div className="max-w-lg mx-auto px-5 space-y-4">
-        {/* Quick Actions */}
+        {/* Quick Actions — role-specific */}
         <div className="grid grid-cols-2 gap-3">
+          {/* Add Listing — Admin/Creator only */}
           {isAdmin && onGoToNewListing && (
-            <button
-              onClick={onGoToNewListing}
-              className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-green-500/10"
-            >
+            <button onClick={onGoToNewListing} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-green-500/10">
               <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
               </div>
@@ -205,32 +203,11 @@ export default function Dashboard({
               </div>
             </button>
           )}
-          {onGoToChat && (
-            <button
-              onClick={onGoToChat}
-              className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group"
-            >
+          {/* Edit Profile — User and Worker only. Admin/Creator/Staff use their dashboard hubs. */}
+          {onGoToProfileEdit && (profile.role === 'user' || profile.role === 'worker' || profile.role === 'property_partner') && (
+            <button onClick={onGoToProfileEdit} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group">
               <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">Messages</div>
-                <div className="text-[10px] text-[#5C5E72]">Chat with users</div>
-              </div>
-            </button>
-          )}
-          {onGoToProfileEdit && profile.role !== 'staff' && (
-            <button
-              onClick={onGoToProfileEdit}
-              className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">Edit Profile</div>
@@ -238,21 +215,15 @@ export default function Dashboard({
               </div>
             </button>
           )}
-          {/* Staff — show assigned location instead of Edit Profile */}
+          {/* Staff — show assigned modules instead of Edit Profile */}
           {profile.role === 'staff' && (
             <div className="glass rounded-2xl p-4 flex items-center gap-3 border border-amber-500/10">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               </div>
               <div>
-                <div className="text-sm font-semibold text-white">Assigned Location</div>
-                <div className="text-[10px] text-amber-400">
-                  {profile.assigned_lga || profile.city || 'Not set'}, {profile.assigned_state || profile.state || 'Not set'}
-                </div>
-                <div className="text-[9px] text-[#5C5E72] mt-0.5">Contact admin to change</div>
+                <div className="text-sm font-semibold text-white">Assigned Modules</div>
+                <div className="text-[10px] text-amber-400">View in Staff Hub</div>
               </div>
             </div>
           )}
@@ -356,8 +327,9 @@ export default function Dashboard({
           </button>
         )}
 
-        {/* About */}
-        {(profile.bio || profile.occupation || profile.school || profile.preferred_location || profile.gender) && (
+        {/* About — ONLY for normal users and workers. Admin/Creator/Staff/Partner have dashboard hubs. */}
+        {(profile.role === 'user' || profile.role === 'worker' || profile.role === 'property_partner') &&
+         (profile.bio || profile.occupation || profile.school || profile.preferred_location || profile.gender) && (
           <div className="glass rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-white mb-3">About</h3>
             {profile.bio && (

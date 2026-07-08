@@ -355,9 +355,19 @@ function PartnersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void
 // ═══════════════════════════════════════════════════════════
 // STAFF TAB
 // ═══════════════════════════════════════════════════════════
+const MODULE_LABELS: Record<string, string> = {
+  operations: 'Operations',
+  finance: 'Finance',
+  support: 'Support',
+  verification: 'Verification',
+  field_officer: 'Field Officer',
+};
+
 function StaffTabDirector({ profile }: { profile: Profile }) {
   const [staff, setStaff] = useState<any[]>([]);
+  const [staffModules, setStaffModules] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -366,26 +376,72 @@ function StaffTabDirector({ profile }: { profile: Profile }) {
     const { users: data } = await getAllUsers();
     const s = (data || []).filter((u: any) => u.role === 'staff' && !u.deleted && u.user_id !== profile.user_id);
     setStaff(s);
+
+    // Fetch all staff modules
+    const { data: modulesData } = await supabase.from('staff_modules').select('*').is('revoked_at', null);
+    const mods: Record<string, string[]> = {};
+    (modulesData || []).forEach((m: any) => {
+      if (!mods[m.staff_id]) mods[m.staff_id] = [];
+      mods[m.staff_id].push(m.module);
+    });
+    setStaffModules(mods);
     setLoading(false);
+  }
+
+  async function toggleModule(staffId: string, module: string) {
+    setSaving(staffId + module);
+    const current = staffModules[staffId] || [];
+    const hasModule = current.includes(module);
+
+    if (hasModule) {
+      // Revoke module
+      await supabase.from('staff_modules').update({ revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('module', module).is('revoked_at', null);
+      setStaffModules(prev => ({ ...prev, [staffId]: (prev[staffId] || []).filter(m => m !== module) }));
+    } else {
+      // Grant module
+      await supabase.from('staff_modules').insert({ staff_id: staffId, module, granted_by: profile.user_id });
+      setStaffModules(prev => ({ ...prev, [staffId]: [...(prev[staffId] || []), module] }));
+    }
+    setSaving(null);
   }
 
   return (
     <div className="space-y-3">
+      <p className="text-[10px] text-[#5C5E72]">Click a module to assign or revoke. Staff only sees their assigned modules.</p>
       {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {staff.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No staff members</p>}
-          {staff.map(s => (
-            <div key={s.id} className="glass rounded-xl p-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">{(s.username || 'S').charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">@{s.username || 'unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72] truncate">{s.email}</p>
+          {staff.map(s => {
+            const modules = staffModules[s.user_id] || [];
+            return (
+              <div key={s.user_id} className="glass rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">{(s.username || 'S').charAt(0).toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white truncate">@{s.username || 'unknown'}</p>
+                    <p className="text-[10px] text-[#5C5E72] truncate">{s.email}</p>
+                  </div>
                 </div>
-                <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">Staff</span>
+                {/* Module toggles */}
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(MODULE_LABELS).map(([key, label]) => {
+                    const active = modules.includes(key);
+                    return (
+                      <button key={key} onClick={() => toggleModule(s.user_id, key)} disabled={saving === s.user_id + key}
+                        className={`h-7 px-2.5 rounded-lg text-[10px] font-medium border transition-all ${
+                          active
+                            ? 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/30'
+                            : 'bg-[#1A1A24] text-[#5C5E72] border-[#2A2A3A] hover:border-[#3B82F6]/20'
+                        }`}>
+                        {saving === s.user_id + key ? '...' : (active ? '✓ ' : '+ ') + label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {modules.length === 0 && <p className="text-[9px] text-[#5C5E72] mt-1">No modules assigned — staff sees empty dashboard</p>}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
