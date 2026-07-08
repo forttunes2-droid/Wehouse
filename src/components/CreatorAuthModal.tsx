@@ -80,13 +80,19 @@ export default function CreatorAuthModal() {
               {displayError && <p className="text-xs text-red-400">{displayError}</p>}
               <button type="submit" disabled={isLoading} className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-[#7C3AED] text-white text-sm font-semibold disabled:opacity-40">{isLoading ? 'Verifying...' : 'Continue'}</button>
               <button type="button" onClick={() => { setMode('change'); setLocalError(''); setPasswordInput(''); }} className="w-full h-9 rounded-xl text-[11px] text-[#5C5E72] hover:text-white">Change Password</button>
-              <button type="button" onClick={() => {
-                // Reset: clear localStorage + SQL password, go to setup
+              <button type="button" onClick={async () => {
+                // FULL RESET: clear localStorage + SQL password
                 try { localStorage.removeItem('wh_creator_pw_hash'); } catch(e){}
+                // Also attempt to clear SQL password (fire-and-forget)
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) { await supabase.rpc('creator_auth_set_v3', { p_auth_id: user.id, p_password: '' }); }
+                } catch { /* ignore SQL errors */ }
                 setMode('setup');
                 setLocalError('');
                 setPasswordInput('');
                 setOldPassword('');
+                setConfirmPassword('');
               }} className="w-full h-9 rounded-xl text-[11px] text-red-400/60 hover:text-red-400">Reset Password (Start Fresh)</button>
             </form>
           </>
