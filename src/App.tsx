@@ -28,6 +28,7 @@ const PrivacySettings = lazy(() => import('@/pages/PrivacySettings'));
 const SecuritySettings = lazy(() => import('@/pages/SecuritySettings'));
 const CreateListing = lazy(() => import('@/pages/CreateListing'));
 const WorkerSetup = lazy(() => import('@/pages/WorkerSetup'));
+const WorkerVerification = lazy(() => import('@/pages/WorkerVerification'));
 const WorkerDashboard = lazy(() => import('@/pages/WorkerDashboard'));
 const WorkerDiscovery = lazy(() => import('@/pages/WorkerDiscovery'));
 const WorkerCategories = lazy(() => import('@/pages/WorkerCategories'));
@@ -496,9 +497,11 @@ export default function App() {
         return hotelId && hotelRoomId ? <HotelBooking hotelId={hotelId} roomId={hotelRoomId} checkIn={hotelCheckIn} checkOut={hotelCheckOut} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onComplete={goToHotel} /> : null;
       case 'hotel_reservation':
         return hotelId && hotelRoomId ? <HotelReservation hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={() => handleSetNavPage('hotel_detail')} onProceedToBooking={(hId, rId) => goToHotelBooking(hId, rId)} onComplete={goToHotel} /> : null;
+      // Worker Verification — workers submit docs, pay, get golden tick
+      case 'worker_verification':
+        return <WorkerVerification profile={profile} onBack={() => handleSetNavPage('profile')} />;
       // Legacy permission dashboards
       case 'operations':
-      case 'worker_verification':
       case 'field_officer':
         return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       // Finance Dashboard — full financial monitoring for finance staff
