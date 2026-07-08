@@ -203,8 +203,8 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
             .from('profiles')
             .select('user_id, username, full_name, worker_occupation, worker_skills, worker_price, avatar_url, city, state, worker_status, worker_verified, worker_rating')
             .eq('role', 'worker')
+            .eq('worker_status', 'verified')
             .is('deleted_at', null)
-            .order('worker_verified', { ascending: false })
             .order('worker_rating', { ascending: false })
             .range(offset, offset + limit - 1);
 
@@ -408,7 +408,36 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
 
       {/* Results */}
       <div className="px-4 py-4 space-y-3">
-        {results.length === 0 && !loading && (
+        {/* Workers tab: CTA first, always visible */}
+        {activeCategory === 'workers' && (
+          <button onClick={() => onNavigate('worker_discovery')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-white">Browse All Workers</p>
+              <p className="text-[10px] text-[#5C5E72]">Categories, filters, book and message workers</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+          </button>
+        )}
+
+        {/* Roommates tab: CTA first, always visible */}
+        {activeCategory === 'roommates' && (
+          <button onClick={() => onNavigate('roommate')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-white">Find Your Roommate</p>
+              <p className="text-[10px] text-[#5C5E72]">Set preferences — gender, budget, lifestyle, location</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+          </button>
+        )}
+
+        {/* Empty state — only for houses/apartments/hotels */}
+        {results.length === 0 && !loading && activeCategory !== 'workers' && activeCategory !== 'roommates' && (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
@@ -482,17 +511,6 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
         {/* Workers */}
         {activeCategory === 'workers' && (
           <>
-            {/* CTA to full worker marketplace — ALWAYS at top */}
-            <button onClick={() => onNavigate('worker_discovery')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform mb-3">
-              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-semibold text-white">Browse All Workers</p>
-                <p className="text-[10px] text-[#5C5E72]">Categories, filters, book and message workers</p>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-            </button>
             {results.map((worker: any) => (
               <button key={worker.user_id} onClick={() => onNavigate('worker_discovery')} className="w-full text-left glass rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -523,17 +541,6 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
         {/* Roommates */}
         {activeCategory === 'roommates' && (
           <>
-            {/* CTA to set preferences */}
-            <button onClick={() => onNavigate('roommate')} className="w-full glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5 flex items-center gap-3 active:scale-[0.98] transition-transform mb-3">
-              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-semibold text-white">Find Your Roommate</p>
-                <p className="text-[10px] text-[#5C5E72]">Set preferences — gender, budget, lifestyle, location</p>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-            </button>
             {results.map((rm: any) => (
               <button key={rm.id} onClick={() => onNavigate('roommate')} className="w-full text-left glass rounded-2xl p-4 active:scale-[0.98] transition-transform">
                 <div className="flex items-center gap-3 mb-2">
