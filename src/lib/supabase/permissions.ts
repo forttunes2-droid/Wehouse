@@ -1,48 +1,60 @@
 // ─── PERMISSIONS MODULE ────────────────────────────
-// Staff permission management — Creator assigns, staff dashboard reads.
-// This is the CORE of the permission-driven architecture.
+// Staff permission management — reads from staff_modules table
+// StaffListTab writes to staff_modules, StaffDashboard reads permissions here
+// ═══════════════════════════════════════════════════
 
 import { supabase } from './client';
-import type { StaffPermission, StaffPermissionRecord } from '@/types';
+import type { StaffPermission } from '@/types';
 
 // ─── GET PERMISSIONS ───────────────────────────────
+// Reads from staff_modules table (where StaffListTab assigns modules)
 
 export async function getStaffPermissions(staffId: string): Promise<{
   permissions: StaffPermission[];
-  records: StaffPermissionRecord[];
   error: any;
 }> {
+  // Read from staff_modules table — this is where StaffListTab writes
   const { data, error } = await supabase
-    .from('staff_permissions')
-    .select('*')
+    .from('staff_modules')
+    .select('module')
     .eq('staff_id', staffId)
-    .eq('is_active', true);
+    .is('revoked_at', null);
 
-  if (error) return { permissions: [], records: [], error };
+  if (error) return { permissions: [], error };
 
-  const records = (data || []) as StaffPermissionRecord[];
-  const permissions = records.map(r => r.permission as StaffPermission);
-  return { permissions, records, error: null };
+  // Map module names to StaffPermission type
+  const moduleToPermission: Record<string, StaffPermission> = {
+    operations: 'operations',
+    finance: 'finance',
+    support: 'support',
+    verification: 'verification',
+    field_officer: 'field_officer',
+  };
+
+  const permissions = (data || [])
+    .map((r: any) => moduleToPermission[r.module])
+    .filter(Boolean) as StaffPermission[];
+
+  return { permissions, error: null };
 }
 
 // ─── GRANT PERMISSION ──────────────────────────────
+// Also writes to staff_modules to keep both tables in sync
 
 export async function grantPermission(
   staffId: string,
   permission: StaffPermission,
-  grantedBy: string
+  _grantedBy: string
 ): Promise<{ success: boolean; error: any }> {
   const { error } = await supabase
-    .from('staff_permissions')
+    .from('staff_modules')
     .upsert(
-      { staff_id: staffId, permission, granted_by: grantedBy, is_active: true, granted_at: new Date().toISOString() },
-      { onConflict: 'staff_id,permission' }
+      { staff_id: staffId, module: permission },
+      { onConflict: 'staff_id,module' }
     );
 
   if (error) return { success: false, error };
 
-  // Also update the quick-check array on profiles
-  await _refreshProfilePermissions(staffId);
   return { success: true, error: null };
 }
 
@@ -53,14 +65,14 @@ export async function revokePermission(
   permission: StaffPermission
 ): Promise<{ success: boolean; error: any }> {
   const { error } = await supabase
-    .from('staff_permissions')
-    .update({ is_active: false, revoked_at: new Date().toISOString() })
+    .from('staff_modules')
+    .update({ revoked_at: new Date().toISOString() })
     .eq('staff_id', staffId)
-    .eq('permission', permission);
+    .eq('module', permission)
+    .is('revoked_at', null);
 
   if (error) return { success: false, error };
 
-  await _refreshProfilePermissions(staffId);
   return { success: true, error: null };
 }
 
@@ -97,7 +109,7 @@ export async function getAllStaffWithPermissions(): Promise<{
 }> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('user_id, email, username, full_name, role, staff_permissions')
+    .select('user_id, email, username, full_name, role')
     .eq('role', 'staff')
     .is('deleted_at', null);
 
@@ -126,28 +138,18 @@ export async function getStaffByPermission(
   permission: StaffPermission
 ): Promise<{ staff: Array<{ user_id: string; email: string; username: string | null }>; error: any }> {
   const { data, error } = await supabase
-    .from('staff_permissions')
+    .from('staff_modules')
     .select('staff_id')
-    .eq('permission', permission)
-    .eq('is_active', true);
+    .eq('module', permission)
+    .is('revoked_at', null);
 
   if (error || !data?.length) return { staff: [], error };
 
-  const staffIds = data.map(d => d.staff_id);
+  const staffIds = data.map((d: any) => d.staff_id);
   const { data: profiles } = await supabase
     .from('profiles')
     .select('user_id, email, username')
     .in('user_id', staffIds);
 
   return { staff: profiles || [], error: null };
-}
-
-// ─── INTERNAL: REFRESH PROFILE PERMISSIONS CACHE ───
-
-async function _refreshProfilePermissions(staffId: string) {
-  const { permissions } = await getStaffPermissions(staffId);
-  await supabase
-    .from('profiles')
-    .update({ staff_permissions: permissions })
-    .eq('user_id', staffId);
 }

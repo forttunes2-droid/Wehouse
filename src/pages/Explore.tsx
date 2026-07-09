@@ -11,9 +11,20 @@ interface ExploreProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CATEGORIES — loaded from property_types table (Creator-controlled)
+// Falls back to defaults if DB has no data
+// ═══════════════════════════════════════════════════════════════
+
 type ExploreCategory = 'houses' | 'apartments' | 'hotels' | 'workers' | 'roommates';
 
-const CATEGORIES: { id: ExploreCategory; label: string; icon: string }[] = [
+interface DynamicCategory {
+  id: ExploreCategory;
+  label: string;
+  icon: string;
+}
+
+const FALLBACK_CATEGORIES: DynamicCategory[] = [
   { id: 'houses', label: 'Houses', icon: '🏠' },
   { id: 'apartments', label: 'Apartments', icon: '🏢' },
   { id: 'hotels', label: 'Hotels', icon: '🏨' },
@@ -74,6 +85,7 @@ const CATEGORY_FILTERS: Record<ExploreCategory, FilterConfig[]> = {
 // ────────────────────────────────────────────────────────────
 
 export default function Explore({ profile, savedIds, onToggleSave, onNavigate }: ExploreProps) {
+  const [categories, setCategories] = useState<DynamicCategory[]>(FALLBACK_CATEGORIES);
   const [activeCategory, setActiveCategory] = useState<ExploreCategory>('houses');
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -84,6 +96,30 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
   const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({});
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load categories from property_types table (Creator-controlled)
+  useEffect(() => {
+    async function loadCategories() {
+      const { data } = await supabase.from('property_types').select('*').eq('is_active', true).order('sort_order');
+      if (data && data.length > 0) {
+        // Map property_type names to ExploreCategory IDs
+        const nameToId: Record<string, ExploreCategory> = {
+          'house': 'houses', 'houses': 'houses',
+          'apartment': 'apartments', 'apartments': 'apartments',
+          'hotel': 'hotels', 'hotels': 'hotels',
+          'worker': 'workers', 'workers': 'workers',
+          'roommate': 'roommates', 'roommates': 'roommates',
+        };
+        const mapped: DynamicCategory[] = data.map((t: any) => ({
+          id: nameToId[t.name?.toLowerCase()] || 'houses',
+          label: t.name,
+          icon: t.icon === 'house' ? '🏠' : t.icon === 'apartment' ? '🏢' : t.icon === 'hotel' ? '🏨' : t.icon === 'worker' ? '🔧' : t.icon === 'roommate' ? '👥' : '🏠',
+        }));
+        setCategories(mapped);
+      }
+    }
+    loadCategories();
+  }, []);
 
   // ── Load filter options from database ──
   const loadFilterOptions = useCallback(async (category: ExploreCategory) => {
@@ -316,7 +352,7 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder={`Search ${CATEGORIES.find(c => c.id === activeCategory)?.label.toLowerCase()}...`}
+                placeholder={`Search ${categories.find(c => c.id === activeCategory)?.label.toLowerCase()}...`}
                 className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm pl-10 pr-4 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 focus:outline-none transition-colors"
               />
               {searchQuery && (
@@ -344,7 +380,7 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
 
         {/* Category Chips */}
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide">
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
