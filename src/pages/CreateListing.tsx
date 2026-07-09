@@ -564,12 +564,12 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           )}
         </div>
 
-        {/* Security Deposit — Only for Short Let */}
+        {/* Security Deposit — ONLY for Short Let */}
         {form.sub_type === 'short_let' && (
           <div className="rounded-xl bg-blue-500/5 border border-blue-500/10 p-4">
             <label className="text-xs text-blue-400 font-medium mb-1.5 block">Security Deposit (Caution Fee) — NGN</label>
             <p className="text-[10px] text-[#5C5E72] mb-2">
-              Required for short-let apartments. Covers potential damage to furniture and appliances.
+              Set per apartment. Amount varies by furnishing quality and apartment type.
               Held in escrow and returned after the stay if no damage.
             </p>
             <Input

@@ -29,6 +29,7 @@ const ICONS: Record<string, string> = {
 
 export default function PropertyTypeManager({ profile: _profile }: { profile: Profile }) {
   const [types, setTypes] = useState<PropertyType[]>([]);
+  const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newType, setNewType] = useState('');
@@ -41,13 +42,28 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
     if (!error && data && data.length > 0) {
       setTypes(data as PropertyType[]);
     } else {
+      // No DB data — seed defaults
       setTypes(DEFAULT_TYPES);
+      // Auto-save defaults to DB
+      for (const t of DEFAULT_TYPES) {
+        await supabase.from('property_types').upsert({
+          id: t.id,
+          name: t.name,
+          icon: t.icon,
+          sort_order: t.sort_order,
+          is_active: t.is_active,
+          updated_at: new Date().toISOString(),
+        });
+      }
     }
+    setDeletedIds([]);
     setLoading(false);
   }
 
   async function saveTypes() {
     setSaving(true);
+
+    // 1. Upsert all current types
     for (const t of types) {
       await supabase.from('property_types').upsert({
         id: t.id,
@@ -58,19 +74,25 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
         updated_at: new Date().toISOString(),
       });
     }
+
+    // 2. Actually DELETE removed types from DB
+    if (deletedIds.length > 0) {
+      for (const delId of deletedIds) {
+        await supabase.from('property_types').delete().eq('id', delId);
+      }
+      setDeletedIds([]);
+    }
+
     setSaving(false);
     toast.success('Property types saved');
   }
 
-  async function deleteType(id: number) {
-    // Try to delete from DB (may fail due to RLS — that's OK, we still remove from UI)
-    const { error } = await supabase.from('property_types').delete().eq('id', id);
-    if (error) {
-      console.warn('DB delete failed (RLS?), removing from UI only:', error.message);
-    }
-    // Always update local state
+  function deleteType(id: number) {
+    // Remove from local state
     setTypes(prev => prev.filter(t => t.id !== id));
-    toast.success('Property type removed');
+    // Track this ID for deletion during save
+    setDeletedIds(prev => [...prev, id]);
+    toast.success('Property type marked for deletion — click Save to confirm');
   }
 
   function addType() {
@@ -95,7 +117,6 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
     if (idx <= 0) return;
     const newTypes = [...types];
     [newTypes[idx], newTypes[idx - 1]] = [newTypes[idx - 1], newTypes[idx]];
-    // Reassign sort_order
     newTypes.forEach((t, i) => t.sort_order = i + 1);
     setTypes(newTypes);
   }
@@ -116,7 +137,14 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
   return (
     <div className="space-y-4">
       <Toaster position="top-center" richColors theme="dark" />
-      <p className="text-[11px] text-[#5C5E72]">Manage property types shown in Explore. Drag to reorder, toggle to show/hide. Changes sync to the Explore page.</p>
+      <p className="text-[11px] text-[#5C5E72]">Manage property types shown in Explore. Drag to reorder, toggle to show/hide. Click Save to apply changes to the database.</p>
+
+      {/* Deleted count warning */}
+      {deletedIds.length > 0 && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3">
+          <p className="text-[10px] text-red-400">{deletedIds.length} type(s) marked for deletion. Click Save to confirm.</p>
+        </div>
+      )}
 
       {/* Add new */}
       <div className="flex gap-2">
@@ -158,9 +186,9 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
             {/* Move */}
             <div className="flex gap-0.5">
               <button onClick={() => moveUp(t.id)} disabled={idx === 0}
-                className="w-6 h-6 rounded bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-20">↑</button>
+                className="w-6 h-6 rounded bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-20">&#8593;</button>
               <button onClick={() => moveDown(t.id)} disabled={idx === types.length - 1}
-                className="w-6 h-6 rounded bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-20">↓</button>
+                className="w-6 h-6 rounded bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-20">&#8595;</button>
             </div>
 
             {/* Delete */}

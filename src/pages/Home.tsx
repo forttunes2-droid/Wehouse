@@ -475,12 +475,19 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
           <img src="/hero-cityscape.jpg" alt="Nigeria" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F] via-[#0A0A0F]/70 to-[#0A0A0F]/40" />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-5">
-            <p className="text-lg font-bold text-white">Ready to find your home?</p>
-            <p className="text-xs text-white/50 mt-1 mb-4">Our verified staff are here to help</p>
-            <button onClick={() => onNavigate('search')} className="h-10 px-6 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white text-xs font-semibold shadow-lg shadow-blue-500/30 hover:opacity-90 transition-opacity inline-flex items-center gap-2">
-              Start Browsing
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-            </button>
+            {profile.role === 'user' && (
+              <>
+                <p className="text-lg font-bold text-white">Ready to find your home?</p>
+                <p className="text-xs text-white/50 mt-1 mb-4">Our verified staff are here to help</p>
+                <button onClick={() => onNavigate('search')} className="h-10 px-6 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white text-xs font-semibold shadow-lg shadow-blue-500/30 hover:opacity-90 transition-opacity inline-flex items-center gap-2">
+                  Start Browsing
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                </button>
+              </>
+            )}
+            {profile.role !== 'user' && (
+              <p className="text-sm text-white/60">Welcome to WeHouse</p>
+            )}
           </div>
         </div>
         <p className="text-center text-[10px] text-[#5C5E72] mt-4">WeHouse Nigeria &copy; 2026 &middot; support@wehouse.com.ng</p>
