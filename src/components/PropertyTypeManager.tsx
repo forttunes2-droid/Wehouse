@@ -15,8 +15,6 @@ const DEFAULT_TYPES: PropertyType[] = [
   { id: 1, name: 'Houses', icon: 'house', sort_order: 1, is_active: true },
   { id: 2, name: 'Apartments', icon: 'apartment', sort_order: 2, is_active: true },
   { id: 3, name: 'Hotels', icon: 'hotel', sort_order: 3, is_active: true },
-  { id: 4, name: 'Workers', icon: 'worker', sort_order: 4, is_active: true },
-  { id: 5, name: 'Roommates', icon: 'roommate', sort_order: 5, is_active: true },
 ];
 
 const ICONS: Record<string, string> = {

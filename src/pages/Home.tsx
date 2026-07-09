@@ -22,6 +22,25 @@ interface HomeProps {
   onGoToNewListing?: () => void;
 }
 
+// ─── Load homepage settings from Creator Settings ──
+function useHomepageSettings() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  useEffect(() => {
+    async function load() {
+      const keys = [
+        'roommate_match_enabled', 'roommate_match_title', 'roommate_match_subtitle', 'roommate_match_description',
+        'find_workers_enabled', 'find_workers_title', 'find_workers_description',
+      ];
+      const { data } = await supabase.from('platform_settings').select('key, value').in('key', keys);
+      const map: Record<string, string> = {};
+      if (data) data.forEach((s: any) => { map[s.key] = s.value; });
+      setSettings(map);
+    }
+    load();
+  }, []);
+  return settings;
+}
+
 // ─── ANIMATED COUNTER ────────────────────────────────────
 function AnimatedCounter({ target, duration = 2000 }: { target: number; duration?: number }) {
   const [count, setCount] = useState(0);
@@ -60,6 +79,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState<string | null>(null);
+  const hp = useHomepageSettings();
 
   useEffect(() => {
     let cancelled = false;
@@ -311,8 +331,8 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </section>
 
-      {/* ═══ ROOMMATE CTA — ONLY for users ═══ */}
-      {profile.role === 'user' && (
+      {/* ═══ ROOMMATE CTA — ONLY for users, controlled by Creator Settings ═══ */}
+      {profile.role === 'user' && hp['roommate_match_enabled'] !== 'false' && (
       <section className="mt-10 px-5 relative z-[1]">
         <button
           onClick={() => onNavigate('roommate')}
@@ -326,10 +346,10 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
               <div className="w-8 h-8 rounded-xl bg-[#EC4899]/20 flex items-center justify-center">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               </div>
-              <span className="text-[10px] font-bold text-[#EC4899] uppercase tracking-wider">Roommate Match</span>
+              <span className="text-[10px] font-bold text-[#EC4899] uppercase tracking-wider">{hp['roommate_match_title'] || 'Roommate Match'}</span>
             </div>
-            <p className="text-xl font-bold text-white leading-tight">Share Housing Costs</p>
-            <p className="text-xs text-white/50 mt-1 max-w-[240px]">Find compatible roommates based on lifestyle, budget & location preferences</p>
+            <p className="text-xl font-bold text-white leading-tight">{hp['roommate_match_subtitle'] || 'Share Housing Costs'}</p>
+            <p className="text-xs text-white/50 mt-1 max-w-[240px]">{hp['roommate_match_description'] || 'Find compatible roommates based on lifestyle, budget & location preferences'}</p>
             <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[#EC4899] font-semibold">
               Get matched <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </div>
@@ -443,8 +463,8 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </section>
 
-      {/* ═══ FIND WORKERS — ONLY for users ═══ */}
-      {profile.role === 'user' && (
+      {/* ═══ FIND WORKERS — ONLY for users, controlled by Creator Settings ═══ */}
+      {profile.role === 'user' && hp['find_workers_enabled'] !== 'false' && (
       <section className="mt-10 px-5 relative z-[1]">
         <div
           onClick={() => onNavigate('worker_discovery')}
@@ -458,8 +478,8 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-white group-hover:text-[#3B82F6] transition-colors">Find Verified Workers</h3>
-              <p className="text-[10px] text-[#5C5E72] mt-0.5">Electricians, plumbers, cleaners, barbers & more in your area</p>
+              <h3 className="text-sm font-bold text-white group-hover:text-[#3B82F6] transition-colors">{hp['find_workers_title'] || 'Find Verified Workers'}</h3>
+              <p className="text-[10px] text-[#5C5E72] mt-0.5">{hp['find_workers_description'] || 'Electricians, plumbers, cleaners, barbers & more in your area'}</p>
             </div>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" className="flex-shrink-0 group-hover:translate-x-1 transition-transform">
               <path d="M9 18l6-6-6-6" />

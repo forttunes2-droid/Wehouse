@@ -97,26 +97,39 @@ export default function Explore({ profile, savedIds, onToggleSave, onNavigate }:
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({});
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load categories from property_types table (Creator-controlled)
+  // Load property types from database (Creator-controlled) + append Workers/Roommates
+  // Property types = Houses, Apartments, Hotels (from DB)
+  // Workers and Roommates are ALWAYS separate tabs (NOT property types)
   useEffect(() => {
     async function loadCategories() {
       const { data } = await supabase.from('property_types').select('*').eq('is_active', true).order('sort_order');
+      const propertyTypeTabs: DynamicCategory[] = [];
+
       if (data && data.length > 0) {
-        // Map property_type names to ExploreCategory IDs
         const nameToId: Record<string, ExploreCategory> = {
           'house': 'houses', 'houses': 'houses',
           'apartment': 'apartments', 'apartments': 'apartments',
           'hotel': 'hotels', 'hotels': 'hotels',
-          'worker': 'workers', 'workers': 'workers',
-          'roommate': 'roommates', 'roommates': 'roommates',
         };
-        const mapped: DynamicCategory[] = data.map((t: any) => ({
-          id: nameToId[t.name?.toLowerCase()] || 'houses',
-          label: t.name,
-          icon: t.icon === 'house' ? '🏠' : t.icon === 'apartment' ? '🏢' : t.icon === 'hotel' ? '🏨' : t.icon === 'worker' ? '🔧' : t.icon === 'roommate' ? '👥' : '🏠',
-        }));
-        setCategories(mapped);
+        data.forEach((t: any) => {
+          const id = nameToId[t.name?.toLowerCase()];
+          if (id) {
+            propertyTypeTabs.push({
+              id,
+              label: t.name,
+              icon: id === 'houses' ? '🏠' : id === 'apartments' ? '🏢' : '🏨',
+            });
+          }
+        });
       }
+
+      // ALWAYS append Workers and Roommates as separate tabs (NOT from property_types)
+      const allTabs = [
+        ...propertyTypeTabs,
+        { id: 'workers' as ExploreCategory, label: 'Workers', icon: '🔧' },
+        { id: 'roommates' as ExploreCategory, label: 'Roommates', icon: '👥' },
+      ];
+      setCategories(allTabs);
     }
     loadCategories();
   }, []);

@@ -131,6 +131,20 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
       { key: 'refund_policy', label: 'Refund Policy', description: 'Platform refund policy', type: 'textarea', defaultValue: '' },
     ],
   },
+  // ── 10. HOMEPAGE — editable banners and CTAs ──
+  {
+    id: 'homepage',
+    label: 'Homepage',
+    settings: [
+      { key: 'roommate_match_enabled', label: 'Show Roommate Match', description: 'Display the roommate match CTA on homepage', type: 'toggle', defaultValue: 'true' },
+      { key: 'roommate_match_title', label: 'Roommate Match Title', description: 'Title for the roommate match section', type: 'text', defaultValue: 'Roommate Match' },
+      { key: 'roommate_match_subtitle', label: 'Roommate Match Subtitle', description: 'Subtitle for the roommate match section', type: 'text', defaultValue: 'Share Housing Costs' },
+      { key: 'roommate_match_description', label: 'Roommate Match Description', description: 'Description text for the roommate match section', type: 'textarea', defaultValue: 'Find compatible roommates based on lifestyle, budget & location preferences' },
+      { key: 'find_workers_enabled', label: 'Show Find Workers', description: 'Display the find workers CTA on homepage', type: 'toggle', defaultValue: 'true' },
+      { key: 'find_workers_title', label: 'Find Workers Title', description: 'Title for the find workers section', type: 'text', defaultValue: 'Find Verified Workers' },
+      { key: 'find_workers_description', label: 'Find Workers Description', description: 'Description text for the find workers section', type: 'textarea', defaultValue: 'Electricians, plumbers, cleaners, barbers & more in your area' },
+    ],
+  },
 ];
 
 // Build a flat map of all settings for quick lookup
