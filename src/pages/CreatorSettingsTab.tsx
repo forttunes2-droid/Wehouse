@@ -145,6 +145,15 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
       { key: 'find_workers_description', label: 'Find Workers Description', description: 'Description text for the find workers section', type: 'textarea', defaultValue: 'Electricians, plumbers, cleaners, barbers & more in your area' },
     ],
   },
+  // ── 11. AI AGENT — OpenAI API key configuration ──
+  {
+    id: 'ai',
+    label: 'AI Agent',
+    settings: [
+      { key: 'openai_api_key', label: 'OpenAI API Key', description: 'API key for the WeHouse AI Agent. Leave empty to disable.', type: 'text', defaultValue: '' },
+      { key: 'ai_agent_enabled', label: 'Enable AI Agent', description: 'Turn the AI Agent on or off', type: 'toggle', defaultValue: 'true' },
+    ],
+  },
 ];
 
 // Build a flat map of all settings for quick lookup

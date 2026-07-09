@@ -7,6 +7,18 @@ let openai: OpenAI | null = null;
 let globalKey: string | null = null;
 
 export async function loadGlobalApiKey(): Promise<boolean> {
+  // Check if AI Agent is enabled (default: true)
+  const { data: enabled } = await supabase
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'ai_agent_enabled')
+    .maybeSingle();
+
+  if (enabled?.value === 'false') {
+    return false; // AI Agent explicitly disabled by Creator
+  }
+
+  // Check if API key is configured
   const { data } = await supabase
     .from('platform_settings')
     .select('value')
