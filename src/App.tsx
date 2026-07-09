@@ -200,16 +200,27 @@ export default function App() {
   }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
 
   // ─── Validate restored page against user role ─────
-  // Runs ONCE after auth loads — prevents redirect loops
+  // ONLY runs when auth has finished loading (auth.isLoading = false AND profile exists)
   const validatedRef = useRef(false);
   useEffect(() => {
-    if (auth.isLoading || !auth.profile) return;
-    if (validatedRef.current) return; // Only validate once
+    // Wait for auth to finish loading before validating
+    if (auth.isLoading) return;
+    // Can't validate without a profile — send to home
+    if (!auth.profile) {
+      if (navPage !== 'home') {
+        setNavPage('home');
+        localStorage.setItem(NAV_STORAGE_KEY, 'home');
+      }
+      return;
+    }
+    // Only validate once after auth resolves
+    if (validatedRef.current) return;
     validatedRef.current = true;
 
     const role = auth.profile.role;
     let valid = true;
 
+    // Creator pages
     if (navPage === 'creator' && !checkCreator(role)) valid = false;
     if (navPage === 'admin' && role !== 'admin') valid = false;
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;

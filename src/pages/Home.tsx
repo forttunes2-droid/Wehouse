@@ -311,7 +311,8 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </section>
 
-      {/* ═══ ROOMMATE CTA ═══ */}
+      {/* ═══ ROOMMATE CTA — ONLY for users ═══ */}
+      {profile.role === 'user' && (
       <section className="mt-10 px-5 relative z-[1]">
         <button
           onClick={() => onNavigate('roommate')}
@@ -335,6 +336,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
           </div>
         </button>
       </section>
+      )}
 
       {/* ═══ REAL REVIEWS FROM USERS ═══ */}
       <section className="mt-12 px-5 relative z-[1]">
@@ -441,7 +443,8 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
         </div>
       </section>
 
-      {/* ═══ FIND WORKERS ═══ */}
+      {/* ═══ FIND WORKERS — ONLY for users ═══ */}
+      {profile.role === 'user' && (
       <section className="mt-10 px-5 relative z-[1]">
         <div
           onClick={() => onNavigate('worker_discovery')}
@@ -464,6 +467,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
           </div>
         </div>
       </section>
+      )}
 
       {/* ═══ FOOTER CTA ═══ */}
       <section className="mt-10 px-5 pb-4 relative z-[1]">
