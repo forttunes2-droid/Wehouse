@@ -232,14 +232,20 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
       const { count: views } = await supabase
         .from('worker_views').select('*', { count: 'exact', head: true })
         .eq('worker_id', profile.user_id);
-      const { count: bookings } = await supabase
+      // Total jobs = ALL jobs including cancelled (for history)
+      const { count: totalJobs } = await supabase
         .from('worker_bookings').select('*', { count: 'exact', head: true })
         .eq('worker_id', profile.user_id);
+      // Active jobs = NOT cancelled (what shows in "Jobs" stat)
+      const { count: activeJobs } = await supabase
+        .from('worker_bookings').select('*', { count: 'exact', head: true })
+        .eq('worker_id', profile.user_id)
+        .neq('status', 'cancelled');
       const { count: completed } = await supabase
         .from('worker_bookings').select('*', { count: 'exact', head: true })
         .eq('worker_id', profile.user_id)
         .eq('status', 'approved_released');
-      setStats({ views: views || 0, bookings: bookings || 0, rating: 0, completedJobs: completed || 0 });
+      setStats({ views: views || 0, bookings: activeJobs || 0, rating: 0, completedJobs: completed || 0 });
     }
     loadStats();
   }, [profile.user_id]);
@@ -291,28 +297,52 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
         </div>
       </div>
 
-      {/* Blue Badge */}
-      {blueBadge?.status === 'active' ? (
-        <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+      {/* ═══ Verification Status Banner — Constitution Flow ═══ */}
+      {profile.worker_status === 'verified' ? (
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
           </div>
           <div>
-            <p className="text-xs font-semibold text-blue-400">Blue Badge Active</p>
-            <p className="text-[10px] text-[#5C5E72]">Expires {blueBadge.expires_at ? new Date(blueBadge.expires_at).toLocaleDateString() : '—'}</p>
+            <p className="text-xs font-semibold text-amber-400">Golden Badge — Verified</p>
+            <p className="text-[10px] text-[#5C5E72]">Your profile is public and visible to customers</p>
           </div>
         </div>
+      ) : profile.worker_status === 'profile_under_review' ? (
+        <div className="bg-violet-500/5 border border-violet-500/20 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="10" /></svg>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-violet-400">Under Review</p>
+            <p className="text-[10px] text-[#5C5E72]">WeHouse is reviewing your application</p>
+          </div>
+        </div>
+      ) : profile.worker_status === 'approved_for_verification' ? (
+        <button
+          onClick={() => onSetTab('verification_status')}
+          className="w-full bg-gradient-to-r from-amber-500/10 to-amber-700/10 border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-amber-500/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-xs font-semibold text-amber-400">Golden Badge Active</p>
+            <p className="text-[10px] text-[#5C5E72]">Click to submit your verification request</p>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+        </button>
       ) : (
         <button
           onClick={() => onSetTab('verification_status')}
           className="w-full bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-blue-500/40 transition-colors"
         >
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
           <div className="flex-1 text-left">
-            <p className="text-xs font-semibold text-blue-400">Get Blue Badge</p>
-            <p className="text-[10px] text-[#5C5E72]">Stand out with verified identity</p>
+            <p className="text-xs font-semibold text-blue-400">Complete Verification</p>
+            <p className="text-[10px] text-[#5C5E72]">Fill info, upload docs, pay fee, get verified</p>
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
         </button>
@@ -698,7 +728,7 @@ function BookingsTab({ profile }: { profile: Profile }) {
     : conversations.filter((c: any) => c.booking_status === filter);
 
   const filters = [
-    { key: 'all', label: 'All' },
+    { key: 'all', label: `All (${conversations.length})` },
     { key: 'booking_requested', label: 'New' },
     { key: 'negotiating', label: 'Negotiate' },
     { key: 'waiting_payment', label: 'Pending Pay' },
@@ -706,6 +736,7 @@ function BookingsTab({ profile }: { profile: Profile }) {
     { key: 'in_progress', label: 'Active' },
     { key: 'completed_pending_approval', label: 'Done' },
     { key: 'approved_released', label: 'Paid' },
+    { key: 'cancelled', label: 'Cancelled' },
   ];
 
   // Open negotiation chat
