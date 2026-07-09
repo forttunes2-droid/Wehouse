@@ -270,32 +270,25 @@ function PlatformSettings({ profile }: { profile: Profile }) {
 
     setSaving(prev => ({ ...prev, [key]: true }));
 
-    // Use RPC set_setting_v2 which handles the insert/update correctly
-    // This is SECURITY DEFINER — bypasses RLS, only needs key + value
-    const { error: rpcError } = await supabase.rpc('set_setting_v2', {
-      p_key: key,
-      p_value: value,
-    });
-
-    // Fallback: direct upsert (for tables without the RPC)
-    if (rpcError) {
-      const { error: upsertError } = await supabase
-        .from('platform_settings')
-        .upsert({
-          key,
-          value,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'key' });
-
-      setSaving(prev => ({ ...prev, [key]: false }));
-
-      if (upsertError) {
-        toast.error(`Failed to save ${label}: ${upsertError.message}`);
-        return;
-      }
-    }
+    // Direct upsert with ALL required fields — category, data_type, label are NOT NULL
+    // Do NOT use set_setting_v2 RPC — it only sets key/value and fails silently
+    const { error: upsertError } = await supabase
+      .from('platform_settings')
+      .upsert({
+        key,
+        value,
+        label,
+        category: groupId,
+        data_type: settingDef?.type || 'text',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
 
     setSaving(prev => ({ ...prev, [key]: false }));
+
+    if (upsertError) {
+      toast.error(`Failed to save ${label}: ${upsertError.message}`);
+      return;
+    }
 
     // ONLY update local state after DB confirms success
     setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value, label } : s));

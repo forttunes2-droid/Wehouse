@@ -377,47 +377,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           />
         </div>
 
-        {/* Price — per day for Short Let, per year for Long Stay */}
-        <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">
-            {form.sub_type === 'short_let' ? 'Price per day (NGN) *' : 'Price per year (NGN) *'}
-          </label>
-          <Input
-            type="number"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-            className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
-            placeholder={form.sub_type === 'short_let' ? 'e.g. 15000 (daily rate)' : 'e.g. 600000 (yearly rent)'}
-            required
-          />
-          <p className="text-[10px] text-[#5C5E72] mt-1">
-            {form.sub_type === 'short_let'
-              ? 'Enter the daily rental rate'
-              : form.sub_type === 'long_stay'
-                ? 'Enter the annual rental amount'
-                : 'Select Short Let or Long Stay above to set the correct price'
-            }
-          </p>
-        </div>
-
-        {/* Location */}
-        <div className="glass rounded-2xl p-4">
-          <label className="text-xs text-[#8A8B9C] font-medium mb-3 block">Location *</label>
-          <LocationSelector value={location} onChange={setLocation} />
-        </div>
-
-        {/* Address */}
-        <div>
-          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Address</label>
-          <Input
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-            className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
-            placeholder="Full street address"
-          />
-        </div>
-
-        {/* Property Type — Apartment only: Short Let or Long Stay */}
+        {/* ═══ Listing Type — MUST select before Price ═══ */}
         <div>
           <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Listing Type *</label>
           <div className="grid grid-cols-2 gap-2 mb-3">
@@ -466,6 +426,45 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
           </div>
         </div>
 
+        {/* Location */}
+        <div className="glass rounded-2xl p-4">
+          <label className="text-xs text-[#8A8B9C] font-medium mb-3 block">Location *</label>
+          <LocationSelector value={location} onChange={setLocation} />
+        </div>
+
+        {/* Address */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">Address</label>
+          <Input
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
+            placeholder="Full street address"
+          />
+        </div>
+
+        {/* Price — AFTER sub_type is selected */}
+        <div>
+          <label className="text-xs text-[#8A8B9C] font-medium mb-1.5 block">
+            {form.sub_type === 'short_let' ? 'Price per day (NGN) *' : 'Price per year (NGN) *'}
+          </label>
+          <Input
+            type="number"
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+            className="h-11 rounded-xl text-sm bg-[#1A1A24] border-[#2A2A3A] text-white placeholder-[#5C5E72] focus:border-[#3B82F6]/50"
+            placeholder={form.sub_type === 'short_let' ? 'e.g. 15000 (daily rate)' : form.sub_type === 'long_stay' ? 'e.g. 600000 (yearly rent)' : 'Select Short Let or Long Stay first'}
+            required
+          />
+          <p className="text-[10px] text-[#5C5E72] mt-1">
+            {form.sub_type === 'short_let'
+              ? 'Enter the daily rental rate'
+              : form.sub_type === 'long_stay'
+                ? 'Enter the annual rental amount'
+                : 'Select Short Let or Long Stay first to set the correct price'
+            }
+          </p>
+        </div>
         {/* Status */}
         <div>
           <label className="text-xs text-[#8A8B9C] font-medium mb-2 block">Status</label>
