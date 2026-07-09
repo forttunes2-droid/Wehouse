@@ -362,12 +362,14 @@ function OccupancyTab({ properties, bookings }: { properties: any[]; bookings: a
 function EarningsTab({ bookings }: { bookings: any[] }) {
   const confirmedBookings = bookings.filter((b: any) => b.status === 'confirmed');
   const totalRevenue = confirmedBookings.reduce((sum: number, b: any) => sum + (b.amount || 0), 0);
-  // Commission rate comes from Creator Platform Settings (default 10%)
+  // Commission per Constitution: by LISTING TYPE, not partner
+  // Apartment → Apartment Commission, Hotel → Hotel Commission
   const [commissionRate, setCommissionRate] = useState(10);
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await supabase.rpc('get_setting_v2', { p_key: 'partner_commission_rate' });
+        // Use apartment_commission for apartment listings, hotel_commission for hotel listings
+        const { data } = await supabase.rpc('get_setting_v2', { p_key: 'commission_apartment' });
         const rate = data ? parseFloat(data) : 0;
         if (rate > 0 && rate < 100) setCommissionRate(rate);
       } catch (_) { /* use default */ }

@@ -6,14 +6,15 @@ import ServiceCategoryManager from '@/components/ServiceCategoryManager';
 import PropertyTypeManager from '@/components/PropertyTypeManager';
 
 // ═══════════════════════════════════════════════════════════════
-// SETTING DEFINITIONS — grouped by category
+// CREATOR SETTINGS — Constitution Article 1
+// Every platform rule controlled by Creator. NOTHING hardcoded.
 // ═══════════════════════════════════════════════════════════════
 
 interface SettingDef {
   key: string;
   label: string;
   description: string;
-  type: 'text' | 'toggle' | 'number' | 'textarea' | 'email' | 'url' | 'color';
+  type: 'text' | 'toggle' | 'number' | 'textarea' | 'email' | 'url';
   defaultValue: string;
 }
 
@@ -28,46 +29,107 @@ interface DbSetting {
   is_active: boolean;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ALL SETTING GROUPS — per Constitution Article 1, EXACTLY as written
+// ═══════════════════════════════════════════════════════════════
+
 const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = [
+  // ── 1. COMPANY ──
   {
-    id: 'payment',
-    label: 'Payments & Fees',
+    id: 'company',
+    label: 'Company',
     settings: [
-      { key: 'worker_verification_fee', label: 'Worker Verification Fee (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
-      { key: 'partner_commission_rate', label: 'Partner Commission %', description: 'Percentage taken from partner earnings', type: 'number', defaultValue: '10' },
-      { key: 'commission_rental', label: 'Rental Commission %', description: 'Percentage taken from rent payments', type: 'number', defaultValue: '10' },
-      { key: 'commission_worker', label: 'Worker Commission %', description: 'Percentage taken from worker bookings', type: 'number', defaultValue: '15' },
-      { key: 'commission_hotel', label: 'Hotel Commission %', description: 'Percentage taken from hotel bookings', type: 'number', defaultValue: '12' },
-      { key: 'min_payout', label: 'Minimum Payout (N)', description: 'Minimum amount for withdrawals', type: 'number', defaultValue: '5000' },
-      { key: 'paystack_public_key', label: 'Paystack Public Key', description: 'Paystack public key for payment processing', type: 'text', defaultValue: '' },
-      { key: 'payment_test_mode', label: 'Payment Test Mode', description: 'Enable Paystack test mode', type: 'toggle', defaultValue: 'true' },
-    ] as SettingDef[],
+      { key: 'company_name', label: 'Company Name', description: 'Platform company name', type: 'text', defaultValue: 'WeHouse' },
+      { key: 'company_logo', label: 'Company Logo URL', description: 'URL to company logo image', type: 'url', defaultValue: '' },
+      { key: 'support_email', label: 'Support Email', description: 'Customer support email address', type: 'email', defaultValue: '' },
+      { key: 'support_phone', label: 'Support Phone', description: 'Customer support phone number', type: 'text', defaultValue: '' },
+      { key: 'support_whatsapp', label: 'WhatsApp', description: 'WhatsApp support number', type: 'text', defaultValue: '' },
+      { key: 'support_telegram', label: 'Telegram', description: 'Telegram support handle', type: 'text', defaultValue: '' },
+      { key: 'office_address', label: 'Office Address', description: 'Physical office address', type: 'textarea', defaultValue: '' },
+    ],
   },
+  // ── 2. APARTMENT SETTINGS ──
   {
-    id: 'features',
-    label: 'Features',
+    id: 'apartment',
+    label: 'Apartment Settings',
     settings: [
-      { key: 'worker_approval', label: 'Worker Approval', description: 'manual or auto approval', type: 'text', defaultValue: 'manual' },
-      { key: 'worker_video_required', label: 'Video Intro Required', description: 'Require workers to submit a video', type: 'toggle', defaultValue: 'true' },
-      { key: 'max_skills_worker', label: 'Max Skills Per Worker', description: 'Maximum services a worker can offer', type: 'number', defaultValue: '5' },
-      { key: 'feature_hotels', label: 'Hotels Module', description: 'Enable hotel bookings', type: 'toggle', defaultValue: 'true' },
-      { key: 'feature_workers', label: 'Workers Module', description: 'Enable worker services', type: 'toggle', defaultValue: 'true' },
-      { key: 'feature_roommate', label: 'Roommate Matching', description: 'Enable roommate matching', type: 'toggle', defaultValue: 'true' },
-      { key: 'feature_negotiation', label: 'Price Negotiation', description: 'Allow price negotiation', type: 'toggle', defaultValue: 'true' },
+      { key: 'apartment_reservation_fee', label: 'Apartment Reservation Fee (N)', description: 'Fee for apartment reservation', type: 'number', defaultValue: '0' },
+      { key: 'security_deposit_rules', label: 'Security Deposit Rules', description: 'Rules for security deposits', type: 'textarea', defaultValue: '' },
+      { key: 'default_security_deposit', label: 'Default Security Deposit (N)', description: 'Default security deposit amount (optional)', type: 'number', defaultValue: '0' },
+      { key: 'allow_request_inspection', label: 'Allow Request Inspection', description: 'Enable property inspection requests', type: 'toggle', defaultValue: 'true' },
+    ],
+  },
+  // ── 3. HOTEL SETTINGS ──
+  {
+    id: 'hotel',
+    label: 'Hotel Settings',
+    settings: [
+      { key: 'allow_hotel_reservation', label: 'Allow Hotel Reservation', description: 'If ON: users can reserve before paying. If OFF: direct payment only.', type: 'toggle', defaultValue: 'false' },
+      { key: 'hotel_reservation_fee', label: 'Hotel Reservation Fee (N)', description: 'Fee for hotel reservation', type: 'number', defaultValue: '5000' },
+    ],
+  },
+  // ── 4. COMMISSION — by LISTING TYPE only. NO Property Partner Commission. ──
+  {
+    id: 'commission',
+    label: 'Commission',
+    settings: [
+      { key: 'commission_worker', label: 'Worker Commission %', description: 'Commission on worker bookings', type: 'number', defaultValue: '15' },
+      { key: 'commission_apartment', label: 'Apartment Commission %', description: 'Commission on apartment bookings', type: 'number', defaultValue: '10' },
+      { key: 'commission_hotel', label: 'Hotel Commission %', description: 'Commission on hotel bookings', type: 'number', defaultValue: '12' },
+    ],
+  },
+  // ── 5. WORKER VERIFICATION ──
+  {
+    id: 'worker_verification',
+    label: 'Worker Verification',
+    settings: [
+      { key: 'worker_verification_fee', label: 'Worker Verification Payment (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
+      { key: 'worker_verification_video_length', label: 'Worker Verification Video Length (minutes)', description: 'Required length of skill demonstration video', type: 'number', defaultValue: '3' },
+      { key: 'worker_required_documents', label: 'Required Documents', description: 'Documents required from workers (comma-separated)', type: 'textarea', defaultValue: 'Government ID, Proof of Address' },
+      { key: 'worker_verification_rules', label: 'Verification Rules', description: 'Rules and guidelines for worker verification', type: 'textarea', defaultValue: '' },
+    ],
+  },
+  // ── 6. RENT PLANS ──
+  {
+    id: 'rent_plans',
+    label: 'Rent Plans',
+    settings: [
+      { key: 'rent_plans_enabled', label: 'Enable Rent Plans', description: 'Enable rent plan functionality', type: 'toggle', defaultValue: 'true' },
+      { key: 'min_rent_duration', label: 'Minimum Rent Duration (months)', description: 'Minimum rent duration in months', type: 'number', defaultValue: '1' },
+      { key: 'max_rent_duration', label: 'Maximum Rent Duration (months)', description: 'Maximum rent duration in months', type: 'number', defaultValue: '24' },
+      { key: 'late_payment_rules', label: 'Late Payment Rules', description: 'Rules for late rent payments', type: 'textarea', defaultValue: '' },
+      { key: 'grace_period_days', label: 'Grace Period (days)', description: 'Grace period before late fees apply', type: 'number', defaultValue: '7' },
+    ],
+  },
+  // ── 7. WITHDRAWALS ──
+  {
+    id: 'withdrawals',
+    label: 'Withdrawals',
+    settings: [
+      { key: 'min_withdrawal', label: 'Minimum Withdrawal (N)', description: 'Minimum withdrawal amount', type: 'number', defaultValue: '5000' },
+      { key: 'max_withdrawal', label: 'Maximum Withdrawal (N)', description: 'Maximum withdrawal amount', type: 'number', defaultValue: '500000' },
+      { key: 'automatic_paystack_transfer', label: 'Automatic Paystack Transfer', description: 'Automatically process withdrawals via Paystack', type: 'toggle', defaultValue: 'false' },
+    ],
+  },
+  // ── 8. NOTIFICATIONS ──
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    settings: [
+      { key: 'email_notifications', label: 'Email Notifications', description: 'Send email notifications to users', type: 'toggle', defaultValue: 'true' },
+      { key: 'push_notifications', label: 'Push Notifications', description: 'Send push notifications to users', type: 'toggle', defaultValue: 'true' },
       { key: 'maintenance_mode', label: 'Maintenance Mode', description: 'Put site in maintenance mode', type: 'toggle', defaultValue: 'false' },
-      { key: 'registration_open', label: 'Open Registration', description: 'Allow new signups', type: 'toggle', defaultValue: 'true' },
-    ] as SettingDef[],
+    ],
   },
+  // ── 9. LEGAL — all editable by Creator ──
   {
-    id: 'hotel_reservation',
-    label: 'Hotel Reservation',
+    id: 'legal',
+    label: 'Legal',
     settings: [
-      { key: 'hotel_reservation_enabled', label: 'Hotel Reservation Enabled', description: 'Require reservation before hotel booking', type: 'toggle', defaultValue: 'false' },
-      { key: 'hotel_reservation_fee_type', label: 'Reservation Fee Type', description: 'fixed_amount or per_day', type: 'text', defaultValue: 'fixed_amount' },
-      { key: 'hotel_reservation_amount', label: 'Reservation Amount (N)', description: 'Reservation fee in Naira', type: 'number', defaultValue: '5000' },
-      { key: 'hotel_reservation_expiry_hours', label: 'Reservation Expiry (Hours)', description: 'Hours before reservation expires', type: 'number', defaultValue: '48' },
-      { key: 'hotel_reservation_refund_policy', label: 'Refund Policy', description: 'Refund policy for hotel reservations', type: 'textarea', defaultValue: 'Reservation fee is refundable if cancelled within 24 hours of booking.' },
-    ] as SettingDef[],
+      { key: 'terms_of_service', label: 'Terms of Service', description: 'Platform terms of service', type: 'textarea', defaultValue: '' },
+      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Platform privacy policy', type: 'textarea', defaultValue: '' },
+      { key: 'refund_policy', label: 'Refund Policy', description: 'Platform refund policy', type: 'textarea', defaultValue: '' },
+    ],
   },
 ];
 
@@ -121,13 +183,13 @@ export default function CreatorSettingsTab({ profile }: CreatorSettingsTabProps)
 }
 
 // ═══════════════════════════════════════════════════════════════
-// PLATFORM SETTINGS — with explicit Save button
+// PLATFORM SETTINGS — with explicit Save button per setting
 // ═══════════════════════════════════════════════════════════════
 
 function PlatformSettings({ profile }: { profile: Profile }) {
   const [dbSettings, setDbSettings] = useState<DbSetting[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeGroup, setActiveGroup] = useState('commissions');
+  const [activeGroup, setActiveGroup] = useState('company');
   const [hasChanges, setHasChanges] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
@@ -140,7 +202,7 @@ function PlatformSettings({ profile }: { profile: Profile }) {
     setLoading(true);
     let loaded: DbSetting[] = [];
 
-    // Try direct table query first (more reliable than RPC)
+    // Try direct table query first
     try {
       const { data, error } = await supabase
         .from('platform_settings')
@@ -167,7 +229,7 @@ function PlatformSettings({ profile }: { profile: Profile }) {
     if (loaded.length > 0) {
       setDbSettings(loaded);
     } else {
-      // Seed from hardcoded defaults
+      // Seed from Constitution defaults
       const defaults: DbSetting[] = [];
       let id = 0;
       SETTING_GROUPS.forEach(g => {
@@ -190,8 +252,14 @@ function PlatformSettings({ profile }: { profile: Profile }) {
   }
 
   async function saveSetting(key: string, value: string) {
-    const group = SETTING_GROUPS.find(g => g.id === activeGroup);
-    const settingDef = group?.settings.find(s => s.key === key);
+    // Find which group this setting belongs to
+    let groupId = activeGroup;
+    let settingDef: SettingDef | undefined;
+    for (const g of SETTING_GROUPS) {
+      const found = g.settings.find(s => s.key === key);
+      if (found) { settingDef = found; groupId = g.id; break; }
+    }
+    if (!settingDef) settingDef = ALL_SETTINGS[key];
     const label = settingDef?.label || key;
 
     setSaving(prev => ({ ...prev, [key]: true }));
@@ -211,7 +279,7 @@ function PlatformSettings({ profile }: { profile: Profile }) {
             key,
             value,
             label,
-            category: activeGroup,
+            category: groupId,
             data_type: settingDef?.type || 'text',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'key' });
@@ -257,7 +325,6 @@ function PlatformSettings({ profile }: { profile: Profile }) {
       case 'number': return 'number';
       case 'email': return 'email';
       case 'url': return 'url';
-      case 'color': return 'color';
       default: return 'text';
     }
   }
@@ -270,37 +337,30 @@ function PlatformSettings({ profile }: { profile: Profile }) {
     );
   }
 
-  const categories = [...new Set(dbSettings.map(s => s.category))];
   const currentSettings = dbSettings.filter(s => s.category === activeGroup);
   const anyChanges = Object.values(hasChanges).some(v => v);
 
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-[#5C5E72]">
-        Configure WeHouse platform settings. Click Save to apply changes.
+        Configure WeHouse platform settings per the Constitution. Click Save to apply changes. Nothing is hardcoded.
       </p>
 
-      {/* Group Tabs */}
+      {/* Group Tabs — all 9 categories */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-        {SETTING_GROUPS.map(g => {
-          const hasSettings = categories.includes(g.id);
-          return (
-            <button
-              key={g.id}
-              onClick={() => setActiveGroup(g.id)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                activeGroup === g.id
-                  ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
-                  : hasSettings
-                    ? 'bg-[#12121A] text-[#5C5E72] hover:text-white'
-                    : 'bg-[#12121A] text-[#3A3A4A] cursor-not-allowed'
-              }`}
-              disabled={!hasSettings}
-            >
-              {g.label}
-            </button>
-          );
-        })}
+        {SETTING_GROUPS.map(g => (
+          <button
+            key={g.id}
+            onClick={() => setActiveGroup(g.id)}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+              activeGroup === g.id
+                ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
+                : 'bg-[#12121A] text-[#5C5E72] hover:text-white'
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
       </div>
 
       {/* Settings for active group */}
@@ -378,7 +438,7 @@ function SettingField({ def, value, isSaving, onChange, onSave }: {
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold text-white">{def.label}</p>
             {isSaving && <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />}
-            {changed && !isSaving && <span className="text-[9px] text-amber-400">• modified</span>}
+            {changed && !isSaving && <span className="text-[9px] text-amber-400">modified</span>}
           </div>
           <p className="text-[10px] text-[#5C5E72] mt-0.5">{def.description}</p>
         </div>
@@ -395,16 +455,6 @@ function SettingField({ def, value, isSaving, onChange, onSave }: {
                 placeholder={`Enter ${def.label.toLowerCase()}...`}
                 className="w-full rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 py-2 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none resize-none"
               />
-            </div>
-          ) : def.type === 'color' ? (
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={local || '#3B82F6'}
-                onChange={(e) => { setLocal(e.target.value); onChange(e.target.value); }}
-                className="w-8 h-8 rounded-lg border-0 cursor-pointer"
-              />
-              <span className="text-[10px] text-[#5C5E72] font-mono">{local}</span>
             </div>
           ) : (
             <input

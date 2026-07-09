@@ -93,7 +93,21 @@ const NAV_STORAGE_KEY = 'wh_navpage';
 const DETAIL_STORAGE_KEY = 'wh_detailid';
 
 // Pages that can be safely restored after refresh
-const RESTORABLE_PAGES: NavPage[] = ['home', 'explore', 'search', 'saved', 'roommate', 'activity', 'profile', 'account', 'privacy', 'security', 'creator', 'admin', 'worker_dashboard', 'worker_discovery', 'worker_categories', 'staff_dashboard', 'new_listing', 'hotels', 'operations', 'worker_verification', 'finance', 'field_officer', 'property_partner', 'my_bookings', 'my_reservations', 'messages', 'wallet'];
+// ALL NavPage values must be here — if a page is missing, refresh will redirect to home
+const RESTORABLE_PAGES: NavPage[] = [
+  'home', 'explore', 'search', 'saved', 'roommate', 'activity',
+  'profile', 'account', 'privacy', 'security',
+  'creator', 'admin', 'staff_dashboard',
+  'worker_dashboard', 'worker_discovery', 'worker_categories', 'worker_verification', 'worker_setup', 'worker_wallet',
+  'management', 'analytics', 'operations', 'finance', 'finance_dashboard', 'field_officer',
+  'jobs', 'calendar', 'properties',
+  'new_listing',
+  'hotels', 'hotel_detail', 'hotel_booking', 'hotel_reservation',
+  'property_owner', 'property_partner',
+  'my_bookings', 'my_reservations',
+  'messages', 'wallet',
+  'detail', 'chat',
+];
 
 function isRestorable(page: string): page is NavPage {
   return RESTORABLE_PAGES.includes(page as NavPage);
