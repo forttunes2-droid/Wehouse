@@ -7,26 +7,15 @@ export interface PropertyTypeDef {
   icon: string;
 }
 
+// Fallback: Only Houses, Apartments, Hotels (managed by Creator in Settings)
 const DEFAULT_TYPES: PropertyTypeDef[] = [
+  { value: 'house', label: 'House', icon: '🏠' },
   { value: 'apartment', label: 'Apartment', icon: '🏢' },
   { value: 'hotel', label: 'Hotel', icon: '🏨' },
-  { value: 'house', label: 'House', icon: '🏠' },
-  { value: 'duplex', label: 'Duplex', icon: '🏘️' },
-  { value: 'studio', label: 'Studio', icon: '🛋️' },
-  { value: 'self_contain', label: 'Self Contain', icon: '🚪' },
-  { value: 'hostel', label: 'Hostel', icon: '🛏️' },
-  { value: 'lodge', label: 'Lodge', icon: '🏕️' },
-  { value: 'resort', label: 'Resort', icon: '🏖️' },
-  { value: 'office', label: 'Office', icon: '🏢' },
-  { value: 'warehouse', label: 'Warehouse', icon: '🏭' },
-  { value: 'land', label: 'Land', icon: '🌿' },
 ];
 
 const ICON_MAP: Record<string, string> = {
-  apartment: '🏢', hotel: '🏨', house: '🏠', duplex: '🏘️',
-  studio: '🛋️', 'self_contain': '🚪', 'self-contain': '🚪',
-  hostel: '🛏️', lodge: '🏕️', resort: '🏖️',
-  office: '🏢', warehouse: '🏭', land: '🌿',
+  house: '🏠', apartment: '🏢', hotel: '🏨',
   short_let: '⏱️', long_stay: '📅',
 };
 
@@ -37,31 +26,38 @@ function toLabel(value: string): string {
     .join(' ');
 }
 
+// Map DB property_type name to form value
+function nameToValue(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes('house')) return 'house';
+  if (lower.includes('apartment')) return 'apartment';
+  if (lower.includes('hotel')) return 'hotel';
+  return lower;
+}
+
 export function usePropertyTypes() {
   const [types, setTypes] = useState<PropertyTypeDef[]>(DEFAULT_TYPES);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_setting_v2', { p_key: 'property_types_allowed' });
-      if (!error && data) {
-        try {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const defs: PropertyTypeDef[] = parsed.map((v: string) => ({
-              value: v,
-              label: toLabel(v),
-              icon: ICON_MAP[v] || '🏠',
-            }));
-            setTypes(defs);
-            setLoading(false);
-            return;
-          }
-        } catch { /* fallback to defaults */ }
-      }
-    } catch { /* fallback */ }
-    setTypes(DEFAULT_TYPES);
+    // Read from property_types table (managed by Creator in Settings)
+    const { data, error } = await supabase
+      .from('property_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order');
+
+    if (!error && data && data.length > 0) {
+      const defs: PropertyTypeDef[] = data.map((t: any) => ({
+        value: nameToValue(t.name),
+        label: t.name,
+        icon: ICON_MAP[nameToValue(t.name)] || '🏠',
+      }));
+      setTypes(defs);
+    } else {
+      setTypes(DEFAULT_TYPES);
+    }
     setLoading(false);
   }, []);
 
