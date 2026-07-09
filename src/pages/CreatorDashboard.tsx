@@ -189,7 +189,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} onViewProfile={(u) => setViewingProfile(u)} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} viewingProfile={viewingProfile} setViewingProfile={setViewingProfile} />}
         {activeTab === 'partners' && <PartnersTab />}
-        {activeTab === 'staff' && <StaffListTab />}
+        {activeTab === 'staff' && <StaffListTab profile={profile} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
         {activeTab === 'bookings' && <BookingsTab />}
         {activeTab === 'reports' && <ReportsTab profile={profile} />}

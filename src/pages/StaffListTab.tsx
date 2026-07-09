@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getAllUsers } from '@/lib/supabase/admin';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import { toast } from 'sonner';
 
 const MODULE_LABELS: Record<string, string> = {
   operations: 'Operations',
@@ -11,7 +12,11 @@ const MODULE_LABELS: Record<string, string> = {
   field_officer: 'Field Officer',
 };
 
-export default function StaffListTab() {
+interface StaffListTabProps {
+  profile: Profile;
+}
+
+export default function StaffListTab({ profile }: StaffListTabProps) {
   const [staff, setStaff] = useState<Profile[]>([]);
   const [staffModules, setStaffModules] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
@@ -26,14 +31,14 @@ export default function StaffListTab() {
       const staffList = users.filter((u: any) => u.role === 'staff') as Profile[];
       setStaff(staffList);
 
-      // Fetch modules for all staff
+      // Fetch modules for all staff (from staff_permissions table)
       if (staffList.length > 0) {
         const ids = staffList.map(s => s.user_id);
-        const { data: mods } = await supabase.from('staff_modules').select('*').in('staff_id', ids).is('revoked_at', null);
+        const { data: mods } = await supabase.from('staff_permissions').select('*').in('staff_id', ids).eq('is_active', true);
         const moduleMap: Record<string, string[]> = {};
         (mods || []).forEach((m: any) => {
           if (!moduleMap[m.staff_id]) moduleMap[m.staff_id] = [];
-          moduleMap[m.staff_id].push(m.module);
+          moduleMap[m.staff_id].push(m.permission);
         });
         setStaffModules(moduleMap);
       }
@@ -49,15 +54,24 @@ export default function StaffListTab() {
     // Per Constitution: Staff can only have ONE module at a time
     // If assigning a new module, revoke all existing ones first
     if (!hasModule) {
-      // Revoke ALL existing modules
-      await supabase.from('staff_modules').update({ revoked_at: new Date().toISOString() }).eq('staff_id', staffId).is('revoked_at', null);
+      // Revoke ALL existing permissions for this staff
+      await supabase.from('staff_permissions').update({ is_active: false, revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('is_active', true);
       // Grant only the selected module
-      await supabase.from('staff_modules').insert({ staff_id: staffId, module });
+      const { error } = await supabase.from('staff_permissions').upsert({
+        staff_id: staffId,
+        permission: module,
+        granted_by: profile.user_id,
+        is_active: true,
+        granted_at: new Date().toISOString(),
+      }, { onConflict: 'staff_id,permission' });
+      if (error) { toast.error('Failed to assign: ' + error.message); setSaving(null); return; }
       setStaffModules(prev => ({ ...prev, [staffId]: [module] }));
+      toast.success('Module assigned');
     } else {
       // Revoking the only module
-      await supabase.from('staff_modules').update({ revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('module', module).is('revoked_at', null);
+      await supabase.from('staff_permissions').update({ is_active: false, revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('permission', module);
       setStaffModules(prev => ({ ...prev, [staffId]: [] }));
+      toast.success('Module revoked');
     }
     setSaving(null);
   }

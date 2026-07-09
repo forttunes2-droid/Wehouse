@@ -117,15 +117,9 @@ function isRestorable(page: string): page is NavPage {
 export default function App() {
   const auth = useAuth();
 
-  // Read saved page from localStorage BEFORE first render
-  const savedPageInit = (() => {
-    try {
-      const saved = localStorage.getItem(NAV_STORAGE_KEY);
-      return saved && isRestorable(saved) ? saved : null;
-    } catch { return null; }
-  })();
-
-  const [navPage, setNavPage] = useState<NavPage>(savedPageInit || 'home');
+  // DO NOT read saved page from localStorage before auth resolves
+  // Start at home, validate and restore AFTER auth resolves
+  const [navPage, setNavPage] = useState<NavPage>('home');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [hotelId, setHotelId] = useState<number | null>(null);
   const [hotelRoomId, setHotelRoomId] = useState<number | null>(null);
@@ -213,44 +207,46 @@ export default function App() {
     ];
   }, [isCreatorRole, isAdminRole, isStaffRole, isWorkerRole, isPropertyPartner]);
 
-  // ─── Validate restored page against user role ─────
-  // ONLY runs when auth has finished loading (auth.isLoading = false AND profile exists)
-  const validatedRef = useRef(false);
+  // ─── Restore saved page AFTER auth resolves ─────
+  // Runs ONCE when auth finishes loading — validates saved page against user role
+  const restoredRef = useRef(false);
   useEffect(() => {
-    // Wait for auth to finish loading before validating
-    if (auth.isLoading) return;
-    // Can't validate without a profile — send to home
-    if (!auth.profile) {
-      if (navPage !== 'home') {
-        setNavPage('home');
-        localStorage.setItem(NAV_STORAGE_KEY, 'home');
-      }
-      return;
-    }
-    // Only validate once after auth resolves
-    if (validatedRef.current) return;
-    validatedRef.current = true;
+    if (auth.isLoading) return; // Still loading, wait
+    if (restoredRef.current) return; // Already restored
+    restoredRef.current = true;
+
+    if (!auth.profile) return; // Not logged in, stay on home
 
     const role = auth.profile.role;
+
+    // Read saved page from localStorage
+    let savedPage: NavPage | null = null;
+    try {
+      const raw = localStorage.getItem(NAV_STORAGE_KEY);
+      if (raw && isRestorable(raw)) savedPage = raw as NavPage;
+    } catch { /* ignore */ }
+
+    // If no saved page, stay on home
+    if (!savedPage) return;
+
+    // Validate saved page against user role
     let valid = true;
+    if (savedPage === 'creator' && !checkCreator(role)) valid = false;
+    if (savedPage === 'admin' && role !== 'admin') valid = false;
+    if (savedPage === 'worker_dashboard' && role !== 'worker') valid = false;
+    if ((savedPage === 'worker_discovery' || savedPage === 'worker_categories') && role === 'worker') valid = false;
+    if (savedPage === 'staff_dashboard' && role !== 'staff') valid = false;
+    if ((savedPage === 'operations' || savedPage === 'field_officer' || savedPage === 'finance' || savedPage === 'finance_dashboard') && role !== 'staff') valid = false;
+    if ((savedPage === 'property_owner' || savedPage === 'property_partner') && role !== 'property_partner') valid = false;
+    if (savedPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
+    if ((savedPage === 'account' || savedPage === 'privacy' || savedPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
+    if (savedPage === 'roommate' && role !== 'user') valid = false;
 
-    // Creator pages
-    if (navPage === 'creator' && !checkCreator(role)) valid = false;
-    if (navPage === 'admin' && role !== 'admin') valid = false;
-    if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
-    if ((navPage === 'worker_discovery' || navPage === 'worker_categories') && role === 'worker') valid = false;
-    if (navPage === 'staff_dashboard' && role !== 'staff') valid = false;
-    if ((navPage === 'operations' || navPage === 'field_officer' || navPage === 'finance' || navPage === 'finance_dashboard') && role !== 'staff') valid = false;
-    if ((navPage === 'property_owner' || navPage === 'property_partner') && role !== 'property_partner') valid = false;
-    if (navPage === 'worker_categories' && role === 'property_partner') valid = false;
-    if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
-    if ((navPage === 'account' || navPage === 'privacy' || navPage === 'security') && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;
-    if (navPage === 'roommate' && role !== 'user') valid = false;
-
-    if (!valid) {
-      setNavPage('home');
-      localStorage.setItem(NAV_STORAGE_KEY, 'home');
+    if (valid) {
+      // Saved page is valid for this role — navigate to it
+      setNavPage(savedPage);
     }
+    // If invalid, stay on home (don't redirect — just don't restore)
   }, [auth.isLoading, auth.profile]);
 
   // ─── Persist nav page to localStorage ─────────────

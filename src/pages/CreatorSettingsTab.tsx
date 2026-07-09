@@ -202,7 +202,7 @@ function PlatformSettings({ profile }: { profile: Profile }) {
     setLoading(true);
     let loaded: DbSetting[] = [];
 
-    // Try direct table query first
+    // Load ALL settings from DB — NO filtering
     try {
       const { data, error } = await supabase
         .from('platform_settings')
@@ -210,31 +210,22 @@ function PlatformSettings({ profile }: { profile: Profile }) {
         .order('key', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const knownCategories = SETTING_GROUPS.map(g => g.id);
-        loaded = (data as DbSetting[]).filter(s => knownCategories.includes(s.category));
+        loaded = data as DbSetting[];
       }
     } catch {
-      // Table query failed, try RPC
-      try {
-        const { data, error } = await supabase.rpc('get_all_settings_v2');
-        if (!error && data && data.length > 0) {
-          const knownCategories = SETTING_GROUPS.map(g => g.id);
-          loaded = (data as DbSetting[]).filter(s => knownCategories.includes(s.category));
-        }
-      } catch {
-        // Both failed
-      }
+      /* DB query failed */
     }
 
-    if (loaded.length > 0) {
-      setDbSettings(loaded);
-    } else {
-      // Seed from Constitution defaults
-      const defaults: DbSetting[] = [];
-      let id = 0;
-      SETTING_GROUPS.forEach(g => {
-        g.settings.forEach(s => {
-          defaults.push({
+    // Merge DB settings with Constitution defaults
+    // DB values take priority; missing settings get defaults
+    const merged: Record<string, DbSetting> = {};
+    for (const s of loaded) merged[s.key] = s;
+
+    let id = loaded.length > 0 ? Math.max(...loaded.map(s => s.id)) + 1 : 0;
+    SETTING_GROUPS.forEach(g => {
+      g.settings.forEach(s => {
+        if (!merged[s.key]) {
+          merged[s.key] = {
             id: id++,
             key: s.key,
             value: s.defaultValue,
@@ -243,11 +234,12 @@ function PlatformSettings({ profile }: { profile: Profile }) {
             description: s.description,
             data_type: s.type,
             is_active: true,
-          });
-        });
+          };
+        }
       });
-      setDbSettings(defaults);
-    }
+    });
+
+    setDbSettings(Object.values(merged));
     setLoading(false);
   }
 
@@ -264,42 +256,29 @@ function PlatformSettings({ profile }: { profile: Profile }) {
 
     setSaving(prev => ({ ...prev, [key]: true }));
 
-    try {
-      // Try RPC first
-      const { error: rpcError } = await supabase.rpc('set_setting_v2', {
-        p_key: key,
-        p_value: value,
-      });
-
-      if (rpcError) {
-        // Fallback: direct table upsert
-        const { error: upsertError } = await supabase
-          .from('platform_settings')
-          .upsert({
-            key,
-            value,
-            label,
-            category: groupId,
-            data_type: settingDef?.type || 'text',
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'key' });
-
-        if (upsertError) {
-          toast.error('Failed to save: ' + upsertError.message);
-          setSaving(prev => ({ ...prev, [key]: false }));
-          return;
-        }
-      }
-
-      // Update local state
-      setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value, label } : s));
-      setHasChanges(prev => ({ ...prev, [key]: false }));
-      toast.success(`${label} saved`);
-    } catch (e: any) {
-      toast.error('Save failed: ' + (e.message || 'Unknown error'));
-    }
+    // Direct table upsert ONLY — no RPC (RPC may silently fail)
+    const { error: upsertError } = await supabase
+      .from('platform_settings')
+      .upsert({
+        key,
+        value,
+        label,
+        category: groupId,
+        data_type: settingDef?.type || 'text',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
 
     setSaving(prev => ({ ...prev, [key]: false }));
+
+    if (upsertError) {
+      toast.error(`Failed to save ${label}: ${upsertError.message}`);
+      return;
+    }
+
+    // ONLY update local state after DB confirms success
+    setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value, label } : s));
+    setHasChanges(prev => ({ ...prev, [key]: false }));
+    toast.success(`${label} saved`);
   }
 
   // Save all changed settings at once

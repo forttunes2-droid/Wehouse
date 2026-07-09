@@ -1,56 +1,44 @@
 // ─── PERMISSIONS MODULE ────────────────────────────
-// Staff permission management — reads from staff_modules table
-// StaffListTab writes to staff_modules, StaffDashboard reads permissions here
+// Staff permission management — reads from staff_permissions table
 // ═══════════════════════════════════════════════════
 
 import { supabase } from './client';
 import type { StaffPermission } from '@/types';
 
 // ─── GET PERMISSIONS ───────────────────────────────
-// Reads from staff_modules table (where StaffListTab assigns modules)
+// Reads from staff_permissions table (official table with RLS)
 
 export async function getStaffPermissions(staffId: string): Promise<{
   permissions: StaffPermission[];
   error: any;
 }> {
-  // Read from staff_modules table — this is where StaffListTab writes
   const { data, error } = await supabase
-    .from('staff_modules')
-    .select('module')
+    .from('staff_permissions')
+    .select('permission')
     .eq('staff_id', staffId)
-    .is('revoked_at', null);
+    .eq('is_active', true);
 
   if (error) return { permissions: [], error };
 
-  // Map module names to StaffPermission type
-  const moduleToPermission: Record<string, StaffPermission> = {
-    operations: 'operations',
-    finance: 'finance',
-    support: 'support',
-    verification: 'verification',
-    field_officer: 'field_officer',
-  };
-
   const permissions = (data || [])
-    .map((r: any) => moduleToPermission[r.module])
-    .filter(Boolean) as StaffPermission[];
+    .map((r: any) => r.permission as StaffPermission)
+    .filter(Boolean);
 
   return { permissions, error: null };
 }
 
 // ─── GRANT PERMISSION ──────────────────────────────
-// Also writes to staff_modules to keep both tables in sync
 
 export async function grantPermission(
   staffId: string,
   permission: StaffPermission,
-  _grantedBy: string
+  grantedBy: string
 ): Promise<{ success: boolean; error: any }> {
   const { error } = await supabase
-    .from('staff_modules')
+    .from('staff_permissions')
     .upsert(
-      { staff_id: staffId, module: permission },
-      { onConflict: 'staff_id,module' }
+      { staff_id: staffId, permission, granted_by: grantedBy, is_active: true, granted_at: new Date().toISOString() },
+      { onConflict: 'staff_id,permission' }
     );
 
   if (error) return { success: false, error };
@@ -65,11 +53,10 @@ export async function revokePermission(
   permission: StaffPermission
 ): Promise<{ success: boolean; error: any }> {
   const { error } = await supabase
-    .from('staff_modules')
-    .update({ revoked_at: new Date().toISOString() })
+    .from('staff_permissions')
+    .update({ is_active: false, revoked_at: new Date().toISOString() })
     .eq('staff_id', staffId)
-    .eq('module', permission)
-    .is('revoked_at', null);
+    .eq('permission', permission);
 
   if (error) return { success: false, error };
 
@@ -138,10 +125,10 @@ export async function getStaffByPermission(
   permission: StaffPermission
 ): Promise<{ staff: Array<{ user_id: string; email: string; username: string | null }>; error: any }> {
   const { data, error } = await supabase
-    .from('staff_modules')
+    .from('staff_permissions')
     .select('staff_id')
-    .eq('module', permission)
-    .is('revoked_at', null);
+    .eq('permission', permission)
+    .eq('is_active', true);
 
   if (error || !data?.length) return { staff: [], error };
 

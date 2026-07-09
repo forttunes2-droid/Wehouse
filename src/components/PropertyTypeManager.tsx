@@ -62,10 +62,11 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
 
   async function saveTypes() {
     setSaving(true);
+    let errors: string[] = [];
 
     // 1. Upsert all current types
     for (const t of types) {
-      await supabase.from('property_types').upsert({
+      const { error } = await supabase.from('property_types').upsert({
         id: t.id,
         name: t.name,
         icon: t.icon,
@@ -73,18 +74,24 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
         is_active: t.is_active,
         updated_at: new Date().toISOString(),
       });
+      if (error) errors.push(`Upsert ${t.name}: ${error.message}`);
     }
 
     // 2. Actually DELETE removed types from DB
     if (deletedIds.length > 0) {
       for (const delId of deletedIds) {
-        await supabase.from('property_types').delete().eq('id', delId);
+        const { error } = await supabase.from('property_types').delete().eq('id', delId);
+        if (error) errors.push(`Delete #${delId}: ${error.message}`);
       }
-      setDeletedIds([]);
+      if (errors.length === 0) setDeletedIds([]);
     }
 
     setSaving(false);
-    toast.success('Property types saved');
+    if (errors.length > 0) {
+      toast.error('Some operations failed: ' + errors.join('; '));
+    } else {
+      toast.success('Property types saved');
+    }
   }
 
   function deleteType(id: number) {
