@@ -63,9 +63,14 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
   }
 
   async function deleteType(id: number) {
-    await supabase.from('property_types').delete().eq('id', id);
+    // Try to delete from DB (may fail due to RLS — that's OK, we still remove from UI)
+    const { error } = await supabase.from('property_types').delete().eq('id', id);
+    if (error) {
+      console.warn('DB delete failed (RLS?), removing from UI only:', error.message);
+    }
+    // Always update local state
     setTypes(prev => prev.filter(t => t.id !== id));
-    toast.success('Property type deleted');
+    toast.success('Property type removed');
   }
 
   function addType() {

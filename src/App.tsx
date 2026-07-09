@@ -215,6 +215,7 @@ export default function App() {
     if (navPage === 'worker_dashboard' && role !== 'worker') valid = false;
     if ((navPage === 'worker_discovery' || navPage === 'worker_categories') && role === 'worker') valid = false;
     if (navPage === 'staff_dashboard' && role !== 'staff') valid = false;
+    if ((navPage === 'operations' || navPage === 'field_officer' || navPage === 'finance' || navPage === 'finance_dashboard') && role !== 'staff') valid = false;
     if ((navPage === 'property_owner' || navPage === 'property_partner') && role !== 'property_partner') valid = false;
     if (navPage === 'worker_categories' && role === 'property_partner') valid = false;
     if (navPage === 'profile' && (role === 'worker' || checkCreator(role) || role === 'admin')) valid = false;

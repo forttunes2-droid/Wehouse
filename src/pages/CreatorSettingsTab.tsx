@@ -30,14 +30,17 @@ interface DbSetting {
 
 const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = [
   {
-    id: 'commissions',
-    label: 'Commissions',
+    id: 'payment',
+    label: 'Payments & Fees',
     settings: [
+      { key: 'worker_verification_fee', label: 'Worker Verification Fee (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
+      { key: 'partner_commission_rate', label: 'Partner Commission %', description: 'Percentage taken from partner earnings', type: 'number', defaultValue: '10' },
       { key: 'commission_rental', label: 'Rental Commission %', description: 'Percentage taken from rent payments', type: 'number', defaultValue: '10' },
       { key: 'commission_worker', label: 'Worker Commission %', description: 'Percentage taken from worker bookings', type: 'number', defaultValue: '15' },
       { key: 'commission_hotel', label: 'Hotel Commission %', description: 'Percentage taken from hotel bookings', type: 'number', defaultValue: '12' },
-      { key: 'commission_partner', label: 'Partner Commission %', description: 'Percentage taken from partner earnings', type: 'number', defaultValue: '8' },
       { key: 'min_payout', label: 'Minimum Payout (N)', description: 'Minimum amount for withdrawals', type: 'number', defaultValue: '5000' },
+      { key: 'paystack_public_key', label: 'Paystack Public Key', description: 'Paystack public key for payment processing', type: 'text', defaultValue: '' },
+      { key: 'payment_test_mode', label: 'Payment Test Mode', description: 'Enable Paystack test mode', type: 'toggle', defaultValue: 'true' },
     ] as SettingDef[],
   },
   {
