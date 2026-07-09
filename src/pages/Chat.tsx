@@ -524,7 +524,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const canSend = !isClosed;
 
     return (
-      <div className="min-h-screen bg-transparent flex flex-col">
+      <div className="min-h-[100dvh] bg-[#0A0A0F] pb-nav flex flex-col overflow-hidden">
         {/* Header */}
         <header className="bg-[#12121A] border-b border-white/[0.06] text-white px-5 py-3 flex items-center gap-3">
           <button
@@ -816,7 +816,7 @@ function getTimeAgo(isoDate: string): string {
   // ─── CHAT LIST VIEW ───────────────────────────────
 
   return (
-    <div className="min-h-screen bg-transparent pb-20">
+    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-nav overflow-y-auto scrollable-content">
       <header className="bg-[#12121A] border-b border-white/[0.06] px-5 py-4">
         <div className="flex items-center gap-3">
           <button onClick={() => {

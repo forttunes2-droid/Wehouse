@@ -250,7 +250,14 @@ export default function App() {
   }, [auth.isLoading, auth.profile]);
 
   // ─── Persist nav page to localStorage ─────────────
+  // CRITICAL: Don't save 'home' on initial mount — let the restore effect read the original saved page
+  const hasRestoredRef = useRef(false);
   useEffect(() => {
+    // Skip first save if we haven't restored yet — prevents overwriting saved page with 'home'
+    if (!hasRestoredRef.current) {
+      hasRestoredRef.current = true;
+      return;
+    }
     if (isRestorable(navPage)) {
       localStorage.setItem(NAV_STORAGE_KEY, navPage);
     }
