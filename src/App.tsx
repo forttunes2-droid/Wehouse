@@ -195,7 +195,7 @@ export default function App() {
     if (isPropertyPartner) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'properties' as NavPage, label: 'Properties', icon: BuildingSvg },
+        { id: 'property_partner' as NavPage, label: 'Dashboard', icon: BuildingSvg },
         { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
         { id: 'wallet' as NavPage, label: 'Wallet', icon: WalletSvg },
         { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
