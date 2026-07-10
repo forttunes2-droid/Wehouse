@@ -15,6 +15,7 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
   const isWorker = role === 'worker';
   const isPartner = role === 'property_partner';
   const isUser = role === 'user';
+  const isStaff = role === 'staff';
 
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [saving, setSaving] = useState(false);
@@ -56,11 +57,12 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // Build available sections based on role
+  // Staff only see Profile and Password — no Privacy/Notifications (internal staff, not public)
   const sections: { id: SettingsSection; label: string }[] = [
     { id: 'profile', label: 'Profile' },
     { id: 'password', label: 'Password' },
-    { id: 'privacy', label: 'Privacy' },
-    { id: 'notifications', label: 'Notifications' },
+    ...(!isStaff ? [{ id: 'privacy' as SettingsSection, label: 'Privacy' }] : []),
+    ...(!isStaff ? [{ id: 'notifications' as SettingsSection, label: 'Notifications' }] : []),
     ...(isWorker || isPartner ? [{ id: 'bank' as SettingsSection, label: 'Bank Account' }] : []),
     ...(isWorker ? [{ id: 'subscription' as SettingsSection, label: 'Blue Badge' }] : []),
     ...(isUser ? [{ id: 'language' as SettingsSection, label: 'Language' }] : []),

@@ -82,9 +82,11 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
               </div>
               <div>
                 <h1 className="text-base font-bold text-white">
-                  {permissions.length > 0 ? permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(' & ') : 'Staff Portal'}
+                  {profile.full_name || profile.username || 'Staff Member'}
                 </h1>
-                <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+                <p className="text-[10px] text-[#5C5E72]">
+                  {permissions.length > 0 ? permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(' & ') : 'Staff'} · {profile.email}
+                </p>
               </div>
             </div>
             <button
@@ -98,7 +100,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
           </div>
 
           {/* Stats Row */}
-          <StaffStats profile={profile} permissions={permissions} />
+          <StaffStats profile={profile} permissions={permissions} onSetTab={handleSetTab} />
         </div>
       </header>
 
@@ -142,7 +144,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
 // STATS BAR
 // ═══════════════════════════════════════════════════════════════
 
-function StaffStats({ profile, permissions }: { profile: Profile; permissions: string[] }) {
+function StaffStats({ profile, permissions, onSetTab }: { profile: Profile; permissions: string[]; onSetTab: (t: StaffTab) => void }) {
   const [stats, setStats] = useState({ inspections: 0, tickets: 0, listings: 0, workers: 0 });
 
   useEffect(() => {
@@ -183,10 +185,20 @@ function StaffStats({ profile, permissions }: { profile: Profile; permissions: s
   return (
     <div className="grid grid-cols-2 gap-2">
       {statItems.map(s => (
-        <div key={s.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+        <button
+          key={s.label}
+          onClick={() => {
+            // Navigate to the relevant tab based on the stat label
+            if (s.label === 'Pending') onSetTab('operations');
+            else if (s.label === 'Inspections') onSetTab('field_officer');
+            else if (s.label === 'Open Tickets') onSetTab('support');
+            else if (s.label === 'To Review') onSetTab('verification');
+          }}
+          className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 text-left hover:bg-white/[0.06] hover:border-white/[0.10] transition-all"
+        >
           <p className="text-lg font-bold text-white">{s.value}</p>
           <p className="text-[10px] text-[#5C5E72]">{s.label}</p>
-        </div>
+        </button>
       ))}
     </div>
   );

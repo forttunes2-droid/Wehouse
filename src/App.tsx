@@ -617,13 +617,15 @@ export default function App() {
         {/* Admin Authorization Modal — for admin/staff, gates critical actions */}
         {(isAdminRole || isStaffRole) && <AdminAuthModal />}
 
-        {/* AI Support Chat — always available for help */}
-        <SupportChat profile={auth.profile ? {
-          user_id: auth.profile.user_id,
-          username: auth.profile.username,
-          email: auth.profile.email,
-          role: auth.profile.role,
-        } : null} />
+        {/* AI Support Chat — only for users (customers), not staff/admin/creator/partner */}
+        {auth.profile?.role === 'user' && (
+          <SupportChat profile={auth.profile ? {
+            user_id: auth.profile.user_id,
+            username: auth.profile.username,
+            email: auth.profile.email,
+            role: auth.profile.role,
+          } : null} />
+        )}
 
       {/* Bottom Nav — hidden on detail/sub-pages */}
       {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && navPage !== 'worker_discovery' && (
