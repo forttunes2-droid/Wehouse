@@ -51,6 +51,8 @@ const ManagementPage = lazy(() => import('@/pages/ManagementPage'));
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const MyReservations = lazy(() => import('@/pages/MyReservations'));
 const UserWalletPage = lazy(() => import('@/pages/UserWalletPage'));
+const PrivacyPolicyPage = lazy(() => import('@/pages/PrivacyPolicyPage'));
+const TermsPage = lazy(() => import('@/pages/TermsPage'));
 
 
 // ─── SKELETON LOADER ──────────────────────────────
@@ -107,6 +109,8 @@ const RESTORABLE_PAGES: NavPage[] = [
   'my_bookings', 'my_reservations',
   'messages', 'wallet',
   'detail', 'chat',
+  // Public pages
+  'privacy_policy', 'terms_of_service',
 ];
 
 function isRestorable(page: string): page is NavPage {
@@ -435,6 +439,10 @@ export default function App() {
   // DO NOT add guards here — render functions must be pure, no side effects.
   const renderPage = () => {
     // Auth still loading — show spinner (prevents Login flash on refresh)
+    // ═══ PUBLIC PAGES — accessible without login ═══
+    if (navPage === 'privacy_policy') return <PrivacyPolicyPage />;
+    if (navPage === 'terms_of_service') return <TermsPage />;
+
     if (auth.isLoading) {
       return (
         <div className="min-h-[100dvh] bg-[#0A0A0F] flex flex-col items-center justify-center gap-3">

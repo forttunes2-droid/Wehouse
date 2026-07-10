@@ -43,4 +43,7 @@ export type NavPage =
   | 'property_owner'
   | 'property_partner'
   | 'my_bookings'
-  | 'my_reservations';
+  | 'my_reservations'
+  // ── Public pages (no login required) ──
+  | 'privacy_policy'
+  | 'terms_of_service';

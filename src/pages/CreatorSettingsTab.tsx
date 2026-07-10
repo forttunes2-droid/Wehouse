@@ -51,57 +51,40 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
   // ── 2. APARTMENT SETTINGS ──
   {
     id: 'apartment',
-    label: 'Apartment Settings',
+    label: 'Apartment',
     settings: [
+      { key: 'commission_apartment', label: 'Apartment Commission %', description: 'Commission on apartment bookings', type: 'number', defaultValue: '10' },
       { key: 'apartment_reservation_fee', label: 'Apartment Reservation Fee (N)', description: 'Fee for apartment reservation', type: 'number', defaultValue: '0' },
-      { key: 'security_deposit_rules', label: 'Security Deposit Rules', description: 'Rules for security deposits', type: 'textarea', defaultValue: '' },
-      { key: 'default_security_deposit', label: 'Default Security Deposit (N)', description: 'Default security deposit amount (optional)', type: 'number', defaultValue: '0' },
-      { key: 'allow_request_inspection', label: 'Allow Request Inspection', description: 'Enable property inspection requests', type: 'toggle', defaultValue: 'true' },
+      { key: 'security_deposit_rules', label: 'Security Deposit Rules', description: 'Rules for security deposits on short let apartments', type: 'textarea', defaultValue: '' },
+      { key: 'rent_plans_enabled', label: 'Enable Rent Plans', description: 'Enable rent plan functionality', type: 'toggle', defaultValue: 'true' },
+      { key: 'min_rent_duration', label: 'Minimum Rent Duration (months)', description: 'Minimum rent duration in months', type: 'number', defaultValue: '1' },
+      { key: 'max_rent_duration', label: 'Maximum Rent Duration (months)', description: 'Maximum rent duration in months', type: 'number', defaultValue: '24' },
+      { key: 'grace_period_days', label: 'Grace Period (days)', description: 'Grace period before late fees apply', type: 'number', defaultValue: '7' },
+      { key: 'late_payment_rules', label: 'Late Payment Rules', description: 'Rules for late rent payments', type: 'textarea', defaultValue: '' },
     ],
   },
   // ── 3. HOTEL SETTINGS ──
   {
     id: 'hotel',
-    label: 'Hotel Settings',
+    label: 'Hotel',
     settings: [
-      { key: 'allow_hotel_reservation', label: 'Allow Hotel Reservation', description: 'If ON: users can reserve before paying. If OFF: direct payment only.', type: 'toggle', defaultValue: 'false' },
+      { key: 'allow_hotel_reservation', label: 'Hotel Reservation Enabled', description: 'If ON: users can reserve before paying. If OFF: direct payment only.', type: 'toggle', defaultValue: 'false' },
       { key: 'hotel_reservation_fee', label: 'Hotel Reservation Fee (N)', description: 'Fee for hotel reservation', type: 'number', defaultValue: '5000' },
-    ],
-  },
-  // ── 4. COMMISSION — by LISTING TYPE only. NO Property Partner Commission. ──
-  {
-    id: 'commission',
-    label: 'Commission',
-    settings: [
-      { key: 'commission_worker', label: 'Worker Commission %', description: 'Commission on worker bookings', type: 'number', defaultValue: '15' },
-      { key: 'commission_apartment', label: 'Apartment Commission %', description: 'Commission on apartment bookings', type: 'number', defaultValue: '10' },
       { key: 'commission_hotel', label: 'Hotel Commission %', description: 'Commission on hotel bookings', type: 'number', defaultValue: '12' },
     ],
   },
-  // ── 5. WORKER VERIFICATION ──
+  // ── 4. WORKER ──
   {
-    id: 'worker_verification',
-    label: 'Worker Verification',
+    id: 'worker',
+    label: 'Worker',
     settings: [
-      { key: 'worker_verification_fee', label: 'Worker Verification Payment (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
-      { key: 'worker_verification_video_length', label: 'Worker Verification Video Length (minutes)', description: 'Required length of skill demonstration video', type: 'number', defaultValue: '3' },
+      { key: 'worker_verification_fee', label: 'Verification Payment (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
+      { key: 'commission_worker', label: 'Worker Commission %', description: 'Commission on worker bookings', type: 'number', defaultValue: '15' },
+      { key: 'worker_verification_video_length', label: 'Required Video Length (minutes)', description: 'Required length of skill demonstration video', type: 'number', defaultValue: '3' },
       { key: 'worker_required_documents', label: 'Required Documents', description: 'Documents required from workers (comma-separated)', type: 'textarea', defaultValue: 'Government ID, Proof of Address' },
-      { key: 'worker_verification_rules', label: 'Verification Rules', description: 'Rules and guidelines for worker verification', type: 'textarea', defaultValue: '' },
     ],
   },
-  // ── 6. RENT PLANS ──
-  {
-    id: 'rent_plans',
-    label: 'Rent Plans',
-    settings: [
-      { key: 'rent_plans_enabled', label: 'Enable Rent Plans', description: 'Enable rent plan functionality', type: 'toggle', defaultValue: 'true' },
-      { key: 'min_rent_duration', label: 'Minimum Rent Duration (months)', description: 'Minimum rent duration in months', type: 'number', defaultValue: '1' },
-      { key: 'max_rent_duration', label: 'Maximum Rent Duration (months)', description: 'Maximum rent duration in months', type: 'number', defaultValue: '24' },
-      { key: 'late_payment_rules', label: 'Late Payment Rules', description: 'Rules for late rent payments', type: 'textarea', defaultValue: '' },
-      { key: 'grace_period_days', label: 'Grace Period (days)', description: 'Grace period before late fees apply', type: 'number', defaultValue: '7' },
-    ],
-  },
-  // ── 7. WITHDRAWALS ──
+  // ── 5. WITHDRAWALS ──
   {
     id: 'withdrawals',
     label: 'Withdrawals',
@@ -111,47 +94,31 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
       { key: 'automatic_paystack_transfer', label: 'Automatic Paystack Transfer', description: 'Automatically process withdrawals via Paystack', type: 'toggle', defaultValue: 'false' },
     ],
   },
-  // ── 8. NOTIFICATIONS ──
+  // ── 6. NOTIFICATIONS ──
   {
     id: 'notifications',
     label: 'Notifications',
     settings: [
       { key: 'email_notifications', label: 'Email Notifications', description: 'Send email notifications to users', type: 'toggle', defaultValue: 'true' },
       { key: 'push_notifications', label: 'Push Notifications', description: 'Send push notifications to users', type: 'toggle', defaultValue: 'true' },
+    ],
+  },
+  // ── 7. MAINTENANCE ──
+  {
+    id: 'maintenance',
+    label: 'Maintenance',
+    settings: [
       { key: 'maintenance_mode', label: 'Maintenance Mode', description: 'Put site in maintenance mode', type: 'toggle', defaultValue: 'false' },
     ],
   },
-  // ── 9. LEGAL — all editable by Creator ──
+  // ── 8. LEGAL ──
   {
     id: 'legal',
     label: 'Legal',
     settings: [
-      { key: 'terms_of_service', label: 'Terms of Service', description: 'Platform terms of service', type: 'textarea', defaultValue: '' },
-      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Platform privacy policy', type: 'textarea', defaultValue: '' },
-      { key: 'refund_policy', label: 'Refund Policy', description: 'Platform refund policy', type: 'textarea', defaultValue: '' },
-    ],
-  },
-  // ── 10. HOMEPAGE — editable banners and CTAs ──
-  {
-    id: 'homepage',
-    label: 'Homepage',
-    settings: [
-      { key: 'roommate_match_enabled', label: 'Show Roommate Match', description: 'Display the roommate match CTA on homepage', type: 'toggle', defaultValue: 'true' },
-      { key: 'roommate_match_title', label: 'Roommate Match Title', description: 'Title for the roommate match section', type: 'text', defaultValue: 'Roommate Match' },
-      { key: 'roommate_match_subtitle', label: 'Roommate Match Subtitle', description: 'Subtitle for the roommate match section', type: 'text', defaultValue: 'Share Housing Costs' },
-      { key: 'roommate_match_description', label: 'Roommate Match Description', description: 'Description text for the roommate match section', type: 'textarea', defaultValue: 'Find compatible roommates based on lifestyle, budget & location preferences' },
-      { key: 'find_workers_enabled', label: 'Show Find Workers', description: 'Display the find workers CTA on homepage', type: 'toggle', defaultValue: 'true' },
-      { key: 'find_workers_title', label: 'Find Workers Title', description: 'Title for the find workers section', type: 'text', defaultValue: 'Find Verified Workers' },
-      { key: 'find_workers_description', label: 'Find Workers Description', description: 'Description text for the find workers section', type: 'textarea', defaultValue: 'Electricians, plumbers, cleaners, barbers & more in your area' },
-    ],
-  },
-  // ── 11. AI AGENT — OpenAI API key configuration ──
-  {
-    id: 'ai',
-    label: 'AI Agent',
-    settings: [
-      { key: 'openai_api_key', label: 'OpenAI API Key', description: 'API key for the WeHouse AI Agent. Leave empty to disable.', type: 'text', defaultValue: '' },
-      { key: 'ai_agent_enabled', label: 'Enable AI Agent', description: 'Turn the AI Agent on or off', type: 'toggle', defaultValue: 'true' },
+      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Full privacy policy text (supports markdown)', type: 'textarea', defaultValue: '' },
+      { key: 'terms_of_service', label: 'Terms & Conditions', description: 'Full terms and conditions text (supports markdown)', type: 'textarea', defaultValue: '' },
+      { key: 'refund_policy', label: 'Refund Policy', description: 'Refund and cancellation policy', type: 'textarea', defaultValue: '' },
     ],
   },
 ];
