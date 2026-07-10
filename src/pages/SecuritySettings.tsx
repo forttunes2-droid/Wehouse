@@ -392,12 +392,34 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
               {/* New Password */}
               <div>
                 <label className="text-[10px] text-[#5C5E72] mb-1 block">New Password</label>
+                {/* Password Requirements Checklist */}
+                <div className="rounded-lg bg-[#1A1A24] border border-[#2A2A3A] p-2.5 mb-2 space-y-1">
+                  <p className="text-[9px] text-[#5C5E72] font-medium mb-1.5">Password must have:</p>
+                  {[
+                    { label: 'At least 8 characters', test: newPassword.length >= 8 },
+                    { label: 'One uppercase letter (A-Z)', test: /[A-Z]/.test(newPassword) },
+                    { label: 'One lowercase letter (a-z)', test: /[a-z]/.test(newPassword) },
+                    { label: 'One number (0-9)', test: /[0-9]/.test(newPassword) },
+                    { label: 'One special character (!@#$...)', test: /[^A-Za-z0-9]/.test(newPassword) },
+                  ].map((req, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <div className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${req.test ? 'bg-emerald-500/20' : 'bg-[#2A2A3A]'}`}>
+                        {req.test ? (
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#5C5E72]" />
+                        )}
+                      </div>
+                      <span className={`text-[9px] ${req.test ? 'text-emerald-400 line-through' : 'text-[#5C5E72]'}`}>{req.label}</span>
+                    </div>
+                  ))}
+                </div>
                 <div className="relative">
                   <input
                     type={showNew ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Min 8 characters"
+                    placeholder="Enter new password"
                     className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 pr-11 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none"
                   />
                   <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5C5E72] hover:text-white transition-colors">

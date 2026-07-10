@@ -123,6 +123,17 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
         </div>
       </header>
 
+      {/* ═══ PROMINENT REQUEST INSPECTION — Always Visible ═══ */}
+      <div className="px-4 py-3">
+        <button
+          onClick={() => setActiveTab('inspections')}
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-violet-500/20"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          Request Property Inspection
+        </button>
+      </div>
+
       {/* ═══ TAB NAV ═══ */}
       <nav className="sticky top-0 z-40 bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/[0.04] px-3 py-2">
         <div className="flex gap-1 overflow-x-auto scrollbar-hide">
