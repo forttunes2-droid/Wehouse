@@ -234,21 +234,24 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
             <ToggleRow label="Show Phone" desc="Display phone on your public profile" enabled={showPhone} onToggle={() => setShowPhone(!showPhone)} />
           </div>
           <SaveButton onClick={handleSavePrivacy} saving={saving} label="Save Privacy Settings" />
-          <div className="rounded-xl bg-red-500/5 border border-red-500/20 p-4">
-            <p className="text-xs font-semibold text-red-400 mb-2">Danger Zone</p>
-            {!showDeleteConfirm ? (
-              <button onClick={() => setShowDeleteConfirm(true)} className="w-full h-10 rounded-xl bg-red-500/10 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors">Delete Account</button>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-[10px] text-red-400">This cannot be undone. Type DELETE to confirm.</p>
-                <input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="Type DELETE" className="w-full h-9 rounded-lg bg-[#1A1A24] border border-red-500/30 text-white text-xs px-3 outline-none" />
-                <div className="flex gap-2">
-                  <button onClick={handleDeleteAccount} disabled={saving} className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50">{saving ? '...' : 'Confirm Delete'}</button>
-                  <button onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs">Cancel</button>
+          {/* Delete Account — ONLY user and worker can self-delete */}
+          {(isUser || isWorker) && (
+            <div className="rounded-xl bg-red-500/5 border border-red-500/20 p-4">
+              <p className="text-xs font-semibold text-red-400 mb-2">Danger Zone</p>
+              {!showDeleteConfirm ? (
+                <button onClick={() => setShowDeleteConfirm(true)} className="w-full h-10 rounded-xl bg-red-500/10 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors">Delete Account</button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-red-400">This cannot be undone. Type DELETE to confirm.</p>
+                  <input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="Type DELETE" className="w-full h-9 rounded-lg bg-[#1A1A24] border border-red-500/30 text-white text-xs px-3 outline-none" />
+                  <div className="flex gap-2">
+                    <button onClick={handleDeleteAccount} disabled={saving} className="flex-1 h-9 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50">{saving ? '...' : 'Confirm Delete'}</button>
+                    <button onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }} className="flex-1 h-9 rounded-lg bg-[#1A1A24] text-[#5C5E72] text-xs">Cancel</button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
