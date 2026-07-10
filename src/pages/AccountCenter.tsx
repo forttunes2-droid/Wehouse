@@ -105,15 +105,18 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
   const supportItems: SectionItem[] = [
     {
       label: 'Help & Support',
-      desc: 'Chat with our AI assistant for help',
+      desc: isStaff ? 'Contact WeHouse support team' : 'Chat with our AI assistant for help',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
       ),
       action: () => {
-        // Dispatch custom event to open support chat
-        window.dispatchEvent(new CustomEvent('openSupportChat'));
+        if (isStaff) {
+          window.location.href = 'mailto:support@wehouse.com.ng';
+        } else {
+          window.dispatchEvent(new CustomEvent('openSupportChat'));
+        }
       },
     },
     {
@@ -135,7 +138,8 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
 
   const sections = [
     { title: 'Personal Information', items: personalItems },
-    { title: 'Privacy', items: privacyItems },
+    // Staff don't have Privacy Settings — they're internal, not public
+    ...(!isStaff ? [{ title: 'Privacy' as const, items: privacyItems }] : []),
     { title: 'Security', items: securityItems },
     { title: 'Support', items: supportItems },
   ];
@@ -239,7 +243,6 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
           <div className="glass rounded-2xl p-4 space-y-3">
             {[
               { label: 'User ID', value: profile.user_id },
-              { label: 'Auth ID', value: profile.auth_id },
               { label: 'Role', value: profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
               {
                 label: 'Joined',
