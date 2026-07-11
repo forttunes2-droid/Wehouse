@@ -444,28 +444,150 @@ function EarningsTab({ bookings }: { bookings: any[] }) {
 function InspectionsTab({ inspections, profile, onConversationCreated }: { inspections: any[]; profile: Profile; onConversationCreated?: () => void }) {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // ═══ CONSTITUTION-COMPLIANT FORM ═══
+  // Partner submits: property name, address, city, state, type, description, documents, photos
+  // Field Officer handles: bedrooms, bathrooms, rent, amenities (DRAFT LISTING details)
   const [requestForm, setRequestForm] = useState({
     property_name: '',
     property_address: '',
     property_city: '',
     property_state: '',
-    property_type: 'house',
-    bedrooms: '',
-    bathrooms: '',
-    expected_rent: '',
+    property_type: '',
     description: '',
-    notes: ''
+    notes: '',
+    document_urls: [] as string[],
+    photo_urls: [] as string[],
   });
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [propertyTypes, setPropertyTypes] = useState<{name: string; label: string}[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Load property types dynamically from Creator-managed table
+  useEffect(() => {
+    async function loadTypes() {
+      const { data } = await supabase.from('property_types').select('name, label').eq('is_active', true).order('sort_order');
+      if (data && data.length > 0) {
+        setPropertyTypes(data);
+        setRequestForm(f => ({ ...f, property_type: data[0].name }));
+      } else {
+        // Fallback per Constitution: Houses, Apartments, Hotels only
+        const fallback = [
+          { name: 'house', label: 'House' },
+          { name: 'apartment', label: 'Apartment' },
+          { name: 'hotel', label: 'Hotel' },
+        ];
+        setPropertyTypes(fallback);
+        setRequestForm(f => ({ ...f, property_type: 'house' }));
+      }
+    }
+    loadTypes();
+  }, []);
+
+  // Upload documents to storage — with proper error reporting
+  async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploadingDocs(true);
+    const uploaded: string[] = [];
+    const failed: string[] = [];
+
+    for (const file of Array.from(files)) {
+      // Validate file size (10MB max)
+      if (file.size > 10 * 1024 * 1024) {
+        failed.push(`${file.name} (too large, max 10MB)`);
+        continue;
+      }
+      const fileName = `inspections/${profile.user_id}/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage.from('inspection-files').upload(fileName, file, { contentType: file.type });
+      if (error) {
+        console.error('Doc upload error:', error);
+        failed.push(file.name);
+      } else {
+        const { data } = supabase.storage.from('inspection-files').getPublicUrl(fileName);
+        if (data?.publicUrl) uploaded.push(data.publicUrl);
+      }
+    }
+
+    // Show results
+    if (uploaded.length > 0 && failed.length > 0) {
+      toast.success(`${uploaded.length} uploaded, ${failed.length} failed`);
+    } else if (uploaded.length > 0) {
+      toast.success(`${uploaded.length} document(s) uploaded`);
+    } else if (failed.length > 0) {
+      toast.error('Upload failed. Make sure file is under 10MB.');
+    }
+
+    setRequestForm(f => ({ ...f, document_urls: [...f.document_urls, ...uploaded] }));
+    setUploadingDocs(false);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  }
+
+  // Upload photos to storage — with proper error reporting
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploadingPhotos(true);
+    const uploaded: string[] = [];
+    const failed: string[] = [];
+
+    for (const file of Array.from(files)) {
+      // Validate file size (10MB max) and type
+      if (file.size > 10 * 1024 * 1024) {
+        failed.push(`${file.name} (too large, max 10MB)`);
+        continue;
+      }
+      if (!file.type.startsWith('image/')) {
+        failed.push(`${file.name} (not an image)`);
+        continue;
+      }
+      const fileName = `inspections/${profile.user_id}/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage.from('inspection-files').upload(fileName, file, { contentType: file.type });
+      if (error) {
+        console.error('Photo upload error:', error);
+        failed.push(file.name);
+      } else {
+        const { data } = supabase.storage.from('inspection-files').getPublicUrl(fileName);
+        if (data?.publicUrl) uploaded.push(data.publicUrl);
+      }
+    }
+
+    // Show results
+    if (uploaded.length > 0 && failed.length > 0) {
+      toast.success(`${uploaded.length} uploaded, ${failed.length} failed`);
+    } else if (uploaded.length > 0) {
+      toast.success(`${uploaded.length} photo(s) uploaded`);
+    } else if (failed.length > 0) {
+      toast.error('Upload failed. Make sure images are under 10MB.');
+    }
+
+    setRequestForm(f => ({ ...f, photo_urls: [...f.photo_urls, ...uploaded] }));
+    setUploadingPhotos(false);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  }
+
+  function removeDoc(index: number) {
+    setRequestForm(f => ({ ...f, document_urls: f.document_urls.filter((_, i) => i !== index) }));
+  }
+
+  function removePhoto(index: number) {
+    setRequestForm(f => ({ ...f, photo_urls: f.photo_urls.filter((_, i) => i !== index) }));
+  }
 
   async function submitRequest() {
     if (!requestForm.property_address || !requestForm.property_city) {
       toast.error('Address and city are required'); return;
     }
+    if (!requestForm.property_type) {
+      toast.error('Property type is required'); return;
+    }
     setSubmitting(true);
 
     try {
-      // 1. Create inspection request
+      // 1. Create inspection request — per Constitution, partner does NOT enter beds/baths/rent
       const { error: inspectionError } = await supabase.from('inspection_requests').insert({
         owner_id: profile.user_id,
         owner_email: profile.email,
@@ -475,11 +597,11 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
         property_state: requestForm.property_state,
         property_name: requestForm.property_name || requestForm.property_address,
         property_type: requestForm.property_type,
-        bedrooms: requestForm.bedrooms ? parseInt(requestForm.bedrooms) : null,
-        bathrooms: requestForm.bathrooms ? parseInt(requestForm.bathrooms) : null,
-        expected_rent: requestForm.expected_rent ? parseFloat(requestForm.expected_rent) : null,
+        // bedrooms, bathrooms, expected_rent are NULL — Field Officer fills these in the DRAFT LISTING
         description: requestForm.description,
         notes: requestForm.notes,
+        document_urls: requestForm.document_urls,
+        photo_urls: requestForm.photo_urls,
         status: 'pending',
         request_code: 'WHIR-' + Math.floor(10000 + Math.random() * 90000),
         created_at: new Date().toISOString(),
@@ -511,7 +633,8 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
       setShowRequestForm(false);
       setRequestForm({
         property_name: '', property_address: '', property_city: '', property_state: '',
-        property_type: 'house', bedrooms: '', bathrooms: '', expected_rent: '', description: '', notes: ''
+        property_type: propertyTypes[0]?.name || 'house', description: '', notes: '',
+        document_urls: [], photo_urls: [],
       });
       onConversationCreated?.();
     } catch (e: any) {
@@ -548,6 +671,13 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
           </div>
           <p className="text-[10px] text-[#5C5E72]">Fill in your property details. WeHouse will inspect and approve it before listing.</p>
 
+          {/* Constitution Note */}
+          <div className="rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
+            <p className="text-[10px] text-violet-400 leading-relaxed">
+              <strong>What happens next:</strong> You submit basic property info + documents + photos. A WeHouse Field Officer will visit, inspect, and create a draft listing with bedrooms, bathrooms, and pricing. Operations will approve before it goes public.
+            </p>
+          </div>
+
           <div className="space-y-3">
             <input value={requestForm.property_name} onChange={e => setRequestForm(f => ({ ...f, property_name: e.target.value }))}
               placeholder="Property name (e.g. Sunset Apartments)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
@@ -559,30 +689,63 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
               <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
                 placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <select value={requestForm.property_type} onChange={e => setRequestForm(f => ({ ...f, property_type: e.target.value }))}
-                className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-2 outline-none focus:border-violet-500">
-                <option value="house">House</option>
-                <option value="apartment">Apartment</option>
-                <option value="self_contain">Self Contain</option>
-                <option value="mini_flat">Mini Flat</option>
-                <option value="duplex">Duplex</option>
-                <option value="bungalow">Bungalow</option>
-                <option value="mansion">Mansion</option>
-              </select>
-              <input type="number" value={requestForm.bedrooms} onChange={e => setRequestForm(f => ({ ...f, bedrooms: e.target.value }))}
-                placeholder="Beds" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-              <input type="number" value={requestForm.bathrooms} onChange={e => setRequestForm(f => ({ ...f, bathrooms: e.target.value }))}
-                placeholder="Baths" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-            </div>
-            <input type="number" value={requestForm.expected_rent} onChange={e => setRequestForm(f => ({ ...f, expected_rent: e.target.value }))}
-              placeholder="Expected rent (N/year)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+            {/* Property Type — loaded dynamically from Creator-managed table */}
+            <select value={requestForm.property_type} onChange={e => setRequestForm(f => ({ ...f, property_type: e.target.value }))}
+              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500">
+              {propertyTypes.map(pt => (
+                <option key={pt.name} value={pt.name}>{pt.label}</option>
+              ))}
+            </select>
             <textarea value={requestForm.description} onChange={e => setRequestForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Property description (e.g. fenced compound, parking space, water supply)" rows={2}
+              placeholder="Property description (e.g. fenced compound, parking space, water supply, security, access road)" rows={3}
               className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
             <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Additional notes for the inspector (optional)" rows={2}
+              placeholder="Additional notes for the inspector (optional — e.g. gate code, best time to visit)" rows={2}
               className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
+
+            {/* Document Upload */}
+            <div className="space-y-2">
+              <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Property Documents</label>
+              <label className="flex items-center justify-center gap-2 h-10 rounded-xl bg-[#1A1A24] border border-dashed border-[#2A2A3A] text-[#5C5E72] text-xs cursor-pointer hover:border-violet-500/50 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+                {uploadingDocs ? 'Uploading...' : 'Upload documents (title, deed, etc.)'}
+                <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={handleDocUpload} disabled={uploadingDocs} />
+              </label>
+              {requestForm.document_urls.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {requestForm.document_urls.map((url, i) => (
+                    <div key={i} className="flex items-center gap-1 rounded-lg bg-violet-500/10 border border-violet-500/20 px-2 py-1">
+                      <span className="text-[9px] text-violet-400 truncate max-w-[150px]">{url.split('/').pop()?.split('_').pop()}</span>
+                      <button onClick={() => removeDoc(i)} className="text-violet-400 hover:text-red-400">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Photo Upload */}
+            <div className="space-y-2">
+              <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Property Photos</label>
+              <label className="flex items-center justify-center gap-2 h-10 rounded-xl bg-[#1A1A24] border border-dashed border-[#2A2A3A] text-[#5C5E72] text-xs cursor-pointer hover:border-violet-500/50 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                {uploadingPhotos ? 'Uploading...' : 'Upload photos (exterior, interior, rooms)'}
+                <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhotos} />
+              </label>
+              {requestForm.photo_urls.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {requestForm.photo_urls.map((url, i) => (
+                    <div key={i} className="relative flex-shrink-0">
+                      <img src={url} alt="" className="w-20 h-20 rounded-lg object-cover" />
+                      <button onClick={() => removePhoto(i)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-2 pt-2">
             <button onClick={() => setShowRequestForm(false)} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
@@ -690,6 +853,22 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
                     <div className="rounded-lg bg-red-500/5 border border-red-500/10 p-3">
                       <p className="text-[9px] text-red-400 font-medium mb-1">Rejection Reason</p>
                       <p className="text-[11px] text-red-300">{ins.rejection_reason}</p>
+                    </div>
+                  )}
+
+                  {/* Document URLs */}
+                  {ins.document_urls && ins.document_urls.length > 0 && (
+                    <div>
+                      <p className="text-[9px] text-[#5C5E72] mb-2">Documents ({ins.document_urls.length})</p>
+                      <div className="flex flex-wrap gap-2">
+                        {ins.document_urls.map((url: string, i: number) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 rounded-lg bg-violet-500/10 border border-violet-500/20 px-2 py-1 text-[9px] text-violet-400 hover:text-violet-300 transition-colors">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                            Doc {i + 1}
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
 
