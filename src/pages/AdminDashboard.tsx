@@ -98,7 +98,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
       <Toaster position="top-center" toastOptions={{ style: { background: '#1A1A24', color: '#fff', border: '1px solid #232330' } }} />
 
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 to-indigo-800 px-5 pt-6 pb-8">
+      <header className="bg-gradient-to-r from-indigo-600 to-indigo-800 px-5 pt-6 pb-8 lg:px-8 lg:pt-8">
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -134,7 +134,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
       </header>
 
       {/* Tabs */}
-      <div className="px-5 -mt-4">
+      <div className="px-5 -mt-4 lg:px-8">
         <div className="glass rounded-xl p-1 flex gap-1 overflow-x-auto scrollbar-hide">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
@@ -157,7 +157,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
       </div>
 
       {/* Content */}
-      <div className="px-5 pt-4 pb-8">
+      <div className="px-5 pt-4 pb-8 lg:px-8 lg:pt-6">
         {activeTab === 'overview' && (
           <div className="space-y-3">
             <div className="glass rounded-2xl p-4 border border-indigo-500/10">

@@ -67,14 +67,14 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
+    <div className="min-h-screen bg-[#0A0A0F] pb-24 lg:pb-0">
       <Toaster position="top-center" richColors />
 
       {/* ═══ MODERN HEADER ═══ */}
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#0A0A0F] to-[#16213e]" />
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
-        <div className="relative px-5 pt-6 pb-4">
+        <div className="relative px-5 pt-6 pb-4 lg:px-8 lg:pt-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -127,7 +127,7 @@ export default function StaffDashboard({ profile, onLogout, onGoToChat, onNaviga
       </nav>
 
       {/* ═══ TAB CONTENT ═══ */}
-      <main className="px-4 py-4">
+      <main className="px-4 py-4 lg:px-8 lg:py-6">
         {activeTab === 'overview' && <OverviewModule profile={profile} permissions={permissions} onGoToChat={onGoToChat} onNavigate={onNavigate} onSetTab={handleSetTab} />}
         {activeTab === 'operations' && <OperationsModule profile={profile} />}
         {activeTab === 'finance' && <FinanceModule />}

@@ -110,7 +110,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
       <Toaster position="top-center" richColors theme="dark" />
 
       {/* Creator Header — Differentiated from user profile */}
-      <header className="bg-gradient-to-b from-[#1A1029] via-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4">
+      <header className="bg-gradient-to-b from-[#1A1029] via-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4 lg:px-8 lg:pt-8 lg:pb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {onNavigate && (
@@ -184,7 +184,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
       </nav>
 
       {/* Content */}
-      <main className="max-w-lg mx-auto px-5 pb-6">
+      <main className="px-5 pb-6 lg:px-8 lg:pb-8">
         {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => goToUsers('manage')} onGoToUsersView={() => goToUsers('view')} onGoToUsersToday={() => goToUsers('today')} onGoToTab={handleSetTab} />}
         {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} onViewProfile={(u) => setViewingProfile(u)} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} viewingProfile={viewingProfile} setViewingProfile={setViewingProfile} />}

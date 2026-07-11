@@ -107,11 +107,11 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-nav overflow-y-auto scrollable-content">
+    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-nav lg:pb-0 overflow-y-auto scrollable-content">
       <Toaster position="top-center" richColors theme="dark" />
 
       {/* Header */}
-      <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-5 pb-3">
+      <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-5 pb-3 lg:px-8 lg:pt-6 lg:pb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <button onClick={() => onNavigate?.('home')}
@@ -173,7 +173,7 @@ export default function WorkerDashboard({ profile, onGoToSetup, onLogout, onNavi
       </nav>
 
       {/* Content */}
-      <main className="px-5 py-4 max-w-lg mx-auto">
+      <main className="px-5 py-4 lg:px-8 lg:py-6">
         {/* Constitution tabs: Overview, Bookings, Calendar, Wallet, Withdraw, Reviews, Services, Availability, Messages, Notifications, Verification Status, Profile, Settings */}
         {activeTab === 'overview' && (
           <OverviewTab
@@ -351,7 +351,7 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
       {/* Quick Actions Grid */}
       <div>
         <h3 className="text-[10px] font-semibold text-[#5C5E72] uppercase tracking-wider mb-2">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <QuickActionButton label="Edit Profile" icon="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" onClick={onGoToSetup} />
           <QuickActionButton label="My Jobs" icon="M20 7h-4V4c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V9c0-1.103-.897-2-2-2z" onClick={() => onSetTab('bookings')} />
           <QuickActionButton label="Verification" icon="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 1 4.1-.252 3.42 3.42 0 0 0 3.388-3.388 3.42 3.42 0 0 1 2.567-1.932 3.42 3.42 0 0 0 2.568-1.932M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0" onClick={() => onSetTab('verification_status')} />
