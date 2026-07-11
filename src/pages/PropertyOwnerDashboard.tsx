@@ -90,31 +90,31 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-[#0A0A0F] pb-20 lg:pb-0">
       <Toaster position="top-center" richColors />
 
       {/* ═══ HEADER ═══ */}
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#0A0A0F] to-[#16213e]" />
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
-        <div className="relative px-5 pt-6 pb-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="relative px-5 pt-6 pb-4 lg:px-8 lg:pt-8 lg:pb-6">
+          <div className="flex items-center justify-between mb-4 lg:mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-500/20">
-                <span className="text-white font-bold text-sm">{(profile.username || profile.email || 'P')[0].toUpperCase()}</span>
+              <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                <span className="text-white font-bold text-sm lg:text-lg">{(profile.username || profile.email || 'P')[0].toUpperCase()}</span>
               </div>
               <div>
-                <h1 className="text-base font-bold text-white">Property Partner</h1>
-                <p className="text-[10px] text-[#5C5E72]">{profile.email}</p>
+                <h1 className="text-base lg:text-xl font-bold text-white">Property Partner</h1>
+                <p className="text-[10px] lg:text-xs text-[#5C5E72]">{profile.email}</p>
               </div>
             </div>
-            <button onClick={_onLogout} className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 transition-all" title="Logout">
+            <button onClick={_onLogout} className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 transition-all" title="Logout">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
             </button>
           </div>
 
-          {/* Stats Row */}
-          <div className="grid grid-cols-4 gap-2">
+          {/* Stats Row — Responsive */}
+          <div className="grid grid-cols-4 gap-2 lg:gap-4 lg:max-w-3xl">
             <StatCard label="Properties" value={stats.totalProperties} />
             <StatCard label="Bookings" value={stats.totalBookings} />
             <StatCard label="Occupancy" value={`${stats.occupancyRate}%`} />
@@ -123,8 +123,8 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
         </div>
       </header>
 
-      {/* ═══ PROMINENT REQUEST INSPECTION — Always Visible ═══ */}
-      <div className="px-4 py-3">
+      {/* ═══ PROMINENT REQUEST INSPECTION ═══ */}
+      <div className="px-4 py-3 lg:px-8 lg:hidden">
         <button
           onClick={() => setActiveTab('inspections')}
           className="w-full h-12 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-violet-500/20"
@@ -135,11 +135,11 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
       </div>
 
       {/* ═══ TAB NAV ═══ */}
-      <nav className="sticky top-0 z-40 bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/[0.04] px-3 py-2">
-        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+      <nav className="sticky top-0 z-40 bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/[0.04] px-3 py-2 lg:px-8">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide lg:gap-2">
           {TAB_CONFIG.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`flex-shrink-0 flex items-center gap-1.5 h-9 px-3 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${activeTab === t.key ? 'bg-gradient-to-r from-violet-500 to-violet-700 text-white shadow-lg shadow-violet-500/25' : 'text-[#5C5E72] hover:text-white hover:bg-white/[0.05]'}`}>
+              className={`flex-shrink-0 flex items-center gap-1.5 h-9 lg:h-10 px-3 lg:px-4 rounded-xl text-[11px] lg:text-xs font-semibold transition-all whitespace-nowrap ${activeTab === t.key ? 'bg-gradient-to-r from-violet-500 to-violet-700 text-white shadow-lg shadow-violet-500/25' : 'text-[#5C5E72] hover:text-white hover:bg-white/[0.05]'}`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
               {t.label}
             </button>
@@ -148,7 +148,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
       </nav>
 
       {/* ═══ TAB CONTENT ═══ */}
-      <main className="px-4 py-4">
+      <main className="px-4 py-4 lg:px-8 lg:py-6">
         {loading ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
@@ -180,9 +180,9 @@ export default function PropertyOwnerDashboard({ profile, onLogout: _onLogout, o
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 text-center">
-      <p className="text-sm font-bold text-white">{value}</p>
-      <p className="text-[9px] text-[#5C5E72] mt-0.5">{label}</p>
+    <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 lg:p-4 text-center lg:text-left">
+      <p className="text-sm lg:text-lg font-bold text-white">{value}</p>
+      <p className="text-[9px] lg:text-[11px] text-[#5C5E72] mt-0.5">{label}</p>
     </div>
   );
 }
@@ -198,8 +198,8 @@ function OverviewTab({ stats, profile, onSetTab, onGoToChat, inspections }: {
     <div className="space-y-4">
       <p className="text-[11px] text-[#5C5E72]">Welcome, <span className="text-white font-medium">{profile.full_name || profile.username || 'Partner'}</span>. Here&apos;s your portfolio.</p>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Quick Actions — Responsive: 2 cols mobile, 4 cols desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <QuickCard icon="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" title="My Properties" subtitle={`${stats.totalProperties} approved`} color="from-violet-500 to-violet-700" onClick={() => onSetTab('properties')} />
         <QuickCard icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" title="Bookings" subtitle={`${stats.totalBookings} total`} color="from-blue-500 to-blue-700" onClick={() => onSetTab('bookings')} />
         <QuickCard icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" title="Request Inspection" subtitle="For new properties" color="from-amber-500 to-amber-700" onClick={() => onSetTab('inspections')} />
@@ -224,12 +224,12 @@ function OverviewTab({ stats, profile, onSetTab, onGoToChat, inspections }: {
 
 function QuickCard({ icon, title, subtitle, color, onClick }: { icon: string; title: string; subtitle: string; color: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="group rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 text-left hover:border-white/[0.12] transition-all active:scale-[0.98]">
-      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-lg`}>
+    <button onClick={onClick} className="group rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 lg:p-5 text-left hover:border-white/[0.12] transition-all active:scale-[0.98]">
+      <div className={`w-9 h-9 lg:w-11 lg:h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-lg`}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
       </div>
-      <p className="text-xs font-semibold text-white">{title}</p>
-      <p className="text-[10px] text-[#5C5E72] mt-0.5">{subtitle}</p>
+      <p className="text-xs lg:text-sm font-semibold text-white">{title}</p>
+      <p className="text-[10px] lg:text-xs text-[#5C5E72] mt-0.5">{subtitle}</p>
     </button>
   );
 }
@@ -259,14 +259,16 @@ function PropertiesTab({ properties }: { properties: any[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-white">{filtered.length} Property{filtered.length !== 1 ? 'ies' : 'y'}</p>
+        <p className="text-xs lg:text-sm font-semibold text-white">{filtered.length} Property{filtered.length !== 1 ? 'ies' : 'y'}</p>
         {/* State filter dropdown */}
         <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
-          className="h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-[10px] px-2 outline-none focus:border-[#3B82F6]">
+          className="h-8 lg:h-9 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-[10px] lg:text-xs px-2 outline-none focus:border-[#3B82F6]">
           <option value="all">All States</option>
           {uniqueStates.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
+      {/* Responsive grid: 1 col mobile, 2 col tablet, 3 col desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {filtered.map(p => (
         <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
           {p.images?.[0] && (
@@ -295,6 +297,7 @@ function PropertiesTab({ properties }: { properties: any[] }) {
           </div>
         </div>
       ))}
+      </div> {/* End responsive grid */}
     </div>
   );
 }
@@ -391,15 +394,23 @@ function EarningsTab({ bookings }: { bookings: any[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Summary Cards — Responsive */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-          <p className="text-[10px] text-[#5C5E72]">Total Revenue</p>
+          <p className="text-[10px] lg:text-xs text-[#5C5E72]">Total Revenue</p>
           <p className="text-lg font-bold text-white">N{totalRevenue.toLocaleString()}</p>
         </div>
         <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-          <p className="text-[10px] text-[#5C5E72]">Net Earnings</p>
+          <p className="text-[10px] lg:text-xs text-[#5C5E72]">Net Earnings</p>
           <p className="text-lg font-bold text-emerald-400">N{netEarnings.toLocaleString()}</p>
+        </div>
+        <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+          <p className="text-[10px] lg:text-xs text-[#5C5E72]">WeHouse ({commissionRate}%)</p>
+          <p className="text-lg font-bold text-amber-400">N{wehouseCommission.toLocaleString()}</p>
+        </div>
+        <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
+          <p className="text-[10px] lg:text-xs text-[#5C5E72]">Bookings</p>
+          <p className="text-lg font-bold text-white">{confirmedBookings.length}</p>
         </div>
       </div>
 
