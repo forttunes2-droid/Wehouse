@@ -181,6 +181,13 @@ export {
   getOrCreateConversation,
 } from './chat';
 
+// Partner Support
+export {
+  createPartnerSupportConversation,
+  getPartnerConversations,
+  getPartnerSupportMessages,
+} from './partner-support';
+
 // Announcements
 export {
   checkAnnouncementTables,
