@@ -655,101 +655,115 @@ function InspectionsTab({ inspections, profile, onConversationCreated }: { inspe
 
   return (
     <div className="space-y-4">
-      {/* Request New Inspection */}
-      {!showRequestForm ? (
-        <button onClick={() => setShowRequestForm(true)} className="w-full h-12 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-          Request Property Inspection
-        </button>
-      ) : (
-        <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-white">Request New Inspection</p>
-            <button onClick={() => setShowRequestForm(false)} className="text-[#5C5E72] hover:text-white">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <p className="text-[10px] text-[#5C5E72]">Fill in your property details. WeHouse will inspect and approve it before listing.</p>
+      {/* Request button — ALWAYS visible, opens modal */}
+      <button onClick={() => setShowRequestForm(true)} className="w-full h-12 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+        Request Property Inspection
+      </button>
 
-          {/* Constitution Note */}
-          <div className="rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
-            <p className="text-[10px] text-violet-400 leading-relaxed">
-              <strong>What happens next:</strong> You submit basic property info + documents + photos. A WeHouse Field Officer will visit, inspect, and create a draft listing with bedrooms, bathrooms, and pricing. Operations will approve before it goes public.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <input value={requestForm.property_name} onChange={e => setRequestForm(f => ({ ...f, property_name: e.target.value }))}
-              placeholder="Property name (e.g. Sunset Apartments)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-            <input value={requestForm.property_address} onChange={e => setRequestForm(f => ({ ...f, property_address: e.target.value }))}
-              placeholder="Full property address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-            <div className="grid grid-cols-2 gap-2">
-              <input value={requestForm.property_city} onChange={e => setRequestForm(f => ({ ...f, property_city: e.target.value }))}
-                placeholder="City *" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-              <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
-                placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
-            </div>
-            {/* Property Type — loaded dynamically from Creator-managed table */}
-            <select value={requestForm.property_type} onChange={e => setRequestForm(f => ({ ...f, property_type: e.target.value }))}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500">
-              {propertyTypes.map(pt => (
-                <option key={pt.name} value={pt.name}>{pt.label}</option>
-              ))}
-            </select>
-            <textarea value={requestForm.description} onChange={e => setRequestForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Property description (e.g. fenced compound, parking space, water supply, security, access road)" rows={3}
-              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
-            <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Additional notes for the inspector (optional — e.g. gate code, best time to visit)" rows={2}
-              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
-
-            {/* Document Upload */}
-            <div className="space-y-2">
-              <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Property Documents</label>
-              <label className="flex items-center justify-center gap-2 h-10 rounded-xl bg-[#1A1A24] border border-dashed border-[#2A2A3A] text-[#5C5E72] text-xs cursor-pointer hover:border-violet-500/50 transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
-                {uploadingDocs ? 'Uploading...' : 'Upload documents (title, deed, etc.)'}
-                <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={handleDocUpload} disabled={uploadingDocs} />
-              </label>
-              {requestForm.document_urls.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {requestForm.document_urls.map((url, i) => (
-                    <div key={i} className="flex items-center gap-1 rounded-lg bg-violet-500/10 border border-violet-500/20 px-2 py-1">
-                      <span className="text-[9px] text-violet-400 truncate max-w-[150px]">{url.split('/').pop()?.split('_').pop()}</span>
-                      <button onClick={() => removeDoc(i)} className="text-violet-400 hover:text-red-400">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                      </button>
-                    </div>
-                  ))}
+      {/* ═══ MODAL OVERLAY — Form appears ON TOP of everything ═══ */}
+      {showRequestForm && (
+        <div className="fixed inset-0 z-[100] flex flex-col" onClick={(e) => { if (e.target === e.currentTarget) setShowRequestForm(false); }}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+          {/* Modal Content */}
+          <div className="relative z-10 flex-1 overflow-y-auto">
+            <div className="min-h-full flex items-start justify-center py-6 px-4">
+              <div className="w-full max-w-lg rounded-2xl bg-[#0A0A0F] border border-white/[0.08] p-5 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Request New Inspection</p>
+                  <button onClick={() => setShowRequestForm(false)} className="w-8 h-8 rounded-lg bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
-              )}
-            </div>
+                <p className="text-[10px] text-[#5C5E72]">Fill in your property details. WeHouse will inspect and approve it before listing.</p>
 
-            {/* Photo Upload */}
-            <div className="space-y-2">
-              <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Property Photos</label>
-              <label className="flex items-center justify-center gap-2 h-10 rounded-xl bg-[#1A1A24] border border-dashed border-[#2A2A3A] text-[#5C5E72] text-xs cursor-pointer hover:border-violet-500/50 transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
-                {uploadingPhotos ? 'Uploading...' : 'Upload photos (exterior, interior, rooms)'}
-                <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhotos} />
-              </label>
-              {requestForm.photo_urls.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {requestForm.photo_urls.map((url, i) => (
-                    <div key={i} className="relative flex-shrink-0">
-                      <img src={url} alt="" className="w-20 h-20 rounded-lg object-cover" />
-                      <button onClick={() => removePhoto(i)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                      </button>
-                    </div>
-                  ))}
+                {/* Constitution Note */}
+                <div className="rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
+                  <p className="text-[10px] text-violet-400 leading-relaxed">
+                    <strong>What happens next:</strong> You submit basic property info + documents + photos. A WeHouse Field Officer will visit, inspect, and create a draft listing with bedrooms, bathrooms, and pricing. Operations will approve before it goes public.
+                  </p>
                 </div>
-              )}
+
+                {/* Form Fields */}
+                <div className="space-y-3">
+                  <input value={requestForm.property_name} onChange={e => setRequestForm(f => ({ ...f, property_name: e.target.value }))}
+                    placeholder="Property name (e.g. Sunset Apartments)" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+                  <input value={requestForm.property_address} onChange={e => setRequestForm(f => ({ ...f, property_address: e.target.value }))}
+                    placeholder="Full property address *" className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={requestForm.property_city} onChange={e => setRequestForm(f => ({ ...f, property_city: e.target.value }))}
+                      placeholder="City *" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+                    <input value={requestForm.property_state} onChange={e => setRequestForm(f => ({ ...f, property_state: e.target.value }))}
+                      placeholder="State" className="h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500" />
+                  </div>
+                  {/* Property Type — loaded dynamically from Creator-managed table */}
+                  <select value={requestForm.property_type} onChange={e => setRequestForm(f => ({ ...f, property_type: e.target.value }))}
+                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 outline-none focus:border-violet-500">
+                    {propertyTypes.map(pt => (
+                      <option key={pt.name} value={pt.name}>{pt.label}</option>
+                    ))}
+                  </select>
+                  <textarea value={requestForm.description} onChange={e => setRequestForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Property description (e.g. fenced compound, parking space, water supply, security, access road)" rows={3}
+                    className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
+                  <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Additional notes for the inspector (optional — e.g. gate code, best time to visit)" rows={2}
+                    className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 outline-none focus:border-violet-500 resize-none" />
+
+                  {/* Document Upload */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Property Documents</label>
+                    <label className="flex items-center justify-center gap-2 h-10 rounded-xl bg-[#1A1A24] border border-dashed border-[#2A2A3A] text-[#5C5E72] text-xs cursor-pointer hover:border-violet-500/50 transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+                      {uploadingDocs ? 'Uploading...' : 'Upload documents (title, deed, etc.)'}
+                      <input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={handleDocUpload} disabled={uploadingDocs} />
+                    </label>
+                    {requestForm.document_urls.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {requestForm.document_urls.map((url, i) => (
+                          <div key={i} className="flex items-center gap-1 rounded-lg bg-violet-500/10 border border-violet-500/20 px-2 py-1">
+                            <span className="text-[9px] text-violet-400 truncate max-w-[150px]">{url.split('/').pop()?.split('_').pop()}</span>
+                            <button onClick={() => removeDoc(i)} className="text-violet-400 hover:text-red-400">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Photo Upload */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">Property Photos</label>
+                    <label className="flex items-center justify-center gap-2 h-10 rounded-xl bg-[#1A1A24] border border-dashed border-[#2A2A3A] text-[#5C5E72] text-xs cursor-pointer hover:border-violet-500/50 transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                      {uploadingPhotos ? 'Uploading...' : 'Upload photos (exterior, interior, rooms)'}
+                      <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhotos} />
+                    </label>
+                    {requestForm.photo_urls.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {requestForm.photo_urls.map((url, i) => (
+                          <div key={i} className="relative flex-shrink-0">
+                            <img src={url} alt="" className="w-20 h-20 rounded-lg object-cover" />
+                            <button onClick={() => removePhoto(i)} className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 sticky bottom-0 bg-[#0A0A0F] pb-1">
+                  <button onClick={() => setShowRequestForm(false)} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
+                  <button onClick={submitRequest} disabled={submitting} className="flex-1 h-10 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white text-xs font-semibold disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Request'}</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button onClick={() => setShowRequestForm(false)} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
-            <button onClick={submitRequest} disabled={submitting} className="flex-1 h-10 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white text-xs font-semibold disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Request'}</button>
           </div>
         </div>
       )}
