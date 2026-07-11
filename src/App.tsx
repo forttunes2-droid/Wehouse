@@ -7,8 +7,11 @@ import { getSavedListings, saveListing, unsaveListing, supabase } from '@/lib/su
 import CreatorAuthModal from '@/components/CreatorAuthModal';
 import AdminAuthModal from '@/components/AdminAuthModal';
 import SupportChat from '@/components/SupportChat';
+import DesktopLayout from '@/components/DesktopLayout';
+import { getNavForRole } from '@/lib/desktop-nav';
 import Login from '@/pages/Login';
 import Setup from '@/pages/Setup';
+import WalletPage from '@/pages/WalletPage';
 import type { NavPage } from '@/types/nav';
 
 // Lazy load pages for performance
@@ -584,7 +587,7 @@ export default function App() {
       case 'messages':
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
       case 'wallet':
-        return <UserWalletPage profile={profile} onBack={() => goTo('profile')} />;
+        return <WalletPage profile={profile} onBack={() => goTo('profile')} />;
       // ── Role-specific primary tabs (Constitution) ──
       case 'jobs':
         return <JobsPage profile={profile} />;
@@ -608,6 +611,18 @@ export default function App() {
     }
   };
 
+  // ── Desktop sidebar nav items ──
+  const desktopNavItems = getNavForRole(userRole, unreadCount);
+
+  // Pages that should NOT show bottom nav (sub-pages)
+  const hideBottomNavPages: NavPage[] = [
+    'detail', 'chat', 'profile_edit', 'account', 'privacy', 'security',
+    'new_listing', 'worker_setup', 'hotel_detail', 'hotel_booking',
+    'operations', 'worker_verification', 'finance', 'field_officer',
+    'property_owner', 'property_partner', 'worker_discovery',
+  ];
+  const showBottomNav = !hideBottomNavPages.includes(navPage);
+
   // ── Bottom nav per Constitution — EXACT 5 tabs per role ──
   // (tabs computed earlier to satisfy React hooks rules)
 
@@ -615,9 +630,24 @@ export default function App() {
     <CreatorAuthProvider>
     <AdminAuthProvider>
       <Suspense fallback={<PageSkeleton />}>
-        <div className="page-transition min-h-[100dvh] bg-[#0A0A0F] overflow-y-auto scrollable-content">
-          {renderPage()}
-        </div>
+        {/* ═══ DESKTOP LAYOUT WRAPPER ═══ */}
+        {/* Shows sidebar + header on desktop (≥1024px), transparent on mobile */}
+        <DesktopLayout
+          navItems={desktopNavItems}
+          activePage={navPage}
+          onNavigate={goTo}
+          userName={profile?.full_name || profile?.username || undefined}
+          userRole={profile?.role || undefined}
+          userAvatar={profile?.avatar_url || undefined}
+          onLogout={auth.logout}
+        >
+          {/* Page Content */}
+          <div className="page-transition min-h-[100dvh] bg-[#0A0A0F] overflow-y-auto scrollable-content">
+            {renderPage()}
+          </div>
+        </DesktopLayout>
+
+        {/* ═══ GLOBAL MODALS & OVERLAYS ═══ */}
 
         {/* Creator Authorization Modal — only for creator, gates critical actions */}
         {isCreator && <CreatorAuthModal />}
@@ -635,37 +665,39 @@ export default function App() {
           } : null} />
         )}
 
-      {/* Bottom Nav — hidden on detail/sub-pages */}
-      {navPage !== 'detail' && navPage !== 'chat' && navPage !== 'profile_edit' && navPage !== 'account' && navPage !== 'privacy' && navPage !== 'security' && navPage !== 'new_listing' && navPage !== 'worker_setup' && navPage !== 'hotel_detail' && navPage !== 'hotel_booking' && navPage !== 'operations' && navPage !== 'worker_verification' && navPage !== 'finance' && navPage !== 'field_officer' && navPage !== 'property_owner' && navPage !== 'property_partner' && navPage !== 'worker_discovery' && (
-        <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
-          <div className="max-w-lg mx-auto flex items-center justify-around py-1">
-            {tabs.map((tab) => {
-              const isActive = navPage === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => goTo(tab.id)}
-                  className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-[56px] rounded-xl transition-all duration-200 relative ${
-                    isActive
-                      ? 'text-[#3B82F6]'
-                      : 'text-[#5C5E72] hover:text-[#8B8DA0]'
-                  }`}
-                >
-                  <tab.icon size={22} active={isActive} />
-                  <span className="text-[9px] font-medium leading-none">{tab.label}</span>
-                  {isActive && <span className="w-1 h-1 rounded-full bg-[#3B82F6] mt-0.5" />}
-                  {/* Unread badge on Profile tab */}
-                  {tab.id === 'profile' && unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+        {/* Bottom Nav — MOBILE ONLY (desktop has sidebar), hidden on sub-pages */}
+        <div className="lg:hidden">
+          {showBottomNav && (
+            <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
+              <div className="max-w-lg mx-auto flex items-center justify-around py-1">
+                {tabs.map((tab) => {
+                  const isActive = navPage === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => goTo(tab.id)}
+                      className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-[56px] rounded-xl transition-all duration-200 relative ${
+                        isActive
+                          ? 'text-[#3B82F6]'
+                          : 'text-[#5C5E72] hover:text-[#8B8DA0]'
+                      }`}
+                    >
+                      <tab.icon size={22} active={isActive} />
+                      <span className="text-[9px] font-medium leading-none">{tab.label}</span>
+                      {isActive && <span className="w-1 h-1 rounded-full bg-[#3B82F6] mt-0.5" />}
+                      {/* Unread badge on Messages/Profile tabs */}
+                      {(tab.id === 'messages' || tab.id === 'profile') && unreadCount > 0 && (
+                        <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
+        </div>
       </Suspense>
     </AdminAuthProvider>
     </CreatorAuthProvider>
