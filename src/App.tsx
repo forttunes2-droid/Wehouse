@@ -49,11 +49,11 @@ const PropertyPartnerDashboard = lazy(() => import('@/pages/PropertyOwnerDashboa
 const MyBookings = lazy(() => import('@/pages/MyBookings'));
 const JobsPage = lazy(() => import('@/pages/JobsPage'));
 const CalendarPage = lazy(() => import('@/pages/CalendarPage'));
-const PropertiesPage = lazy(() => import('@/pages/PropertiesPage'));
+
 const ManagementPage = lazy(() => import('@/pages/ManagementPage'));
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const MyReservations = lazy(() => import('@/pages/MyReservations'));
-const UserWalletPage = lazy(() => import('@/pages/UserWalletPage'));
+
 const PrivacyPolicyPage = lazy(() => import('@/pages/PrivacyPolicyPage'));
 const TermsPage = lazy(() => import('@/pages/TermsPage'));
 
@@ -105,13 +105,13 @@ const RESTORABLE_PAGES: NavPage[] = [
   'creator', 'admin', 'staff_dashboard',
   'worker_dashboard', 'worker_discovery', 'worker_categories', 'worker_verification', 'worker_setup', 'worker_wallet',
   'management', 'analytics', 'operations', 'finance', 'finance_dashboard', 'field_officer',
-  'jobs', 'calendar', 'properties',
+  'jobs', 'calendar',
   'new_listing',
   'hotels', 'hotel_detail', 'hotel_booking', 'hotel_reservation',
   'property_owner', 'property_partner',
   'my_bookings', 'my_reservations',
   'messages', 'wallet',
-  'detail', 'chat',
+  'detail', 'chat', 'profile_edit',
   // Public pages
   'privacy_policy', 'terms_of_service',
 ];
@@ -154,28 +154,8 @@ export default function App() {
 
   // ── Bottom nav tabs — MUST be before any conditional returns (React hooks rule)
   const tabs = useMemo(() => {
-    // CREATOR
-    if (isCreatorRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // ADMIN
-    if (isAdminRole) {
-      return [
-        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
-        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
-        { id: 'messages' as NavPage, label: 'Messages', icon: MessagesSvg },
-        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
-        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
-      ];
-    }
-    // STAFF
-    if (isStaffRole) {
+    // CREATOR / ADMIN / STAFF share identical nav
+    if (isCreatorRole || isAdminRole || isStaffRole) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
         { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
@@ -593,13 +573,6 @@ export default function App() {
         return <JobsPage profile={profile} />;
       case 'calendar':
         return <CalendarPage profile={profile} />;
-      case 'properties':
-        // Only property partners can access the Properties tab
-        if (profile.role !== 'property_partner') {
-          handleSetNavPage('home');
-          return null;
-        }
-        return <PropertiesPage profile={profile} />;
       case 'management':
         return isCreatorRole ? <CreatorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :
                isAdminRole ? <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :
@@ -709,14 +682,6 @@ function HomeSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-// @ts-ignore — kept for backward compatibility
-function ListingsSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
     </svg>
   );
 }

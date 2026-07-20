@@ -83,7 +83,6 @@ export function getPartnerNav(unreadCount: number = 0): DesktopNavItem[] {
     { id: 'home', label: 'Home', icon: icon('M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z;9 22 9 12 15 12 15 22') },
     { id: 'property_partner', label: 'Properties', icon: icon('M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z;9 22 9 12 15 12 15 22') },
     { id: 'messages', label: 'Messages', icon: icon('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'), badge: unreadCount > 0 ? unreadCount : undefined },
-    { id: 'wallet', label: 'Wallet', icon: icon('M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4;M20 12v4H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h14z;M20 16v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2') },
     { id: 'profile', label: 'Account', icon: icon('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2;12 3a4 4 0 0 1 0 8 4 4 0 0 1 0-8z') },
   ];
 }

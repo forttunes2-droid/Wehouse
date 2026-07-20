@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { updateProfile, uploadAvatar, getServiceCategories, getServiceSubcategories, supabase } from '@/lib/supabase';
-import { initializePaystackPopup, generatePaymentReference } from '@/lib/paystack-marketplace';
-import LocationSelector from '@/components/LocationSelector';
+import { initializePaystackPopup, generatePaymentReference } from '@/legacy/paystack-marketplace';
+import LocationSelector from '@/legacy/LocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile, ServiceCategory, ServiceSubcategory } from '@/types';
 

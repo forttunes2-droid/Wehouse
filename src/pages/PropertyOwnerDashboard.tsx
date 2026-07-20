@@ -999,11 +999,10 @@ function ProfileTab({ profile }: { profile: Profile }) {
 // ═══════════════════════════════════════════════════════════════
 
 function SettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
-  const [settingTab, setSettingTab] = useState<'profile' | 'bank' | 'password' | 'notifications' | 'privacy' | 'delete'>('profile');
+  const [settingTab, setSettingTab] = useState<'profile' | 'password' | 'notifications' | 'privacy' | 'delete'>('profile');
 
   const settingTabs = [
     { key: 'profile', label: 'Profile' },
-    { key: 'bank', label: 'Bank Account' },
     { key: 'password', label: 'Password' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'privacy', label: 'Privacy' },
@@ -1023,7 +1022,6 @@ function SettingsTab({ profile, onLogout }: { profile: Profile; onLogout: () => 
       </div>
 
       {settingTab === 'profile' && <ProfileSettings profile={profile} />}
-      {settingTab === 'bank' && <BankSettings profile={profile} />}
       {settingTab === 'password' && <PasswordSettings profile={profile} />}
       {settingTab === 'notifications' && <NotificationSettings profile={profile} />}
       {settingTab === 'privacy' && <PrivacySettings profile={profile} />}

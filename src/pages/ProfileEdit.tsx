@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import LocationSelector from '@/components/LocationSelector';
+import LocationSelector from '@/legacy/LocationSelector';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Profile } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { initializePaystackPopup, generatePaymentReference } from '@/lib/paystack-marketplace';
+import { initializePaystackPopup, generatePaymentReference } from '@/legacy/paystack-marketplace';
 import { Toaster, toast } from 'sonner';
 
 interface WorkerVerificationProps {

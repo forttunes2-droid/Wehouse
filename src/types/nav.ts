@@ -8,7 +8,6 @@ export type NavPage =
   // ── Role-specific primary tabs ──
   | 'jobs'
   | 'calendar'
-  | 'properties'
   | 'management'
   | 'analytics'
   | 'wallet'

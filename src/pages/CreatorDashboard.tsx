@@ -9,7 +9,7 @@ import {
   getHotels, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, uploadHotelImage, getHotelBookingsForHotel, updateBookingStatus, getHotelRooms,
   getNotifications, getUnreadNotificationCount, markNotificationsRead,
 } from '@/lib/supabase';
-import { getCommissionSummary } from '@/lib/paystack-marketplace';
+import { getCommissionSummary } from '@/legacy/paystack-marketplace';
 import { WORKER_OCCUPATION_LABELS, WORKER_STATUS_LABELS, WORKER_STATUS_COLORS, ROLE_LABELS } from '@/types';
 // Creator is identified by role='creator' in the database
 const checkIsCreator = (profile: Profile): boolean => profile.role === 'creator';

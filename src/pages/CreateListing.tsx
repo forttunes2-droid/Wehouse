@@ -6,7 +6,7 @@ import { ROLE_RANK } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import LocationSelector from '@/components/LocationSelector';
+import LocationSelector from '@/legacy/LocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
