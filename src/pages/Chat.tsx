@@ -96,16 +96,14 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
       const { data } = await supabase.from('conversations').select('*').or(`participant_a.eq.${profile.user_id},participant_b.eq.${profile.user_id}`).eq('conversation_type', 'partner_support').order('last_message_at', { ascending: false });
       convs = (data || []) as Conversation[];
     } else if (isWorker) {
-      // Worker: job-related conversations + support (NOT general personal chat)
+      // Worker: direct job conversations + general_support (WeHouse Team) + worker_support
       const { data: allConvs } = await supabase.from('conversations').select('*').or(`participant_a.eq.${profile.user_id},participant_b.eq.${profile.user_id}`).order('last_message_at', { ascending: false });
-      // Filter to only work-related (has subject indicating a job/booking) or support
+      // Filter: only direct (job-related), general_support, worker_support
+      // NOT partner_support (partner↔WeHouse) or partner_inspection
       convs = ((allConvs || []) as Conversation[]).filter((c: Conversation) =>
-        c.conversation_type === 'partner_support' ||
-        c.conversation_type === 'worker_support' ||
-        c.subject?.toLowerCase().includes('job') ||
-        c.subject?.toLowerCase().includes('booking') ||
-        c.subject?.toLowerCase().includes('service') ||
-        true // Workers see their authorized conversations; backend RLS enforces ownership
+        c.conversation_type === 'direct' ||
+        c.conversation_type === 'general_support' ||
+        c.conversation_type === 'worker_support'
       );
     } else {
       // Regular users: just their own conversations

@@ -387,7 +387,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
       {/* ═══ ROW 2: Operations ═══ */}
       <div>
         <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Operations</p>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {opStats.map(c => (
             <button
               key={c.label}
@@ -405,7 +405,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
       {isCreator && (
         <div>
           <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Finance</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {finStats.map(c => (
               <button
                 key={c.label}
@@ -424,7 +424,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
       {isCreator && (
         <div>
           <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Commission Ledger (This Month)</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
               { label: 'Collected', value: `₦${Number(commission.total_collected || 0).toLocaleString()}`, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
               { label: 'Pending', value: `₦${Number(commission.total_pending || 0).toLocaleString()}`, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
