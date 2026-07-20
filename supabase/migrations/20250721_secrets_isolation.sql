@@ -54,7 +54,7 @@ DROP FUNCTION IF EXISTS get_all_settings_v2();
 
 CREATE OR REPLACE FUNCTION get_all_settings_v2()
 RETURNS TABLE (
-  id UUID,
+  id INTEGER,
   key TEXT,
   value TEXT,
   label TEXT,
@@ -92,7 +92,7 @@ DROP FUNCTION IF EXISTS get_setting_v2(TEXT);
 
 CREATE OR REPLACE FUNCTION get_setting_v2(p_key TEXT)
 RETURNS TABLE (
-  id UUID,
+  id INTEGER,
   key TEXT,
   value TEXT,
   label TEXT,

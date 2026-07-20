@@ -512,21 +512,24 @@ END;
 $$;
 
 -- Create upload policy for document-files if missing
-CREATE POLICY IF NOT EXISTS "document_files_admin_upload"
+DROP POLICY IF EXISTS "document_files_admin_upload" ON storage.objects;
+CREATE POLICY "document_files_admin_upload"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'document-files' AND
     EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = auth.uid()::text AND profiles.role IN ('admin','creator','creator_admin','staff'))
   );
 
-CREATE POLICY IF NOT EXISTS "document_files_owner_upload"
+DROP POLICY IF EXISTS "document_files_owner_upload" ON storage.objects;
+CREATE POLICY "document_files_owner_upload"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'document-files' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "document_files_owner_read"
+DROP POLICY IF EXISTS "document_files_owner_read" ON storage.objects;
+CREATE POLICY "document_files_owner_read"
   ON storage.objects FOR SELECT TO authenticated
   USING (bucket_id = 'document-files');
 
@@ -594,7 +597,8 @@ CREATE POLICY "audit_insert_restricted" ON public.audit_logs
   );
 
 -- Keep admin/creator read
-CREATE POLICY IF NOT EXISTS "audit_select_admin" ON public.audit_logs
+DROP POLICY IF EXISTS "audit_select_admin" ON public.audit_logs;
+CREATE POLICY "audit_select_admin" ON public.audit_logs
   FOR SELECT TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE profiles.user_id = auth.uid()::text AND profiles.role IN ('admin','creator','creator_admin'))
   );
