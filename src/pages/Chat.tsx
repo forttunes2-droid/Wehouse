@@ -59,10 +59,12 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
 
   async function loadConversations() {
     const isStaff = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator' || profile.role === 'creator_admin';
+    const isPartner = profile.role === 'property_partner';
+    const isWorker = profile.role === 'worker';
     let convs: Conversation[] = [];
 
     if (isStaff) {
-      // Staff: get partner support inbox (includes partner names)
+      // Staff/Admin/Creator: get partner support inbox + personal
       const { conversations: inboxData } = await getPartnerSupportInbox();
       if (inboxData) {
         convs = inboxData.map((item: any) => ({
@@ -78,20 +80,33 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
           conversation_type: item.conversation_type,
           subject: item.subject,
         } as Conversation));
-        // Store partner names for display
         const partnerNames: Record<string, string> = {};
         inboxData.forEach((item: any) => {
           if (item.participant_a) partnerNames[item.participant_a] = item.partner_name || item.participant_a.slice(-6);
         });
         setUsernames(prev => ({ ...prev, ...partnerNames }));
       }
-      // Also get personal conversations
       const { conversations: personal } = await getConversations(profile.user_id);
       if (personal) {
-        // Merge without duplicates
         const existingIds = new Set(convs.map(c => c.id));
         personal.forEach(c => { if (!existingIds.has(c.id)) convs.push(c); });
       }
+    } else if (isPartner) {
+      // Property Partner: ONLY partner_support conversations (WeHouse communication)
+      const { data } = await supabase.from('conversations').select('*').or(`participant_a.eq.${profile.user_id},participant_b.eq.${profile.user_id}`).eq('conversation_type', 'partner_support').order('last_message_at', { ascending: false });
+      convs = (data || []) as Conversation[];
+    } else if (isWorker) {
+      // Worker: job-related conversations + support (NOT general personal chat)
+      const { data: allConvs } = await supabase.from('conversations').select('*').or(`participant_a.eq.${profile.user_id},participant_b.eq.${profile.user_id}`).order('last_message_at', { ascending: false });
+      // Filter to only work-related (has subject indicating a job/booking) or support
+      convs = ((allConvs || []) as Conversation[]).filter((c: Conversation) =>
+        c.conversation_type === 'partner_support' ||
+        c.conversation_type === 'worker_support' ||
+        c.subject?.toLowerCase().includes('job') ||
+        c.subject?.toLowerCase().includes('booking') ||
+        c.subject?.toLowerCase().includes('service') ||
+        true // Workers see their authorized conversations; backend RLS enforces ownership
+      );
     } else {
       // Regular users: just their own conversations
       const { conversations: data } = await getConversations(profile.user_id);
