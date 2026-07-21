@@ -16,6 +16,7 @@ import type { NavPage } from '@/types/nav';
 
 // Lazy load pages for performance
 const Home = lazy(() => import('@/pages/Home'));
+const CreatorHome = lazy(() => import('@/pages/CreatorHome'));
 const Search = lazy(() => import('@/pages/Search'));
 const Explore = lazy(() => import('@/pages/Explore'));
 const Saved = lazy(() => import('@/pages/Saved'));
@@ -154,8 +155,17 @@ export default function App() {
 
   // ── Bottom nav tabs — MUST be before any conditional returns (React hooks rule)
   const tabs = useMemo(() => {
-    // CREATOR / ADMIN / STAFF share identical nav
-    if (isCreatorRole || isAdminRole || isStaffRole) {
+    // CREATOR: no Messages — communication is in Management
+    if (isCreatorRole) {
+      return [
+        { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
+        { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
+        { id: 'analytics' as NavPage, label: 'Analytics', icon: ChartSvg },
+        { id: 'profile' as NavPage, label: 'Account', icon: ProfileSvg },
+      ];
+    }
+    // ADMIN / STAFF
+    if (isAdminRole || isStaffRole) {
       return [
         { id: 'home' as NavPage, label: 'Home', icon: HomeSvg },
         { id: 'management' as NavPage, label: 'Management', icon: ManageSvg },
@@ -445,7 +455,7 @@ export default function App() {
     switch (navPage) {
       case 'home':
         // Creator/Admin/Staff get their operational dashboard, not the customer Home
-        if (isCreatorRole) return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} onNavigate={(p) => goTo(p as NavPage)} />;
+        if (isCreatorRole) return <CreatorHome profile={profile} onNavigate={(p) => goTo(p as NavPage)} />;
         if (isAdminRole) return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
         if (isStaffRole) return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={canList} onGoToNewListing={goToNewListing} />;

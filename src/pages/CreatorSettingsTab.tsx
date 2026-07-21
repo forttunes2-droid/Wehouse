@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { invalidateSettingsCache } from '@/hooks/usePlatformSettings';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
 import ServiceCategoryManager from '@/components/ServiceCategoryManager';
@@ -259,14 +260,31 @@ function PlatformSettings({ profile }: { profile: Profile }) {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'key' });
 
-    setSaving(prev => ({ ...prev, [key]: false }));
-
     if (upsertError) {
+      setSaving(prev => ({ ...prev, [key]: false }));
       toast.error(`Failed to save ${label}: ${upsertError.message}`);
       return;
     }
 
-    // ONLY update local state after DB confirms success
+    // CRITICAL: Verify the save by reloading the value from DB
+    // This catches trigger failures that roll back the transaction
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', key)
+      .single();
+
+    setSaving(prev => ({ ...prev, [key]: false }));
+
+    if (verifyError || !verifyData || verifyData.value !== value) {
+      toast.error(`Failed to save ${label}: value did not persist. Trigger or policy may have blocked the write.`);
+      return;
+    }
+
+    // Save confirmed — invalidate cache so other components see the new value
+    invalidateSettingsCache();
+
+    // ONLY update local state after DB confirms success AND reload matches
     setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value, label } : s));
     setHasChanges(prev => ({ ...prev, [key]: false }));
     toast.success(`${label} saved`);

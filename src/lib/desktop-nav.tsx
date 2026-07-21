@@ -31,13 +31,13 @@ function icon2(p1: string, p2: string) {
 }
 
 // ─── CREATOR NAV ───
-export function getCreatorNav(unreadCount: number = 0): DesktopNavItem[] {
+// Messages removed per Stage 3.3: communication management belongs in Management
+export function getCreatorNav(_unreadCount: number = 0): DesktopNavItem[] {
   return [
     { id: 'home', label: 'Home', icon: icon('M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z;9 22 9 12 15 12 15 22') },
     { id: 'creator', label: 'Dashboard', icon: icon2('M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', '9 22 9 12 15 12 15 22') },
     { id: 'management', label: 'Management', icon: icon('M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z') },
     { id: 'analytics', label: 'Analytics', icon: icon('M18 20V10M12 20V4M6 20v-6') },
-    { id: 'messages', label: 'Messages', icon: icon('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'), badge: unreadCount > 0 ? unreadCount : undefined },
     { id: 'profile', label: 'Account', icon: icon('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2;12 3a4 4 0 0 1 0 8 4 4 0 0 1 0-8z') },
   ];
 }

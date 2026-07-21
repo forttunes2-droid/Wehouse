@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { invalidateSettingsCache } from '@/hooks/usePlatformSettings';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -73,15 +74,40 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
 
   async function updateSetting(key: string, value: string) {
     setSaving(key);
-    const { error } = await supabase.rpc('set_setting_v2', {
-      p_key: key,
-      p_value: value,
-    });
-    setSaving(null);
-    if (error) {
-      toast.error('Failed: ' + error.message);
+
+    // Direct upsert with ALL required fields — NOT the RPC which only sets key/value
+    const { error: upsertError } = await supabase
+      .from('platform_settings')
+      .upsert({
+        key,
+        value,
+        label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        category: 'finance',
+        data_type: 'text',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+
+    if (upsertError) {
+      setSaving(null);
+      toast.error('Failed: ' + upsertError.message);
       return;
     }
+
+    // Verify the save by reloading from DB
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', key)
+      .single();
+
+    setSaving(null);
+
+    if (verifyError || !verifyData || verifyData.value !== value) {
+      toast.error(`Failed to save ${key}: value did not persist.`);
+      return;
+    }
+
+    invalidateSettingsCache();
     setSettings(prev => ({ ...prev, [key]: value }));
     toast.success('Saved');
   }
