@@ -62,12 +62,14 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
     // Load ALL settings, not just finance category, since we need refund_policy_text etc
     const { data, error } = await supabase.rpc('get_all_settings_v2');
     if (error) {
+      console.error('[FinanceSettings] loadSettings error:', error);
       toast.error('Failed to load: ' + error.message);
       setLoading(false);
       return;
     }
     const map: Record<string, string> = {};
     (data || []).forEach((s: any) => { map[s.key] = s.value || ''; });
+    console.log(`[FinanceSettings] Loaded ${Object.keys(map).length} settings via RPC`);
     setSettings(map);
     setLoading(false);
   }
@@ -102,10 +104,14 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
 
     setSaving(null);
 
-    if (verifyError || !verifyData || verifyData.value !== value) {
-      toast.error(`Failed to save ${key}: value did not persist.`);
+    const savedValue = verifyData?.value != null ? String(verifyData.value) : null;
+    const submittedValue = String(value);
+    if (verifyError || savedValue === null || savedValue !== submittedValue) {
+      console.error('[FinanceSettings] Save verification FAILED:', { key, submittedValue, savedValue, verifyError });
+      toast.error(`Failed to save ${key}: submitted "${submittedValue}" but database returned "${savedValue ?? 'null'}".`);
       return;
     }
+    console.log('[FinanceSettings] Save verified:', { key, value: submittedValue });
 
     invalidateSettingsCache();
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -124,9 +130,19 @@ export default function FinanceSettingsTab({ profile: _profile }: FinanceSetting
     <div className="space-y-4">
       <Toaster position="top-center" richColors theme="dark" />
 
-      <div>
-        <h2 className="text-lg font-bold text-emerald-400">Finance Settings</h2>
-        <p className="text-[11px] text-[#5C5E72]">All values editable. No code changes needed.</p>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-bold text-emerald-400">Finance Settings</h2>
+          <p className="text-[11px] text-[#5C5E72]">All values editable. No code changes needed.</p>
+        </div>
+        <button
+          onClick={loadSettings}
+          disabled={loading}
+          className="flex-shrink-0 h-7 px-2.5 rounded-lg bg-[#12121A] border border-[#232330] text-[10px] text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+          Reload
+        </button>
       </div>
 
       <Section title="Commission Rates" icon="📊">

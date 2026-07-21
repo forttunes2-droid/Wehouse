@@ -192,6 +192,7 @@ function PlatformSettings({ profile }: { profile: Profile }) {
   async function loadAllSettings() {
     setLoading(true);
     let loaded: DbSetting[] = [];
+    let loadError: string | null = null;
 
     // Load ALL settings from DB — NO filtering
     try {
@@ -200,11 +201,24 @@ function PlatformSettings({ profile }: { profile: Profile }) {
         .select('*')
         .order('key', { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (error) {
+        loadError = `Database error: ${error.message} (code: ${error.code})`;
+        console.error('[CreatorSettings] loadAllSettings error:', error);
+      } else if (data) {
         loaded = data as DbSetting[];
+        console.log(`[CreatorSettings] Loaded ${loaded.length} settings from DB`);
       }
-    } catch {
-      /* DB query failed */
+    } catch (e: any) {
+      loadError = `Exception: ${e?.message || String(e)}`;
+      console.error('[CreatorSettings] loadAllSettings exception:', e);
+    }
+
+    // If DB query completely failed, do NOT overwrite with defaults —
+    // that would hide the persistence bug. Show error instead.
+    if (loadError) {
+      toast.error(`Failed to load settings: ${loadError}. Check console for details.`);
+      setLoading(false);
+      return;
     }
 
     // Merge DB settings with Constitution defaults
@@ -276,10 +290,18 @@ function PlatformSettings({ profile }: { profile: Profile }) {
 
     setSaving(prev => ({ ...prev, [key]: false }));
 
-    if (verifyError || !verifyData || verifyData.value !== value) {
-      toast.error(`Failed to save ${label}: value did not persist. Trigger or policy may have blocked the write.`);
+    // Type-safe comparison — Supabase may return numbers as strings or vice versa
+    const savedValue = verifyData?.value != null ? String(verifyData.value) : null;
+    const submittedValue = String(value);
+    if (verifyError || savedValue === null || savedValue !== submittedValue) {
+      console.error('[CreatorSettings] Save verification FAILED:', {
+        key, submittedValue, savedValue, verifyError,
+      });
+      toast.error(`Failed to save ${label}: submitted "${submittedValue}" but database returned "${savedValue ?? 'null'}". Check console.`);
       return;
     }
+
+    console.log('[CreatorSettings] Save verified:', { key, value: submittedValue });
 
     // Save confirmed — invalidate cache so other components see the new value
     invalidateSettingsCache();
@@ -330,9 +352,19 @@ function PlatformSettings({ profile }: { profile: Profile }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] text-[#5C5E72]">
-        Configure WeHouse platform settings per the Constitution. Click Save to apply changes. Nothing is hardcoded.
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-[#5C5E72]">
+          Configure WeHouse platform settings per the Constitution. Click Save to apply changes. Nothing is hardcoded.
+        </p>
+        <button
+          onClick={loadAllSettings}
+          disabled={loading}
+          className="flex-shrink-0 h-7 px-2.5 rounded-lg bg-[#12121A] border border-[#232330] text-[10px] text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+          Reload
+        </button>
+      </div>
 
       {/* Group Tabs — all 9 categories */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
