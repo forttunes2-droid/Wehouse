@@ -58,13 +58,18 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
   }
 
   async function loadConversations() {
-    const isStaff = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator' || profile.role === 'creator_admin';
+    const isAdminOrStaff = profile.role === 'staff' || profile.role === 'admin';
+    const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
     const isPartner = profile.role === 'property_partner';
     const isWorker = profile.role === 'worker';
     let convs: Conversation[] = [];
 
-    if (isStaff) {
-      // Staff/Admin/Creator: get partner support inbox + personal
+    if (isCreator) {
+      // Creator: clean empty state — no customer or partner content
+      // Creator manages communications through Management dashboard, not Messages tab
+      convs = [];
+    } else if (isAdminOrStaff) {
+      // Staff/Admin: get partner support inbox + personal
       const { conversations: inboxData } = await getPartnerSupportInbox();
       if (inboxData) {
         convs = inboxData.map((item: any) => ({
@@ -380,11 +385,6 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
                     {conv.conversation_type === 'worker_verification' && (
                       <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex-shrink-0">Review</span>
                     )}
-                    {otherRole && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#1A1A24] border border-[#232330] text-[#5C5E72] flex-shrink-0">
-                        {otherRole}
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {label && (
@@ -529,7 +529,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const otherId =
       activeConv.participant_a === profile.user_id ? activeConv.participant_b : activeConv.participant_a;
 
-    const isAgent = profile.role === 'staff' || profile.role === 'admin' || profile.role === 'creator';
+    const isAgent = profile.role === 'staff' || profile.role === 'admin';
     const isPending = activeConv.status === 'pending';
     const isClosed = activeConv.status === 'closed';
 
@@ -876,7 +876,8 @@ function getTimeAgo(isoDate: string): string {
           </div>
         ) : (
           <>
-            {/* WeHouse Official */}
+            {/* WeHouse Official — NOT for Creator (Creator manages announcements in Management) */}
+            {profile.role !== 'creator' && profile.role !== 'creator_admin' && (
             <button
               onClick={() => setShowOfficial(true)}
               className="w-full flex items-center gap-3 px-5 py-4 border-b border-[#3B82F6]/10 text-left hover:bg-[#12121A] transition-colors bg-[#3B82F6]/[0.02]"
@@ -903,6 +904,7 @@ function getTimeAgo(isoDate: string): string {
                 </span>
               )}
             </button>
+            )}
 
             {/* Divider */}
             {conversations.length > 0 && (
@@ -920,7 +922,11 @@ function getTimeAgo(isoDate: string): string {
                   </svg>
                 </div>
                 <p className="text-sm text-[#8A8B9C]">No conversations yet</p>
-                <p className="text-xs text-[#8A8B9C]/70 mt-1">Start chatting from worker profiles or property pages</p>
+                <p className="text-xs text-[#8A8B9C]/70 mt-1">
+                  {profile.role === 'creator' || profile.role === 'creator_admin'
+                    ? 'Manage communications through the Management dashboard'
+                    : 'Start chatting from worker profiles or property pages'}
+                </p>
               </div>
             ) : (
               <ConversationList

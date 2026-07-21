@@ -444,6 +444,10 @@ export default function App() {
 
     switch (navPage) {
       case 'home':
+        // Creator/Admin/Staff get their operational dashboard, not the customer Home
+        if (isCreatorRole) return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} onNavigate={(p) => goTo(p as NavPage)} />;
+        if (isAdminRole) return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+        if (isStaffRole) return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'explore':
         return <Explore profile={profile} savedIds={savedIds} onToggleSave={handleToggleSave} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} />;

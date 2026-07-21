@@ -191,8 +191,8 @@ export default function Dashboard({
       <div className="max-w-lg mx-auto px-5 space-y-4">
         {/* Quick Actions — role-specific */}
         <div className="grid grid-cols-2 gap-3">
-          {/* Add Listing — Admin/Creator only */}
-          {isAdmin && onGoToNewListing && (
+          {/* Add Listing — only for Worker and Property Partner (not Creator/Admin/Staff) */}
+          {isAdmin && onGoToNewListing && (profile.role === 'worker' || profile.role === 'property_partner') && (
             <button onClick={onGoToNewListing} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-green-500/10">
               <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
