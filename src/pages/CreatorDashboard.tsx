@@ -367,34 +367,42 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
       )}
 
       {/* ═══ ROW 1: Platform Scale ═══ */}
-      <div>
-        <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Platform</p>
+      <div className="pt-1">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-white/[0.04]" />
+          <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Platform</p>
+          <div className="h-px flex-1 bg-white/[0.04]" />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           {topStats.map(c => (
             <button
               key={c.label}
               onClick={c.onClick}
-              className={`bg-gradient-to-br ${c.color} rounded-2xl p-3.5 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
+              className={`bg-gradient-to-br ${c.color} rounded-xl p-3 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
             >
-              <svg className="absolute top-2.5 right-2.5 w-7 h-7 text-white/15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
-              <div className="text-xl font-bold text-white relative z-10">{c.value}</div>
-              <div className="text-[9px] text-white/70 relative z-10">{c.label}</div>
+              <svg className="absolute top-2 right-2 w-5 h-5 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
+              <div className="text-lg font-bold text-white relative z-10 leading-tight">{c.value}</div>
+              <div className="text-[9px] text-white/60 relative z-10 mt-0.5">{c.label}</div>
             </button>
           ))}
         </div>
       </div>
 
       {/* ═══ ROW 2: Operations ═══ */}
-      <div>
-        <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Operations</p>
+      <div className="pt-1">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-white/[0.04]" />
+          <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Operations</p>
+          <div className="h-px flex-1 bg-white/[0.04]" />
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {opStats.map(c => (
             <button
               key={c.label}
               onClick={c.onClick}
-              className={`rounded-xl p-2.5 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
+              className={`rounded-lg p-2 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
             >
-              <div className={`text-sm font-bold ${c.alert ? 'text-red-400' : 'text-white'}`}>{c.value}</div>
+              <div className={`text-xs font-bold ${c.alert ? 'text-red-400' : 'text-white'}`}>{c.value}</div>
               <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-red-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
             </button>
           ))}
@@ -403,16 +411,20 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 
       {/* ═══ ROW 3: Financials (Creator Only) ═══ */}
       {isCreator && (
-        <div>
-          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Finance</p>
+        <div className="pt-1">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-px flex-1 bg-white/[0.04]" />
+            <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Finance</p>
+            <div className="h-px flex-1 bg-white/[0.04]" />
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {finStats.map(c => (
               <button
                 key={c.label}
                 onClick={c.onClick}
-                className={`rounded-xl p-2.5 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
+                className={`rounded-lg p-2 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
               >
-                <div className={`text-[11px] font-bold ${c.alert ? 'text-orange-400' : 'text-emerald-400'}`}>{c.value}</div>
+                <div className={`text-[10px] font-bold ${c.alert ? 'text-orange-400' : 'text-emerald-400'}`}>{c.value}</div>
                 <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-orange-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
               </button>
             ))}
@@ -422,8 +434,12 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 
       {/* ═══ ROW 4: Commission Summary (Creator Only) ═══ */}
       {isCreator && (
-        <div>
-          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Commission Ledger (This Month)</p>
+        <div className="pt-1">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-px flex-1 bg-white/[0.04]" />
+            <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Commission Ledger</p>
+            <div className="h-px flex-1 bg-white/[0.04]" />
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
               { label: 'Collected', value: `₦${Number(commission.total_collected || 0).toLocaleString()}`, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -431,8 +447,8 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
               { label: 'Settled', value: `₦${Number(commission.total_settled || 0).toLocaleString()}`, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
               { label: 'Payments', value: commission.total_payments || 0, color: 'text-white', bg: 'bg-[#12121A] border-[#1E1E2C]' },
             ].map(c => (
-              <div key={c.label} className={`rounded-xl p-2.5 text-center ${c.bg} border`}>
-                <div className={`text-[11px] font-bold ${c.color}`}>{c.value}</div>
+              <div key={c.label} className={`rounded-lg p-2 text-center ${c.bg} border`}>
+                <div className={`text-[10px] font-bold ${c.color}`}>{c.value}</div>
                 <div className="text-[8px] text-[#5C5E72] mt-0.5">{c.label}</div>
               </div>
             ))}
