@@ -184,7 +184,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
       </nav>
 
       {/* Content */}
-      <main className="px-5 pb-6 lg:px-8 lg:pb-8">
+      <main className="px-3 pb-6 sm:px-5 lg:px-8 lg:pb-8 overflow-x-hidden">
         {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => goToUsers('manage')} onGoToUsersView={() => goToUsers('view')} onGoToUsersToday={() => goToUsers('today')} onGoToTab={handleSetTab} />}
         {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} onViewProfile={(u) => setViewingProfile(u)} />}
         {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} viewingProfile={viewingProfile} setViewingProfile={setViewingProfile} />}
@@ -373,16 +373,16 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
           <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Platform</p>
           <div className="h-px flex-1 bg-white/[0.04]" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           {topStats.map(c => (
             <button
               key={c.label}
               onClick={c.onClick}
-              className={`bg-gradient-to-br ${c.color} rounded-xl p-3 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
+              className={`bg-gradient-to-br ${c.color} rounded-lg p-2 sm:p-3 relative overflow-hidden text-left transition-transform active:scale-[0.97] hover:opacity-90`}
             >
-              <svg className="absolute top-2 right-2 w-5 h-5 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
-              <div className="text-lg font-bold text-white relative z-10 leading-tight">{c.value}</div>
-              <div className="text-[9px] text-white/60 relative z-10 mt-0.5">{c.label}</div>
+              <svg className="absolute top-1.5 right-1.5 w-4 h-4 sm:w-5 sm:h-5 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={c.icon} /></svg>
+              <div className="text-base sm:text-lg font-bold text-white relative z-10 leading-tight">{c.value}</div>
+              <div className="text-[8px] sm:text-[9px] text-white/60 relative z-10 mt-0.5">{c.label}</div>
             </button>
           ))}
         </div>
@@ -395,15 +395,15 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
           <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Operations</p>
           <div className="h-px flex-1 bg-white/[0.04]" />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           {opStats.map(c => (
             <button
               key={c.label}
               onClick={c.onClick}
-              className={`rounded-lg p-2 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
+              className={`rounded-md sm:rounded-lg p-1.5 sm:p-2 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
             >
-              <div className={`text-xs font-bold ${c.alert ? 'text-red-400' : 'text-white'}`}>{c.value}</div>
-              <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-red-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
+              <div className={`text-[11px] sm:text-xs font-bold ${c.alert ? 'text-red-400' : 'text-white'}`}>{c.value}</div>
+              <div className={`text-[7px] sm:text-[8px] mt-0.5 ${c.alert ? 'text-red-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
             </button>
           ))}
         </div>
@@ -417,15 +417,15 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
             <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Finance</p>
             <div className="h-px flex-1 bg-white/[0.04]" />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {finStats.map(c => (
               <button
                 key={c.label}
                 onClick={c.onClick}
-                className={`rounded-lg p-2 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
+                className={`rounded-md sm:rounded-lg p-1.5 sm:p-2 text-center transition-transform active:scale-[0.97] hover:opacity-90 ${c.alert ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-[#12121A] border border-[#1E1E2C]'}`}
               >
                 <div className={`text-[10px] font-bold ${c.alert ? 'text-orange-400' : 'text-emerald-400'}`}>{c.value}</div>
-                <div className={`text-[8px] mt-0.5 ${c.alert ? 'text-orange-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
+                <div className={`text-[7px] sm:text-[8px] mt-0.5 ${c.alert ? 'text-orange-400/70' : 'text-[#5C5E72]'}`}>{c.label}</div>
               </button>
             ))}
           </div>
@@ -440,16 +440,16 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
             <p className="text-[9px] text-[#5C5E72] font-medium uppercase tracking-wider">Commission Ledger</p>
             <div className="h-px flex-1 bg-white/[0.04]" />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {[
               { label: 'Collected', value: `₦${Number(commission.total_collected || 0).toLocaleString()}`, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
               { label: 'Pending', value: `₦${Number(commission.total_pending || 0).toLocaleString()}`, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
               { label: 'Settled', value: `₦${Number(commission.total_settled || 0).toLocaleString()}`, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
               { label: 'Payments', value: commission.total_payments || 0, color: 'text-white', bg: 'bg-[#12121A] border-[#1E1E2C]' },
             ].map(c => (
-              <div key={c.label} className={`rounded-lg p-2 text-center ${c.bg} border`}>
+              <div key={c.label} className={`rounded-md sm:rounded-lg p-1.5 sm:p-2 text-center ${c.bg} border`}>
                 <div className={`text-[10px] font-bold ${c.color}`}>{c.value}</div>
-                <div className="text-[8px] text-[#5C5E72] mt-0.5">{c.label}</div>
+                <div className="text-[7px] sm:text-[8px] text-[#5C5E72] mt-0.5">{c.label}</div>
               </div>
             ))}
           </div>
@@ -458,46 +458,46 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 
       {/* Quick Actions */}
       {onGoToNewListing && (
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={onGoToNewListing} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-green-500/10">
-            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={onGoToNewListing} className="glass rounded-xl p-3 flex items-center gap-2 card-hover text-left group border border-green-500/10">
+            <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors flex-shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
             </div>
-            <div>
-              <div className="text-sm font-semibold text-white">Add Listing</div>
-              <div className="text-[10px] text-[#5C5E72]">Post new property</div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white truncate">Add Listing</div>
+              <div className="text-[9px] text-[#5C5E72] truncate">Post new property</div>
             </div>
           </button>
-          <button onClick={onGoToUsers} className="glass rounded-2xl p-4 flex items-center gap-3 card-hover text-left group border border-[#3B82F6]/10">
-            <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+          <button onClick={onGoToUsers} className="glass rounded-xl p-3 flex items-center gap-2 card-hover text-left group border border-[#3B82F6]/10">
+            <div className="w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors flex-shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </div>
-            <div>
-              <div className="text-sm font-semibold text-white">All Users</div>
-              <div className="text-[10px] text-[#5C5E72]">Manage users</div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white truncate">All Users</div>
+              <div className="text-[9px] text-[#5C5E72] truncate">Manage users</div>
             </div>
           </button>
         </div>
       )}
 
       {/* Identity Card — Creator gets purple accent */}
-      <div className={`glass rounded-2xl p-5 ${isCreator ? 'border border-purple-500/10' : ''}`}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isCreator ? 'bg-purple-500/10' : 'bg-[#3B82F6]/10'}`}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isCreator ? '#A78BFA' : '#3B82F6'} strokeWidth="2">
+      <div className={`glass rounded-xl p-3 sm:p-5 ${isCreator ? 'border border-purple-500/10' : ''}`}>
+        <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center ${isCreator ? 'bg-purple-500/10' : 'bg-[#3B82F6]/10'}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isCreator ? '#A78BFA' : '#3B82F6'} strokeWidth="2">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-xs sm:text-sm font-semibold text-white">
               {isCreator ? 'Creator Identity' : profile.role === 'admin' ? 'Admin Identity' : 'Staff Identity'}
             </h3>
           </div>
         </div>
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {[{ l: 'User ID', v: profile.user_id }, { l: 'Username', v: `@${profile.username}` }, { l: 'Email', v: profile.email }, { l: 'Role', v: isCreator ? 'Creator' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) }].map(i => (
-            <div key={i.l} className="flex justify-between text-xs">
+            <div key={i.l} className="flex justify-between text-[11px] sm:text-xs">
               <span className="text-[#5C5E72]">{i.l}</span>
               <span className="text-white/80 font-medium">{i.v || <span className="text-red-400/60">—</span>}</span>
             </div>
@@ -507,9 +507,9 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
 
       {/* Creator Tools — Only for creator */}
       {isCreator && (
-        <div className="glass rounded-2xl p-5 border border-purple-500/10">
-          <h3 className="text-sm font-semibold text-purple-400 mb-3">Creator Tools</h3>
-          <div className="space-y-2 text-xs">
+        <div className="glass rounded-xl p-3 sm:p-5 border border-purple-500/10">
+          <h3 className="text-xs sm:text-sm font-semibold text-purple-400 mb-2 sm:mb-3">Creator Tools</h3>
+          <div className="space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
             {[
               'Full platform control — view everything',
               'Create and remove Admins',
@@ -520,7 +520,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
               'Configure platform settings',
             ].map(tool => (
               <div key={tool} className="flex items-center gap-2 text-white">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
+                <svg width="12" height="12" className="sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>
                 {tool}
               </div>
             ))}
