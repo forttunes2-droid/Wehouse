@@ -483,7 +483,7 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
           {[{ l: 'User ID', v: profile.user_id }, { l: 'Username', v: `@${profile.username}` }, { l: 'Email', v: profile.email }, { l: 'Role', v: isCreator ? 'Creator' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) }].map(i => (
             <div key={i.l} className="flex justify-between text-xs">
               <span className="text-[#5C5E72]">{i.l}</span>
-              <span className="text-[#8B8DA0]">{i.v}</span>
+              <span className="text-white/80 font-medium">{i.v || <span className="text-red-400/60">—</span>}</span>
             </div>
           ))}
         </div>

@@ -17,6 +17,163 @@ interface AnalyticsData {
   loading: boolean;
 }
 
+// ─── Activity Tab ──────────────────────────────────────────
+function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: boolean }) {
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const { data } = await supabase
+        .from('audit_logs')
+        .select('action, target_type, target_id, admin_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      setActivities(data || []);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const actionColor = (action: string) => {
+    if (action === 'UPDATE' || action === 'ROLE_CHANGE') return 'text-blue-400';
+    if (action === 'INSERT') return 'text-emerald-400';
+    if (action === 'DELETE' || action === 'BAN' || action === 'SUSPEND') return 'text-red-400';
+    return 'text-[#5C5E72]';
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">
+        Recent Platform Activity
+      </p>
+      {loading && (
+        <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
+          <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          Loading activity...
+        </div>
+      )}
+      {!loading && activities.length === 0 && (
+        <div className="text-center py-10">
+          <p className="text-sm text-[#5C5E72]">No activity recorded yet</p>
+          <p className="text-[10px] text-[#5C5E72]/70 mt-1">Actions appear here when settings are changed or users are managed</p>
+        </div>
+      )}
+      {!loading && activities.map((a, i) => (
+        <div key={i} className="glass rounded-xl p-3 border border-white/[0.04] flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[#12121A] flex items-center justify-center flex-shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={a.action === 'UPDATE' ? '#3B82F6' : a.action === 'INSERT' ? '#10B981' : '#EF4444'} strokeWidth="2">
+              {a.action === 'UPDATE' ? <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></> :
+               a.action === 'INSERT' ? <><path d="M12 5v14M5 12h14" /></> :
+               <><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>}
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-white">
+              <span className={actionColor(a.action)}>{a.action}</span>
+              {' '}<span className="text-[#5C5E72]">&middot;</span>{' '}
+              <span className="text-[#8A8B9C]">{a.target_type}</span>
+              {a.target_id && <><span className="text-[#5C5E72]"> &middot; </span><span className="text-[#8A8B9C] truncate">{a.target_id}</span></>}
+            </p>
+            <p className="text-[9px] text-[#5C5E72] mt-0.5">
+              {new Date(a.created_at).toLocaleString()}
+              {a.admin_id && <span> &middot; by {a.admin_id.slice(-6)}</span>}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Reports Tab ──────────────────────────────────────────
+function ReportsTab({ isCreator }: { isCreator: boolean }) {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      // Load platform reports data
+      const [{ data: rData }, { data: uData }, { data: wData }] = await Promise.all([
+        supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(20),
+        supabase.from('profiles').select('role, created_at').is('deleted_at', null),
+        supabase.from('worker_verifications').select('status, created_at'),
+      ]);
+
+      const roleBreakdown: Record<string, number> = {};
+      (uData || []).forEach((u: any) => { roleBreakdown[u.role] = (roleBreakdown[u.role] || 0) + 1; });
+
+      const verifStatus: Record<string, number> = {};
+      (wData || []).forEach((w: any) => { verifStatus[w.status] = (verifStatus[w.status] || 0) + 1; });
+
+      setReports([
+        { type: 'summary', roleBreakdown, verifStatus, totalUsers: uData?.length || 0 },
+        { type: 'list', items: rData || [] },
+      ]);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const summary = reports.find((r: any) => r.type === 'summary');
+  const list = reports.find((r: any) => r.type === 'list');
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="glass rounded-2xl p-4 border border-white/[0.06]">
+            <p className="text-[10px] text-[#5C5E72] uppercase tracking-wide">Total Users</p>
+            <p className="text-xl font-bold text-white mt-1">{summary.totalUsers}</p>
+          </div>
+          {Object.entries(summary.roleBreakdown || {}).map(([role, count]) => (
+            <div key={role} className="glass rounded-2xl p-4 border border-white/[0.06]">
+              <p className="text-[10px] text-[#5C5E72] uppercase tracking-wide">{role.replace(/_/g, ' ')}</p>
+              <p className="text-xl font-bold text-white mt-1">{count as number}</p>
+            </div>
+          ))}
+          {Object.entries(summary.verifStatus || {}).map(([status, count]) => (
+            <div key={status} className="glass rounded-2xl p-4 border border-white/[0.06]">
+              <p className="text-[10px] text-[#5C5E72] uppercase tracking-wide">{status}</p>
+              <p className={`text-xl font-bold mt-1 ${status === 'approved' ? 'text-emerald-400' : status === 'pending' ? 'text-amber-400' : 'text-white'}`}>{count as number}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Reports List */}
+      <div>
+        <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">
+          Recent Reports
+        </p>
+        {loading && (
+          <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
+            <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+            Loading reports...
+          </div>
+        )}
+        {!loading && (!list || list.items.length === 0) && (
+          <div className="text-center py-8">
+            <p className="text-sm text-[#5C5E72]">No reports filed</p>
+          </div>
+        )}
+        {!loading && list?.items.map((r: any, i: number) => (
+          <div key={i} className="glass rounded-xl p-3 border border-white/[0.04] mb-2">
+            <p className="text-xs text-white">{r.reason || 'No reason'}</p>
+            <p className="text-[9px] text-[#5C5E72] mt-1">
+              Status: <span className={r.status === 'open' ? 'text-amber-400' : r.status === 'resolved' ? 'text-emerald-400' : 'text-[#5C5E72]'}>{r.status}</span>
+              {' '} &middot; {new Date(r.created_at).toLocaleDateString()}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AnalyticsPage({ profile }: { profile: Profile | null }) {
   const [activeTab, setActiveTab] = useState<AnTab>('overview');
   const [data, setData] = useState<AnalyticsData>({
@@ -313,13 +470,27 @@ export default function AnalyticsPage({ profile }: { profile: Profile | null }) 
       </header>
 
       <div className="px-4 py-8 space-y-4">
-        {renderCards()}
+        {/* TAB: Overview */}
+        {activeTab === 'overview' && (
+          <>
+            {renderCards()}
+            <div className="text-center py-8">
+              <p className="text-[11px] text-[#5C5E72]">
+                {isCreator ? 'Full platform financial data' : isAdmin ? 'Platform management metrics' : 'Metrics for your assigned modules'}
+              </p>
+            </div>
+          </>
+        )}
 
-        <div className="text-center py-8">
-          <p className="text-[11px] text-[#5C5E72]">
-            {isCreator ? 'Full platform financial data' : isAdmin ? 'Platform management metrics' : 'Metrics for your assigned modules'}
-          </p>
-        </div>
+        {/* TAB: Activity */}
+        {activeTab === 'activity' && (
+          <ActivityTab isCreator={isCreator} isAdmin={isAdmin} />
+        )}
+
+        {/* TAB: Reports */}
+        {activeTab === 'reports' && (
+          <ReportsTab isCreator={isCreator} />
+        )}
       </div>
     </div>
   );
