@@ -48,7 +48,8 @@ DROP POLICY IF EXISTS "audit_insert_restricted" ON public.audit_logs;
 DROP POLICY IF EXISTS "audit_insert_all" ON public.audit_logs;
 
 -- Best-effort audit insert — trigger validates internally
-CREATE POLICY IF NOT EXISTS "audit_insert_trigger" ON public.audit_logs
+DROP POLICY IF EXISTS "audit_insert_trigger" ON public.audit_logs;
+CREATE POLICY "audit_insert_trigger" ON public.audit_logs
   FOR INSERT WITH CHECK (true);
 
 -- Admin/creator read only
