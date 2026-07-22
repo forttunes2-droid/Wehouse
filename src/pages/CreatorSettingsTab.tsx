@@ -314,15 +314,15 @@ function PlatformSettings({ profile }: { profile: Profile }) {
 
   // Save all changed settings at once
   async function saveAll() {
-    const changedKeys = Object.entries(hasChanges).filter(([_, v]) => v).map(([k]) => k);
-    if (changedKeys.length === 0) {
+    // Read current values DIRECTLY from dbSettings (most recent state)
+    const changedEntries = dbSettings.filter(s => hasChanges[s.key]);
+    if (changedEntries.length === 0) {
       toast.info('No changes to save');
       return;
     }
 
-    for (const key of changedKeys) {
-      const setting = dbSettings.find(s => s.key === key);
-      if (setting) await saveSetting(key, setting.value);
+    for (const setting of changedEntries) {
+      await saveSetting(setting.key, setting.value);
     }
     toast.success('All settings saved');
   }
@@ -401,9 +401,9 @@ function PlatformSettings({ profile }: { profile: Profile }) {
               setDbSettings(prev => prev.map(s => s.key === setting.key ? { ...s, value: val } : s));
               setHasChanges(prev => ({ ...prev, [setting.key]: true }));
             }}
-            onSave={() => {
-              const s = dbSettings.find(ds => ds.key === setting.key);
-              if (s) saveSetting(setting.key, s.value);
+            onSave={(val) => {
+              // Pass the ACTUAL edited value, not the stale dbSettings closure
+              saveSetting(setting.key, val);
             }}
           />
         ))}
@@ -438,22 +438,24 @@ function SettingField({ def, value, isSaving, onChange, onSave }: {
   value: string;
   isSaving: boolean;
   onChange: (v: string) => void;
-  onSave: () => void;
+  onSave: (val: string) => void;  // ← NOW ACCEPTS THE VALUE DIRECTLY
 }) {
   const [local, setLocal] = useState(value);
   const changed = local !== value;
 
+  // Sync when parent value changes (e.g., after reload from DB)
   useEffect(() => { setLocal(value); }, [value]);
 
   const handleToggle = () => {
     const next = local === 'true' ? 'false' : 'true';
     setLocal(next);
     onChange(next);
+    onSave(next);  // Toggle saves immediately
   };
 
   return (
-    <div className="glass rounded-xl p-4">
-      <div className="flex items-start justify-between gap-4">
+    <div className="glass rounded-xl p-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold text-white">{def.label}</p>
@@ -467,34 +469,44 @@ function SettingField({ def, value, isSaving, onChange, onSave }: {
           {def.type === 'toggle' ? (
             <ToggleSwitch enabled={local === 'true'} onToggle={handleToggle} />
           ) : def.type === 'textarea' ? (
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <textarea
                 value={local}
                 onChange={(e) => setLocal(e.target.value)}
-                rows={4}
+                rows={3}
                 placeholder={`Enter ${def.label.toLowerCase()}...`}
                 className="w-full rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 py-2 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none resize-none"
               />
+              {changed && (
+                <button
+                  onClick={() => onSave(local)}
+                  disabled={isSaving}
+                  className="mt-2 h-8 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40 w-full"
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              )}
             </div>
           ) : (
-            <input
-              type={def.type === 'number' ? 'number' : def.type === 'email' ? 'email' : def.type === 'url' ? 'url' : 'text'}
-              value={local}
-              onChange={(e) => setLocal(e.target.value)}
-              placeholder={def.type === 'number' ? '0' : '...'}
-              className="w-40 h-9 rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 focus:border-[#3B82F6]/50 outline-none"
-            />
-          )}
-
-          {/* Explicit Save button */}
-          {changed && (
-            <button
-              onClick={() => { onChange(local); onSave(); }}
-              disabled={isSaving}
-              className="h-9 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40"
-            >
-              {isSaving ? '...' : 'Save'}
-            </button>
+            <>
+              <input
+                type={def.type === 'number' ? 'number' : def.type === 'email' ? 'email' : def.type === 'url' ? 'url' : 'text'}
+                value={local}
+                onChange={(e) => setLocal(e.target.value)}
+                placeholder={def.type === 'number' ? '0' : '...'}
+                className="w-28 sm:w-40 h-8 rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 focus:border-[#3B82F6]/50 outline-none"
+              />
+              {/* Explicit Save button — passes local value DIRECTLY */}
+              {changed && (
+                <button
+                  onClick={() => onSave(local)}  // ← PASSES LOCAL VALUE, NOT STALE PARENT STATE
+                  disabled={isSaving}
+                  className="h-8 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40"
+                >
+                  {isSaving ? '...' : 'Save'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
