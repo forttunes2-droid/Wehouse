@@ -1,20 +1,14 @@
-// ═══════════════════════════════════════════════════════════════
-// Shared Activity Formatter
-// Centralized mapping for audit_logs → human-readable activity
-// Used by: CreatorHome (Recent Activity), AnalyticsPage (ActivityTab)
-// ═══════════════════════════════════════════════════════════════
-
 const ACTIVITY_LABELS: Record<string, string> = {
   commission_apartment: 'Apartment Commission',
   apartment_reservation_fee: 'Apartment Reservation Fee',
-  max_withdrawal: 'Maximum Withdrawal Amount',
-  min_withdrawal: 'Minimum Withdrawal Amount',
+  max_withdrawal: 'Maximum Withdrawal',
+  min_withdrawal: 'Minimum Withdrawal',
   late_payment_rules: 'Late Payment Rules',
   grace_period_days: 'Grace Period',
   security_deposit_rules: 'Security Deposit Rules',
   rent_plans_enabled: 'Rent Plans',
-  min_rent_duration: 'Minimum Rent Duration',
-  max_rent_duration: 'Maximum Rent Duration',
+  min_rent_duration: 'Min Rent Duration',
+  max_rent_duration: 'Max Rent Duration',
   worker_verification_fee: 'Worker Verification Fee',
   commission_worker: 'Worker Commission',
   worker_verification_video_length: 'Verification Video Length',
@@ -25,7 +19,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   email_notifications: 'Email Notifications',
   push_notifications: 'Push Notifications',
   maintenance_mode: 'Maintenance Mode',
-  registration_open: 'Registration Status',
+  registration_open: 'Registration',
   company_name: 'Company Name',
   support_email: 'Support Email',
   support_phone: 'Support Phone',
@@ -36,10 +30,10 @@ const ACTIVITY_LABELS: Record<string, string> = {
   privacy_policy: 'Privacy Policy',
   terms_of_service: 'Terms of Service',
   refund_policy: 'Refund Policy',
-  default_security_deposit: 'Default Security Deposit',
+  default_security_deposit: 'Security Deposit',
   payment_gateway: 'Payment Gateway',
-  withdrawal_bank_account: 'Withdrawal Bank Account',
-  automatic_paystack_transfer: 'Automatic Paystack Transfer',
+  withdrawal_bank_account: 'Withdrawal Account',
+  automatic_paystack_transfer: 'Auto Paystack Transfer',
   transfer_fee: 'Transfer Fee',
   refund_policy_text: 'Refund Policy Text',
   deposit_rules: 'Deposit Rules',
@@ -78,14 +72,7 @@ export function parseAuditDetails(details: string | null): { oldValue?: string; 
   }
 }
 
-export function formatActivityItem(item: {
-  action: string;
-  target_type: string;
-  target_id: string;
-  details: string | null;
-  admin_id: string | null;
-  created_at: string;
-}): {
+export function formatActivityItem(item: any): {
   title: string;
   subtitle: string | null;
   meta: string;
@@ -97,7 +84,17 @@ export function formatActivityItem(item: {
 
   const title = `${label} ${verb}`;
   const subtitle = changed ? `${oldValue} → ${newValue}` : null;
-  const meta = `${item.admin_id ? `By @${item.admin_id.slice(-8)} · ` : ''}${new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${new Date(item.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+
+  const who = item.profiles?.username
+    ? item.profiles.username
+    : item.admin_id
+      ? 'Admin'
+      : 'System';
+
+  const date = new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const time = new Date(item.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  const meta = `${who} · ${date} · ${time}`;
 
   return { title, subtitle, meta };
 }

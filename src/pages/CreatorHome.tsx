@@ -72,10 +72,13 @@ export default function CreatorHome({ profile, onNavigate }: CreatorHomeProps) {
         totalPartners: totalPartners || 0,
       });
 
-      // Load recent audit log activity — MUST include details for old/new values
+      // Load recent audit log activity — join with profiles to get username
       const { data: activity } = await supabase
         .from('audit_logs')
-        .select('action, target_type, target_id, details, admin_id, created_at')
+        .select(`
+          action, target_type, target_id, details, admin_id, created_at,
+          profiles:admin_id (username)
+        `)
         .order('created_at', { ascending: false })
         .limit(10);
       setRecentActivity(activity || []);

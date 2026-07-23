@@ -29,7 +29,10 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
       // MUST select details to extract old/new values
       const { data } = await supabase
         .from('audit_logs')
-        .select('action, target_type, target_id, admin_id, details, created_at')
+        .select(`
+          action, target_type, target_id, admin_id, details, created_at,
+          profiles:admin_id (username)
+        `)
         .order('created_at', { ascending: false })
         .limit(50);
       setActivities(data || []);
