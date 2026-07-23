@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getActivityLabel, getActionVerb, parseAuditDetails, formatActivityItem } from '@/lib/activity-formatter';
 import type { Profile } from '@/types';
 
 interface CreatorHomeProps {
@@ -71,10 +72,10 @@ export default function CreatorHome({ profile, onNavigate }: CreatorHomeProps) {
         totalPartners: totalPartners || 0,
       });
 
-      // Load recent audit log activity
+      // Load recent audit log activity — MUST include details for old/new values
       const { data: activity } = await supabase
         .from('audit_logs')
-        .select('action, target_type, target_id, created_at')
+        .select('action, target_type, target_id, details, admin_id, created_at')
         .order('created_at', { ascending: false })
         .limit(10);
       setRecentActivity(activity || []);
@@ -189,17 +190,21 @@ export default function CreatorHome({ profile, onNavigate }: CreatorHomeProps) {
           <div>
             <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider mb-3">Recent Activity</h3>
             <div className="glass rounded-2xl overflow-hidden divide-y divide-white/[0.04]">
-              {recentActivity.map((a, i) => (
-                <div key={i} className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-full bg-[#1A1A24] flex items-center justify-center flex-shrink-0">
-                    <ActivityIcon action={a.action} />
+              {recentActivity.map((a, i) => {
+                const { title, subtitle, meta } = formatActivityItem(a);
+                return (
+                  <div key={i} className="px-4 py-3 flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-full bg-[#1A1A24] flex items-center justify-center flex-shrink-0">
+                      <ActivityIcon action={a.action} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-white truncate">{title}</p>
+                      {subtitle && <p className="text-[10px] text-[#8A8B9C]">{subtitle}</p>}
+                      <p className="text-[9px] text-[#5C5E72]">{meta}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white truncate">{a.action} &middot; {a.target_type}{a.target_id ? ` · ${a.target_id}` : ''}</p>
-                    <p className="text-[10px] text-[#5C5E72]">{new Date(a.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
