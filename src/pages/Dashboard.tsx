@@ -222,17 +222,21 @@ export default function Dashboard({
               </div>
             </button>
           )}
-          {/* Staff — show assigned modules instead of Edit Profile */}
-          {profile.role === 'staff' && (
-            <div className="glass rounded-2xl p-4 flex items-center gap-3 border border-amber-500/10">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+          {/* Staff Hub link — NOT an 'Assigned Modules' card */}
+          {profile.role === 'staff' && onNavigate && (
+            <button
+              onClick={() => onNavigate('staff_dashboard')}
+              className="w-full glass rounded-2xl p-4 flex items-center gap-3 card-hover group border border-amber-500/10"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
               </div>
-              <div>
-                <div className="text-sm font-semibold text-white">Assigned Modules</div>
-                <div className="text-[10px] text-amber-400">View in Staff Hub</div>
+              <div className="text-left">
+                <div className="text-sm font-semibold text-white">Staff Hub</div>
+                <div className="text-[10px] text-[#5C5E72]">View assignments and tasks</div>
               </div>
-            </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="ml-auto group-hover:translate-x-0.5 transition-transform"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
           )}
         </div>
 
@@ -469,9 +473,9 @@ export default function Dashboard({
           <h3 className="text-xs sm:text-sm font-semibold text-white mb-2 sm:mb-3">Account</h3>
           <div className="space-y-2.5">
             {[
-              { label: 'User ID', value: profile.user_id },
+              { label: isOperator ? 'ID' : 'User ID', value: profile.user_id },
               { label: 'Email', value: profile.email },
-              { label: 'Role', value: profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
+              { label: 'Role', value: isOperator ? (isCreatorRole ? 'Creator' : isAdminRole ? 'Admin' : 'Staff') : (profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1)) },
               {
                 label: 'Joined',
                 value: new Date(profile.created_at).toLocaleDateString(undefined, {

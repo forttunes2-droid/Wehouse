@@ -377,10 +377,11 @@ function StaffTabDirector({ profile }: { profile: Profile }) {
     const s = (data || []).filter((u: any) => u.role === 'staff' && !u.deleted && u.user_id !== profile.user_id);
     setStaff(s);
 
-    // Fetch all staff modules
-    const { data: modulesData } = await supabase.from('staff_modules').select('*').is('revoked_at', null);
+    // Fetch staff permissions from the SAME table Creator writes to
+    // (Creator assigns via staff_permissions, NOT staff_modules)
+    const { data: permsData } = await supabase.from('staff_permissions').select('*');
     const mods: Record<string, string[]> = {};
-    (modulesData || []).forEach((m: any) => {
+    (permsData || []).forEach((m: any) => {
       if (!mods[m.staff_id]) mods[m.staff_id] = [];
       mods[m.staff_id].push(m.module);
     });
@@ -394,15 +395,16 @@ function StaffTabDirector({ profile }: { profile: Profile }) {
     const hasModule = current.includes(module);
 
     // Per Constitution: Staff can only have ONE module at a time
+    // Write to staff_permissions (same table Creator uses) so assignments sync
     if (!hasModule) {
-      // Revoke ALL existing modules first
-      await supabase.from('staff_modules').update({ revoked_at: new Date().toISOString() }).eq('staff_id', staffId).is('revoked_at', null);
+      // Revoke ALL existing permissions first
+      await supabase.from('staff_permissions').delete().eq('staff_id', staffId);
       // Grant only the selected module
-      await supabase.from('staff_modules').insert({ staff_id: staffId, module, granted_by: profile.user_id });
+      await supabase.from('staff_permissions').insert({ staff_id: staffId, module, granted_by: profile.user_id });
       setStaffModules(prev => ({ ...prev, [staffId]: [module] }));
     } else {
       // Revoking the only module
-      await supabase.from('staff_modules').update({ revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('module', module).is('revoked_at', null);
+      await supabase.from('staff_permissions').delete().eq('staff_id', staffId).eq('module', module);
       setStaffModules(prev => ({ ...prev, [staffId]: [] }));
     }
     setSaving(null);
