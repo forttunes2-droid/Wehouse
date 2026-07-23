@@ -17,6 +17,81 @@ interface AnalyticsData {
   loading: boolean;
 }
 
+// ─── Centralized Activity Label Mapper ─────────────────────
+const ACTIVITY_LABELS: Record<string, string> = {
+  commission_apartment: 'Apartment Commission',
+  apartment_reservation_fee: 'Apartment Reservation Fee',
+  max_withdrawal: 'Maximum Withdrawal Amount',
+  min_withdrawal: 'Minimum Withdrawal Amount',
+  late_payment_rules: 'Late Payment Rules',
+  grace_period_days: 'Grace Period',
+  security_deposit_rules: 'Security Deposit Rules',
+  rent_plans_enabled: 'Rent Plans',
+  min_rent_duration: 'Minimum Rent Duration',
+  max_rent_duration: 'Maximum Rent Duration',
+  worker_verification_fee: 'Worker Verification Fee',
+  commission_worker: 'Worker Commission',
+  worker_verification_video_length: 'Verification Video Length',
+  worker_required_documents: 'Required Documents',
+  hotel_reservation_fee: 'Hotel Reservation Fee',
+  allow_hotel_reservation: 'Hotel Reservations',
+  commission_hotel: 'Hotel Commission',
+  email_notifications: 'Email Notifications',
+  push_notifications: 'Push Notifications',
+  maintenance_mode: 'Maintenance Mode',
+  registration_open: 'Registration Status',
+  company_name: 'Company Name',
+  support_email: 'Support Email',
+  support_phone: 'Support Phone',
+  support_whatsapp: 'Support WhatsApp',
+  support_telegram: 'Support Telegram',
+  office_address: 'Office Address',
+  cac_number: 'CAC Number',
+  privacy_policy: 'Privacy Policy',
+  terms_of_service: 'Terms of Service',
+  refund_policy: 'Refund Policy',
+  default_security_deposit: 'Default Security Deposit',
+  payment_gateway: 'Payment Gateway',
+  withdrawal_bank_account: 'Withdrawal Bank Account',
+  automatic_paystack_transfer: 'Automatic Paystack Transfer',
+  transfer_fee: 'Transfer Fee',
+  refund_policy_text: 'Refund Policy Text',
+  deposit_rules: 'Deposit Rules',
+  deposit_is_percentage: 'Deposit Type',
+};
+
+function getActivityLabel(targetId: string): string {
+  return ACTIVITY_LABELS[targetId] || targetId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function getActionVerb(action: string): string {
+  if (action === 'UPDATE' || action === 'ROLE_CHANGE') return 'changed';
+  if (action === 'INSERT') return 'created';
+  if (action === 'DELETE') return 'removed';
+  if (action === 'BAN') return 'banned';
+  if (action === 'SUSPEND') return 'suspended';
+  if (action === 'REACTIVATE') return 'reactivated';
+  if (action === 'APPROVE') return 'approved';
+  if (action === 'REJECT') return 'rejected';
+  return action.toLowerCase();
+}
+
+function parseDetails(details: string | null): { oldValue?: string; newValue?: string } {
+  if (!details) return {};
+  try {
+    const parsed = JSON.parse(details);
+    // The trigger stores: { old_value: { key, value, ... }, new_value: { key, value, ... } }
+    const oldVal = parsed?.old_value?.value;
+    const newVal = parsed?.new_value?.value;
+    return {
+      oldValue: oldVal !== undefined ? String(oldVal) : undefined,
+      newValue: newVal !== undefined ? String(newVal) : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 // ─── Activity Tab ──────────────────────────────────────────
 function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: boolean }) {
   const [activities, setActivities] = useState<any[]>([]);
@@ -25,9 +100,10 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
   useEffect(() => {
     async function load() {
       setLoading(true);
+      // MUST select details to extract old/new values
       const { data } = await supabase
         .from('audit_logs')
-        .select('action, target_type, target_id, admin_id, created_at')
+        .select('action, target_type, target_id, admin_id, details, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
       setActivities(data || []);
@@ -36,20 +112,17 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
     load();
   }, []);
 
-  const actionColor = (action: string) => {
-    if (action === 'UPDATE' || action === 'ROLE_CHANGE') return 'text-blue-400';
-    if (action === 'INSERT') return 'text-emerald-400';
-    if (action === 'DELETE' || action === 'BAN' || action === 'SUSPEND') return 'text-red-400';
-    return 'text-[#5C5E72]';
+  const actionIconColor = (action: string) => {
+    if (action === 'UPDATE' || action === 'ROLE_CHANGE') return '#3B82F6';
+    if (action === 'INSERT') return '#10B981';
+    if (action === 'DELETE' || action === 'BAN' || action === 'SUSPEND') return '#EF4444';
+    return '#5C5E72';
   };
 
   return (
     <div className="space-y-3">
-      <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider">
-        Recent Platform Activity
-      </p>
       {loading && (
-        <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
+        <div className="flex items-center gap-2 text-[10px] text-[#5C5E72] py-4">
           <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
           Loading activity...
         </div>
@@ -60,29 +133,51 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
           <p className="text-[10px] text-[#5C5E72]/70 mt-1">Actions appear here when settings are changed or users are managed</p>
         </div>
       )}
-      {!loading && activities.map((a, i) => (
-        <div key={i} className="glass rounded-xl p-3 border border-white/[0.04] flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#12121A] flex items-center justify-center flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={a.action === 'UPDATE' ? '#3B82F6' : a.action === 'INSERT' ? '#10B981' : '#EF4444'} strokeWidth="2">
-              {a.action === 'UPDATE' ? <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></> :
-               a.action === 'INSERT' ? <><path d="M12 5v14M5 12h14" /></> :
-               <><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>}
-            </svg>
+      {!loading && activities.map((a, i) => {
+        const label = getActivityLabel(a.target_id || '');
+        const verb = getActionVerb(a.action);
+        const { oldValue, newValue } = parseDetails(a.details);
+        const changed = oldValue !== undefined && newValue !== undefined && oldValue !== newValue;
+
+        return (
+          <div key={i} className="glass rounded-xl p-3 border border-white/[0.04] flex items-start gap-3">
+            {/* Action icon */}
+            <div className="w-7 h-7 rounded-lg bg-[#12121A] flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={actionIconColor(a.action)} strokeWidth="2">
+                {a.action === 'UPDATE' || a.action === 'ROLE_CHANGE' ? <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></> :
+                 a.action === 'INSERT' ? <><path d="M12 5v14M5 12h14" /></> :
+                 <><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>}
+              </svg>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              {/* WHAT happened */}
+              <p className="text-xs text-white font-medium truncate">
+                {label} {verb}
+              </p>
+
+              {/* WHAT changed (old → new) */}
+              {changed && (
+                <p className="text-[10px] text-[#8A8B9C] mt-0.5">
+                  <span className="text-[#5C5E72]">{oldValue}</span>
+                  {' '}<span className="text-[#3B82F6]">→</span>{' '}
+                  <span className="text-white/70">{newValue}</span>
+                </p>
+              )}
+
+              {/* WHO + WHEN */}
+              <p className="text-[9px] text-[#5C5E72] mt-1">
+                {a.admin_id ? `By @${a.admin_id.slice(-8)}` : 'System'}
+                {' · '}
+                {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                {' · '}
+                {new Date(a.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-white">
-              <span className={actionColor(a.action)}>{a.action}</span>
-              {' '}<span className="text-[#5C5E72]">&middot;</span>{' '}
-              <span className="text-[#8A8B9C]">{a.target_type}</span>
-              {a.target_id && <><span className="text-[#5C5E72]"> &middot; </span><span className="text-[#8A8B9C] truncate">{a.target_id}</span></>}
-            </p>
-            <p className="text-[9px] text-[#5C5E72] mt-0.5">
-              {new Date(a.created_at).toLocaleString()}
-              {a.admin_id && <span> &middot; by {a.admin_id.slice(-6)}</span>}
-            </p>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -113,8 +113,8 @@ export default function Dashboard({
           </div>
 
           {/* Profile Card */}
-          <div className="glass rounded-2xl p-5">
-            <div className="flex items-center gap-4">
+          <div className="glass rounded-xl sm:rounded-2xl p-3 sm:p-5">
+            <div className="flex items-center gap-3 sm:gap-4">
               {/* Avatar - tappable */}
               <button
                 onClick={handleAvatarTap}
@@ -195,7 +195,7 @@ export default function Dashboard({
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-5 space-y-4">
+      <div className="max-w-lg mx-auto px-3 sm:px-5 space-y-3 sm:space-y-4">
         {/* Quick Actions — role-specific */}
         <div className="grid grid-cols-2 gap-3">
           {/* Add Listing — only for Worker and Property Partner (not Creator/Admin/Staff) */}
@@ -373,44 +373,27 @@ export default function Dashboard({
           </div>
         )}
 
-        {/* OPERATOR-SPECIFIC SECTIONS — NOT for normal users */}
-        {isCreatorRole && onNavigate && (
-          <>
-            {/* Creator: Platform Access */}
-            <div className="glass rounded-2xl p-5 border border-purple-500/10">
-              <h3 className="text-sm font-semibold text-purple-400 mb-3">Platform Access</h3>
-              <p className="text-[10px] text-[#5C5E72] mb-3">Creator has full platform authority. All management systems are accessible.</p>
-              <div className="space-y-2">
-                {[
-                  { label: 'Platform Settings', page: 'creator', desc: 'Configure platform settings', color: 'text-white', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
-                  { label: 'Audit & Activity', page: 'analytics', desc: 'View platform activity log', color: 'text-white', icon: 'M18 20V10M12 20V4M6 20v-6' },
-                  { label: 'Staff & Admin Management', page: 'management', desc: 'Manage team members', color: 'text-white', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
-                ].map(link => (
-                  <button
-                    key={link.label}
-                    onClick={() => onNavigate(link.page)}
-                    className="w-full glass rounded-xl p-3 flex items-center justify-between card-hover group border border-white/[0.04]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" strokeWidth="2"><path d={link.icon} /></svg>
-                      </div>
-                      <div className="text-left">
-                        <div className="text-xs font-semibold text-white">{link.label}</div>
-                        <div className="text-[9px] text-[#5C5E72]">{link.desc}</div>
-                      </div>
-                    </div>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-                  </button>
-                ))}
-              </div>
+        {/* OPERATOR-SPECIFIC: Role Information — NOT management shortcuts */}
+        {isCreatorRole && (
+          <div className="glass rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-purple-500/10">
+            <h3 className="text-xs sm:text-sm font-semibold text-purple-400 mb-2 sm:mb-3">Role</h3>
+            <div className="space-y-2.5">
+              {[
+                { label: 'Role', value: 'Creator' },
+                { label: 'Authority', value: 'Full platform authority' },
+              ].map(item => (
+                <div key={item.label} className="flex justify-between text-xs">
+                  <span className="text-[#5C5E72]">{item.label}</span>
+                  <span className="text-white/80 font-medium">{item.value}</span>
+                </div>
+              ))}
             </div>
-          </>
+          </div>
         )}
 
         {isAdminRole && (
-          <div className="glass rounded-2xl p-5 border border-[#3B82F6]/10">
-            <h3 className="text-sm font-semibold text-[#3B82F6] mb-3">Assignment</h3>
+          <div className="glass rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-[#3B82F6]/10">
+            <h3 className="text-xs sm:text-sm font-semibold text-[#3B82F6] mb-2 sm:mb-3">Assignment</h3>
             <div className="space-y-2.5">
               {[
                 { label: 'Role', value: 'Admin' },
@@ -428,8 +411,8 @@ export default function Dashboard({
         )}
 
         {isStaffRole && (
-          <div className="glass rounded-2xl p-5 border border-amber-500/10">
-            <h3 className="text-sm font-semibold text-amber-400 mb-3">Work Assignment</h3>
+          <div className="glass rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-amber-500/10">
+            <h3 className="text-xs sm:text-sm font-semibold text-amber-400 mb-2 sm:mb-3">Work Assignment</h3>
             <div className="space-y-2.5">
               {[
                 { label: 'Role', value: 'Staff' },
@@ -482,8 +465,8 @@ export default function Dashboard({
         )}
 
         {/* Account Info */}
-        <div className="glass rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-3">Account</h3>
+        <div className="glass rounded-xl sm:rounded-2xl p-3 sm:p-5">
+          <h3 className="text-xs sm:text-sm font-semibold text-white mb-2 sm:mb-3">Account</h3>
           <div className="space-y-2.5">
             {[
               { label: 'User ID', value: profile.user_id },
