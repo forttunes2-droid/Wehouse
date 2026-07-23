@@ -34,6 +34,13 @@ export default function Dashboard({
   const initials = (profile.username || profile.email[0]).toUpperCase();
   const displayName = profile.username || profile.email.split('@')[0];
 
+  // Role classification (use distinct names to avoid conflict with isAdmin prop)
+  const isCreatorRole = profile.role === 'creator' || profile.role === 'creator_admin';
+  const isAdminRole = profile.role === 'admin';
+  const isStaffRole = profile.role === 'staff';
+  const isOperator = isCreatorRole || isAdminRole || isStaffRole;
+  const accountTitle = isOperator ? 'Account' : 'Profile';
+
   const handleAvatarTap = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -96,7 +103,7 @@ export default function Dashboard({
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-6">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-lg font-bold text-white">Profile</h1>
+            <h1 className="text-lg font-bold text-white">{accountTitle}</h1>
             <button
               onClick={onLogout}
               className="text-xs text-[#5C5E72] hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10"
@@ -295,8 +302,8 @@ export default function Dashboard({
           </button>
         )}
 
-        {/* Account Center */}
-        {onGoToAccount && (
+        {/* Account Center — customer feature, hidden for operators */}
+        {onGoToAccount && !isOperator && (
           <button
             onClick={onGoToAccount}
             className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
@@ -366,10 +373,84 @@ export default function Dashboard({
           </div>
         )}
 
+        {/* OPERATOR-SPECIFIC SECTIONS — NOT for normal users */}
+        {isCreatorRole && onNavigate && (
+          <>
+            {/* Creator: Platform Access */}
+            <div className="glass rounded-2xl p-5 border border-purple-500/10">
+              <h3 className="text-sm font-semibold text-purple-400 mb-3">Platform Access</h3>
+              <p className="text-[10px] text-[#5C5E72] mb-3">Creator has full platform authority. All management systems are accessible.</p>
+              <div className="space-y-2">
+                {[
+                  { label: 'Platform Settings', page: 'creator', desc: 'Configure platform settings', color: 'text-white', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' },
+                  { label: 'Audit & Activity', page: 'analytics', desc: 'View platform activity log', color: 'text-white', icon: 'M18 20V10M12 20V4M6 20v-6' },
+                  { label: 'Staff & Admin Management', page: 'management', desc: 'Manage team members', color: 'text-white', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+                ].map(link => (
+                  <button
+                    key={link.label}
+                    onClick={() => onNavigate(link.page)}
+                    className="w-full glass rounded-xl p-3 flex items-center justify-between card-hover group border border-white/[0.04]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" strokeWidth="2"><path d={link.icon} /></svg>
+                      </div>
+                      <div className="text-left">
+                        <div className="text-xs font-semibold text-white">{link.label}</div>
+                        <div className="text-[9px] text-[#5C5E72]">{link.desc}</div>
+                      </div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {isAdminRole && (
+          <div className="glass rounded-2xl p-5 border border-[#3B82F6]/10">
+            <h3 className="text-sm font-semibold text-[#3B82F6] mb-3">Assignment</h3>
+            <div className="space-y-2.5">
+              {[
+                { label: 'Role', value: 'Admin' },
+                { label: 'Branch', value: (profile as any).branch || 'Not assigned' },
+                { label: 'State', value: (profile as any).state || 'Not assigned' },
+                { label: 'LGA', value: (profile as any).local_government || 'Not assigned' },
+              ].map(item => (
+                <div key={item.label} className="flex justify-between text-xs">
+                  <span className="text-[#5C5E72]">{item.label}</span>
+                  <span className={item.value === 'Not assigned' ? 'text-amber-400/70' : 'text-white/80 font-medium'}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isStaffRole && (
+          <div className="glass rounded-2xl p-5 border border-amber-500/10">
+            <h3 className="text-sm font-semibold text-amber-400 mb-3">Work Assignment</h3>
+            <div className="space-y-2.5">
+              {[
+                { label: 'Role', value: 'Staff' },
+                { label: 'Branch', value: (profile as any).branch || 'Not assigned' },
+                { label: 'State/LGA', value: (profile as any).local_government ? `${(profile as any).state || ''} / ${(profile as any).local_government}` : 'Not assigned' },
+                { label: 'Module', value: (profile as any).assigned_module || 'Not assigned' },
+                { label: 'Permissions', value: (profile as any).permissions ? 'Configured' : 'Default' },
+              ].map(item => (
+                <div key={item.label} className="flex justify-between text-xs">
+                  <span className="text-[#5C5E72]">{item.label}</span>
+                  <span className={item.value?.includes('Not') ? 'text-amber-400/70' : 'text-white/80 font-medium'}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Creator / Admin / Staff Dashboard Link */}
-        {((profile.role === 'creator') || (profile.role === 'admin') || (profile.role === 'staff')) && onNavigate && (
+        {isOperator && onNavigate && (
           <button
-            onClick={() => onNavigate(profile.role === 'staff' ? 'staff_dashboard' : profile.role === 'creator' ? 'creator' : 'admin')}
+            onClick={() => onNavigate(isStaffRole ? 'staff_dashboard' : isCreatorRole ? 'creator' : 'admin')}
             className="w-full glass rounded-2xl p-4 flex items-center justify-between card-hover group"
           >
             <div className="flex items-center gap-3">
@@ -381,7 +462,7 @@ export default function Dashboard({
               </div>
               <div className="text-left">
                 <div className="text-sm font-semibold text-white">
-                  {profile.role === 'creator' ? 'Creator' : profile.role === 'admin' ? 'Admin' : 'Staff'} Hub
+                  {isCreatorRole ? 'Creator' : isAdminRole ? 'Admin' : 'Staff'} Hub
                 </div>
                 <div className="text-[10px] text-[#5C5E72]">Manage users, listings, analytics</div>
               </div>
@@ -419,7 +500,7 @@ export default function Dashboard({
             ].map((item) => (
               <div key={item.label} className="flex justify-between text-xs">
                 <span className="text-[#5C5E72]">{item.label}</span>
-                <span className="text-[#8B8DA0]">{item.value}</span>
+                <span className="text-white/80 font-medium">{item.value || <span className="text-[#5C5E72]">—</span>}</span>
               </div>
             ))}
           </div>
