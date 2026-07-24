@@ -672,8 +672,8 @@ export default function App() {
                       <tab.icon size={22} active={isActive} />
                       <span className="text-[9px] font-medium leading-none">{tab.label}</span>
                       {isActive && <span className="w-1 h-1 rounded-full bg-[#3B82F6] mt-0.5" />}
-                      {/* Unread badge on Messages/Profile tabs */}
-                      {(tab.id === 'messages' || tab.id === 'profile') && unreadCount > 0 && (
+                      {/* Unread badge on Messages tab ONLY — NOT on Account */}
+                      {tab.id === 'messages' && unreadCount > 0 && (
                         <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
                           {unreadCount > 9 ? '9+' : unreadCount}
                         </span>

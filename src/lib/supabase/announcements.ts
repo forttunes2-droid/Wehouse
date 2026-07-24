@@ -154,10 +154,11 @@ export async function deleteAnnouncement(announcementId: number) {
 }
 
 export async function getAnnouncementsSentBy(senderId: string) {
+  // CORRECTED: Column is 'sender_id' not 'created_by'
   const { data, error } = await supabase
     .from('announcements')
     .select('*')
-    .eq('created_by', senderId)
+    .eq('sender_id', senderId)
     .order('created_at', { ascending: false });
   return { messages: data as Announcement[] | null, error };
 }

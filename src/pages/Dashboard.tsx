@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import { uploadAvatar, updateProfile, removeAvatar } from '@/lib/supabase';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
+import { NotificationCenter } from '@/components/NotificationCenter';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 
@@ -498,6 +499,9 @@ export default function Dashboard({
             ))}
           </div>
         </div>
+
+        {/* Notification Center — for ALL roles */}
+        <NotificationCenter profile={profile} />
       </div>
     </div>
   );
