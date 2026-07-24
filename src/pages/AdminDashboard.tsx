@@ -11,6 +11,23 @@ import type { Profile, Listing } from '@/types';
 import { ROLE_LABELS } from '@/types';
 import { Toaster, toast } from 'sonner';
 
+// ── Support conversation from branch-scoped inbox ──
+interface SupportConvo {
+  id: string;
+  participant_a: string;
+  status: string;
+  last_message: string;
+  last_message_at: string;
+  unread_b: number;
+  conversation_type: string;
+  subject: string;
+  user_name: string;
+  user_email: string;
+  user_phone: string;
+  user_state: string;
+  user_lga: string;
+}
+
 // Constitution: Admin Tabs: Overview, Users, Workers, Property Partners, Staff, Listings, Bookings, Reports, Support, Verification, Announcements
 type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification' | 'announcements';
 
@@ -177,7 +194,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         {activeTab === 'listings' && <ListingsTabDirector refresh={refresh} />}
         {activeTab === 'bookings' && <BookingsTab />}
         {activeTab === 'reports' && <ReportsTabDirector />}
-        {activeTab === 'support' && <SupportTabDirector />}
+        {activeTab === 'support' && <SupportTabDirector profile={profile} />}
         {activeTab === 'verification' && <VerificationTabDirector refresh={refresh} profile={profile} />}
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
       </div>
@@ -195,6 +212,11 @@ function UsersTabDirector({ profile, onViewUser }: { profile: Profile; onViewUse
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [promoting, setPromoting] = useState<string | null>(null);
+
+  // Admin's branch for eligibility check
+  const adminState = profile.assigned_state || profile.state || '';
+  const adminLga = (profile as any).assigned_lga || (profile as any).local_government || (profile as any).city || '';
 
   useEffect(() => { load(); }, []);
 
@@ -209,28 +231,79 @@ function UsersTabDirector({ profile, onViewUser }: { profile: Profile; onViewUse
     setLoading(false);
   }
 
+  async function promoteToStaff(userId: string) {
+    setPromoting(userId);
+    const { data, error } = await supabase.rpc('admin_promote_to_staff', {
+      p_target_user_id: userId,
+    });
+    setPromoting(null);
+
+    if (error) {
+      toast.error(`Promotion failed: ${error.message}`);
+      return;
+    }
+    if (data) {
+      toast.success('User promoted to Staff successfully');
+      // Remove from list (they're no longer a regular user)
+      setUsers(prev => prev.filter(u => u.user_id !== userId));
+    }
+  }
+
+  // Check if user is in admin's branch
+  function isInBranch(u: any): boolean {
+    const userState = u.state || '';
+    const userLga = u.local_government || u.city || '';
+    return userState === adminState && userLga === adminLga;
+  }
+
   const filtered = users.filter(u =>
     !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="space-y-3">
+      {/* Branch context */}
+      <div className="glass rounded-xl p-2.5 border border-[#3B82F6]/10">
+        <p className="text-[10px] text-[#5C5E72]">
+          Your branch: <span className="text-[#3B82F6] font-medium">{adminState || 'Not set'} / {adminLga || 'Not set'}</span>
+          {' · '}Only users in your branch can be promoted to Staff
+        </p>
+      </div>
+
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
       {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div> : (
         <div className="space-y-2">
           {filtered.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No users found</p>}
-          {filtered.map(u => (
-            <div key={u.id} className="glass rounded-xl p-3 hover:border-indigo-500/20 transition-all cursor-pointer" onClick={() => onViewUser?.(u)}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
+          {filtered.map(u => {
+            const inBranch = isInBranch(u);
+            return (
+              <div key={u.id} className="glass rounded-xl p-3 hover:border-indigo-500/20 transition-all">
+                {/* User info row */}
+                <div className="flex items-center gap-3" onClick={() => onViewUser?.(u)}>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
+                    <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
+                    <p className="text-[9px] text-[#5C5E72]">
+                      {u.state || 'No state'} / {u.local_government || u.city || 'No LGA'}
+                      {!inBranch && <span className="text-amber-400 ml-1">(different branch)</span>}
+                    </p>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                {/* Promote button — only for users in admin's branch */}
+                {inBranch && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); promoteToStaff(u.user_id); }}
+                    disabled={promoting === u.user_id}
+                    className="mt-2 w-full h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-semibold hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+                  >
+                    {promoting === u.user_id ? 'Promoting...' : 'Promote to Staff'}
+                  </button>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -544,13 +617,101 @@ function ReportsTabDirector() {
 // ═══════════════════════════════════════════════════════════
 // SUPPORT TAB
 // ═══════════════════════════════════════════════════════════
-function SupportTabDirector() {
+function SupportTabDirector({ profile }: { profile: Profile }) {
+  const [convos, setConvos] = useState<SupportConvo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const { data, error } = await supabase.rpc('admin_support_inbox');
+      if (error) {
+        console.error('[SupportTab] inbox error:', error);
+      }
+      setConvos((data || []).map((c: any) => ({
+        id: c.id,
+        participant_a: c.participant_a,
+        status: c.status,
+        last_message: c.last_message,
+        last_message_at: c.last_message_at,
+        unread_b: c.unread_b,
+        conversation_type: c.conversation_type,
+        subject: c.subject,
+        user_name: c.user_name,
+        user_email: c.user_email,
+        user_phone: c.user_phone,
+        user_state: c.user_state,
+        user_lga: c.user_lga,
+      })));
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  // Show admin's branch for context
+  const branch = profile.assigned_state && (profile as any).assigned_lga
+    ? `${profile.assigned_state} / ${(profile as any).assigned_lga}`
+    : profile.state && ((profile as any).local_government || (profile as any).city)
+      ? `${profile.state} / ${(profile as any).local_government || (profile as any).city}`
+      : 'Not assigned';
+
   return (
     <div className="space-y-3">
-      <div className="glass rounded-xl p-4 text-center">
-        <p className="text-sm text-[#5C5E72]">Support ticket management</p>
-        <p className="text-[10px] text-[#3A3A4A] mt-2">View and respond to user support requests</p>
+      {/* Branch context */}
+      <div className="glass rounded-xl p-3 border border-[#3B82F6]/10">
+        <p className="text-[10px] text-[#5C5E72]">
+          Showing support conversations from your branch:
+          <span className="text-[#3B82F6] font-medium ml-1">{branch}</span>
+        </p>
       </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-[10px] text-[#5C5E72] py-4">
+          <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          Loading conversations...
+        </div>
+      )}
+
+      {!loading && convos.length === 0 && (
+        <div className="text-center py-10">
+          <p className="text-sm text-[#5C5E72]">No support conversations</p>
+          <p className="text-[10px] text-[#5C5E72]/70 mt-1">
+            Users in your branch ({branch}) have not started any support chats yet
+          </p>
+        </div>
+      )}
+
+      {!loading && convos.map(c => (
+        <div
+          key={c.id}
+          className="glass rounded-xl p-3 border border-white/[0.04] flex items-start gap-3"
+        >
+          <div className="w-8 h-8 rounded-full bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-white truncate">{c.user_name || 'Unknown'}</p>
+              {c.unread_b > 0 && (
+                <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center flex-shrink-0">
+                  {c.unread_b}
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-[#8A8B9C] truncate">{c.last_message || 'No messages'}</p>
+            <p className="text-[9px] text-[#5C5E72] mt-0.5">
+              {c.user_state} / {c.user_lga}
+              {' · '}
+              {c.conversation_type === 'general_support' ? 'General' : c.conversation_type === 'partner_support' ? 'Partner' : 'Inspection'}
+              {c.last_message_at && (
+                <>{' · '}{new Date(c.last_message_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</>
+              )}
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -401,9 +401,9 @@ export default function Dashboard({
             <div className="space-y-2.5">
               {[
                 { label: 'Role', value: 'Admin' },
-                { label: 'Branch', value: (profile as any).branch || 'Not assigned' },
-                { label: 'State', value: (profile as any).state || 'Not assigned' },
-                { label: 'LGA', value: (profile as any).local_government || 'Not assigned' },
+                { label: 'Scope', value: (profile as any).scope === 'global' ? 'Global' : 'Local (branch only)' },
+                { label: 'State', value: profile.assigned_state || profile.state || 'Not assigned' },
+                { label: 'LGA', value: (profile as any).assigned_lga || (profile as any).local_government || (profile as any).city || 'Not assigned' },
               ].map(item => (
                 <div key={item.label} className="flex justify-between text-xs">
                   <span className="text-[#5C5E72]">{item.label}</span>
@@ -411,6 +411,9 @@ export default function Dashboard({
                 </div>
               ))}
             </div>
+            <p className="text-[9px] text-amber-400/70 mt-3">
+              Your branch is locked. Contact Creator to reassign.
+            </p>
           </div>
         )}
 
@@ -420,10 +423,10 @@ export default function Dashboard({
             <div className="space-y-2.5">
               {[
                 { label: 'Role', value: 'Staff' },
-                { label: 'Branch', value: (profile as any).branch || 'Not assigned' },
-                { label: 'State/LGA', value: (profile as any).local_government ? `${(profile as any).state || ''} / ${(profile as any).local_government}` : 'Not assigned' },
+                { label: 'Scope', value: (profile as any).scope === 'global' ? 'Global' : 'Local (branch only)' },
+                { label: 'State', value: profile.assigned_state || profile.state || 'Not assigned' },
+                { label: 'LGA', value: (profile as any).assigned_lga || (profile as any).local_government || (profile as any).city || 'Not assigned' },
                 { label: 'Module', value: (profile as any).assigned_module || 'Not assigned' },
-                { label: 'Permissions', value: (profile as any).permissions ? 'Configured' : 'Default' },
               ].map(item => (
                 <div key={item.label} className="flex justify-between text-xs">
                   <span className="text-[#5C5E72]">{item.label}</span>
@@ -431,6 +434,9 @@ export default function Dashboard({
                 </div>
               ))}
             </div>
+            <p className="text-[9px] text-amber-400/70 mt-3">
+              Your branch is locked. Contact Creator to reassign.
+            </p>
           </div>
         )}
 
