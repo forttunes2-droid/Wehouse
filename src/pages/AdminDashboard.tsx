@@ -5,6 +5,7 @@ import {
 } from '@/lib/supabase';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
+import WorkerDetailModal from '@/components/WorkerDetailModal';
 import { AnnouncementsTab } from '@/components/AnnouncementsTab';
 import BookingsTab from './BookingsTab';
 import type { Profile, Listing } from '@/types';
@@ -65,6 +66,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
   const [stats, setStats] = useState({ totalUsers: 0, workers: 0, partners: 0, staff: 0, listings: 0, bookings: 0, reports: 0, pendingVerifications: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingUser, setViewingUser] = useState<Profile | null>(null);
+  const [viewingWorker, setViewingWorker] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
 
   // Admin sees ALL data nationwide (scope not restricted)
@@ -187,8 +189,8 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
             </div>
           </div>
         )}
-        {activeTab === 'users' && <UsersTabDirector profile={profile} onViewUser={setViewingUser} />}
-        {activeTab === 'workers' && <WorkersTabDirector onViewUser={setViewingUser} />}
+        {activeTab === 'users' && <UsersTabDirector onViewUser={setViewingUser} />}
+        {activeTab === 'workers' && <WorkersTabDirector onViewUser={setViewingWorker} />}
         {activeTab === 'partners' && <PartnersTabDirector onViewUser={setViewingUser} />}
         {activeTab === 'staff' && <StaffTabDirector profile={profile} />}
         {activeTab === 'listings' && <ListingsTabDirector refresh={refresh} />}
@@ -199,8 +201,19 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
       </div>
 
-      {/* User Profile Viewer */}
-      <UserProfileModal user={viewingUser} onClose={() => setViewingUser(null)} />
+      {/* User Profile Viewer with management actions */}
+      <UserProfileModal
+        user={viewingUser}
+        adminProfile={profile}
+        onClose={() => setViewingUser(null)}
+        onPromote={refresh}
+      />
+
+      {/* Worker Detail Viewer */}
+      <WorkerDetailModal
+        worker={viewingWorker}
+        onClose={() => setViewingWorker(null)}
+      />
     </div>
   );
 }
@@ -208,52 +221,22 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
 // ═══════════════════════════════════════════════════════════
 // USERS TAB — All users except workers, partners, staff (those have own tabs)
 // ═══════════════════════════════════════════════════════════
-function UsersTabDirector({ profile, onViewUser }: { profile: Profile; onViewUser?: (u: Profile) => void }) {
+function UsersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [promoting, setPromoting] = useState<string | null>(null);
-
-  // Admin's branch for eligibility check
-  const adminState = profile.assigned_state || profile.state || '';
-  const adminLga = (profile as any).assigned_lga || (profile as any).local_government || (profile as any).city || '';
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
     const { users: data } = await getAllUsers();
-    // Only regular users (not workers, partners, staff, admin, creator)
+    // Only regular users (workers, partners, staff have their own tabs)
     const regularUsers = (data || []).filter((u: any) =>
-      !u.deleted && u.user_id !== profile.user_id && u.role === 'user'
+      !u.deleted && u.role === 'user'
     );
     setUsers(regularUsers);
     setLoading(false);
-  }
-
-  async function promoteToStaff(userId: string) {
-    setPromoting(userId);
-    const { data, error } = await supabase.rpc('admin_promote_to_staff', {
-      p_target_user_id: userId,
-    });
-    setPromoting(null);
-
-    if (error) {
-      toast.error(`Promotion failed: ${error.message}`);
-      return;
-    }
-    if (data) {
-      toast.success('User promoted to Staff successfully');
-      // Remove from list (they're no longer a regular user)
-      setUsers(prev => prev.filter(u => u.user_id !== userId));
-    }
-  }
-
-  // Check if user is in admin's branch
-  function isInBranch(u: any): boolean {
-    const userState = u.state || '';
-    const userLga = u.local_government || u.city || '';
-    return userState === adminState && userLga === adminLga;
   }
 
   const filtered = users.filter(u =>
@@ -262,48 +245,28 @@ function UsersTabDirector({ profile, onViewUser }: { profile: Profile; onViewUse
 
   return (
     <div className="space-y-3">
-      {/* Branch context */}
-      <div className="glass rounded-xl p-2.5 border border-[#3B82F6]/10">
-        <p className="text-[10px] text-[#5C5E72]">
-          Your branch: <span className="text-[#3B82F6] font-medium">{adminState || 'Not set'} / {adminLga || 'Not set'}</span>
-          {' · '}Only users in your branch can be promoted to Staff
-        </p>
-      </div>
-
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div> : (
+      {loading ? (
+        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+      ) : (
         <div className="space-y-2">
           {filtered.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No users found</p>}
-          {filtered.map(u => {
-            const inBranch = isInBranch(u);
-            return (
-              <div key={u.id} className="glass rounded-xl p-3 hover:border-indigo-500/20 transition-all">
-                {/* User info row */}
-                <div className="flex items-center gap-3" onClick={() => onViewUser?.(u)}>
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold">{(u.username || 'U').charAt(0).toUpperCase()}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
-                    <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
-                    <p className="text-[9px] text-[#5C5E72]">
-                      {u.state || 'No state'} / {u.local_government || u.city || 'No LGA'}
-                      {!inBranch && <span className="text-amber-400 ml-1">(different branch)</span>}
-                    </p>
-                  </div>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-                </div>
-                {/* Promote button — only for users in admin's branch */}
-                {inBranch && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); promoteToStaff(u.user_id); }}
-                    disabled={promoting === u.user_id}
-                    className="mt-2 w-full h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-semibold hover:bg-amber-500/20 transition-colors disabled:opacity-50"
-                  >
-                    {promoting === u.user_id ? 'Promoting...' : 'Promote to Staff'}
-                  </button>
-                )}
+          {filtered.map(u => (
+            <button
+              key={u.id}
+              onClick={() => onViewUser?.(u)}
+              className="w-full glass rounded-xl p-3 flex items-center gap-3 card-hover text-left hover:border-indigo-500/20 transition-all"
+            >
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {(u.username || 'U').charAt(0).toUpperCase()}
               </div>
-            );
-          })}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
+                <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+          ))}
         </div>
       )}
     </div>

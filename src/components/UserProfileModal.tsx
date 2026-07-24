@@ -1,114 +1,145 @@
-import { ROLE_LABELS } from '@/types';
+import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import { Toaster, toast } from 'sonner';
 
 interface UserProfileModalProps {
   user: Profile | null;
+  adminProfile?: Profile | null;
   onClose: () => void;
+  onPromote?: () => void;
 }
 
-const ROLE_COLORS: Record<string, string> = {
-  creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  creator_admin: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
-  staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
-  worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
-  property_partner: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
-};
-
-export default function UserProfileModal({ user, onClose }: UserProfileModalProps) {
+export default function UserProfileModal({ user, adminProfile, onClose, onPromote }: UserProfileModalProps) {
   if (!user) return null;
 
-  const roleLabel = ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] || user.role;
-  const roleColor = ROLE_COLORS[user.role] || ROLE_COLORS.user;
+  const [confirmingPromote, setConfirmingPromote] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+
+  const isAdmin = adminProfile?.role === 'admin';
+  const isCreator = adminProfile?.role === 'creator' || adminProfile?.role === 'creator_admin';
+  const isOperator = isAdmin || isCreator;
+
+  // Admin branch
+  const adminState = adminProfile?.assigned_state || adminProfile?.state || '';
+  const adminLga = (adminProfile as any)?.assigned_lga || (adminProfile as any)?.local_government || (adminProfile as any)?.city || '';
+
+  // User location
+  const userState = user.state || '';
+  const userLga = (user as any).local_government || (user as any).city || '';
+  const inBranch = userState === adminState && userLga === adminLga;
+
+  // Can appoint: Admin + user in branch + user role is 'user'
+  const canAppoint = isAdmin && inBranch && user.role === 'user';
+
+  const initials = (user.username || user.email[0] || 'U').toUpperCase();
+
+  async function handlePromote() {
+    if (!user) return;
+    setPromoting(true);
+    const { data, error } = await supabase.rpc('admin_promote_to_staff', {
+      p_target_user_id: user.user_id,
+    });
+    setPromoting(false);
+    setConfirmingPromote(false);
+
+    if (error) {
+      toast.error(`Failed: ${error.message}`);
+      return;
+    }
+    if (data) {
+      toast.success(`${user.username || 'User'} appointed as Staff`);
+      onPromote?.();
+      onClose();
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center" onClick={onClose}>
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-      {/* Card */}
-      <div
-        className="relative w-full max-w-lg bg-[#12121A] border border-white/[0.06] rounded-t-3xl max-h-[85vh] overflow-y-auto animate-slideUp"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-white/20" />
-        </div>
-
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-
-        {/* Profile Header */}
-        <div className="px-5 pt-2 pb-5 text-center">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3 shadow-lg shadow-blue-500/20">
-            {(user.username || user.email[0]).charAt(0).toUpperCase()}
-          </div>
-          <h2 className="text-lg font-bold text-white">@{user.username || 'user'}</h2>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${roleColor}`}>{roleLabel}</span>
-            {user.deleted && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Deleted</span>}
-          </div>
-        </div>
-
-        {/* Info Grid */}
-        <div className="px-5 pb-6 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <InfoCard label="User ID" value={user.user_id} copyable />
-            <InfoCard label="Role" value={roleLabel} />
-            <InfoCard label="State" value={user.state || '—'} />
-            <InfoCard label="City/LGA" value={user.city || '—'} />
-            <InfoCard label="Joined" value={new Date(user.created_at).toLocaleDateString()} />
-            <InfoCard label="Status" value={user.deleted ? 'Deleted' : 'Active'} />
-          </div>
-
-          {user.bio && (
-            <div className="glass rounded-xl p-3">
-              <span className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Bio</span>
-              <p className="text-xs text-[#8A8B9C] mt-1 leading-relaxed">{user.bio}</p>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[#0E0E14] w-full sm:w-[420px] sm:rounded-3xl rounded-t-3xl max-h-[85vh] overflow-y-auto border border-[#232330]" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-8">
+          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xl font-bold mb-3">
+              {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full rounded-2xl object-cover" /> : initials}
             </div>
+            <h3 className="text-base font-bold text-white">@{user.username || 'unknown'}</h3>
+            <p className="text-xs text-[#5C5E72] mt-0.5">{user.email}</p>
+            <span className="mt-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
+              {user.role === 'user' ? 'User' : user.role === 'worker' ? 'Worker' : user.role === 'property_partner' ? 'Partner' : user.role === 'staff' ? 'Staff' : user.role === 'admin' ? 'Admin' : user.role}
+            </span>
+          </div>
+        </div>
+
+        {/* Info */}
+        <div className="px-5 pb-4 space-y-3">
+          <div className="glass rounded-2xl p-4 space-y-3">
+            {[
+              { label: 'ID', value: user.user_id },
+              { label: 'State', value: user.state || 'Not set' },
+              { label: 'LGA', value: (user as any).local_government || (user as any).city || 'Not set' },
+              { label: 'Joined', value: new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) },
+              { label: 'Status', value: (user as any).deleted ? 'Deleted' : (user as any).worker_status === 'suspended' ? 'Suspended' : 'Active' },
+            ].map(item => (
+              <div key={item.label} className="flex justify-between text-xs">
+                <span className="text-[#5C5E72]">{item.label}</span>
+                <span className="text-white/80 font-medium">{item.value}</span>
+              </div>
+            ))}
+            {(user as any).bio && (
+              <p className="text-[10px] text-[#8A8B9C] pt-2 border-t border-[#1E1E2C]">{(user as any).bio}</p>
+            )}
+          </div>
+
+          {/* Management Actions — only for Admin viewing a User in their branch */}
+          {canAppoint && (
+            <div className="glass rounded-2xl p-4 border border-amber-500/10">
+              <h4 className="text-xs font-semibold text-amber-400 mb-2">Management</h4>
+
+              {!confirmingPromote ? (
+                <button
+                  onClick={() => setConfirmingPromote(true)}
+                  className="w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
+                >
+                  Appoint as Staff
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-[#5C5E72]">
+                    Promote <span className="text-white">@{user.username}</span> to Staff in your branch ({adminState} / {adminLga})?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfirmingPromote(false)}
+                      className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handlePromote}
+                      disabled={promoting}
+                      className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50"
+                    >
+                      {promoting ? 'Appointing...' : 'Confirm'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Info: why no appoint button */}
+          {isAdmin && user.role === 'user' && !inBranch && (
+            <p className="text-[10px] text-amber-400/70 text-center">
+              This user is outside your branch ({userState || 'no state'} / {userLga || 'no LGA'}). Cannot appoint.
+            </p>
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-        .animate-slideUp {
-          animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function InfoCard({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
-  const handleCopy = () => {
-    if (copyable) {
-      navigator.clipboard.writeText(value).catch(() => {});
-    }
-  };
-
-  return (
-    <div
-      className={`glass rounded-xl p-3 ${copyable ? 'cursor-pointer active:scale-[0.97] transition-transform' : ''}`}
-      onClick={handleCopy}
-    >
-      <span className="text-[10px] text-[#5C5E72] uppercase tracking-wider">{label}</span>
-      <p className={`text-xs text-white font-medium mt-1 truncate ${copyable ? 'font-mono' : ''}`} title={value}>
-        {value}
-      </p>
-      {copyable && <span className="text-[8px] text-[#3B82F6]/60">Tap to copy</span>}
+      <Toaster position="top-center" richColors />
     </div>
   );
 }
