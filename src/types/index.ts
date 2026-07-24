@@ -449,13 +449,11 @@ export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_wor
 export interface Announcement {
   id: number;
   title: string;
-  message: string;
-  created_by: string;
-  sender_name: string;
+  content: string;
+  sender_id: string;
   sender_role: string;
   target_type: AnnouncementTargetType;
-  target_state?: string | null;
-  target_lga?: string | null;
+  scope?: string | null;
   recipient_count: number;
   read_count: number;
   created_at: string;

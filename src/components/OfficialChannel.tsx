@@ -26,7 +26,7 @@ export default function OfficialChannel({ profile, onBack }: OfficialChannelProp
     const { messages } = await getAnnouncementsForUser(profile.user_id);
     const typed = (messages || []).map((m: any) => ({
       ...m,
-      announcement: m.announcements || m.message || {},
+      announcement: m.announcements || {},
     })) as AnnouncementWithRead[];
     setItems(typed);
     setLoading(false);
@@ -106,7 +106,7 @@ export default function OfficialChannel({ profile, onBack }: OfficialChannelProp
 
           <div className="bg-gradient-to-br from-[#12121A] to-[#1A1A24] border border-white/[0.06] rounded-2xl p-5">
             <h2 className="text-lg font-bold text-white mb-3">{selectedAnnouncement.title}</h2>
-            <p className="text-sm text-[#C8C8D0] leading-relaxed whitespace-pre-wrap">{selectedAnnouncement.message}</p>
+            <p className="text-sm text-[#C8C8D0] leading-relaxed whitespace-pre-wrap">{selectedAnnouncement.content}</p>
             <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
               <span className="text-[10px] text-[#5C5E72]">
@@ -206,7 +206,7 @@ export default function OfficialChannel({ profile, onBack }: OfficialChannelProp
                     <h3 className={`text-sm font-semibold leading-snug ${isUnread ? 'text-white' : 'text-[#C8C8D0]'}`}>
                       {a.title}
                     </h3>
-                    <p className="text-xs text-[#8A8B9C] mt-1 line-clamp-2">{a.message}</p>
+                    <p className="text-xs text-[#8A8B9C] mt-1 line-clamp-2">{a.content || ''}</p>
                     {isUnread && (
                       <span className="inline-block mt-2 text-[9px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] font-medium">New</span>
                     )}

@@ -28,9 +28,18 @@ export async function sendAnnouncement(
   const { recipientIds, scopeState, scopeLga } = options;
 
   // Step 1: Insert the announcement
+  // CORRECTED: DB columns are content (not message), sender_id (not created_by)
+  // sender_name, target_state, target_lga do NOT exist in the DB schema
   const { data: announcement, error: insertErr } = await supabase
     .from('announcements')
-    .insert({ title, message, created_by: senderId, sender_name: senderName, sender_role: senderRole, target_type: targetType, target_state: scopeState || null, target_lga: scopeLga || null })
+    .insert({
+      title,
+      content: message,
+      sender_id: senderId,
+      sender_role: senderRole,
+      target_type: targetType,
+      scope: scopeState && scopeLga ? `${scopeState} / ${scopeLga}` : null,
+    })
     .select()
     .maybeSingle();
 
@@ -154,21 +163,29 @@ export async function deleteAnnouncement(announcementId: number) {
 }
 
 export async function getAnnouncementsSentBy(senderId: string) {
-  // CORRECTED: Column is 'sender_id' not 'created_by'
+  // Join with profiles to resolve sender_id → username
   const { data, error } = await supabase
     .from('announcements')
-    .select('*')
+    .select(`
+      id, title, content, sender_id, sender_role, target_type, scope,
+      recipient_count, read_count, created_at,
+      profiles:sender_id (username)
+    `)
     .eq('sender_id', senderId)
     .order('created_at', { ascending: false });
-  return { messages: data as Announcement[] | null, error };
+  return { messages: data as any[] | null, error };
 }
 
 export async function getAllAnnouncements() {
   const { data, error } = await supabase
     .from('announcements')
-    .select('*')
+    .select(`
+      id, title, content, sender_id, sender_role, target_type, scope,
+      recipient_count, read_count, created_at,
+      profiles:sender_id (username)
+    `)
     .order('created_at', { ascending: false });
-  return { messages: data as Announcement[] | null, error };
+  return { messages: data as any[] | null, error };
 }
 
 export async function getUnreadAnnouncementCount(userId: string) {

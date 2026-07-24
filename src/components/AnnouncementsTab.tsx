@@ -21,10 +21,10 @@ function AnnouncementCard({ msg, canSend, onDelete }: { msg: any; canSend: boole
       {/* Header: sender + meta */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-2">
         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-          {(msg.sender_name || 'W').charAt(0).toUpperCase()}
+          {(msg.profiles?.username || 'W').charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-semibold text-white truncate">{msg.sender_name || 'WeHouse'}</p>
+          <p className="text-[11px] font-semibold text-white truncate">@{msg.profiles?.username || 'WeHouse'}</p>
           <p className="text-[9px] text-[#5C5E72]">
             {msg.sender_role || 'System'} · {new Date(msg.created_at).toLocaleString()}
           </p>
