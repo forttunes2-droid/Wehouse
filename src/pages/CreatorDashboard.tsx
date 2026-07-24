@@ -201,7 +201,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {/* ═══ Profile Viewer Modal — works for ALL user types ═══ */}
         {viewingProfile && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setViewingProfile(null)}>
-            <div className="bg-[#12121A] rounded-t-2xl sm:rounded-2xl border border-[#2A2A3A] w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#12121A] rounded-t-2xl sm:rounded-2xl border border-[#2A2A3A] w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
               {/* Modal Header */}
               <div className="sticky top-0 bg-[#12121A] border-b border-[#2A2A3A] px-5 py-3 flex items-center justify-between z-10">
                 <p className="text-sm font-semibold text-white">
@@ -215,7 +215,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
                 {/* Avatar & Name */}
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
