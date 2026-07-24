@@ -72,12 +72,14 @@ export default function CreatorHome({ profile, onNavigate }: CreatorHomeProps) {
         totalPartners: totalPartners || 0,
       });
 
-      // Load recent audit log activity — join with profiles to get username
+      // Load recent audit log activity — join with profiles via auth_id
+      // audit_logs.admin_id = auth.uid()::text (Supabase UUID)
+      // profiles.auth_id = Supabase UUID → username + role
       const { data: activity } = await supabase
         .from('audit_logs')
         .select(`
           action, target_type, target_id, details, admin_id, created_at,
-          profiles:admin_id (username)
+          profiles:admin_id (username, role)
         `)
         .order('created_at', { ascending: false })
         .limit(10);

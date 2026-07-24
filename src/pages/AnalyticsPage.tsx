@@ -31,7 +31,7 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
         .from('audit_logs')
         .select(`
           action, target_type, target_id, admin_id, details, created_at,
-          profiles:admin_id (username)
+          profiles:admin_id (username, role)
         `)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -72,10 +72,10 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
           <div key={i} className="glass rounded-xl p-3 border border-white/[0.04] flex items-start gap-3">
             {/* Action icon */}
             <div className="w-7 h-7 rounded-lg bg-[#12121A] flex items-center justify-center flex-shrink-0 mt-0.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={actionIconColor(a.action)} strokeWidth="2">
-                {a.action === 'UPDATE' || a.action === 'ROLE_CHANGE' ? <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></> :
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={actionIconColor(a.action)} strokeWidth="2.5">
+                {a.action === 'UPDATE' || a.action === 'ROLE_CHANGE' ? <><circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="8" opacity="0.3" /></> :
                  a.action === 'INSERT' ? <><path d="M12 5v14M5 12h14" /></> :
-                 <><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>}
+                 <><path d="M18 6L6 18M6 6l12 12" /></>}
               </svg>
             </div>
 
@@ -95,12 +95,14 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
                 </p>
               )}
 
-              {/* WHO + WHEN */}
-              <p className="text-[9px] text-[#5C5E72] mt-1">
-                {a.admin_id ? `By @${a.admin_id.slice(-8)}` : 'System'}
+              {/* WHO + WHEN — resolved from profiles join */}
+              <p className="text-[9px] text-[#5C5E72] mt-1 truncate">
+                {a.profiles?.username
+                  ? `@${a.profiles.username} · ${a.profiles.role ? (a.profiles.role === 'creator' ? 'Creator' : a.profiles.role === 'creator_admin' ? 'Creator Admin' : a.profiles.role === 'admin' ? 'Admin' : a.profiles.role === 'staff' ? 'Staff' : a.profiles.role) : 'Admin'}`
+                  : a.admin_id ? 'Unknown account' : 'WeHouse System'}
                 {' · '}
-                {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                {' · '}
+                {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                {', '}
                 {new Date(a.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
               </p>
             </div>
