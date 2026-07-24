@@ -206,7 +206,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         user={viewingUser}
         adminProfile={profile}
         onClose={() => setViewingUser(null)}
-        onPromote={refresh}
+        onPromote={() => { refresh(); setActiveTab('staff'); }}
       />
 
       {/* Worker Detail Viewer */}
@@ -455,12 +455,20 @@ function StaffTabDirector({ profile }: { profile: Profile }) {
           {staff.map(s => {
             const modules = staffModules[s.user_id] || [];
             const currentModule = modules[0] || null;
+            const hasNoModule = !currentModule;
             return (
-              <div key={s.user_id} className="glass rounded-xl p-4">
+              <div key={s.user_id} className={`glass rounded-xl p-4 ${hasNoModule ? 'border border-amber-500/20 bg-amber-500/[0.02]' : ''}`}>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">{(s.username || 'S').charAt(0).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-white truncate">@{s.username || 'unknown'}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium text-white truncate">@{s.username || 'unknown'}</p>
+                      {hasNoModule && (
+                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-400 uppercase tracking-wide">
+                          New — Assign Module
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-[#5C5E72] truncate">{s.email}</p>
                   </div>
                 </div>
