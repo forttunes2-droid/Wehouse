@@ -279,14 +279,16 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
             {(user.role === 'user' || user.role === 'worker' || user.role === 'property_partner') && (
               <button
                 onClick={() => {
-                  if (supportConvoId && onGoToChat) {
+                  if (!supportConvoId) {
+                    toast.info('No support conversation found');
+                    return;
+                  }
+                  if (onGoToChat) {
                     onGoToChat(supportConvoId);
                     onClose();
-                  } else if (supportConvoId && onNavigate) {
+                  } else if (onNavigate) {
                     onNavigate(`chat_${supportConvoId}`);
                     onClose();
-                  } else {
-                    toast.info('No support conversation found');
                   }
                 }}
                 className="w-full h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs font-semibold hover:bg-[#3B82F6]/20 transition-colors flex items-center justify-center gap-2"

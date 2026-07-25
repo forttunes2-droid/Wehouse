@@ -64,9 +64,27 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const isWorker = profile.role === 'worker';
     let convs: Conversation[] = [];
 
-    if (isCreator) {
-      // Creator: clean empty state — no customer or partner content
-      // Creator manages communications through Management dashboard, not Messages tab
+    // If a specific conversationId is provided (e.g., from "Go to Support Conversation"),
+    // load that conversation directly regardless of role
+    if (conversationId) {
+      const { data: specificConv } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
+      if (specificConv) {
+        convs = [specificConv as Conversation];
+        // Also fetch the other participant's username
+        const otherId = specificConv.participant_a === profile.user_id
+          ? specificConv.participant_b
+          : specificConv.participant_a;
+        if (otherId && !usernames[otherId]) {
+          const { data: p } = await supabase.from('profiles').select('user_id, username').eq('user_id', otherId).single();
+          if (p) setUsernames(prev => ({ ...prev, [p.user_id]: p.username }));
+        }
+      }
+    } else if (isCreator) {
+      // Creator browsing chat normally: clean empty state
       convs = [];
     } else if (isAdminOrStaff) {
       // Staff/Admin: get partner support inbox + personal
