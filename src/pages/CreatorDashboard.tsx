@@ -41,6 +41,7 @@ interface CreatorDashboardProps {
   onLogout: () => void;
   onGoToNewListing?: () => void;
   onNavigate?: (page: string) => void;
+  onGoToChat?: (convId?: string) => void;
 }
 
 // ─── ROLE CONFIG ───────────────────────────────────
@@ -55,7 +56,7 @@ const ROLE_COLORS: Record<string, string> = {
   property_partner: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
 };
 
-export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToNewListing, onNavigate }: CreatorDashboardProps) {
+export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToNewListing, onNavigate, onGoToChat }: CreatorDashboardProps) {
   const { clearAuth } = useCreatorAuth();
 
   // Wrapped logout: clears creator auth session too
@@ -206,6 +207,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
             adminProfile={profile}
             onClose={() => setViewingProfile(null)}
             onNavigate={onNavigate}
+            onGoToChat={onGoToChat}
           />
         )}
       </main>

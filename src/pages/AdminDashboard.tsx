@@ -35,6 +35,7 @@ interface Props {
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
+  onGoToChat?: (convId?: string) => void;
 }
 
 /* role badge colors — kept for future use
@@ -48,7 +49,7 @@ const roleColors: Record<string, string> = {
 };
 */
 
-export default function AdminDashboard({ profile, onLogout, onNavigate }: Props) {
+export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
   const TAB_KEY = 'wh_admin_tab';
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     try {
@@ -207,6 +208,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
           onClose={() => setViewingProfile(null)}
           onPromote={() => { refresh(); setActiveTab('staff'); }}
           onNavigate={onNavigate}
+          onGoToChat={onGoToChat}
         />
       )}
     </div>

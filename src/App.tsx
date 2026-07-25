@@ -456,7 +456,7 @@ export default function App() {
       case 'home':
         // Creator/Admin/Staff get their operational dashboard, not the customer Home
         if (isCreatorRole) return <CreatorHome profile={profile} onNavigate={(p) => goTo(p as NavPage)} />;
-        if (isAdminRole) return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+        if (isAdminRole) return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
         if (isStaffRole) return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
         return <Home {...props} onNavigate={(p: string, id?: string) => id ? goToDetail(id) : goTo(p as NavPage)} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'explore':
@@ -478,9 +478,9 @@ export default function App() {
       case 'profile':
         return <Dashboard profile={profile} onLogout={auth.logout} onNavigate={(p: string) => goTo(p as NavPage)} onGoToChat={goToChat} onGoToProfileEdit={goToProfileEdit} onGoToAccount={goToAccount} isAdmin={canList} onGoToNewListing={goToNewListing} />;
       case 'creator':
-        return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} onNavigate={(p) => goTo(p as NavPage)} />;
+        return <CreatorDashboard profile={profile} onLogout={auth.logout} onGoToNewListing={goToNewListing} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
       case 'admin':
-        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+        return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} />;
       case 'staff_dashboard':
         return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'detail':
@@ -588,8 +588,8 @@ export default function App() {
       case 'calendar':
         return <CalendarPage profile={profile} />;
       case 'management':
-        return isCreatorRole ? <CreatorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :
-               isAdminRole ? <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} /> :
+        return isCreatorRole ? <CreatorDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} /> :
+               isAdminRole ? <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} onGoToChat={goToChat} /> :
                <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={(p) => goTo(p as NavPage)} />;
       case 'analytics':
         return <AnalyticsPage profile={profile} />;

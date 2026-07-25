@@ -10,6 +10,7 @@ interface UserProfileModalProps {
   onClose: () => void;
   onPromote?: () => void;
   onNavigate?: (page: string) => void;
+  onGoToChat?: (convId?: string) => void;
 }
 
 interface WorkerStats {
@@ -30,7 +31,7 @@ interface PartnerProperty {
   created_at: string;
 }
 
-export default function UserProfileModal({ user, adminProfile, onClose, onPromote, onNavigate }: UserProfileModalProps) {
+export default function UserProfileModal({ user, adminProfile, onClose, onPromote, onNavigate, onGoToChat }: UserProfileModalProps) {
   if (!user) return null;
 
   const [confirmingPromote, setConfirmingPromote] = useState(false);
@@ -277,7 +278,17 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
             {/* Action Buttons */}
             {(user.role === 'user' || user.role === 'worker' || user.role === 'property_partner') && (
               <button
-                onClick={() => { if (supportConvoId && onNavigate) { onNavigate(`chat_${supportConvoId}`); onClose(); } else toast.info('No support conversation found'); }}
+                onClick={() => {
+                  if (supportConvoId && onGoToChat) {
+                    onGoToChat(supportConvoId);
+                    onClose();
+                  } else if (supportConvoId && onNavigate) {
+                    onNavigate(`chat_${supportConvoId}`);
+                    onClose();
+                  } else {
+                    toast.info('No support conversation found');
+                  }
+                }}
                 className="w-full h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs font-semibold hover:bg-[#3B82F6]/20 transition-colors flex items-center justify-center gap-2"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
