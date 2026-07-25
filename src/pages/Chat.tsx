@@ -48,6 +48,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
 
   // Load everything on mount
   useEffect(() => {
+    console.log('[TRACE] Chat mount, conversationId:', conversationId, 'role:', profile.role);
     loadAll();
   }, [profile.user_id]);
 
@@ -63,6 +64,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
     const isPartner = profile.role === 'property_partner';
     const isWorker = profile.role === 'worker';
     let convs: Conversation[] = [];
+    console.log('[TRACE] loadConversations: conversationId=', conversationId, 'isCreator=', isCreator);
 
     // If a specific conversationId is provided (e.g., from "Go to Support Conversation"),
     // load that conversation directly regardless of role
