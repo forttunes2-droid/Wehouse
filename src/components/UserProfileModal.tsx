@@ -222,6 +222,8 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
 
         {/* Modal Card */}
         <div className="bg-[#0E0E14] w-full sm:w-[460px] sm:rounded-3xl rounded-t-3xl border border-[#232330] mx-auto shadow-2xl">
+          {/* DEBUG: Version marker */}
+          <div className="bg-red-600 text-white text-[10px] font-bold text-center py-1 px-3">v2.1 ENHANCED PROFILE</div>
           
           {/* ═══ HEADER ═══ */}
           <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-6">
