@@ -56,9 +56,9 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[#0E0E14] w-full sm:w-[420px] sm:rounded-3xl rounded-t-3xl max-h-[85vh] overflow-y-auto border border-[#232330]" onClick={e => e.stopPropagation()}>
+      <div className="bg-[#0E0E14] w-full sm:w-[420px] sm:rounded-3xl rounded-t-3xl h-[92vh] sm:h-auto sm:max-h-[85vh] flex flex-col border border-[#232330]" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-8">
+        <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-8 flex-shrink-0">
           <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
@@ -75,7 +75,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
         </div>
 
         {/* Info */}
-        <div className="px-5 pb-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 pb-8 space-y-3">
           <div className="glass rounded-2xl p-4 space-y-3">
             {[
               { label: 'ID', value: user.user_id },
