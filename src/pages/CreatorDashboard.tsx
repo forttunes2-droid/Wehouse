@@ -188,7 +188,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
       <main className="px-3 pb-6 sm:px-5 lg:px-8 lg:pb-8 overflow-x-hidden">
         {activeTab === 'overview' && <OverviewTab profile={profile} isCreator={isCreatorAccount} onGoToNewListing={onGoToNewListing} onGoToUsers={() => goToUsers('manage')} onGoToUsersView={() => goToUsers('view')} onGoToUsersToday={() => goToUsers('today')} onGoToTab={handleSetTab} />}
         {activeTab === 'users' && <UsersTab profile={profile} viewMode={usersViewMode} onViewProfile={(u) => setViewingProfile(u)} />}
-        {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} viewingProfile={viewingProfile} setViewingProfile={setViewingProfile} />}
+        {activeTab === 'workers' && <WorkerApplicationsTab profile={profile} setViewingProfile={setViewingProfile} />}
         {activeTab === 'partners' && <PartnersTab />}
         {activeTab === 'staff' && <StaffListTab profile={profile} />}
         {activeTab === 'listings' && <ListingsTab profile={profile} />}
@@ -1041,13 +1041,12 @@ function ReportsTab({ profile }: { profile: Profile }) {
 // ─── SETTINGS ──────────────────────────────────────
 // ─── WORKER APPLICATIONS TAB ───────────────────────
 
-function WorkerApplicationsTab({ profile, viewingProfile, setViewingProfile }: { profile: Profile; viewingProfile: any | null; setViewingProfile: (p: any | null) => void }) {
+function WorkerApplicationsTab({ profile, setViewingProfile }: { profile: Profile; setViewingProfile: (p: any | null) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'verification_paid' | 'verified' | 'declined' | 'suspended' | 'rejected'>('all');
   // Status flow per Constitution: pending → verification_paid → verified | declined
-  const VALID_WORKER_STATUSES = ['pending', 'verification_paid', 'verified', 'declined', 'suspended', 'rejected'];
-  // viewingProfile is managed at CreatorDashboard level, not here
+
 
   const load = useCallback(async () => {
     setLoading(true);
