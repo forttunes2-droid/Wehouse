@@ -17,6 +17,7 @@ const checkIsCreator = (profile: Profile): boolean => profile.role === 'creator'
 import { validateRoleTransition, canSendAnnouncements } from '@/hooks/useAuth';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { Input } from '@/components/ui/input';
+import UserProfileModal from '@/components/UserProfileModal';
 import type { Profile, Listing, AnnouncementTargetType, Hotel, HotelRoom, HotelBooking } from '@/types';
 import { HOTEL_AMENITIES, ROOM_TYPES, BED_TYPES } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -198,97 +199,13 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
         {activeTab === 'settings' && (isCreatorAccount ? <CreatorSettingsTab profile={profile} /> : <SettingsTab profile={profile} onUpdate={() => {}} />)}
 
-        {/* ═══ Profile Viewer Modal — works for ALL user types ═══ */}
+        {/* ═══ Profile Viewer Modal — same component Admin uses ═══ */}
         {viewingProfile && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setViewingProfile(null)}>
-            <div className="bg-[#12121A] rounded-t-2xl sm:rounded-2xl border border-[#2A2A3A] w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-[#12121A] border-b border-[#2A2A3A] px-5 py-3 flex items-center justify-between z-10">
-                <p className="text-sm font-semibold text-white">
-                  {viewingProfile.role === 'worker' ? 'Worker Profile' :
-                   viewingProfile.role === 'property_partner' ? 'Partner Profile' :
-                   viewingProfile.role === 'staff' ? 'Staff Profile' :
-                   viewingProfile.role === 'admin' ? 'Admin Profile' : 'User Profile'}
-                </p>
-                <button onClick={() => setViewingProfile(null)} className="w-7 h-7 rounded-full bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
-                {/* Avatar & Name */}
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                    {viewingProfile.avatar_url ? <img src={viewingProfile.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" /> : (viewingProfile.full_name || viewingProfile.username || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">{viewingProfile.full_name || viewingProfile.username || 'Unknown'}</p>
-                    <p className="text-[10px] text-[#5C5E72]">@{viewingProfile.username || 'no-username'}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border bg-[#1A1A24] text-[#5C5E72]">
-                        {viewingProfile.role || 'user'}
-                      </span>
-                      {viewingProfile.worker_occupation && (
-                        <span className="text-[8px] text-[#5C5E72]">{WORKER_OCCUPATION_LABELS[viewingProfile.worker_occupation] || viewingProfile.worker_occupation}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contact Info */}
-                <div className="rounded-xl bg-[#1A1A24] p-3 space-y-2">
-                  <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Contact</p>
-                  <div className="space-y-1">
-                    {viewingProfile.email && (
-                      <div className="flex items-center gap-2 text-xs text-white">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-                        {viewingProfile.email}
-                      </div>
-                    )}
-                    {viewingProfile.phone && (
-                      <div className="flex items-center gap-2 text-xs text-white">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                        {viewingProfile.phone}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-xs text-[#8A8B9C]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                      {viewingProfile.city ? `${viewingProfile.city}, ${viewingProfile.state || 'Nigeria'}` : (viewingProfile.state || 'Location not set')}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Worker-specific info */}
-                {viewingProfile.role === 'worker' && (
-                  <>
-                    {viewingProfile.worker_bio && (
-                      <div className="rounded-xl bg-[#1A1A24] p-3">
-                        <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-1">About</p>
-                        <p className="text-xs text-white leading-relaxed whitespace-pre-wrap">{viewingProfile.worker_bio}</p>
-                      </div>
-                    )}
-                    {(viewingProfile.id_card_url || viewingProfile.verification_video_url) && (
-                      <div className="rounded-xl bg-[#1A1A24] p-3 space-y-2">
-                        <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Verification</p>
-                        {viewingProfile.id_card_url && (
-                          <div>
-                            <p className="text-[10px] text-[#5C5E72] mb-1">ID Card</p>
-                            <img src={viewingProfile.id_card_url} alt="ID Card" className="w-full h-32 object-contain rounded-lg bg-black" />
-                          </div>
-                        )}
-                        {viewingProfile.verification_video_url && (
-                          <div>
-                            <p className="text-[10px] text-[#5C5E72] mb-1">Video</p>
-                            <video src={viewingProfile.verification_video_url} controls className="w-full h-40 rounded-lg bg-black" />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          <UserProfileModal
+            user={viewingProfile as Profile}
+            adminProfile={profile}
+            onClose={() => setViewingProfile(null)}
+          />
         )}
       </main>
     </div>
