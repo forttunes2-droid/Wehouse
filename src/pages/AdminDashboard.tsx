@@ -5,7 +5,6 @@ import {
 } from '@/lib/supabase';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
-import WorkerDetailModal from '@/components/WorkerDetailModal';
 import { AnnouncementsTab } from '@/components/AnnouncementsTab';
 import BookingsTab from './BookingsTab';
 import type { Profile, Listing } from '@/types';
@@ -65,8 +64,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
 
   const [stats, setStats] = useState({ totalUsers: 0, workers: 0, partners: 0, staff: 0, listings: 0, bookings: 0, reports: 0, pendingVerifications: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
-  const [viewingUser, setViewingUser] = useState<Profile | null>(null);
-  const [viewingWorker, setViewingWorker] = useState<Profile | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const refresh = () => setRefreshKey(k => k + 1);
 
   // Admin sees ALL data nationwide (scope not restricted)
@@ -189,9 +187,9 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
             </div>
           </div>
         )}
-        {activeTab === 'users' && <UsersTabDirector onViewUser={setViewingUser} />}
-        {activeTab === 'workers' && <WorkersTabDirector onViewUser={setViewingWorker} />}
-        {activeTab === 'partners' && <PartnersTabDirector onViewUser={setViewingUser} />}
+        {activeTab === 'users' && <UsersTabDirector onViewUser={setViewingProfile} />}
+        {activeTab === 'workers' && <WorkersTabDirector onViewUser={setViewingProfile} />}
+        {activeTab === 'partners' && <PartnersTabDirector onViewUser={setViewingProfile} />}
         {activeTab === 'staff' && <StaffTabDirector profile={profile} />}
         {activeTab === 'listings' && <ListingsTabDirector refresh={refresh} />}
         {activeTab === 'bookings' && <BookingsTab />}
@@ -201,19 +199,16 @@ export default function AdminDashboard({ profile, onLogout, onNavigate }: Props)
         {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
       </div>
 
-      {/* User Profile Viewer with management actions */}
-      <UserProfileModal
-        user={viewingUser}
-        adminProfile={profile}
-        onClose={() => setViewingUser(null)}
-        onPromote={() => { refresh(); setActiveTab('staff'); }}
-      />
-
-      {/* Worker Detail Viewer */}
-      <WorkerDetailModal
-        worker={viewingWorker}
-        onClose={() => setViewingWorker(null)}
-      />
+      {/* Profile Viewer — works for ALL roles (User, Worker, Partner, Staff, Admin) */}
+      {viewingProfile && (
+        <UserProfileModal
+          user={viewingProfile}
+          adminProfile={profile}
+          onClose={() => setViewingProfile(null)}
+          onPromote={() => { refresh(); setActiveTab('staff'); }}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 }

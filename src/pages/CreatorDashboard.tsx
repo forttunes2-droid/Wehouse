@@ -205,6 +205,7 @@ export default function CreatorDashboard({ profile, onLogout: _onLogout, onGoToN
             user={viewingProfile as Profile}
             adminProfile={profile}
             onClose={() => setViewingProfile(null)}
+            onNavigate={onNavigate}
           />
         )}
       </main>
