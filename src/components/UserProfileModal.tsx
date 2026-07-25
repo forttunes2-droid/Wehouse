@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -17,7 +18,6 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   const [promoting, setPromoting] = useState(false);
 
   const isAdmin = adminProfile?.role === 'admin';
-  const isCreator = adminProfile?.role === 'creator' || adminProfile?.role === 'creator_admin';
 
   // Admin branch
   const adminState = adminProfile?.assigned_state || adminProfile?.state || '';
@@ -53,29 +53,55 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
     }
   }
 
-  return (
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, []);
+
+  const modalContent = (
     <div
-      className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
-      style={{ WebkitTapHighlightColor: 'transparent' }}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 99999,
+        background: 'rgba(0,0,0,0.7)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+      }}
       onClick={onClose}
     >
-      {/* Full-screen scrollable container */}
+      {/* Scrollable area */}
       <div
-        className="absolute inset-0 overflow-y-auto"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Spacer to push content down on mobile (bottom sheet style) */}
-        <div className="hidden sm:block h-[10vh]" />
-        <div className="sm:hidden h-[8vh]" />
+        {/* Top spacer */}
+        <div className="h-[8vh] sm:h-[10vh]" />
 
         {/* Modal card */}
-        <div className="bg-[#0E0E14] w-full sm:w-[420px] sm:rounded-3xl rounded-t-3xl border border-[#232330] min-h-[84vh] sm:min-h-0 mx-auto">
+        <div
+          className="bg-[#0E0E14] w-full sm:w-[420px] sm:rounded-3xl rounded-t-3xl border border-[#232330] mx-auto"
+          style={{ minHeight: '84vh' }}
+        >
           {/* Header */}
           <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-8">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center active:bg-white/10"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center active:bg-white/20"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
@@ -93,7 +119,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
 
           {/* Info sections */}
           <div className="px-5 pb-8 space-y-3">
-            {/* Contact & Details */}
+            {/* Details */}
             <div className="glass rounded-2xl p-4 space-y-3">
               {[
                 { label: 'ID', value: user.user_id },
@@ -117,7 +143,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
               </div>
             )}
 
-            {/* Contact Info */}
+            {/* Contact */}
             <div className="glass rounded-2xl p-4 space-y-2">
               <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Contact</p>
               {user.email && (
@@ -134,7 +160,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
               )}
             </div>
 
-            {/* Worker-specific fields */}
+            {/* Worker-specific */}
             {user.role === 'worker' && (
               <>
                 {user.worker_bio && (
@@ -162,7 +188,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
               </>
             )}
 
-            {/* Management Actions — only for Admin viewing a User in their branch */}
+            {/* Promote action */}
             {canAppoint && (
               <div className="glass rounded-2xl p-4 border border-amber-500/10">
                 <h4 className="text-xs font-semibold text-amber-400 mb-2">Management</h4>
@@ -198,14 +224,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
               </div>
             )}
 
-            {/* Info: why no appoint button */}
-            {isAdmin && user.role === 'user' && !inBranch && (
-              <p className="text-[10px] text-amber-400/70 text-center">
-                This user is outside your branch ({userState || 'no state'} / {userLga || 'no LGA'}). Cannot appoint.
-              </p>
-            )}
-
-            {/* Close button at bottom for easy dismissal */}
+            {/* Close button */}
             <button
               onClick={onClose}
               className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] text-xs font-semibold hover:bg-[#232330] transition-colors mt-2"
@@ -215,10 +234,13 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
           </div>
         </div>
 
-        {/* Bottom spacer so content doesn't hide behind nav */}
-        <div className="h-8" />
+        {/* Bottom spacer */}
+        <div className="h-16" />
       </div>
       <Toaster position="top-center" richColors />
     </div>
   );
+
+  // Render via Portal to document.body — escapes ALL parent containers
+  return createPortal(modalContent, document.body);
 }
