@@ -51,7 +51,7 @@ const MyBookings = lazy(() => import('@/pages/MyBookings'));
 const JobsPage = lazy(() => import('@/pages/JobsPage'));
 const CalendarPage = lazy(() => import('@/pages/CalendarPage'));
 
-const ManagementPage = lazy(() => import('@/pages/ManagementPage'));
+
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const MyReservations = lazy(() => import('@/pages/MyReservations'));
 
@@ -388,7 +388,7 @@ export default function App() {
   }, [handleSetNavPage]);
   const goToDetail = useCallback((id: string) => { setDetailId(id); handleSetNavPage('detail'); }, [handleSetNavPage]);
   const goBack = useCallback(() => { setDetailId(null); window.history.back(); }, []);
-  const goToChat = useCallback((convId?: string) => { console.log('[TRACE] goToChat called with convId:', convId); setChatConvId(convId || null); handleSetNavPage('chat'); }, [handleSetNavPage]);
+  const goToChat = useCallback((convId?: string) => { setChatConvId(convId || null); handleSetNavPage('chat'); }, [handleSetNavPage]);
   const goToProfileEdit = useCallback(() => handleSetNavPage('profile_edit'), [handleSetNavPage]);
   const goToAccount = useCallback(() => handleSetNavPage('account'), [handleSetNavPage]);
   const goToPrivacy = useCallback(() => handleSetNavPage('privacy'), [handleSetNavPage]);
@@ -486,7 +486,6 @@ export default function App() {
       case 'detail':
         return detailId ? <ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={() => handleToggleSave(detailId)} profile={profile} onGoToChat={goToChat} /> : null;
       case 'chat':
-        console.log('[TRACE] renderPage: chat case, chatConvId:', chatConvId);
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} conversationId={chatConvId} />;
       case 'profile_edit':
         // Staff cannot edit their profile — location is assigned by admin/creator

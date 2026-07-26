@@ -121,10 +121,4 @@ export const ACTION_TYPE_LABELS: Record<string, { label: string; icon: string; c
   conversation_closed: { label: 'Conversation Closed', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'text-gray-400' },
 };
 
-export const CONVERSATION_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  open: { label: 'Open', color: 'bg-amber-500/10 text-amber-400' },
-  assigned: { label: 'Assigned', color: 'bg-blue-500/10 text-blue-400' },
-  in_progress: { label: 'In Progress', color: 'bg-violet-500/10 text-violet-400' },
-  resolved: { label: 'Resolved', color: 'bg-emerald-500/10 text-emerald-400' },
-  closed: { label: 'Closed', color: 'bg-gray-500/10 text-gray-400' },
-};
+

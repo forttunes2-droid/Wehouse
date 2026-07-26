@@ -279,17 +279,14 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
             {(user.role === 'user' || user.role === 'worker' || user.role === 'property_partner') && (
               <button
                 onClick={() => {
-                  console.log('[TRACE] Go to Support clicked, supportConvoId:', supportConvoId, 'onGoToChat exists:', !!onGoToChat, 'onNavigate exists:', !!onNavigate);
                   if (!supportConvoId) {
                     toast.info('No support conversation found');
                     return;
                   }
                   if (onGoToChat) {
-                    console.log('[TRACE] Calling onGoToChat with:', supportConvoId);
                     onGoToChat(supportConvoId);
                     onClose();
                   } else if (onNavigate) {
-                    console.log('[TRACE] Fallback: calling onNavigate');
                     onNavigate(`chat_${supportConvoId}`);
                     onClose();
                   }
