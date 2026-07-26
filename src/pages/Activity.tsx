@@ -8,6 +8,7 @@ import {
   getOrCreateConversation,
 } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import type { Profile, Conversation, RoomInterest } from '@/types';
 
 interface ActivityProps {
@@ -37,7 +38,7 @@ interface TimelineItem {
   subtitle: string;
   time: string;
   icon: string;
-  navTarget?: { page: string; id?: string };
+  navTarget?: { page: string; id?: string; convId?: string };
   otherUserId?: string;
   read: boolean;
 }
@@ -135,7 +136,7 @@ export default function Activity({ profile, onNavigate, onGoToChat }: ActivityPr
             subtitle: c.last_message || 'Someone sent you a message',
             time: c.last_message_at || c.created_at,
             icon: activityIcon('new_message'),
-            navTarget: { page: 'chat' },
+            navTarget: { page: 'chat', convId: c.id },
             read: false,
           });
         }
@@ -258,10 +259,26 @@ export default function Activity({ profile, onNavigate, onGoToChat }: ActivityPr
     loadActivity();
   }, [loadActivity]);
 
+  // Real-time: refresh activity when conversations change (new messages)
+  useEffect(() => {
+    const channel = supabase
+      .channel('activity-conversations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        loadActivity();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [loadActivity]);
+
   const unreadCount = items.filter(i => !i.read).length;
 
   const handleNav = (item: TimelineItem) => {
     if (!item.navTarget) return;
+    // If conversation ID is present, go directly to that chat
+    if (item.navTarget.convId && onGoToChat) {
+      onGoToChat(item.navTarget.convId);
+      return;
+    }
     onNavigate(item.navTarget.page, item.navTarget.id);
   };
 
