@@ -1,15 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  getUserMatches,
-  getConversations,
-  getSavedListingsWithData,
-  getUserRoomInterests,
-  getUserActivity,
-  getOrCreateConversation,
-} from '@/lib/supabase';
-import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Profile, Conversation, RoomInterest } from '@/types';
+import { formatActivityItem, getActionVerb } from '@/lib/activity-formatter';
+import type { Profile } from '@/types';
 
 interface ActivityProps {
   profile: Profile;
@@ -17,33 +9,35 @@ interface ActivityProps {
   onGoToChat?: (convId: string) => void;
 }
 
-// ─── ACTIVITY ITEM TYPE ─────────────────────────────
+// ─── ACTION COLOR MAP ──────────────────────────────
 
-type ActivityItemType =
-  | 'roommate_match'
-  | 'new_message'
-  | 'saved_listing'
-  | 'profile_update'
-  | 'password_change'
-  | 'room_interest_sent'
-  | 'room_interest_received'
-  | 'room_interest_accepted'
-  | 'room_interest_declined'
-  | 'login';
-
-interface TimelineItem {
-  id: string;
-  type: ActivityItemType;
-  title: string;
-  subtitle: string;
-  time: string;
-  icon: string;
-  navTarget?: { page: string; id?: string; convId?: string };
-  otherUserId?: string;
-  read: boolean;
+function actionColor(action: string): string {
+  switch (action) {
+    case 'BAN': return 'bg-red-500/15 text-red-400 border-red-500/20';
+    case 'SUSPEND': return 'bg-amber-500/15 text-amber-400 border-amber-500/20';
+    case 'ROLE_CHANGE': return 'bg-blue-500/15 text-blue-400 border-blue-500/20';
+    case 'PROMOTE': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
+    case 'REACTIVATE': return 'bg-green-500/15 text-green-400 border-green-500/20';
+    case 'UPDATE': return 'bg-purple-500/15 text-purple-400 border-purple-500/20';
+    case 'INSERT': return 'bg-cyan-500/15 text-cyan-400 border-cyan-500/20';
+    case 'DELETE': return 'bg-red-500/15 text-red-400 border-red-500/20';
+    default: return 'bg-gray-500/15 text-gray-400 border-gray-500/20';
+  }
 }
 
-// ─── HELPERS ────────────────────────────────────────
+function actionIcon(action: string): string {
+  switch (action) {
+    case 'BAN': return '🚫';
+    case 'SUSPEND': return '⏸️';
+    case 'ROLE_CHANGE': return '👤';
+    case 'PROMOTE': return '⬆️';
+    case 'REACTIVATE': return '✅';
+    case 'UPDATE': return '✏️';
+    case 'INSERT': return '➕';
+    case 'DELETE': return '🗑️';
+    default: return '📌';
+  }
+}
 
 function timeAgo(date: string): string {
   const now = new Date();
@@ -59,238 +53,46 @@ function timeAgo(date: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function activityIcon(type: ActivityItemType): string {
-  switch (type) {
-    case 'roommate_match': return '👥';
-    case 'new_message': return '💬';
-    case 'saved_listing': return '🔖';
-    case 'profile_update': return '✏️';
-    case 'password_change': return '🔒';
-    case 'room_interest_sent': return '📤';
-    case 'room_interest_received': return '📥';
-    case 'room_interest_accepted': return '✅';
-    case 'room_interest_declined': return '❌';
-    case 'login': return '🔑';
-    default: return '📌';
-  }
-}
-
-function activityColor(type: ActivityItemType): string {
-  switch (type) {
-    case 'roommate_match': return 'bg-blue-500/15 text-blue-400 border-blue-500/20';
-    case 'new_message': return 'bg-green-500/15 text-green-400 border-green-500/20';
-    case 'saved_listing': return 'bg-amber-500/15 text-amber-400 border-amber-500/20';
-    case 'profile_update': return 'bg-purple-500/15 text-purple-400 border-purple-500/20';
-    case 'password_change': return 'bg-red-500/15 text-red-400 border-red-500/20';
-    case 'room_interest_sent': return 'bg-cyan-500/15 text-cyan-400 border-cyan-500/20';
-    case 'room_interest_received': return 'bg-pink-500/15 text-pink-400 border-pink-500/20';
-    case 'room_interest_accepted': return 'bg-green-500/15 text-green-400 border-green-500/20';
-    case 'room_interest_declined': return 'bg-red-500/15 text-red-400 border-red-500/20';
-    case 'login': return 'bg-[#3B82F6]/15 text-[#3B82F6] border-[#3B82F6]/20';
-    default: return 'bg-gray-500/15 text-gray-400 border-gray-500/20';
-  }
-}
-
 // ─── MAIN COMPONENT ─────────────────────────────────
 
-export default function Activity({ profile, onNavigate, onGoToChat }: ActivityProps) {
-  const [items, setItems] = useState<TimelineItem[]>([]);
+export default function Activity({ profile: _profile }: ActivityProps) {
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadActivity = useCallback(async () => {
     setLoading(true);
-    const timeline: TimelineItem[] = [];
-
-    // 1. Roommate Matches
     try {
-      const { matches } = await getUserMatches(profile.user_id);
-      (matches || []).forEach((m: any) => {
-        const otherUser = m.user_a_id === profile.user_id ? m.user_b : m.user_a;
-        const otherName = otherUser?.username || 'someone';
-        const otherUserId = m.user_a_id === profile.user_id ? m.user_b_id : m.user_a_id;
-        timeline.push({
-          id: `match-${m.id}`,
-          type: 'roommate_match',
-          title: `Roommate match with @${otherName}`,
-          subtitle: `${m.match_score}% compatibility`,
-          time: m.created_at,
-          icon: activityIcon('roommate_match'),
-          navTarget: { page: 'chat' },
-          otherUserId,
-          read: true,
-        });
-      });
-    } catch { /* ignore */ }
+      // Query audit_logs with profiles join (admin_id = auth.uid()::text → profiles.auth_id)
+      const { data } = await supabase
+        .from('audit_logs')
+        .select(`
+          action, target_type, target_id, details, admin_id, created_at,
+          profiles:admin_id (username, role)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-    // 2. Conversations / Messages
-    try {
-      const { conversations } = await getConversations(profile.user_id);
-      (conversations || []).forEach((c: Conversation) => {
-        const isParticipantA = c.participant_a === profile.user_id;
-        const unread = isParticipantA ? c.unread_a : c.unread_b;
-        if (unread > 0) {
-          timeline.push({
-            id: `msg-${c.id}`,
-            type: 'new_message',
-            title: unread > 1 ? `${unread} new messages` : 'New message',
-            subtitle: c.last_message || 'Someone sent you a message',
-            time: c.last_message_at || c.created_at,
-            icon: activityIcon('new_message'),
-            navTarget: { page: 'chat', convId: c.id },
-            read: false,
-          });
-        }
-      });
-    } catch { /* ignore */ }
-
-    // 3. Saved Listings
-    try {
-      const { saved } = await getSavedListingsWithData(profile.user_id);
-      (saved || []).forEach((s: any) => {
-        timeline.push({
-          id: `saved-${s.id}`,
-          type: 'saved_listing',
-          title: `Saved a listing`,
-          subtitle: s.listing?.title || 'A property',
-          time: s.created_at,
-          icon: activityIcon('saved_listing'),
-          navTarget: s.listing?.id ? { page: 'detail', id: s.listing.id } : undefined,
-          read: true,
-        });
-      });
-    } catch { /* ignore */ }
-
-    // 4. Room Interests
-    try {
-      const { interests } = await getUserRoomInterests(profile.user_id);
-      (interests || []).forEach((ri: RoomInterest) => {
-        const isSender = ri.sender_id === profile.user_id;
-        if (isSender) {
-          timeline.push({
-            id: `ri-send-${ri.id}`,
-            type: 'room_interest_sent',
-            title: 'Room interest request sent',
-            subtitle: ri.message || 'You sent a request',
-            time: ri.created_at,
-            icon: activityIcon('room_interest_sent'),
-            read: true,
-          });
-        } else {
-          const statusLabel = ri.status === 'accepted' ? 'accepted' : ri.status === 'declined' ? 'declined' : 'received';
-          const typeMap: Record<string, ActivityItemType> = {
-            accepted: 'room_interest_accepted',
-            declined: 'room_interest_declined',
-            pending: 'room_interest_received',
-          };
-          timeline.push({
-            id: `ri-recv-${ri.id}`,
-            type: typeMap[ri.status] || 'room_interest_received',
-            title: `Room request ${statusLabel}`,
-            subtitle: ri.message || 'Someone sent you a request',
-            time: ri.created_at,
-            icon: activityIcon(typeMap[ri.status] || 'room_interest_received'),
-            read: ri.status !== 'pending',
-          });
-        }
-      });
-    } catch { /* ignore */ }
-
-    // 5. User Activity (profile updates, password changes, logins)
-    try {
-      const { activity } = await getUserActivity(profile.user_id, 20);
-      (activity || []).forEach((a: any) => {
-        const type = a.action_type;
-        if (type === 'password_change') {
-          timeline.push({
-            id: `act-${a.id}`,
-            type: 'password_change',
-            title: 'Password changed',
-            subtitle: 'Your account password was updated',
-            time: a.created_at,
-            icon: activityIcon('password_change'),
-            read: true,
-          });
-        } else if (type === 'session_start') {
-          // Only show recent logins (not all)
-          const loginDate = new Date(a.created_at);
-          const now = new Date();
-          const hoursAgo = (now.getTime() - loginDate.getTime()) / 3600000;
-          if (hoursAgo < 24) {
-            timeline.push({
-              id: `act-${a.id}`,
-              type: 'login',
-              title: 'Signed in',
-              subtitle: `${a.details?.device || 'Unknown device'} · ${a.details?.browser || ''}`,
-              time: a.created_at,
-              icon: activityIcon('login'),
-              read: true,
-            });
-          }
-        } else if (type === 'profile_update') {
-          timeline.push({
-            id: `act-${a.id}`,
-            type: 'profile_update',
-            title: 'Profile updated',
-            subtitle: a.details?.field ? `${a.details.field} changed` : 'Your profile was updated',
-            time: a.created_at,
-            icon: activityIcon('profile_update'),
-            read: true,
-          });
-        }
-      });
-    } catch { /* ignore */ }
-
-    // Sort by time (newest first) and dedupe by ID
-    const seen = new Set<string>();
-    const sorted = timeline
-      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-      .filter(item => {
-        if (seen.has(item.id)) return false;
-        seen.add(item.id);
-        return true;
-      })
-      .slice(0, 50);
-
-    setItems(sorted);
+      setItems(data || []);
+    } catch {
+      setItems([]);
+    }
     setLoading(false);
-  }, [profile.user_id]);
+  }, []);
 
   useEffect(() => {
     loadActivity();
   }, [loadActivity]);
 
-  // Real-time: refresh activity when conversations change (new messages)
+  // Real-time: refresh when audit_logs changes
   useEffect(() => {
     const channel = supabase
-      .channel('activity-conversations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+      .channel('activity-audit')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => {
         loadActivity();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadActivity]);
-
-  const unreadCount = items.filter(i => !i.read).length;
-
-  const handleNav = (item: TimelineItem) => {
-    if (!item.navTarget) return;
-    // If conversation ID is present, go directly to that chat
-    if (item.navTarget.convId && onGoToChat) {
-      onGoToChat(item.navTarget.convId);
-      return;
-    }
-    onNavigate(item.navTarget.page, item.navTarget.id);
-  };
-
-  const handleMessage = async (otherUserId: string) => {
-    if (!onGoToChat) return;
-    const { conversation, error } = await getOrCreateConversation(profile.user_id, otherUserId);
-    if (error || !conversation) {
-      toast.error('Could not start chat');
-      return;
-    }
-    onGoToChat(conversation.id);
-  };
 
   if (loading) {
     return (
@@ -316,26 +118,12 @@ export default function Activity({ profile, onNavigate, onGoToChat }: ActivityPr
 
   return (
     <div className="min-h-screen bg-transparent pb-24">
-      <Toaster position="top-center" richColors />
       {/* Header */}
       <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-white">Activity</h1>
-            <p className="text-xs text-[#5C5E72] mt-1">
-              {items.length > 0
-                ? unreadCount > 0
-                  ? `${unreadCount} new notification${unreadCount > 1 ? 's' : ''}`
-                  : `${items.length} activities`
-                : 'Your personal activity'}
-            </p>
-          </div>
-          {unreadCount > 0 && (
-            <div className="w-8 h-8 rounded-full bg-[#3B82F6]/15 flex items-center justify-center">
-              <span className="text-xs font-bold text-[#3B82F6]">{unreadCount}</span>
-            </div>
-          )}
-        </div>
+        <h1 className="text-lg font-bold text-white">Activity</h1>
+        <p className="text-xs text-[#5C5E72] mt-1">
+          {items.length > 0 ? `${items.length} platform events` : 'Platform activity feed'}
+        </p>
       </header>
 
       <div className="max-w-lg mx-auto px-5 space-y-1">
@@ -344,72 +132,47 @@ export default function Activity({ profile, onNavigate, onGoToChat }: ActivityPr
           <div className="text-center py-20">
             <div className="w-16 h-16 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-4">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                <path d="M12 20h9M12 20V10M12 20l-7-7m7 7V4m0 6l7-7" />
               </svg>
             </div>
             <p className="text-sm font-semibold text-white mb-1">No activity yet</p>
             <p className="text-xs text-[#5C5E72] leading-relaxed max-w-[260px] mx-auto">
-              Your personal activity will appear here — roommate matches, messages, saved listings, and more.
+              Platform activity will appear here — user actions, role changes, settings updates, and more.
             </p>
           </div>
         ) : (
-          /* Timeline */
+          /* Audit timeline */
           items.map((item, index) => {
-            const colorClasses = activityColor(item.type);
-            const isClickable = !!item.navTarget;
-            const showUnread = !item.read;
-
+            const { title, subtitle, meta } = formatActivityItem(item);
             return (
-              <div key={item.id} className="relative">
-                {/* Timeline connector line */}
+              <div key={item.id || index} className="relative">
+                {/* Timeline connector */}
                 {index < items.length - 1 && (
                   <div className="absolute left-5 top-12 bottom-[-4px] w-px bg-[#1E1E2C]" />
                 )}
 
-                <button
-                  onClick={() => handleNav(item)}
-                  disabled={!isClickable}
-                  className={`w-full flex items-start gap-3 py-3 px-3 rounded-2xl text-left transition-all ${
-                    isClickable ? 'hover:bg-[#12121A] cursor-pointer' : 'cursor-default'
-                  } ${showUnread ? 'bg-[#3B82F6]/[0.03]' : ''}`}
-                >
-                  {/* Icon */}
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${colorClasses}`}>
-                    <span className="text-base">{item.icon}</span>
+                <div className="flex items-start gap-3 py-3 px-3 rounded-2xl">
+                  {/* Action icon */}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${actionColor(item.action)}`}>
+                    <span className="text-base">{actionIcon(item.action)}</span>
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className={`text-xs font-semibold truncate ${showUnread ? 'text-white' : 'text-white/90'}`}>
-                        {item.title}
-                      </p>
-                      {showUnread && (
-                        <span className="w-2 h-2 rounded-full bg-[#3B82F6] flex-shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-[#5C5E72] truncate mt-0.5">{item.subtitle}</p>
-                    <p className="text-[9px] text-[#5C5E72]/60 mt-1">{timeAgo(item.time)}</p>
-                    {/* Message button for roommate matches */}
-                    {item.type === 'roommate_match' && item.otherUserId && onGoToChat && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleMessage(item.otherUserId!); }}
-                        className="mt-2 h-7 px-3 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] text-[10px] font-semibold hover:bg-[#3B82F6]/20 transition-colors inline-flex items-center gap-1.5"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                        Message
-                      </button>
+                    <p className="text-xs font-semibold text-white/90 truncate">
+                      {title}
+                    </p>
+                    {subtitle && (
+                      <p className="text-[11px] text-[#5C5E72] truncate mt-0.5">{subtitle}</p>
                     )}
+                    <p className="text-[9px] text-[#5C5E72]/60 mt-1">{meta}</p>
                   </div>
 
-                  {/* Arrow for clickable */}
-                  {isClickable && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="flex-shrink-0 mt-2.5">
-                      <path d="M9 18l6-6-6-6" />
-                    </svg>
-                  )}
-                </button>
+                  {/* Time ago */}
+                  <span className="text-[9px] text-[#5C5E72] flex-shrink-0 mt-2.5">
+                    {timeAgo(item.created_at)}
+                  </span>
+                </div>
               </div>
             );
           })
