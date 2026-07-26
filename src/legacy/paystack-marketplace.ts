@@ -208,23 +208,23 @@ function loadPaystackScript(): Promise<void> {
 }
 
 // Verify payment from frontend (backup to webhook)
-async function verifyPaymentOnFrontend(reference: string): Promise<boolean> {
+async function verifyPaymentOnFrontend(
+  reference: string,
+  options?: { purpose?: string; expected_amount?: number }
+): Promise<boolean> {
   try {
-    // Call the database confirm function
-    const { data, error } = await supabase.rpc('confirm_booking_payment', {
-      p_reference: reference,
+    // ─── SERVER-SIDE VERIFICATION via Edge Function ───
+    // Replaces direct confirm_booking_payment call with Paystack API verification
+    const { verifyPaymentWithRetry } = await import('@/lib/supabase/payment-verify');
+    const result = await verifyPaymentWithRetry(reference, {
+      purpose: options?.purpose,
+      expected_amount: options?.expected_amount,
     });
-    
-    if (error) {
-      console.error('[Paystack] Frontend verify error:', error);
-      return false;
-    }
-    
-    const result = typeof data === 'string' ? JSON.parse(data) : data;
-    console.log('[Paystack] Frontend verify result:', result);
-    return result?.success === true;
+
+    console.log('[Paystack] Server verify result:', result);
+    return result.success === true;
   } catch (e) {
-    console.error('[Paystack] Frontend verify exception:', e);
+    console.error('[Paystack] Server verify exception:', e);
     return false;
   }
 }
