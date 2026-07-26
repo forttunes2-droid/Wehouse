@@ -561,18 +561,18 @@ ALTER TABLE rent_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rent_plan_contributions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rent_plan_cancellations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Users see own refunds" ON reservation_refunds
-  FOR SELECT USING (auth.uid()::text = user_id);
-CREATE POLICY IF NOT EXISTS "Staff admin see all refunds" ON reservation_refunds
-  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid() AND role IN ('staff','admin','creator','creator_admin')));
+DROP POLICY IF EXISTS "users_own_refunds" ON reservation_refunds;
+CREATE POLICY "users_own_refunds" ON reservation_refunds FOR SELECT USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "staff_admin_all_refunds" ON reservation_refunds;
+CREATE POLICY "staff_admin_all_refunds" ON reservation_refunds FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid() AND role IN ('staff','admin','creator','creator_admin')));
 
-CREATE POLICY IF NOT EXISTS "Users see own rent plans" ON rent_plans
-  FOR SELECT USING (auth.uid()::text = user_id);
-CREATE POLICY IF NOT EXISTS "Staff admin manage rent plans" ON rent_plans
-  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid() AND role IN ('staff','admin','creator','creator_admin')));
+DROP POLICY IF EXISTS "users_own_rent_plans" ON rent_plans;
+CREATE POLICY "users_own_rent_plans" ON rent_plans FOR SELECT USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "staff_admin_manage_rent" ON rent_plans;
+CREATE POLICY "staff_admin_manage_rent" ON rent_plans FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid() AND role IN ('staff','admin','creator','creator_admin')));
 
-CREATE POLICY IF NOT EXISTS "Users see own contributions" ON rent_plan_contributions
-  FOR SELECT USING (EXISTS (SELECT 1 FROM rent_plans WHERE id = rent_plan_contributions.rent_plan_id AND user_id = auth.uid()::text));
+DROP POLICY IF EXISTS "users_own_contributions" ON rent_plan_contributions;
+CREATE POLICY "users_own_contributions" ON rent_plan_contributions FOR SELECT USING (EXISTS (SELECT 1 FROM rent_plans WHERE id = rent_plan_contributions.rent_plan_id AND user_id = auth.uid()::text));
 
-CREATE POLICY IF NOT EXISTS "Users see own cancellations" ON rent_plan_cancellations
-  FOR SELECT USING (auth.uid()::text = user_id);
+DROP POLICY IF EXISTS "users_own_cancellations" ON rent_plan_cancellations;
+CREATE POLICY "users_own_cancellations" ON rent_plan_cancellations FOR SELECT USING (auth.uid()::text = user_id);
