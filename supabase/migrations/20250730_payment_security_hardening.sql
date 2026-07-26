@@ -28,8 +28,9 @@ CREATE TABLE IF NOT EXISTS payment_reversals (
 );
 
 ALTER TABLE payment_reversals ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "staff_admin_see_reversals" ON payment_reversals
-  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid() AND role IN ('staff','admin','creator','creator_admin')));
+DROP POLICY IF EXISTS "staff_admin_reversals" ON payment_reversals;
+CREATE POLICY "staff_admin_reversals" ON payment_reversals
+  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid()::text AND role IN ('staff','admin','creator','creator_admin')));
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PART 2: ADD VERIFICATION COLUMNS TO booking_payments
@@ -119,10 +120,12 @@ CREATE TABLE IF NOT EXISTS bank_account_history (
 );
 
 ALTER TABLE bank_account_history ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "user_own_bank_history" ON bank_account_history
+DROP POLICY IF EXISTS "user_own_bank" ON bank_account_history;
+CREATE POLICY "user_own_bank" ON bank_account_history
   FOR SELECT USING (auth.uid()::text = user_id);
-CREATE POLICY IF NOT EXISTS "staff_admin_see_all_bank" ON bank_account_history
-  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid() AND role IN ('staff','admin','creator','creator_admin')));
+DROP POLICY IF EXISTS "staff_admin_all_bank" ON bank_account_history;
+CREATE POLICY "staff_admin_all_bank" ON bank_account_history
+  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid()::text AND role IN ('staff','admin','creator','creator_admin')));
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PART 5: WITHDRAWAL BANK SNAPSHOT
@@ -213,9 +216,9 @@ BEGIN
     p_verified_account_name IS NOT NULL, v_changed_by
   );
 
-  INSERT INTO financial_audit_logs (event_id, event_type, user_id, reference_type, description)
+  INSERT INTO financial_audit_logs (event_type, user_id, reference_id, reference_type, description)
   VALUES (
-    gen_random_uuid(), 'bank_account_change', p_user_id, 'profile',
+    'bank_account_change', p_user_id, p_user_id, 'profile',
     'Bank changed to: ' || p_bank_name || ' / ' || p_bank_account_number
   );
 
