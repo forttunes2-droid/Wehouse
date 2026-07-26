@@ -1,28 +1,20 @@
 // ═══════════════════════════════════════════════════════════
-// PART 4 CORRECTION — Hotel Reservation Settings
-// All values come from database. Nothing is hardcoded.
-// Creator controls hotel reservation via Creator Settings.
+// Hotel Reservation Settings — reads canonical platform settings
+// Creator controls hotel reservation via Creator Settings > Hotel
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
 import { getPlatformSetting } from '@/lib/supabase';
 
 export interface HotelReservationSettings {
-  enabled: boolean;           // Hotel Reservation ON/OFF
-  feeType: 'fixed_amount' | 'per_day'; // Fixed Amount or Per Day
-  amount: number;             // Reservation fee in Naira
-  expiryHours: number;        // Hours before reservation expires
-  refundPolicy: string;       // Refund policy text
+  enabled: boolean;
+  feeType: 'fixed_amount' | 'per_day';
+  amount: number;
+  expiryHours: number;
+  refundPolicy: string;
   loading: boolean;
 }
 
-/**
- * Reads hotel reservation settings from the database.
- * These are controlled by the Creator in Creator Settings > Hotel Reservation.
- *
- * DEFAULT: Reservation is OFF for hotels (matching original behavior).
- * Creator can turn it ON to require reservation before booking.
- */
 export function useHotelReservationSettings(): HotelReservationSettings {
   const [settings, setSettings] = useState<HotelReservationSettings>({
     enabled: false,
@@ -59,10 +51,6 @@ export function useHotelReservationSettings(): HotelReservationSettings {
   return settings;
 }
 
-/**
- * Calculate reservation fee for a hotel booking.
- * If fee type is 'per_day' and nights are provided, multiply by nights.
- */
 export function calculateReservationFee(
   settings: HotelReservationSettings,
   nights?: number

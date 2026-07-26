@@ -43,7 +43,7 @@ export async function createReservation(
     manual_payment_status: 'unpaid',
     amount: WEHOUSE_FEES.RESERVATION_FEE, // Uses Creator-configured fee (default N5,000)
     currency: 'NGN',
-    support_phone: 'support@wehouse.com.ng', // Contact for manual payment confirmation
+    support_email: 'support@wehouse.com.ng', // Contact for manual payment confirmation
   }).select();
 
   return { reservation: data?.[0] as any || null, error, alreadyExists: false };

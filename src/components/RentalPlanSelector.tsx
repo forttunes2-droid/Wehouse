@@ -14,7 +14,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
   const lateFeePercent = getNumber('late_payment_fee_percent', 5);
-  const commissionRate = getNumber('commission_rate_listing', 5);
+  const commissionRate = getNumber('commission_apartment', 10);
 
   const feeConfig = useMemo(() => ({
     shortStayCommissionPercent: commissionRate,

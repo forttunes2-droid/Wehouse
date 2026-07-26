@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { supabase } from '@/lib/supabase';
 import SettingsTab from './SettingsTab';
 import {
@@ -1351,7 +1352,8 @@ function WithdrawTab({ wallet, profile, onUpdate }: { wallet: Wallet | null; pro
   const [processing, setProcessing] = useState(false);
 
   const available = wallet?.available_balance || 0;
-  const minWithdraw = 1000;
+  const { getNumber } = usePlatformSettings();
+  const minWithdraw = getNumber('min_withdrawal', 5000);
 
   async function handleWithdraw() {
     const amt = parseFloat(amount);

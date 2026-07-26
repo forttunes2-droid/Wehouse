@@ -1,5 +1,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { uploadAvatar, updateProfile, removeAvatar } from '@/lib/supabase';
+import { useStaffPermissions } from '@/hooks/useStaffPermissions';
+import { STAFF_PERMISSION_LABELS } from '@/types';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { NotificationCenter } from '@/components/NotificationCenter';
@@ -31,6 +33,7 @@ export default function Dashboard({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { ask, dialogProps } = useConfirm();
   const [localAvatar, setLocalAvatar] = useState<string | null>(profile.avatar_url);
+  const { permissions, loading: permsLoading } = useStaffPermissions(profile.role === 'staff' ? profile.user_id : undefined);
 
   const initials = (profile.username || profile.email[0]).toUpperCase();
   const displayName = profile.username || profile.email.split('@')[0];
@@ -425,13 +428,20 @@ export default function Dashboard({
               {[
                 { label: 'Role', value: 'Staff' },
                 { label: 'Scope', value: (profile as any).scope === 'global' ? 'Global' : 'Local (branch only)' },
-                { label: 'State', value: profile.assigned_state || profile.state || 'Not assigned' },
-                { label: 'LGA', value: (profile as any).assigned_lga || (profile as any).local_government || (profile as any).city || 'Not assigned' },
-                { label: 'Module', value: (profile as any).assigned_module || 'Not assigned' },
+                { label: 'State', value: profile.assigned_state || 'Not assigned' },
+                { label: 'LGA', value: (profile as any).assigned_lga || 'Not assigned' },
+                {
+                  label: 'Module',
+                  value: permsLoading
+                    ? 'Loading...'
+                    : permissions.length > 0
+                      ? permissions.map(p => STAFF_PERMISSION_LABELS[p] || p).join(', ')
+                      : 'Not assigned',
+                },
               ].map(item => (
                 <div key={item.label} className="flex justify-between text-xs">
                   <span className="text-[#5C5E72]">{item.label}</span>
-                  <span className={item.value?.includes('Not') ? 'text-amber-400/70' : 'text-white/80 font-medium'}>{item.value}</span>
+                  <span className={String(item.value).includes('Not') || String(item.value).includes('Loading') ? 'text-amber-400/70' : 'text-white/80 font-medium'}>{item.value}</span>
                 </div>
               ))}
             </div>

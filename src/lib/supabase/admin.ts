@@ -349,7 +349,6 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   support_whatsapp: '',
   support_telegram: '',
   support_email: '',
-  openai_api_key: '',
 };
 
 export async function getSystemSettings() {

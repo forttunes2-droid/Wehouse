@@ -43,35 +43,35 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
       { key: 'company_name', label: 'Company Name', description: 'Platform company name', type: 'text', defaultValue: 'WeHouse' },
       { key: 'company_logo', label: 'Company Logo URL', description: 'URL to company logo image', type: 'url', defaultValue: '' },
       { key: 'support_email', label: 'Support Email', description: 'Customer support email address', type: 'email', defaultValue: '' },
-      { key: 'support_phone', label: 'Support Phone', description: 'Customer support phone number', type: 'text', defaultValue: '' },
-      { key: 'support_whatsapp', label: 'WhatsApp', description: 'WhatsApp support number', type: 'text', defaultValue: '' },
-      { key: 'support_telegram', label: 'Telegram', description: 'Telegram support handle', type: 'text', defaultValue: '' },
+      { key: 'support_phone', label: 'Support Phone', description: 'Optional customer support phone number', type: 'text', defaultValue: '' },
       { key: 'office_address', label: 'Office Address', description: 'Physical office address', type: 'textarea', defaultValue: '' },
+      { key: 'tiktok_url', label: 'TikTok URL', description: 'TikTok/social profile link', type: 'url', defaultValue: '' },
     ],
   },
-  // ── 2. APARTMENT SETTINGS ──
+  // ── 2. APARTMENT ──
   {
     id: 'apartment',
     label: 'Apartment',
     settings: [
       { key: 'commission_apartment', label: 'Apartment Commission %', description: 'Commission on apartment bookings', type: 'number', defaultValue: '10' },
-      { key: 'apartment_reservation_fee', label: 'Apartment Reservation Fee (N)', description: 'Fee for apartment reservation', type: 'number', defaultValue: '0' },
-      { key: 'security_deposit_rules', label: 'Security Deposit Rules', description: 'Rules for security deposits on short let apartments', type: 'textarea', defaultValue: '' },
-      { key: 'rent_plans_enabled', label: 'Enable Rent Plans', description: 'Enable rent plan functionality', type: 'toggle', defaultValue: 'true' },
-      { key: 'min_rent_duration', label: 'Minimum Rent Duration (months)', description: 'Minimum rent duration in months', type: 'number', defaultValue: '1' },
-      { key: 'max_rent_duration', label: 'Maximum Rent Duration (months)', description: 'Maximum rent duration in months', type: 'number', defaultValue: '24' },
-      { key: 'grace_period_days', label: 'Grace Period (days)', description: 'Grace period before late fees apply', type: 'number', defaultValue: '7' },
-      { key: 'late_payment_rules', label: 'Late Payment Rules', description: 'Rules for late rent payments', type: 'textarea', defaultValue: '' },
+      { key: 'apartment_reservation_fee', label: 'Apartment Reservation Fee (N)', description: 'Fee to reserve a property', type: 'number', defaultValue: '0' },
+      { key: 'apartment_reservation_hold_days', label: 'Reservation Hold (days)', description: 'Days before reservation expires', type: 'number', defaultValue: '3' },
+      { key: 'rent_plans_enabled', label: 'Enable Rent Plans', description: 'Allow tenants to fund next rental period gradually', type: 'toggle', defaultValue: 'true' },
+      { key: 'rent_plan_start_after_months', label: 'Rent Plan Start After (months)', description: 'Months after move-in before rent plan becomes available', type: 'number', defaultValue: '4' },
+      { key: 'rent_plan_cancellation_fee_percent', label: 'Rent Plan Cancellation Fee (%)', description: 'Fee for voluntary rent plan cancellation', type: 'number', defaultValue: '10' },
+      { key: 'post_inspection_refund_percent', label: 'Post-Inspection Refund (%)', description: 'Refund % when customer declines after optional inspection', type: 'number', defaultValue: '50' },
     ],
   },
-  // ── 3. HOTEL SETTINGS ──
+  // ── 3. HOTEL ──
   {
     id: 'hotel',
     label: 'Hotel',
     settings: [
-      { key: 'allow_hotel_reservation', label: 'Hotel Reservation Enabled', description: 'If ON: users can reserve before paying. If OFF: direct payment only.', type: 'toggle', defaultValue: 'false' },
-      { key: 'hotel_reservation_fee', label: 'Hotel Reservation Fee (N)', description: 'Fee for hotel reservation', type: 'number', defaultValue: '5000' },
+      { key: 'hotel_reservation_enabled', label: 'Hotel Reservation Enabled', description: 'If ON: users can reserve before paying. If OFF: direct payment only.', type: 'toggle', defaultValue: 'false' },
+      { key: 'hotel_reservation_amount', label: 'Hotel Reservation Fee (N)', description: 'Fee for hotel reservation', type: 'number', defaultValue: '5000' },
       { key: 'commission_hotel', label: 'Hotel Commission %', description: 'Commission on hotel bookings', type: 'number', defaultValue: '12' },
+      { key: 'hotel_reservation_fee_type', label: 'Reservation Fee Type', description: 'fixed_amount or per_day', type: 'text', defaultValue: 'fixed_amount' },
+      { key: 'hotel_reservation_expiry_hours', label: 'Reservation Expiry (hours)', description: 'Hours before hotel reservation expires', type: 'number', defaultValue: '48' },
     ],
   },
   // ── 4. WORKER ──
@@ -81,8 +81,6 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
     settings: [
       { key: 'worker_verification_fee', label: 'Verification Payment (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
       { key: 'commission_worker', label: 'Worker Commission %', description: 'Commission on worker bookings', type: 'number', defaultValue: '15' },
-      { key: 'worker_verification_video_length', label: 'Required Video Length (minutes)', description: 'Required length of skill demonstration video', type: 'number', defaultValue: '3' },
-      { key: 'worker_required_documents', label: 'Required Documents', description: 'Documents required from workers (comma-separated)', type: 'textarea', defaultValue: 'Government ID, Proof of Address' },
     ],
   },
   // ── 5. WITHDRAWALS ──
@@ -91,8 +89,7 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
     label: 'Withdrawals',
     settings: [
       { key: 'min_withdrawal', label: 'Minimum Withdrawal (N)', description: 'Minimum withdrawal amount', type: 'number', defaultValue: '5000' },
-      { key: 'max_withdrawal', label: 'Maximum Withdrawal (N)', description: 'Maximum withdrawal amount', type: 'number', defaultValue: '500000' },
-      { key: 'automatic_paystack_transfer', label: 'Automatic Paystack Transfer', description: 'Automatically process withdrawals via Paystack', type: 'toggle', defaultValue: 'false' },
+      { key: 'payout_mode', label: 'Payout Mode', description: 'manual or automatic', type: 'text', defaultValue: 'manual' },
     ],
   },
   // ── 6. NOTIFICATIONS ──
@@ -100,16 +97,17 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
     id: 'notifications',
     label: 'Notifications',
     settings: [
-      { key: 'email_notifications', label: 'Email Notifications', description: 'Send email notifications to users', type: 'toggle', defaultValue: 'true' },
-      { key: 'push_notifications', label: 'Push Notifications', description: 'Send push notifications to users', type: 'toggle', defaultValue: 'true' },
+      { key: 'email_notifications', label: 'Email Notifications', description: 'Global email delivery channel', type: 'toggle', defaultValue: 'true' },
+      { key: 'push_notifications', label: 'Push Notifications', description: 'Global push delivery channel', type: 'toggle', defaultValue: 'true' },
     ],
   },
-  // ── 7. MAINTENANCE ──
+  // ── 7. PLATFORM CONTROLS ──
   {
-    id: 'maintenance',
-    label: 'Maintenance',
+    id: 'platform_controls',
+    label: 'Platform Controls',
     settings: [
       { key: 'maintenance_mode', label: 'Maintenance Mode', description: 'Put site in maintenance mode', type: 'toggle', defaultValue: 'false' },
+      { key: 'registration_open', label: 'Registration Open', description: 'Allow new user registrations', type: 'toggle', defaultValue: 'true' },
     ],
   },
   // ── 8. LEGAL ──
@@ -119,7 +117,7 @@ const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = 
     settings: [
       { key: 'privacy_policy', label: 'Privacy Policy', description: 'Full privacy policy text (supports markdown)', type: 'textarea', defaultValue: '' },
       { key: 'terms_of_service', label: 'Terms & Conditions', description: 'Full terms and conditions text (supports markdown)', type: 'textarea', defaultValue: '' },
-      { key: 'refund_policy', label: 'Refund Policy', description: 'Refund and cancellation policy', type: 'textarea', defaultValue: '' },
+      { key: 'refund_policy', label: 'Refund Policy', description: 'General refund and cancellation policy', type: 'textarea', defaultValue: '' },
     ],
   },
 ];
@@ -194,11 +192,12 @@ function PlatformSettings({ profile }: { profile: Profile }) {
     let loaded: DbSetting[] = [];
     let loadError: string | null = null;
 
-    // Load ALL settings from DB — NO filtering
+    // Load ONLY active settings from DB
     try {
       const { data, error } = await supabase
         .from('platform_settings')
         .select('*')
+        .eq('is_active', true)
         .order('key', { ascending: true });
 
       if (error) {
@@ -206,32 +205,29 @@ function PlatformSettings({ profile }: { profile: Profile }) {
         console.error('[CreatorSettings] loadAllSettings error:', error);
       } else if (data) {
         loaded = data as DbSetting[];
-        console.log(`[CreatorSettings] Loaded ${loaded.length} settings from DB`);
       }
     } catch (e: any) {
       loadError = `Exception: ${e?.message || String(e)}`;
       console.error('[CreatorSettings] loadAllSettings exception:', e);
     }
 
-    // If DB query completely failed, do NOT overwrite with defaults —
-    // that would hide the persistence bug. Show error instead.
     if (loadError) {
-      toast.error(`Failed to load settings: ${loadError}. Check console for details.`);
+      toast.error(`Failed to load settings: ${loadError}.`);
       setLoading(false);
       return;
     }
 
-    // Merge DB settings with Constitution defaults
-    // DB values take priority; missing settings get defaults
+    // Merge active DB settings with canonical defaults
+    // Only show canonical settings defined in SETTING_GROUPS
     const merged: Record<string, DbSetting> = {};
     for (const s of loaded) merged[s.key] = s;
 
-    let id = loaded.length > 0 ? Math.max(...loaded.map(s => s.id)) + 1 : 0;
+    let nextId = loaded.length > 0 ? Math.max(...loaded.map(s => s.id)) + 1 : 1;
     SETTING_GROUPS.forEach(g => {
       g.settings.forEach(s => {
         if (!merged[s.key]) {
           merged[s.key] = {
-            id: id++,
+            id: nextId++,
             key: s.key,
             value: s.defaultValue,
             category: g.id,
