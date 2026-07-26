@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
+import { getStaffBranchAnalytics, parseStaffMetrics } from '@/lib/supabase/staff-analytics';
 import { supabase } from '@/lib/supabase';
 // nigeria-locations import not needed in this version — location derived from inspection data
 import SettingsTab from './SettingsTab';
@@ -149,26 +150,16 @@ function StaffStats({ profile, permissions, onSetTab }: { profile: Profile; perm
 
   useEffect(() => {
     async function load() {
-      const promises = [];
-      if (permissions.includes('field_officer')) {
-        promises.push(supabase.from('user_inspection_requests').select('*', { count: 'exact', head: true }).eq('field_officer_id', profile.user_id).in('status', ['scheduled', 'in_progress']));
-      }
-      if (permissions.includes('support')) {
-        promises.push(supabase.from('support_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'));
-      }
-      if (permissions.includes('operations')) {
-        promises.push(supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval'));
-      }
-      if (permissions.includes('verification')) {
-        promises.push(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'worker').eq('worker_status', 'pending'));
-      }
-      const results = await Promise.all(promises);
+      // Use server-side branch-scoped analytics (replaces direct nationwide queries)
+      const { metrics } = await getStaffBranchAnalytics(profile.user_id);
+      const m = parseStaffMetrics(metrics);
+
+      // Map RPC metrics to UI stats
       const s: any = {};
-      let idx = 0;
-      if (permissions.includes('field_officer')) s.inspections = results[idx++]?.count || 0;
-      if (permissions.includes('support')) s.tickets = results[idx++]?.count || 0;
-      if (permissions.includes('operations')) s.listings = results[idx++]?.count || 0;
-      if (permissions.includes('verification')) s.workers = results[idx++]?.count || 0;
+      if (permissions.includes('field_officer')) s.inspections = m.inspections || 0;
+      if (permissions.includes('support')) s.tickets = m.open_tickets || 0;
+      if (permissions.includes('operations')) s.listings = m.pending_listings || 0;
+      if (permissions.includes('verification')) s.workers = m.pending_workers || 0;
       setStats(s);
     }
     load();
