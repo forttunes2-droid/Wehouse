@@ -214,6 +214,38 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // CRITICAL BOOTSTRAP: Create booking_payments row BEFORE Paystack popup
+    // confirm_booking_payment() expects this row to exist. Without it,
+    // the Edge Function returns 'Payment not found' and onSuccess never fires.
+    // ═══════════════════════════════════════════════════════════════
+    const { error: bootstrapError } = await supabase.from('booking_payments').insert({
+      payment_reference: reference,
+      user_id: profile.user_id,
+      payer_user_id: profile.user_id,
+      payee_user_id: profile.user_id,
+      type: 'worker_subscription',
+      purpose: 'worker_verification',
+      amount: verificationFee,
+      amount_total: verificationFee,
+      net_amount: verificationFee,
+      commission_amount: 0,
+      currency: 'NGN',
+      status: 'pending',
+      paystack_reference: reference,
+      metadata: {
+        worker_name: form.full_name || profile.username,
+        source: 'worker_verification_page',
+      },
+    });
+
+    if (bootstrapError) {
+      console.error('[WorkerVerification] Failed to bootstrap payment record:', bootstrapError);
+      toast.error('Payment initialization failed. Please retry.');
+      setPaying(false);
+      return;
+    }
+
     initializePaystackPopup({
       publicKey: pk,
       email: profile.email,
