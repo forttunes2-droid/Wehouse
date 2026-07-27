@@ -1225,7 +1225,7 @@ export const WALLET_TRANSACTION_TYPE_LABELS: Record<WalletTransactionType, strin
 
 // ─── ESCROW TRANSACTIONS ────────────────────────────────────
 
-export type EscrowStatus = 'held' | 'released' | 'refunded' | 'disputed' | 'partially_refunded';
+export type EscrowStatus = 'holding' | 'released' | 'refunded' | 'disputed' | 'partially_refunded';
 export type EscrowTransactionType = 'worker_booking' | 'property_rental' | 'hotel_booking' | 'reservation';
 
 export interface EscrowTransaction {
