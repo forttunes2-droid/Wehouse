@@ -676,20 +676,12 @@ SET search_path = public
 AS $$
 DECLARE
   v_payment RECORD;
-  v_caller TEXT;
-  v_caller_role TEXT;
 BEGIN
-  -- ── AUTH: Identify caller ──
-  -- Service role calls have auth.uid() = null.
-  -- Authenticated user calls have auth.uid() = their UUID.
-  -- This function is REVOKE'd from PUBLIC/anon/authenticated;
-  -- service role is the legitimate caller.
-  -- This internal check is a defense-in-depth safety net.
-  SELECT user_id, role INTO v_caller, v_caller_role
-  FROM profiles WHERE auth_id = auth.uid()::text;
-
-  -- If called by an authenticated user (not service role), require staff
-  IF v_caller IS NOT NULL AND v_caller_role NOT IN ('staff','admin','creator','creator_admin') THEN
+  -- ── AUTH: EXECUTE privilege is the security boundary ──
+  -- REVOKE'd from PUBLIC, anon, authenticated.
+  -- GRANT'd to service_role (Edge Functions only).
+  -- Defense-in-depth against privilege misconfiguration:
+  IF auth.uid() IS NOT NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
   END IF;
 
@@ -938,41 +930,70 @@ $$;
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 16: EXECUTE PRIVILEGE RESTRICTIONS
--- Functions with NO legitimate browser caller:
--- REVOKE from PUBLIC, anon, authenticated.
--- Service role (postgres) retains execute as function owner.
--- Functions with legitimate browser callers (record_worker_verification_payment):
--- RETAIN authenticated execute; internal auth check is the gate.
+--
+-- Supabase PostgreSQL roles:
+--   postgres      — database owner (creates functions, owns public schema)
+--   service_role  — Edge Function server-role (separate from postgres)
+--   authenticated — browser users (JWT-validated)
+--   anon          — unauthenticated visitors
+--   PUBLIC        — all of the above
+--
+-- CRITICAL: service_role is NOT the same as postgres.
+-- Function owner privileges do NOT automatically extend to service_role.
+-- After REVOKE FROM PUBLIC, service_role would LOSE EXECUTE.
+-- Explicit GRANT TO service_role is required.
+--
+-- Edge Functions use SUPABASE_SERVICE_ROLE_KEY and connect as service_role.
+-- Browser users connect as authenticated (or anon).
+--
+-- Security model: REVOKE from browser roles, GRANT to service_role.
+-- Internal auth checks are defense-in-depth, not the primary boundary.
 -- ═══════════════════════════════════════════════════════════════════
 
--- Server-only: confirm_booking_payment (called by Edge Functions only)
+-- confirm_booking_payment: server-only (Edge Function → Paystack verify → this RPC)
 REVOKE EXECUTE ON FUNCTION confirm_booking_payment(TEXT, TEXT, NUMERIC, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION confirm_booking_payment(TEXT, TEXT, NUMERIC, TEXT, TEXT)
+  TO service_role;
 
--- Admin-only: reverse_payment
+-- reverse_payment: admin-only
 REVOKE EXECUTE ON FUNCTION reverse_payment(UUID, TEXT, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION reverse_payment(UUID, TEXT, TEXT, TEXT)
+  TO service_role;
 
--- Admin-only: credit_wallet
+-- credit_wallet: admin-only
 REVOKE EXECUTE ON FUNCTION credit_wallet(UUID, NUMERIC, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION credit_wallet(UUID, NUMERIC, TEXT, TEXT)
+  TO service_role;
 
--- Admin-only: release_escrow
+-- release_escrow: admin-only
 REVOKE EXECUTE ON FUNCTION release_escrow(UUID, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION release_escrow(UUID, TEXT)
+  TO service_role;
 
--- Admin-only: refund_escrow
+-- refund_escrow: admin-only
 REVOKE EXECUTE ON FUNCTION refund_escrow(UUID, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION refund_escrow(UUID, TEXT)
+  TO service_role;
 
--- Admin-only: process_withdrawal
+-- process_withdrawal: admin-only
 REVOKE EXECUTE ON FUNCTION process_withdrawal(UUID, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION process_withdrawal(UUID, TEXT, TEXT)
+  TO service_role;
 
--- Admin-only: unfreeze_wallet
+-- unfreeze_wallet: admin-only
 REVOKE EXECUTE ON FUNCTION unfreeze_wallet(UUID)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION unfreeze_wallet(UUID)
+  TO service_role;
 
--- Self-or-staff: record_bank_account_change (no browser caller found)
+-- record_bank_account_change: self-or-staff (no browser caller found)
 REVOKE EXECUTE ON FUNCTION record_bank_account_change(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION record_bank_account_change(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
+  TO service_role;
