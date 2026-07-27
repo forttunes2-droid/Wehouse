@@ -222,6 +222,7 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
       metadata: {
         worker_user_id: profile.user_id,
         payment_type: 'worker_verification',
+        expected_amount: verificationFee,
         worker_name: form.full_name || profile.username,
       },
       onSuccess: async (ref: string) => {
@@ -240,16 +241,25 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
           return;
         }
 
-        // Record the payment
+        // Record the payment — server-verified, now logged for audit
         try {
-          await supabase.rpc('record_worker_verification_payment', {
+          const { data: recordResult, error: recordError } = await supabase.rpc('record_worker_verification_payment', {
             p_user_id: profile.user_id,
             p_reference: ref,
             p_amount: verificationFee,
           });
-        } catch (_) { /* non-critical */ }
+          if (recordError) {
+            console.error('[WorkerVerification] record_worker_verification_payment error:', recordError);
+          }
+          const result = typeof recordResult === 'string' ? JSON.parse(recordResult) : recordResult;
+          if (result?.success) {
+            console.log('[WorkerVerification] Payment recorded:', result);
+          }
+        } catch (e) {
+          console.error('[WorkerVerification] Failed to record verification payment:', e);
+        }
 
-        toast.success('Payment successful! Your Golden Verification Badge is now active.');
+        toast.success('Payment successful! Admin will review your verification request.');
         setView('submitted'); // Show Golden Badge + Submit button
         setPaying(false);
       },

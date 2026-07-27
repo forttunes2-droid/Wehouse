@@ -165,9 +165,20 @@ function openPaystackPopup(config: any): void {
     },
     callback: (response: any) => {
       console.log('[Paystack] Payment callback:', response.reference);
-      // Verify payment on backend
-      verifyPaymentOnFrontend(response.reference).then(() => {
-        config.onSuccess?.(response.reference);
+      // Verify payment on backend — onSuccess ONLY runs if server verification succeeds
+      verifyPaymentOnFrontend(response.reference, {
+        purpose: config.metadata?.payment_type,
+        expected_amount: config.metadata?.expected_amount,
+      }).then((verified) => {
+        if (verified) {
+          config.onSuccess?.(response.reference);
+        } else {
+          console.error('[Paystack] Server verification FAILED for reference:', response.reference);
+          config.onCancel?.(); // Treat failed verification as cancellation
+        }
+      }).catch(() => {
+        console.error('[Paystack] Server verification THREW for reference:', response.reference);
+        config.onCancel?.();
       });
     },
     onClose: () => {
