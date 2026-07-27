@@ -268,6 +268,7 @@ CREATE OR REPLACE FUNCTION credit_wallet(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_wallet RECORD;
@@ -327,6 +328,7 @@ CREATE OR REPLACE FUNCTION release_escrow(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_escrow RECORD;
@@ -406,6 +408,7 @@ CREATE OR REPLACE FUNCTION refund_escrow(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_escrow RECORD;
@@ -453,6 +456,7 @@ CREATE OR REPLACE FUNCTION process_withdrawal(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_withdrawal RECORD;
@@ -506,6 +510,7 @@ CREATE OR REPLACE FUNCTION unfreeze_wallet(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_wallet RECORD;
@@ -540,7 +545,7 @@ $$;
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 9: record_worker_verification_payment
 -- PRESERVES live boolean return type.
--- Adds: server-side Paystack verification, auth check, idempotency.
+-- CONSUMES trusted verification state. NEVER CREATES it.
 -- Does NOT auto-grant worker_verified or blue badge.
 -- ═══════════════════════════════════════════════════════════════════
 
@@ -559,6 +564,7 @@ DECLARE
   v_caller_role TEXT;
   v_expected_amount NUMERIC;
   v_payment_id UUID;
+  v_verified_ref RECORD;
 BEGIN
   -- ── AUTH: Identify caller ──
   SELECT user_id, role INTO v_caller, v_caller_role
@@ -577,6 +583,29 @@ BEGIN
     RETURN FALSE;
   END IF;
 
+  -- ── REQUIRE: reference must have been independently server-verified ──
+  -- This function CONSUMES verification state, never creates it.
+  SELECT * INTO v_verified_ref
+  FROM verified_paystack_references
+  WHERE paystack_reference = p_reference;
+
+  IF v_verified_ref IS NULL THEN
+    RETURN FALSE; -- Reference was never server-verified
+  END IF;
+
+  -- ── Ownership: verified reference must belong to this user ──
+  SELECT bp.user_id INTO v_payment_id FROM booking_payments bp
+  WHERE bp.id = v_verified_ref.booking_payment_id;
+  
+  -- Note: booking_payments row must exist with correct payer_user_id
+  IF NOT EXISTS (
+    SELECT 1 FROM booking_payments
+    WHERE id = v_verified_ref.booking_payment_id
+    AND (payer_user_id = p_user_id OR user_id = p_user_id)
+  ) THEN
+    RETURN FALSE; -- Verified reference belongs to another user
+  END IF;
+
   -- ── Derive expected amount from settings (NOT browser) ──
   SELECT COALESCE(NULLIF(value, '')::NUMERIC, 0) INTO v_expected_amount
   FROM platform_settings WHERE key = 'worker_verification_fee';
@@ -585,12 +614,12 @@ BEGIN
     RETURN FALSE;
   END IF;
 
-  -- ── Idempotency check ──
+  -- ── Idempotency: already recorded? ──
   IF EXISTS (
-    SELECT 1 FROM verified_paystack_references
-    WHERE paystack_reference = p_reference
+    SELECT 1 FROM booking_payments
+    WHERE paystack_reference = p_reference AND purpose = 'worker_verification'
   ) THEN
-    RETURN TRUE; -- Already processed
+    RETURN TRUE;
   END IF;
 
   -- ── Record payment in booking_payments ──
@@ -609,15 +638,9 @@ BEGIN
     'NGN', 'completed', 'worker_verification',
     p_reference,
     NOW(), TRUE,
-    jsonb_build_object('recorded_by', v_caller, 'expected_amount', v_expected_amount, 'submitted_amount', p_amount)
+    jsonb_build_object('recorded_by', v_caller, 'expected_amount', v_expected_amount, 'submitted_amount', p_amount, 'verified_by', v_verified_ref.verified_by, 'verified_at', v_verified_ref.verified_at)
   )
   RETURNING id INTO v_payment_id;
-
-  -- ── Record in verified_paystack_references ──
-  INSERT INTO verified_paystack_references (
-    paystack_reference, booking_payment_id, verified_amount
-  ) VALUES (p_reference, v_payment_id, v_expected_amount)
-  ON CONFLICT (paystack_reference) DO NOTHING;
 
   -- ── Audit log ──
   INSERT INTO financial_audit_logs (
@@ -625,7 +648,7 @@ BEGIN
   ) VALUES (
     'worker_verification_payment', p_user_id, v_expected_amount,
     v_payment_id::text, 'booking_payment',
-    'Worker verification payment recorded: ' || p_reference
+    'Worker verification payment recorded (post-verify): ' || p_reference
   );
 
   RETURN TRUE;
@@ -634,7 +657,9 @@ $$;
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 10: confirm_booking_payment
--- NEW function. Canonical payment verification.
+-- SERVER-SIDE PAYMENT VERIFICATION FINALIZATION.
+-- Called ONLY by Edge Functions (service role).
+-- NEVER by ordinary authenticated users.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION confirm_booking_payment(
@@ -647,15 +672,30 @@ CREATE OR REPLACE FUNCTION confirm_booking_payment(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_payment RECORD;
   v_caller TEXT;
+  v_caller_role TEXT;
 BEGIN
-  -- ── AUTH ──
-  SELECT user_id INTO v_caller FROM profiles WHERE auth_id = auth.uid()::text;
-  IF v_caller IS NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Authentication required');
+  -- ── AUTH: Identify caller ──
+  -- Service role calls have auth.uid() = null.
+  -- Authenticated user calls have auth.uid() = their UUID.
+  -- This function is REVOKE'd from PUBLIC/anon/authenticated;
+  -- service role is the legitimate caller.
+  -- This internal check is a defense-in-depth safety net.
+  SELECT user_id, role INTO v_caller, v_caller_role
+  FROM profiles WHERE auth_id = auth.uid()::text;
+
+  -- If called by an authenticated user (not service role), require staff
+  IF v_caller IS NOT NULL AND v_caller_role NOT IN ('staff','admin','creator','creator_admin') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
+  -- ── REQUIRED: verified amount must be provided ──
+  IF p_verified_amount IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Verified amount required');
   END IF;
 
   -- Lock row
@@ -677,12 +717,10 @@ BEGIN
   END IF;
 
   -- Verify amount
-  IF p_verified_amount IS NOT NULL THEN
-    IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
-       AND ABS(p_verified_amount - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
-      RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch',
-        'expected', COALESCE(v_payment.amount_total, v_payment.amount), 'verified', p_verified_amount);
-    END IF;
+  IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
+     AND ABS(p_verified_amount - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch',
+      'expected', COALESCE(v_payment.amount_total, v_payment.amount), 'verified', p_verified_amount);
   END IF;
 
   -- Verify purpose
@@ -736,6 +774,7 @@ $$;
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 11: reverse_payment
 -- NEW function. Immutable reversal history.
+-- Staff/admin/creator/creator_admin only.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION reverse_payment(
@@ -745,13 +784,24 @@ CREATE OR REPLACE FUNCTION reverse_payment(
   p_reversal_reference TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
-LANGUAGE plpgsql SECURITY DEFINER AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_payment RECORD;
   v_processed_by TEXT;
+  v_processed_by_role TEXT;
   v_net NUMERIC;
 BEGIN
-  SELECT user_id INTO v_processed_by FROM profiles WHERE auth_id = auth.uid()::text;
+  -- ── AUTH ──
+  SELECT user_id, role INTO v_processed_by, v_processed_by_role
+  FROM profiles WHERE auth_id = auth.uid()::text;
+
+  -- Staff/admin/creator/creator_admin only
+  IF v_processed_by_role NOT IN ('staff','admin','creator','creator_admin') THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
 
   SELECT * INTO v_payment FROM booking_payments WHERE id = p_payment_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found'; END IF;
@@ -784,7 +834,8 @@ $$;
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 12: record_bank_account_change
--- NEW function. Logs every bank change.
+-- NEW function. Logs every bank change. Does NOT modify wallets or withdrawals.
+-- Caller may update their OWN history. Staff may update anyone's.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION record_bank_account_change(
@@ -796,11 +847,27 @@ CREATE OR REPLACE FUNCTION record_bank_account_change(
   p_verified_account_name TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
-LANGUAGE plpgsql SECURITY DEFINER AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_changed_by TEXT;
+  v_changed_by_role TEXT;
 BEGIN
-  SELECT user_id INTO v_changed_by FROM profiles WHERE auth_id = auth.uid()::text;
+  -- ── AUTH ──
+  SELECT user_id, role INTO v_changed_by, v_changed_by_role
+  FROM profiles WHERE auth_id = auth.uid()::text;
+
+  -- Self or staff only
+  IF v_changed_by != p_user_id AND v_changed_by_role NOT IN ('staff','admin','creator','creator_admin') THEN
+    RETURN FALSE;
+  END IF;
+
+  -- ── This function ONLY inserts into bank_account_history ──
+  -- It does NOT modify wallets, withdrawals, or withdrawal_requests.
+  -- Changing the bank account on a pending withdrawal requires
+  -- a separate workflow (cancel + re-create, or admin override).
 
   INSERT INTO bank_account_history (
     user_id, bank_name, bank_code, bank_account_number,
@@ -868,3 +935,44 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- PHASE 16: EXECUTE PRIVILEGE RESTRICTIONS
+-- Functions with NO legitimate browser caller:
+-- REVOKE from PUBLIC, anon, authenticated.
+-- Service role (postgres) retains execute as function owner.
+-- Functions with legitimate browser callers (record_worker_verification_payment):
+-- RETAIN authenticated execute; internal auth check is the gate.
+-- ═══════════════════════════════════════════════════════════════════
+
+-- Server-only: confirm_booking_payment (called by Edge Functions only)
+REVOKE EXECUTE ON FUNCTION confirm_booking_payment(TEXT, TEXT, NUMERIC, TEXT, TEXT)
+  FROM PUBLIC, anon, authenticated;
+
+-- Admin-only: reverse_payment
+REVOKE EXECUTE ON FUNCTION reverse_payment(UUID, TEXT, TEXT, TEXT)
+  FROM PUBLIC, anon, authenticated;
+
+-- Admin-only: credit_wallet
+REVOKE EXECUTE ON FUNCTION credit_wallet(UUID, NUMERIC, TEXT, TEXT)
+  FROM PUBLIC, anon, authenticated;
+
+-- Admin-only: release_escrow
+REVOKE EXECUTE ON FUNCTION release_escrow(UUID, TEXT)
+  FROM PUBLIC, anon, authenticated;
+
+-- Admin-only: refund_escrow
+REVOKE EXECUTE ON FUNCTION refund_escrow(UUID, TEXT)
+  FROM PUBLIC, anon, authenticated;
+
+-- Admin-only: process_withdrawal
+REVOKE EXECUTE ON FUNCTION process_withdrawal(UUID, TEXT, TEXT)
+  FROM PUBLIC, anon, authenticated;
+
+-- Admin-only: unfreeze_wallet
+REVOKE EXECUTE ON FUNCTION unfreeze_wallet(UUID)
+  FROM PUBLIC, anon, authenticated;
+
+-- Self-or-staff: record_bank_account_change (no browser caller found)
+REVOKE EXECUTE ON FUNCTION record_bank_account_change(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
+  FROM PUBLIC, anon, authenticated;
