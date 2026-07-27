@@ -1250,7 +1250,7 @@ export interface EscrowTransaction {
 }
 
 export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
-  held: 'Held',
+  holding: 'Held',
   released: 'Released',
   refunded: 'Refunded',
   disputed: 'Disputed',

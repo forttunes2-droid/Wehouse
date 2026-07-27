@@ -4,8 +4,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 interface VerifyRequest {
   reference: string;
   purpose?: string;
-  expected_amount?: number;
-  user_id?: string;
 }
 
 serve(async (req) => {
@@ -22,7 +20,7 @@ serve(async (req) => {
 
   try {
     const body: VerifyRequest = await req.json();
-    const { reference, purpose, expected_amount, user_id } = body;
+    const { reference, purpose } = body;
 
     if (!reference) {
       return new Response(
@@ -126,22 +124,17 @@ serve(async (req) => {
       );
     }
 
-    // ─── 4. Derive expected amount from database ───
-    let dbExpectedAmount: number | null = null;
-
-    if (paymentRecord) {
-      // Derive from existing payment record
-      dbExpectedAmount = paymentRecord.amount_total || paymentRecord.amount || null;
+    // ─── 4. Derive expected amount from canonical DB row ───
+    // FAIL CLOSED: no DB record = no verification.
+    // Never fall back to browser-supplied expected_amount.
+    if (!paymentRecord) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Payment record not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    // If purpose = worker_verification, look up from settings
-    if (purpose === 'worker_verification' && !dbExpectedAmount) {
-      const { data: setting } = await supabase
-        .rpc('get_setting_v2', { p_key: 'worker_verification_fee' });
-      if (setting) {
-        dbExpectedAmount = parseFloat(setting);
-      }
-    }
+    const dbExpectedAmount = paymentRecord.amount_total || paymentRecord.amount || null;
 
     // ─── 5. Verify amount matches ───
     if (dbExpectedAmount && dbExpectedAmount > 0) {
@@ -156,19 +149,11 @@ serve(async (req) => {
           { status: 400, headers: { 'Content-Type': 'application/json' } }
         );
       }
-    } else if (expected_amount && expected_amount > 0) {
-      // Fallback: verify against browser-supplied amount (less trusted)
-      if (Math.abs(verifiedAmount - expected_amount) > 1) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Amount mismatch',
-            expected: expected_amount,
-            verified: verifiedAmount,
-          }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
+    } else {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Payment amount not set' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     // ─── 6. Verify purpose matches ───

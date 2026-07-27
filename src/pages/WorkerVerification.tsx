@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Profile } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { initializePaystackPopup, generatePaymentReference } from '@/legacy/paystack-marketplace';
+import { initializePaystackPopup } from '@/legacy/paystack-marketplace';
 import { Toaster, toast } from 'sonner';
 
 interface WorkerVerificationProps {
@@ -204,9 +204,22 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
     }
 
     setPaying(true);
-    const reference = generatePaymentReference();
 
-    // Get Paystack public key from settings
+    // ── STEP 1: Server-side bootstrap — creates canonical pending booking_payments row ──
+    const { data: bootstrap, error: bootstrapErr } = await supabase.rpc(
+      'create_worker_verification_payment'
+    );
+
+    if (bootstrapErr || !bootstrap?.success) {
+      toast.error(bootstrap?.error || 'Payment initialization failed');
+      setPaying(false);
+      return;
+    }
+
+    const reference = bootstrap.reference;
+    const amount = bootstrap.amount;
+
+    // ── STEP 2: Get Paystack public key ──
     const { data: pk } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_public_key' });
     if (!pk) {
       toast.error('Payment system not configured. Contact support.');
@@ -214,83 +227,20 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
       return;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // CRITICAL BOOTSTRAP: Create booking_payments row BEFORE Paystack popup
-    // confirm_booking_payment() expects this row to exist. Without it,
-    // the Edge Function returns 'Payment not found' and onSuccess never fires.
-    // ═══════════════════════════════════════════════════════════════
-    const { error: bootstrapError } = await supabase.from('booking_payments').insert({
-      payment_reference: reference,
-      user_id: profile.user_id,
-      payer_user_id: profile.user_id,
-      payee_user_id: profile.user_id,
-      type: 'worker_subscription',
-      purpose: 'worker_verification',
-      amount: verificationFee,
-      amount_total: verificationFee,
-      net_amount: verificationFee,
-      commission_amount: 0,
-      currency: 'NGN',
-      status: 'pending',
-      paystack_reference: reference,
-      metadata: {
-        worker_name: form.full_name || profile.username,
-        source: 'worker_verification_page',
-      },
-    });
-
-    if (bootstrapError) {
-      console.error('[WorkerVerification] Failed to bootstrap payment record:', bootstrapError);
-      toast.error('Payment initialization failed. Please retry.');
-      setPaying(false);
-      return;
-    }
-
+    // ── STEP 3: Open Paystack with SERVER-provided reference and amount ──
     initializePaystackPopup({
       publicKey: pk,
       email: profile.email,
-      amountKobo: verificationFee * 100,
+      amountKobo: amount * 100,
       reference,
       metadata: {
-        worker_user_id: profile.user_id,
         payment_type: 'worker_verification',
-        expected_amount: verificationFee,
+        expected_amount: amount,
         worker_name: form.full_name || profile.username,
       },
-      onSuccess: async (ref: string) => {
-        // CRITICAL: Payment successful → Golden Badge appears
-        // Status = 'approved_for_verification' (payment done, NOT approved yet)
-        // worker_verified stays FALSE — only admin can set to TRUE
-        const { error: updateError } = await supabase.from('profiles').update({
-          worker_status: 'approved_for_verification',
-          worker_verified: false, // NOT verified yet — admin must approve
-          updated_at: new Date().toISOString(),
-        }).eq('user_id', profile.user_id);
-
-        if (updateError) {
-          toast.error('Payment confirmed but status update failed. Contact support.');
-          setPaying(false);
-          return;
-        }
-
-        // Record the payment — server-verified, now logged for audit
-        try {
-          const { data: recordResult, error: recordError } = await supabase.rpc('record_worker_verification_payment', {
-            p_user_id: profile.user_id,
-            p_reference: ref,
-            p_amount: verificationFee,
-          });
-          if (recordError) {
-            console.error('[WorkerVerification] record_worker_verification_payment error:', recordError);
-          }
-          const result = typeof recordResult === 'string' ? JSON.parse(recordResult) : recordResult;
-          if (result?.success) {
-            console.log('[WorkerVerification] Payment recorded:', result);
-          }
-        } catch (e) {
-          console.error('[WorkerVerification] Failed to record verification payment:', e);
-        }
-
+      onSuccess: async () => {
+        // Server already updated profile.worker_status atomically in confirm_booking_payment.
+        // Frontend only displays success and advances UI.
         toast.success('Payment successful! Admin will review your verification request.');
         setView('submitted'); // Show Golden Badge + Submit button
         setPaying(false);

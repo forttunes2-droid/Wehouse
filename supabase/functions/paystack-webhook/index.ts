@@ -88,10 +88,12 @@ Deno.serve(async (req) => {
         return new Response('Ignored: not success', { status: 200, headers: corsHeaders });
       }
 
-      // Call the confirm function (idempotent)
+      // Call the confirm function with verified amount (required)
       const { data: result, error } = await supabase.rpc('confirm_booking_payment', {
         p_reference: reference,
-        p_transaction_id: transactionId
+        p_transaction_id: transactionId,
+        p_verified_amount: amount,
+        p_verification_source: 'webhook'
       });
 
       if (error) {
