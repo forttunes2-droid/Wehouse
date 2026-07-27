@@ -199,7 +199,14 @@ serve(async (req) => {
     }
 
     // ─── 8. Check already-processed (idempotency) ───
-    if (paymentRecord?.status === 'paid' || paymentRecord?.status === 'completed') {
+    // Check verified_paystack_references first (canonical idempotency)
+    const { data: alreadyVerified } = await supabase
+      .from('verified_paystack_references')
+      .select('paystack_reference')
+      .eq('paystack_reference', reference)
+      .maybeSingle();
+
+    if (alreadyVerified || paymentRecord?.status === 'paid' || paymentRecord?.status === 'completed') {
       return new Response(
         JSON.stringify({
           success: true,

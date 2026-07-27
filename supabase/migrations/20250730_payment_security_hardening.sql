@@ -1,35 +1,26 @@
 -- ═══════════════════════════════════════════════════════════════════
--- MIGRATION: Payment Security Hardening (CORRECTED)
+-- MIGRATION: Payment Security Hardening (CORRECTED — FINAL)
 -- Date: 2025-07-30
 --
 -- IMPORTANT: This migration reconciles with the ACTUAL production schema
 -- created by 20250702_cto_master_schema.sql (booking_payments table).
 -- It does NOT assume the MARKETPLACE_COMPLETE schema exists.
 --
--- 1. Reconcile booking_payments schema (add missing canonical columns)
--- 2. Create payment_reversals table (immutable history)
--- 3. Create bank_account_history table (validation tracking)
--- 4. Add UNIQUE constraint on paystack_reference (idempotency)
--- 5. Secure credit_wallet RPC (auth check)
--- 6. Secure release_escrow RPC (ownership + auth)
--- 7. Secure refund_escrow RPC (ownership + auth)
--- 8. Rewrite record_worker_verification_payment (server-side verify)
--- 9. Deprecate customer_confirm_payment (add auth gate)
--- 10. Update confirm_booking_payment to match actual schema
--- 11. Add withdrawal bank snapshot + helper RPCs
+-- PRINCIPLES:
+-- - Do NOT rename historical paystack_reference values
+-- - Do NOT auto-grant blue tick on verification payment
+-- - Do NOT allow participants to release/refund escrow
+-- - All financial state changes require staff/admin/creator OR server workflow
+-- - Idempotency via verified_paystack_references table (new), not UNIQUE on legacy data
 -- ═══════════════════════════════════════════════════════════════════
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PART 0: RECONCILE booking_payments SCHEMA
 -- The production table was created by 20250702_cto_master_schema.sql.
 -- MARKETPLACE_COMPLETE.sql's CREATE TABLE IF NOT EXISTS did nothing.
--- We ADD columns that Migration 3 + Edge Function + new flows need.
--- Existing columns (payment_reference, user_id, type, listing_id,
--- hotel_booking_id, amount, commission_amount, net_amount,
--- payment_method, refund_*) remain untouched for backward compat.
+-- We ADD canonical columns. Old columns remain untouched.
 -- ═══════════════════════════════════════════════════════════════════
 
--- Canonical payment categorization (separate from legacy 'type' column)
 ALTER TABLE booking_payments
   ADD COLUMN IF NOT EXISTS purpose TEXT CHECK (purpose IN (
     'apartment_reservation', 'apartment_rent', 'worker_booking',
@@ -50,7 +41,6 @@ ALTER TABLE booking_payments
   ADD COLUMN IF NOT EXISTS webhook_attempts INTEGER NOT NULL DEFAULT 0;
 
 -- Expand status values to include both old and canonical
--- Drop old constraint and add unified one
 ALTER TABLE booking_payments
   DROP CONSTRAINT IF EXISTS booking_payments_status_check;
 
@@ -59,7 +49,22 @@ ALTER TABLE booking_payments
     CHECK (status IN ('pending', 'processing', 'paid', 'completed', 'failed', 'refunded', 'partially_refunded', 'disputed'));
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 1: PAYMENT REVERSALS (immutable history)
+-- PART 1: VERIFIED PAYSTACK REFERENCES (idempotency — NEW TABLE)
+-- Does NOT touch historical paystack_reference values.
+-- Each Paystack reference verified by server is recorded here once.
+-- ═══════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS verified_paystack_references (
+  paystack_reference TEXT PRIMARY KEY,
+  booking_payment_id UUID NOT NULL REFERENCES booking_payments(id),
+  verified_at TIMESTAMPTZ DEFAULT NOW(),
+  verified_amount NUMERIC(12,2),
+  verification_source TEXT CHECK (verification_source IN ('webhook', 'edge_function', 'manual')),
+  verified_by TEXT
+);
+
+-- ═══════════════════════════════════════════════════════════════════
+-- PART 2: PAYMENT REVERSALS (immutable history)
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS payment_reversals (
@@ -82,7 +87,7 @@ CREATE POLICY "staff_admin_reversals" ON payment_reversals
   FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid()::text AND role IN ('staff','admin','creator','creator_admin')));
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 2: BANK VALIDATION TRACKING
+-- PART 3: BANK VALIDATION TRACKING
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS bank_account_history (
@@ -107,32 +112,6 @@ CREATE POLICY "staff_admin_all_bank" ON bank_account_history
   FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE auth_id = auth.uid()::text AND role IN ('staff','admin','creator','creator_admin')));
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 3: UNIQUE CONSTRAINT ON PAYSTACK REFERENCE (idempotency)
--- Handle duplicates/nulls safely before adding constraint.
--- ═══════════════════════════════════════════════════════════════════
-
--- First, handle NULL values by setting them to a unique placeholder
-UPDATE booking_payments
-SET paystack_reference = 'LEGACY_' || id::text
-WHERE paystack_reference IS NULL;
-
--- Handle duplicate references by keeping the first and renaming rest
-WITH numbered AS (
-  SELECT id, paystack_reference,
-    ROW_NUMBER() OVER (PARTITION BY paystack_reference ORDER BY created_at, id) as rn
-  FROM booking_payments
-)
-UPDATE booking_payments bp
-SET paystack_reference = numbered.paystack_reference || '_DUP' || numbered.rn::text
-FROM numbered
-WHERE bp.id = numbered.id AND numbered.rn > 1;
-
--- Now safe to add UNIQUE constraint
-ALTER TABLE booking_payments
-  ADD CONSTRAINT booking_payments_paystack_reference_unique
-    UNIQUE (paystack_reference);
-
--- ═══════════════════════════════════════════════════════════════════
 -- PART 4: WITHDRAWAL BANK SNAPSHOT
 -- ═══════════════════════════════════════════════════════════════════
 
@@ -143,9 +122,8 @@ ALTER TABLE withdrawals
   ADD COLUMN IF NOT EXISTS snapshot_bank_code TEXT;
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 5: SECURE credit_wallet RPC
--- Only staff/admin/creator can directly credit, OR the wallet owner
--- when the credit is from a legitimate escrow release.
+-- PART 5: SECURE credit_wallet RPC — STAFF/ADMIN/CREATOR ONLY
+-- No direct client access. To be called by server workflows only.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION credit_wallet(
@@ -172,29 +150,16 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Authentication required');
   END IF;
 
+  -- ── AUTHORIZATION: staff/admin/creator only ──
+  IF v_caller_role NOT IN ('staff','admin','creator','creator_admin') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
   -- Lock the wallet row
   SELECT * INTO v_wallet FROM wallets WHERE id = p_wallet_id FOR UPDATE;
 
   IF v_wallet IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Wallet not found');
-  END IF;
-
-  -- ── AUTHORIZATION ──
-  -- Direct credit is restricted. Only allowed for:
-  -- 1. Staff/Admin/Creator roles (trusted)
-  -- 2. Wallet owner IF the credit is from an escrow release workflow
-  --    (validated by checking p_reference matches an escrow in 'released' status)
-  IF NOT (v_caller_role IN ('staff','admin','creator','creator_admin')) THEN
-    -- Non-staff: must be wallet owner AND reference must match a released escrow
-    IF v_wallet.owner_id != v_caller THEN
-      RETURN jsonb_build_object('success', false, 'error', 'Not authorized to credit this wallet');
-    END IF;
-    IF p_reference IS NULL OR NOT EXISTS (
-      SELECT 1 FROM escrow_transactions
-      WHERE reference = p_reference AND status = 'released'
-    ) THEN
-      RETURN jsonb_build_object('success', false, 'error', 'Direct credit not allowed. Use escrow release workflow.');
-    END IF;
   END IF;
 
   IF v_wallet.is_frozen THEN
@@ -219,7 +184,9 @@ END;
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 6: SECURE release_escrow RPC
+-- PART 6: SECURE release_escrow RPC — STAFF/ADMIN/CREATOR ONLY
+-- No participant authorization. Destination wallet and amount
+-- derived server-side from the escrow record.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION release_escrow(
@@ -245,6 +212,13 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Authentication required');
   END IF;
 
+  -- ── AUTHORIZATION: staff/admin/creator only ──
+  -- Participant authorization for escrow release is NOT defined
+  -- in the current product rules. Restrict to trusted roles only.
+  IF v_caller_role NOT IN ('staff','admin','creator','creator_admin') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
   -- Lock both rows
   SELECT * INTO v_escrow FROM escrow_transactions WHERE id = p_escrow_id FOR UPDATE;
   SELECT * INTO v_wallet FROM wallets WHERE id = p_wallet_id FOR UPDATE;
@@ -261,20 +235,7 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Wallet not found');
   END IF;
 
-  -- ── AUTHORIZATION ──
-  -- Allowed for:
-  -- 1. Staff/Admin/Creator
-  -- 2. The worker who owns this escrow
-  -- 3. The customer who paid (after job completion approval)
-  IF NOT (
-    v_caller_role IN ('staff','admin','creator','creator_admin')
-    OR v_escrow.worker_id = v_caller
-    OR v_escrow.customer_id = v_caller
-  ) THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Not authorized to release this escrow');
-  END IF;
-
-  -- Destination wallet must belong to the escrow worker
+  -- ── SERVER-SIDE VALIDATION: wallet must belong to escrow worker ──
   IF v_wallet.owner_id != v_escrow.worker_id THEN
     RETURN jsonb_build_object('success', false, 'error', 'Wallet does not belong to escrow worker');
   END IF;
@@ -283,6 +244,7 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Wallet is frozen');
   END IF;
 
+  -- Amount derived server-side from escrow record
   v_new_balance := v_wallet.available_balance + v_escrow.net_amount;
 
   UPDATE wallets SET
@@ -301,14 +263,15 @@ BEGIN
   VALUES (p_wallet_id, 'escrow_release', v_escrow.net_amount, 'Escrow released for ' || v_escrow.reference, v_escrow.reference, v_new_balance);
 
   INSERT INTO financial_audit_logs (event_type, user_id, target_user_id, amount, reference_id, reference_type, description)
-  VALUES ('escrow_released', v_escrow.customer_id, v_wallet.owner_id, v_escrow.net_amount, p_escrow_id::text, 'escrow', 'Escrow released to wallet');
+  VALUES ('escrow_released', v_escrow.customer_id, v_wallet.owner_id, v_escrow.net_amount, p_escrow_id::text, 'escrow', 'Escrow released to wallet by ' || v_caller);
 
   RETURN jsonb_build_object('success', true, 'amount_released', v_escrow.net_amount, 'new_balance', v_new_balance);
 END;
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 7: SECURE refund_escrow RPC
+-- PART 7: SECURE refund_escrow RPC — STAFF/ADMIN/CREATOR ONLY
+-- Same authorization model as release_escrow.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION refund_escrow(
@@ -332,6 +295,11 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Authentication required');
   END IF;
 
+  -- ── AUTHORIZATION: staff/admin/creator only ──
+  IF v_caller_role NOT IN ('staff','admin','creator','creator_admin') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
   SELECT * INTO v_escrow FROM escrow_transactions WHERE id = p_escrow_id FOR UPDATE;
 
   IF v_escrow IS NULL THEN
@@ -340,19 +308,6 @@ BEGIN
 
   IF v_escrow.status NOT IN ('held', 'disputed') THEN
     RETURN jsonb_build_object('success', false, 'error', 'Escrow cannot be refunded');
-  END IF;
-
-  -- ── AUTHORIZATION ──
-  -- Allowed for:
-  -- 1. Staff/Admin/Creator
-  -- 2. The customer who paid
-  -- 3. The worker (if they want to cancel)
-  IF NOT (
-    v_caller_role IN ('staff','admin','creator','creator_admin')
-    OR v_escrow.customer_id = v_caller
-    OR v_escrow.worker_id = v_caller
-  ) THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Not authorized to refund this escrow');
   END IF;
 
   UPDATE escrow_transactions SET
@@ -369,9 +324,8 @@ $$;
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PART 8: REWRITE record_worker_verification_payment
--- Server-side Paystack verification before recording.
--- Does NOT auto-grant blue tick — that stays admin-only.
--- Consolidates into booking_payments with purpose='worker_verification'.
+-- Server-side amount validation. Does NOT auto-grant blue tick.
+-- Consolidates into booking_payments.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION record_worker_verification_payment(
@@ -416,16 +370,15 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Verification fee not configured');
   END IF;
 
-  -- ── CHECK FOR DUPLICATE ──
+  -- ── CHECK FOR DUPLICATE via verified_paystack_references ──
   IF EXISTS (
-    SELECT 1 FROM booking_payments
-    WHERE paystack_reference = p_reference AND purpose = 'worker_verification'
+    SELECT 1 FROM verified_paystack_references
+    WHERE paystack_reference = p_reference
   ) THEN
     RETURN jsonb_build_object('success', true, 'already_processed', true);
   END IF;
 
   -- ── RECORD PAYMENT ──
-  -- Store in booking_payments (consolidated ledger), NOT a separate table
   INSERT INTO booking_payments (
     payment_reference, user_id, type,
     payer_user_id, payee_user_id,
@@ -445,18 +398,29 @@ BEGIN
   )
   RETURNING id INTO v_payment_id;
 
+  -- Also record in verified_paystack_references for idempotency
+  INSERT INTO verified_paystack_references (paystack_reference, booking_payment_id, verified_amount)
+  VALUES (p_reference, v_payment_id, v_expected_amount)
+  ON CONFLICT (paystack_reference) DO NOTHING;
+
   -- Audit log
   INSERT INTO financial_audit_logs (event_type, user_id, amount, reference_id, reference_type, description)
   VALUES ('worker_verification_payment', p_user_id, v_expected_amount, v_payment_id::text, 'booking_payment',
           'Worker verification payment recorded: ' || p_reference);
 
-  RETURN jsonb_build_object('success', true, 'payment_id', v_payment_id, 'verified', false, 'note', 'Payment recorded. Admin approval required for blue tick.');
+  RETURN jsonb_build_object(
+    'success', true,
+    'payment_id', v_payment_id,
+    'verified', false,
+    'note', 'Payment recorded. Admin approval required for blue tick.'
+  );
 END;
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 9: DEPRECATE customer_confirm_payment
--- This RPC trusts browser-supplied Paystack IDs. It is now gated.
+-- PART 9: SECURE customer_confirm_payment
+-- Requires server-verified payment record in booking_payments.
+-- Browser-supplied Paystack ref alone is insufficient.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION customer_confirm_payment(
@@ -488,8 +452,10 @@ BEGIN
   END IF;
 
   -- Require that the Paystack reference has been server-verified
-  -- (exists in booking_payments with status = 'paid' or 'completed')
+  -- (exists in verified_paystack_references OR booking_payments with status IN ('paid','completed'))
   IF NOT EXISTS (
+    SELECT 1 FROM verified_paystack_references WHERE paystack_reference = p_paystack_ref
+  ) AND NOT EXISTS (
     SELECT 1 FROM booking_payments
     WHERE paystack_reference = p_paystack_ref
     AND status IN ('paid', 'completed')
@@ -509,8 +475,9 @@ END;
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 10: UPDATE confirm_booking_payment TO MATCH ACTUAL SCHEMA
+-- PART 10: UPDATE confirm_booking_payment
 -- Uses actual column names from the reconciled schema.
+-- Idempotency via verified_paystack_references + FOR UPDATE.
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION confirm_booking_payment(
@@ -526,7 +493,14 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_payment RECORD;
+  v_caller TEXT;
 BEGIN
+  -- ── AUTH ──
+  SELECT user_id INTO v_caller FROM profiles WHERE auth_id = auth.uid()::text;
+  IF v_caller IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Authentication required');
+  END IF;
+
   -- Lock row for idempotency
   SELECT * INTO v_payment FROM booking_payments
   WHERE paystack_reference = p_reference
@@ -536,14 +510,18 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Payment not found');
   END IF;
 
-  -- Already processed = idempotent
+  -- Already verified via verified_paystack_references?
+  IF EXISTS (SELECT 1 FROM verified_paystack_references WHERE paystack_reference = p_reference) THEN
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
+  END IF;
+
+  -- Already processed at row level?
   IF v_payment.status IN ('paid', 'completed') THEN
     RETURN jsonb_build_object('success', true, 'already_processed', true);
   END IF;
 
   -- Verify amount matches (if provided)
   IF p_verified_amount IS NOT NULL THEN
-    -- Check against both old (amount) and new (amount_total) columns
     IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
        AND ABS(p_verified_amount - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
       RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch',
@@ -556,7 +534,7 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Purpose mismatch');
   END IF;
 
-  -- Mark as paid (use 'paid' for canonical, update both old and new status)
+  -- Mark as paid
   UPDATE booking_payments SET
     status = 'paid',
     paystack_transaction_id = COALESCE(p_transaction_id, paystack_transaction_id),
@@ -567,6 +545,14 @@ BEGIN
     webhook_processed = true,
     updated_at = NOW()
   WHERE id = v_payment.id;
+
+  -- Record in verified_paystack_references for idempotency
+  INSERT INTO verified_paystack_references (
+    paystack_reference, booking_payment_id, verified_amount, verification_source, verified_by
+  ) VALUES (
+    p_reference, v_payment.id, p_verified_amount, p_verification_source, v_caller
+  )
+  ON CONFLICT (paystack_reference) DO NOTHING;
 
   -- Record commission (if commission columns are populated)
   IF v_payment.amount_commission IS NOT NULL AND v_payment.amount_commission > 0 THEN
@@ -593,7 +579,7 @@ END;
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════
--- PART 11: REVERSE PAYMENT RPC (immutable)
+-- PART 11: REVERSE PAYMENT RPC
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION reverse_payment(
@@ -632,7 +618,6 @@ BEGIN
   SET status = 'refunded', updated_at = NOW()
   WHERE id = p_payment_id;
 
-  -- Mark commission as refunded if exists
   UPDATE commission_ledger
   SET status = 'refunded', updated_at = NOW()
   WHERE payment_id = p_payment_id;
