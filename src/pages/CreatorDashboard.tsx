@@ -29,6 +29,9 @@ import SettingsTab from './SettingsTab';
 import CreatorSettingsTab from './CreatorSettingsTab';
 import PartnersTab from './PartnersTab';
 import { AnnouncementsTab } from '@/components/AnnouncementsTab';
+import DomainSettingsPanel from '@/components/DomainSettingsPanel';
+import ServiceCategoryManager from '@/components/ServiceCategoryManager';
+import PropertyTypeManager from '@/components/PropertyTypeManager';
 import { Toaster, toast } from 'sonner';
 
 // Admin/Creator tabs per Constitution
@@ -445,6 +448,20 @@ function OverviewTab({ profile, isCreator, onGoToNewListing, onGoToUsers, onGoTo
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Payout Rules ── */}
+      {isCreator && (
+        <div className="pt-4 border-t border-[#232330]">
+          <DomainSettingsPanel
+            title="Payout Rules"
+            description="Financial rules for worker and partner withdrawals"
+            settings={[
+              { key: 'min_withdrawal', label: 'Minimum Withdrawal (N)', description: 'Minimum amount for a withdrawal request', type: 'number', defaultValue: '5000' },
+              { key: 'payout_mode', label: 'Payout Mode', description: 'How payouts are processed', type: 'select', defaultValue: 'manual', options: [{ value: 'manual', label: 'Manual' }, { value: 'auto', label: 'Automatic' }] },
+            ]}
+          />
         </div>
       )}
     </div>
@@ -921,6 +938,25 @@ function ListingsTab({ profile }: { profile: Profile }) {
           {filtered.length === 0 && <div className="text-center py-10 text-xs text-[#5C5E72]">No listings</div>}
         </div>
       )}
+
+      {/* ── Listing Rules ── */}
+      <div className="pt-4 border-t border-[#232330]">
+        <DomainSettingsPanel
+          title="Listing Rules"
+          description="Financial settings for apartment reservations and rent plans"
+          settings={[
+            { key: 'reservation_fee', label: 'Reservation Fee (N)', description: 'Fee charged to reserve a property', type: 'number', defaultValue: '5000' },
+            { key: 'commission_apartment', label: 'Apartment Commission (%)', description: 'Commission on apartment bookings', type: 'number', defaultValue: '10' },
+            { key: 'late_payment_fee_percent', label: 'Late Payment Fee (%)', description: 'Penalty for late rent plan payments', type: 'number', defaultValue: '5' },
+          ]}
+        />
+      </div>
+
+      {/* ── Property Types ── */}
+      <div className="pt-2">
+        <PropertyTypeManager profile={profile} />
+      </div>
+
     </div>
   );
 }
@@ -1180,6 +1216,24 @@ function WorkerApplicationsTab({ profile, setViewingProfile }: { profile: Profil
           );
         })
       )}
+
+      {/* ── Worker Rules ── */}
+      <div className="pt-4 border-t border-[#232330]">
+        <DomainSettingsPanel
+          title="Worker Rules"
+          description="Financial and configuration settings for worker onboarding and bookings"
+          settings={[
+            { key: 'worker_verification_fee', label: 'Verification Fee (N)', description: 'Amount workers pay to start verification', type: 'number', defaultValue: '5000' },
+            { key: 'commission_worker', label: 'Worker Commission (%)', description: 'Commission on worker bookings', type: 'number', defaultValue: '15' },
+            { key: 'blue_badge_price', label: 'Blue Badge Price (N)', description: 'Subscription price for blue badge verification', type: 'number', defaultValue: '5000' },
+          ]}
+        />
+      </div>
+
+      {/* ── Service Categories ── */}
+      <div className="pt-2">
+        <ServiceCategoryManager profile={profile} />
+      </div>
 
     </div>
   );

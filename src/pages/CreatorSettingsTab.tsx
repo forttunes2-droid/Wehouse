@@ -3,19 +3,17 @@ import { supabase } from '@/lib/supabase';
 import { invalidateSettingsCache } from '@/hooks/usePlatformSettings';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
-import ServiceCategoryManager from '@/components/ServiceCategoryManager';
-import PropertyTypeManager from '@/components/PropertyTypeManager';
 
 // ═══════════════════════════════════════════════════════════════
-// CREATOR SETTINGS — Constitution Article 1
-// Every platform rule controlled by Creator. NOTHING hardcoded.
+// CREATOR GLOBAL SETTINGS — Final Architecture
+// 7 controls, 3 sections. Domain settings moved to their modules.
 // ═══════════════════════════════════════════════════════════════
 
 interface SettingDef {
   key: string;
   label: string;
   description: string;
-  type: 'text' | 'toggle' | 'number' | 'textarea' | 'email' | 'url';
+  type: 'text' | 'toggle' | 'textarea' | 'email';
   defaultValue: string;
 }
 
@@ -31,500 +29,261 @@ interface DbSetting {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ALL SETTING GROUPS — per Constitution Article 1, EXACTLY as written
+// FINAL GLOBAL SETTINGS — 7 controls only
 // ═══════════════════════════════════════════════════════════════
 
 const SETTING_GROUPS: { id: string; label: string; settings: SettingDef[] }[] = [
-  // ── 1. COMPANY ──
   {
-    id: 'company',
-    label: 'Company',
+    id: 'identity',
+    label: 'Platform Identity',
     settings: [
-      { key: 'company_name', label: 'Company Name', description: 'Platform company name', type: 'text', defaultValue: 'WeHouse' },
-      { key: 'company_logo', label: 'Company Logo URL', description: 'URL to company logo image', type: 'url', defaultValue: '' },
-      { key: 'support_email', label: 'Support Email', description: 'Customer support email address', type: 'email', defaultValue: '' },
-      { key: 'support_phone', label: 'Support Phone', description: 'Optional customer support phone number', type: 'text', defaultValue: '' },
-      { key: 'office_address', label: 'Office Address', description: 'Physical office address', type: 'textarea', defaultValue: '' },
-      { key: 'tiktok_url', label: 'TikTok URL', description: 'TikTok/social profile link', type: 'url', defaultValue: '' },
+      { key: 'company_name', label: 'Company Name', description: 'Platform company name displayed to all users', type: 'text', defaultValue: 'WeHouse' },
+      { key: 'support_email', label: 'Support Email', description: 'Primary contact email for the platform', type: 'email', defaultValue: '' },
+      { key: 'support_phone', label: 'Support Phone', description: 'Primary contact phone for the platform', type: 'text', defaultValue: '' },
     ],
   },
-  // ── 2. APARTMENT ──
   {
-    id: 'apartment',
-    label: 'Apartment',
+    id: 'access',
+    label: 'Platform Access',
     settings: [
-      { key: 'commission_apartment', label: 'Apartment Commission %', description: 'Commission on apartment bookings', type: 'number', defaultValue: '10' },
-      { key: 'apartment_reservation_fee', label: 'Apartment Reservation Fee (N)', description: 'Fee to reserve a property', type: 'number', defaultValue: '0' },
-      { key: 'apartment_reservation_hold_days', label: 'Reservation Hold (days)', description: 'Days before reservation expires', type: 'number', defaultValue: '3' },
-      { key: 'rent_plans_enabled', label: 'Enable Rent Plans', description: 'Allow tenants to fund next rental period gradually', type: 'toggle', defaultValue: 'true' },
-      { key: 'rent_plan_start_after_months', label: 'Rent Plan Start After (months)', description: 'Months after move-in before rent plan becomes available', type: 'number', defaultValue: '4' },
-      { key: 'rent_plan_cancellation_fee_percent', label: 'Rent Plan Cancellation Fee (%)', description: 'Fee for voluntary rent plan cancellation', type: 'number', defaultValue: '10' },
-      { key: 'post_inspection_refund_percent', label: 'Post-Inspection Refund (%)', description: 'Refund % when customer declines after optional inspection', type: 'number', defaultValue: '50' },
+      { key: 'maintenance_mode', label: 'Maintenance Mode', description: 'Block all non-exempt users from the platform', type: 'toggle', defaultValue: 'false' },
+      { key: 'registration_open', label: 'Registration Open', description: 'Allow new users to sign up', type: 'toggle', defaultValue: 'true' },
     ],
   },
-  // ── 3. HOTEL ──
-  {
-    id: 'hotel',
-    label: 'Hotel',
-    settings: [
-      { key: 'hotel_reservation_enabled', label: 'Hotel Reservation Enabled', description: 'If ON: users can reserve before paying. If OFF: direct payment only.', type: 'toggle', defaultValue: 'false' },
-      { key: 'hotel_reservation_amount', label: 'Hotel Reservation Fee (N)', description: 'Fee for hotel reservation', type: 'number', defaultValue: '5000' },
-      { key: 'commission_hotel', label: 'Hotel Commission %', description: 'Commission on hotel bookings', type: 'number', defaultValue: '12' },
-      { key: 'hotel_reservation_fee_type', label: 'Reservation Fee Type', description: 'fixed_amount or per_day', type: 'text', defaultValue: 'fixed_amount' },
-      { key: 'hotel_reservation_expiry_hours', label: 'Reservation Expiry (hours)', description: 'Hours before hotel reservation expires', type: 'number', defaultValue: '48' },
-    ],
-  },
-  // ── 4. WORKER ──
-  {
-    id: 'worker',
-    label: 'Worker',
-    settings: [
-      { key: 'worker_verification_fee', label: 'Verification Payment (N)', description: 'One-time fee workers pay for verification', type: 'number', defaultValue: '5000' },
-      { key: 'commission_worker', label: 'Worker Commission %', description: 'Commission on worker bookings', type: 'number', defaultValue: '15' },
-    ],
-  },
-  // ── 5. WITHDRAWALS ──
-  {
-    id: 'withdrawals',
-    label: 'Withdrawals',
-    settings: [
-      { key: 'min_withdrawal', label: 'Minimum Withdrawal (N)', description: 'Minimum withdrawal amount', type: 'number', defaultValue: '5000' },
-      { key: 'payout_mode', label: 'Payout Mode', description: 'manual or automatic', type: 'text', defaultValue: 'manual' },
-    ],
-  },
-  // ── 6. NOTIFICATIONS ──
-  {
-    id: 'notifications',
-    label: 'Notifications',
-    settings: [
-      { key: 'email_notifications', label: 'Email Notifications', description: 'Global email delivery channel', type: 'toggle', defaultValue: 'true' },
-      { key: 'push_notifications', label: 'Push Notifications', description: 'Global push delivery channel', type: 'toggle', defaultValue: 'true' },
-    ],
-  },
-  // ── 7. PLATFORM CONTROLS ──
-  {
-    id: 'platform_controls',
-    label: 'Platform Controls',
-    settings: [
-      { key: 'maintenance_mode', label: 'Maintenance Mode', description: 'Put site in maintenance mode', type: 'toggle', defaultValue: 'false' },
-      { key: 'registration_open', label: 'Registration Open', description: 'Allow new user registrations', type: 'toggle', defaultValue: 'true' },
-    ],
-  },
-  // ── 8. LEGAL ──
   {
     id: 'legal',
-    label: 'Legal',
+    label: 'Legal Content',
     settings: [
-      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Full privacy policy text (supports markdown)', type: 'textarea', defaultValue: '' },
-      { key: 'terms_of_service', label: 'Terms & Conditions', description: 'Full terms and conditions text (supports markdown)', type: 'textarea', defaultValue: '' },
-      { key: 'refund_policy', label: 'Refund Policy', description: 'General refund and cancellation policy', type: 'textarea', defaultValue: '' },
+      { key: 'privacy_policy', label: 'Privacy Policy', description: 'Platform privacy policy text', type: 'textarea', defaultValue: '' },
+      { key: 'terms_of_service', label: 'Terms & Conditions', description: 'Platform terms of service text', type: 'textarea', defaultValue: '' },
     ],
   },
 ];
 
-// Build a flat map of all settings for quick lookup
-const ALL_SETTINGS: Record<string, SettingDef> = {};
-SETTING_GROUPS.forEach(g => g.settings.forEach(s => ALL_SETTINGS[s.key] = s));
-
-// ═══════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════
-
-type SettingsView = 'settings' | 'categories' | 'property_types';
-
 interface CreatorSettingsTabProps {
-  profile: Profile;
+  profile?: Profile;
 }
 
-export default function CreatorSettingsTab({ profile }: CreatorSettingsTabProps) {
-  const [view, setView] = useState<SettingsView>('settings');
-
-  return (
-    <div className="space-y-4">
-      <Toaster position="top-center" richColors theme="dark" />
-
-      {/* View Switcher */}
-      <div className="flex gap-2">
-        {[
-          { id: 'settings' as SettingsView, label: 'Platform Settings' },
-          { id: 'categories' as SettingsView, label: 'Service Categories' },
-          { id: 'property_types' as SettingsView, label: 'Property Types' },
-        ].map(v => (
-          <button
-            key={v.id}
-            onClick={() => setView(v.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-              view === v.id
-                ? 'bg-[#3B82F6]/15 text-[#3B82F6] border border-[#3B82F6]/20'
-                : 'bg-[#12121A] text-[#5C5E72] border border-[#1E1E2C] hover:text-white'
-            }`}
-          >
-            {v.label}
-          </button>
-        ))}
-      </div>
-
-      {view === 'settings' && <PlatformSettings profile={profile} />}
-      {view === 'categories' && <ServiceCategoryManager profile={profile} />}
-      {view === 'property_types' && <PropertyTypeManager profile={profile} />}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PLATFORM SETTINGS — with explicit Save button per setting
-// ═══════════════════════════════════════════════════════════════
-
-function PlatformSettings({ profile }: { profile: Profile }) {
-  const [dbSettings, setDbSettings] = useState<DbSetting[]>([]);
+export default function CreatorSettingsTab({ profile: _profile }: CreatorSettingsTabProps) {
+  const [settings, setSettings] = useState<DbSetting[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeGroup, setActiveGroup] = useState('company');
-  const [hasChanges, setHasChanges] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [changed, setChanged] = useState<Record<string, string>>({});
 
-  // Load all settings from database on mount
+  // Load all active settings from DB
   useEffect(() => {
-    loadAllSettings();
-  }, []);
-
-  async function loadAllSettings() {
-    setLoading(true);
-    let loaded: DbSetting[] = [];
-    let loadError: string | null = null;
-
-    // Load ONLY active settings from DB
-    try {
+    async function load() {
+      setLoading(true);
       const { data, error } = await supabase
         .from('platform_settings')
         .select('*')
         .eq('is_active', true)
-        .order('key', { ascending: true });
+        .order('key');
 
       if (error) {
-        loadError = `Database error: ${error.message} (code: ${error.code})`;
-        console.error('[CreatorSettings] loadAllSettings error:', error);
-      } else if (data) {
-        loaded = data as DbSetting[];
+        toast.error('Failed to load settings: ' + error.message);
+        setLoading(false);
+        return;
       }
-    } catch (e: any) {
-      loadError = `Exception: ${e?.message || String(e)}`;
-      console.error('[CreatorSettings] loadAllSettings exception:', e);
-    }
 
-    if (loadError) {
-      toast.error(`Failed to load settings: ${loadError}.`);
-      setLoading(false);
-      return;
-    }
+      // Seed any missing keys with defaults
+      const dbKeys = new Set((data || []).map((s: DbSetting) => s.key));
+      const allDefs = SETTING_GROUPS.flatMap(g => g.settings);
+      const toSeed = allDefs.filter(d => !dbKeys.has(d.key));
 
-    // Merge active DB settings with canonical defaults
-    // Only show canonical settings defined in SETTING_GROUPS
-    const merged: Record<string, DbSetting> = {};
-    for (const s of loaded) merged[s.key] = s;
+      if (toSeed.length > 0) {
+        const seedRows = toSeed.map(d => ({
+          key: d.key,
+          value: d.defaultValue,
+          label: d.label,
+          description: d.description,
+          category: 'platform',
+          data_type: d.type === 'toggle' ? 'boolean' : 'text',
+          is_active: true,
+        }));
 
-    let nextId = loaded.length > 0 ? Math.max(...loaded.map(s => s.id)) + 1 : 1;
-    SETTING_GROUPS.forEach(g => {
-      g.settings.forEach(s => {
-        if (!merged[s.key]) {
-          merged[s.key] = {
-            id: nextId++,
-            key: s.key,
-            value: s.defaultValue,
-            category: g.id,
-            label: s.label,
-            description: s.description,
-            data_type: s.type,
-            is_active: true,
-          };
+        const { error: seedError } = await supabase.from('platform_settings').upsert(seedRows, { onConflict: 'key' });
+        if (seedError) {
+          toast.error('Failed to seed settings: ' + seedError.message);
         }
-      });
-    });
 
-    setDbSettings(Object.values(merged));
-    setLoading(false);
+        // Reload after seed
+        const { data: reloaded } = await supabase
+          .from('platform_settings')
+          .select('*')
+          .eq('is_active', true)
+          .order('key');
+        setSettings(reloaded || []);
+      } else {
+        setSettings(data || []);
+      }
+
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  function getSettingValue(key: string): string {
+    const fromDb = settings.find(s => s.key === key);
+    if (fromDb) return fromDb.value;
+    const def = SETTING_GROUPS.flatMap(g => g.settings).find(s => s.key === key);
+    return def?.defaultValue || '';
   }
 
   async function saveSetting(key: string, value: string) {
-    // Find which group this setting belongs to
-    let groupId = activeGroup;
-    let settingDef: SettingDef | undefined;
-    for (const g of SETTING_GROUPS) {
-      const found = g.settings.find(s => s.key === key);
-      if (found) { settingDef = found; groupId = g.id; break; }
-    }
-    if (!settingDef) settingDef = ALL_SETTINGS[key];
-    const label = settingDef?.label || key;
-
     setSaving(prev => ({ ...prev, [key]: true }));
 
-    // Direct upsert with ALL required fields — category, data_type, label are NOT NULL
-    // Do NOT use set_setting_v2 RPC — it only sets key/value and fails silently
-    const { error: upsertError } = await supabase
-      .from('platform_settings')
-      .upsert({
-        key,
-        value,
-        label,
-        category: groupId,
-        data_type: settingDef?.type || 'text',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'key' });
+    const def = SETTING_GROUPS.flatMap(g => g.settings).find(s => s.key === key);
+    if (!def) { setSaving(prev => ({ ...prev, [key]: false })); return; }
 
-    if (upsertError) {
+    const { error } = await supabase.from('platform_settings').upsert({
+      key,
+      value,
+      label: def.label,
+      description: def.description,
+      category: 'platform',
+      data_type: def.type === 'toggle' ? 'boolean' : 'text',
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' });
+
+    if (error) {
+      toast.error(`Failed to save ${def.label}: ${error.message}`);
       setSaving(prev => ({ ...prev, [key]: false }));
-      toast.error(`Failed to save ${label}: ${upsertError.message}`);
       return;
     }
 
-    // CRITICAL: Verify the save by reloading the value from DB
-    // This catches trigger failures that roll back the transaction
-    const { data: verifyData, error: verifyError } = await supabase
-      .from('platform_settings')
-      .select('value')
-      .eq('key', key)
-      .single();
-
-    setSaving(prev => ({ ...prev, [key]: false }));
-
-    // Type-safe comparison — Supabase may return numbers as strings or vice versa
-    const savedValue = verifyData?.value != null ? String(verifyData.value) : null;
-    const submittedValue = String(value);
-    if (verifyError || savedValue === null || savedValue !== submittedValue) {
-      console.error('[CreatorSettings] Save verification FAILED:', {
-        key, submittedValue, savedValue, verifyError,
-      });
-      toast.error(`Failed to save ${label}: submitted "${submittedValue}" but database returned "${savedValue ?? 'null'}". Check console.`);
+    // Verify
+    const { data: verify } = await supabase.from('platform_settings').select('value').eq('key', key).single();
+    if (verify && verify.value !== value) {
+      toast.error(`${def.label} verification mismatch`);
+      setSaving(prev => ({ ...prev, [key]: false }));
       return;
     }
 
-    console.log('[CreatorSettings] Save verified:', { key, value: submittedValue });
-
-    // Save confirmed — invalidate cache so other components see the new value
     invalidateSettingsCache();
-
-    // ONLY update local state after DB confirms success AND reload matches
-    setDbSettings(prev => prev.map(s => s.key === key ? { ...s, value, label } : s));
-    setHasChanges(prev => ({ ...prev, [key]: false }));
-    toast.success(`${label} saved`);
+    setChanged(prev => { const n = { ...prev }; delete n[key]; return n; });
+    setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+    toast.success(`${def.label} saved`);
+    setSaving(prev => ({ ...prev, [key]: false }));
   }
 
-  // Save all changed settings at once
   async function saveAll() {
-    // Read current values DIRECTLY from dbSettings (most recent state)
-    const changedEntries = dbSettings.filter(s => hasChanges[s.key]);
-    if (changedEntries.length === 0) {
-      toast.info('No changes to save');
-      return;
-    }
-
-    for (const setting of changedEntries) {
-      await saveSetting(setting.key, setting.value);
-    }
+    const keys = Object.keys(changed);
+    if (keys.length === 0) return;
+    await Promise.all(keys.map(k => saveSetting(k, changed[k])));
     toast.success('All settings saved');
   }
 
-  // Map DB data_type to UI type
-  function dbTypeToUiType(dt: string): SettingDef['type'] {
-    switch (dt) {
-      case 'toggle': return 'toggle';
-      case 'textarea': return 'textarea';
-      case 'number': return 'number';
-      case 'email': return 'email';
-      case 'url': return 'url';
-      default: return 'text';
-    }
-  }
+  const hasChanges = Object.keys(changed).length > 0;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-3">
+        <div className="flex justify-center py-10">
+          <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
-  const currentSettings = dbSettings.filter(s => s.category === activeGroup);
-  const anyChanges = Object.values(hasChanges).some(v => v);
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] text-[#5C5E72]">
-          Configure WeHouse platform settings per the Constitution. Click Save to apply changes. Nothing is hardcoded.
-        </p>
-        <button
-          onClick={loadAllSettings}
-          disabled={loading}
-          className="flex-shrink-0 h-7 px-2.5 rounded-lg bg-[#12121A] border border-[#232330] text-[10px] text-[#5C5E72] hover:text-white hover:border-[#3B82F6]/30 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
-          Reload
-        </button>
-      </div>
+      <Toaster position="top-right" />
 
-      {/* Group Tabs — all 9 categories */}
-      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-        {SETTING_GROUPS.map(g => (
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-white">Platform Settings</h2>
+          <p className="text-[11px] text-[#5C5E72]">Global platform configuration</p>
+        </div>
+        {hasChanges && (
           <button
-            key={g.id}
-            onClick={() => setActiveGroup(g.id)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-              activeGroup === g.id
-                ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
-                : 'bg-[#12121A] text-[#5C5E72] hover:text-white'
-            }`}
+            onClick={saveAll}
+            disabled={Object.values(saving).some(Boolean)}
+            className="h-8 px-4 rounded-lg bg-[#3B82F6] text-white text-[11px] font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-50"
           >
-            {g.label}
+            {Object.values(saving).some(Boolean) ? 'Saving...' : `Save All (${Object.keys(changed).length})`}
           </button>
-        ))}
-      </div>
-
-      {/* Settings for active group */}
-      <div className="space-y-3">
-        {currentSettings.map(setting => (
-          <SettingField
-            key={setting.key}
-            def={{
-              key: setting.key,
-              label: setting.label,
-              description: setting.description,
-              type: dbTypeToUiType(setting.data_type),
-              defaultValue: setting.value,
-            }}
-            value={setting.value}
-            isSaving={saving[setting.key] || false}
-            onChange={(val) => {
-              setDbSettings(prev => prev.map(s => s.key === setting.key ? { ...s, value: val } : s));
-              setHasChanges(prev => ({ ...prev, [setting.key]: true }));
-            }}
-            onSave={(val) => {
-              // Pass the ACTUAL edited value, not the stale dbSettings closure
-              saveSetting(setting.key, val);
-            }}
-          />
-        ))}
-
-        {currentSettings.length === 0 && (
-          <div className="text-center py-10">
-            <p className="text-sm text-[#5C5E72]">No settings in this category</p>
-          </div>
         )}
       </div>
 
-      {/* Save All button */}
-      {anyChanges && (
-        <div className="sticky bottom-4 flex justify-end">
-          <button
-            onClick={saveAll}
-            className="h-10 px-6 rounded-xl bg-[#3B82F6] text-white text-xs font-semibold shadow-lg shadow-blue-500/20 hover:bg-[#2563EB] transition-colors flex items-center gap-2"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
-            Save Changes
-          </button>
+      {/* Setting Groups — flat sections, no nested tabs */}
+      {SETTING_GROUPS.map(group => (
+        <div key={group.id} className="glass rounded-2xl p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-white">{group.label}</h3>
+
+          {group.settings.map(def => {
+            const currentValue = changed[def.key] !== undefined ? changed[def.key] : getSettingValue(def.key);
+            const isSaving = saving[def.key];
+            const isChanged = changed[def.key] !== undefined;
+
+            return (
+              <div key={def.key} className={`rounded-xl p-3 space-y-2 ${isChanged ? 'bg-[#3B82F6]/5 border border-[#3B82F6]/20' : 'bg-[#1A1A24]/50 border border-[#232330]'}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="text-[11px] font-medium text-white">{def.label}</div>
+                    <div className="text-[10px] text-[#5C5E72]">{def.description}</div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Toggle */}
+                    {def.type === 'toggle' && (
+                      <button
+                        onClick={() => {
+                          const newVal = currentValue === 'true' ? 'false' : 'true';
+                          setChanged(prev => ({ ...prev, [def.key]: newVal }));
+                          saveSetting(def.key, newVal);
+                        }}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${currentValue === 'true' ? 'bg-[#3B82F6]' : 'bg-[#2A2A3A] border border-[#232330]'}`}
+                      >
+                        <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${currentValue === 'true' ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                    )}
+
+                    {/* Text / Email */}
+                    {(def.type === 'text' || def.type === 'email') && (
+                      <input
+                        type={def.type}
+                        value={currentValue}
+                        onChange={e => setChanged(prev => ({ ...prev, [def.key]: e.target.value }))}
+                        onBlur={() => { if (changed[def.key] !== undefined) saveSetting(def.key, changed[def.key]); }}
+                        className="w-full sm:w-48 h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[11px] focus:outline-none focus:border-[#3B82F6]"
+                      />
+                    )}
+
+                    {/* Textarea */}
+                    {def.type === 'textarea' && (
+                      <textarea
+                        value={currentValue}
+                        onChange={e => setChanged(prev => ({ ...prev, [def.key]: e.target.value }))}
+                        rows={3}
+                        className="w-full sm:w-64 px-3 py-2 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-[11px] focus:outline-none focus:border-[#3B82F6] resize-none"
+                      />
+                    )}
+
+                    {/* Save button for non-toggle */}
+                    {def.type !== 'toggle' && (
+                      <button
+                        onClick={() => saveSetting(def.key, currentValue)}
+                        disabled={isSaving || !isChanged}
+                        className="h-7 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-medium hover:bg-[#2563EB] transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                      >
+                        {isSaving ? '...' : 'Save'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
-    </div>
-  );
-}
+      ))}
 
-// ─── Individual Setting Field with explicit Save ──────────────────────────
-
-function SettingField({ def, value, isSaving, onChange, onSave }: {
-  def: SettingDef;
-  value: string;
-  isSaving: boolean;
-  onChange: (v: string) => void;
-  onSave: (val: string) => void;  // ← NOW ACCEPTS THE VALUE DIRECTLY
-}) {
-  const [local, setLocal] = useState(value);
-  const changed = local !== value;
-
-  // Sync when parent value changes (e.g., after reload from DB)
-  useEffect(() => { setLocal(value); }, [value]);
-
-  const handleToggle = () => {
-    const next = local === 'true' ? 'false' : 'true';
-    setLocal(next);
-    onChange(next);
-    onSave(next);  // Toggle saves immediately
-  };
-
-  return (
-    <div className="glass rounded-xl p-3">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold text-white">{def.label}</p>
-            {isSaving && <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />}
-            {changed && !isSaving && <span className="text-[9px] text-amber-400">modified</span>}
-          </div>
-          <p className="text-[10px] text-[#5C5E72] mt-0.5">{def.description}</p>
-        </div>
-
-        <div className="flex-shrink-0 flex items-center gap-2">
-          {def.type === 'toggle' ? (
-            <ToggleSwitch enabled={local === 'true'} onToggle={handleToggle} />
-          ) : def.type === 'textarea' ? (
-            <div className="w-full sm:w-64">
-              <textarea
-                value={local}
-                onChange={(e) => setLocal(e.target.value)}
-                rows={3}
-                placeholder={`Enter ${def.label.toLowerCase()}...`}
-                className="w-full rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 py-2 placeholder-[#3A3A4A] focus:border-[#3B82F6]/50 outline-none resize-none"
-              />
-              {changed && (
-                <button
-                  onClick={() => onSave(local)}
-                  disabled={isSaving}
-                  className="mt-2 h-8 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40 w-full"
-                >
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              <input
-                type={def.type === 'number' ? 'number' : def.type === 'email' ? 'email' : def.type === 'url' ? 'url' : 'text'}
-                value={local}
-                onChange={(e) => setLocal(e.target.value)}
-                placeholder={def.type === 'number' ? '0' : '...'}
-                className="w-28 sm:w-40 h-8 rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-[11px] px-3 focus:border-[#3B82F6]/50 outline-none"
-              />
-              {/* Explicit Save button — passes local value DIRECTLY */}
-              {changed && (
-                <button
-                  onClick={() => onSave(local)}  // ← PASSES LOCAL VALUE, NOT STALE PARENT STATE
-                  disabled={isSaving}
-                  className="h-8 px-3 rounded-lg bg-[#3B82F6] text-white text-[10px] font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40"
-                >
-                  {isSaving ? '...' : 'Save'}
-                </button>
-              )}
-            </>
-          )}
-        </div>
+      {/* Info footer */}
+      <div className="text-center text-[10px] text-[#5C5E72] pt-2">
+        Domain-specific settings have been moved to their respective dashboard modules.
       </div>
     </div>
-  );
-}
-
-// ─── Toggle Switch ──────────────────────────
-
-function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
-        enabled ? 'bg-[#3B82F6]' : 'bg-[#2A2A3A]'
-      }`}
-    >
-      <div
-        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-          enabled ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </button>
   );
 }

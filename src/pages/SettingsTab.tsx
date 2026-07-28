@@ -40,9 +40,9 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
   const [showEmail, setShowEmail] = useState(profile.privacy_search_visible !== false);
   const [showPhone, setShowPhone] = useState(profile.privacy_activity_visible || false);
 
-  // Notification preferences
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [pushNotifs, setPushNotifs] = useState(true);
+  // Notification preferences — loaded from profile DB columns
+  const [emailNotifs, setEmailNotifs] = useState((profile as any).pref_email_notif !== false);
+  const [pushNotifs, setPushNotifs] = useState((profile as any).pref_push_notif !== false);
   const [smsNotifs, setSmsNotifs] = useState(false);
   const [promoNotifs, setPromoNotifs] = useState(false);
 
@@ -111,7 +111,16 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
   }
 
   async function handleSaveNotifications() {
+    setSaving(true);
+    const { error } = await supabase.from('profiles').update({
+      pref_email_notif: emailNotifs,
+      pref_push_notif: pushNotifs,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', profile.user_id);
+    setSaving(false);
+    if (error) { toast.error('Failed to save: ' + error.message); return; }
     toast.success('Notification preferences saved');
+    onUpdate({ ...profile, pref_email_notif: emailNotifs, pref_push_notif: pushNotifs } as any);
   }
 
   async function handleSaveBank() {

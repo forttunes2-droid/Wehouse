@@ -42,13 +42,12 @@ interface PaymentInit {
 // Load Paystack config from platform settings (no hardcoding)
 async function loadConfig(): Promise<PaystackConfig> {
   const { data: pk } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_public_key' });
-  const { data: tm } = await supabase.rpc('get_setting_v2', { p_key: 'payment_test_mode' });
-  const { data: cb } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_commission_bearer' });
-  
+  // payment_test_mode and paystack_commission_bearer are environment configuration,
+  // not dashboard settings. paystack_commission_bearer was removed from DB — always 'subaccount'.
   return {
     publicKey: pk || '',
-    testMode: tm === 'true',
-    commissionBearer: (cb === 'account' ? 'account' : 'subaccount') as 'subaccount' | 'account',
+    testMode: false, // Controlled by deployment environment, not dashboard
+    commissionBearer: 'subaccount' as 'subaccount' | 'account', // Hardcoded — removed from DB
   };
 }
 

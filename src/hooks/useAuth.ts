@@ -122,12 +122,9 @@ async function readSettingFrom(table: string, key: string): Promise<string | nul
 }
 
 async function getSettingValue(key: string): Promise<string | null> {
-  const fromPlatform = await readSettingFrom('platform_settings', key);
-  if (fromPlatform !== null) return fromPlatform;
-  const fromSystem = await readSettingFrom('system_settings', key);
-  if (fromSystem !== null) return fromSystem;
-  console.warn(`[Settings] Could not read "${key}" from any table.`);
-  return null;
+  // platform_settings is the canonical settings table.
+  // system_settings is deprecated and will be removed.
+  return await readSettingFrom('platform_settings', key);
 }
 
 async function isMaintenanceModeOn(): Promise<boolean> {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAllUsers } from '@/lib/supabase/admin';
 import { supabase } from '@/lib/supabase';
+import DomainSettingsPanel from '@/components/DomainSettingsPanel';
 import { Toaster } from 'sonner';
 
 export default function PartnersTab() {
@@ -73,6 +74,21 @@ export default function PartnersTab() {
           ))}
         </div>
       )}
+
+      {/* ── Hotel Rules ── */}
+      <div className="pt-4 border-t border-[#232330]">
+        <DomainSettingsPanel
+          title="Hotel Rules"
+          description="Configuration for hotel reservations and bookings"
+          settings={[
+            { key: 'hotel_reservation_enabled', label: 'Hotel Reservations', description: 'Enable hotel reservation feature', type: 'toggle', defaultValue: 'false' },
+            { key: 'hotel_reservation_amount', label: 'Reservation Fee (N)', description: 'Fee for hotel reservations', type: 'number', defaultValue: '5000' },
+            { key: 'hotel_reservation_fee_type', label: 'Fee Type', description: 'How the reservation fee is calculated', type: 'select', defaultValue: 'fixed_amount', options: [{ value: 'fixed_amount', label: 'Fixed Amount' }, { value: 'percentage', label: 'Percentage' }] },
+            { key: 'hotel_reservation_expiry_hours', label: 'Expiry (hours)', description: 'Hours before reservation expires', type: 'number', defaultValue: '48' },
+            { key: 'hotel_reservation_refund_policy', label: 'Refund Policy', description: 'Refund policy for hotel reservations', type: 'textarea', defaultValue: '' },
+          ]}
+        />
+      </div>
     </div>
   );
 }
