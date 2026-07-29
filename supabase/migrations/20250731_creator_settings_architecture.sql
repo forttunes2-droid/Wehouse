@@ -56,44 +56,15 @@ UPDATE platform_settings SET is_active = false, updated_at = NOW() WHERE key IN 
   'post_inspection_refund_percent'    -- No consumer
 );
 
--- ═══════════════════════════════════════════════════════════════════
--- PHASE 1D: MARK MOVED SETTINGS AS INACTIVE (will be in domain tabs)
--- ═══════════════════════════════════════════════════════════════════
-
-UPDATE platform_settings SET is_active = false, updated_at = NOW() WHERE key IN (
-  -- Workers tab
-  'worker_verification_fee',
-  'commission_worker',
-  'blue_badge_price',
-  -- Listings tab
-  'commission_apartment',
-  'late_payment_fee_percent',
-  -- Partners/Hotels tab
-  'hotel_reservation_enabled',
-  'hotel_reservation_amount',
-  'hotel_reservation_fee_type',
-  'hotel_reservation_expiry_hours',
-  'hotel_reservation_refund_policy',
-  -- Overview/Finance tab
-  'min_withdrawal',
-  'payout_mode',
-  -- reservation_fee also moves to Listings tab
-  'reservation_fee'
-);
+-- NOTE: Domain settings are NOT marked inactive.
+-- They remain active in the database and are simply displayed
+-- in their respective domain tabs instead of Global Settings.
+-- get_all_settings_v2() filters by is_active, so marking them
+-- inactive would break cache consumers (usePlatformSettings).
+-- Only TRULY DEAD settings (Phase 1C) are marked inactive.
 
 -- ═══════════════════════════════════════════════════════════════════
--- PHASE 1E: MARK FUTURE SETTINGS AS INACTIVE
--- Feature not fully exposed in UI
--- ═══════════════════════════════════════════════════════════════════
-
-UPDATE platform_settings SET is_active = false, updated_at = NOW() WHERE key IN (
-  'rent_plans_enabled',
-  'rent_plan_start_after_months',
-  'rent_plan_cancellation_fee_percent'
-);
-
--- ═══════════════════════════════════════════════════════════════════
--- PHASE 1F: REMOVE OLD NOTIFICATION GLOBALS FROM ACTIVE SETTINGS
+-- PHASE 1D: REMOVE OLD NOTIFICATION GLOBALS FROM ACTIVE SETTINGS
 -- Per-user preferences will replace these
 -- ═══════════════════════════════════════════════════════════════════
 
@@ -103,7 +74,9 @@ UPDATE platform_settings SET is_active = false, updated_at = NOW() WHERE key IN 
 );
 
 -- ═══════════════════════════════════════════════════════════════════
--- PHASE 1G: REMOVE ENVIRONMENT CONFIGURATION FROM ACTIVE SETTINGS
+-- PHASE 1E: REMOVE ENVIRONMENT CONFIGURATION FROM ACTIVE SETTINGS
+-- paystack_public_key consumers use get_setting_v2 (no is_active filter)
+-- so this only removes it from get_all_settings_v2() / usePlatformSettings cache
 -- ═══════════════════════════════════════════════════════════════════
 
 UPDATE platform_settings SET is_active = false, updated_at = NOW() WHERE key IN (
@@ -113,7 +86,7 @@ UPDATE platform_settings SET is_active = false, updated_at = NOW() WHERE key IN 
 );
 
 -- ═══════════════════════════════════════════════════════════════════
--- PHASE 1H: REMOVE REFUND_POLICY FROM ACTIVE SETTINGS
+-- PHASE 1F: REMOVE REFUND_POLICY FROM ACTIVE SETTINGS
 -- Too vague — domain-specific refund policies should be per-module
 -- ═══════════════════════════════════════════════════════════════════
 

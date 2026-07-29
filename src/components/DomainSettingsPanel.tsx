@@ -41,7 +41,7 @@ export default function DomainSettingsPanel({ title, description, settings: defs
       const vals: Record<string, string> = {};
       for (const def of defs) {
         const dbRow = data?.find((r: any) => r.key === def.key);
-        if (dbRow && dbRow.is_active !== false) {
+        if (dbRow) {
           vals[def.key] = dbRow.value || def.defaultValue;
         } else {
           vals[def.key] = def.defaultValue;
