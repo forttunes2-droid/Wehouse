@@ -51,7 +51,7 @@ interface CreatorDashboardProps {
 
 const ROLE_COLORS: Record<string, string> = {
   creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  creator_admin: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+
   admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
   staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',

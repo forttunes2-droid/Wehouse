@@ -603,7 +603,7 @@ export default function ListingDetail({ listingId, onNavigate, isSaved: _isSaved
                     onClick={async () => {
                       // Find staff to chat with
                       let staffMember = null;
-                      for (const role of ['staff', 'admin', 'creator', 'creator_admin']) {
+                      for (const role of ['staff', 'admin', 'creator']) {
                         const { data } = await supabase
                           .from('profiles').select('user_id, username').eq('role', role).limit(1).maybeSingle();
                         if (data) { staffMember = data; break; }

@@ -43,7 +43,7 @@ async function wipeOnLogout() {
 }
 
 // ─── ROLE HELPERS ──────────────────────────────────
-const ADMIN_ROLES = new Set(['creator', 'creator_admin', 'admin']);
+const ADMIN_ROLES = new Set(['creator', 'admin']);
 
 export function hasAdminAccess(role: string): boolean {
   return ADMIN_ROLES.has(role);
@@ -54,7 +54,7 @@ export function isStaff(role: string): boolean {
 }
 
 export function canCreateListings(role: string): boolean {
-  return role === 'staff' || role === 'admin' || role === 'creator' || role === 'creator_admin';
+  return role === 'staff' || role === 'admin' || role === 'creator';
 }
 
 export function isAdmin(role: string): boolean {
@@ -62,7 +62,7 @@ export function isAdmin(role: string): boolean {
 }
 
 export function isCreator(role: string): boolean {
-  return role === 'creator' || role === 'creator_admin';
+  return role === 'creator';
 }
 
 export function canSendAnnouncements(role: string): boolean {

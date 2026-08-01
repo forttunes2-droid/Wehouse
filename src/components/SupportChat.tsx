@@ -42,7 +42,7 @@ export default function SupportChat({ profile }: SupportChatProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const greetedRef = useRef(false);
 
-  const isCreator = profile?.role === 'creator' || profile?.role === 'creator_admin';
+  const isCreator = profile?.role === 'creator';
   const isUnlimited = isCreator;
 
   // Load AI key and check limits on mount

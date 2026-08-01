@@ -83,7 +83,6 @@ function getDashboardPage(role: string): string | null {
     case 'staff': return 'staff_dashboard';
     case 'admin': return 'admin';
     case 'creator': return 'creator';
-    case 'creator_admin': return 'creator';
     case 'property_partner': return 'property_partner';
     default: return null; // users stay on home/search
   }
@@ -95,7 +94,6 @@ function getDashboardLabel(role: string): string {
     case 'staff': return 'Go to Staff Hub';
     case 'admin': return 'Go to Admin Dashboard';
     case 'creator': return 'Go to Creator Dashboard';
-    case 'creator_admin': return 'Go to Creator Dashboard';
     case 'property_partner': return 'Go to Partner Dashboard';
     default: return 'Search Listings';
   }
@@ -107,7 +105,6 @@ function getDashboardSubLabel(role: string): string {
     case 'staff': return 'Access your assigned modules';
     case 'admin': return 'Manage listings, users, and workers';
     case 'creator': return 'Manage platform settings and users';
-    case 'creator_admin': return 'Manage platform settings and users';
     case 'property_partner': return 'Request inspections and manage properties';
     default: return 'Find your perfect home';
   }
@@ -125,7 +122,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave, isAd
   const isPartner = profile.role === 'property_partner';
   const isWorker = profile.role === 'worker';
   const isStaff = profile.role === 'staff';
-  const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
+  const isCreator = profile.role === 'creator';
   const dashboardPage = getDashboardPage(profile.role);
   const dashboardLabel = getDashboardLabel(profile.role);
   const dashboardSubLabel = getDashboardSubLabel(profile.role);

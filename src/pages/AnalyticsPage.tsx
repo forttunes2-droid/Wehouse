@@ -98,7 +98,7 @@ function ActivityTab({ isCreator, isAdmin }: { isCreator: boolean; isAdmin: bool
               {/* WHO + WHEN — resolved from profiles join */}
               <p className="text-[9px] text-[#5C5E72] mt-1 truncate">
                 {a.profiles?.username
-                  ? `@${a.profiles.username} · ${a.profiles.role ? (a.profiles.role === 'creator' ? 'Creator' : a.profiles.role === 'creator_admin' ? 'Creator Admin' : a.profiles.role === 'admin' ? 'Admin' : a.profiles.role === 'staff' ? 'Staff' : a.profiles.role) : 'Admin'}`
+                  ? `@${a.profiles.username} · ${a.profiles.role ? (a.profiles.role === 'creator' ? 'Creator' : a.profiles.role === 'admin' ? 'Admin' : a.profiles.role === 'staff' ? 'Staff' : a.profiles.role) : 'Admin'}`
                   : a.admin_id ? 'Unknown account' : 'WeHouse System'}
                 {' · '}
                 {new Date(a.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}

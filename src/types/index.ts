@@ -5,7 +5,7 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'creator_admin' | 'admin' | 'staff' | 'worker' | 'property_partner';
+export type UserRole = 'user' | 'creator' | 'admin' | 'staff' | 'worker' | 'property_partner';
 
 // Constitution: Pending → Approved for Verification (blue tick) → Profile Under Review → Verified (public)
 // Database CHECK constraint values: pending, approved_for_verification, profile_under_review, verified, suspended, rejected
@@ -307,7 +307,6 @@ export const ROLE_RANK: Record<UserRole, number> = {
   staff: 1,
   admin: 3,
   creator: 5,
-  creator_admin: 5,
 };
 
 // ─── ROLE DISPLAY LABELS ───────────────────────────
@@ -317,7 +316,6 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   staff: 'Staff',
   admin: 'Admin',
   creator: 'Creator',
-  creator_admin: 'Creator',
   property_partner: 'Property Partner',
 };
 

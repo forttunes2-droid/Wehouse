@@ -39,7 +39,7 @@ export default function Dashboard({
   const displayName = profile.username || profile.email.split('@')[0];
 
   // Role classification (use distinct names to avoid conflict with isAdmin prop)
-  const isCreatorRole = profile.role === 'creator' || profile.role === 'creator_admin';
+  const isCreatorRole = profile.role === 'creator';
   const isAdminRole = profile.role === 'admin';
   const isStaffRole = profile.role === 'staff';
   const isOperator = isCreatorRole || isAdminRole || isStaffRole;

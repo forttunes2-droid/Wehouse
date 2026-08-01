@@ -59,7 +59,7 @@ export default function Chat({ profile, onNavigate, conversationId }: ChatProps)
 
   async function loadConversations() {
     const isAdminOrStaff = profile.role === 'staff' || profile.role === 'admin';
-    const isCreator = profile.role === 'creator' || profile.role === 'creator_admin';
+    const isCreator = profile.role === 'creator';
     const isPartner = profile.role === 'property_partner';
     const isWorker = profile.role === 'worker';
     let convs: Conversation[] = [];
@@ -895,7 +895,7 @@ function getTimeAgo(isoDate: string): string {
         ) : (
           <>
             {/* WeHouse Official — NOT for Creator (Creator manages announcements in Management) */}
-            {profile.role !== 'creator' && profile.role !== 'creator_admin' && (
+            {profile.role !== 'creator' && (
             <button
               onClick={() => setShowOfficial(true)}
               className="w-full flex items-center gap-3 px-5 py-4 border-b border-[#3B82F6]/10 text-left hover:bg-[#12121A] transition-colors bg-[#3B82F6]/[0.02]"
@@ -941,7 +941,7 @@ function getTimeAgo(isoDate: string): string {
                 </div>
                 <p className="text-sm text-[#8A8B9C]">No conversations yet</p>
                 <p className="text-xs text-[#8A8B9C]/70 mt-1">
-                  {profile.role === 'creator' || profile.role === 'creator_admin'
+                  {profile.role === 'creator'
                     ? 'Manage communications through the Management dashboard'
                     : 'Start chatting from worker profiles or property pages'}
                 </p>

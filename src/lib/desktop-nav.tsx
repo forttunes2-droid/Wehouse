@@ -102,8 +102,7 @@ export function getUserNav(unreadCount: number = 0): DesktopNavItem[] {
 // ─── GET NAV FOR ROLE ───
 export function getNavForRole(role: string, unreadCount: number = 0): DesktopNavItem[] {
   switch (role) {
-    case 'creator':
-    case 'creator_admin': return getCreatorNav(unreadCount);
+    case 'creator': return getCreatorNav(unreadCount);
     case 'admin': return getAdminNav(unreadCount);
     case 'staff': return getStaffNav(unreadCount);
     case 'worker': return getWorkerNav(unreadCount);

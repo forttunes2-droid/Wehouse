@@ -49,7 +49,7 @@ async function getUserRole(userId: string): Promise<string | null> {
 }
 
 function isCreatorRole(role: string | null): boolean {
-  return role === 'creator' || role === 'creator_admin';
+  return role === 'creator';
 }
 
 // ─── MESSAGE TRACKING ──────────────────────────────────

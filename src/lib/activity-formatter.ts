@@ -70,7 +70,6 @@ const BOOLEAN_KEYS = [
 // ─── Role labels ──────────────────────────────────────
 const ROLE_LABELS: Record<string, string> = {
   creator: 'Creator',
-  creator_admin: 'Creator Admin',
   admin: 'Admin',
   staff: 'Staff',
   worker: 'Worker',
