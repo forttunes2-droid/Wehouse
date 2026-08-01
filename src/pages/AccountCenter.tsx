@@ -171,8 +171,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-white truncate">@{displayName}</h2>
             <p className="text-xs text-[#5C5E72] truncate">{profile.email}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[9px] text-[#5C5E72]">{profile.user_id}</span>
+            <div className="mt-1">
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
                 {profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
               </span>
@@ -243,7 +242,6 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
           <div className="glass rounded-2xl p-4 space-y-3">
             {[
               { label: 'User ID', value: profile.user_id },
-              { label: 'Role', value: profile.role === 'user' ? 'Member' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
               {
                 label: 'Joined',
                 value: new Date(profile.created_at).toLocaleDateString(undefined, {
