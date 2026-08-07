@@ -58,7 +58,7 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
     if (status === 'profile_under_review') return 'reviewing';
     if (status === 'verified') { onBack(); return 'form'; } // Already verified, go back
     if (status === 'rejected') return 'rejected';
-    if (status === 'approved_for_verification') return 'submitted'; // Paid but not submitted
+    if (status === 'verification_paid') return 'submitted'; // Paid but not submitted
     return 'form'; // pending or null
   }, [profile.worker_status, onBack]);
 
@@ -294,7 +294,7 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
   async function handleResubmit() {
     setSubmitting(true);
     const { error } = await supabase.from('profiles').update({
-      worker_status: 'approved_for_verification', // Back to paid state
+      worker_status: 'verification_paid', // Back to paid state
       updated_at: new Date().toISOString(),
     }).eq('user_id', profile.user_id);
     setSubmitting(false);

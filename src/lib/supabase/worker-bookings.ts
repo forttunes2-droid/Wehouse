@@ -57,6 +57,8 @@ export async function getBookingMessages(conversationId: string) {
 }
 
 // Send booking message
+// NOTE: The backend RPC 'send_booking_message' must derive the sender from
+// auth.uid() internally. The frontend passes sender_id for UI convenience only.
 export async function sendBookingMessage(conversationId: string, senderId: string, content: string) {
   const { data, error } = await supabase.rpc('send_booking_message', {
     p_conversation_id: conversationId,
@@ -199,8 +201,11 @@ export async function uploadBookingChatImage(file: File, conversationId: string)
       }
       return { url: null, error: uploadError };
     }
-    const { data: urlData } = supabase.storage.from('chat-files').getPublicUrl(fileName);
-    return { url: urlData.publicUrl, error: null };
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('chat-files')
+      .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days
+    if (signedError) return { url: null, error: signedError };
+    return { url: signedData.signedUrl, error: null };
   } catch (e: any) {
     return { url: null, error: { message: e.message || 'Upload failed' } as any };
   }
@@ -216,7 +221,7 @@ export async function sendBookingImageMessage(conversationId: string, senderId: 
   return { messageId: data, error };
 }
 
-// Delete booking (soft delete — sets deleted_at)
+// Cancel booking (updates status to 'cancelled' — worker_bookings has no deleted_at column)
 export async function deleteBooking(bookingId: string, userId: string) {
   // Only allow if user is the customer or worker for this booking
   const { data: booking, error: fetchErr } = await supabase
@@ -226,11 +231,11 @@ export async function deleteBooking(bookingId: string, userId: string) {
     .single();
   if (fetchErr) return { success: false, error: fetchErr };
   if (booking.user_id !== userId && booking.worker_id !== userId) {
-    return { success: false, error: { message: 'Not authorized to delete this booking' } as any };
+    return { success: false, error: { message: 'Not authorized to cancel this booking' } as any };
   }
   const { error } = await supabase
     .from('worker_bookings')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', bookingId);
   return { success: !error, error };
 }
@@ -241,8 +246,7 @@ export async function getUserActiveBookings(userId: string) {
     .from('worker_bookings')
     .select('id, worker_id, status')
     .eq('user_id', userId)
-    .is('deleted_at', null)
-    .in('status', ['booking_requested', 'negotiating', 'waiting_payment', 'confirmed', 'in_progress', 'completed_pending_approval']);
+    .not('status', 'in', '(cancelled,refunded,approved_released)');
   return { bookings: data || [], error };
 }
 

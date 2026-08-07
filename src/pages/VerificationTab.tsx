@@ -15,7 +15,7 @@ export default function VerificationTab() {
       .from('profiles')
       .select('*')
       .eq('role', 'worker')
-      .in('worker_status', ['pending', 'approved_for_verification', 'profile_under_review'])
+      .in('worker_status', ['pending', 'verification_paid', 'profile_under_review'])
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (!error && data) {
@@ -33,7 +33,7 @@ export default function VerificationTab() {
       alert('Failed: ' + error.message);
       return;
     }
-    await supabase.from('profiles').update({ worker_status: 'approved_for_verification' }).eq('user_id', userId);
+    await supabase.from('profiles').update({ worker_status: 'verification_paid' }).eq('user_id', userId);
     loadPendingVerifications();
   }
 

@@ -79,7 +79,7 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
     if (isWorker && occupation.trim()) {
       updates.worker_occupation = occupation.trim();
     }
-    const wasPaid = isWorker && profile.worker_status === 'approved_for_verification';
+    const wasPaid = isWorker && profile.worker_status === 'verification_paid';
     if (wasPaid && (fullName !== profile.full_name || bio !== profile.bio || occupation !== (profile.worker_occupation || ''))) {
       updates.worker_status = 'pending';
       updates.worker_verified = false;
@@ -196,7 +196,7 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
       {/* ─── PROFILE SECTION ─── */}
       {activeSection === 'profile' && (
         <div className="space-y-4">
-          {isWorker && profile.worker_status === 'approved_for_verification' && (
+          {isWorker && profile.worker_status === 'verification_paid' && (
             <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3">
               <p className="text-[11px] text-amber-400"><strong>Note:</strong> Editing profile will reset status to "Awaiting Approval".</p>
             </div>

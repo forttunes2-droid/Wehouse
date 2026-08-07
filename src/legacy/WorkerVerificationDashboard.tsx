@@ -10,7 +10,7 @@ interface WorkerVerificationDashboardProps {
   onNavigate?: (page: string) => void;
 }
 
-type WorkerTab = 'pending' | 'approved_for_verification' | 'suspended' | 'all';
+type WorkerTab = 'pending' | 'verification_paid' | 'suspended' | 'all';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
@@ -47,10 +47,10 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
     loadWorkers();
   }, [activeTab]);
 
-  async function updateStatus(userId: string, status: 'approved_for_verification' | 'suspended' | 'rejected') {
+  async function updateStatus(userId: string, status: 'verification_paid' | 'suspended' | 'rejected') {
     const { error } = await supabase
       .from('profiles')
-      .update({ worker_status: status, worker_verified: status === 'approved_for_verification', updated_at: new Date().toISOString() })
+      .update({ worker_status: status, worker_verified: status === 'verification_paid', updated_at: new Date().toISOString() })
       .eq('user_id', userId);
 
     if (error) {
@@ -71,7 +71,7 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
 
   const counts: Record<string, number> = {
     pending: workers.filter(w => w.worker_status === 'pending').length,
-    approved_for_verification: workers.filter(w => w.worker_status === 'approved_for_verification').length,
+    approved_for_verification: workers.filter(w => w.worker_status === 'verification_paid').length,
     suspended: workers.filter(w => w.worker_status === 'suspended').length,
     all: workers.length,
   };
@@ -87,7 +87,7 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 px-5 py-4">
-        {(['pending', 'approved_for_verification', 'suspended'] as const).map(tab => (
+        {(['pending', 'verification_paid', 'suspended'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -133,10 +133,10 @@ export default function WorkerVerificationDashboard({ profile }: WorkerVerificat
 }
 
 // ─── WORKER CARD ───────────────────────────────────
-function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatus: (id: string, status: 'approved_for_verification' | 'suspended' | 'rejected') => void }) {
+function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatus: (id: string, status: 'verification_paid' | 'suspended' | 'rejected') => void }) {
   const [expanded, setExpanded] = useState(false);
 
-  const statusColor = worker.worker_status === 'approved_for_verification' ? 'text-emerald-400 bg-emerald-500/10' :
+  const statusColor = worker.worker_status === 'verification_paid' ? 'text-emerald-400 bg-emerald-500/10' :
     worker.worker_status === 'pending' ? 'text-amber-400 bg-amber-500/10' :
     'text-red-400 bg-red-500/10';
 
@@ -177,9 +177,9 @@ function WorkerCard({ worker, onUpdateStatus }: { worker: Profile; onUpdateStatu
             <span>Joined: {new Date(worker.created_at).toLocaleDateString()}</span>
           </div>
           <div className="flex gap-2">
-            {worker.worker_status !== 'approved_for_verification' && (
+            {worker.worker_status !== 'verification_paid' && (
               <button
-                onClick={() => onUpdateStatus(worker.user_id, 'approved_for_verification')}
+                onClick={() => onUpdateStatus(worker.user_id, 'verification_paid')}
                 className="flex-1 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold hover:bg-emerald-500/20"
               >
                 Verify

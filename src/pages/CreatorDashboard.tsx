@@ -1066,8 +1066,8 @@ function ReportsTab({ profile }: { profile: Profile }) {
 function WorkerApplicationsTab({ profile, setViewingProfile }: { profile: Profile; setViewingProfile: (p: any | null) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'verification_paid' | 'verified' | 'declined' | 'suspended' | 'rejected'>('all');
-  // Status flow per Constitution: pending → verification_paid → verified | declined
+  const [filter, setFilter] = useState<'all' | 'pending' | 'verification_paid' | 'verified' | 'rejected' | 'suspended' | 'rejected'>('all');
+  // Status flow per Constitution: pending → verification_paid → profile_under_review → verified | rejected
 
 
   const load = useCallback(async () => {
@@ -1102,7 +1102,7 @@ function WorkerApplicationsTab({ profile, setViewingProfile }: { profile: Profil
     <div className="space-y-3">
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {(['all', 'pending', 'verification_paid', 'verified', 'declined', 'suspended', 'rejected'] as const).map(f => {
+        {(['all', 'pending', 'verification_paid', 'verified', 'rejected', 'suspended', 'rejected'] as const).map(f => {
           const count = f === 'all' ? workers.length : workers.filter((w: any) => w.worker_status === f).length;
           if (f !== 'all' && count === 0) return null; // Hide empty status tabs
           const label = f === 'all' ? `All (${workers.length})` : `${WORKER_STATUS_LABELS[f] || f} (${count})`;
@@ -1166,7 +1166,7 @@ function WorkerApplicationsTab({ profile, setViewingProfile }: { profile: Profil
                 {status === 'verification_paid' && (
                   <>
                     <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve</button>
-                    <button onClick={() => handleStatus(w.user_id, 'declined')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Decline</button>
+                    <button onClick={() => handleStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors">Decline</button>
                   </>
                 )}
                 {/* verified: approved, public */}
@@ -1175,8 +1175,8 @@ function WorkerApplicationsTab({ profile, setViewingProfile }: { profile: Profil
                     <button onClick={() => handleStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] hover:bg-amber-500/20 transition-colors">Suspend</button>
                   </>
                 )}
-                {/* declined: review declined, can resubmit */}
-                {status === 'declined' && (
+                {/* rejected: review declined, can resubmit */}
+                {status === 'rejected' && (
                   <>
                     <span className="text-[9px] text-red-400 bg-red-500/10 px-2 py-1 rounded-full border border-red-500/20">Can resubmit</span>
                     <button onClick={() => handleStatus(w.user_id, 'verified')} className="flex-1 h-8 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors">Approve Anyway</button>

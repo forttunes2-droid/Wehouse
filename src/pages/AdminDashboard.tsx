@@ -294,9 +294,9 @@ function WorkersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void 
     <div className="space-y-3">
       {/* Status filter */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {['', 'pending', 'approved_for_verification', 'verified', 'suspended'].map(s => (
+        {['', 'pending', 'verification_paid', 'verified', 'suspended'].map(s => (
           <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 h-7 rounded-lg text-[10px] font-medium whitespace-nowrap ${statusFilter === s ? 'bg-pink-500/10 text-pink-400 border border-pink-500/20' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72]'}`}>
-            {s === '' ? 'All' : s === 'approved_for_verification' ? 'Blue Tick' : s === 'approved' ? 'Approved' : s.charAt(0).toUpperCase() + s.slice(1)}
+            {s === '' ? 'All' : s === 'verification_paid' ? 'Blue Tick' : s === 'approved' ? 'Approved' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
         ))}
       </div>

@@ -6,12 +6,22 @@ import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, 
 // ═══════════════════════════════════════════════════════════════
 
 export async function getWorkers(filters?: { city?: string; occupation?: string; status?: string }) {
-  let query = supabase.from('profiles').select('*').eq('role', 'worker');
-  if (filters?.city) query = query.eq('city', filters.city);
-  if (filters?.occupation) query = query.eq('worker_occupation', filters.occupation);
-  if (filters?.status) query = query.eq('worker_status', filters.status);
-  // No status filter = show all workers (pending + verified + suspended)
-  const { data, error } = await query.order('created_at', { ascending: false });
+  // Public worker discovery: ONLY show verified + available workers
+  let query = supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'worker')
+    .eq('worker_status', 'verified')
+    .eq('worker_verified', true)
+    .eq('available', true)
+    .eq('deleted', false)
+    .eq('suspended', false)
+    .eq('banned', false);
+
+  if (filters?.city) query = query.or(`city.ilike.%${filters.city}%,local_government.ilike.%${filters.city}%`);
+  if (filters?.occupation) query = query.or(`worker_occupation.ilike.%${filters.occupation}%,worker_skills.cs.{${filters.occupation}}`);
+  // Note: status filter is ignored for public discovery — only 'verified' workers are shown
+  const { data, error } = await query.order('rating', { ascending: false });
   return { workers: data as Profile[] | null, error };
 }
 
@@ -52,9 +62,9 @@ export async function updateWorkerStatus(userId: string, status: string) {
   const newBio = `🛠️STATUS:${status}🛠️ ${cleanBio}`.trim();
 
   // worker_verified = true if worker has completed verification process
-  // (verification_paid, verified) — they get golden tick
+  // (verification_paid, profile_under_review, verified) — they get golden tick
   // Only 'verified' workers go public in Explore
-  const hasCompletedVerification = status === 'verification_paid' || status === 'verified' || status === 'declined';
+  const hasCompletedVerification = status === 'verification_paid' || status === 'profile_under_review' || status === 'verified' || status === 'rejected';
 
   const { data: updated, error } = await supabase
     .from('profiles')
@@ -213,8 +223,12 @@ export async function uploadWorkerVerificationVideo(file: File, workerId: string
 
   if (error) return { url: null, error };
 
-  const { data: urlData } = supabase.storage.from('worker-files').getPublicUrl(data.path);
-  return { url: urlData.publicUrl, error: null };
+  // Use signed URL instead of public URL — verification files are private
+  const { data: signedData, error: signedError } = await supabase.storage
+    .from('worker-files')
+    .createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+
+  return { url: signedData?.signedUrl || null, error: signedError };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -285,7 +299,10 @@ export async function reviewWorkerVerification(
   if (!error && data) {
     // Also update the worker's profile status
     const workerId = data.worker_id;
-    const newStatus = status === 'approved' ? 'approved_for_verification' : 'rejected';
+    // Canonical flow: admin review puts worker into 'profile_under_review' (approved)
+    // or 'rejected' (declined). Worker is NOT automatically 'verified' — that's a
+    // separate admin action after full review.
+    const newStatus = status === 'approved' ? 'profile_under_review' : 'rejected';
     await updateWorkerStatus(workerId, newStatus);
   }
 
@@ -596,7 +613,7 @@ export async function getWorkerSystemStats() {
     workers: {
       total: workers?.length || 0,
       pending: workers?.filter(w => w.worker_status === 'pending').length || 0,
-      paid: workers?.filter(w => w.worker_status === 'approved_for_verification').length || 0,
+      paid: workers?.filter(w => w.worker_status === 'verification_paid' || w.worker_status === 'profile_under_review').length || 0,
       suspended: workers?.filter(w => w.worker_status === 'suspended').length || 0,
     },
     verifications: {

@@ -390,7 +390,7 @@ function FinanceModule() {
               <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-white">{(p as any).profiles?.full_name || 'Unknown'}</p>
-                  <span className={`text-[9px] px-2 py-1 rounded-full ${p.status === 'approved_for_verification' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
+                  <span className={`text-[9px] px-2 py-1 rounded-full ${p.status === 'verification_paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
                 </div>
                 <p className="text-xs text-white font-bold mt-1">N{p.amount?.toLocaleString()}</p>
                 <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
@@ -509,7 +509,7 @@ function SupportModule({ profile, onGoToChat: _onGoToChat }: { profile: Profile;
 function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { profile: Profile; onGoToChat: (c?: string) => void }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'pending' | 'approved_for_verification' | 'suspended' | 'all'>('pending');
+  const [filter, setFilter] = useState<'pending' | 'verification_paid' | 'suspended' | 'all'>('pending');
 
   useEffect(() => { loadWorkers(); }, [filter]);
 
@@ -522,7 +522,7 @@ function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { pr
     setLoading(false);
   }
 
-  async function setStatus(userId: string, status: 'approved_for_verification' | 'suspended' | 'rejected') {
+  async function setStatus(userId: string, status: 'verification_paid' | 'suspended' | 'rejected') {
     const { error } = await supabase.from('profiles').update({ worker_status: status, updated_at: new Date().toISOString() }).eq('user_id', userId);
     if (error) { toast.error('Failed'); return; }
     toast.success(`Worker ${status}`);
@@ -536,7 +536,7 @@ function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { pr
   return (
     <div className="space-y-3">
       <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
-        {(['pending', 'approved_for_verification', 'suspended', 'all'] as const).map(f => (
+        {(['pending', 'verification_paid', 'suspended', 'all'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`flex-1 h-8 rounded-lg text-[10px] font-semibold transition-all ${filter === f ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
             {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -561,15 +561,15 @@ function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { pr
             <div className="flex gap-2 mt-3">
               {w.worker_status === 'pending' && (
                 <>
-                  <button onClick={() => setStatus(w.user_id, 'approved_for_verification')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
+                  <button onClick={() => setStatus(w.user_id, 'verification_paid')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
                   <button onClick={() => setStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
                 </>
               )}
-              {w.worker_status === 'approved_for_verification' && (
+              {w.worker_status === 'verification_paid' && (
                 <button onClick={() => setStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">Suspend</button>
               )}
               {w.worker_status === 'suspended' && (
-                <button onClick={() => setStatus(w.user_id, 'approved_for_verification')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Reinstate</button>
+                <button onClick={() => setStatus(w.user_id, 'verification_paid')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Reinstate</button>
               )}
             </div>
           </div>

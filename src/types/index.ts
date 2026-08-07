@@ -7,9 +7,9 @@
 
 export type UserRole = 'user' | 'creator' | 'admin' | 'staff' | 'worker' | 'property_partner';
 
-// Constitution: Pending → Approved for Verification (blue tick) → Profile Under Review → Verified (public)
-// Database CHECK constraint values: pending, approved_for_verification, profile_under_review, verified, suspended, rejected
-export type WorkerStatus = 'pending' | 'approved_for_verification' | 'profile_under_review' | 'verified' | 'suspended' | 'rejected';
+// Constitution: Pending → Verification Paid → Profile Under Review → Verified (public)
+// Rejected and Suspended are terminal non-public states.
+export type WorkerStatus = 'pending' | 'verification_paid' | 'profile_under_review' | 'verified' | 'rejected' | 'suspended';
 
 export const WORKER_OCCUPATIONS = [
   'electrician', 'plumber', 'cleaner', 'carpenter',
@@ -32,28 +32,30 @@ export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
 };
 
 // Worker status display labels.
-// Internal DB value is 'verified' but UI shows 'Approved' because
-// 'Verified' is reserved for Blue Badge premium subscribers only.
 export const WORKER_STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',                    // Registered, hasn't started verification
   verification_paid: 'Awaiting Review',  // Completed verification + Paystack, awaiting WeHouse review
+  profile_under_review: 'Under Review',   // WeHouse is reviewing verification documents
   verified: 'Verified',                  // WeHouse approved, worker is PUBLIC
-  declined: 'Declined',                  // WeHouse declined, golden tick stays, NOT public, can resubmit
+  rejected: 'Rejected',                  // WeHouse declined, NOT public, can resubmit
   suspended: 'Suspended',
-  rejected: 'Rejected',
-  // Legacy — workers with old 'approved' status should be migrated to 'pending'
+  // Legacy — workers with old 'approved_for_verification' status should be migrated to 'verification_paid'
+  approved_for_verification: 'Awaiting Review (Legacy)',
   approved: 'Pending (Legacy)',
+  declined: 'Rejected (Legacy)',
 };
 
 export const WORKER_STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   verification_paid: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  profile_under_review: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   verified: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  declined: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  rejected: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   suspended: 'bg-red-500/10 text-red-400 border-red-500/20',
-  rejected: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
   // Legacy
+  approved_for_verification: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   approved: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  declined: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
 };
 
 export interface Profile {
@@ -88,11 +90,12 @@ export interface Profile {
   privacy_search_visible: boolean;
   privacy_activity_visible: boolean;
   // ── WORKER FIELDS ─────────────────────────────────
-  worker_status: WorkerStatus | null;  // pending → approved_for_verification → profile_under_review → verified/rejected
+  worker_status: WorkerStatus | null;  // pending → verification_paid → profile_under_review → verified/rejected
   worker_occupation: string | null;   // e.g. "electrician" (primary skill)
   worker_skills: string[] | null;     // multiple skills e.g. ["plumbing", "electrical"]
   worker_price: number | null;        // price worker charges (in NGN)
   worker_verified: boolean;            // approved by platform (ONLY set by admin/creator)
+  available: boolean;                 // worker toggle: true = accepting new bookings
   worker_bio: string | null;           // service description
   worker_experience: string | null;    // years of experience
   worker_gov_id_url: string | null;    // government ID document URL

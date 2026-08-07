@@ -99,8 +99,8 @@ export default function WorkerDiscovery({ userCity, profile, onNavigate, preSele
 
   // ─── FILTER WORKERS ───────────────────────────────────
   const filteredWorkers = useMemo(() => {
-    // ONLY show verified workers to the public
-    let result = allWorkers.filter(w => w.worker_status === 'approved_for_verification' || w.worker_status === 'verified');
+    // ONLY show verified workers to the public (verification_paid workers are NOT public)
+    let result = allWorkers.filter(w => w.worker_status === 'verified');
 
     // State filter
     if (selectedState) {

@@ -319,7 +319,7 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
             <p className="text-[10px] text-[#5C5E72]">WeHouse is reviewing your application</p>
           </div>
         </div>
-      ) : profile.worker_status === 'approved_for_verification' ? (
+      ) : profile.worker_status === 'verification_paid' ? (
         <button
           onClick={() => onSetTab('verification_status')}
           className="w-full bg-gradient-to-r from-amber-500/10 to-amber-700/10 border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3 hover:border-amber-500/40 transition-colors"
