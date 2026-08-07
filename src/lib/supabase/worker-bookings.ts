@@ -94,33 +94,17 @@ export async function workerAcceptBooking(bookingId: string, negotiatedAmount: n
   return { success: data, error };
 }
 
-// Step 5: Customer confirms payment
-// DEPRECATED: Use the canonical server-verified Paystack path instead.
-// This function is kept for backward compatibility but should be replaced
-// with confirmWorkerBookingPayment() after Edge Function verification.
-export async function customerConfirmPayment(bookingId: string, paystackRef: string, paystackTxId: string) {
-  const { data, error } = await supabase.rpc('customer_confirm_payment', {
-    p_booking_id: bookingId,
-    p_paystack_ref: paystackRef,
-    p_paystack_tx_id: paystackTxId,
-  });
-  return { success: data, error };
-}
-
-// Canonical server-verified payment confirmation.
-// Called after Paystack payment is verified.
-export async function confirmWorkerBookingPayment(
-  bookingId: string,
-  paystackRef: string,
-  paystackTxId: string
-) {
-  const { data, error } = await supabase.rpc('confirm_worker_booking_payment', {
-    p_booking_id: bookingId,
-    p_paystack_ref: paystackRef,
-    p_paystack_tx_id: paystackTxId,
-  });
-  return { success: data, error };
-}
+// Step 5 (Payment): The customer pays via Paystack popup.
+// After Paystack popup success, the frontend calls verifyPaymentWithRetry()
+// from @/lib/supabase/payment-verify, which invokes the paystack-verify Edge
+// Function. The Edge Function verifies with Paystack API, then routes to:
+//   - confirm_worker_booking_payment (for purpose='worker_booking')
+//   - confirm_booking_payment (for all other purposes)
+// Frontend NEVER calls either RPC directly.
+//
+// DEPRECATED wrappers removed:
+//   - customerConfirmPayment() → called customer_confirm_payment directly (unsafe)
+//   - confirmWorkerBookingPayment() → called confirm_worker_booking_payment directly (unsafe)
 
 // Step 6: Worker starts job
 // SECURITY: Backend derives worker identity from auth.uid().

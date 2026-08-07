@@ -959,7 +959,7 @@ $$;
 -- (supabase/functions/paystack-verify) after Paystack API verification.
 -- 
 -- The Edge Function:
---   1. Authenticates the caller
+--   1. Authenticates the caller (fail closed)
 --   2. Verifies the transaction with Paystack API using PAYSTACK_SECRET_KEY
 --   3. Checks amount, currency (NGN), and user ownership
 --   4. Records in verified_paystack_references for idempotency
@@ -974,7 +974,8 @@ CREATE OR REPLACE FUNCTION public.confirm_worker_booking_payment(
   p_booking_id UUID,
   p_paystack_reference TEXT,
   p_amount_verified NUMERIC,
-  p_currency TEXT DEFAULT 'NGN'
+  p_currency TEXT DEFAULT 'NGN',
+  p_transaction_id TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -983,61 +984,102 @@ SET search_path = public
 AS $$
 DECLARE
   v_booking RECORD;
+  v_payment RECORD;
   v_rate NUMERIC;
   v_commission NUMERIC;
   v_worker_receives NUMERIC;
   v_escrow_ref TEXT;
 BEGIN
+  -- ── DEFENSE IN DEPTH: reject browser calls ──
+  -- service_role has no auth.uid(); authenticated users MUST NOT call this.
+  IF auth.uid() IS NOT NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
   -- Validate inputs
   IF p_paystack_reference IS NULL OR length(trim(p_paystack_reference)) = 0 THEN
-    RAISE EXCEPTION 'Paystack reference is required';
+    RETURN jsonb_build_object('success', false, 'error', 'Paystack reference is required');
   END IF;
 
   IF p_amount_verified IS NULL OR p_amount_verified <= 0 THEN
-    RAISE EXCEPTION 'Verified amount must be positive';
+    RETURN jsonb_build_object('success', false, 'error', 'Verified amount must be positive');
   END IF;
 
   IF p_currency != 'NGN' THEN
-    RAISE EXCEPTION 'Only NGN currency is supported';
+    RETURN jsonb_build_object('success', false, 'error', 'Only NGN currency is supported');
   END IF;
 
-  -- Lock booking
+  -- ── Lock and find canonical payment row ──
+  SELECT * INTO v_payment FROM public.booking_payments
+  WHERE paystack_reference = p_paystack_reference
+  FOR UPDATE SKIP LOCKED;
+
+  IF v_payment IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Payment not found');
+  END IF;
+
+  IF v_payment.purpose IS NOT NULL AND v_payment.purpose != 'worker_booking' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Purpose mismatch: expected worker_booking, got ' || v_payment.purpose);
+  END IF;
+
+  -- ── Idempotency: already verified? ──
+  IF EXISTS (
+    SELECT 1 FROM public.verified_paystack_references
+    WHERE paystack_reference = p_paystack_reference
+  ) THEN
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
+  END IF;
+
+  IF v_payment.status IN ('paid', 'completed') THEN
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
+  END IF;
+
+  -- ── Verify amount ──
+  IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
+     AND ABS(p_amount_verified - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch',
+      'expected', COALESCE(v_payment.amount_total, v_payment.amount),
+      'verified', p_amount_verified);
+  END IF;
+
+  -- ── Lock and verify booking ──
   SELECT * INTO v_booking
   FROM public.worker_bookings
   WHERE id = p_booking_id
   FOR UPDATE;
 
   IF v_booking IS NULL THEN
-    RAISE EXCEPTION 'Booking not found';
+    RETURN jsonb_build_object('success', false, 'error', 'Booking not found');
   END IF;
 
-  IF v_booking.status != 'waiting_payment' THEN
-    RAISE EXCEPTION 'Booking is not awaiting payment. Status: %', v_booking.status;
+  -- Verify the paystack_reference on the booking matches (or is NULL awaiting first payment)
+  IF v_booking.paystack_reference IS NOT NULL AND v_booking.paystack_reference != p_paystack_reference THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking already has a different paystack reference');
   END IF;
 
-  -- Idempotency: check if already processed
-  IF v_booking.paystack_reference IS NOT NULL THEN
-    IF v_booking.paystack_reference = p_paystack_reference THEN
-      RETURN jsonb_build_object('success', true, 'already_processed', true);
-    ELSE
-      RAISE EXCEPTION 'Booking already has a different paystack reference';
-    END IF;
+  -- If booking already confirmed but paystack_reference matches, this is idempotent re-processing
+  IF v_booking.status = 'confirmed' AND v_booking.paystack_reference = p_paystack_reference THEN
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
   END IF;
 
-  -- Read commission rate from platform_settings (stored as percentage, e.g., '10.00')
+  IF v_booking.status NOT IN ('waiting_payment', 'negotiating', 'booking_requested') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking is not awaiting payment. Status: ' || v_booking.status);
+  END IF;
+
+  -- ── Read commission rate from platform_settings ──
   SELECT COALESCE(NULLIF(value, ''), '10')::NUMERIC INTO v_rate
   FROM public.platform_settings
   WHERE key = 'worker_commission_rate' AND is_active = true;
 
   -- Validate range: 0% to 50%
   IF v_rate < 0 OR v_rate > 50 THEN
-    RAISE EXCEPTION 'Invalid commission rate: %', v_rate;
+    RETURN jsonb_build_object('success', false, 'error', 'Invalid commission rate: ' || v_rate);
   END IF;
 
   v_commission := ROUND((p_amount_verified * v_rate / 100)::NUMERIC, 2);
   v_worker_receives := p_amount_verified - v_commission;
 
-  -- Update booking with verified payment details and applied commission rate
+  -- ── Update booking ──
   UPDATE public.worker_bookings
   SET status = 'confirmed',
       paystack_reference = p_paystack_reference,
@@ -1048,7 +1090,7 @@ BEGIN
       updated_at = NOW()
   WHERE id = p_booking_id;
 
-  -- Create escrow with LIVE escrow_transactions columns
+  -- ── Create escrow with LIVE escrow_transactions columns ──
   v_escrow_ref := 'WHESC-' || upper(substring(md5(gen_random_uuid()::text) from 1 for 10));
 
   INSERT INTO public.escrow_transactions (
@@ -1061,6 +1103,28 @@ BEGIN
     p_amount_verified, v_commission, v_worker_receives, v_rate,
     'held', p_paystack_reference, NOW(), NOW()
   );
+
+  -- ── Mark payment as paid ──
+  UPDATE public.booking_payments SET
+    status = 'paid',
+    paystack_transaction_id = COALESCE(p_transaction_id, v_payment.paystack_transaction_id),
+    verified_amount = p_amount_verified,
+    verified_at = NOW(),
+    verification_source = 'edge_function',
+    paid_at = NOW(),
+    webhook_processed = TRUE,
+    updated_at = NOW()
+  WHERE id = v_payment.id;
+
+  -- ── Record verified reference (idempotent) ──
+  INSERT INTO public.verified_paystack_references (
+    paystack_reference, booking_payment_id, verified_amount,
+    verification_source, verified_by
+  ) VALUES (
+    p_paystack_reference, v_payment.id, p_amount_verified,
+    'edge_function', 'paystack-verify'
+  )
+  ON CONFLICT (paystack_reference) DO NOTHING;
 
   RETURN jsonb_build_object(
     'success', true,

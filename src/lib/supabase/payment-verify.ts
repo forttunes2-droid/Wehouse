@@ -3,6 +3,8 @@
 // Server-side verification with amount + purpose validation
 // ═══════════════════════════════════════════════════════════
 
+import { supabase } from './client';
+
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-verify`;
 
 export interface VerifyPaymentResult {
@@ -23,13 +25,19 @@ export async function verifyPaymentServerSide(
     expected_amount?: number;
   }
 ): Promise<VerifyPaymentResult> {
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  // Get the user's session JWT — the Edge Function requires valid auth.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    return { success: false, error: 'Not authenticated' };
+  }
 
   const res = await fetch(EDGE_FUNCTION_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${supabaseAnonKey}`,
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
       reference,

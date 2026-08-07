@@ -88,26 +88,89 @@ Deno.serve(async (req) => {
         return new Response('Ignored: not success', { status: 200, headers: corsHeaders });
       }
 
-      // Call the confirm function with verified amount (required)
-      const { data: result, error } = await supabase.rpc('confirm_booking_payment', {
-        p_reference: reference,
-        p_transaction_id: transactionId,
-        p_verified_amount: amount,
-        p_verification_source: 'webhook'
-      });
+      // ── Determine payment purpose from canonical DB record ──
+      const { data: paymentRecord, error: paymentError } = await supabase
+        .from('booking_payments')
+        .select('id, purpose, status, paystack_reference')
+        .eq('paystack_reference', reference)
+        .maybeSingle();
 
-      if (error) {
-        console.error('[Webhook] confirm_booking_payment error:', error.message);
-        return new Response('Processing error', { status: 500, headers: corsHeaders });
+      if (paymentError) {
+        console.error('[Webhook] DB error looking up payment:', paymentError.message);
+        return new Response('Database error', { status: 500, headers: corsHeaders });
       }
 
-      const resultJson = typeof result === 'string' ? JSON.parse(result) : result;
-      console.log('[Webhook] Result:', JSON.stringify(resultJson));
+      if (!paymentRecord) {
+        console.error('[Webhook] Payment record not found for reference:', reference);
+        // Return 200 so Paystack doesn't retry; this may be a non-WeHouse payment
+        return new Response('Payment record not found', { status: 200, headers: corsHeaders });
+      }
 
-      return new Response(JSON.stringify(resultJson), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      // Idempotency check
+      if (paymentRecord.status === 'paid' || paymentRecord.status === 'completed') {
+        console.log('[Webhook] Payment already processed:', reference);
+        return new Response(JSON.stringify({ success: true, already_processed: true }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ── Route by purpose ──
+      if (paymentRecord.purpose === 'worker_booking') {
+        // Derive booking_id from canonical worker_bookings table (NOT from event data)
+        const { data: workerBooking, error: wbError } = await supabase
+          .from('worker_bookings')
+          .select('id')
+          .eq('paystack_reference', reference)
+          .maybeSingle();
+
+        if (wbError || !workerBooking) {
+          console.error('[Webhook] Worker booking not found for reference:', reference);
+          return new Response('Worker booking not found', { status: 200, headers: corsHeaders });
+        }
+
+        // Call worker-specific RPC (service_role only)
+        const { data: result, error } = await supabase.rpc('confirm_worker_booking_payment', {
+          p_booking_id: workerBooking.id,
+          p_paystack_reference: reference,
+          p_amount_verified: amount,
+          p_currency: 'NGN',
+          p_transaction_id: transactionId,
+        });
+
+        if (error) {
+          console.error('[Webhook] confirm_worker_booking_payment error:', error.message);
+          return new Response('Processing error', { status: 500, headers: corsHeaders });
+        }
+
+        const resultJson = typeof result === 'string' ? JSON.parse(result) : result;
+        console.log('[Webhook] Worker booking result:', JSON.stringify(resultJson));
+
+        return new Response(JSON.stringify(resultJson), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } else {
+        // All other payment types: worker_verification, apartment_reservation, hotel_booking, etc.
+        const { data: result, error } = await supabase.rpc('confirm_booking_payment', {
+          p_reference: reference,
+          p_transaction_id: transactionId,
+          p_verified_amount: amount,
+          p_verification_source: 'webhook'
+        });
+
+        if (error) {
+          console.error('[Webhook] confirm_booking_payment error:', error.message);
+          return new Response('Processing error', { status: 500, headers: corsHeaders });
+        }
+
+        const resultJson = typeof result === 'string' ? JSON.parse(result) : result;
+        console.log('[Webhook] Result:', JSON.stringify(resultJson));
+
+        return new Response(JSON.stringify(resultJson), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
 
     // Handle transfer.success (for payouts to workers)
