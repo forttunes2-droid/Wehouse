@@ -104,39 +104,43 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
     });
   }, []);
 
-  // ─── POST-OAUTH ROLE COMPLETION ────────────────────
-  // After Google OAuth redirect, the user is authenticated but may have no profile
-  // (new user). We must ensure they select a role before creating the profile.
+  // ─── POST-OAUTH HANDLING ───────────────────────────
+  // After Google OAuth redirect, the user is authenticated.
+  // Check if a WeHouse profile exists for this auth identity.
+  // If YES → route to existing account (no role selection).
+  // If NO  → show role selection for new account.
   useEffect(() => {
     if (oauthProcessedRef.current) return;
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
-        // Not authenticated — clear any stale pending role
         localStorage.removeItem('wh_pending_role');
         return;
       }
 
-      // User is authenticated from OAuth — check if profile exists
       getProfileByAuthId(user.id).then(({ profile }) => {
         if (oauthProcessedRef.current) return;
 
-        if (!profile) {
+        if (profile) {
+          // EXISTING account — route directly, never ask for role
           oauthProcessedRef.current = true;
-          // No profile — this is a new OAuth user
+          localStorage.removeItem('wh_pending_role');
+          onLoginSuccess(user.id, user.email!);
+        } else {
+          // NEW account — no profile yet
+          oauthProcessedRef.current = true;
           const pendingRole = localStorage.getItem('wh_pending_role') as 'user' | 'worker' | 'property_partner' | null;
 
           if (pendingRole && ['user', 'worker', 'property_partner'].includes(pendingRole)) {
-            // Role was pre-selected before OAuth — create profile now
+            // Role was already selected before OAuth — create profile
             localStorage.removeItem('wh_pending_role');
             onLoginSuccess(user.id, user.email!, pendingRole);
           } else {
-            // No pre-selected role — force role selection
+            // No role selected yet — force role selection
             setMode('choose_role');
             setPendingAuthMethod('google');
           }
         }
-        // If profile exists, normal routing takes over via App.tsx
       });
     });
   }, [onLoginSuccess]);
@@ -260,8 +264,8 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
         {/* Choose */}
         {mode === 'choose' && (
           <div className="space-y-3">
-            {/* Google */}
-            <button onClick={() => { setPendingAuthMethod('google'); setMode('choose_role'); setError(''); }} disabled={working} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors disabled:opacity-50">
+            {/* Google — direct OAuth, NO role selection shown yet */}
+            <button onClick={() => { handleGoogle(); }} disabled={working} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors disabled:opacity-50">
               <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
               Continue with Google
             </button>
@@ -285,12 +289,17 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
           <div className="space-y-3">
             <p className="text-xs text-[#5C5E72] text-center mb-2">I want to...</p>
 
-            <button onClick={() => {
+            <button onClick={async () => {
                 setSignupRole('user');
                 setError('');
                 if (pendingAuthMethod === 'google') {
-                  localStorage.setItem('wh_pending_role', 'user');
-                  handleGoogle();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    onLoginSuccess(user.id, user.email!, 'user');
+                  } else {
+                    localStorage.setItem('wh_pending_role', 'user');
+                    handleGoogle();
+                  }
                 } else {
                   setMode('signup');
                 }
@@ -305,12 +314,17 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
               </div>
             </button>
 
-            <button onClick={() => {
+            <button onClick={async () => {
                 setSignupRole('worker');
                 setError('');
                 if (pendingAuthMethod === 'google') {
-                  localStorage.setItem('wh_pending_role', 'worker');
-                  handleGoogle();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    onLoginSuccess(user.id, user.email!, 'worker');
+                  } else {
+                    localStorage.setItem('wh_pending_role', 'worker');
+                    handleGoogle();
+                  }
                 } else {
                   setMode('signup');
                 }
@@ -325,12 +339,17 @@ export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginP
               </div>
             </button>
 
-            <button onClick={() => {
+            <button onClick={async () => {
                 setSignupRole('property_partner');
                 setError('');
                 if (pendingAuthMethod === 'google') {
-                  localStorage.setItem('wh_pending_role', 'property_partner');
-                  handleGoogle();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    onLoginSuccess(user.id, user.email!, 'property_partner');
+                  } else {
+                    localStorage.setItem('wh_pending_role', 'property_partner');
+                    handleGoogle();
+                  }
                 } else {
                   setMode('signup');
                 }
