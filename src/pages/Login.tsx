@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase, signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runDiagnostics } from '@/lib/supabase';
+import { useState, useEffect, useRef } from 'react';
+import { supabase, signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runDiagnostics, getProfileByAuthId } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
 
 interface LoginProps {
@@ -18,6 +18,9 @@ function friendlyError(raw: string): string {
   const msg = raw.toLowerCase();
   if (msg.includes('api key') || msg.includes('invalid key')) {
     return 'Authentication service not configured. Please contact support.';
+  }
+  if (msg.includes('suspended') || msg.includes('account has been suspended')) {
+    return 'Your account has been suspended. Contact support for assistance.';
   }
   if (msg.includes('deleted') || msg.includes('this account has been deleted')) {
     return 'This account has been deleted. Please contact support if you believe this is an error.';
@@ -41,7 +44,7 @@ function friendlyError(raw: string): string {
     return 'Request timed out. Please try again.';
   }
   if (msg.includes('password') && msg.includes('weak')) {
-    return 'Password is too weak. Use at least 6 characters.';
+    return 'Password is too weak. Use at least 8 characters.';
   }
   if (msg.includes('for security')) {
     return 'Too many attempts. Please wait a moment and try again.';
@@ -81,6 +84,7 @@ function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }
 export default function Login({ onLoginSuccess, serverError, kickedOut, showRestore, restoreUserId, onRestoreAccount }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
   const [signupRole, setSignupRole] = useState<'user' | 'worker' | 'property_partner'>('user');
+  const [pendingAuthMethod, setPendingAuthMethod] = useState<'google' | 'email' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -88,6 +92,7 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [diag, setDiag] = useState<string | null>(null);
+  const oauthProcessedRef = useRef(false);
 
   // Run diagnostics once on mount — log to console, don't block UI
   useEffect(() => {
@@ -98,6 +103,43 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
       }
     });
   }, []);
+
+  // ─── POST-OAUTH ROLE COMPLETION ────────────────────
+  // After Google OAuth redirect, the user is authenticated but may have no profile
+  // (new user). We must ensure they select a role before creating the profile.
+  useEffect(() => {
+    if (oauthProcessedRef.current) return;
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        // Not authenticated — clear any stale pending role
+        localStorage.removeItem('wh_pending_role');
+        return;
+      }
+
+      // User is authenticated from OAuth — check if profile exists
+      getProfileByAuthId(user.id).then(({ profile }) => {
+        if (oauthProcessedRef.current) return;
+
+        if (!profile) {
+          oauthProcessedRef.current = true;
+          // No profile — this is a new OAuth user
+          const pendingRole = localStorage.getItem('wh_pending_role') as 'user' | 'worker' | 'property_partner' | null;
+
+          if (pendingRole && ['user', 'worker', 'property_partner'].includes(pendingRole)) {
+            // Role was pre-selected before OAuth — create profile now
+            localStorage.removeItem('wh_pending_role');
+            onLoginSuccess(user.id, user.email!, pendingRole);
+          } else {
+            // No pre-selected role — force role selection
+            setMode('choose_role');
+            setPendingAuthMethod('google');
+          }
+        }
+        // If profile exists, normal routing takes over via App.tsx
+      });
+    });
+  }, [onLoginSuccess]);
 
   const displayError = error || serverError;
 
@@ -111,7 +153,7 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
     setInfo('');
 
     if (!email.includes('@')) { setError('Enter a valid email address'); return; }
-    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
 
     setWorking(true);
 
@@ -250,7 +292,7 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
         {mode === 'choose' && (
           <div className="space-y-3">
             {/* Google */}
-            <button onClick={handleGoogle} disabled={working} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors disabled:opacity-50">
+            <button onClick={() => { setPendingAuthMethod('google'); setMode('choose_role'); setError(''); }} disabled={working} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors disabled:opacity-50">
               <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
               Continue with Google
             </button>
@@ -263,7 +305,7 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
             <button onClick={() => { setMode('signin'); setError(''); }} className="w-full h-12 rounded-xl bg-[#1A1A24] text-white font-medium text-sm border border-[#232330] hover:border-[#3B82F6]/50 hover:bg-[#1E1E2C] transition-all">
               Sign In with Email
             </button>
-            <button onClick={() => { setMode('choose_role'); setError(''); }} className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-medium text-sm hover:bg-[#2563EB] transition-colors glow-blue-sm">
+            <button onClick={() => { setPendingAuthMethod('email'); setMode('choose_role'); setError(''); }} className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-medium text-sm hover:bg-[#2563EB] transition-colors glow-blue-sm">
               Create Account
             </button>
           </div>
@@ -274,7 +316,16 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
           <div className="space-y-3">
             <p className="text-xs text-[#5C5E72] text-center mb-2">I want to...</p>
 
-            <button onClick={() => { setSignupRole('user'); setMode('signup'); setError(''); }}
+            <button onClick={() => {
+                setSignupRole('user');
+                setError('');
+                if (pendingAuthMethod === 'google') {
+                  localStorage.setItem('wh_pending_role', 'user');
+                  handleGoogle();
+                } else {
+                  setMode('signup');
+                }
+              }}
               className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
               <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
@@ -285,7 +336,16 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
               </div>
             </button>
 
-            <button onClick={() => { setSignupRole('worker'); setMode('signup'); setError(''); }}
+            <button onClick={() => {
+                setSignupRole('worker');
+                setError('');
+                if (pendingAuthMethod === 'google') {
+                  localStorage.setItem('wh_pending_role', 'worker');
+                  handleGoogle();
+                } else {
+                  setMode('signup');
+                }
+              }}
               className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
               <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
@@ -296,7 +356,16 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
               </div>
             </button>
 
-            <button onClick={() => { setSignupRole('property_partner'); setMode('signup'); setError(''); }}
+            <button onClick={() => {
+                setSignupRole('property_partner');
+                setError('');
+                if (pendingAuthMethod === 'google') {
+                  localStorage.setItem('wh_pending_role', 'property_partner');
+                  handleGoogle();
+                } else {
+                  setMode('signup');
+                }
+              }}
               className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
               <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
@@ -307,7 +376,7 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
               </div>
             </button>
 
-            <button type="button" onClick={() => { setMode('choose'); setError(''); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#8B8DA0] transition-colors pt-2">
+            <button type="button" onClick={() => { setMode('choose'); setError(''); setPendingAuthMethod(null); localStorage.removeItem('wh_pending_role'); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#8B8DA0] transition-colors pt-2">
               Back
             </button>
           </div>
@@ -333,9 +402,9 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 6 characters"
+                placeholder="Min 8 characters"
                 required
-                minLength={6}
+                minLength={8}
                 className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20 pr-10"
               />
               <EyeIcon visible={showPassword} onClick={() => setShowPassword(!showPassword)} />

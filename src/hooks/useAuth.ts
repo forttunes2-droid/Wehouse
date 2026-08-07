@@ -174,6 +174,13 @@ export function useAuth() {
 
   // ─── Centralized entry-point guard ────────────────
   const allowEntry = useCallback(async (profile: Profile): Promise<boolean> => {
+    // ── SUSPENDED CHECK: cannot login ───────────────
+    if (profile.suspended) {
+      weTriggeredSignOutRef.current = true;
+      await supabase.auth.signOut(); await wipeOnLogout();
+      setState({ page: 'login', profile: null, isLoading: false, error: 'Your account has been suspended. Contact support for assistance.', showRestore: false });
+      return false;
+    }
     if (profile.deleted) {
       // Show restore option instead of immediately blocking
       setState({ page: 'login', profile: null, isLoading: false, error: '', showRestore: true, restoreUserId: profile.user_id });

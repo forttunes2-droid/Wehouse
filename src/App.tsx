@@ -581,6 +581,12 @@ export default function App() {
       case 'messages':
         return <Chat profile={profile} onNavigate={(p: string) => goTo(p as NavPage)} />;
       case 'wallet':
+        // ── REQUIREMENT 11: Wallet restricted to Worker and Property Partner ──
+        if (profile.role !== 'worker' && profile.role !== 'property_partner') {
+          toast.error('Wallet is only available for workers and property partners');
+          handleSetNavPage('home');
+          return null;
+        }
         return <WalletPage profile={profile} onBack={() => goTo('profile')} />;
       // ── Role-specific primary tabs (Constitution) ──
       case 'jobs':

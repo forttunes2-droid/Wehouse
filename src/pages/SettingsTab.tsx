@@ -156,7 +156,7 @@ export default function SettingsTab({ profile, onUpdate }: SettingsTabProps) {
   async function handleChangePassword() {
     if (!currentPw || !newPw || !confirmPw) { toast.error('All fields are required'); return; }
     if (newPw !== confirmPw) { toast.error('New passwords do not match'); return; }
-    if (newPw.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+    if (newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
     setChangingPw(true);
     const { error } = await changePassword(currentPw, newPw, profile.email);
     setChangingPw(false);

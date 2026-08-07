@@ -232,7 +232,6 @@ export {
   updateUserRole,
   getRoleChangeHistory,
   deleteUser,
-  deleteOwnAccount,
   restoreUser,
   toggleMaintenanceExempt,
   getAllListingsAdmin,

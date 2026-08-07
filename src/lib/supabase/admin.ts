@@ -243,6 +243,8 @@ export async function deleteUser(userId: string) {
   return { error };
 }
 
+// DEPRECATED: Use server-side RPC 'delete_user_account' instead
+// This client-side function is kept for backward compatibility but should not be used
 export async function deleteOwnAccount(userId: string, _authId: string) {
   return await deleteUser(userId);
 }
@@ -250,7 +252,14 @@ export async function deleteOwnAccount(userId: string, _authId: string) {
 export async function restoreUser(userId: string) {
   const { error } = await supabase
     .from('profiles')
-    .update({ deleted: false, deleted_at: null })
+    .update({ 
+      deleted: false, 
+      deleted_at: null,
+      suspended: false,
+      suspended_at: null,
+      suspended_by: null,
+      suspended_reason: null
+    })
     .eq('user_id', userId);
   return { error };
 }

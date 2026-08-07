@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { parseDeviceInfo, getSessionHistory, supabase, deleteOwnAccount, changePassword, logPasswordChange } from '@/lib/supabase';
+import { parseDeviceInfo, getSessionHistory, supabase, changePassword, logPasswordChange } from '@/lib/supabase';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Toaster, toast } from 'sonner';
@@ -30,6 +30,9 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [partnerListingCount, setPartnerListingCount] = useState<number | null>(null);
+  const [checkingListings, setCheckingListings] = useState(false);
 
   // Password change state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -41,9 +44,36 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [showConfirm, setShowConfirm] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
-  // Only USER and WORKER can delete their own account
-  const canDeleteAccount = profile.role === 'user' || profile.role === 'worker';
+  // Only USER, WORKER, and PROPERTY_PARTNER can delete their own account
+  // Admin/Creator/Staff are blocked server-side
+  const canDeleteAccount = profile.role === 'user' || profile.role === 'worker' || profile.role === 'property_partner';
   const isCreator = profile.role === 'creator';
+
+  // ─── REQUIREMENT 1: Check real email verification status from Supabase Auth ───
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setEmailVerified(!!user.email_confirmed_at);
+      }
+    });
+  }, []);
+
+  // ─── REQUIREMENT 9: Check property_partner active listings before delete ───
+  useEffect(() => {
+    if (profile.role === 'property_partner' && canDeleteAccount) {
+      setCheckingListings(true);
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('partner_id', profile.user_id)
+        .in('status', ['active', 'pending'])
+        .is('deleted_at', null)
+        .then(({ count }) => {
+          setPartnerListingCount(count || 0);
+          setCheckingListings(false);
+        });
+    }
+  }, [profile.role, profile.user_id, canDeleteAccount]);
 
   // Parse current device for comparison
   const currentDevice = parseDeviceInfo();
@@ -187,10 +217,13 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
 
   async function handleDeleteAccount() {
     setDeleting(true);
-    const { error } = await deleteOwnAccount(profile.user_id, profile.auth_id);
-    if (error) {
-      toast.error('Delete failed: ' + (error.message || JSON.stringify(error)));
-      console.error('[Delete Account Error]', error);
+    // ─── REQUIREMENT 13: Use server-side RPC only ───
+    const { data: rpcData, error: rpcError } = await supabase.rpc('delete_user_account', {
+      p_user_id: profile.user_id
+    });
+    if (rpcError) {
+      toast.error('Delete failed: ' + (rpcError.message || JSON.stringify(rpcError)));
+      console.error('[Delete Account Error]', rpcError);
       setDeleting(false);
       return;
     }
@@ -266,10 +299,22 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-[#5C5E72]">Email Status</span>
-              <span className="text-green-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                Verified
-              </span>
+              {emailVerified === true ? (
+                <span className="text-green-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  Verified
+                </span>
+              ) : emailVerified === false ? (
+                <span className="text-red-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+                  Not Verified
+                </span>
+              ) : (
+                <span className="text-[#5C5E72] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#5C5E72] inline-block animate-pulse" />
+                  Checking...
+                </span>
+              )}
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-[#5C5E72]">Account Created</span>
@@ -493,16 +538,40 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
           )}
         </div>
 
-        {/* Delete Account — USER and WORKER only */}
+        {/* Delete Account — USER, WORKER, PROPERTY_PARTNER only */}
         {canDeleteAccount && <div className="pt-4 border-t border-white/[0.04]">
           <h3 className="text-[10px] font-semibold text-[#5C5E72] uppercase tracking-widest mb-4 px-1">
             Account Removal
           </h3>
 
+          {/* Property Partner: Active listings warning */}
+          {profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0 && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <div className="flex items-start gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div>
+                  <p className="text-xs text-amber-400 font-medium">Cannot delete account</p>
+                  <p className="text-[11px] text-[#5C5E72] mt-0.5">
+                    You have <span className="text-amber-400 font-semibold">{partnerListingCount}</span> active or pending listing(s).
+                    Close all listings before deleting your account.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="w-full glass rounded-2xl p-4 flex items-center gap-4 text-left group hover:border-red-500/20 transition-all duration-300"
+              disabled={profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0}
+              className={`w-full glass rounded-2xl p-4 flex items-center gap-4 text-left group transition-all duration-300 ${
+                profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0
+                  ? 'opacity-50 cursor-not-allowed border-red-500/10'
+                  : 'hover:border-red-500/20'
+              }`}
             >
               <div className="w-11 h-11 rounded-xl bg-red-500/[0.08] flex items-center justify-center flex-shrink-0 group-hover:bg-red-500/[0.15] transition-colors">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

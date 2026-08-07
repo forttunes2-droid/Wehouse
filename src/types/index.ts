@@ -104,6 +104,11 @@ export interface Profile {
   // ── SOFT DELETE ───────────────────────────────────
   deleted: boolean;
   deleted_at: string | null;
+  // ── SUSPENDED (can be reactivated vs deleted which is permanent) ──
+  suspended: boolean;
+  suspended_at: string | null;
+  suspended_by: string | null;
+  suspended_reason: string | null;
   // ── ROLE + SCOPE ──────────────────────────────────
   assigned_state: string | null;  // Admin/Staff: assigned state
   assigned_lga: string | null;    // Admin/Staff: assigned LGA
