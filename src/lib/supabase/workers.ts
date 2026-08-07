@@ -519,7 +519,7 @@ export async function refundEscrow(escrowId: string, reason?: string) {
 // Worker: Request withdrawal (canonical, atomic balance reservation)
 // SECURITY: Backend derives identity from auth.uid().
 export async function requestWithdrawal(amount: number) {
-  const { data, error } = await supabase.rpc('request_withdrawal', {
+  const { data, error } = await supabase.rpc('request_worker_withdrawal', {
     p_amount: amount,
   });
   return { result: data, error };

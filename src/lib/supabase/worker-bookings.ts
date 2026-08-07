@@ -108,20 +108,18 @@ export async function customerConfirmPayment(bookingId: string, paystackRef: str
 }
 
 // Canonical server-verified payment confirmation.
-// Called by the Edge Function after Paystack API verification.
+// Called after Paystack payment is verified.
 export async function confirmWorkerBookingPayment(
   bookingId: string,
-  paystackReference: string,
-  amountVerified: number,
-  currency: string = 'NGN'
+  paystackRef: string,
+  paystackTxId: string
 ) {
   const { data, error } = await supabase.rpc('confirm_worker_booking_payment', {
     p_booking_id: bookingId,
-    p_paystack_reference: paystackReference,
-    p_amount_verified: amountVerified,
-    p_currency: currency,
+    p_paystack_ref: paystackRef,
+    p_paystack_tx_id: paystackTxId,
   });
-  return { result: data, error };
+  return { success: data, error };
 }
 
 // Step 6: Worker starts job

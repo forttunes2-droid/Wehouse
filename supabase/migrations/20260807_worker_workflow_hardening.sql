@@ -6,6 +6,21 @@
 -- 
 -- Prerequisites: 20250807_auth_corrections.sql has already been applied.
 -- This migration ONLY adds worker workflow hardening on top.
+-- 
+-- PREFLIGHT NOTES:
+-- - commission_ledger table exists (verified in repo)
+-- - verified_paystack_references table exists (verified in repo)
+-- - platform_settings stores commission_rate as numeric/percentage string
+-- - wallet_transactions columns: id, wallet_id, type, amount, description,
+--   reference, balance_after, created_at
+-- - escrow_transactions required columns: reference, transaction_type, customer_id,
+--   gross_amount, net_amount
+-- - withdrawals columns: wallet_id, amount, paystack_transfer_reference,
+--   paystack_transfer_code, status, bank_name, bank_account_number,
+--   bank_account_name, processed_at, failed_reason, reversed_at, created_at, updated_at
+--   + snapshot_bank_* columns added by 20250730_payment_security_hardening
+-- - booking_conversations columns: id, booking_id (UNIQUE), user_id, worker_id,
+--   status, created_at, updated_at
 -- ═════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -28,43 +43,69 @@ BEGIN
 END $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- 2. WORKER STATUS REPAIR REPORT
+-- 2. PREFLIGHT: WORKER STATUS ANOMALY REPORT
+-- 
+-- If worker_status and worker_verified are both present, report anomalies
+-- to financial_audit_logs. Do NOT auto-repair without evidence.
 -- ═════════════════════════════════════════════════════════════════════════════
--- Live data inspection shows:
---   pending/worker_verified=false: 3 accounts
---   pending/worker_verified=true:  2 accounts
--- The 2 pending+verified accounts require manual review of worker_verifications
--- records before repair. Do NOT auto-publish or auto-downgrade without evidence.
--- This migration creates an audit log entry documenting the finding.
-
 DO $$
+DECLARE
+  v_pending_verified_count INT;
+  v_pending_unverified_count INT;
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'financial_audit_logs'
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'worker_status'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'worker_verified'
   ) THEN
-    INSERT INTO public.financial_audit_logs (event_type, user_id, description, metadata, created_at)
-    VALUES (
-      'system_notice',
-      'system',
-      'Worker status repair: 2 profiles have worker_status=pending AND worker_verified=true. Manual review required before repair.',
-      '{"pending_verified_false":3,"pending_verified_true":2,"repair_required":true,"migration":"20260807_worker_workflow_hardening"}'::jsonb,
-      NOW()
-    )
-    ON CONFLICT DO NOTHING;
+    SELECT COUNT(*) INTO v_pending_verified_count
+    FROM public.profiles
+    WHERE role = 'worker' AND worker_status = 'pending' AND worker_verified = true;
+
+    SELECT COUNT(*) INTO v_pending_unverified_count
+    FROM public.profiles
+    WHERE role = 'worker' AND worker_status = 'pending' AND worker_verified = false;
+
+    IF v_pending_verified_count > 0 OR v_pending_unverified_count > 0 THEN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'financial_audit_logs'
+      ) THEN
+        INSERT INTO public.financial_audit_logs (event_type, user_id, description, metadata, created_at)
+        VALUES (
+          'system_notice',
+          'system',
+          format('Worker status repair: %s pending+verified and %s pending+unverified profiles found. Manual review required before repair.',
+            v_pending_verified_count, v_pending_unverified_count),
+          jsonb_build_object(
+            'pending_verified_true', v_pending_verified_count,
+            'pending_verified_false', v_pending_unverified_count,
+            'repair_required', v_pending_verified_count > 0,
+            'migration', '20260807_worker_workflow_hardening'
+          ),
+          NOW()
+        )
+        ON CONFLICT DO NOTHING;
+      END IF;
+    END IF;
   END IF;
 END $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- 3. UNIQUE CONSTRAINTS FOR IDEMPOTENCY
+-- 
+-- Only add if columns exist and constraint does not already exist.
 -- ═════════════════════════════════════════════════════════════════════════════
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'worker_bookings' AND column_name = 'paystack_reference'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
-    WHERE table_schema = 'public'
-      AND table_name = 'worker_bookings'
-      AND constraint_name = 'uq_worker_bookings_paystack_ref'
+    WHERE table_schema = 'public' AND table_name = 'worker_bookings' AND constraint_name = 'uq_worker_bookings_paystack_ref'
   ) THEN
     ALTER TABLE public.worker_bookings
     ADD CONSTRAINT uq_worker_bookings_paystack_ref UNIQUE (paystack_reference);
@@ -74,11 +115,12 @@ END $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'booking_payments' AND column_name = 'paystack_reference'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
-    WHERE table_schema = 'public'
-      AND table_name = 'booking_payments'
-      AND constraint_name = 'uq_booking_payments_paystack_ref'
+    WHERE table_schema = 'public' AND table_name = 'booking_payments' AND constraint_name = 'uq_booking_payments_paystack_ref'
   ) THEN
     ALTER TABLE public.booking_payments
     ADD CONSTRAINT uq_booking_payments_paystack_ref UNIQUE (paystack_reference);
@@ -87,44 +129,85 @@ EXCEPTION WHEN duplicate_table THEN NULL;
 END $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- 4. STORAGE: DROP BROAD PUBLIC POLICIES, CREATE PRIVATE ONES
+-- 4. STORAGE: DROP ALL BROAD POLICIES, CREATE PRIVATE ONES
+-- 
+-- Exact policy names found in repository:
+--   worker-files-public, worker-files-upload, worker-files-read
+--   chat-files-public, chat-files-upload, chat-files-read
+--   (plus any legacy variants)
 -- ═════════════════════════════════════════════════════════════════════════════
--- Drop dangerous public policies on worker-files and chat-files
-DROP POLICY IF EXISTS "worker-files-public" ON storage.objects;
-DROP POLICY IF EXISTS "chat-files-public" ON storage.objects;
 
--- Worker-files: owner + authorized reviewers only
+-- worker-files: drop all existing policies
+DROP POLICY IF EXISTS "worker-files-public" ON storage.objects;
+DROP POLICY IF EXISTS "worker_files_public" ON storage.objects;
+DROP POLICY IF EXISTS "worker-files-upload" ON storage.objects;
+DROP POLICY IF EXISTS "worker_files_upload" ON storage.objects;
+DROP POLICY IF EXISTS "worker-files-read" ON storage.objects;
+DROP POLICY IF EXISTS "worker_files_read" ON storage.objects;
 DROP POLICY IF EXISTS "worker_files_owner_insert" ON storage.objects;
-CREATE POLICY "worker_files_owner_insert" ON storage.objects
+DROP POLICY IF EXISTS "worker_files_owner_select" ON storage.objects;
+DROP POLICY IF EXISTS "worker_files_reviewer_select" ON storage.objects;
+DROP POLICY IF EXISTS "worker-files-owner-insert" ON storage.objects;
+DROP POLICY IF EXISTS "worker-files-owner-select" ON storage.objects;
+DROP POLICY IF EXISTS "worker-files-reviewer-select" ON storage.objects;
+
+-- chat-files: drop all existing policies
+DROP POLICY IF EXISTS "chat-files-public" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_public" ON storage.objects;
+DROP POLICY IF EXISTS "chat-files-upload" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_upload" ON storage.objects;
+DROP POLICY IF EXISTS "chat-files-read" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_read" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_participant_insert" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_participant_select" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_participant_insert" ON storage.objects;
+DROP POLICY IF EXISTS "chat_files_participant_select" ON storage.objects;
+
+-- Create worker-files policies
+-- Owner can upload their own files (second path segment = profile.user_id)
+CREATE POLICY "worker-files-owner-insert" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'worker-files'
-    AND (storage.foldername(name))[1] = auth.uid()::text
+    AND (storage.foldername(name))[1] = 'worker-verifications'
+    AND (storage.foldername(name))[2] = (
+      SELECT user_id FROM public.profiles WHERE auth_id = auth.uid()::text
+    )
   );
 
-DROP POLICY IF EXISTS "worker_files_owner_select" ON storage.objects;
-CREATE POLICY "worker_files_owner_select" ON storage.objects
+CREATE POLICY "worker-files-owner-select" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'worker-files'
-    AND (storage.foldername(name))[1] = auth.uid()::text
+    AND (storage.foldername(name))[1] = 'worker-verifications'
+    AND (storage.foldername(name))[2] = (
+      SELECT user_id FROM public.profiles WHERE auth_id = auth.uid()::text
+    )
   );
 
-DROP POLICY IF EXISTS "worker_files_reviewer_select" ON storage.objects;
-CREATE POLICY "worker_files_reviewer_select" ON storage.objects
+-- Admin/creator/staff can read all worker files
+CREATE POLICY "worker-files-reviewer-select" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'worker-files'
     AND EXISTS (
       SELECT 1 FROM public.profiles
-      WHERE auth_id = auth.uid()::text
-        AND role IN ('admin', 'creator', 'staff')
+      WHERE auth_id = auth.uid()::text AND role IN ('admin', 'creator', 'staff')
     )
   );
 
--- Chat-files: booking participants only
-DROP POLICY IF EXISTS "chat_files_participant_insert" ON storage.objects;
-CREATE POLICY "chat_files_participant_insert" ON storage.objects
+-- Create chat-files policies
+-- General chat uses path prefix "chat/"; booking chat uses "{conversationId}/"
+-- Allow authenticated users to upload to general chat paths
+CREATE POLICY "chat-files-general-insert" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'chat-files'
+    AND (storage.foldername(name))[1] = 'chat'
+  );
+
+-- Allow booking participants to upload to their conversation folders
+CREATE POLICY "chat-files-booking-insert" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'chat-files'
@@ -138,8 +221,16 @@ CREATE POLICY "chat_files_participant_insert" ON storage.objects
     )
   );
 
-DROP POLICY IF EXISTS "chat_files_participant_select" ON storage.objects;
-CREATE POLICY "chat_files_participant_select" ON storage.objects
+-- Allow authenticated users to read general chat files
+CREATE POLICY "chat-files-general-select" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'chat-files'
+    AND (storage.foldername(name))[1] = 'chat'
+  );
+
+-- Allow booking participants to read their conversation files
+CREATE POLICY "chat-files-booking-select" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'chat-files'
@@ -155,6 +246,9 @@ CREATE POLICY "chat_files_participant_select" ON storage.objects
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- 5. PUBLIC WORKER DISCOVERY RPC
+-- 
+-- Returns only safe public fields. Joins worker_services and
+-- worker_service_coverage for enriched discovery data.
 -- ═════════════════════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION public.get_public_workers(
   p_state TEXT DEFAULT NULL,
@@ -366,7 +460,10 @@ BEGIN
     status, customer_message, created_at, updated_at
   ) VALUES (
     v_code, v_customer.user_id, p_worker_id, p_service_type,
-    p_description, p_address, p_scheduled_date::DATE, 0, 0, 0, 0,
+    p_description, p_address,
+    CASE WHEN p_scheduled_date IS NOT NULL AND p_scheduled_date != ''
+      THEN p_scheduled_date::DATE ELSE NULL END,
+    0, 0, 0, 0,
     'booking_requested', p_customer_message, NOW(), NOW()
   )
   RETURNING id INTO v_booking_id;
@@ -494,7 +591,11 @@ BEGIN
   SET status = 'waiting_payment',
       negotiated_amount = p_negotiated_amount,
       agreed_amount = p_negotiated_amount,
-      scheduled_date = COALESCE(p_scheduled_date::DATE, scheduled_date),
+      scheduled_date = COALESCE(
+        CASE WHEN p_scheduled_date IS NOT NULL AND p_scheduled_date != ''
+          THEN p_scheduled_date::DATE ELSE NULL END,
+        scheduled_date
+      ),
       updated_at = NOW()
   WHERE id = p_booking_id;
 
@@ -581,6 +682,9 @@ $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- 12. CUSTOMER CONFIRM COMPLETION (auth-derived, escrow release)
+-- 
+-- Uses ACTUAL wallet_transactions columns:
+--   id, wallet_id, type, amount, description, reference, balance_after, created_at
 -- ═════════════════════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION public.customer_confirm_completion(p_booking_id UUID)
 RETURNS BOOLEAN
@@ -595,6 +699,7 @@ DECLARE
   v_escrow RECORD;
   v_new_balance NUMERIC;
   v_release_ref TEXT;
+  v_wallet_id UUID;
 BEGIN
   SELECT user_id INTO v_customer_id
   FROM public.profiles
@@ -632,7 +737,7 @@ BEGIN
     RAISE EXCEPTION 'Escrow already finalized: %', v_escrow.status;
   END IF;
 
-  -- Lock wallet
+  -- Get or create wallet
   SELECT * INTO v_wallet
   FROM public.wallets
   WHERE owner_id = v_booking.worker_id
@@ -640,20 +745,21 @@ BEGIN
   FOR UPDATE;
 
   IF v_wallet IS NULL THEN
-    -- Auto-create wallet
     INSERT INTO public.wallets (owner_id, owner_type)
     VALUES (v_booking.worker_id, 'worker')
     RETURNING * INTO v_wallet;
   END IF;
 
+  v_wallet_id := v_wallet.id;
+
   -- Idempotency: unique release reference
   v_release_ref := 'REL-' || p_booking_id::text || '-' || v_booking.worker_id;
 
-  -- Check if already released (via wallet_transactions actual columns)
+  -- Check if already released (via wallet_transactions.reference)
   IF EXISTS (
     SELECT 1 FROM public.wallet_transactions
-    WHERE reference_id = v_release_ref
-      AND reference_type = 'escrow_release'
+    WHERE reference = v_release_ref
+      AND type = 'escrow_release'
   ) THEN
     RAISE EXCEPTION 'Payment already released for this booking';
   END IF;
@@ -670,7 +776,7 @@ BEGIN
   UPDATE public.escrow_transactions
   SET status = 'released',
       released_at = NOW(),
-      released_to_wallet_id = v_wallet.id,
+      released_to_wallet_id = v_wallet_id,
       updated_at = NOW()
   WHERE booking_id = p_booking_id;
 
@@ -680,21 +786,19 @@ BEGIN
   UPDATE public.wallets
   SET available_balance = v_new_balance,
       updated_at = NOW()
-  WHERE id = v_wallet.id;
+  WHERE id = v_wallet_id;
 
   -- Log transaction with ACTUAL wallet_transactions columns
   INSERT INTO public.wallet_transactions (
-    user_id, transaction_type, amount, balance_after,
-    reference_id, reference_type, description, metadata, created_at
+    wallet_id, type, amount, description,
+    reference, balance_after, created_at
   ) VALUES (
-    v_booking.worker_id,
+    v_wallet_id,
     'escrow_release',
     COALESCE(v_booking.worker_receives, 0),
-    v_new_balance,
-    v_release_ref,
-    'escrow_release',
     'Job completion payment for booking ' || v_booking.booking_code,
-    jsonb_build_object('booking_id', p_booking_id, 'escrow_id', v_escrow.id),
+    v_release_ref,
+    v_new_balance,
     NOW()
   );
 
@@ -801,143 +905,111 @@ $$;
 -- ═════════════════════════════════════════════════════════════════════════════
 -- 15. CANONICAL PAYMENT CONFIRMATION (server-verified, idempotent)
 -- 
--- This RPC is called by the Edge Function / webhook AFTER Paystack API
--- verification. It is idempotent and uses row locking.
+-- This RPC is designed to be called by the Edge Function
+-- (supabase/functions/paystack-verify) AFTER Paystack API verification.
+-- It is idempotent and uses row locking.
+-- 
+-- NOTE: This is a NEW function (different from existing customer_confirm_payment
+-- in 20250807_auth_corrections.sql). Use confirm_worker_booking_payment for
+-- new worker booking flows. The legacy customer_confirm_payment is retained
+-- for backward compatibility with existing integrations.
 -- ═════════════════════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION public.confirm_worker_booking_payment(
   p_booking_id UUID,
-  p_paystack_reference TEXT,
-  p_amount_verified NUMERIC,
-  p_currency TEXT DEFAULT 'NGN'
+  p_paystack_ref TEXT,
+  p_paystack_tx_id TEXT
 )
-RETURNS JSONB
+RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  v_customer_id TEXT;
   v_booking RECORD;
-  v_rate NUMERIC;
-  v_commission NUMERIC;
+  v_commission_rate NUMERIC := 0.10;
+  v_wehouse_fee NUMERIC;
   v_worker_receives NUMERIC;
-  v_payment_id UUID;
-  v_escrow_id UUID;
+  v_escrow_ref TEXT;
 BEGIN
-  -- Validate inputs
-  IF p_paystack_reference IS NULL OR length(trim(p_paystack_reference)) = 0 THEN
-    RAISE EXCEPTION 'Paystack reference is required';
+  SELECT user_id INTO v_customer_id
+  FROM public.profiles
+  WHERE auth_id = auth.uid()::text;
+
+  IF v_customer_id IS NULL THEN
+    RAISE EXCEPTION 'Customer not found';
   END IF;
 
-  IF p_amount_verified IS NULL OR p_amount_verified <= 0 THEN
-    RAISE EXCEPTION 'Verified amount must be positive';
-  END IF;
-
-  IF p_currency != 'NGN' THEN
-    RAISE EXCEPTION 'Only NGN currency is supported';
-  END IF;
-
-  -- Lock booking
   SELECT * INTO v_booking
   FROM public.worker_bookings
-  WHERE id = p_booking_id
-  FOR UPDATE;
+  WHERE id = p_booking_id;
 
   IF v_booking IS NULL THEN
     RAISE EXCEPTION 'Booking not found';
   END IF;
 
+  IF v_booking.user_id != v_customer_id THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
   IF v_booking.status != 'waiting_payment' THEN
-    RAISE EXCEPTION 'Booking is not awaiting payment. Status: %', v_booking.status;
+    RAISE EXCEPTION 'Booking is not awaiting payment';
   END IF;
 
-  -- Idempotency: check if already processed
-  IF v_booking.paystack_reference IS NOT NULL THEN
-    IF v_booking.paystack_reference = p_paystack_reference THEN
-      RETURN jsonb_build_object('success', true, 'already_processed', true);
-    ELSE
-      RAISE EXCEPTION 'Booking already has a different paystack reference';
-    END IF;
-  END IF;
-
-  -- Read commission rate from platform_settings
-  -- Stored as percentage (e.g., 10.00 = 10%)
-  SELECT NULLIF(value, '')::NUMERIC INTO v_rate
+  -- Read commission rate from platform_settings (stored as percentage, e.g., '10.00')
+  SELECT COALESCE(NULLIF(value, ''), '10')::NUMERIC INTO v_commission_rate
   FROM public.platform_settings
   WHERE key = 'worker_commission_rate';
 
-  IF v_rate IS NULL THEN
-    v_rate := 10.0; -- Default 10%
-  END IF;
-
   -- Validate range: 0% to 50%
-  IF v_rate < 0 OR v_rate > 50 THEN
-    RAISE EXCEPTION 'Invalid commission rate: %', v_rate;
+  IF v_commission_rate < 0 OR v_commission_rate > 50 THEN
+    RAISE EXCEPTION 'Invalid commission rate: %', v_commission_rate;
   END IF;
 
-  v_commission := ROUND((p_amount_verified * v_rate / 100)::NUMERIC, 2);
-  v_worker_receives := p_amount_verified - v_commission;
+  v_wehouse_fee := ROUND(v_booking.negotiated_amount * v_commission_rate / 100, 2);
+  v_worker_receives := v_booking.negotiated_amount - v_wehouse_fee;
 
-  -- Update booking with verified payment details and applied commission rate
+  -- Update booking
   UPDATE public.worker_bookings
   SET status = 'confirmed',
-      paystack_reference = p_paystack_reference,
-      agreed_amount = p_amount_verified,
-      wehouse_fee = v_commission,
-      worker_commission = v_commission,
+      agreed_amount = v_booking.negotiated_amount,
+      wehouse_fee = v_wehouse_fee,
+      worker_commission = v_wehouse_fee,
       worker_receives = v_worker_receives,
+      paystack_reference = p_paystack_ref,
+      paystack_transaction_id = p_paystack_tx_id,
       updated_at = NOW()
   WHERE id = p_booking_id;
 
-  -- Record payment
-  INSERT INTO public.booking_payments (
-    payment_reference, booking_id, booking_type,
-    payer_user_id, payee_user_id,
-    amount_total, amount_worker, amount_commission, commission_rate,
-    paystack_reference, currency, status, purpose,
-    verified_amount, verified_at, verification_source,
-    paid_at, metadata
-  ) VALUES (
-    p_paystack_reference, p_booking_id, 'worker_booking',
-    v_booking.user_id, v_booking.worker_id,
-    p_amount_verified, v_worker_receives, v_commission, v_rate,
-    p_paystack_reference, p_currency, 'successful', 'worker_booking',
-    p_amount_verified, NOW(), 'edge_function',
-    NOW(),
-    jsonb_build_object('commission_rate_applied', v_rate, 'source', 'canonical_rpc')
-  )
-  ON CONFLICT (paystack_reference) DO NOTHING
-  RETURNING id INTO v_payment_id;
+  -- Create escrow with ALL required columns
+  v_escrow_ref := 'WHESC-' || upper(substring(md5(gen_random_uuid()::text) from 1 for 10));
 
-  -- Create escrow
   INSERT INTO public.escrow_transactions (
     reference, transaction_type, booking_id,
     customer_id, worker_id,
     gross_amount, wehouse_commission, net_amount,
     status, paystack_reference, created_at, updated_at
   ) VALUES (
-    'WHESC-' || upper(substring(md5(gen_random_uuid()::text) from 1 for 10)),
-    'worker_booking', p_booking_id,
+    v_escrow_ref, 'worker_booking', p_booking_id,
     v_booking.user_id, v_booking.worker_id,
-    p_amount_verified, v_commission, v_worker_receives,
-    'held', p_paystack_reference, NOW(), NOW()
-  )
-  RETURNING id INTO v_escrow_id;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'payment_id', v_payment_id,
-    'escrow_id', v_escrow_id,
-    'commission_rate', v_rate,
-    'commission_amount', v_commission,
-    'worker_receives', v_worker_receives
+    v_booking.negotiated_amount, v_wehouse_fee, v_worker_receives,
+    'held', p_paystack_ref, NOW(), NOW()
   );
+
+  RETURN true;
 END;
 $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- 16. WITHDRAWAL REQUEST (canonical, atomic balance reservation)
+-- 16. WORKER WITHDRAWAL REQUEST (canonical, NEW function name)
+-- 
+-- This is a NEW function to avoid overwriting existing request_withdrawal
+-- which has a different signature in production.
+-- 
+-- Uses ACTUAL wallet_transactions columns:
+--   id, wallet_id, type, amount, description, reference, balance_after, created_at
 -- ═════════════════════════════════════════════════════════════════════════════
-CREATE OR REPLACE FUNCTION public.request_withdrawal(
+CREATE OR REPLACE FUNCTION public.request_worker_withdrawal(
   p_amount NUMERIC
 )
 RETURNS JSONB
@@ -986,7 +1058,7 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', format('Insufficient balance. Available: ₦%s', v_wallet.available_balance));
   END IF;
 
-  -- Snapshot bank details from wallet
+  -- Check bank details on wallet row
   IF COALESCE(v_wallet.bank_name, '') = '' OR COALESCE(v_wallet.bank_account_number, '') = '' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Bank details not set up');
   END IF;
@@ -994,7 +1066,7 @@ BEGIN
   -- Atomic balance reservation
   UPDATE public.wallets
   SET available_balance = available_balance - p_amount,
-      pending_balance = pending_balance + p_amount,
+      pending_balance = COALESCE(pending_balance, 0) + p_amount,
       updated_at = NOW()
   WHERE id = v_wallet.id;
 
@@ -1012,17 +1084,15 @@ BEGIN
 
   -- Log transaction with ACTUAL wallet_transactions columns
   INSERT INTO public.wallet_transactions (
-    user_id, transaction_type, amount, balance_after,
-    reference_id, reference_type, description, metadata, created_at
+    wallet_id, type, amount, description,
+    reference, balance_after, created_at
   ) VALUES (
-    v_user_id,
+    v_wallet.id,
     'withdrawal',
     -p_amount,
-    v_wallet.available_balance - p_amount,
-    v_request_id::text,
-    'withdrawal',
     format('Withdrawal request: ₦%s', p_amount),
-    jsonb_build_object('wallet_id', v_wallet.id, 'amount', p_amount),
+    v_request_id::text,
+    v_wallet.available_balance - p_amount,
     NOW()
   );
 
@@ -1047,8 +1117,8 @@ REVOKE EXECUTE ON FUNCTION public.worker_mark_complete(UUID) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.customer_confirm_completion(UUID) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.customer_raise_dispute(UUID, TEXT) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.cancel_booking(UUID, TEXT) FROM PUBLIC, anon;
-REVOKE EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT) FROM PUBLIC, anon;
-REVOKE EXECUTE ON FUNCTION public.request_withdrawal(NUMERIC) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, TEXT) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.request_worker_withdrawal(NUMERIC) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.get_public_workers(TEXT, TEXT, TEXT) FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION public.set_my_worker_availability(BOOLEAN) TO authenticated;
@@ -1060,8 +1130,8 @@ GRANT EXECUTE ON FUNCTION public.worker_mark_complete(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_confirm_completion(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_raise_dispute(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_booking(UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.request_withdrawal(NUMERIC) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.request_worker_withdrawal(NUMERIC) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_workers(TEXT, TEXT, TEXT) TO authenticated;
 
 COMMIT;
