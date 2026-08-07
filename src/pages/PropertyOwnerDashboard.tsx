@@ -497,7 +497,7 @@ function WalletTab({ profile }: { profile: Profile }) {
     if (!selectedBank) { toast.error('Select a bank account'); return; }
 
     setSubmitting(true);
-    const { error } = await supabase.rpc('request_withdrawal', { p_user_id: profile.user_id, p_amount: amount, p_bank_account_id: selectedBank });
+    const { error } = await supabase.rpc('request_worker_withdrawal', { p_amount: amount, p_bank_account_id: selectedBank });
     setSubmitting(false);
     if (error) { toast.error('Failed: ' + error.message); return; }
 

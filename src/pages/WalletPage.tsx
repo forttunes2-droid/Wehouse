@@ -106,8 +106,7 @@ export default function WalletPage({ profile, onBack }: WalletPageProps) {
     if (!selectedBankId) { toast.error('Select a bank account'); return; }
 
     setWithdrawing(true);
-    const { error } = await supabase.rpc('request_withdrawal', {
-      p_user_id: profile.user_id,
+    const { error } = await supabase.rpc('request_worker_withdrawal', {
       p_amount: amount,
       p_bank_account_id: selectedBankId,
     });
