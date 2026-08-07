@@ -411,7 +411,7 @@ export default function App() {
 
   // ─── LOGIN ────────────────────────────────────────
   if (auth.page === 'login') {
-    return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut} showRestore={auth.showRestore} restoreUserId={auth.restoreUserId} onRestoreAccount={auth.restoreAccount} />;
+    return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut} />;
   }
 
   // ─── SETUP ────────────────────────────────────────

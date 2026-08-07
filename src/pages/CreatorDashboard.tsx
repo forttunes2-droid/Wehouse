@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   supabase,
-  getAllUsers, getCreatorDashboardStats, updateUserRole, restoreUser, suspendUser, freezeUser, banUser, reactivateUser,
+  getAllUsers, getCreatorDashboardStats, updateUserRole, suspendUser, freezeUser, banUser, reactivateUser,
   getAllListingsAdmin, deleteListing, getReports,
   resolveReport, dismissReport, logAuditAction, getAllWorkers, updateWorkerStatus, parseWorkerStatus,
   sendAnnouncement, deleteAnnouncement, getAnnouncementsSentBy, getAllAnnouncements,
@@ -589,7 +589,7 @@ function UsersTab({ profile, viewMode = 'manage', onViewProfile }: { profile: Pr
       if (!target) { toast.error('User not found'); return; }
       if (checkIsCreator(target)) { toast.error('Creator account cannot be banned'); return; }
       if (userId === profile.user_id) { toast.error('You cannot ban your own account'); return; }
-      const ok = await ask({ title: 'Ban this user permanently? They can restore via support.', confirmLabel: 'Ban', variant: 'danger' });
+      const ok = await ask({ title: 'Ban this user permanently? This cannot be undone.', confirmLabel: 'Ban', variant: 'danger' });
       if (!ok) return;
       const { error } = await banUser(userId);
       if (error) { toast.error('Failed: ' + error.message); return; }
@@ -607,18 +607,6 @@ function UsersTab({ profile, viewMode = 'manage', onViewProfile }: { profile: Pr
       if (error) { toast.error('Failed: ' + error.message); return; }
       await logAuditAction(profile.user_id, profile.email, 'reactivate_user', 'user', userId, 'User reactivated');
       toast.success('User reactivated');
-      load();
-    });
-  }
-
-  async function handleRestore(userId: string) {
-    withAuth(async () => {
-      const restoreOk = await ask({ title: 'Restore this user?', confirmLabel: 'Restore', variant: 'info' });
-      if (!restoreOk) return;
-      const { error } = await restoreUser(userId);
-      if (error) { toast.error('Restore failed: ' + error.message); return; }
-      await logAuditAction(profile.user_id, profile.email, 'restore_user', 'user', userId, 'User restored');
-      toast.success('User restored');
       load();
     });
   }
@@ -741,21 +729,17 @@ function UsersTab({ profile, viewMode = 'manage', onViewProfile }: { profile: Pr
                     )}
 
                     {/* Action buttons */}
-                    {isDeleted ? (
-                      <>
-                        <button
-                          onClick={() => handleReactivate(u.user_id)}
-                          className="h-7 px-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
-                        >
-                          Reactivate
-                        </button>
-                        <button
-                          onClick={() => handleRestore(u.user_id)}
-                          className="h-7 px-2.5 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#5C5E72] text-[10px] hover:text-white transition-colors"
-                        >
-                          Restore
-                        </button>
-                      </>
+                    {u.deleted ? (
+                      <div className="h-7 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] px-2 flex items-center font-medium">
+                        Closed / Permanent
+                      </div>
+                    ) : u.suspended || u.banned ? (
+                      <button
+                        onClick={() => handleReactivate(u.user_id)}
+                        className="h-7 px-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] hover:bg-green-500/20 transition-colors"
+                      >
+                        Reactivate
+                      </button>
                     ) : isCreatorAccount ? (
                       <div className="h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] px-2 flex items-center font-medium">
                         Creator — protected

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, restoreUser, trackSession, endSession, createUserSession, deactivateUserSession, getStoredSessionId, updateSessionLastSeen } from '@/lib/supabase';
+import { supabase, getProfileByAuthId, getProfileByEmail, linkProfileToAuth, createProfile, trackSession, endSession, createUserSession, deactivateUserSession, getStoredSessionId, updateSessionLastSeen } from '@/lib/supabase';
 import type { Profile, Page } from '@/types';
 
 interface AuthState {
@@ -8,8 +8,6 @@ interface AuthState {
   isLoading: boolean;
   error: string;
   kickedOut?: boolean;
-  showRestore?: boolean;
-  restoreUserId?: string;
 }
 
 // ─── LOGOUT CLEANUP ────────────────────────────────
@@ -174,16 +172,25 @@ export function useAuth() {
 
   // ─── Centralized entry-point guard ────────────────
   const allowEntry = useCallback(async (profile: Profile): Promise<boolean> => {
-    // ── SUSPENDED CHECK: cannot login ───────────────
+    // ── BANNED CHECK: permanent — cannot login ──────
+    if (profile.banned) {
+      weTriggeredSignOutRef.current = true;
+      await supabase.auth.signOut(); await wipeOnLogout();
+      setState({ page: 'login', profile: null, isLoading: false, error: 'Your account has been permanently banned. Contact support for assistance.' });
+      return false;
+    }
+    // ── SUSPENDED CHECK: temporary — cannot login ─────
     if (profile.suspended) {
       weTriggeredSignOutRef.current = true;
       await supabase.auth.signOut(); await wipeOnLogout();
-      setState({ page: 'login', profile: null, isLoading: false, error: 'Your account has been suspended. Contact support for assistance.', showRestore: false });
+      setState({ page: 'login', profile: null, isLoading: false, error: 'Your account has been suspended. Contact support for assistance.' });
       return false;
     }
+    // ── DELETED CHECK: permanent closure — cannot login
     if (profile.deleted) {
-      // Show restore option instead of immediately blocking
-      setState({ page: 'login', profile: null, isLoading: false, error: '', showRestore: true, restoreUserId: profile.user_id });
+      weTriggeredSignOutRef.current = true;
+      await supabase.auth.signOut(); await wipeOnLogout();
+      setState({ page: 'login', profile: null, isLoading: false, error: 'This account has been deleted. Please contact support if you believe this is an error.' });
       return false;
     }
     const blocked = await shouldBlockForMaintenance(profile);
@@ -268,11 +275,7 @@ export function useAuth() {
       }
 
       if (byEmail) {
-        // Check if account is deleted — offer restore
-        if (byEmail.deleted) {
-          setState({ page: 'login', profile: null, isLoading: false, error: '', showRestore: true, restoreUserId: byEmail.user_id });
-          return;
-        }
+        // Check if account is banned/suspended/deleted — allowEntry handles all
         const allowed = await allowEntry(byEmail);
         if (!allowed) return;
         const { profile: linked, error: linkErr } = await linkProfileToAuth(byEmail.user_id, authId);
@@ -334,23 +337,6 @@ export function useAuth() {
 
   const handleSetupComplete = useCallback((updatedProfile: Profile) => {
     setState({ profile: updatedProfile, page: determinePage(updatedProfile), isLoading: false, error: '' });
-  }, [determinePage]);
-
-  // Restore a soft-deleted account
-  const restoreAccount = useCallback(async (userId: string, authId: string) => {
-    setState((s) => ({ ...s, isLoading: true }));
-    const { error } = await restoreUser(userId);
-    if (error) {
-      setState({ page: 'login', profile: null, isLoading: false, error: 'Failed to restore account: ' + error.message });
-      return;
-    }
-    // Load the restored profile
-    const { profile } = await getProfileByAuthId(authId);
-    if (profile) {
-      setState({ profile, page: determinePage(profile), isLoading: false, error: '', showRestore: false });
-      trackSession(profile.user_id, authId).catch(() => {});
-      createUserSession(profile.user_id, authId).catch(() => {});
-    }
   }, [determinePage]);
 
   const logout = useCallback(async () => {
@@ -422,5 +408,5 @@ export function useAuth() {
 
   const clearError = useCallback(() => { setState((s) => ({ ...s, error: '' })); }, []);
 
-  return { ...state, handleLoginSuccess, handleSetupComplete, logout, clearError, kickedOut: state.kickedOut, restoreAccount };
+  return { ...state, handleLoginSuccess, handleSetupComplete, logout, clearError, kickedOut: state.kickedOut };
 }

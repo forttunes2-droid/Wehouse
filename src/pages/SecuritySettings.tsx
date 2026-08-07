@@ -33,6 +33,8 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [partnerListingCount, setPartnerListingCount] = useState<number | null>(null);
   const [checkingListings, setCheckingListings] = useState(false);
+  const [workerBookingCount, setWorkerBookingCount] = useState<number | null>(null);
+  const [checkingBookings, setCheckingBookings] = useState(false);
 
   // Password change state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -58,7 +60,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
     });
   }, []);
 
-  // ─── REQUIREMENT 9: Check property_partner active listings before delete ───
+  // ─── Check property_partner: ANY listing ever created blocks self-deletion ───
   useEffect(() => {
     if (profile.role === 'property_partner' && canDeleteAccount) {
       setCheckingListings(true);
@@ -66,11 +68,25 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
         .from('listings')
         .select('id', { count: 'exact', head: true })
         .eq('partner_id', profile.user_id)
-        .in('status', ['active', 'pending'])
-        .is('deleted_at', null)
         .then(({ count }) => {
           setPartnerListingCount(count || 0);
           setCheckingListings(false);
+        });
+    }
+  }, [profile.role, profile.user_id, canDeleteAccount]);
+
+  // ─── Check worker: unresolved bookings block self-deletion ───
+  useEffect(() => {
+    if (profile.role === 'worker' && canDeleteAccount) {
+      setCheckingBookings(true);
+      supabase
+        .from('worker_bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('worker_id', profile.user_id)
+        .not('status', 'in', '(cancelled,refunded,approved_released)')
+        .then(({ count }) => {
+          setWorkerBookingCount(count || 0);
+          setCheckingBookings(false);
         });
     }
   }, [profile.role, profile.user_id, canDeleteAccount]);
@@ -544,7 +560,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
             Account Removal
           </h3>
 
-          {/* Property Partner: Active listings warning */}
+          {/* Property Partner: ANY listing ever created blocks deletion */}
           {profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0 && (
             <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
               <div className="flex items-start gap-2">
@@ -555,8 +571,27 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
                 <div>
                   <p className="text-xs text-amber-400 font-medium">Cannot delete account</p>
                   <p className="text-[11px] text-[#5C5E72] mt-0.5">
-                    You have <span className="text-amber-400 font-semibold">{partnerListingCount}</span> active or pending listing(s).
-                    Close all listings before deleting your account.
+                    You have previously listed <span className="text-amber-400 font-semibold">{partnerListingCount}</span> property(s).
+                    Contact support to close your partner account.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Worker: Unresolved bookings block deletion */}
+          {profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0 && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <div className="flex items-start gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div>
+                  <p className="text-xs text-amber-400 font-medium">Cannot delete account</p>
+                  <p className="text-[11px] text-[#5C5E72] mt-0.5">
+                    You have <span className="text-amber-400 font-semibold">{workerBookingCount}</span> unresolved booking(s).
+                    Complete or cancel all jobs before deleting your account.
                   </p>
                 </div>
               </div>
@@ -566,9 +601,13 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              disabled={profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0}
+              disabled={
+                (profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0) ||
+                (profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0)
+              }
               className={`w-full glass rounded-2xl p-4 flex items-center gap-4 text-left group transition-all duration-300 ${
-                profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0
+                (profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0) ||
+                (profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0)
                   ? 'opacity-50 cursor-not-allowed border-red-500/10'
                   : 'hover:border-red-500/20'
               }`}

@@ -6,9 +6,6 @@ interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker' | 'property_partner') => void;
   serverError: string;
   kickedOut?: boolean;
-  showRestore?: boolean;
-  restoreUserId?: string;
-  onRestoreAccount?: (userId: string, authId: string) => void;
 }
 
 type Mode = 'choose' | 'choose_role' | 'signin' | 'signup' | 'forgot';
@@ -18,6 +15,9 @@ function friendlyError(raw: string): string {
   const msg = raw.toLowerCase();
   if (msg.includes('api key') || msg.includes('invalid key')) {
     return 'Authentication service not configured. Please contact support.';
+  }
+  if (msg.includes('banned') || msg.includes('permanently banned')) {
+    return 'Your account has been permanently banned. Contact support for assistance.';
   }
   if (msg.includes('suspended') || msg.includes('account has been suspended')) {
     return 'Your account has been suspended. Contact support for assistance.';
@@ -81,7 +81,7 @@ function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }
 
 // ─── MAIN COMPONENT ────────────────────────────────
 
-export default function Login({ onLoginSuccess, serverError, kickedOut, showRestore, restoreUserId, onRestoreAccount }: LoginProps) {
+export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginProps) {
   const [mode, setMode] = useState<Mode>('choose');
   const [signupRole, setSignupRole] = useState<'user' | 'worker' | 'property_partner'>('user');
   const [pendingAuthMethod, setPendingAuthMethod] = useState<'google' | 'email' | null>(null);
@@ -242,37 +242,6 @@ export default function Login({ onLoginSuccess, serverError, kickedOut, showRest
           <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs text-center leading-relaxed">
             <p className="font-semibold mb-1">You were logged out</p>
             <p>Another device signed into your account. For security, only one device can be active at a time.</p>
-          </div>
-        )}
-
-        {/* Restore Account UI */}
-        {showRestore && restoreUserId && (
-          <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-            <p className="text-sm font-semibold text-amber-400 mb-1">Account Suspended</p>
-            <p className="text-xs text-amber-400/70 mb-3">Your account has been temporarily suspended. You can restore it below.</p>
-            <div className="flex gap-2 justify-center">
-              <button
-                type="button"
-                onClick={async () => {
-                  // Get the current auth session to find the auth_id
-                  const { data } = await supabase.auth.getSession();
-                  const authId = data.session?.user?.id;
-                  if (authId && onRestoreAccount) {
-                    onRestoreAccount(restoreUserId, authId);
-                  }
-                }}
-                className="px-4 py-2 rounded-lg bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors"
-              >
-                Restore My Account
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('choose_role'); setError(''); setEmail(''); setPassword(''); }}
-                className="px-4 py-2 rounded-lg bg-[#1A1A24] border border-[#232330] text-[#8A8B9C] text-xs font-medium hover:text-white transition-colors"
-              >
-                Create New Account
-              </button>
-            </div>
           </div>
         )}
 

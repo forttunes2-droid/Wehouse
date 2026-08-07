@@ -233,35 +233,13 @@ export async function getRoleChangeHistory(userId?: string) {
   return { history: data as any[] | null, error };
 }
 
-// ── SOFT DELETE ────────────────────────────────────
+// ── ACCOUNT ACTIONS (server-side RPC only) ────────
 
-export async function deleteUser(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ deleted: true, deleted_at: new Date().toISOString() })
-    .eq('user_id', userId);
-  return { error };
-}
-
-// DEPRECATED: Use server-side RPC 'delete_user_account' instead
-// This client-side function is kept for backward compatibility but should not be used
-export async function deleteOwnAccount(userId: string, _authId: string) {
-  return await deleteUser(userId);
-}
-
-export async function restoreUser(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ 
-      deleted: false, 
-      deleted_at: null,
-      suspended: false,
-      suspended_at: null,
-      suspended_by: null,
-      suspended_reason: null
-    })
-    .eq('user_id', userId);
-  return { error };
+// All account deletion must go through the server-side SECURITY DEFINER RPC.
+// Client-side soft-delete is NOT allowed.
+export async function deleteAccount(userId: string) {
+  const { data, error } = await supabase.rpc('delete_user_account', { p_user_id: userId });
+  return { data, error };
 }
 
 // Toggle maintenance exemption (creator can whitelist accounts for testing during upgrades)
