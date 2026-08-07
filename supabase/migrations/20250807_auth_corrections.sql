@@ -56,12 +56,14 @@ CREATE POLICY "profiles_self_write" ON public.profiles
   USING (auth_id = auth.uid()::text AND suspended = FALSE AND banned = FALSE)
   WITH CHECK (auth_id = auth.uid()::text AND suspended = FALSE AND banned = FALSE);
 
--- listings: public read only available/reserved/pending_approval listings by non-suspended/non-banned owners
+-- listings: public read only approved listings (available / reserved) by non-suspended/non-banned owners
+-- pending_approval and rejected listings are NEVER publicly readable
+-- reserved listings remain visible but show as "Reserved" in UI (72h lock enforced by application logic)
 DROP POLICY IF EXISTS "listings_public_read" ON public.listings;
 CREATE POLICY "listings_public_read" ON public.listings
   FOR SELECT
   TO anon, authenticated
-  USING (status IN ('available', 'reserved', 'pending_approval')
+  USING (status IN ('available', 'reserved')
     AND EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = listings.owner_id AND p.suspended = FALSE AND p.banned = FALSE));
 
 -- ─────────────────────────────────────────────────────────────────────────────
