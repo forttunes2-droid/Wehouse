@@ -2,202 +2,26 @@ import { supabase } from './client';
 import type { Profile } from '@/types';
 import { compressImageFile } from './utils';
 
-// ─── PROFILE HELPERS ───────────────────────────────
-
-export async function getProfile(userId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
-}
-
-export async function getProfileByAuthId(authId: string, email?: string) {
-  // Try auth_id match first
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('auth_id', authId)
-    .maybeSingle();
-  if (data) return { profile: data as Profile | null, error: null };
-
-  // Fallback: match by email (for users with mismatched auth_id)
-  if (email) {
-    const { data: byEmail, error: emailErr } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle();
-    if (byEmail) {
-      // Link auth_id for future logins
-      await supabase.from('profiles').update({ auth_id: authId }).eq('user_id', byEmail.user_id);
-      return { profile: byEmail as Profile | null, error: null };
-    }
-  }
-
-  return { profile: null, error };
-}
-
-// Public agent info — only safe fields exposed to users viewing a listing
-// NEVER returns email, phone, or other sensitive data
-export async function getPublicAgentInfo(authId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('user_id, username, avatar_url, role')
-    .eq('auth_id', authId)
-    .maybeSingle();
-  return {
-    agent: data as { user_id: string; username: string | null; avatar_url: string | null; role: string } | null,
-    error,
-  };
-}
-
-// Same as above but lookup by user_id (for chat_agent_id field on listings)
-// Includes phone so users can call the agent directly
-export async function getPublicAgentByUserId(userId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('user_id, username, avatar_url, role, phone')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return {
-    agent: data as { user_id: string; username: string | null; avatar_url: string | null; role: string; phone: string | null } | null,
-    error,
-  };
-}
-
-export async function getProfileByEmail(email: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('email', email)
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
-}
-
-export async function linkProfileToAuth(userId: string, authId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ auth_id: authId })
-    .eq('user_id', userId)
-    .select()
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
-}
-
-// createProfile — unified signup for all external users
-//   createProfile(authId, email, role?)   — called from useAuth.ts (role = user/worker/property_owner)
-//   createProfile(userId, email, username, authId)  — direct calls
-export async function createProfile(authId: string, email: string, role?: 'user' | 'worker' | 'property_partner'): Promise<{ profile: Profile | null; error: any }>;
-export async function createProfile(userId: string, email: string, username: string, authId: string): Promise<{ profile: Profile | null; error: any }>;
-export async function createProfile(a: string, b: string, c?: string, d?: string) {
-  // Determine which signature was used
-  const isDirectCall = c !== undefined && d !== undefined;
-  const authId = isDirectCall ? d! : a;
-  const email = b;
-  const userId = isDirectCall ? a : `WHU-${(Date.now() % 9000) + 1000}`;
-  const username = isDirectCall ? c : email.split('@')[0].replace(/[^a-z0-9_]/g, '') + Math.floor(Math.random() * 1000);
-  // Role: direct calls default to 'user', useAuth passes the chosen role
-  const role: 'user' | 'worker' | 'property_partner' = !isDirectCall && c ? c as any : 'user';
-  const { data, error } = await supabase
-    .from('profiles')
-    .insert({
-      user_id: userId,
-      email,
-      username,
-      auth_id: authId,
-      role,
-      worker_status: role === 'worker' ? 'pending' : null,
-      profile_complete: false,
-    })
-    .select()
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
-}
-
-// ─── AVATAR UPLOAD ─────────────────────────────────
-
-export async function uploadAvatar(file: File, userId: string) {
-  if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image (JPG, PNG)' } as any };
-  if (file.size > 5 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 5MB' } as any };
-
-  try {
-    const compressed = await compressImageFile(file, 600, 0.85);
-    const fileName = `avatars/${userId}-${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, compressed, { contentType: 'image/jpeg', upsert: true });
-    if (uploadError) {
-      if (uploadError.message?.includes('bucket') || uploadError.message?.includes('Bucket')) {
-        return { url: null, error: { message: 'Storage not configured. Ask admin to run storage setup SQL.' } as any };
-      }
-      return { url: null, error: uploadError };
-    }
-    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-    return { url: urlData.publicUrl, error: null };
-  } catch (err: any) {
-    return { url: null, error: { message: err.message || 'Upload failed' } };
-  }
-}
-
-// ─── USERNAME VALIDATION ───────────────────────────
-
-const RESERVED_USERNAMES = ['admin', 'creator', 'support', 'system', 'api', 'wehouse', 'mod', 'moderator', 'owner', 'staff', 'help', 'info', 'null', 'undefined'];
-
-export function validateUsername(username: string): { valid: boolean; error?: string } {
-  const trimmed = username.trim().toLowerCase();
-  if (!trimmed) return { valid: false, error: 'Username is required' };
-  if (trimmed.length < 3) return { valid: false, error: 'Minimum 3 characters' };
-  if (trimmed.length > 20) return { valid: false, error: 'Maximum 20 characters' };
-  if (!/^[a-z0-9_]+$/.test(trimmed)) return { valid: false, error: 'Letters, numbers, underscores only' };
-  if (RESERVED_USERNAMES.includes(trimmed)) return { valid: false, error: 'This username is reserved' };
-  return { valid: true };
-}
-
-export async function checkUsernameAvailable(username: string, currentUserId?: string) {
-  const trimmed = username.trim().toLowerCase();
-  const { data } = await supabase
-    .from('profiles')
-    .select('user_id')
-    .eq('username', trimmed)
-    .maybeSingle();
-  const available = !data || (currentUserId && data.user_id === currentUserId);
-  return { available, taken: !available };
-}
-
-// ─── PROFILE UPDATE ────────────────────────────────
-
-export async function removeAvatar(userId: string) {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ avatar_url: null, updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
-  return { error };
-}
-
-export async function updateProfile(userId: string, updates: Partial<Profile>) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .select()
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
-}
-
-// ─── PRIVACY SETTINGS ──────────────────────────────
-
-export async function updatePrivacySettings(userId: string, settings: {
-  privacy_profile_visible?: boolean;
-  privacy_search_visible?: boolean;
-  privacy_activity_visible?: boolean;
-}) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ ...settings, updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .select()
-    .maybeSingle();
-  return { profile: data as Profile | null, error };
-}
+export type SafeProfileUpdates = Pick<Partial<Profile>,
+  | 'username' | 'full_name' | 'avatar_url' | 'bio' | 'phone' | 'occupation'
+  | 'gender' | 'is_student' | 'school' | 'state' | 'local_government'
+  | 'city' | 'area' | 'profile_complete' | 'country'
+  | 'worker_occupation' | 'worker_skills' | 'worker_price' | 'worker_bio'
+>;
+export type SafePrivacyUpdates = Pick<Partial<Profile>, 'privacy_profile_visible'|'privacy_search_visible'|'privacy_activity_visible'|'privacy_email_visible'|'privacy_phone_visible'>;
+export async function getProfile(userId:string){const{data,error}=await supabase.from('profiles').select('*').eq('user_id',userId).maybeSingle();return{profile:data as Profile|null,error};}
+export async function getProfileByAuthId(authId:string,_email?:string){const{data,error}=await supabase.from('profiles').select('*').eq('auth_id',authId).maybeSingle();return{profile:data as Profile|null,error};}
+export async function getPublicAgentInfo(authId:string){const{data,error}=await supabase.from('profiles').select('user_id, username, avatar_url, role').eq('auth_id',authId).maybeSingle();return{agent:data as any,error};}
+export async function getPublicAgentByUserId(userId:string){const{data,error}=await supabase.from('profiles').select('user_id, username, avatar_url, role, phone, privacy_phone_visible').eq('user_id',userId).maybeSingle();const agent=data?{user_id:data.user_id,username:data.username,avatar_url:data.avatar_url,role:data.role,phone:data.privacy_phone_visible?data.phone:null}:null;return{agent,error};}
+export async function getProfileByEmail(email:string){const{data,error}=await supabase.from('profiles').select('*').eq('email',email).maybeSingle();return{profile:data as Profile|null,error};}
+export async function linkProfileToAuth(_userId:string,_authId:string){return{profile:null as Profile|null,error:{message:'This account needs secure identity repair. Contact WeHouse Support.'} as any};}
+export async function createProfile(authId:string,email:string,role?:'user'|'worker'|'property_partner'):Promise<{profile:Profile|null;error:any}>;
+export async function createProfile(userId:string,email:string,username:string,authId:string):Promise<{profile:Profile|null;error:any}>;
+export async function createProfile(a:string,b:string,c?:string,d?:string){const legacy=c!==undefined&&d!==undefined;const role:'user'|'worker'|'property_partner'=!legacy&&c?c as any:'user';const{data,error}=await supabase.rpc('create_my_profile',{p_email:b,p_role:role});if(error||!data)return{profile:null,error};let profile=data as Profile;if(legacy&&c){const r=await updateProfile(profile.user_id,{username:c});if(r.error)return{profile:null,error:r.error};profile=r.profile||profile;}return{profile,error:null};}
+export async function uploadAvatar(file:File,_userId:string){if(!file.type.startsWith('image/'))return{url:null,error:{message:'Please select an image (JPG, PNG)'} as any};if(file.size>5*1024*1024)return{url:null,error:{message:'Image must be under 5MB'} as any};try{const{data:{user}}=await supabase.auth.getUser();if(!user)return{url:null,error:{message:'Authentication required'} as any};const compressed=await compressImageFile(file,600,0.85);const fileName=`${user.id}/avatar-${Date.now()}.jpg`;const{error}=await supabase.storage.from('avatars').upload(fileName,compressed,{contentType:'image/jpeg',upsert:true});if(error)return{url:null,error};const{data}=supabase.storage.from('avatars').getPublicUrl(fileName);return{url:data.publicUrl,error:null};}catch(err:any){return{url:null,error:{message:err.message||'Upload failed'}};}}
+const RESERVED_USERNAMES=['admin','creator','support','system','api','wehouse','mod','moderator','owner','staff','help','info','null','undefined'];
+export function validateUsername(username:string){const t=username.trim().toLowerCase();if(!t)return{valid:false,error:'Username is required'};if(t.length<3)return{valid:false,error:'Minimum 3 characters'};if(t.length>20)return{valid:false,error:'Maximum 20 characters'};if(!/^[a-z0-9_]+$/.test(t))return{valid:false,error:'Letters, numbers, underscores only'};if(RESERVED_USERNAMES.includes(t))return{valid:false,error:'This username is reserved'};return{valid:true};}
+export async function checkUsernameAvailable(username:string,currentUserId?:string){const t=username.trim().toLowerCase();const{data}=await supabase.from('profiles').select('user_id').eq('username',t).maybeSingle();const available=!data||(currentUserId&&data.user_id===currentUserId);return{available,taken:!available};}
+export async function removeAvatar(_userId:string){const{data,error}=await supabase.rpc('update_my_profile',{p_updates:{avatar_url:null}});return{profile:data as Profile|null,error};}
+export async function updateProfile(_userId:string,updates:SafeProfileUpdates){const normalized:Record<string,unknown>={...updates};if('city'in normalized&&!('local_government'in normalized))normalized.local_government=normalized.city;const{data,error}=await supabase.rpc('update_my_profile',{p_updates:normalized});return{profile:data as Profile|null,error};}
+export async function updatePrivacySettings(_userId:string,settings:SafePrivacyUpdates){const{data,error}=await supabase.rpc('update_my_privacy',{p_updates:settings});return{profile:data as Profile|null,error};}
