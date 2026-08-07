@@ -162,7 +162,15 @@ export {
   // Dashboard
   getWorkerDashboardData,
   getWorkerSystemStats,
+  // Availability
+  setWorkerAvailability,
 } from './workers';
+
+// Paystack
+export {
+  initializePaystackPopup,
+  getCommissionSummary,
+} from './paystack';
 
 // Chat
 export {

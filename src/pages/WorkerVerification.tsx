@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Profile } from '@/types';
 import { supabase, uploadAvatar } from '@/lib/supabase';
-import { initializePaystackPopup } from '@/legacy/paystack-marketplace';
+import { initializePaystackPopup } from '@/lib/supabase/paystack';
 import { Toaster, toast } from 'sonner';
 
 interface WorkerVerificationProps {

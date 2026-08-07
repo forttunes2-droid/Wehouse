@@ -10,6 +10,7 @@ import {
   getServiceSubcategories,
   requestWithdrawal,
   updateWalletBankDetails,
+  setWorkerAvailability,
 } from '@/lib/supabase';
 import { WH_SUPPORT_EMAIL } from '@/config/wehouse';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
@@ -226,6 +227,8 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
   onSetTab: (tab: WorkerTab) => void;
 }) {
   const [stats, setStats] = useState({ views: 0, bookings: 0, rating: 0, completedJobs: 0 });
+  const [isAvailable, setIsAvailable] = useState(profile.available ?? false);
+  const [togglingAvailability, setTogglingAvailability] = useState(false);
   const occupationLabel = profile.worker_occupation ? (WORKER_OCCUPATION_LABELS[profile.worker_occupation] || profile.worker_occupation) : 'Not set';
 
   useEffect(() => {
@@ -251,6 +254,25 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
     loadStats();
   }, [profile.user_id]);
 
+  async function handleToggleAvailability() {
+    if (togglingAvailability) return;
+    // Only verified workers can toggle availability
+    if (profile.worker_status !== 'verified') {
+      toast.error('Only verified workers can set availability');
+      return;
+    }
+    setTogglingAvailability(true);
+    const newValue = !isAvailable;
+    const { error } = await setWorkerAvailability(profile.user_id, newValue);
+    setTogglingAvailability(false);
+    if (error) {
+      toast.error('Failed to update availability');
+      return;
+    }
+    setIsAvailable(newValue);
+    toast.success(newValue ? 'You are now available for bookings' : 'You are now unavailable for bookings');
+  }
+
   return (
     <div className="space-y-4">
       {/* Pending Approval Notice — only for new signups */}
@@ -275,6 +297,42 @@ function OverviewTab({ profile, wallet, blueBadge, onGoToSetup, onSetTab }: {
         <QuickStat icon="✅" label="Done" value={stats.completedJobs} onClick={() => onSetTab('bookings')} />
         <QuickStat icon="💰" label="Balance" value={`₦${(wallet?.available_balance || 0).toLocaleString()}`} onClick={() => onSetTab('wallet')} />
       </div>
+
+      {/* Availability Toggle — only for verified workers */}
+      {profile.worker_status === 'verified' && (
+        <div className={`rounded-2xl border p-4 flex items-center justify-between transition-colors ${
+          isAvailable ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              isAvailable ? 'bg-emerald-500/10' : 'bg-red-500/10'
+            }`}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isAvailable ? '#10B981' : '#EF4444'} strokeWidth="2">
+                <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className={`text-xs font-semibold ${isAvailable ? 'text-emerald-400' : 'text-red-400'}`}>
+                {isAvailable ? 'Available for Bookings' : 'Unavailable for Bookings'}
+              </p>
+              <p className="text-[10px] text-[#5C5E72]">
+                {isAvailable ? 'Customers can find and book you' : 'You will not appear in search results'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleAvailability}
+            disabled={togglingAvailability}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              isAvailable ? 'bg-emerald-500' : 'bg-[#1E1E2C]'
+            } disabled:opacity-50`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+              isAvailable ? 'translate-x-6' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
+      )}
 
       {/* Wallet Summary */}
       <div className="bg-gradient-to-br from-[#12121A] to-[#0E0E16] border border-[#1E1E2C] rounded-2xl p-4">
@@ -457,20 +515,20 @@ function VerificationTab({ profile, verification, onUpdate }: {
     setSubmitting(true);
 
     // Upload video if selected
-    let uploadedVideoUrl = verificationVideoUrl;
-    if (videoFile && !uploadedVideoUrl) {
+    let uploadedVideoPath = verificationVideoUrl;
+    if (videoFile && !uploadedVideoPath) {
       setUploadingVideo(true);
       toast.loading('Uploading verification video...', { id: 'video-upload' });
-      const { url, error } = await uploadWorkerVerificationVideo(videoFile, profile.user_id);
+      const { path, signedUrl, error } = await uploadWorkerVerificationVideo(videoFile, profile.user_id);
       setUploadingVideo(false);
       toast.dismiss('video-upload');
-      if (error) {
-        toast.error('Video upload failed: ' + error.message);
+      if (error || !path) {
+        toast.error('Video upload failed: ' + (error?.message || 'Unknown error'));
         setSubmitting(false);
         return;
       }
-      uploadedVideoUrl = url;
-      setVerificationVideoUrl(url);
+      uploadedVideoPath = path;          // Store path in DB
+      setVerificationVideoUrl(path);   // Store path in state
     }
 
     const { error } = await submitWorkerVerification({
@@ -480,7 +538,7 @@ function VerificationTab({ profile, verification, onUpdate }: {
       years_of_experience: parseInt(yearsExperience),
       service_category_id: selectedCategory,
       service_subcategory_id: selectedSubcategory,
-      verification_video_url: uploadedVideoUrl,
+      verification_video_url: uploadedVideoPath,
     });
     setSubmitting(false);
     if (error) {

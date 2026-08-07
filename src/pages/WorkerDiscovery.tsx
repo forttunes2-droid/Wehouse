@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getAllWorkers, getCategoryWithSubcategories, supabase } from '@/lib/supabase';
+import { getWorkers, getCategoryWithSubcategories, supabase } from '@/lib/supabase';
 import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile, ServiceCategory } from '@/types';
 import { toast, Toaster } from 'sonner';
@@ -68,7 +68,8 @@ export default function WorkerDiscovery({ userCity, profile, onNavigate, preSele
 
       try {
         // Use getAllWorkers — same function Creator Dashboard uses (proven working)
-        const { workers: data, error: wErr } = await getAllWorkers();
+        // Public discovery: only verified + available workers returned by getWorkers()
+        const { workers: data, error: wErr } = await getWorkers();
 
         if (cancelled) return;
 

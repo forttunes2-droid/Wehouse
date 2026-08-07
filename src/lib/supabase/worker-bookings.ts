@@ -49,20 +49,36 @@ export async function getMyBookingConversations(userId: string) {
 }
 
 // Get booking messages
+// Post-processes image paths into short-lived signed URLs for display.
 export async function getBookingMessages(conversationId: string) {
   const { data, error } = await supabase.rpc('get_booking_messages', {
     p_conversation_id: conversationId,
   });
-  return { messages: data || [], error };
+  if (error || !data) return { messages: data || [], error };
+
+  // Convert storage paths to signed URLs for image messages
+  const messages = await Promise.all(
+    (data as any[]).map(async (msg: any) => {
+      const content = msg.content || '';
+      if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content) && !content.startsWith('http')) {
+        const { data: signed } = await supabase.storage
+          .from('chat-files')
+          .createSignedUrl(content, 60 * 60); // 1 hour
+        return { ...msg, content: signed?.signedUrl || content };
+      }
+      return msg;
+    })
+  );
+
+  return { messages, error };
 }
 
 // Send booking message
-// NOTE: The backend RPC 'send_booking_message' must derive the sender from
-// auth.uid() internally. The frontend passes sender_id for UI convenience only.
-export async function sendBookingMessage(conversationId: string, senderId: string, content: string) {
+// SECURITY: The backend RPC 'send_booking_message' derives sender from auth.uid().
+// Frontend NEVER passes sender_id to prevent spoofing.
+export async function sendBookingMessage(conversationId: string, content: string) {
   const { data, error } = await supabase.rpc('send_booking_message', {
     p_conversation_id: conversationId,
-    p_sender_id: senderId,
     p_content: content,
   });
   return { messageId: data, error };
@@ -188,35 +204,38 @@ export async function getWorkerBookings(workerId: string) {
 }
 
 // Upload image to booking chat
+// Returns the stored path + a short-lived signed URL for display.
+// The path is stored in DB; signed URLs are generated on demand.
 export async function uploadBookingChatImage(file: File, conversationId: string) {
   try {
     const compressed = await compressImageFile(file, 1920, 0.85);
     const fileName = `${conversationId}/${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('chat-files')
       .upload(fileName, compressed, { contentType: 'image/jpeg' });
     if (uploadError) {
       if (uploadError.message?.includes('bucket') || uploadError.message?.includes('Bucket')) {
-        return { url: null, error: { message: 'Storage not configured. Ask admin to run storage setup SQL.' } as any };
+        return { path: null, signedUrl: null, error: { message: 'Storage not configured. Ask admin to run storage setup SQL.' } as any };
       }
-      return { url: null, error: uploadError };
+      return { path: null, signedUrl: null, error: uploadError };
     }
+    // Short-lived signed URL for immediate display (1 hour)
     const { data: signedData, error: signedError } = await supabase.storage
       .from('chat-files')
-      .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days
-    if (signedError) return { url: null, error: signedError };
-    return { url: signedData.signedUrl, error: null };
+      .createSignedUrl(uploadData.path, 60 * 60);
+    if (signedError) return { path: uploadData.path, signedUrl: null, error: signedError };
+    return { path: uploadData.path, signedUrl: signedData.signedUrl, error: null };
   } catch (e: any) {
-    return { url: null, error: { message: e.message || 'Upload failed' } as any };
+    return { path: null, signedUrl: null, error: { message: e.message || 'Upload failed' } as any };
   }
 }
 
-// Send booking message with image (sends URL as content)
-export async function sendBookingImageMessage(conversationId: string, senderId: string, imageUrl: string) {
+// Send booking message with image (sends storage path as content)
+// SECURITY: Backend derives sender from auth.uid().
+export async function sendBookingImageMessage(conversationId: string, imagePath: string) {
   const { data, error } = await supabase.rpc('send_booking_message', {
     p_conversation_id: conversationId,
-    p_sender_id: senderId,
-    p_content: imageUrl,
+    p_content: imagePath,
   });
   return { messageId: data, error };
 }

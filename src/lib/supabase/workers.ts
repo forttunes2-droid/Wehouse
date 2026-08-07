@@ -5,11 +5,39 @@ import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, 
 // WORKER DISCOVERY — Find workers by filters
 // ═══════════════════════════════════════════════════════════════
 
+// Safe public fields for worker discovery — NEVER expose auth_id, email, phone, etc.
+const WORKER_PUBLIC_FIELDS = `
+  user_id,
+  username,
+  role,
+  profile_complete,
+  avatar_url,
+  bio,
+  country,
+  state,
+  city,
+  local_government,
+  area,
+  worker_status,
+  worker_occupation,
+  worker_skills,
+  worker_price,
+  worker_verified,
+  available,
+  worker_bio,
+  worker_experience,
+  is_online,
+  last_seen,
+  rating,
+  review_count,
+  created_at
+`;
+
 export async function getWorkers(filters?: { city?: string; occupation?: string; status?: string }) {
   // Public worker discovery: ONLY show verified + available workers
   let query = supabase
     .from('profiles')
-    .select('*')
+    .select(WORKER_PUBLIC_FIELDS)
     .eq('role', 'worker')
     .eq('worker_status', 'verified')
     .eq('worker_verified', true)
@@ -82,6 +110,18 @@ export async function updateWorkerStatus(userId: string, status: string) {
   }
 
   return { error };
+}
+
+// Worker: Toggle availability (accepting new bookings)
+export async function setWorkerAvailability(workerId: string, isAvailable: boolean) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ available: isAvailable, updated_at: new Date().toISOString() })
+    .eq('user_id', workerId)
+    .eq('role', 'worker')
+    .select()
+    .single();
+  return { profile: data as Profile | null, error };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -206,12 +246,12 @@ export async function uploadWorkerVerificationVideo(file: File, workerId: string
   // Validate file
   const validTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'];
   if (!validTypes.includes(file.type)) {
-    return { url: null, error: { message: 'Only MP4, MOV, or WebM videos are allowed' } as any };
+    return { path: null, signedUrl: null, error: { message: 'Only MP4, MOV, or WebM videos are allowed' } as any };
   }
 
   // Max 100MB for skill demonstration videos (2-3 minutes)
   if (file.size > 100 * 1024 * 1024) {
-    return { url: null, error: { message: 'Video must be under 100MB' } as any };
+    return { path: null, signedUrl: null, error: { message: 'Video must be under 100MB' } as any };
   }
 
   const ext = file.name.split('.').pop() || 'mp4';
@@ -221,14 +261,14 @@ export async function uploadWorkerVerificationVideo(file: File, workerId: string
     .from('worker-files')
     .upload(path, file, { contentType: file.type, upsert: true });
 
-  if (error) return { url: null, error };
+  if (error) return { path: null, signedUrl: null, error };
 
-  // Use signed URL instead of public URL — verification files are private
+  // Return the stored path + a short-lived signed URL for immediate display
   const { data: signedData, error: signedError } = await supabase.storage
     .from('worker-files')
-    .createSignedUrl(data.path, 60 * 60 * 24 * 7); // 7 days
+    .createSignedUrl(data.path, 60 * 60); // 1 hour
 
-  return { url: signedData?.signedUrl || null, error: signedError };
+  return { path: data.path, signedUrl: signedData?.signedUrl || null, error: signedError };
 }
 
 // ═══════════════════════════════════════════════════════════════

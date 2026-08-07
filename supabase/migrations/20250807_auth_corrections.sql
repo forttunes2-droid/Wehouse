@@ -565,4 +565,593 @@ BEGIN
   RAISE NOTICE 'Profiles policies without suspended/banned check: %', v_count;
 END $$;
 
+-- ═════════════════════════════════════════════════════════════════════════════
+-- 12. WORKER WORKFLOW RPCs
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── set_my_worker_availability ──
+-- Workers toggle their own availability. Only verified workers can be available.
+CREATE OR REPLACE FUNCTION public.set_my_worker_availability(p_is_available BOOLEAN)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_profile RECORD;
+BEGIN
+  SELECT id, user_id, role, worker_status, available INTO v_profile
+  FROM public.profiles
+  WHERE auth_id = auth.uid()::text;
+
+  IF v_profile IS NULL THEN
+    RAISE EXCEPTION 'Profile not found';
+  END IF;
+
+  IF v_profile.role != 'worker' THEN
+    RAISE EXCEPTION 'Only workers can set availability';
+  END IF;
+
+  -- Only verified workers can be available; others are forced to false
+  IF p_is_available AND v_profile.worker_status != 'verified' THEN
+    RAISE EXCEPTION 'Only verified workers can be available';
+  END IF;
+
+  UPDATE public.profiles
+  SET available = p_is_available,
+      updated_at = NOW()
+  WHERE id = v_profile.id;
+END;
+$$;
+
+-- ── send_booking_message ──
+-- Derives sender from auth.uid() to prevent spoofing.
+-- Stores the raw content (text or storage path).
+CREATE OR REPLACE FUNCTION public.send_booking_message(
+  p_conversation_id UUID,
+  p_content TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_sender_id TEXT;
+  v_booking_id UUID;
+  v_msg_id UUID;
+BEGIN
+  -- Derive sender from authenticated user
+  SELECT user_id INTO v_sender_id
+  FROM public.profiles
+  WHERE auth_id = auth.uid()::text;
+
+  IF v_sender_id IS NULL THEN
+    RAISE EXCEPTION 'Sender profile not found';
+  END IF;
+
+  -- Get booking_id from conversation
+  SELECT booking_id INTO v_booking_id
+  FROM public.booking_conversations
+  WHERE id = p_conversation_id;
+
+  IF v_booking_id IS NULL THEN
+    RAISE EXCEPTION 'Conversation not found';
+  END IF;
+
+  -- Verify sender is part of this booking
+  IF NOT EXISTS (
+    SELECT 1 FROM public.worker_bookings
+    WHERE id = v_booking_id
+      AND (user_id = v_sender_id OR worker_id = v_sender_id)
+  ) THEN
+    RAISE EXCEPTION 'Not authorized to send messages in this conversation';
+  END IF;
+
+  -- Insert message
+  INSERT INTO public.booking_messages (conversation_id, sender_id, content)
+  VALUES (p_conversation_id, v_sender_id, p_content)
+  RETURNING id INTO v_msg_id;
+
+  -- Update conversation updated_at
+  UPDATE public.booking_conversations
+  SET updated_at = NOW()
+  WHERE id = p_conversation_id;
+
+  RETURN v_msg_id;
+END;
+$$;
+
+-- ── create_booking_request ──
+-- Hardened: checks worker is verified and available.
+CREATE OR REPLACE FUNCTION public.create_booking_request(
+  p_user_id TEXT,
+  p_worker_id TEXT,
+  p_service_type TEXT,
+  p_description TEXT,
+  p_address TEXT,
+  p_scheduled_date TEXT,
+  p_customer_message TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_worker RECORD;
+  v_conv_id UUID;
+  v_booking_id UUID;
+  v_code TEXT;
+BEGIN
+  -- Verify customer exists and is not suspended/banned
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE user_id = p_user_id
+      AND deleted = false
+      AND suspended = false
+      AND banned = false
+  ) THEN
+    RAISE EXCEPTION 'Customer account is not active';
+  END IF;
+
+  -- Verify worker exists, is verified, available, and not suspended/banned/deleted
+  SELECT id, user_id, worker_status, available, deleted, suspended, banned
+  INTO v_worker
+  FROM public.profiles
+  WHERE user_id = p_worker_id
+    AND role = 'worker';
+
+  IF v_worker IS NULL THEN
+    RAISE EXCEPTION 'Worker not found';
+  END IF;
+
+  IF v_worker.worker_status != 'verified' THEN
+    RAISE EXCEPTION 'Worker is not verified';
+  END IF;
+
+  IF v_worker.available != true THEN
+    RAISE EXCEPTION 'Worker is not available for bookings';
+  END IF;
+
+  IF v_worker.deleted = true OR v_worker.suspended = true OR v_worker.banned = true THEN
+    RAISE EXCEPTION 'Worker account is not active';
+  END IF;
+
+  -- Prevent self-booking
+  IF p_user_id = p_worker_id THEN
+    RAISE EXCEPTION 'Cannot book yourself';
+  END IF;
+
+  -- Generate unique booking code
+  v_code := 'WH-' || upper(substring(md5(random()::text) from 1 for 6));
+
+  -- Create booking
+  INSERT INTO public.worker_bookings (
+    user_id, worker_id, status, service_type, description, address,
+    scheduled_date, booking_code, created_at, updated_at
+  ) VALUES (
+    p_user_id, p_worker_id, 'booking_requested', p_service_type,
+    p_description, p_address, p_scheduled_date, v_code, NOW(), NOW()
+  )
+  RETURNING id INTO v_booking_id;
+
+  -- Create conversation
+  INSERT INTO public.booking_conversations (booking_id, updated_at)
+  VALUES (v_booking_id, NOW())
+  RETURNING id INTO v_conv_id;
+
+  -- Link conversation to booking
+  UPDATE public.worker_bookings
+  SET booking_conversation_id = v_conv_id
+  WHERE id = v_booking_id;
+
+  -- Send initial customer message if provided
+  IF p_customer_message IS NOT NULL AND length(trim(p_customer_message)) > 0 THEN
+    INSERT INTO public.booking_messages (conversation_id, sender_id, content)
+    VALUES (v_conv_id, p_user_id, trim(p_customer_message));
+  END IF;
+
+  RETURN jsonb_build_object(
+    'booking_id', v_booking_id,
+    'conversation_id', v_conv_id,
+    'booking_code', v_code
+  );
+END;
+$$;
+
+-- ── worker_accept_booking ──
+-- Worker accepts a booking and sets negotiated amount.
+CREATE OR REPLACE FUNCTION public.worker_accept_booking(
+  p_booking_id UUID,
+  p_worker_id TEXT,
+  p_negotiated_amount NUMERIC
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_booking RECORD;
+BEGIN
+  SELECT id, worker_id, status INTO v_booking
+  FROM public.worker_bookings
+  WHERE id = p_booking_id;
+
+  IF v_booking IS NULL THEN
+    RAISE EXCEPTION 'Booking not found';
+  END IF;
+
+  IF v_booking.worker_id != p_worker_id THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
+  IF v_booking.status NOT IN ('booking_requested', 'negotiating') THEN
+    RAISE EXCEPTION 'Booking cannot be accepted in current status: %', v_booking.status;
+  END IF;
+
+  UPDATE public.worker_bookings
+  SET status = 'waiting_payment',
+      negotiated_amount = p_negotiated_amount,
+      updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  RETURN true;
+END;
+$$;
+
+-- ── customer_confirm_payment ──
+-- Customer confirms Paystack payment, creates escrow.
+CREATE OR REPLACE FUNCTION public.customer_confirm_payment(
+  p_booking_id UUID,
+  p_user_id TEXT,
+  p_paystack_ref TEXT,
+  p_paystack_tx_id TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_booking RECORD;
+  v_commission_rate NUMERIC := 0.10; -- Default 10%, overridden by settings
+  v_wehouse_fee NUMERIC;
+  v_worker_receives NUMERIC;
+BEGIN
+  SELECT id, user_id, worker_id, status, negotiated_amount INTO v_booking
+  FROM public.worker_bookings
+  WHERE id = p_booking_id;
+
+  IF v_booking IS NULL THEN
+    RAISE EXCEPTION 'Booking not found';
+  END IF;
+
+  IF v_booking.user_id != p_user_id THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
+  IF v_booking.status != 'waiting_payment' THEN
+    RAISE EXCEPTION 'Booking is not awaiting payment';
+  END IF;
+
+  -- Read commission rate from settings (default 10%)
+  SELECT (value::numeric) INTO v_commission_rate
+  FROM public.platform_settings
+  WHERE key = 'worker_commission_rate';
+
+  IF v_commission_rate IS NULL THEN
+    v_commission_rate := 0.10;
+  END IF;
+
+  v_wehouse_fee := round(v_booking.negotiated_amount * v_commission_rate, 2);
+  v_worker_receives := v_booking.negotiated_amount - v_wehouse_fee;
+
+  -- Update booking
+  UPDATE public.worker_bookings
+  SET status = 'confirmed',
+      agreed_amount = v_booking.negotiated_amount,
+      wehouse_fee = v_wehouse_fee,
+      worker_commission = v_wehouse_fee,
+      worker_receives = v_worker_receives,
+      paystack_reference = p_paystack_ref,
+      paystack_transaction_id = p_paystack_tx_id,
+      updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  -- Create escrow
+  INSERT INTO public.escrow_transactions (
+    booking_id, amount, status, created_at, updated_at
+  ) VALUES (
+    p_booking_id, v_booking.negotiated_amount, 'held', NOW(), NOW()
+  );
+
+  RETURN true;
+END;
+$$;
+
+-- ── worker_start_job ──
+CREATE OR REPLACE FUNCTION public.worker_start_job(
+  p_booking_id UUID,
+  p_worker_id TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.worker_bookings
+    WHERE id = p_booking_id
+      AND worker_id = p_worker_id
+      AND status = 'confirmed'
+  ) THEN
+    RAISE EXCEPTION 'Booking not found or not in confirmed status';
+  END IF;
+
+  UPDATE public.worker_bookings
+  SET status = 'in_progress', updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  RETURN true;
+END;
+$$;
+
+-- ── worker_mark_complete ──
+CREATE OR REPLACE FUNCTION public.worker_mark_complete(
+  p_booking_id UUID,
+  p_worker_id TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.worker_bookings
+    WHERE id = p_booking_id
+      AND worker_id = p_worker_id
+      AND status = 'in_progress'
+  ) THEN
+    RAISE EXCEPTION 'Booking not found or not in progress';
+  END IF;
+
+  UPDATE public.worker_bookings
+  SET status = 'completed_pending_approval',
+      worker_approved = true,
+      completed_at = NOW(),
+      updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  RETURN true;
+END;
+$$;
+
+-- ── customer_confirm_completion ──
+-- Releases escrow to worker wallet.
+CREATE OR REPLACE FUNCTION public.customer_confirm_completion(
+  p_booking_id UUID,
+  p_user_id TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_booking RECORD;
+  v_wallet_id UUID;
+BEGIN
+  SELECT id, user_id, worker_id, status, worker_receives INTO v_booking
+  FROM public.worker_bookings
+  WHERE id = p_booking_id;
+
+  IF v_booking IS NULL OR v_booking.user_id != p_user_id THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
+  IF v_booking.status != 'completed_pending_approval' THEN
+    RAISE EXCEPTION 'Booking is not pending approval';
+  END IF;
+
+  -- Get worker wallet
+  SELECT id INTO v_wallet_id
+  FROM public.wallets
+  WHERE owner_id = v_booking.worker_id
+    AND owner_type = 'worker';
+
+  IF v_wallet_id IS NULL THEN
+    -- Auto-create wallet
+    INSERT INTO public.wallets (owner_id, owner_type)
+    VALUES (v_booking.worker_id, 'worker')
+    RETURNING id INTO v_wallet_id;
+  END IF;
+
+  -- Update booking
+  UPDATE public.worker_bookings
+  SET status = 'approved_released',
+      user_approved = true,
+      updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  -- Release escrow
+  UPDATE public.escrow_transactions
+  SET status = 'released', updated_at = NOW()
+  WHERE booking_id = p_booking_id;
+
+  -- Credit wallet
+  UPDATE public.wallets
+  SET available_balance = available_balance + v_booking.worker_receives,
+      updated_at = NOW()
+  WHERE id = v_wallet_id;
+
+  -- Log transaction
+  INSERT INTO public.wallet_transactions (wallet_id, amount, type, description, reference)
+  VALUES (v_wallet_id, v_booking.worker_receives, 'credit', 'Job completion payment', p_booking_id::text);
+
+  RETURN true;
+END;
+$$;
+
+-- ── customer_raise_dispute ──
+CREATE OR REPLACE FUNCTION public.customer_raise_dispute(
+  p_booking_id UUID,
+  p_user_id TEXT,
+  p_reason TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.worker_bookings
+    WHERE id = p_booking_id
+      AND user_id = p_user_id
+      AND status IN ('completed_pending_approval', 'in_progress', 'confirmed')
+  ) THEN
+    RAISE EXCEPTION 'Booking not eligible for dispute';
+  END IF;
+
+  UPDATE public.worker_bookings
+  SET status = 'disputed',
+      dispute_reason = p_reason,
+      updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  UPDATE public.escrow_transactions
+  SET status = 'disputed', updated_at = NOW()
+  WHERE booking_id = p_booking_id;
+
+  RETURN true;
+END;
+$$;
+
+-- ── cancel_booking ──
+CREATE OR REPLACE FUNCTION public.cancel_booking(
+  p_booking_id UUID,
+  p_canceller_id TEXT,
+  p_reason TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_booking RECORD;
+BEGIN
+  SELECT id, user_id, worker_id, status INTO v_booking
+  FROM public.worker_bookings
+  WHERE id = p_booking_id;
+
+  IF v_booking IS NULL THEN
+    RAISE EXCEPTION 'Booking not found';
+  END IF;
+
+  IF v_booking.user_id != p_canceller_id AND v_booking.worker_id != p_canceller_id THEN
+    RAISE EXCEPTION 'Not authorized to cancel this booking';
+  END IF;
+
+  -- Can only cancel before payment (booking_requested, negotiating, waiting_payment)
+  IF v_booking.status NOT IN ('booking_requested', 'negotiating', 'waiting_payment') THEN
+    RAISE EXCEPTION 'Booking cannot be cancelled in current status: %', v_booking.status;
+  END IF;
+
+  UPDATE public.worker_bookings
+  SET status = 'cancelled',
+      cancellation_reason = p_reason,
+      updated_at = NOW()
+  WHERE id = p_booking_id;
+
+  RETURN true;
+END;
+$$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- 13. STORAGE RLS POLICIES for worker-files and chat-files
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Enable RLS on buckets (idempotent)
+DO $$
+BEGIN
+  -- worker-files bucket policies
+  IF EXISTS (SELECT 1 FROM storage.buckets WHERE name = 'worker-files') THEN
+    -- Workers can upload their own verification files
+    IF NOT EXISTS (
+      SELECT 1 FROM storage.policies
+      WHERE bucket_id = 'worker-files' AND name = 'Workers upload own files'
+    ) THEN
+      CREATE POLICY "Workers upload own files" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'worker-files' AND (storage.foldername(name))[1] = auth.uid()::text);
+    END IF;
+
+    -- Workers can read their own files
+    IF NOT EXISTS (
+      SELECT 1 FROM storage.policies
+      WHERE bucket_id = 'worker-files' AND name = 'Workers read own files'
+    ) THEN
+      CREATE POLICY "Workers read own files" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'worker-files' AND (storage.foldername(name))[1] = auth.uid()::text);
+    END IF;
+
+    -- Admins/creators can read all worker files
+    IF NOT EXISTS (
+      SELECT 1 FROM storage.policies
+      WHERE bucket_id = 'worker-files' AND name = 'Admins read all worker files'
+    ) THEN
+      CREATE POLICY "Admins read all worker files" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'worker-files' AND EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE auth_id = auth.uid()::text AND role IN ('admin', 'creator', 'staff')
+        ));
+    END IF;
+  END IF;
+
+  -- chat-files bucket policies
+  IF EXISTS (SELECT 1 FROM storage.buckets WHERE name = 'chat-files') THEN
+    -- Authenticated users can upload to chat-files
+    IF NOT EXISTS (
+      SELECT 1 FROM storage.policies
+      WHERE bucket_id = 'chat-files' AND name = 'Users upload chat images'
+    ) THEN
+      CREATE POLICY "Users upload chat images" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'chat-files');
+    END IF;
+
+    -- Authenticated users can read chat files
+    IF NOT EXISTS (
+      SELECT 1 FROM storage.policies
+      WHERE bucket_id = 'chat-files' AND name = 'Users read chat images'
+    ) THEN
+      CREATE POLICY "Users read chat images" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'chat-files');
+    END IF;
+  END IF;
+END $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- 14. GRANT EXECUTE on new worker workflow RPCs
+-- ═════════════════════════════════════════════════════════════════════════════
+
+GRANT EXECUTE ON FUNCTION public.set_my_worker_availability(BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.send_booking_message(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_booking_request(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.worker_accept_booking(UUID, TEXT, NUMERIC) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_confirm_payment(UUID, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.worker_start_job(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.worker_mark_complete(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_confirm_completion(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_raise_dispute(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_booking(UUID, TEXT, TEXT) TO authenticated;
+
 COMMIT;

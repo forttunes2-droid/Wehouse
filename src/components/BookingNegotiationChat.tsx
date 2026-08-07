@@ -51,7 +51,7 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
   async function handleSend() {
     if (!input.trim() || sending) return;
     setSending(true);
-    await sendBookingMessage(conversationId, profile.user_id, input.trim());
+    await sendBookingMessage(conversationId, input.trim());
     setInput('');
     setSending(false);
     loadAll();
@@ -115,16 +115,16 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
     if (!file) return;
     setSending(true);
     toast.loading('Uploading photo...', { id: 'photo-upload' });
-    const { url, error } = await uploadBookingChatImage(file, conversationId);
-    if (error || !url) {
+    const { path, signedUrl, error } = await uploadBookingChatImage(file, conversationId);
+    if (error || !path) {
       toast.dismiss('photo-upload');
       toast.error('Upload failed: ' + (error?.message || 'Unknown error'));
       setSending(false);
       e.target.value = '';
       return;
     }
-    // Send image URL as message content
-    const { error: sendErr } = await sendBookingMessage(conversationId, profile.user_id, url);
+    // Send storage path as message content (backend will generate signed URL on fetch)
+    const { error: sendErr } = await sendBookingMessage(conversationId, path);
     toast.dismiss('photo-upload');
     setSending(false);
     e.target.value = '';
@@ -135,10 +135,11 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
     loadAll();
   }
 
-  // Detect if a message content is an image URL
+  // Detect if a message content is an image path or URL
   function isImageUrl(content: string): boolean {
     if (!content || typeof content !== 'string') return false;
-    return content.startsWith('http') && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content);
+    // Storage paths like "conv-id/123456.jpg" or signed URLs
+    return (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content));
   }
 
   const statusInfo = booking?.status ? BOOKING_STATUS_LABELS[booking.status] : null;
