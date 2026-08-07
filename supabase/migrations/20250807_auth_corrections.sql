@@ -239,7 +239,7 @@ END;
 $function$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 6. UPDATE admin_reactivate_user — ONLY for suspended/banned accounts (NOT deleted)
+-- 6. UPDATE admin_reactivate_user — ONLY for suspended accounts (NOT banned, NOT deleted)
 -- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.admin_reactivate_user(p_target_user_id TEXT)
@@ -270,9 +270,14 @@ BEGIN
     RAISE EXCEPTION 'Deleted accounts cannot be reactivated. They are permanently closed.';
   END IF;
 
-  -- Only reactivate suspended or banned accounts
-  IF NOT v_target.suspended AND NOT v_target.banned THEN
-    RAISE EXCEPTION 'Account is not suspended or banned. No action needed.';
+  -- Cannot reactivate banned accounts — banned is PERMANENT
+  IF v_target.banned THEN
+    RAISE EXCEPTION 'Banned accounts cannot be reactivated. Contact Creator if you believe this is an error.';
+  END IF;
+
+  -- Only reactivate suspended accounts
+  IF NOT v_target.suspended THEN
+    RAISE EXCEPTION 'Account is not suspended. No action needed.';
   END IF;
 
   UPDATE public.profiles
@@ -280,10 +285,6 @@ BEGIN
       suspended_at = NULL,
       suspended_by = NULL,
       suspended_reason = NULL,
-      banned = FALSE,
-      banned_at = NULL,
-      banned_by = NULL,
-      banned_reason = NULL,
       worker_status = CASE WHEN role = 'worker' THEN 'pending' ELSE worker_status END,
       updated_at = NOW()
   WHERE user_id = p_target_user_id;
@@ -447,7 +448,7 @@ DECLARE
 BEGIN
   -- Auth check
   SELECT role, assigned_lga INTO v_caller_role, v_caller_lga
-  FROM public.profiles WHERE user_id = auth.uid()::text;
+  FROM public.profiles WHERE auth_id = auth.uid()::text;
 
   IF v_caller_role NOT IN ('admin','creator') THEN
     RAISE EXCEPTION 'Admin/Creator access required';
@@ -497,7 +498,7 @@ BEGIN
     -- When promoting to staff, set operational assignment to caller's branch
     UPDATE public.profiles
     SET role = p_new_role,
-        assigned_state = CASE WHEN v_caller_role = 'admin' THEN (SELECT assigned_state FROM public.profiles WHERE user_id = auth.uid()::text) ELSE assigned_state END,
+        assigned_state = CASE WHEN v_caller_role = 'admin' THEN (SELECT assigned_state FROM public.profiles WHERE auth_id = auth.uid()::text) ELSE assigned_state END,
         assigned_lga = CASE WHEN v_caller_role = 'admin' THEN v_caller_lga ELSE assigned_lga END,
         scope = 'local',
         updated_at = NOW()
