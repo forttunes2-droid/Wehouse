@@ -95,11 +95,12 @@ export default function Setup({ profile, onSetupComplete }: SetupProps) {
       const taken = await isUsernameTaken(trimmed);
       if (taken) { setError('Username taken. Try another.'); setWorking(false); return; }
 
-      // Save everything: username + state + city + profile_complete
+      // Save everything: username + state + city/LGA + profile_complete
       const { profile: updated, error: err } = await updateProfile(profile.user_id, {
         username: trimmed,
         state,
         city,
+        local_government: city, // canonical LGA field
         country: 'Nigeria',
         profile_complete: true,
       });

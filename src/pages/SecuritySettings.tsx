@@ -35,6 +35,8 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
   const [checkingListings, setCheckingListings] = useState(false);
   const [workerBookingCount, setWorkerBookingCount] = useState<number | null>(null);
   const [checkingBookings, setCheckingBookings] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [checkingWallet, setCheckingWallet] = useState(false);
 
   // Password change state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -75,7 +77,7 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
     }
   }, [profile.role, profile.user_id, canDeleteAccount]);
 
-  // ─── Check worker: unresolved bookings block self-deletion ───
+  // ─── Check worker: unresolved bookings + wallet balance block self-deletion ───
   useEffect(() => {
     if (profile.role === 'worker' && canDeleteAccount) {
       setCheckingBookings(true);
@@ -87,6 +89,19 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
         .then(({ count }) => {
           setWorkerBookingCount(count || 0);
           setCheckingBookings(false);
+        });
+
+      setCheckingWallet(true);
+      supabase
+        .from('wallets')
+        .select('available_balance, pending_balance, frozen_balance')
+        .eq('owner_id', profile.user_id)
+        .eq('owner_type', 'worker')
+        .maybeSingle()
+        .then(({ data }) => {
+          const total = (data?.available_balance || 0) + (data?.pending_balance || 0) + (data?.frozen_balance || 0);
+          setWalletBalance(total);
+          setCheckingWallet(false);
         });
     }
   }, [profile.role, profile.user_id, canDeleteAccount]);
@@ -598,16 +613,37 @@ export default function SecuritySettings({ profile, onBack }: SecuritySettingsPr
             </div>
           )}
 
+          {/* Worker: Wallet balance blocks deletion */}
+          {profile.role === 'worker' && walletBalance !== null && walletBalance > 0 && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <div className="flex items-start gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div>
+                  <p className="text-xs text-amber-400 font-medium">Cannot delete account</p>
+                  <p className="text-[11px] text-[#5C5E72] mt-0.5">
+                    You have a wallet balance of <span className="text-amber-400 font-semibold">N{walletBalance.toLocaleString()}</span>.
+                    Withdraw all funds before deleting your account.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
               disabled={
                 (profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0) ||
-                (profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0)
+                (profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0) ||
+                (profile.role === 'worker' && walletBalance !== null && walletBalance > 0)
               }
               className={`w-full glass rounded-2xl p-4 flex items-center gap-4 text-left group transition-all duration-300 ${
                 (profile.role === 'property_partner' && partnerListingCount !== null && partnerListingCount > 0) ||
-                (profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0)
+                (profile.role === 'worker' && workerBookingCount !== null && workerBookingCount > 0) ||
+                (profile.role === 'worker' && walletBalance !== null && walletBalance > 0)
                   ? 'opacity-50 cursor-not-allowed border-red-500/10'
                   : 'hover:border-red-500/20'
               }`}

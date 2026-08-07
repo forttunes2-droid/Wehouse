@@ -74,9 +74,10 @@ export interface Profile {
   preferred_location: string | null;
   // ── LOCATION ──────────────────────────────────────
   country: string | null;
-  state: string | null;
-  city: string | null;
-  area: string | null;
+  state: string | null;           // State (e.g., "Lagos")
+  city: string | null;             // LGA — stored here for historical reasons
+  local_government: string | null; // Canonical LGA field (preferred over city)
+  area: string | null;             // City/Area within LGA
   email_verified: boolean;
   phone_verified: boolean;
   id_verified: boolean;

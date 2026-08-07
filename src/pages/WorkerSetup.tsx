@@ -96,7 +96,8 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
     if (!form.full_name.trim()) { toast.error('Full name is required'); return; }
     if (!form.worker_occupation) { toast.error('Select your occupation category'); return; }
     if (!form.worker_subcategory) { toast.error('Select your specialty (one only)'); return; }
-    if (!form.location.city) { toast.error('Select your city'); return; }
+    if (!form.location.state) { toast.error('Select your state'); return; }
+    if (!form.location.city) { toast.error('Select your local government area (LGA)'); return; }
 
     setSaving(true);
     const priceNum = form.worker_price ? parseInt(form.worker_price as string) || 0 : 0;
@@ -114,6 +115,7 @@ export default function WorkerSetup({ profile, onComplete }: WorkerSetupProps) {
       country: form.location.country,
       state: form.location.state,
       city: form.location.city,
+      local_government: form.location.city,  // canonical LGA field
       area: form.location.area || null,
       avatar_url: avatarUrl,
       profile_complete: true,
