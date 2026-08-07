@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { updatePrivacySettings } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
@@ -9,151 +9,75 @@ interface PrivacySettingsProps {
   onBack: () => void;
 }
 
-interface ToggleProps {
-  label: string;
-  desc: string;
-  enabled: boolean;
-  onChange: (v: boolean) => void;
-  saving?: boolean;
-}
-
-function ToggleRow({ label, desc, enabled, onChange, saving }: ToggleProps) {
-  return (
-    <div className="flex items-center justify-between py-3">
-      <div className="flex-1 pr-4">
-        <div className="text-sm font-medium text-white">{label}</div>
-        <div className="text-[11px] text-[#5C5E72] mt-0.5">{desc}</div>
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!enabled)}
-        disabled={saving}
-        className={`relative w-11 h-6 rounded-full transition-all duration-200 flex-shrink-0 ${
-          enabled ? 'bg-[#3B82F6]' : 'bg-[#2A2A3A]'
-        } disabled:opacity-50`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
-            enabled ? 'translate-x-5' : 'translate-x-0'
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
+type PrivacyKey = 'privacy_profile_visible' | 'privacy_search_visible' | 'privacy_activity_visible' | 'privacy_email_visible' | 'privacy_phone_visible';
 
 export default function PrivacySettings({ profile, onUpdate, onBack }: PrivacySettingsProps) {
-  const [settings, setSettings] = useState({
-    privacy_profile_visible: profile.privacy_profile_visible ?? true,
-    privacy_search_visible: profile.privacy_search_visible ?? true,
-    privacy_activity_visible: profile.privacy_activity_visible ?? true,
+  const p = profile as any;
+  const [settings, setSettings] = useState<Record<PrivacyKey, boolean>>({
+    privacy_profile_visible: profile.privacy_profile_visible !== false,
+    privacy_search_visible: profile.privacy_search_visible !== false,
+    privacy_activity_visible: profile.privacy_activity_visible !== false,
+    privacy_email_visible: p.privacy_email_visible === true,
+    privacy_phone_visible: p.privacy_phone_visible === true,
   });
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState<PrivacyKey | null>(null);
 
-  const handleToggle = useCallback(
-    async (key: keyof typeof settings, value: boolean) => {
-      const newSettings = { ...settings, [key]: value };
-      setSettings(newSettings);
-      setSavingKey(key);
+  async function toggle(key: PrivacyKey, value: boolean) {
+    const previous = settings;
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    setSaving(key);
+    const { profile: updated, error } = await updatePrivacySettings(profile.user_id, { [key]: value } as any);
+    setSaving(null);
+    if (error || !updated) {
+      setSettings(previous);
+      toast.error(error?.message || 'Failed to save privacy setting');
+      return;
+    }
+    onUpdate(updated);
+    toast.success('Privacy setting saved');
+  }
 
-      const { profile: updated, error } = await updatePrivacySettings(profile.user_id, { [key]: value });
-      setSavingKey(null);
-
-      if (error) {
-        toast.error('Failed to update');
-        setSettings(settings); // revert
-        return;
-      }
-      if (updated) onUpdate(updated);
-      toast.success('Setting saved');
-    },
-    [settings, profile.user_id, onUpdate]
-  );
+  const rows: { key: PrivacyKey; label: string; description: string }[] = [
+    { key: 'privacy_profile_visible', label: 'Public Profile', description: 'Allow other eligible WeHouse users to open your public profile.' },
+    { key: 'privacy_search_visible', label: 'Appear in Search', description: 'Allow your profile to appear in relevant discovery and roommate search.' },
+    { key: 'privacy_activity_visible', label: 'Show Activity Status', description: 'Allow eligible users to see when you were recently active.' },
+    { key: 'privacy_email_visible', label: 'Show Email', description: 'Display your email only where a workflow is allowed to reveal it.' },
+    { key: 'privacy_phone_visible', label: 'Show Phone', description: 'Display your phone only where a workflow is allowed to reveal it.' },
+  ];
 
   return (
     <div className="min-h-screen bg-transparent pb-20">
       <Toaster position="top-center" richColors />
-
-      {/* Header */}
       <header className="bg-[#12121A] border-b border-white/[0.06] text-white px-5 py-4 flex items-center gap-3">
-        <button onClick={onBack} className="text-[#8A8B9C] hover:text-white transition-colors">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
+        <button onClick={onBack} aria-label="Back" className="text-[#8A8B9C] hover:text-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
         </button>
         <h1 className="text-base font-semibold">Privacy</h1>
       </header>
 
-      <div className="max-w-lg mx-auto px-5 py-5 space-y-6">
-        {/* Info banner */}
-        <div className="glass rounded-2xl p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4M12 8h.01" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-white">Control your visibility</h3>
-            <p className="text-[11px] text-[#5C5E72] mt-0.5 leading-relaxed">
-              These settings control how other users can find and see your profile on WeHouse.
-            </p>
-          </div>
+      <main className="max-w-lg mx-auto px-5 py-5 space-y-5">
+        <div className="rounded-2xl border border-[#3B82F6]/15 bg-[#3B82F6]/5 p-4">
+          <p className="text-sm font-medium text-white">Clear visibility controls</p>
+          <p className="text-[11px] text-[#8A8B9C] mt-1">Each setting has one purpose. Role and workflow security still decide who is eligible to see information.</p>
         </div>
 
-        {/* Profile Visibility */}
-        <div>
-          <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider mb-1 px-1">Profile</h3>
-          <div className="glass rounded-2xl px-4 divide-y divide-white/[0.04]">
-            <ToggleRow
-              label="Public Profile"
-              desc="Allow others to view your full profile including bio, school, and preferences"
-              enabled={settings.privacy_profile_visible}
-              onChange={(v) => handleToggle('privacy_profile_visible', v)}
-              saving={savingKey === 'privacy_profile_visible'}
-            />
-            <ToggleRow
-              label="Searchable"
-              desc="Appear in roommate search results and discovery"
-              enabled={settings.privacy_search_visible}
-              onChange={(v) => handleToggle('privacy_search_visible', v)}
-              saving={savingKey === 'privacy_search_visible'}
-            />
-          </div>
-        </div>
-
-        {/* Activity Visibility */}
-        <div>
-          <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider mb-1 px-1">Activity</h3>
-          <div className="glass rounded-2xl px-4">
-            <ToggleRow
-              label="Show Activity"
-              desc="Allow others to see when you were last active"
-              enabled={settings.privacy_activity_visible}
-              onChange={(v) => handleToggle('privacy_activity_visible', v)}
-              saving={savingKey === 'privacy_activity_visible'}
-            />
-          </div>
-        </div>
-
-        {/* Visibility Summary */}
-        <div className="glass rounded-2xl p-4 space-y-2.5">
-          <h3 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider mb-2">Current Status</h3>
-          {[
-            { label: 'Profile visible', visible: settings.privacy_profile_visible },
-            { label: 'Searchable', visible: settings.privacy_search_visible },
-            { label: 'Activity visible', visible: settings.privacy_activity_visible },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-2 text-xs">
-              <span className={`w-1.5 h-1.5 rounded-full ${item.visible ? 'bg-green-400' : 'bg-red-400'}`} />
-              <span className="text-[#8B8DA0]">{item.label}</span>
-              <span className={item.visible ? 'text-green-400' : 'text-red-400'}>
-                {item.visible ? 'On' : 'Off'}
-              </span>
+        <div className="glass rounded-2xl px-4 divide-y divide-white/[0.05]">
+          {rows.map((row) => (
+            <div key={row.key} className="py-4 flex items-center justify-between gap-4">
+              <div><p className="text-sm font-medium text-white">{row.label}</p><p className="text-[11px] text-[#5C5E72] mt-0.5">{row.description}</p></div>
+              <button
+                onClick={() => toggle(row.key, !settings[row.key])}
+                disabled={saving === row.key}
+                aria-pressed={settings[row.key]}
+                className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${settings[row.key] ? 'bg-[#3B82F6]' : 'bg-[#2A2A3A]'} disabled:opacity-50`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${settings[row.key] ? 'translate-x-5' : ''}`} />
+              </button>
             </div>
           ))}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
