@@ -516,33 +516,13 @@ export async function refundEscrow(escrowId: string, reason?: string) {
 // WITHDRAWALS — Automatic via Paystack
 // ═══════════════════════════════════════════════════════════════
 
-export async function requestWithdrawal(walletId: string, amount: number) {
-  // Get wallet to check balance and bank details
-  const { data: wallet } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('id', walletId)
-    .single();
-
-  if (!wallet) return { withdrawal: null, error: { message: 'Wallet not found' } as any };
-  if (wallet.available_balance < amount) return { withdrawal: null, error: { message: 'Insufficient balance' } as any };
-  if (!wallet.bank_account_number || !wallet.bank_name) {
-    return { withdrawal: null, error: { message: 'Bank details not set up' } as any };
-  }
-
-  const { data, error } = await supabase
-    .from('withdrawals')
-    .insert({
-      wallet_id: walletId,
-      amount,
-      bank_name: wallet.bank_name,
-      bank_account_number: wallet.bank_account_number,
-      bank_account_name: wallet.bank_account_name,
-      status: 'pending',
-    })
-    .select()
-    .single();
-  return { withdrawal: data as Withdrawal | null, error };
+// Worker: Request withdrawal (canonical, atomic balance reservation)
+// SECURITY: Backend derives identity from auth.uid().
+export async function requestWithdrawal(amount: number) {
+  const { data, error } = await supabase.rpc('request_withdrawal', {
+    p_amount: amount,
+  });
+  return { result: data, error };
 }
 
 export async function getWithdrawals(walletId?: string, status?: Withdrawal['status']) {

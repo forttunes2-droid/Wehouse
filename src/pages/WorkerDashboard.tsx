@@ -911,16 +911,18 @@ function WalletTab({ wallet, transactions, onUpdate }: {
     if (wallet.available_balance < amount) { toast.error('Insufficient balance'); return; }
 
     setProcessing(true);
-    const { error } = await requestWithdrawal(wallet.id, amount);
+    const { result, error } = await requestWithdrawal(amount);
     setProcessing(false);
 
     if (error) {
       toast.error(error.message || 'Withdrawal failed');
-    } else {
+    } else if (result?.success) {
       toast.success('Withdrawal initiated');
       setShowWithdraw(false);
       setWithdrawAmount('');
       onUpdate();
+    } else {
+      toast.error(result?.error || 'Withdrawal failed');
     }
   }
 
@@ -1424,7 +1426,9 @@ function WithdrawTab({ wallet, profile, onUpdate }: { wallet: Wallet | null; pro
       // Save bank details first
       await updateWalletBankDetails(profile.user_id, { bank_name: bankName, bank_account_number: accountNumber, bank_account_name: accountName });
       // Request withdrawal
-      await requestWithdrawal(profile.user_id, amt);
+      const { result, error } = await requestWithdrawal(amt);
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Withdrawal failed');
       toast.success('Withdrawal request submitted');
       setAmount('');
       onUpdate();

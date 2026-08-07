@@ -561,7 +561,7 @@ const citiesForSelectedState = useMemo(() => getCitiesForState(selectedState), [
                 if (!profile?.user_id) { toast.error('Please log in'); return; }
                 setBookingSubmitting(true);
                 const { booking, error } = await createBookingRequest(
-                  profile.user_id, bookingWorker.user_id,
+                  bookingWorker.user_id,
                   WORKER_OCCUPATION_LABELS[bookingWorker.worker_occupation || ''] || 'Service',
                   bookingForm.description, bookingForm.address, '', bookingForm.message
                 );

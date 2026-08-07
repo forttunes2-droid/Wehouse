@@ -6,8 +6,8 @@ import { compressImageFile } from './utils';
 // ═══════════════════════════════════════════════════════════════
 
 // Step 1: Customer creates booking request
+// SECURITY: Backend derives customer identity from auth.uid().
 export async function createBookingRequest(
-  userId: string,
   workerId: string,
   serviceType: string,
   description: string,
@@ -16,7 +16,6 @@ export async function createBookingRequest(
   customerMessage?: string
 ) {
   const { data, error } = await supabase.rpc('create_booking_request', {
-    p_user_id: userId,
     p_worker_id: workerId,
     p_service_type: serviceType,
     p_description: description,
@@ -25,7 +24,7 @@ export async function createBookingRequest(
     p_customer_message: customerMessage || null,
   });
   if (error) return { booking: null, error };
-  return { booking: data?.[0] || null, error: null };
+  return { booking: data || null, error: null };
 }
 
 // Get all booking conversations for a user (customer or worker) — uses RPC (bypasses RLS)
@@ -85,68 +84,88 @@ export async function sendBookingMessage(conversationId: string, content: string
 }
 
 // Step 4: Worker accepts booking with negotiated price
-export async function workerAcceptBooking(bookingId: string, workerId: string, negotiatedAmount: number) {
+// SECURITY: Backend derives worker identity from auth.uid().
+export async function workerAcceptBooking(bookingId: string, negotiatedAmount: number, scheduledDate?: string) {
   const { data, error } = await supabase.rpc('worker_accept_booking', {
     p_booking_id: bookingId,
-    p_worker_id: workerId,
     p_negotiated_amount: negotiatedAmount,
+    p_scheduled_date: scheduledDate || null,
   });
   return { success: data, error };
 }
 
 // Step 5: Customer confirms payment
-export async function customerConfirmPayment(bookingId: string, userId: string, paystackRef: string, paystackTxId: string) {
+// DEPRECATED: Use the canonical server-verified Paystack path instead.
+// This function is kept for backward compatibility but should be replaced
+// with confirmWorkerBookingPayment() after Edge Function verification.
+export async function customerConfirmPayment(bookingId: string, paystackRef: string, paystackTxId: string) {
   const { data, error } = await supabase.rpc('customer_confirm_payment', {
     p_booking_id: bookingId,
-    p_user_id: userId,
     p_paystack_ref: paystackRef,
     p_paystack_tx_id: paystackTxId,
   });
   return { success: data, error };
 }
 
+// Canonical server-verified payment confirmation.
+// Called by the Edge Function after Paystack API verification.
+export async function confirmWorkerBookingPayment(
+  bookingId: string,
+  paystackReference: string,
+  amountVerified: number,
+  currency: string = 'NGN'
+) {
+  const { data, error } = await supabase.rpc('confirm_worker_booking_payment', {
+    p_booking_id: bookingId,
+    p_paystack_reference: paystackReference,
+    p_amount_verified: amountVerified,
+    p_currency: currency,
+  });
+  return { result: data, error };
+}
+
 // Step 6: Worker starts job
-export async function workerStartJob(bookingId: string, workerId: string) {
+// SECURITY: Backend derives worker identity from auth.uid().
+export async function workerStartJob(bookingId: string) {
   const { data, error } = await supabase.rpc('worker_start_job', {
     p_booking_id: bookingId,
-    p_worker_id: workerId,
   });
   return { success: data, error };
 }
 
 // Step 7: Worker marks complete
-export async function workerMarkComplete(bookingId: string, workerId: string) {
+// SECURITY: Backend derives worker identity from auth.uid().
+export async function workerMarkComplete(bookingId: string) {
   const { data, error } = await supabase.rpc('worker_mark_complete', {
     p_booking_id: bookingId,
-    p_worker_id: workerId,
   });
   return { success: data, error };
 }
 
 // Step 7: Customer confirms completion
-export async function customerConfirmCompletion(bookingId: string, userId: string) {
+// SECURITY: Backend derives customer identity from auth.uid().
+export async function customerConfirmCompletion(bookingId: string) {
   const { data, error } = await supabase.rpc('customer_confirm_completion', {
     p_booking_id: bookingId,
-    p_user_id: userId,
   });
   return { success: data, error };
 }
 
 // Step 8: Customer raises dispute
-export async function customerRaiseDispute(bookingId: string, userId: string, reason: string) {
+// SECURITY: Backend derives customer identity from auth.uid().
+export async function customerRaiseDispute(bookingId: string, reason: string) {
   const { data, error } = await supabase.rpc('customer_raise_dispute', {
     p_booking_id: bookingId,
-    p_user_id: userId,
     p_reason: reason,
   });
   return { success: data, error };
 }
 
 // Cancel booking (either party, before payment)
-export async function cancelBooking(bookingId: string, cancellerId: string, reason: string) {
+// SECURITY: Backend derives canceller identity from auth.uid().
+export async function cancelBooking(bookingId: string, reason: string) {
   const { data, error } = await supabase.rpc('cancel_booking', {
     p_booking_id: bookingId,
-    p_canceller_id: cancellerId,
     p_reason: reason,
   });
   return { success: data, error };

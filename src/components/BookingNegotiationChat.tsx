@@ -61,32 +61,29 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
     const amount = parseInt(acceptAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
     if (!acceptDate) { toast.error('Pick a schedule date'); return; }
-    // Step 1: Accept with price
-    const { success, error } = await workerAcceptBooking(bookingId, profile.user_id, amount);
+    const { success, error } = await workerAcceptBooking(bookingId, amount, acceptDate);
     if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
-    // Step 2: Update scheduled date separately
-    await supabase.from('worker_bookings').update({ scheduled_date: acceptDate }).eq('id', bookingId);
     toast.success('Booking accepted! Customer will now pay.');
     setShowAcceptForm(false);
     loadAll();
   }
 
   async function handleWorkerStart() {
-    const { success, error } = await workerStartJob(bookingId, profile.user_id);
+    const { success, error } = await workerStartJob(bookingId);
     if (error || !success) { toast.error('Failed'); return; }
     toast.success('Job started!');
     loadAll();
   }
 
   async function handleWorkerComplete() {
-    const { success, error } = await workerMarkComplete(bookingId, profile.user_id);
+    const { success, error } = await workerMarkComplete(bookingId);
     if (error || !success) { toast.error('Failed'); return; }
     toast.success('Marked as complete. Waiting for customer confirmation.');
     loadAll();
   }
 
   async function handleCustomerConfirm() {
-    const { success, error } = await customerConfirmCompletion(bookingId, profile.user_id);
+    const { success, error } = await customerConfirmCompletion(bookingId);
     if (error || !success) { toast.error('Failed'); return; }
     toast.success('Job confirmed! Payment released to worker.');
     loadAll();
@@ -94,7 +91,7 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
 
   async function handleCustomerDispute() {
     if (!disputeReason.trim()) { toast.error('Enter a reason'); return; }
-    const { success, error } = await customerRaiseDispute(bookingId, profile.user_id, disputeReason);
+    const { success, error } = await customerRaiseDispute(bookingId, disputeReason);
     if (error || !success) { toast.error('Failed'); return; }
     toast.success('Dispute raised. WeHouse will review.');
     setShowDisputeForm(false);
@@ -103,7 +100,7 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
 
   async function handleCancel() {
     if (!cancelReason.trim()) { toast.error('Enter a reason'); return; }
-    const { success, error } = await cancelBooking(bookingId, profile.user_id, cancelReason);
+    const { success, error } = await cancelBooking(bookingId, cancelReason);
     if (error || !success) { toast.error('Failed'); return; }
     toast.success('Booking cancelled');
     setShowCancelForm(false);
