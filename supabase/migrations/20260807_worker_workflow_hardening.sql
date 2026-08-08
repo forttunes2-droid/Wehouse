@@ -1147,7 +1147,6 @@ AS $$
 DECLARE
   v_booking RECORD;
   v_payment RECORD;
-  v_derived_booking_id UUID;
   v_rate NUMERIC;
   v_commission NUMERIC;
   v_worker_receives NUMERIC;
@@ -1175,22 +1174,20 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Payment not found');
   END IF;
 
-  -- Derive booking_id from payment record (canonical linkage)
-  IF v_payment.worker_booking_id IS NOT NULL THEN
-    v_derived_booking_id := v_payment.worker_booking_id;
-  ELSIF v_payment.metadata ? 'booking_id' THEN
-    v_derived_booking_id := (v_payment.metadata->>'booking_id')::UUID;
-  ELSE
-    RETURN jsonb_build_object('success', false, 'error', 'booking_id not found in payment record');
+  -- ── Strict ownership and purpose checks ──
+  -- Purpose MUST be 'worker_booking' (NULL is not acceptable)
+  IF v_payment.purpose IS NULL OR v_payment.purpose != 'worker_booking' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Purpose mismatch: expected worker_booking, got ' || COALESCE(v_payment.purpose, 'NULL'));
   END IF;
 
-  -- Verify the passed booking_id matches the payment record
-  IF v_derived_booking_id != p_booking_id THEN
+  -- booking_id MUST come from the canonical FK (metadata is not trusted)
+  IF v_payment.worker_booking_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'worker_booking_id not found in payment record');
+  END IF;
+
+  -- The caller-supplied booking_id must match the payment record
+  IF v_payment.worker_booking_id != p_booking_id THEN
     RETURN jsonb_build_object('success', false, 'error', 'Booking ID mismatch');
-  END IF;
-
-  IF v_payment.purpose IS NOT NULL AND v_payment.purpose != 'worker_booking' THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Purpose mismatch: expected worker_booking, got ' || v_payment.purpose);
   END IF;
 
   -- ── Idempotency: already verified? ──
@@ -1208,34 +1205,35 @@ BEGIN
   -- ── Lock and verify booking ──
   SELECT * INTO v_booking
   FROM public.worker_bookings
-  WHERE id = v_derived_booking_id
+  WHERE id = v_payment.worker_booking_id
   FOR UPDATE;
 
   IF v_booking IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Booking not found');
   END IF;
 
-  -- Only 'waiting_payment' is a legitimate state for payment.
-  -- 'booking_requested' or 'negotiating' mean the worker has not yet accepted.
+  -- Only 'waiting_payment' is a legitimate state for payment
   IF v_booking.status != 'waiting_payment' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Booking is not awaiting payment. Status: ' || v_booking.status);
   END IF;
 
-  -- ── Verify amount against BOTH canonical sources ──
-  -- 1. Payment record (server-side agreed amount at initialization)
-  IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
-     AND ABS(p_amount_verified - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch against payment record',
-      'expected', COALESCE(v_payment.amount_total, v_payment.amount),
-      'verified', p_amount_verified);
+  -- ── Verify payment ↔ booking ownership ──
+  IF v_payment.payer_user_id != v_booking.user_id THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Payment payer does not match booking customer');
   END IF;
 
-  -- 2. Booking record (final negotiated amount)
-  IF COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0) > 0
-     AND ABS(p_amount_verified - COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0)) > 1 THEN
+  -- ── Verify exact amount (three-way) ──
+  -- All amounts must match exactly after rounding to 2 decimals
+  IF ROUND(COALESCE(v_payment.amount_total, v_payment.amount, 0)::NUMERIC, 2) != ROUND(p_amount_verified, 2) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch against payment record',
+      'expected', ROUND(COALESCE(v_payment.amount_total, v_payment.amount, 0)::NUMERIC, 2),
+      'verified', ROUND(p_amount_verified, 2));
+  END IF;
+
+  IF ROUND(COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0)::NUMERIC, 2) != ROUND(p_amount_verified, 2) THEN
     RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch against booking record',
-      'expected', COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0),
-      'verified', p_amount_verified);
+      'expected', ROUND(COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0)::NUMERIC, 2),
+      'verified', ROUND(p_amount_verified, 2));
   END IF;
 
   -- ── Read commission rate from platform_settings ──
@@ -1249,18 +1247,27 @@ BEGIN
   END IF;
 
   v_commission := ROUND((p_amount_verified * v_rate / 100)::NUMERIC, 2);
-  v_worker_receives := p_amount_verified - v_commission;
+  v_worker_receives := ROUND(p_amount_verified, 2) - v_commission;
+
+  -- ── Escrow idempotency: prevent duplicate escrow ──
+  IF EXISTS (
+    SELECT 1 FROM public.escrow_transactions
+    WHERE booking_id = v_payment.worker_booking_id
+      AND booking_type = 'worker_booking'
+  ) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Escrow already exists for this booking');
+  END IF;
 
   -- ── Update booking ──
   UPDATE public.worker_bookings
   SET status = 'confirmed',
       paystack_reference = p_paystack_reference,
-      agreed_amount = p_amount_verified,
+      agreed_amount = ROUND(p_amount_verified, 2),
       wehouse_fee = v_commission,
       worker_commission = v_commission,
       worker_receives = v_worker_receives,
       updated_at = NOW()
-  WHERE id = v_derived_booking_id;
+  WHERE id = v_payment.worker_booking_id;
 
   -- ── Create escrow with LIVE escrow_transactions columns ──
   v_escrow_ref := 'WHESC-' || upper(substring(md5(gen_random_uuid()::text) from 1 for 10));
@@ -1270,9 +1277,9 @@ BEGIN
     amount_total, amount_commission, amount_payee, commission_rate,
     status, paystack_reference, created_at, updated_at
   ) VALUES (
-    v_derived_booking_id, 'worker_booking',
+    v_payment.worker_booking_id, 'worker_booking',
     v_booking.user_id, v_booking.worker_id,
-    p_amount_verified, v_commission, v_worker_receives, v_rate,
+    ROUND(p_amount_verified, 2), v_commission, v_worker_receives, v_rate,
     'held', p_paystack_reference, NOW(), NOW()
   );
 
@@ -1280,7 +1287,7 @@ BEGIN
   UPDATE public.booking_payments SET
     status = 'paid',
     paystack_transaction_id = COALESCE(p_transaction_id, v_payment.paystack_transaction_id),
-    verified_amount = p_amount_verified,
+    verified_amount = ROUND(p_amount_verified, 2),
     verified_at = NOW(),
     verification_source = 'edge_function',
     paid_at = NOW(),
@@ -1293,7 +1300,7 @@ BEGIN
     paystack_reference, booking_payment_id, verified_amount,
     verification_source, verified_by
   ) VALUES (
-    p_paystack_reference, v_payment.id, p_amount_verified,
+    p_paystack_reference, v_payment.id, ROUND(p_amount_verified, 2),
     'edge_function', 'paystack-verify'
   )
   ON CONFLICT (paystack_reference) DO NOTHING;
@@ -1545,5 +1552,35 @@ GRANT EXECUTE ON FUNCTION public.create_worker_booking_payment(UUID) TO authenti
 -- Signature: (UUID, TEXT, NUMERIC, TEXT, TEXT)
 REVOKE EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT, TEXT) TO service_role;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- 19. ESCROW DUPLICATE PROTECTION (conditional)
+--
+-- Add a unique constraint/index on escrow_transactions to prevent duplicate
+-- escrow records for the same worker booking, ONLY if no duplicates exist.
+-- This is defense in depth alongside the RPC-level escrow idempotency check.
+-- ═════════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+  v_dup_count INT := 0;
+BEGIN
+  SELECT COUNT(*) INTO v_dup_count
+  FROM (
+    SELECT booking_id, booking_type
+    FROM public.escrow_transactions
+    WHERE booking_type = 'worker_booking'
+    GROUP BY booking_id, booking_type
+    HAVING COUNT(*) > 1
+  ) dups;
+
+  IF v_dup_count = 0 THEN
+    -- Safe to add unique index
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_escrow_worker_booking
+      ON public.escrow_transactions(booking_id, booking_type)
+      WHERE booking_type = 'worker_booking';
+  ELSE
+    RAISE NOTICE 'SKIPPED: % duplicate escrow records for worker_booking', v_dup_count;
+  END IF;
+END $$;
 
 COMMIT;

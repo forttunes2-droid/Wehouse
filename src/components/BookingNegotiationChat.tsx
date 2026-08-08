@@ -137,6 +137,10 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
         email: profile.email,
         amountKobo: Math.round(amount * 100),
         reference,
+        // NOTE: metadata is NON-AUTHORITATIVE. The server derives all
+        // routing decisions (purpose, customer, booking_id, amount) from
+        // canonical DB records (booking_payments, worker_bookings).
+        // These values are for Paystack dashboard debugging only.
         metadata: {
           payment_type: 'worker_booking',
           expected_amount: amount,

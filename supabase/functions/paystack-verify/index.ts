@@ -233,17 +233,29 @@ serve(async (req) => {
       );
     }
 
-    // ─── 9. Route by payment purpose ───
-    // The purpose from the request body (not the DB record) determines routing
-    // because existing booking_payments records may have NULL purpose.
+    // ─── 9. Route by authoritative DB purpose ───
+    // The browser-supplied 'purpose' is NON-AUTHORITATIVE and is only used
+    // for a consistency check. The authoritative routing decision comes from
+    // the payment record stored in the database at initialization time.
     const transactionId = paystackData.data.id?.toString() || null;
 
-    if (purpose === 'worker_booking') {
+    // If the browser sent a purpose that contradicts the DB record, fail closed.
+    if (purpose && paymentRecord?.purpose && purpose !== paymentRecord.purpose) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Purpose mismatch: request purpose does not match payment record',
+          request_purpose: purpose,
+          db_purpose: paymentRecord.purpose,
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (paymentRecord.purpose === 'worker_booking') {
       // ── 9a. WORKER BOOKING ──
-      // Derive booking_id from canonical payment record (NOT from browser).
-      const workerBookingId = paymentRecord?.worker_booking_id
-        || paymentRecord?.metadata?.booking_id
-        || null;
+      // Derive booking_id from the canonical FK (NOT from browser metadata).
+      const workerBookingId = paymentRecord.worker_booking_id;
 
       if (!workerBookingId) {
         return new Response(
@@ -308,7 +320,7 @@ serve(async (req) => {
           p_transaction_id: transactionId,
           p_verified_amount: verifiedAmount,
           p_verification_source: 'edge_function',
-          p_purpose: paymentRecord.purpose || purpose || null,
+          p_purpose: paymentRecord.purpose || null,
         }
       );
 

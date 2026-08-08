@@ -114,12 +114,12 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ── Route by purpose ──
+      // ── Route by authoritative DB purpose ──
+      // Trust only the payment record stored at initialization.
+      // Do NOT trust Paystack event metadata for routing decisions.
       if (paymentRecord.purpose === 'worker_booking') {
-        // ── Derive booking_id from canonical payment record (NOT from event data) ──
-        const workerBookingId = paymentRecord?.worker_booking_id
-          || paymentRecord?.metadata?.booking_id
-          || null;
+        // Derive booking_id from the canonical FK (NOT from event metadata).
+        const workerBookingId = paymentRecord.worker_booking_id;
 
         if (!workerBookingId) {
           console.error('[Webhook] Worker booking ID not found in payment record:', reference);
