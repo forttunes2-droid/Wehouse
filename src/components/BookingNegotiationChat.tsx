@@ -4,7 +4,9 @@ import {
   uploadBookingChatImage,
   workerAcceptBooking, workerStartJob, workerMarkComplete,
   customerConfirmCompletion, customerRaiseDispute, cancelBooking, getBookingDetails,
+  createWorkerBookingPayment,
 } from '@/lib/supabase/worker-bookings';
+import { initializePaystackPopup } from '@/lib/supabase/paystack';
 import { supabase } from '@/lib/supabase';
 import { BOOKING_STATUS_LABELS } from '@/lib/supabase/worker-bookings';
 import type { Profile } from '@/types';
@@ -30,6 +32,7 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
   const [showDisputeForm, setShowDisputeForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +108,64 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
     toast.success('Booking cancelled');
     setShowCancelForm(false);
     loadAll();
+  }
+
+  async function handleCustomerPay() {
+    setPaying(true);
+    try {
+      // 1. Create canonical payment record server-side
+      const { result: bootstrap, error: bootstrapErr } = await createWorkerBookingPayment(bookingId);
+      if (bootstrapErr || !bootstrap?.success) {
+        toast.error(bootstrap?.error || 'Payment initialization failed');
+        setPaying(false);
+        return;
+      }
+      const reference = bootstrap.reference as string;
+      const amount = bootstrap.amount as number;
+
+      // 2. Get Paystack public key
+      const { data: pk } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_public_key' });
+      if (!pk) {
+        toast.error('Paystack not configured');
+        setPaying(false);
+        return;
+      }
+
+      // 3. Open Paystack popup
+      initializePaystackPopup({
+        publicKey: pk,
+        email: profile.email,
+        amountKobo: Math.round(amount * 100),
+        reference,
+        metadata: {
+          payment_type: 'worker_booking',
+          expected_amount: amount,
+          booking_id: bookingId,
+        },
+        onSuccess: async () => {
+          // 4. Verify payment via Edge Function (server-side)
+          const { verifyPaymentWithRetry } = await import('@/lib/supabase/payment-verify');
+          const result = await verifyPaymentWithRetry(reference, {
+            purpose: 'worker_booking',
+            expected_amount: amount,
+          });
+          if (result.success) {
+            toast.success('Payment successful! Worker can now start the job.');
+            loadAll();
+          } else {
+            toast.error(result.error || 'Payment verification failed');
+          }
+          setPaying(false);
+        },
+        onCancel: () => {
+          toast.info('Payment cancelled');
+          setPaying(false);
+        },
+      });
+    } catch (e: any) {
+      toast.error(e.message || 'Payment failed');
+      setPaying(false);
+    }
   }
 
   async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -218,7 +279,13 @@ export default function BookingNegotiationChat({ conversationId, bookingId, prof
               )}
 
               {!isWorker && booking.status === 'waiting_payment' && (
-                <button onClick={() => toast.info('Paystack payment coming soon')} className="h-7 px-3 rounded-lg bg-emerald-500 text-white text-[10px] font-semibold">Pay N{booking.negotiated_amount?.toLocaleString()}</button>
+                <button
+                  onClick={handleCustomerPay}
+                  disabled={paying}
+                  className="h-7 px-3 rounded-lg bg-emerald-500 text-white text-[10px] font-semibold disabled:opacity-60"
+                >
+                  {paying ? 'Processing...' : `Pay ₦${booking.negotiated_amount?.toLocaleString()}`}
+                </button>
               )}
               {!isWorker && booking.status === 'completed_pending_approval' && (
                 <>

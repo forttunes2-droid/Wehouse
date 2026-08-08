@@ -106,6 +106,16 @@ export async function workerAcceptBooking(bookingId: string, negotiatedAmount: n
 //   - customerConfirmPayment() → called customer_confirm_payment directly (unsafe)
 //   - confirmWorkerBookingPayment() → called confirm_worker_booking_payment directly (unsafe)
 
+// Initialize worker booking payment before Paystack popup.
+// Creates a canonical booking_payments row with purpose='worker_booking'.
+// SECURITY: Backend derives identity and verifies booking ownership.
+export async function createWorkerBookingPayment(bookingId: string) {
+  const { data, error } = await supabase.rpc('create_worker_booking_payment', {
+    p_booking_id: bookingId,
+  });
+  return { result: data, error };
+}
+
 // Step 6: Worker starts job
 // SECURITY: Backend derives worker identity from auth.uid().
 export async function workerStartJob(bookingId: string) {

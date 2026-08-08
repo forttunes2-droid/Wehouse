@@ -116,21 +116,19 @@ Deno.serve(async (req) => {
 
       // ── Route by purpose ──
       if (paymentRecord.purpose === 'worker_booking') {
-        // Derive booking_id from canonical worker_bookings table (NOT from event data)
-        const { data: workerBooking, error: wbError } = await supabase
-          .from('worker_bookings')
-          .select('id')
-          .eq('paystack_reference', reference)
-          .maybeSingle();
+        // ── Derive booking_id from canonical payment record (NOT from event data) ──
+        const workerBookingId = paymentRecord?.worker_booking_id
+          || paymentRecord?.metadata?.booking_id
+          || null;
 
-        if (wbError || !workerBooking) {
-          console.error('[Webhook] Worker booking not found for reference:', reference);
-          return new Response('Worker booking not found', { status: 200, headers: corsHeaders });
+        if (!workerBookingId) {
+          console.error('[Webhook] Worker booking ID not found in payment record:', reference);
+          return new Response('Worker booking ID not found in payment record', { status: 200, headers: corsHeaders });
         }
 
         // Call worker-specific RPC (service_role only)
         const { data: result, error } = await supabase.rpc('confirm_worker_booking_payment', {
-          p_booking_id: workerBooking.id,
+          p_booking_id: workerBookingId,
           p_paystack_reference: reference,
           p_amount_verified: amount,
           p_currency: 'NGN',

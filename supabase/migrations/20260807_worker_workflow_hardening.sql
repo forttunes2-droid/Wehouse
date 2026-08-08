@@ -179,6 +179,28 @@ BEGIN
 END $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
+-- 3b. ADD worker_booking_id TO booking_payments (if missing)
+-- 
+-- This is the canonical foreign key linking a payment record to the
+-- worker_bookings table. The Edge Function derives booking_id from this
+-- column (or metadata fallback), never from browser input.
+-- ═════════════════════════════════════════════════════════════════════════════
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'booking_payments'
+      AND column_name = 'worker_booking_id'
+  ) THEN
+    ALTER TABLE public.booking_payments
+    ADD COLUMN worker_booking_id UUID REFERENCES public.worker_bookings(id);
+    CREATE INDEX IF NOT EXISTS idx_booking_payments_worker_booking_id
+      ON public.booking_payments(worker_booking_id);
+  END IF;
+END $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
 -- 4. STORAGE: DROP DANGEROUS BROAD POLICIES, CREATE SECURE ONES
 -- 
 -- Exact policy names found in repository history:
@@ -952,7 +974,142 @@ END;
 $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- 15. CANONICAL WORKER BOOKING PAYMENT CONFIRMATION
+-- 15. CREATE WORKER BOOKING PAYMENT (initialization)
+-- 
+-- Called by the frontend BEFORE opening the Paystack popup.
+-- Creates a canonical booking_payments row linked to the worker booking.
+-- The paystack_reference returned is what the customer pays against.
+-- 
+-- SECURITY:
+--   - Derives customer from auth.uid() (browser cannot spoof identity)
+--   - Verifies the customer owns the booking
+--   - Verifies booking status is 'waiting_payment' (worker has accepted)
+--   - Verifies negotiated_amount > 0 (price has been agreed)
+--   - Generates cryptographically secure reference
+--   - Stores worker_booking_id in the payment record (canonical linkage)
+-- ═════════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.create_worker_booking_payment(
+  p_booking_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_customer_id TEXT;
+  v_booking RECORD;
+  v_amount NUMERIC;
+  v_reference TEXT;
+  v_existing RECORD;
+BEGIN
+  -- Derive customer from auth
+  SELECT user_id INTO v_customer_id
+  FROM public.profiles
+  WHERE auth_id = auth.uid()::text;
+
+  IF v_customer_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authenticated');
+  END IF;
+
+  -- Lock and verify booking
+  SELECT * INTO v_booking
+  FROM public.worker_bookings
+  WHERE id = p_booking_id
+  FOR UPDATE;
+
+  IF v_booking IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking not found');
+  END IF;
+
+  IF v_booking.user_id != v_customer_id THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
+  IF v_booking.status != 'waiting_payment' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking is not waiting for payment. Status: ' || v_booking.status);
+  END IF;
+
+  v_amount := COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0);
+  IF v_amount <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'No agreed amount set');
+  END IF;
+
+  -- Idempotency: check for existing fresh pending payment for this booking
+  SELECT * INTO v_existing
+  FROM public.booking_payments
+  WHERE worker_booking_id = p_booking_id
+    AND status = 'pending'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  IF v_existing IS NOT NULL THEN
+    -- Reuse if amount matches and record is fresh (< 30 min)
+    IF v_existing.amount_total = v_amount
+       AND v_existing.created_at > NOW() - INTERVAL '30 minutes' THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'reference', v_existing.paystack_reference,
+        'amount', v_amount,
+        'existing', true
+      );
+    END IF;
+    -- Otherwise expire the stale record
+    UPDATE public.booking_payments
+    SET status = 'expired', updated_at = NOW()
+    WHERE id = v_existing.id;
+  END IF;
+
+  -- Generate secure reference
+  v_reference := 'WHBK-' || gen_random_uuid()::text;
+
+  -- Create canonical payment record
+  INSERT INTO public.booking_payments (
+    payment_reference,
+    user_id,
+    payer_user_id,
+    payee_user_id,
+    amount,
+    amount_total,
+    net_amount,
+    amount_commission,
+    currency,
+    status,
+    purpose,
+    paystack_reference,
+    worker_booking_id,
+    metadata,
+    created_at,
+    updated_at
+  ) VALUES (
+    v_reference,
+    v_customer_id,
+    v_customer_id,
+    v_booking.worker_id,
+    v_amount,
+    v_amount,
+    v_amount,
+    0,
+    'NGN',
+    'pending',
+    'worker_booking',
+    v_reference,
+    p_booking_id,
+    jsonb_build_object('source', 'create_worker_booking_payment', 'booking_id', p_booking_id),
+    NOW(),
+    NOW()
+  );
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'reference', v_reference,
+    'amount', v_amount
+  );
+END;
+$$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- 16. CANONICAL WORKER BOOKING PAYMENT CONFIRMATION
 -- 
 -- SECURITY: This function MUST NOT be callable directly by authenticated
 -- frontend users. It is designed to be called by the Edge Function
@@ -962,8 +1119,13 @@ $$;
 --   1. Authenticates the caller (fail closed)
 --   2. Verifies the transaction with Paystack API using PAYSTACK_SECRET_KEY
 --   3. Checks amount, currency (NGN), and user ownership
---   4. Records in verified_paystack_references for idempotency
+--   4. Derives booking_id from booking_payments.worker_booking_id (canonical)
 --   5. Calls this RPC with the service_role key
+-- 
+-- DESIGN: booking_id is derived from the payment record (worker_booking_id
+-- or metadata->>'booking_id'), NOT from a reverse lookup on worker_bookings.
+-- This avoids circular dependency where the RPC itself writes paystack_reference
+-- to worker_bookings.
 -- 
 -- This function uses LIVE escrow_transactions columns:
 --   booking_id, booking_type, payer_user_id, payee_user_id,
@@ -985,17 +1147,12 @@ AS $$
 DECLARE
   v_booking RECORD;
   v_payment RECORD;
+  v_derived_booking_id UUID;
   v_rate NUMERIC;
   v_commission NUMERIC;
   v_worker_receives NUMERIC;
   v_escrow_ref TEXT;
 BEGIN
-  -- ── DEFENSE IN DEPTH: reject browser calls ──
-  -- service_role has no auth.uid(); authenticated users MUST NOT call this.
-  IF auth.uid() IS NOT NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
-  END IF;
-
   -- Validate inputs
   IF p_paystack_reference IS NULL OR length(trim(p_paystack_reference)) = 0 THEN
     RETURN jsonb_build_object('success', false, 'error', 'Paystack reference is required');
@@ -1018,6 +1175,20 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Payment not found');
   END IF;
 
+  -- Derive booking_id from payment record (canonical linkage)
+  IF v_payment.worker_booking_id IS NOT NULL THEN
+    v_derived_booking_id := v_payment.worker_booking_id;
+  ELSIF v_payment.metadata ? 'booking_id' THEN
+    v_derived_booking_id := (v_payment.metadata->>'booking_id')::UUID;
+  ELSE
+    RETURN jsonb_build_object('success', false, 'error', 'booking_id not found in payment record');
+  END IF;
+
+  -- Verify the passed booking_id matches the payment record
+  IF v_derived_booking_id != p_booking_id THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking ID mismatch');
+  END IF;
+
   IF v_payment.purpose IS NOT NULL AND v_payment.purpose != 'worker_booking' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Purpose mismatch: expected worker_booking, got ' || v_payment.purpose);
   END IF;
@@ -1034,36 +1205,37 @@ BEGIN
     RETURN jsonb_build_object('success', true, 'already_processed', true);
   END IF;
 
-  -- ── Verify amount ──
-  IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
-     AND ABS(p_amount_verified - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch',
-      'expected', COALESCE(v_payment.amount_total, v_payment.amount),
-      'verified', p_amount_verified);
-  END IF;
-
   -- ── Lock and verify booking ──
   SELECT * INTO v_booking
   FROM public.worker_bookings
-  WHERE id = p_booking_id
+  WHERE id = v_derived_booking_id
   FOR UPDATE;
 
   IF v_booking IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Booking not found');
   END IF;
 
-  -- Verify the paystack_reference on the booking matches (or is NULL awaiting first payment)
-  IF v_booking.paystack_reference IS NOT NULL AND v_booking.paystack_reference != p_paystack_reference THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Booking already has a different paystack reference');
-  END IF;
-
-  -- If booking already confirmed but paystack_reference matches, this is idempotent re-processing
-  IF v_booking.status = 'confirmed' AND v_booking.paystack_reference = p_paystack_reference THEN
-    RETURN jsonb_build_object('success', true, 'already_processed', true);
-  END IF;
-
-  IF v_booking.status NOT IN ('waiting_payment', 'negotiating', 'booking_requested') THEN
+  -- Only 'waiting_payment' is a legitimate state for payment.
+  -- 'booking_requested' or 'negotiating' mean the worker has not yet accepted.
+  IF v_booking.status != 'waiting_payment' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Booking is not awaiting payment. Status: ' || v_booking.status);
+  END IF;
+
+  -- ── Verify amount against BOTH canonical sources ──
+  -- 1. Payment record (server-side agreed amount at initialization)
+  IF COALESCE(v_payment.amount_total, v_payment.amount, 0) > 0
+     AND ABS(p_amount_verified - COALESCE(v_payment.amount_total, v_payment.amount)) > 1 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch against payment record',
+      'expected', COALESCE(v_payment.amount_total, v_payment.amount),
+      'verified', p_amount_verified);
+  END IF;
+
+  -- 2. Booking record (final negotiated amount)
+  IF COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0) > 0
+     AND ABS(p_amount_verified - COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0)) > 1 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount mismatch against booking record',
+      'expected', COALESCE(v_booking.negotiated_amount, v_booking.agreed_amount, 0),
+      'verified', p_amount_verified);
   END IF;
 
   -- ── Read commission rate from platform_settings ──
@@ -1078,6 +1250,63 @@ BEGIN
 
   v_commission := ROUND((p_amount_verified * v_rate / 100)::NUMERIC, 2);
   v_worker_receives := p_amount_verified - v_commission;
+
+  -- ── Update booking ──
+  UPDATE public.worker_bookings
+  SET status = 'confirmed',
+      paystack_reference = p_paystack_reference,
+      agreed_amount = p_amount_verified,
+      wehouse_fee = v_commission,
+      worker_commission = v_commission,
+      worker_receives = v_worker_receives,
+      updated_at = NOW()
+  WHERE id = v_derived_booking_id;
+
+  -- ── Create escrow with LIVE escrow_transactions columns ──
+  v_escrow_ref := 'WHESC-' || upper(substring(md5(gen_random_uuid()::text) from 1 for 10));
+
+  INSERT INTO public.escrow_transactions (
+    booking_id, booking_type, payer_user_id, payee_user_id,
+    amount_total, amount_commission, amount_payee, commission_rate,
+    status, paystack_reference, created_at, updated_at
+  ) VALUES (
+    v_derived_booking_id, 'worker_booking',
+    v_booking.user_id, v_booking.worker_id,
+    p_amount_verified, v_commission, v_worker_receives, v_rate,
+    'held', p_paystack_reference, NOW(), NOW()
+  );
+
+  -- ── Mark payment as paid ──
+  UPDATE public.booking_payments SET
+    status = 'paid',
+    paystack_transaction_id = COALESCE(p_transaction_id, v_payment.paystack_transaction_id),
+    verified_amount = p_amount_verified,
+    verified_at = NOW(),
+    verification_source = 'edge_function',
+    paid_at = NOW(),
+    webhook_processed = TRUE,
+    updated_at = NOW()
+  WHERE id = v_payment.id;
+
+  -- ── Record verified reference (idempotent) ──
+  INSERT INTO public.verified_paystack_references (
+    paystack_reference, booking_payment_id, verified_amount,
+    verification_source, verified_by
+  ) VALUES (
+    p_paystack_reference, v_payment.id, p_amount_verified,
+    'edge_function', 'paystack-verify'
+  )
+  ON CONFLICT (paystack_reference) DO NOTHING;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'escrow_reference', v_escrow_ref,
+    'commission_rate', v_rate,
+    'commission_amount', v_commission,
+    'worker_receives', v_worker_receives
+  );
+END;
+$$;
 
   -- ── Update booking ──
   UPDATE public.worker_bookings
@@ -1307,9 +1536,14 @@ GRANT EXECUTE ON FUNCTION public.cancel_booking(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.request_worker_withdrawal(NUMERIC, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_workers(TEXT, TEXT, TEXT) TO authenticated;
 
+-- create_worker_booking_payment: authenticated only (frontend calls before Paystack popup)
+REVOKE EXECUTE ON FUNCTION public.create_worker_booking_payment(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_worker_booking_payment(UUID) TO authenticated;
+
 -- confirm_worker_booking_payment: service_role ONLY
 -- The Edge Function uses the service_role key to call this.
-REVOKE EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT) TO service_role;
+-- Signature: (UUID, TEXT, NUMERIC, TEXT, TEXT)
+REVOKE EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_worker_booking_payment(UUID, TEXT, NUMERIC, TEXT, TEXT) TO service_role;
 
 COMMIT;

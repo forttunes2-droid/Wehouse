@@ -11,6 +11,7 @@ export interface VerifyPaymentResult {
   success: boolean;
   verified?: boolean;
   recorded?: boolean;
+  already_processed?: boolean;
   amount?: number;
   paystack_status?: string;
   transaction_id?: number;
@@ -51,6 +52,9 @@ export async function verifyPaymentServerSide(
 }
 
 // ─── Verify + retry with backoff ───
+// Retries only on network failures or 5xx server errors.
+// Does NOT retry on 400-499 client errors (auth failure, amount mismatch, etc.)
+// because those are deterministic and will not resolve by retrying.
 export async function verifyPaymentWithRetry(
   reference: string,
   options?: { purpose?: string; expected_amount?: number },
@@ -59,6 +63,30 @@ export async function verifyPaymentWithRetry(
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await verifyPaymentServerSide(reference, options);
     if (result.success) return result;
+
+    // Do NOT retry on client errors (4xx): these are deterministic.
+    // The Edge Function returns 4xx for:
+    //   401 = missing/invalid auth
+    //   403 = wrong user, inactive account
+    //   404 = payment or booking not found
+    //   400 = amount mismatch, purpose mismatch, bad currency, etc.
+    // Only retry on transient failures (no success flag, no error, or 5xx).
+    const isClientError = result.error && (
+      result.error.includes('Not authenticated') ||
+      result.error.includes('Invalid or expired token') ||
+      result.error.includes('Profile not found') ||
+      result.error.includes('Account not active') ||
+      result.error.includes('Payment does not belong') ||
+      result.error.includes('Amount mismatch') ||
+      result.error.includes('Currency mismatch') ||
+      result.error.includes('Purpose mismatch') ||
+      result.error.includes('Payment record not found') ||
+      result.error.includes('Worker booking ID not found')
+    );
+
+    if (isClientError) {
+      return result;
+    }
 
     // Wait before retry (exponential backoff)
     if (attempt < maxRetries - 1) {

@@ -234,22 +234,22 @@ serve(async (req) => {
     }
 
     // ─── 9. Route by payment purpose ───
+    // The purpose from the request body (not the DB record) determines routing
+    // because existing booking_payments records may have NULL purpose.
     const transactionId = paystackData.data.id?.toString() || null;
 
-    if (paymentRecord.purpose === 'worker_booking') {
+    if (purpose === 'worker_booking') {
       // ── 9a. WORKER BOOKING ──
-      // Derive booking_id from canonical worker_bookings table (NOT from browser).
-      const { data: workerBooking, error: wbError } = await supabase
-        .from('worker_bookings')
-        .select('id')
-        .eq('paystack_reference', reference)
-        .maybeSingle();
+      // Derive booking_id from canonical payment record (NOT from browser).
+      const workerBookingId = paymentRecord?.worker_booking_id
+        || paymentRecord?.metadata?.booking_id
+        || null;
 
-      if (wbError || !workerBooking) {
+      if (!workerBookingId) {
         return new Response(
           JSON.stringify({
             success: false,
-            error: 'Worker booking not found for this payment',
+            error: 'Worker booking ID not found in payment record',
           }),
           { status: 404, headers: { 'Content-Type': 'application/json' } }
         );
@@ -259,7 +259,7 @@ serve(async (req) => {
       const { data: confirmResult, error: confirmError } = await supabase.rpc(
         'confirm_worker_booking_payment',
         {
-          p_booking_id: workerBooking.id,
+          p_booking_id: workerBookingId,
           p_paystack_reference: reference,
           p_amount_verified: verifiedAmount,
           p_currency: 'NGN',
