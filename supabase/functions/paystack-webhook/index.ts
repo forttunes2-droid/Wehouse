@@ -1,195 +1,48 @@
-// ═══════════════════════════════════════════════════════════
-// PAYSTACK WEBHOOK HANDLER — Supabase Edge Function
-// Securely processes charge.success events server-side
-// ═══════════════════════════════════════════════════════════
-// 
-// DEPLOY: npx supabase functions deploy paystack-webhook
-// URL: https://<project>.supabase.co/functions/v1/paystack-webhook
-// Add this URL to your Paystack Dashboard → Settings → Webhooks
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, x-paystack-signature, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-// Compute HMAC-SHA512 signature for Paystack verification
-async function verifySignature(body: string, signature: string, secret: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-512' }, false, ['sign']
-  );
-  const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
-  const computed = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('');
-  return computed === signature;
+async function validHmac(body: string, sig: string, secret: string) {
+  const e = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', e.encode(secret), { name: 'HMAC', hash: 'SHA-512' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, e.encode(body));
+  const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hex === sig;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  // Only accept POST
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-  }
-
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
   try {
-    // Get Paystack signature from header
     const signature = req.headers.get('x-paystack-signature');
-    if (!signature) {
-      return new Response('Missing signature', { status: 401, headers: corsHeaders });
+    const secret = Deno.env.get('PAYSTACK_SECRET_KEY');
+    const url = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!signature || !secret || !url || !serviceKey) return new Response('Unauthorized or misconfigured', { status: 401 });
+    const raw = await req.text();
+    if (!(await validHmac(raw, signature, secret))) return new Response('Invalid signature', { status: 401 });
+    const event = JSON.parse(raw);
+    if (event.event !== 'charge.success') return new Response('Ignored', { status: 200 });
+    const reference = event.data?.reference;
+    const amount = Number(event.data?.amount ?? 0) / 100;
+    const currency = event.data?.currency;
+    const status = event.data?.status;
+    const transactionId = String(event.data?.id ?? '');
+    if (!reference || status !== 'success' || currency !== 'NGN' || amount <= 0) return new Response('Invalid event', { status: 200 });
+    const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+    const { data: payment, error: lookupError } = await db.from('booking_payments').select('id,purpose,status,amount,amount_total,worker_booking_id').eq('paystack_reference', reference).maybeSingle();
+    if (lookupError) return new Response('Database error', { status: 500 });
+    if (!payment) return new Response('Payment not found', { status: 200 });
+    if (payment.status === 'paid' || payment.status === 'completed') return new Response('Already processed', { status: 200 });
+    const expected = Number(payment.amount_total ?? payment.amount ?? 0);
+    if (Math.round(expected * 100) !== Math.round(amount * 100)) return new Response('Amount mismatch', { status: 400 });
+    if (payment.purpose === 'worker_booking') {
+      if (!payment.worker_booking_id) return new Response('Worker booking ID missing', { status: 409 });
+      const { error } = await db.rpc('confirm_worker_booking_payment', { p_booking_id: payment.worker_booking_id, p_paystack_reference: reference, p_amount_verified: amount, p_currency: 'NGN', p_transaction_id: transactionId });
+      if (error) return new Response('Processing error', { status: 500 });
+      return new Response('OK', { status: 200 });
     }
-
-    // Get secret key from environment
-    const secretKey = Deno.env.get('PAYSTACK_SECRET_KEY');
-    if (!secretKey) {
-      console.error('[Webhook] PAYSTACK_SECRET_KEY not set');
-      return new Response('Server misconfigured', { status: 500, headers: corsHeaders });
-    }
-
-    // Read raw body for signature verification
-    const rawBody = await req.text();
-
-    // Verify signature
-    const isValid = await verifySignature(rawBody, signature, secretKey);
-    if (!isValid) {
-      console.error('[Webhook] Invalid signature');
-      return new Response('Invalid signature', { status: 401, headers: corsHeaders });
-    }
-
-    // Parse event
-    const event = JSON.parse(rawBody);
-    const eventType = event.event;
-
-    console.log(`[Webhook] Received ${eventType}`, event.data?.reference);
-
-    // Initialize Supabase admin client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    // Handle charge.success
-    if (eventType === 'charge.success') {
-      const data = event.data;
-      const reference = data.reference;
-      const transactionId = String(data.id);
-      const amount = data.amount / 100; // Convert kobo to naira
-      const status = data.status;
-
-      console.log(`[Webhook] Processing charge.success: ref=${reference}, amount=${amount}, status=${status}`);
-
-      if (status !== 'success') {
-        return new Response('Ignored: not success', { status: 200, headers: corsHeaders });
-      }
-
-      // ── Determine payment purpose from canonical DB record ──
-      const { data: paymentRecord, error: paymentError } = await supabase
-        .from('booking_payments')
-        .select('id, purpose, status, paystack_reference')
-        .eq('paystack_reference', reference)
-        .maybeSingle();
-
-      if (paymentError) {
-        console.error('[Webhook] DB error looking up payment:', paymentError.message);
-        return new Response('Database error', { status: 500, headers: corsHeaders });
-      }
-
-      if (!paymentRecord) {
-        console.error('[Webhook] Payment record not found for reference:', reference);
-        // Return 200 so Paystack doesn't retry; this may be a non-WeHouse payment
-        return new Response('Payment record not found', { status: 200, headers: corsHeaders });
-      }
-
-      // Idempotency check
-      if (paymentRecord.status === 'paid' || paymentRecord.status === 'completed') {
-        console.log('[Webhook] Payment already processed:', reference);
-        return new Response(JSON.stringify({ success: true, already_processed: true }), {
-          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // ── Route by authoritative DB purpose ──
-      // Trust only the payment record stored at initialization.
-      // Do NOT trust Paystack event metadata for routing decisions.
-      if (paymentRecord.purpose === 'worker_booking') {
-        // Derive booking_id from the canonical FK (NOT from event metadata).
-        const workerBookingId = paymentRecord.worker_booking_id;
-
-        if (!workerBookingId) {
-          console.error('[Webhook] Worker booking ID not found in payment record:', reference);
-          return new Response('Worker booking ID not found in payment record', { status: 200, headers: corsHeaders });
-        }
-
-        // Call worker-specific RPC (service_role only)
-        const { data: result, error } = await supabase.rpc('confirm_worker_booking_payment', {
-          p_booking_id: workerBookingId,
-          p_paystack_reference: reference,
-          p_amount_verified: amount,
-          p_currency: 'NGN',
-          p_transaction_id: transactionId,
-        });
-
-        if (error) {
-          console.error('[Webhook] confirm_worker_booking_payment error:', error.message);
-          return new Response('Processing error', { status: 500, headers: corsHeaders });
-        }
-
-        const resultJson = typeof result === 'string' ? JSON.parse(result) : result;
-        console.log('[Webhook] Worker booking result:', JSON.stringify(resultJson));
-
-        return new Response(JSON.stringify(resultJson), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      } else {
-        // All other payment types: worker_verification, apartment_reservation, hotel_booking, etc.
-        const { data: result, error } = await supabase.rpc('confirm_booking_payment', {
-          p_reference: reference,
-          p_transaction_id: transactionId,
-          p_verified_amount: amount,
-          p_verification_source: 'webhook'
-        });
-
-        if (error) {
-          console.error('[Webhook] confirm_booking_payment error:', error.message);
-          return new Response('Processing error', { status: 500, headers: corsHeaders });
-        }
-
-        const resultJson = typeof result === 'string' ? JSON.parse(result) : result;
-        console.log('[Webhook] Result:', JSON.stringify(resultJson));
-
-        return new Response(JSON.stringify(resultJson), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    // Handle transfer.success (for payouts to workers)
-    if (eventType === 'transfer.success') {
-      console.log('[Webhook] Transfer success:', event.data?.reference);
-      // Could update withdrawal status here
-      return new Response('OK', { status: 200, headers: corsHeaders });
-    }
-
-    // Handle refund
-    if (eventType === 'refund.processed') {
-      console.log('[Webhook] Refund processed:', event.data?.transaction_reference);
-      return new Response('OK', { status: 200, headers: corsHeaders });
-    }
-
-    // Unknown event type — acknowledge but ignore
-    console.log(`[Webhook] Ignored event type: ${eventType}`);
-    return new Response('Event ignored', { status: 200, headers: corsHeaders });
-
-  } catch (err: any) {
-    console.error('[Webhook] Unhandled error:', err.message);
-    return new Response('Internal error', { status: 500, headers: corsHeaders });
+    const { error } = await db.rpc('confirm_booking_payment', { p_reference: reference, p_transaction_id: transactionId, p_verified_amount: amount, p_verification_source: 'webhook', p_purpose: payment.purpose });
+    if (error) return new Response('Processing error', { status: 500 });
+    return new Response('OK', { status: 200 });
+  } catch {
+    return new Response('Internal error', { status: 500 });
   }
 });
