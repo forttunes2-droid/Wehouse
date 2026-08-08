@@ -196,6 +196,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     const listingStatus = requiresApproval ? 'pending_approval' : 'available';
 
     setSaving(true);
+    const canonicalOwnerId = assignedPartnerId || profile.user_id;
     const { listing, error } = await createListing({
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -219,7 +220,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       contact_phone: form.contact_phone.trim() || profile.phone || null,
       security_deposit_amount: form.sub_type === 'short_let' && form.security_deposit_amount ? Number(form.security_deposit_amount) : null,
       amenities: form.amenities.length > 0 ? form.amenities : null,
-      owner_id: profile.auth_id,
+      owner_id: canonicalOwnerId,
       chat_agent_id: profile.role === 'staff' ? profile.user_id : null,
       partner_id: assignedPartnerId || null,
       submitted_by_role: profile.role,
@@ -489,7 +490,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
         {/* Property Owner Assignment */}
         <div className="glass rounded-2xl p-4 border border-violet-500/10">
           <label className="text-xs text-violet-400 font-medium mb-2 block flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             Property Owner
           </label>
 
