@@ -332,7 +332,7 @@ RETURNS TABLE (
   local_government TEXT,
   area TEXT,
   worker_occupation TEXT,
-  worker_skills TEXT[],
+  worker_skills JSONB,
   worker_price INTEGER,
   worker_bio TEXT,
   worker_experience TEXT,
@@ -1301,63 +1301,6 @@ BEGIN
     verification_source, verified_by
   ) VALUES (
     p_paystack_reference, v_payment.id, ROUND(p_amount_verified, 2),
-    'edge_function', 'paystack-verify'
-  )
-  ON CONFLICT (paystack_reference) DO NOTHING;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'escrow_reference', v_escrow_ref,
-    'commission_rate', v_rate,
-    'commission_amount', v_commission,
-    'worker_receives', v_worker_receives
-  );
-END;
-$$;
-
-  -- ── Update booking ──
-  UPDATE public.worker_bookings
-  SET status = 'confirmed',
-      paystack_reference = p_paystack_reference,
-      agreed_amount = p_amount_verified,
-      wehouse_fee = v_commission,
-      worker_commission = v_commission,
-      worker_receives = v_worker_receives,
-      updated_at = NOW()
-  WHERE id = p_booking_id;
-
-  -- ── Create escrow with LIVE escrow_transactions columns ──
-  v_escrow_ref := 'WHESC-' || upper(substring(md5(gen_random_uuid()::text) from 1 for 10));
-
-  INSERT INTO public.escrow_transactions (
-    booking_id, booking_type, payer_user_id, payee_user_id,
-    amount_total, amount_commission, amount_payee, commission_rate,
-    status, paystack_reference, created_at, updated_at
-  ) VALUES (
-    p_booking_id, 'worker_booking',
-    v_booking.user_id, v_booking.worker_id,
-    p_amount_verified, v_commission, v_worker_receives, v_rate,
-    'held', p_paystack_reference, NOW(), NOW()
-  );
-
-  -- ── Mark payment as paid ──
-  UPDATE public.booking_payments SET
-    status = 'paid',
-    paystack_transaction_id = COALESCE(p_transaction_id, v_payment.paystack_transaction_id),
-    verified_amount = p_amount_verified,
-    verified_at = NOW(),
-    verification_source = 'edge_function',
-    paid_at = NOW(),
-    webhook_processed = TRUE,
-    updated_at = NOW()
-  WHERE id = v_payment.id;
-
-  -- ── Record verified reference (idempotent) ──
-  INSERT INTO public.verified_paystack_references (
-    paystack_reference, booking_payment_id, verified_amount,
-    verification_source, verified_by
-  ) VALUES (
-    p_paystack_reference, v_payment.id, p_amount_verified,
     'edge_function', 'paystack-verify'
   )
   ON CONFLICT (paystack_reference) DO NOTHING;

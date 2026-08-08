@@ -220,14 +220,24 @@ WHERE ccu.constraint_name = (SELECT constraint_name FROM information_schema.tabl
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- SECTION 7: STORAGE POLICIES (before/after snapshot)
+-- Use pg_policies, not storage.policies (which does not exist in all versions).
 -- ═════════════════════════════════════════════════════════════════════════════
 
 SELECT '=== STORAGE POLICIES ===' AS section;
 
-SELECT bucket_id, name, action
-FROM storage.policies
-WHERE bucket_id IN ('worker-files', 'chat-files')
-ORDER BY bucket_id, name;
+SELECT schemaname, tablename, policyname, cmd, roles, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'storage'
+  AND tablename = 'objects'
+  AND (
+    policyname LIKE '%worker-files%'
+    OR policyname LIKE '%chat-files%'
+    OR qual LIKE '%worker-files%'
+    OR qual LIKE '%chat-files%'
+    OR with_check LIKE '%worker-files%'
+    OR with_check LIKE '%chat-files%'
+  )
+ORDER BY policyname;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- SECTION 8: PLATFORM SETTINGS REQUIRED KEYS
