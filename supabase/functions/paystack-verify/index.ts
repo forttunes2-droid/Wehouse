@@ -1,363 +1,95 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-interface VerifyRequest {
-  reference: string;
-  purpose?: string;
-}
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json',
+};
 
 serve(async (req) => {
-  // CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), { status: 405, headers: cors });
 
   try {
-    const body: VerifyRequest = await req.json();
-    const { reference, purpose } = body;
+    const { reference, purpose } = await req.json();
+    if (!reference) return new Response(JSON.stringify({ success: false, error: 'Reference is required' }), { status: 400, headers: cors });
 
-    if (!reference) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Reference is required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ─── 0. Authenticate caller ───
-    // FAIL CLOSED: every payment verification MUST have a valid authenticated user.
-    const authHeader = req.headers.get('authorization');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Supabase not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Verify the JWT from the Authorization header — fail closed if missing/invalid/expired
-    let authenticatedUserId: string | null = null;
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Authorization required' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid or expired token' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Look up the WH user_id from profiles and verify account is active
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_id, deleted, suspended, banned')
-      .eq('auth_id', user.id)
-      .maybeSingle();
-
-    if (!profile) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Profile not found' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-    if (profile.deleted || profile.suspended || profile.banned) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Account not active' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    authenticatedUserId = profile.user_id;
-
-    // ─── 1. Find payment record in database ───
-    const { data: paymentRecord, error: paymentError } = await supabase
-      .from('booking_payments')
-      .select('id, user_id, payer_user_id, amount, amount_total, purpose, status, paystack_reference')
-      .eq('paystack_reference', reference)
-      .maybeSingle();
-
-    if (paymentError) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Database error: ' + paymentError.message }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ─── 2. Verify with Paystack API (server-side) ───
+    const url = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const paystackSecret = Deno.env.get('PAYSTACK_SECRET_KEY');
-    if (!paystackSecret) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Paystack secret not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (!url || !serviceKey || !paystackSecret) return new Response(JSON.stringify({ success: false, error: 'Server configuration incomplete' }), { status: 500, headers: cors });
 
-    const paystackRes = await fetch(
-      `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: { Authorization: `Bearer ${paystackSecret}` },
-      }
-    );
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) return new Response(JSON.stringify({ success: false, error: 'Authorization required' }), { status: 401, headers: cors });
 
-    if (!paystackRes.ok) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Paystack verification failed' }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: { user }, error: authError } = await admin.auth.getUser(token);
+    if (authError || !user) return new Response(JSON.stringify({ success: false, error: 'Invalid or expired token' }), { status: 401, headers: cors });
 
-    const paystackData = await paystackRes.json();
+    const { data: profile } = await admin.from('profiles').select('user_id, deleted, suspended, banned').eq('auth_id', user.id).maybeSingle();
+    if (!profile) return new Response(JSON.stringify({ success: false, error: 'Profile not found' }), { status: 403, headers: cors });
+    if (profile.deleted || profile.suspended || profile.banned) return new Response(JSON.stringify({ success: false, error: 'Account not active' }), { status: 403, headers: cors });
 
-    if (!paystackData.status || paystackData.data.status !== 'success') {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Payment not successful',
-          paystack_status: paystackData.data?.status || 'unknown',
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const verifiedAmount = paystackData.data.amount / 100; // Paystack amount is in kobo
-
-    // ─── 3. Verify currency = NGN ───
-    if (paystackData.data.currency !== 'NGN') {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Currency mismatch',
-          expected: 'NGN',
-          verified: paystackData.data.currency,
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ─── 4. Derive expected amount from canonical DB row ───
-    // FAIL CLOSED: no DB record = no verification.
-    if (!paymentRecord) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Payment record not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const dbExpectedAmount = paymentRecord.amount_total || paymentRecord.amount || null;
-
-    // ─── 5. Verify amount matches ───
-    if (dbExpectedAmount && dbExpectedAmount > 0) {
-      if (Math.abs(verifiedAmount - dbExpectedAmount) > 1) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Amount mismatch',
-            expected: dbExpectedAmount,
-            verified: verifiedAmount,
-          }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-    } else {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Payment amount not set' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ─── 6. Verify purpose matches ───
-    if (purpose && paymentRecord?.purpose && purpose !== paymentRecord.purpose) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Purpose mismatch',
-          expected: paymentRecord.purpose,
-          provided: purpose,
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ─── 7. Verify user ownership ───
-    // FAIL CLOSED: for customer-initiated payments, the caller must own the payment.
-    const paymentOwner = paymentRecord.payer_user_id || paymentRecord.user_id;
-    if (!paymentOwner || paymentOwner !== authenticatedUserId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Payment does not belong to authenticated user',
-        }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ─── 8. Check already-processed (idempotency) ───
-    const { data: alreadyVerified } = await supabase
-      .from('verified_paystack_references')
-      .select('paystack_reference')
+    const { data: payment, error: paymentError } = await admin
+      .from('booking_payments')
+      .select('id, user_id, payer_user_id, amount, amount_total, purpose, status, paystack_reference, worker_booking_id')
       .eq('paystack_reference', reference)
       .maybeSingle();
+    if (paymentError) return new Response(JSON.stringify({ success: false, error: paymentError.message }), { status: 500, headers: cors });
+    if (!payment) return new Response(JSON.stringify({ success: false, error: 'Payment record not found' }), { status: 404, headers: cors });
 
-    if (alreadyVerified || paymentRecord?.status === 'paid' || paymentRecord?.status === 'completed') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          verified: true,
-          recorded: true,
-          already_processed: true,
-          amount: verifiedAmount,
-          paystack_status: paystackData.data.status,
-          transaction_id: paystackData.data.id,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+    if (purpose && payment.purpose && purpose !== payment.purpose) {
+      return new Response(JSON.stringify({ success: false, error: 'Purpose mismatch' }), { status: 400, headers: cors });
     }
 
-    // ─── 9. Route by authoritative DB purpose ───
-    // The browser-supplied 'purpose' is NON-AUTHORITATIVE and is only used
-    // for a consistency check. The authoritative routing decision comes from
-    // the payment record stored in the database at initialization time.
-    const transactionId = paystackData.data.id?.toString() || null;
+    const owner = payment.payer_user_id || payment.user_id;
+    if (!owner || owner !== profile.user_id) return new Response(JSON.stringify({ success: false, error: 'Payment does not belong to authenticated user' }), { status: 403, headers: cors });
 
-    // If the browser sent a purpose that contradicts the DB record, fail closed.
-    if (purpose && paymentRecord?.purpose && purpose !== paymentRecord.purpose) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Purpose mismatch: request purpose does not match payment record',
-          request_purpose: purpose,
-          db_purpose: paymentRecord.purpose,
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+    const paystackResponse = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+      headers: { Authorization: `Bearer ${paystackSecret}` },
+    });
+    if (!paystackResponse.ok) return new Response(JSON.stringify({ success: false, error: 'Paystack verification failed' }), { status: 502, headers: cors });
+    const verified = await paystackResponse.json();
+    if (!verified?.status || verified?.data?.status !== 'success') return new Response(JSON.stringify({ success: false, error: 'Payment not successful' }), { status: 400, headers: cors });
+    if (verified.data.currency !== 'NGN') return new Response(JSON.stringify({ success: false, error: 'Currency mismatch' }), { status: 400, headers: cors });
+
+    const verifiedAmount = Number(verified.data.amount) / 100;
+    const expectedAmount = Number(payment.amount_total ?? payment.amount ?? 0);
+    if (Math.round(verifiedAmount * 100) !== Math.round(expectedAmount * 100)) {
+      return new Response(JSON.stringify({ success: false, error: 'Amount mismatch', expected: expectedAmount, verified: verifiedAmount }), { status: 400, headers: cors });
     }
 
-    if (paymentRecord.purpose === 'worker_booking') {
-      // ── 9a. WORKER BOOKING ──
-      // Derive booking_id from the canonical FK (NOT from browser metadata).
-      const workerBookingId = paymentRecord.worker_booking_id;
-
-      if (!workerBookingId) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Worker booking ID not found in payment record',
-          }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Call the worker-specific RPC (service_role only)
-      const { data: confirmResult, error: confirmError } = await supabase.rpc(
-        'confirm_worker_booking_payment',
-        {
-          p_booking_id: workerBookingId,
-          p_paystack_reference: reference,
-          p_amount_verified: verifiedAmount,
-          p_currency: 'NGN',
-          p_transaction_id: transactionId,
-        }
-      );
-
-      if (confirmError) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: confirmError.message,
-            verified: true,
-            recorded: false,
-          }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const resultJson = typeof confirmResult === 'string' ? JSON.parse(confirmResult) : confirmResult;
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          verified: true,
-          recorded: true,
-          amount: verifiedAmount,
-          paystack_status: paystackData.data.status,
-          transaction_id: paystackData.data.id,
-          confirm_result: resultJson,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
-    } else {
-      // ── 9b. ALL OTHER PAYMENT TYPES ──
-      // (worker_verification, apartment_reservation, apartment_rent, hotel_booking, etc.)
-      const { data: confirmResult, error: confirmError } = await supabase.rpc(
-        'confirm_booking_payment',
-        {
-          p_reference: reference,
-          p_transaction_id: transactionId,
-          p_verified_amount: verifiedAmount,
-          p_verification_source: 'edge_function',
-          p_purpose: paymentRecord.purpose || null,
-        }
-      );
-
-      if (confirmError) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: confirmError.message,
-            verified: true,
-            recorded: false,
-          }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          verified: true,
-          recorded: true,
-          amount: verifiedAmount,
-          paystack_status: paystackData.data.status,
-          transaction_id: paystackData.data.id,
-          confirm_result: confirmResult,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+    if (payment.status === 'paid' || payment.status === 'completed') {
+      return new Response(JSON.stringify({ success: true, verified: true, already_processed: true, amount: verifiedAmount }), { status: 200, headers: cors });
     }
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ success: false, error: err.message || 'Internal error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+
+    const transactionId = String(verified.data.id ?? '');
+    if (payment.purpose === 'worker_booking') {
+      if (!payment.worker_booking_id) return new Response(JSON.stringify({ success: false, error: 'Worker booking ID missing' }), { status: 409, headers: cors });
+      const { data, error } = await admin.rpc('confirm_worker_booking_payment', {
+        p_booking_id: payment.worker_booking_id,
+        p_paystack_reference: reference,
+        p_amount_verified: verifiedAmount,
+        p_currency: 'NGN',
+        p_transaction_id: transactionId,
+      });
+      if (error) return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: cors });
+      return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, result: data }), { status: 200, headers: cors });
+    }
+
+    const { data, error } = await admin.rpc('confirm_booking_payment', {
+      p_reference: reference,
+      p_transaction_id: transactionId,
+      p_verified_amount: verifiedAmount,
+      p_verification_source: 'edge_function',
+      p_purpose: payment.purpose,
+    });
+    if (error) return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: cors });
+    return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, result: data }), { status: 200, headers: cors });
+  } catch (error) {
+    return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Internal error' }), { status: 500, headers: cors });
   }
 });
