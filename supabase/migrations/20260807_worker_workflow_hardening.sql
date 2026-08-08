@@ -1123,7 +1123,7 @@ $$;
 --   5. Calls this RPC with the service_role key
 -- 
 -- DESIGN: booking_id is derived from the payment record (worker_booking_id
--- or metadata->>'booking_id'), NOT from a reverse lookup on worker_bookings.
+-- ONLY), NOT from a reverse lookup on worker_bookings.
 -- This avoids circular dependency where the RPC itself writes paystack_reference
 -- to worker_bookings.
 -- 
