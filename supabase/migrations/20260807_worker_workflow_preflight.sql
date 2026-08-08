@@ -1,7 +1,7 @@
 -- WEHOUSE WORKER WORKFLOW LIVE PREFLIGHT
 -- READ-ONLY: this script performs no INSERT, UPDATE, DELETE, ALTER or policy changes.
 -- Run before:
---   1. 20260806_worker_workflow_required_settings.sql
+--   1. 2026080601_worker_workflow_prerequisites.sql
 --   2. 20260807_worker_workflow_hardening.sql
 
 -- 1. Critical live table columns
@@ -50,11 +50,14 @@ SELECT
       AND column_name = 'worker_skills'
   ) AS worker_skills_type;
 
--- 3. Existing function overloads that the migration replaces.
+-- 3. Existing function overloads that the migrations replace or lock down.
 SELECT
   p.proname AS function_name,
   pg_get_function_identity_arguments(p.oid) AS signature,
-  CASE WHEN p.prosecdef THEN 'SECURITY DEFINER' ELSE 'SECURITY INVOKER' END AS security
+  CASE WHEN p.prosecdef THEN 'SECURITY DEFINER' ELSE 'SECURITY INVOKER' END AS security,
+  has_function_privilege('public', p.oid, 'EXECUTE') AS public_can_execute,
+  has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_can_execute,
+  has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_can_execute
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public'
@@ -176,7 +179,7 @@ SELECT
   ps.data_type,
   ps.is_active,
   CASE
-    WHEN ps.key IS NULL THEN 'MISSING_WILL_BE_CREATED_BY_20260806'
+    WHEN ps.key IS NULL THEN 'MISSING_WILL_BE_CREATED_BY_2026080601'
     WHEN ps.is_active IS DISTINCT FROM TRUE THEN 'BLOCKED_INACTIVE'
     WHEN NULLIF(trim(ps.value), '') IS NULL THEN 'BLOCKED_EMPTY_VALUE'
     ELSE 'EXISTS'
