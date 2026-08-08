@@ -5,6 +5,8 @@
 --   1. Secure Property Partner inspection/listing requests.
 --   2. Preserve the Property Partner as canonical listing owner when WeHouse
 --      staff converts a request into a listing.
+--   3. Repair the live post_property_from_inspection RPC so it matches the
+--      actual live listings/inspection_requests schema.
 --
 -- This migration intentionally does NOT implement partner earnings,
 -- commissions, withdrawals, hotel settlement, or legacy-table cleanup.
@@ -198,5 +200,183 @@ EXECUTE FUNCTION public.enforce_property_partner_listing_owner();
 
 REVOKE ALL ON FUNCTION public.enforce_property_partner_listing_owner()
 FROM PUBLIC, anon, authenticated;
+
+-- --------------------------------------------------------------------------
+-- 3. Repair and harden post_property_from_inspection
+-- --------------------------------------------------------------------------
+-- The live function previously:
+--   * trusted browser-supplied owner_id;
+--   * referenced non-existent listings columns (sub_type, contact_phone);
+--   * updated non-existent inspection_requests columns
+--     (listing_created, listing_id).
+--
+-- This replacement derives the partner owner from inspection_requests and
+-- writes only columns confirmed in the live schema.
+
+CREATE OR REPLACE FUNCTION public.post_property_from_inspection(p_data JSONB)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_caller RECORD;
+  v_inspection RECORD;
+  v_partner RECORD;
+  v_listing_id UUID;
+  v_listing_code TEXT;
+  v_inspection_id UUID;
+  v_images TEXT[];
+  v_videos TEXT[];
+BEGIN
+  SELECT user_id, role, deleted, suspended, banned
+  INTO v_caller
+  FROM public.profiles
+  WHERE auth_id = auth.uid()::TEXT
+  LIMIT 1;
+
+  IF v_caller IS NULL THEN
+    RAISE EXCEPTION 'Profile not found';
+  END IF;
+
+  IF v_caller.role NOT IN ('staff', 'admin', 'creator') THEN
+    RAISE EXCEPTION 'WeHouse staff access required';
+  END IF;
+
+  IF COALESCE(v_caller.deleted, FALSE)
+     OR COALESCE(v_caller.suspended, FALSE)
+     OR COALESCE(v_caller.banned, FALSE) THEN
+    RAISE EXCEPTION 'Account is not active';
+  END IF;
+
+  IF NULLIF(p_data->>'inspection_id', '') IS NULL THEN
+    RAISE EXCEPTION 'inspection_id is required';
+  END IF;
+
+  v_inspection_id := (p_data->>'inspection_id')::UUID;
+
+  SELECT *
+  INTO v_inspection
+  FROM public.inspection_requests
+  WHERE id = v_inspection_id
+  FOR UPDATE;
+
+  IF v_inspection IS NULL THEN
+    RAISE EXCEPTION 'Inspection request not found';
+  END IF;
+
+  IF v_inspection.status NOT IN ('completed', 'approved') THEN
+    RAISE EXCEPTION 'Inspection must be completed or approved before listing creation';
+  END IF;
+
+  IF v_caller.role = 'staff'
+     AND COALESCE(v_inspection.assigned_to, '') <> v_caller.user_id
+     AND COALESCE(v_inspection.field_officer_id, '') <> v_caller.user_id
+     AND COALESCE(v_inspection.assigned_field_officer_id, '') <> v_caller.user_id THEN
+    RAISE EXCEPTION 'This inspection is not assigned to the current staff member';
+  END IF;
+
+  SELECT user_id, role, deleted, suspended, banned
+  INTO v_partner
+  FROM public.profiles
+  WHERE user_id = v_inspection.owner_id
+  LIMIT 1;
+
+  IF v_partner IS NULL OR v_partner.role <> 'property_partner' THEN
+    RAISE EXCEPTION 'Inspection owner is not a valid Property Partner';
+  END IF;
+
+  IF COALESCE(v_partner.deleted, FALSE)
+     OR COALESCE(v_partner.suspended, FALSE)
+     OR COALESCE(v_partner.banned, FALSE) THEN
+    RAISE EXCEPTION 'Property Partner account is not active';
+  END IF;
+
+  IF v_inspection.draft_listing_id IS NOT NULL THEN
+    RAISE EXCEPTION 'A listing has already been created from this inspection';
+  END IF;
+
+  IF NULLIF(BTRIM(p_data->>'title'), '') IS NULL THEN
+    RAISE EXCEPTION 'Listing title is required';
+  END IF;
+
+  IF COALESCE((p_data->>'price')::NUMERIC, 0) <= 0 THEN
+    RAISE EXCEPTION 'A valid listing price is required';
+  END IF;
+
+  v_listing_code := 'WHL-' || UPPER(SUBSTRING(REPLACE(gen_random_uuid()::TEXT, '-', '') FROM 1 FOR 12));
+
+  SELECT COALESCE(array_agg(value), ARRAY[]::TEXT[])
+  INTO v_images
+  FROM jsonb_array_elements_text(COALESCE(p_data->'images', '[]'::JSONB));
+
+  SELECT COALESCE(array_agg(value), ARRAY[]::TEXT[])
+  INTO v_videos
+  FROM jsonb_array_elements_text(COALESCE(p_data->'videos', '[]'::JSONB));
+
+  INSERT INTO public.listings (
+    listing_id,
+    title,
+    description,
+    price,
+    currency,
+    state,
+    city,
+    address,
+    images,
+    videos,
+    bedrooms,
+    bathrooms,
+    property_type,
+    availability_status,
+    owner_id,
+    partner_id,
+    chat_agent_id,
+    status,
+    submitted_by_role,
+    reservation_fee_paid,
+    chat_unlocked,
+    created_at,
+    updated_at
+  ) VALUES (
+    v_listing_code,
+    BTRIM(p_data->>'title'),
+    NULLIF(BTRIM(p_data->>'description'), ''),
+    (p_data->>'price')::NUMERIC,
+    'NGN',
+    COALESCE(NULLIF(BTRIM(p_data->>'state'), ''), v_inspection.property_state),
+    COALESCE(NULLIF(BTRIM(p_data->>'city'), ''), v_inspection.property_city),
+    COALESCE(NULLIF(BTRIM(p_data->>'address'), ''), v_inspection.property_address),
+    v_images,
+    v_videos,
+    COALESCE((p_data->>'bedrooms')::INTEGER, v_inspection.bedrooms, 1),
+    COALESCE((p_data->>'bathrooms')::INTEGER, v_inspection.bathrooms, 1),
+    COALESCE(NULLIF(BTRIM(p_data->>'property_type'), ''), v_inspection.property_type, 'apartment'),
+    'available',
+    v_partner.user_id,
+    v_partner.user_id,
+    v_caller.user_id,
+    'pending_approval',
+    v_caller.role,
+    FALSE,
+    FALSE,
+    NOW(),
+    NOW()
+  )
+  RETURNING id INTO v_listing_id;
+
+  UPDATE public.inspection_requests
+  SET draft_listing_id = v_listing_id,
+      updated_at = NOW()
+  WHERE id = v_inspection_id;
+
+  RETURN v_listing_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.post_property_from_inspection(JSONB)
+FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.post_property_from_inspection(JSONB)
+TO authenticated;
 
 COMMIT;
