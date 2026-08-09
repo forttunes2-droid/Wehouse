@@ -121,7 +121,6 @@ export {
   getAllWorkers,
   getPendingWorkers,
   updateWorkerStatus,
-  // Service Categories
   getServiceCategories,
   getServiceSubcategories,
   getCategoryWithSubcategories,
@@ -132,37 +131,29 @@ export {
   updateServiceSubcategory,
   deleteServiceSubcategory,
   seedSubcategoriesForCategory,
-  // Worker Verification
   submitWorkerVerification,
   uploadWorkerVerificationVideo,
   getWorkerVerification,
   getVerificationsByStatus,
   reviewWorkerVerification,
-  // Blue Badge
   getBlueBadgeSubscription,
   createBlueBadgeSubscription,
   cancelBlueBadgeSubscription,
-  // Wallet
   getOrCreateWallet,
   getWallet,
   getWalletTransactions,
   creditWallet,
   updateWalletBankDetails,
-  // Escrow
   createEscrowTransaction,
   getEscrowForBooking,
   releaseEscrow,
   refundEscrow,
-  // Withdrawals
   requestWithdrawal,
   getWithdrawals,
-  // Audit
   logFinancialEvent,
   getFinancialAuditLogs,
-  // Dashboard
   getWorkerDashboardData,
   getWorkerSystemStats,
-  // Availability
   setWorkerAvailability,
 } from './workers';
 
@@ -193,7 +184,13 @@ export {
 export {
   createPartnerSupportConversation,
   getPartnerConversations,
+  getStaffSupportConversations,
   getPartnerSupportMessages,
+  sendPartnerSupportMessage,
+  addConversationAction,
+  assignFieldOfficerToConversation,
+  markPartnerMessagesRead,
+  ACTION_TYPE_LABELS,
 } from './partner-support';
 
 // Announcements
@@ -268,7 +265,7 @@ export {
   subscribeToNotifications,
 } from './notifications';
 
-// Permissions (CTO Master Architecture)
+// Permissions
 export {
   getStaffPermissions,
   grantPermission,
