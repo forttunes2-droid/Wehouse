@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useState } from 'react';
+import { getAllListings } from '@/lib/supabase';
 import ListingCard from '@/components/ListingCard';
 import type { Listing, Profile } from '@/types';
 
@@ -15,41 +15,51 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave }: S
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     async function load() {
-      if (savedIds.size === 0) { setListings([]); setLoading(false); return; }
-      const { data } = await supabase.from('listings').select('*').in('id', Array.from(savedIds)).eq('availability_status', 'available');
-      setListings(data || []);
+      if (savedIds.size === 0) {
+        if (active) { setListings([]); setLoading(false); }
+        return;
+      }
+      setLoading(true);
+      const { listings: available } = await getAllListings();
+      if (!active) return;
+      setListings((available || []).filter(listing => savedIds.has(listing.id)));
       setLoading(false);
     }
-    load();
+    void load();
+    return () => { active = false; };
   }, [savedIds]);
 
   return (
-    <div className="min-h-screen bg-transparent pb-24">
-      <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-5">
-        <h1 className="text-lg font-bold text-white">Saved Homes</h1>
-        <p className="text-[10px] text-[#5C5E72] mt-0.5">@{profile.username}</p>
+    <div className="min-h-screen bg-[#09090D] pb-24 text-white">
+      <header className="border-b border-white/[0.05] bg-[#0D0D13] px-4 py-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="text-lg font-bold">Saved apartments</h1>
+          <p className="mt-1 text-[10px] text-[#66687B]">@{profile.username} · only currently available listings are shown</p>
+        </div>
       </header>
 
-      <div className="px-5 pt-4">
+      <main className="mx-auto max-w-7xl px-4 py-5 lg:px-8">
         {loading ? (
-          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
+          <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
         ) : listings.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-2xl bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+          <section className="rounded-3xl border border-dashed border-white/[0.08] bg-white/[0.015] px-6 py-16 text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-white/[0.05] bg-[#15151E]">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#66687B" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
             </div>
-            <p className="text-sm text-[#5C5E72]">No saved homes yet</p>
-            <button onClick={() => onNavigate('home')} className="mt-2 text-xs text-[#3B82F6] font-medium">Browse homes</button>
-          </div>
+            <h2 className="mt-4 text-sm font-semibold">No available saved apartments</h2>
+            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Save an apartment while browsing to keep it here. A saved listing disappears from discovery when it is no longer available.</p>
+            <button onClick={() => onNavigate('search')} className="mt-5 rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold">Browse apartments</button>
+          </section>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {listings.map(l => (
-              <ListingCard key={l.id} listing={l} onClick={() => onNavigate('detail', l.id)} isSaved={true} onToggleSave={(e) => { e.stopPropagation(); onToggleSave(l.id); }} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {listings.map(listing => (
+              <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved onToggleSave={event => { event.stopPropagation(); onToggleSave(listing.id); }} />
             ))}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
