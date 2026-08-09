@@ -1,916 +1,115 @@
-import { useState, useEffect } from 'react';
-import { useStaffPermissions } from '@/hooks/useStaffPermissions';
-import { getStaffBranchAnalytics, parseStaffMetrics } from '@/lib/supabase/staff-analytics';
-import { supabase } from '@/lib/supabase';
-// nigeria-locations import not needed in this version — location derived from inspection data
-import SettingsTab from './SettingsTab';
-import type { Profile, SupportTicket } from '@/types';
-import { STAFF_PERMISSION_LABELS, TICKET_TYPE_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_COLORS } from '@/types';
-import type { TicketStatus } from '@/types';
+import { useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { useStaffPermissions } from '@/hooks/useStaffPermissions';
+import type { Profile, StaffPermission } from '@/types';
+import { STAFF_PERMISSION_LABELS } from '@/types';
 
-interface StaffDashboardProps {
-  profile: Profile;
-  onLogout: () => void;
-  onGoToChat: (convId?: string) => void;
-  onNavigate?: (page: string) => void;
-}
+type ModuleKey = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer';
+type Props = { profile: Profile; onLogout: () => void; onGoToChat: (convId?: string) => void; onNavigate?: (page: string) => void };
 
-type StaffTab = 'overview' | 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'settings';
+const MODULES: Array<{ key: Exclude<ModuleKey,'overview'>; permission: StaffPermission; label: string; note: string }> = [
+  { key:'operations', permission:'operations', label:'Operations', note:'Review property listings in your assigned branch' },
+  { key:'finance', permission:'finance', label:'Finance', note:'Monitor canonical withdrawals and commission records' },
+  { key:'support', permission:'support', label:'Support', note:'Respond to support requests from your assigned branch' },
+  { key:'verification', permission:'verification', label:'Verification', note:'Review worker applications in your assigned branch' },
+  { key:'field_officer', permission:'field_officer', label:'Field Work', note:'Complete inspections assigned directly to you' },
+];
 
-const TAB_ICONS: Record<StaffTab, string> = {
-  overview: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
-  operations: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-  finance: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  support: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  verification: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-  field_officer: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z',
-  settings: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
-};
-
-export default function StaffDashboard({ profile, onLogout, onGoToChat, onNavigate }: StaffDashboardProps) {
-  const { permissions, loading: permsLoading, hasPermission } = useStaffPermissions(profile.user_id);
-  const TAB_KEY = 'wh_staff_tab';
-  const [activeTab, setActiveTab] = useState<StaffTab>(() => {
-    try {
-      const saved = localStorage.getItem(TAB_KEY);
-      if (saved && (
-        saved === 'overview' || saved === 'settings' ||
-        (saved === 'operations' && hasPermission('operations')) ||
-        (saved === 'finance' && hasPermission('finance')) ||
-        (saved === 'support' && hasPermission('support')) ||
-        (saved === 'verification' && hasPermission('verification')) ||
-        (saved === 'field_officer' && hasPermission('field_officer'))
-      )) return saved as StaffTab;
-    } catch { /* ignore */ }
-    return 'overview';
-  });
-
-  const handleSetTab = (tab: StaffTab) => {
-    setActiveTab(tab);
-    try { localStorage.setItem(TAB_KEY, tab); } catch { /* ignore */ }
-  };
-
-  const availableTabs: StaffTab[] = ['overview'];
-  if (hasPermission('operations')) availableTabs.push('operations');
-  if (hasPermission('finance')) availableTabs.push('finance');
-  if (hasPermission('support')) availableTabs.push('support');
-  if (hasPermission('verification')) availableTabs.push('verification');
-  if (hasPermission('field_officer')) availableTabs.push('field_officer');
-  availableTabs.push('settings');
-
-  if (permsLoading) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+export default function StaffDashboard({ profile, onLogout }: Props) {
+  const { permissions, loading } = useStaffPermissions(profile.user_id);
+  const [tab,setTab] = useState<ModuleKey>('overview');
+  const allowed = useMemo(() => MODULES.filter(m => permissions.includes(m.permission)),[permissions]);
+  useEffect(() => { if (tab !== 'overview' && !allowed.some(m => m.key===tab)) setTab('overview'); },[allowed,tab]);
+  if (loading) return <PageLoading/>;
+  return <div className="min-h-[100dvh] bg-[#080A0F] text-white">
+    <Toaster position="top-center" richColors/>
+    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#080A0F]/90 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[.22em] text-blue-400">WeHouse Staff</p><h1 className="mt-1 text-base font-bold">{profile.full_name || profile.username || 'Staff workspace'}</h1><p className="mt-0.5 text-[10px] text-[#707386]">{profile.assigned_lga || profile.assigned_state ? [profile.assigned_lga,profile.assigned_state].filter(Boolean).join(', ') : 'Branch assignment required for branch-scoped modules'}</p></div>
+        <button onClick={onLogout} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#9A9CAD] hover:text-white">Log out</button>
       </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24 lg:pb-0">
-      <Toaster position="top-center" richColors />
-
-      {/* ═══ MODERN HEADER ═══ */}
-      <header className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#0A0A0F] to-[#16213e]" />
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
-        <div className="relative px-5 pt-6 pb-4 lg:px-8 lg:pt-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <span className="text-white font-bold text-sm">{(profile.username || profile.email)[0].toUpperCase()}</span>
-              </div>
-              <div>
-                <h1 className="text-base font-bold text-white">
-                  {profile.full_name || profile.username || 'Staff Member'}
-                </h1>
-                <p className="text-[10px] text-[#5C5E72]">
-                  {permissions.length > 0 ? permissions.map(p => STAFF_PERMISSION_LABELS[p]).join(' & ') : 'Staff'} · {profile.email}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onLogout}
-              className="h-9 px-3 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center gap-1.5 text-[#5C5E72] hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/5 transition-all text-[11px] font-medium"
-              title="Logout"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
-              Logout
-            </button>
-          </div>
-
-          {/* Stats Row */}
-          <StaffStats profile={profile} permissions={permissions} onSetTab={handleSetTab} />
-        </div>
-      </header>
-
-      {/* ═══ MODERN TAB NAV ═══ */}
-      <nav className="sticky top-0 z-40 bg-[#0A0A0F]/80 backdrop-blur-xl border-b border-white/[0.04] px-3 py-2">
-        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-          {availableTabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => handleSetTab(tab)}
-              className={`flex-shrink-0 flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[11px] font-semibold transition-all whitespace-nowrap ${
-                activeTab === tab
-                  ? 'bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white shadow-lg shadow-blue-500/25'
-                  : 'text-[#5C5E72] hover:text-white hover:bg-white/[0.05]'
-              }`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d={TAB_ICONS[tab]} />
-              </svg>
-              {tab === 'field_officer' ? 'Field' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* ═══ TAB CONTENT ═══ */}
-      <main className="px-4 py-4 lg:px-8 lg:py-6">
-        {activeTab === 'overview' && <OverviewModule profile={profile} permissions={permissions} onGoToChat={onGoToChat} onNavigate={onNavigate} onSetTab={handleSetTab} />}
-        {activeTab === 'operations' && <OperationsModule profile={profile} />}
-        {activeTab === 'finance' && <FinanceModule />}
-        {activeTab === 'support' && <SupportModule profile={profile} onGoToChat={onGoToChat} />}
-        {activeTab === 'verification' && <VerificationModule profile={profile} onGoToChat={onGoToChat} />}
-        {activeTab === 'field_officer' && <FieldOfficerModule profile={profile} />}
-        {activeTab === 'settings' && <SettingsTab profile={profile} onUpdate={() => {}} />}
-      </main>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STATS BAR
-// ═══════════════════════════════════════════════════════════════
-
-function StaffStats({ profile, permissions, onSetTab }: { profile: Profile; permissions: string[]; onSetTab: (t: StaffTab) => void }) {
-  const [stats, setStats] = useState({ inspections: 0, tickets: 0, listings: 0, workers: 0 });
-
-  useEffect(() => {
-    async function load() {
-      // Use server-side branch-scoped analytics (replaces direct nationwide queries)
-      const { metrics } = await getStaffBranchAnalytics(profile.user_id);
-      const m = parseStaffMetrics(metrics);
-
-      // Map RPC metrics to UI stats
-      const s: any = {};
-      if (permissions.includes('field_officer')) s.inspections = m.inspections || 0;
-      if (permissions.includes('support')) s.tickets = m.open_tickets || 0;
-      if (permissions.includes('operations')) s.listings = m.pending_listings || 0;
-      if (permissions.includes('verification')) s.workers = m.pending_workers || 0;
-      setStats(s);
-    }
-    load();
-  }, [permissions, profile.user_id]);
-
-  const statItems = [];
-  if (permissions.includes('field_officer')) statItems.push({ label: 'Inspections', value: stats.inspections, color: 'from-blue-500 to-blue-600' });
-  if (permissions.includes('support')) statItems.push({ label: 'Open Tickets', value: stats.tickets, color: 'from-amber-500 to-amber-600' });
-  if (permissions.includes('operations')) statItems.push({ label: 'Pending', value: stats.listings, color: 'from-emerald-500 to-emerald-600' });
-  if (permissions.includes('verification')) statItems.push({ label: 'To Review', value: stats.workers, color: 'from-purple-500 to-purple-600' });
-
-  if (statItems.length === 0) return null;
-
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {statItems.map(s => (
-        <button
-          key={s.label}
-          onClick={() => {
-            // Navigate to the relevant tab based on the stat label
-            if (s.label === 'Pending') onSetTab('operations');
-            else if (s.label === 'Inspections') onSetTab('field_officer');
-            else if (s.label === 'Open Tickets') onSetTab('support');
-            else if (s.label === 'To Review') onSetTab('verification');
-          }}
-          className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 text-left hover:bg-white/[0.06] hover:border-white/[0.10] transition-all"
-        >
-          <p className="text-lg font-bold text-white">{s.value}</p>
-          <p className="text-[10px] text-[#5C5E72]">{s.label}</p>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// OVERVIEW MODULE
-// ═══════════════════════════════════════════════════════════════
-
-function OverviewModule({ profile, permissions, onGoToChat: _onGoToChat, onNavigate: _onNavigate, onSetTab }: {
-  profile: Profile; permissions: string[]; onGoToChat: (c?: string) => void; onNavigate?: (p: string) => void; onSetTab: (t: StaffTab) => void;
-}) {
-  // Staff with NO assigned modules — show clear message per Constitution
-  if (permissions.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-        </div>
-        <h2 className="text-sm font-semibold text-white mb-2">No Modules Assigned</h2>
-        <p className="text-[11px] text-[#5C5E72] max-w-[260px] leading-relaxed">
-          You do not have any staff modules assigned yet. Contact your admin or creator to assign you to Operations, Finance, Support, Verification, or Field Officer modules.
-        </p>
+      <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 pb-3 lg:px-8">
+        <Nav active={tab==='overview'} onClick={()=>setTab('overview')}>Overview</Nav>
+        {allowed.map(m=><Nav key={m.key} active={tab===m.key} onClick={()=>setTab(m.key)}>{m.label}</Nav>)}
       </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-[11px] text-[#5C5E72]">Welcome back, <span className="text-white font-medium">{profile.full_name || profile.username || 'Staff'}</span>. Here&apos;s your overview.</p>
-
-      {/* Quick Actions — only show modules the staff has permission for */}
-      <div className="grid grid-cols-2 gap-3">
-        {permissions.includes('field_officer') && (
-          <QuickCard icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" title="My Inspections" subtitle="View assigned inspections" color="from-blue-500 to-blue-600" onClick={() => onSetTab('field_officer')} />
-        )}
-        {permissions.includes('support') && (
-          <QuickCard icon="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="Support Tickets" subtitle="Handle customer issues" color="from-amber-500 to-amber-600" onClick={() => onSetTab('support')} />
-        )}
-        {permissions.includes('operations') && (
-          <QuickCard icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" title="Properties" subtitle="Review & manage listings" color="from-emerald-500 to-emerald-600" onClick={() => onSetTab('operations')} />
-        )}
-        {permissions.includes('verification') && (
-          <QuickCard icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" title="Worker Review" subtitle="Approve worker applications" color="from-purple-500 to-purple-600" onClick={() => onSetTab('verification')} />
-        )}
-        {permissions.includes('finance') && (
-          <QuickCard icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="Finance" subtitle="Payouts & commissions" color="from-rose-500 to-rose-600" onClick={() => onSetTab('finance')} />
-        )}
-      </div>
-    </div>
-  );
+    </header>
+    <main className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:px-8 lg:py-8">
+      {tab==='overview' && <Overview profile={profile} permissions={permissions} modules={allowed} onOpen={setTab}/>} 
+      {tab==='operations' && <Operations/>}
+      {tab==='finance' && <Finance/>}
+      {tab==='support' && <Support/>}
+      {tab==='verification' && <Verification/>}
+      {tab==='field_officer' && <FieldWork profile={profile}/>} 
+    </main>
+  </div>;
 }
 
-function QuickCard({ icon, title, subtitle, color, onClick }: { icon: string; title: string; subtitle: string; color: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="group relative rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 text-left hover:border-white/[0.12] hover:bg-white/[0.04] transition-all active:scale-[0.98]">
-      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-lg`}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
-      </div>
-      <p className="text-xs font-semibold text-white group-hover:text-blue-400 transition-colors">{title}</p>
-      <p className="text-[10px] text-[#5C5E72] mt-0.5">{subtitle}</p>
-    </button>
-  );
+function Overview({profile,permissions,modules,onOpen}:{profile:Profile;permissions:StaffPermission[];modules:typeof MODULES;onOpen:(k:ModuleKey)=>void}) {
+  return <div className="space-y-6">
+    <section className="rounded-3xl border border-blue-500/15 bg-gradient-to-br from-blue-500/[0.12] via-[#111522] to-[#0D1018] p-6 lg:p-8"><span className="rounded-full bg-blue-500/10 px-3 py-1 text-[9px] font-semibold text-blue-300">ASSIGNED WORKSPACE</span><h2 className="mt-4 max-w-2xl text-2xl font-bold lg:text-3xl">Only the work assigned to you appears here.</h2><p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">Every module is permission-gated. Branch-scoped modules use your assigned state/LGA on the server; field inspections use direct assignment.</p></section>
+    {permissions.length===0 ? <Empty title="No staff modules assigned" text="An Admin or the Creator must assign your staff responsibilities before operational tools appear."/> : <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{modules.map(m=><button key={m.key} onClick={()=>onOpen(m.key)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-500/25"><p className="text-sm font-semibold">{m.label}</p><p className="mt-2 text-[10px] leading-relaxed text-[#727587]">{m.note}</p><p className="mt-4 text-[9px] font-semibold text-blue-400">OPEN MODULE →</p></button>)}</section>}
+    <section className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-[#717487]">Account</p><p className="mt-2 text-xs text-[#B5B7C3]">{profile.email}</p><p className="mt-1 text-[10px] text-[#66697B]">{permissions.map(p=>STAFF_PERMISSION_LABELS[p]).join(' · ') || 'No operational permission'}</p></section>
+  </div>;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// OPERATIONS MODULE
-// ═══════════════════════════════════════════════════════════════
-
-function OperationsModule({ profile }: { profile: Profile }) {
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-
-  useEffect(() => { loadListings(); }, [statusFilter]);
-
-  async function loadListings() {
-    setLoading(true);
-    let query = supabase.from('listings').select('*').is('deleted_at', null).order('created_at', { ascending: false });
-    if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-    const { data } = await query;
-    setListings(data || []);
-    setLoading(false);
-  }
-
-  async function approveListing(id: string) {
-    const { error } = await supabase.from('listings').update({ status: 'available', approved_by: profile.user_id, approved_at: new Date().toISOString() }).eq('id', id);
-    if (error) { toast.error('Failed'); return; }
-    toast.success('Approved'); loadListings();
-  }
-
-  if (loading) return <LoadingSpinner />;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-white">Property Management</p>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-8 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-[10px] px-2 outline-none">
-          <option value="all">All</option>
-          <option value="available">Live</option>
-          <option value="pending_approval">Pending</option>
-          <option value="rejected">Rejected</option>
-        </select>
-      </div>
-
-      {listings.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-          </div>
-          <p className="text-sm text-[#5C5E72]">No listings</p>
-        </div>
-      ) : (
-        listings.map(l => (
-          <div key={l.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 hover:border-white/[0.12] transition-colors">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{l.title}</p>
-                <p className="text-[10px] text-[#5C5E72]">{l.city}, {l.state} &middot; {l.bedrooms} bed &middot; N{l.price?.toLocaleString()}</p>
-              </div>
-              <span className={`text-[9px] px-2 py-1 rounded-full border ${
-                l.status === 'available' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                l.status === 'pending_approval' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                'bg-red-500/10 text-red-400 border-red-500/20'
-              }`}>{l.status}</span>
-            </div>
-            {l.status === 'pending_approval' && (
-              <div className="mt-3">
-                {rejectingId === l.id ? (
-                  <div className="space-y-2">
-                    <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection..." rows={2}
-                      className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-red-500 resize-none" />
-                    <div className="flex gap-2">
-                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
-                      <button onClick={() => { if (!rejectReason.trim()) return; supabase.from('listings').update({ status: 'rejected', rejection_reason: rejectReason }).eq('id', l.id).then(() => { toast.success('Rejected'); setRejectingId(null); setRejectReason(''); loadListings(); }); }}
-                        className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <button onClick={() => approveListing(l.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
-                    <button onClick={() => setRejectingId(l.id)} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
+function Operations(){
+ const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('pending_approval'),[rejectId,setRejectId]=useState<string|null>(null),[reason,setReason]=useState('');
+ async function load(){setLoading(true);const {data,error}=await supabase.rpc('get_my_staff_operations_listings',{p_status:filter});if(error)toast.error(error.message);setRows(data||[]);setLoading(false)}
+ useEffect(()=>{void load()},[filter]);
+ async function review(id:string,decision:'approve'|'reject'){const {error}=await supabase.rpc('review_my_staff_listing',{p_listing_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Listing approved':'Listing rejected');setRejectId(null);setReason('');void load()}
+ return <Module title="Property operations" note="Only listings inside your assigned branch are returned by the server." right={<Select value={filter} onChange={setFilter} options={[['pending_approval','Pending'],['available','Live'],['rejected','Rejected'],['all','All']]}/>}>
+  {loading?<Loading/>:rows.length===0?<Empty title="No listings in this queue" text="There is nothing requiring action in your assigned branch."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(r=><Card key={r.id}><div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{r.title||'Property'}</p><p className="mt-1 text-[10px] text-[#6F7284]">{[r.city,r.state].filter(Boolean).join(', ')} · {money(r.price)}</p></div><Badge value={r.status}/></div>{r.status==='pending_approval'&&(rejectId===r.id?<div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason for rejection" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs outline-none"/><div className="flex gap-2"><Button secondary onClick={()=>{setRejectId(null);setReason('')}}>Cancel</Button><Button danger onClick={()=>void review(r.id,'reject')}>Confirm rejection</Button></div></div>:<div className="mt-4 flex gap-2"><Button onClick={()=>void review(r.id,'approve')}>Approve</Button><Button danger onClick={()=>setRejectId(r.id)}>Reject</Button></div>)}</Card>)}</div>}
+ </Module>
 }
 
-// ═══════════════════════════════════════════════════════════════
-// FINANCE MODULE
-// ═══════════════════════════════════════════════════════════════
-
-function FinanceModule() {
-  const [activeSubTab, setActiveSubTab] = useState<'payouts' | 'rules'>('payouts');
-  const [payouts, setPayouts] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    setLoading(true);
-    const [{ data: p }, { data: r }] = await Promise.all([
-      supabase.from('payouts').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(20),
-      supabase.from('commission_rules').select('*').order('created_at', { ascending: false }),
-    ]);
-    setPayouts(p || []);
-    setRules(r || []);
-    setLoading(false);
-  }
-
-  if (loading) return <LoadingSpinner />;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
-        {(['payouts', 'rules'] as const).map(t => (
-          <button key={t} onClick={() => setActiveSubTab(t)}
-            className={`flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all ${activeSubTab === t ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
-            {t === 'payouts' ? 'Payouts' : 'Commission Rules'}
-          </button>
-        ))}
-      </div>
-
-      {activeSubTab === 'payouts' && (
-        payouts.length === 0 ? <EmptyState icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="No payouts yet" /> : (
-          <div className="space-y-2">
-            {payouts.map(p => (
-              <div key={p.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white">{(p as any).profiles?.full_name || 'Unknown'}</p>
-                  <span className={`text-[9px] px-2 py-1 rounded-full ${p.status === 'verification_paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>{p.status}</span>
-                </div>
-                <p className="text-xs text-white font-bold mt-1">N{p.amount?.toLocaleString()}</p>
-                <p className="text-[10px] text-[#5C5E72]">{p.period_start} to {p.period_end}</p>
-              </div>
-            ))}
-          </div>
-        )
-      )}
-
-      {activeSubTab === 'rules' && (
-        rules.length === 0 ? <EmptyState icon="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" title="No commission rules" /> : (
-          <div className="space-y-2">
-            {rules.map(r => (
-              <div key={r.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-                <p className="text-sm font-semibold text-white">{r.name}</p>
-                <p className="text-[10px] text-[#5C5E72]">{r.description}</p>
-              </div>
-            ))}
-          </div>
-        )
-      )}
-    </div>
-  );
+function Finance(){
+ const [data,setData]=useState<any>({withdrawals:[],commissions:[]}),[loading,setLoading]=useState(true),[view,setView]=useState<'withdrawals'|'commissions'>('withdrawals');
+ useEffect(()=>{(async()=>{const {data,error}=await supabase.rpc('get_my_staff_finance_queue');if(error)toast.error(error.message);setData(data||{withdrawals:[],commissions:[]});setLoading(false)})()},[]);
+ const rows=data[view]||[];
+ return <Module title="Finance monitor" note="Canonical finance records only. Transfer execution is intentionally not duplicated in this dashboard." right={<div className="flex gap-1"><Mini active={view==='withdrawals'} onClick={()=>setView('withdrawals')}>Withdrawals</Mini><Mini active={view==='commissions'} onClick={()=>setView('commissions')}>Commission</Mini></div>}>
+  {loading?<Loading/>:rows.length===0?<Empty title="No finance records" text="Nothing has been recorded in this queue yet."/>:<div className="space-y-2">{rows.map((r:any)=><Card key={r.id}><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold">{view==='withdrawals'?(r.snapshot_bank_account_name||'Withdrawal'):(r.booking_type||'Commission')}</p><p className="mt-1 text-[9px] text-[#696C7E]">{new Date(r.created_at).toLocaleDateString()}</p></div><div className="text-right"><p className="text-sm font-bold">{money(view==='withdrawals'?r.amount:r.commission_amount)}</p><Badge value={r.status||'recorded'}/></div></div></Card>)}</div>}
+ </Module>
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SUPPORT MODULE
-// ═══════════════════════════════════════════════════════════════
-
-function SupportModule({ profile, onGoToChat: _onGoToChat }: { profile: Profile; onGoToChat: (c?: string) => void }) {
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
-  const [resolvingId, setResolvingId] = useState<string | null>(null);
-  const [resolveNotes, setResolveNotes] = useState('');
-
-  useEffect(() => { loadTickets(); }, [statusFilter]);
-
-  async function loadTickets() {
-    setLoading(true);
-    let query = supabase.from('support_tickets').select('*').order('created_at', { ascending: false });
-    if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-    const { data } = await query.limit(30);
-    setTickets(data || []);
-    setLoading(false);
-  }
-
-  async function assignTicket(id: string) {
-    const { error } = await supabase.from('support_tickets').update({ assigned_to: profile.user_id, status: 'in_progress' }).eq('id', id);
-    if (error) toast.error('Failed');
-    else { toast.success('Assigned to you'); loadTickets(); }
-  }
-
-  async function resolveTicket(id: string) {
-    if (!resolveNotes.trim()) { toast.error('Enter notes'); return; }
-    const { error } = await supabase.from('support_tickets').update({ status: 'resolved', resolution_notes: resolveNotes, resolved_at: new Date().toISOString(), resolved_by: profile.user_id }).eq('id', id);
-    if (error) toast.error('Failed');
-    else { toast.success('Resolved'); setResolvingId(null); setResolveNotes(''); loadTickets(); }
-  }
-
-  if (loading) return <LoadingSpinner />;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-white">Tickets ({tickets.length})</p>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as TicketStatus | 'all')} className="h-8 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-[10px] px-2 outline-none">
-          <option value="all">All</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In Progress</option>
-          <option value="resolved">Resolved</option>
-        </select>
-      </div>
-
-      {tickets.length === 0 ? <EmptyState icon="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" title="No tickets" /> : (
-        tickets.map(t => (
-          <div key={t.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-white truncate">{t.subject}</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${TICKET_STATUS_COLORS[t.status]}`}>{t.status}</span>
-                </div>
-                <p className="text-[10px] text-[#5C5E72] mt-1">{t.ticket_code} &middot; {TICKET_TYPE_LABELS[t.type]} &middot; <span className={TICKET_PRIORITY_COLORS[t.priority]}>{t.priority}</span></p>
-                <p className="text-[11px] text-[#8A8B9C] mt-2">{t.description}</p>
-              </div>
-            </div>
-            <div className="mt-3">
-              {resolvingId === t.id ? (
-                <div className="space-y-2">
-                  <textarea value={resolveNotes} onChange={e => setResolveNotes(e.target.value)} placeholder="How was this resolved?" rows={2}
-                    className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none" />
-                  <div className="flex gap-2">
-                    <button onClick={() => { setResolvingId(null); setResolveNotes(''); }} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
-                    <button onClick={() => resolveTicket(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  {t.status === 'open' && <button onClick={() => assignTicket(t.id)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Assign to Me</button>}
-                  {t.status === 'in_progress' && t.assigned_to === profile.user_id && <button onClick={() => setResolvingId(t.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Resolve</button>}
-                </div>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
+function Support(){
+ const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('all'),[replyId,setReplyId]=useState<string|null>(null),[reply,setReply]=useState('');
+ async function load(){setLoading(true);const {data,error}=await supabase.rpc('get_my_staff_support_tickets',{p_status:filter});if(error)toast.error(error.message);setRows(data||[]);setLoading(false)} useEffect(()=>{void load()},[filter]);
+ async function send(id:string,resolved:boolean){const {error}=await supabase.rpc('reply_my_staff_support_ticket',{p_ticket_id:id,p_reply:reply,p_resolve:resolved});if(error)return toast.error(error.message);toast.success(resolved?'Ticket resolved':'Reply saved');setReply('');setReplyId(null);void load()}
+ return <Module title="Customer support" note="Support requests are restricted to customers in your assigned branch." right={<Select value={filter} onChange={setFilter} options={[['all','All'],['open','Open'],['in_progress','In progress'],['resolved','Resolved']]}/>}>
+  {loading?<Loading/>:rows.length===0?<Empty title="No support requests" text="There are no matching requests in your branch."/>:<div className="space-y-3">{rows.map(t=><Card key={t.id}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{t.user_email||'WeHouse user'}</p><p className="mt-2 text-xs leading-relaxed text-[#A5A7B4]">{t.message}</p>{t.reply&&<div className="mt-3 rounded-xl bg-blue-500/[0.06] p-3 text-[10px] text-blue-200">Latest reply: {t.reply}</div>}</div><Badge value={t.status}/></div>{t.status!=='resolved'&&(replyId===t.id?<div className="mt-4 space-y-2"><textarea value={reply} onChange={e=>setReply(e.target.value)} placeholder="Write the WeHouse response" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs outline-none"/><div className="flex gap-2"><Button secondary onClick={()=>setReplyId(null)}>Cancel</Button><Button secondary onClick={()=>void send(t.id,false)}>Save reply</Button><Button onClick={()=>void send(t.id,true)}>Reply & resolve</Button></div></div>:<div className="mt-4"><Button onClick={()=>setReplyId(t.id)}>Respond</Button></div>)}</Card>)}</div>}
+ </Module>
 }
 
-// ═══════════════════════════════════════════════════════════════
-// VERIFICATION MODULE
-// ═══════════════════════════════════════════════════════════════
-
-function VerificationModule({ profile: _profile, onGoToChat: _onGoToChat }: { profile: Profile; onGoToChat: (c?: string) => void }) {
-  const [workers, setWorkers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'pending' | 'verification_paid' | 'suspended' | 'all'>('pending');
-
-  useEffect(() => { loadWorkers(); }, [filter]);
-
-  async function loadWorkers() {
-    setLoading(true);
-    let query = supabase.from('profiles').select('*').eq('role', 'worker').order('created_at', { ascending: false });
-    if (filter !== 'all') query = query.eq('worker_status', filter);
-    const { data } = await query;
-    setWorkers(data || []);
-    setLoading(false);
-  }
-
-  async function setStatus(userId: string, status: 'verification_paid' | 'suspended' | 'rejected') {
-    const { error } = await supabase.from('profiles').update({ worker_status: status, updated_at: new Date().toISOString() }).eq('user_id', userId);
-    if (error) { toast.error('Failed'); return; }
-    toast.success(`Worker ${status}`);
-    loadWorkers();
-  }
-
-  if (loading) return <LoadingSpinner />;
-
-  const statusColors: Record<string, string> = { pending: 'bg-amber-500/10 text-amber-400', verified: 'bg-emerald-500/10 text-emerald-400', suspended: 'bg-red-500/10 text-red-400', rejected: 'bg-gray-500/10 text-gray-400' };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
-        {(['pending', 'verification_paid', 'suspended', 'all'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`flex-1 h-8 rounded-lg text-[10px] font-semibold transition-all ${filter === f ? 'bg-[#3B82F6] text-white' : 'text-[#5C5E72]'}`}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {workers.length === 0 ? <EmptyState icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" title={`No ${filter} workers`} /> : (
-        workers.map(w => (
-          <div key={w.user_id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-sm font-bold">
-                {(w.full_name || w.username || 'W')[0].toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{w.full_name || w.username || '...'}</p>
-                <p className="text-[10px] text-[#5C5E72]">{w.worker_occupation || 'No occupation'} &middot; {w.city || 'No location'}</p>
-              </div>
-              <span className={`text-[8px] px-2 py-1 rounded-full ${statusColors[w.worker_status] || ''}`}>{w.worker_status}</span>
-            </div>
-            {w.worker_bio && <p className="text-[10px] text-[#8A8B9C] mt-2 italic line-clamp-2">{w.worker_bio}</p>}
-            <div className="flex gap-2 mt-3">
-              {w.worker_status === 'pending' && (
-                <>
-                  <button onClick={() => setStatus(w.user_id, 'verification_paid')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Approve</button>
-                  <button onClick={() => setStatus(w.user_id, 'rejected')} className="flex-1 h-8 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-[11px] font-semibold">Reject</button>
-                </>
-              )}
-              {w.worker_status === 'verification_paid' && (
-                <button onClick={() => setStatus(w.user_id, 'suspended')} className="flex-1 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">Suspend</button>
-              )}
-              {w.worker_status === 'suspended' && (
-                <button onClick={() => setStatus(w.user_id, 'verification_paid')} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Reinstate</button>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
+function Verification(){
+ const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('pending');
+ async function load(){setLoading(true);const {data,error}=await supabase.rpc('get_my_staff_worker_reviews',{p_status:filter});if(error)toast.error(error.message);setRows(data||[]);setLoading(false)} useEffect(()=>{void load()},[filter]);
+ async function review(id:string,status:string){const {error}=await supabase.rpc('review_my_staff_worker',{p_worker_id:id,p_status:status});if(error)return toast.error(error.message);toast.success('Worker record updated');void load()}
+ return <Module title="Worker verification" note="Worker records are branch-scoped and status changes are validated on the server." right={<Select value={filter} onChange={setFilter} options={[['pending','Pending'],['verification_paid','Verified'],['suspended','Suspended'],['rejected','Rejected'],['all','All']]}/>}>
+  {loading?<Loading/>:rows.length===0?<Empty title="No workers to review" text="No worker applications match this queue in your branch."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(w=><Card key={w.user_id}><div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{w.full_name||w.username||'Worker'}</p><p className="mt-1 text-[10px] text-[#6D7082]">{w.worker_occupation||'Occupation not supplied'} · {[w.local_government||w.city,w.state].filter(Boolean).join(', ')}</p></div><Badge value={w.worker_status||'pending'}/></div>{w.worker_status==='pending'&&<div className="mt-4 flex gap-2"><Button onClick={()=>void review(w.user_id,'verification_paid')}>Approve</Button><Button danger onClick={()=>void review(w.user_id,'rejected')}>Reject</Button></div>}{w.worker_status==='verification_paid'&&<div className="mt-4"><Button danger onClick={()=>void review(w.user_id,'suspended')}>Suspend</Button></div>}{w.worker_status==='suspended'&&<div className="mt-4"><Button onClick={()=>void review(w.user_id,'verification_paid')}>Reinstate</Button></div>}</Card>)}</div>}
+ </Module>
 }
 
-// ═══════════════════════════════════════════════════════════════
-// FIELD OFFICER MODULE — WITH POST PROPERTY ON COMPLETED INSPECTIONS
-// ═══════════════════════════════════════════════════════════════
-
-function FieldOfficerModule({ profile }: { profile: Profile }) {
-  const [inspections, setInspections] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
-  const [report, setReport] = useState('');
-  const [condition, setCondition] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
-  // Preview / Post property
-  const [previewingId, setPreviewingId] = useState<string | null>(null);
-  const [postingForInspection, setPostingForInspection] = useState<string | null>(null);
-  const [postSaving, setPostSaving] = useState(false);
-  const [postImages, setPostImages] = useState<string[]>([]);
-  const [postForm, setPostForm] = useState({
-    title: '', description: '', price: '', bedrooms: '1', bathrooms: '1',
-    subType: 'short_let' as 'short_let' | 'long_stay', contactPhone: '',
-  });
-
-  useEffect(() => { loadInspections(); }, []);
-
-  async function loadInspections() {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_my_inspections', {
-        p_field_officer_id: profile.user_id,
-      });
-      if (error) { console.error('[get_my_inspections] error:', error); toast.error('Failed: ' + error.message); }
-      setInspections(data || []);
-    } catch (e: any) { console.error('[loadInspections] exception:', e); toast.error('Error loading inspections'); }
-    setLoading(false);
-  }
-
-  async function startInspection(id: string, source: string = 'user') {
-    const { data: success, error } = await supabase.rpc('update_inspection_status', {
-      p_inspection_id: id, p_new_status: 'in_progress', p_source: source,
-    });
-    if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
-    toast.success('Inspection started'); loadInspections();
-  }
-
-  async function completeInspection(id: string, source: string = 'user') {
-    if (!report.trim()) { toast.error('Enter a report'); return; }
-    const { data: success, error } = await supabase.rpc('update_inspection_status', {
-      p_inspection_id: id, p_new_status: 'completed', p_source: source,
-      p_report: report, p_condition: condition,
-    });
-    if (error || !success) { toast.error('Failed: ' + (error?.message || 'unknown')); return; }
-    toast.success('Inspection completed');
-    setCompletingId(null); setReport(''); loadInspections();
-  }
-
-  // Pre-fill post form from inspection data
-  function openPostForm(ins: any) {
-    setPostingForInspection(ins.id);
-    setPostForm({
-      title: ins.property_name || `${ins.property_type || 'Property'} in ${ins.property_city || ''}`,
-      description: ins.notes || '',
-      price: '',
-      bedrooms: '1',
-      bathrooms: '1',
-      subType: 'short_let',
-      contactPhone: ins.owner_phone || ins.contact_phone || '',
-    });
-    setPostImages([]);
-  }
-
-  async function submitPostProperty(inspection: any) {
-    if (!postForm.title.trim() || !postForm.price) { toast.error('Title and price required'); return; }
-    setPostSaving(true);
-    try {
-      const { error } = await supabase.rpc('post_property_from_inspection', {
-        p_data: {
-          inspection_id: inspection.id,
-          title: postForm.title.trim(),
-          description: postForm.description.trim() || null,
-          price: parseInt(postForm.price) || 0,
-          state: inspection.property_state || '',
-          city: inspection.property_city || '',
-          address: inspection.property_address || '',
-          bedrooms: parseInt(postForm.bedrooms) || 1,
-          bathrooms: parseInt(postForm.bathrooms) || 1,
-          property_type: 'apartment',
-          sub_type: postForm.subType,
-          images: postImages,
-          contact_phone: postForm.contactPhone.trim() || null,
-          owner_id: profile.user_id,
-          partner_id: inspection.owner_id || null,
-        },
-      });
-      if (error) { toast.error('Failed: ' + error.message); setPostSaving(false); return; }
-      toast.success('Property submitted for approval');
-      setPostingForInspection(null);
-      setPostForm({ title: '', description: '', price: '', bedrooms: '1', bathrooms: '1', subType: 'short_let', contactPhone: '' });
-      setPostImages([]);
-    } catch (e: any) { toast.error('Error: ' + e.message); }
-    setPostSaving(false);
-  }
-
-  async function uploadImage(file: File) {
-    const path = `field_officer/${profile.user_id}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from('listing-images').upload(path, file, { contentType: file.type });
-    if (error) { toast.error('Upload failed'); return; }
-    const { data } = supabase.storage.from('listing-images').getPublicUrl(path);
-    setPostImages(prev => [...prev, data.publicUrl]);
-  }
-
-  if (loading) return <LoadingSpinner />;
-
-  return (
-    <div className="space-y-4">
-      <h4 className="text-xs font-semibold text-[#5C5E72] uppercase tracking-wider">My Inspections ({inspections.length})</h4>
-
-      {inspections.length === 0 ? <EmptyState icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" title="No inspections assigned" /> : (
-        inspections.map(ins => (
-          <div key={ins.id} className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-4 hover:border-white/[0.1] transition-colors">
-            {/* ─── INSPECTION CARD HEADER ─── */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-white truncate">{ins.property_name || ins.property_address || 'Property Inspection'}</p>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
-                    ins.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
-                    ins.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
-                    ins.status === 'scheduled' ? 'bg-amber-500/10 text-amber-400' :
-                    'bg-gray-500/10 text-gray-400'
-                  }`}>{ins.status}</span>
-                </div>
-                <p className="text-[10px] text-[#5C5E72] mt-0.5">
-                  {ins.property_address || 'No address'}
-                  {ins.property_city ? `, ${ins.property_city}` : ''}
-                  {ins.property_state ? `, ${ins.property_state}` : ''}
-                </p>
-                <p className="text-[9px] text-[#5C5E72]">Code: {ins.request_code || ins.inspection_code || ins.id?.slice(0, 8)}</p>
-              </div>
-            </div>
-
-            {/* ─── INSPECTION DETAIL PREVIEW ─── */}
-            {previewingId === ins.id && (
-              <div className="mt-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2">
-                <div className="grid grid-cols-2 gap-2 text-[10px]">
-                  <div><span className="text-[#5C5E72]">Property Type:</span> <span className="text-white">{ins.property_type || 'Not specified'}</span></div>
-                  <div><span className="text-[#5C5E72]">Owner:</span> <span className="text-white">{ins.owner_name || ins.owner_id?.slice(0, 12) || 'Unknown'}</span></div>
-                  <div><span className="text-[#5C5E72]">Email:</span> <span className="text-white">{ins.owner_email || 'N/A'}</span></div>
-                  <div><span className="text-[#5C5E72]">Phone:</span> <span className="text-white">{ins.owner_phone || ins.contact_phone || 'N/A'}</span></div>
-                </div>
-                {ins.notes && (
-                  <div className="pt-2 border-t border-white/[0.06]">
-                    <p className="text-[9px] text-[#5C5E72]">Inspection Notes:</p>
-                    <p className="text-[10px] text-white mt-0.5">{ins.notes}</p>
-                  </div>
-                )}
-                {ins.photo_urls && ins.photo_urls.length > 0 && (
-                  <div className="pt-2 border-t border-white/[0.06]">
-                    <p className="text-[9px] text-[#5C5E72] mb-1">Inspection Photos:</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {ins.photo_urls.map((url: string, i: number) => (
-                        <img key={i} src={url} alt="" className="w-14 h-14 rounded-lg object-cover" />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <button onClick={() => setPreviewingId(null)} className="w-full h-7 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[10px]">Hide Details</button>
-              </div>
-            )}
-
-            {/* ─── ACTION BUTTONS ─── */}
-            {completingId === ins.id ? (
-              <div className="mt-3 space-y-2">
-                <textarea value={report} onChange={e => setReport(e.target.value)} placeholder="Describe what you found during the inspection..." rows={3}
-                  className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 placeholder:text-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none" />
-                <select value={condition} onChange={e => setCondition(e.target.value as any)}
-                  className="w-full h-9 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]">
-                  <option value="excellent">Excellent</option>
-                  <option value="good">Good</option>
-                  <option value="fair">Fair</option>
-                  <option value="poor">Poor</option>
-                </select>
-                <div className="flex gap-2">
-                  <button onClick={() => { setCompletingId(null); setReport(''); }} className="flex-1 h-8 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
-                  <button onClick={() => completeInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Submit Report</button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2 mt-3">
-                {/* View Details / Hide Details */}
-                <button onClick={() => setPreviewingId(previewingId === ins.id ? null : ins.id)}
-                  className="h-8 px-3 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">
-                  {previewingId === ins.id ? 'Hide' : 'View Details'}
-                </button>
-                {ins.status === 'scheduled' && <button onClick={() => startInspection(ins.id, ins._source)} className="flex-1 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">Start</button>}
-                {ins.status === 'in_progress' && <button onClick={() => setCompletingId(ins.id)} className="flex-1 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">Complete</button>}
-                {ins.status === 'completed' && (
-                  <button onClick={() => openPostForm(ins)} className="flex-1 h-8 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold flex items-center justify-center gap-1">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-                    Post This Property
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* ─── FULL PROPERTY POST FORM ─── */}
-            {postingForInspection === ins.id && (
-              <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-[#3B82F6]/20 space-y-3">
-                <p className="text-[11px] text-[#3B82F6] font-medium">Create Listing from Inspection</p>
-                <p className="text-[9px] text-[#5C5E72]">The address and location are pre-filled from the inspection. Add the title, price, and details below.</p>
-
-                {/* Pre-filled inspection info (read-only) */}
-                <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-1">
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-[#5C5E72]">Address:</span>
-                    <span className="text-white text-right">{ins.property_address || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-[#5C5E72]">City:</span>
-                    <span className="text-white">{ins.property_city || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-[#5C5E72]">State:</span>
-                    <span className="text-white">{ins.property_state || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-[#5C5E72]">Owner:</span>
-                    <span className="text-white">{ins.owner_name || ins.owner_id?.slice(0, 12) || 'N/A'}</span>
-                  </div>
-                </div>
-
-                {/* Property Title */}
-                <input value={postForm.title} onChange={e => setPostForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Property title (e.g. 3-Bedroom Apartment in Wuse)"
-                  className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
-
-                {/* Price */}
-                <input value={postForm.price} onChange={e => setPostForm(f => ({ ...f, price: e.target.value }))}
-                  placeholder={postForm.subType === 'short_let' ? 'Price per day (NGN)' : 'Price per year (NGN)'}
-                  type="text" inputMode="numeric"
-                  className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
-
-                {/* Bedrooms / Bathrooms row + Short Let / Long Stay toggle */}
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={postForm.bedrooms} onChange={e => setPostForm(f => ({ ...f, bedrooms: e.target.value }))}
-                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
-                    {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} Bedroom{n > 1 ? 's' : ''}</option>)}
-                  </select>
-                  <select value={postForm.bathrooms} onChange={e => setPostForm(f => ({ ...f, bathrooms: e.target.value }))}
-                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-2 outline-none focus:border-[#3B82F6]">
-                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} Bathroom{n > 1 ? 's' : ''}</option>)}
-                  </select>
-                </div>
-
-                {/* Short Let / Long Stay toggle */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => setPostForm(f => ({ ...f, subType: 'short_let' }))}
-                    className={`h-10 rounded-lg text-xs font-medium border transition-colors ${
-                      postForm.subType === 'short_let'
-                        ? 'bg-[#3B82F6]/15 border-[#3B82F6]/40 text-[#3B82F6]'
-                        : 'bg-white/[0.03] border-white/[0.08] text-[#5C5E72]'
-                    }`}>
-                    Short Let (Daily)
-                  </button>
-                  <button onClick={() => setPostForm(f => ({ ...f, subType: 'long_stay' }))}
-                    className={`h-10 rounded-lg text-xs font-medium border transition-colors ${
-                      postForm.subType === 'long_stay'
-                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
-                        : 'bg-white/[0.03] border-white/[0.08] text-[#5C5E72]'
-                    }`}>
-                    Long Stay (Yearly)
-                  </button>
-                </div>
-
-                {/* Description */}
-                <textarea value={postForm.description} onChange={e => setPostForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Describe the property — features, neighborhood, nearby amenities..." rows={3}
-                  className="w-full rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 py-2 outline-none focus:border-[#3B82F6] resize-none" />
-
-                {/* Contact Phone + Images */}
-                <div className="grid grid-cols-2 gap-2">
-                  <input value={postForm.contactPhone} onChange={e => setPostForm(f => ({ ...f, contactPhone: e.target.value }))}
-                    placeholder="Contact phone"
-                    className="h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-white text-xs px-3 outline-none focus:border-[#3B82F6]" />
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {postImages.map((img, i) => (
-                      <div key={i} className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
-                        <img src={img} alt="" className="w-full h-full object-cover" />
-                        <button onClick={() => setPostImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-bl flex items-center justify-center text-white text-[7px]">&times;</button>
-                      </div>
-                    ))}
-                    <label className="w-10 h-10 rounded-lg border border-dashed border-white/[0.15] flex items-center justify-center cursor-pointer hover:border-[#3B82F6] flex-shrink-0">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-                      <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.currentTarget.value = ''; }} />
-                    </label>
-                    <span className="text-[9px] text-[#5C5E72]">{postImages.length} photo{postImages.length !== 1 ? 's' : ''}</span>
-                  </div>
-                </div>
-
-                {/* Submit / Cancel */}
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setPostingForInspection(null)} className="flex-1 h-10 rounded-lg bg-white/[0.03] text-[#5C5E72] text-[11px]">Cancel</button>
-                  <button onClick={() => submitPostProperty(ins)} disabled={postSaving}
-                    className="flex-1 h-10 rounded-lg bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-[11px] font-semibold disabled:opacity-40">
-                    {postSaving ? 'Submitting...' : 'Submit for Approval'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
+function FieldWork({profile}:{profile:Profile}){
+ const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[completeId,setCompleteId]=useState<string|null>(null),[report,setReport]=useState(''),[condition,setCondition]=useState('good'),[postId,setPostId]=useState<string|null>(null),[form,setForm]=useState({title:'',price:'',description:'',bedrooms:'1',bathrooms:'1'});
+ async function load(){setLoading(true);const {data,error}=await supabase.rpc('get_my_inspections',{p_field_officer_id:profile.user_id});if(error)toast.error(error.message);setRows(data||[]);setLoading(false)} useEffect(()=>{void load()},[profile.user_id]);
+ async function status(id:string,next:string){const args:any={p_inspection_id:id,p_new_status:next,p_source:'user'};if(next==='completed'){if(!report.trim())return toast.error('Inspection report is required');args.p_report=report;args.p_condition=condition}const {error}=await supabase.rpc('update_inspection_status',args);if(error)return toast.error(error.message);toast.success(next==='completed'?'Inspection completed':'Inspection started');setCompleteId(null);setReport('');void load()}
+ function openPost(r:any){setPostId(r.id);setForm({title:`${r.property_type||'Property'} in ${r.property_city||''}`.trim(),price:String(r.expected_rent||''),description:r.notes||'',bedrooms:String(r.bedrooms||1),bathrooms:String(r.bathrooms||1)})}
+ async function post(r:any){if(!form.title.trim()||Number(form.price)<=0)return toast.error('Title and valid price are required');const {error}=await supabase.rpc('post_property_from_inspection',{p_data:{inspection_id:r.id,title:form.title.trim(),description:form.description.trim()||null,price:Number(form.price),state:r.property_state,city:r.property_city,address:r.property_address,bedrooms:Number(form.bedrooms)||1,bathrooms:Number(form.bathrooms)||1,property_type:r.property_type||'apartment',images:r.photo_urls||[],videos:[]}});if(error)return toast.error(error.message);toast.success('Listing sent to Operations for approval');setPostId(null);void load()}
+ return <Module title="Assigned field work" note="Only inspections assigned to your staff identity are loaded.">
+  {loading?<Loading/>:rows.length===0?<Empty title="No inspections assigned" text="New field assignments will appear here."/>:<div className="space-y-3">{rows.map(r=><Card key={r.id}><div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{r.property_address||'Property inspection'}</p><p className="mt-1 text-[10px] text-[#6E7183]">{[r.property_city,r.property_state].filter(Boolean).join(', ')} · {r.request_code||''}</p></div><Badge value={r.status}/></div>{r.photo_urls?.length>0&&<div className="mt-3 flex gap-2 overflow-x-auto">{r.photo_urls.map((u:string)=><img key={u} src={u} alt="Inspection" className="h-20 w-24 rounded-xl object-cover"/>)}</div>}{r.status==='scheduled'&&<div className="mt-4"><Button onClick={()=>void status(r.id,'in_progress')}>Start inspection</Button></div>}{r.status==='in_progress'&&(completeId===r.id?<div className="mt-4 space-y-2"><textarea value={report} onChange={e=>setReport(e.target.value)} placeholder="Inspection report" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><Select value={condition} onChange={setCondition} options={[['excellent','Excellent'],['good','Good'],['fair','Fair'],['poor','Poor']]}/><div className="flex gap-2"><Button secondary onClick={()=>setCompleteId(null)}>Cancel</Button><Button onClick={()=>void status(r.id,'completed')}>Complete</Button></div></div>:<div className="mt-4"><Button onClick={()=>setCompleteId(r.id)}>Complete inspection</Button></div>)}{['completed','approved'].includes(r.status)&&!r.draft_listing_id&&(postId===r.id?<div className="mt-4 grid gap-2"><Input value={form.title} onChange={v=>setForm({...form,title:v})} placeholder="Listing title"/><Input value={form.price} onChange={v=>setForm({...form,price:v})} placeholder="Rent / price" type="number"/><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Listing description" className="rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="grid grid-cols-2 gap-2"><Input value={form.bedrooms} onChange={v=>setForm({...form,bedrooms:v})} placeholder="Bedrooms" type="number"/><Input value={form.bathrooms} onChange={v=>setForm({...form,bathrooms:v})} placeholder="Bathrooms" type="number"/></div><div className="flex gap-2"><Button secondary onClick={()=>setPostId(null)}>Cancel</Button><Button onClick={()=>void post(r)}>Send for approval</Button></div></div>:<div className="mt-4"><Button onClick={()=>openPost(r)}>Prepare listing</Button></div>)}{r.draft_listing_id&&<p className="mt-4 rounded-xl bg-emerald-500/[0.06] p-3 text-[10px] text-emerald-300">Listing created and handed to Operations.</p>}</Card>)}</div>}
+ </Module>
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SHARED COMPONENTS
-// ═══════════════════════════════════════════════════════════════
-
-function LoadingSpinner() {
-  return (
-    <div className="flex justify-center py-16">
-      <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-}
-
-function EmptyState({ icon, title }: { icon: string; title: string }) {
-  return (
-    <div className="text-center py-16">
-      <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
-      </div>
-      <p className="text-sm text-[#5C5E72]">{title}</p>
-    </div>
-  );
-}
+function Module({title,note,right,children}:{title:string;note:string;right?:React.ReactNode;children:React.ReactNode}){return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 text-[10px] text-[#707386]">{note}</p></div>{right}</div>{children}</div>}
+function Nav({active,onClick,children}:{active:boolean;onClick:()=>void;children:React.ReactNode}){return <button onClick={onClick} className={`shrink-0 rounded-xl px-3.5 py-2 text-[10px] font-semibold ${active?'bg-blue-500 text-white':'text-[#747789] hover:bg-white/[0.04] hover:text-white'}`}>{children}</button>}
+function Card({children}:{children:React.ReactNode}){return <div className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4">{children}</div>}
+function Button({children,onClick,secondary,danger}:{children:React.ReactNode;onClick:()=>void;secondary?:boolean;danger?:boolean}){return <button onClick={onClick} className={`min-h-9 flex-1 rounded-xl px-3 text-[10px] font-semibold ${danger?'border border-red-500/20 bg-red-500/10 text-red-300':secondary?'border border-white/[0.08] bg-white/[0.04] text-[#A7A9B6]':'bg-blue-500 text-white hover:bg-blue-400'}`}>{children}</button>}
+function Mini({active,onClick,children}:{active:boolean;onClick:()=>void;children:React.ReactNode}){return <button onClick={onClick} className={`rounded-lg px-3 py-2 text-[9px] ${active?'bg-blue-500 text-white':'bg-white/[0.04] text-[#777A8C]'}`}>{children}</button>}
+function Select({value,onChange,options}:{value:string;onChange:(v:string)=>void;options:string[][]}){return <select value={value} onChange={e=>onChange(e.target.value)} className="h-9 rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-[10px] outline-none">{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>}
+function Input({value,onChange,placeholder,type='text'}:{value:string;onChange:(v:string)=>void;placeholder:string;type?:string}){return <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} type={type} className="h-10 rounded-xl border border-white/[0.08] bg-[#171A23] px-3 text-xs outline-none"/>}
+function Badge({value}:{value:string}){const good=['available','approved','completed','resolved','verification_paid'].includes(value);const bad=['rejected','suspended','failed'].includes(value);return <span className={`h-fit rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${good?'bg-emerald-500/10 text-emerald-300':bad?'bg-red-500/10 text-red-300':'bg-amber-500/10 text-amber-300'}`}>{String(value).replace(/_/g,' ')}</span>}
+function Empty({title,text}:{title:string;text:string}){return <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] px-5 py-12 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#66697B]">{text}</p></div>}
+function Loading(){return <div className="grid min-h-40 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"/></div>}
+function PageLoading(){return <div className="grid min-h-screen place-items-center bg-[#080A0F]"><Loading/></div>}
+function money(v:any){return `₦${Number(v||0).toLocaleString('en-NG')}`}
