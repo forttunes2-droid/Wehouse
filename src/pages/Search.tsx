@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getAllListings } from '@/lib/supabase';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import ListingCard from '@/components/ListingCard';
@@ -10,15 +10,19 @@ interface SearchProps {
   onToggleSave: (listingId: string) => void;
 }
 
-// Popular states for quick browse
-const POPULAR_STATES = ['Lagos', 'Abuja (FCT)', 'Rivers', 'Kano', 'Oyo', 'Enugu', 'Delta', 'Kaduna'];
+function normalize(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
 
-// Property types: Apartment (Short Let / Long Stay) or Hotel
-const PROPERTY_TYPES = [
-  { value: 'short_let', label: 'Short Let' },
-  { value: 'long_stay', label: 'Long Stay' },
-  { value: 'hotel', label: 'Hotel' },
-];
+function typeValue(listing: Listing) {
+  return String(listing.sub_type || listing.property_type || '').trim();
+}
+
+function typeLabel(value: string) {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, character => character.toUpperCase());
+}
 
 export default function Search({ onNavigate, savedIds, onToggleSave }: SearchProps) {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -31,229 +35,130 @@ export default function Search({ onNavigate, savedIds, onToggleSave }: SearchPro
   const [propertyType, setPropertyType] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Load property type filter from homepage click
   useEffect(() => {
     const savedType = sessionStorage.getItem('search_property_type');
-    if (savedType) {
-      setPropertyType(savedType);
-      sessionStorage.removeItem('search_property_type');
-    }
+    if (savedType && savedType !== 'hotel') setPropertyType(savedType);
+    sessionStorage.removeItem('search_property_type');
   }, []);
 
   useEffect(() => {
+    let active = true;
     async function load() {
       const { listings: data } = await getAllListings();
+      if (!active) return;
       setListings(data || []);
       setLoading(false);
     }
-    load();
+    void load();
+    return () => { active = false; };
   }, []);
 
   const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
 
+  const types = useMemo(() => {
+    const counts = new Map<string, number>();
+    listings.forEach(listing => {
+      const value = typeValue(listing);
+      if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([value, count]) => ({ value, label: typeLabel(value), count }));
+  }, [listings]);
+
+  const stateCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    listings.forEach(listing => {
+      if (listing.state) counts.set(listing.state, (counts.get(listing.state) || 0) + 1);
+    });
+    return counts;
+  }, [listings]);
+
   const filtered = useMemo(() => {
-    return listings.filter(l => {
-      const q = query.toLowerCase();
-      const matchesQuery = !q || l.title.toLowerCase().includes(q) || l.city?.toLowerCase().includes(q) || l.state?.toLowerCase().includes(q);
-      const matchesPrice = !priceMax || l.price <= priceMax;
-      const matchesBed = !bedrooms || l.bedrooms >= bedrooms;
-      const matchesState = !filterState || l.state === filterState;
-      const matchesCity = !filterCity || l.city === filterCity;
-      const matchesType = !propertyType ||
-        (propertyType === 'hotel' && l.property_type === 'hotel') ||
-        (propertyType === 'short_let' && l.sub_type === 'short_let') ||
-        (propertyType === 'long_stay' && l.sub_type === 'long_stay');
-      return matchesQuery && matchesPrice && matchesBed && matchesState && matchesCity && matchesType;
+    const needle = normalize(query);
+    return listings.filter(listing => {
+      const haystack = [listing.title, listing.address, listing.city, listing.state, listing.property_type, listing.sub_type]
+        .map(normalize)
+        .join(' ');
+      if (needle && !haystack.includes(needle)) return false;
+      if (priceMax && Number(listing.price || 0) > priceMax) return false;
+      if (bedrooms && Number(listing.bedrooms || 0) < bedrooms) return false;
+      if (filterState && normalize(listing.state) !== normalize(filterState)) return false;
+      if (filterCity && normalize(listing.city) !== normalize(filterCity)) return false;
+      if (propertyType && normalize(typeValue(listing)) !== normalize(propertyType)) return false;
+      return true;
     });
   }, [listings, query, priceMax, bedrooms, filterState, filterCity, propertyType]);
 
-  // Group listings by state for counts
-  const listingsByState = useMemo(() => {
-    const map: Record<string, number> = {};
-    listings.forEach(l => {
-      if (l.state) map[l.state] = (map[l.state] || 0) + 1;
-    });
-    return map;
-  }, [listings]);
+  const hasFilters = Boolean(query || priceMax || bedrooms || filterState || filterCity || propertyType);
 
-  // Group listings by property type for counts
-  const listingsByType = useMemo(() => {
-    const map: Record<string, number> = {};
-    listings.forEach(l => {
-      const type = l.property_type === 'hotel' ? 'hotel' : (l.sub_type || 'long_stay');
-      map[type] = (map[type] || 0) + 1;
-    });
-    return map;
-  }, [listings]);
+  function clearFilters() {
+    setQuery('');
+    setPriceMax('');
+    setBedrooms('');
+    setFilterState('');
+    setFilterCity('');
+    setPropertyType('');
+  }
 
   return (
-    <div className="min-h-screen bg-transparent pb-24">
-      {/* Header */}
-      <header className="bg-gradient-to-b from-[#12121A] to-[#0A0A0F] px-5 pt-6 pb-4 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button onClick={() => onNavigate('home')} className="text-[#5C5E72] hover:text-white transition-colors">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          </button>
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search houses, locations..."
-              className="w-full h-10 glass rounded-xl pl-10 pr-4 text-sm text-white placeholder:text-[#5C5E72] outline-none focus:ring-2 focus:ring-[#3B82F6]/30"
-            />
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5C5E72]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-          </div>
-          <button onClick={() => setShowFilters(!showFilters)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${showFilters ? 'bg-[#3B82F6] text-white' : 'glass text-[#5C5E72]'}`}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-          </button>
-        </div>
-
-        {/* State + LGA — Always visible for easy browsing */}
-        <div className="mt-3 flex gap-2">
-          <select
-            value={filterState}
-            onChange={(e) => { setFilterState(e.target.value); setFilterCity(''); }}
-            className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
-          >
-            <option value="">All States</option>
-            {NIGERIA_STATES.map((s) => (
-              <option key={s.state} value={s.state}>{s.state} {listingsByState[s.state] ? `(${listingsByState[s.state]})` : ''}</option>
-            ))}
-          </select>
-          <select
-            value={filterCity}
-            onChange={(e) => setFilterCity(e.target.value)}
-            disabled={!filterState}
-            className={`flex-1 h-10 rounded-xl border text-white text-sm px-3 outline-none ${
-              filterState ? 'bg-[#1A1A24] border-[#232330] focus:border-[#3B82F6]' : 'bg-[#12121A] border-[#1E1E2C] text-[#5C5E72]'
-            }`}
-            style={filterState ? { backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' } : {}}
-          >
-            <option value="">All LGAs</option>
-            {citiesForState.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        {/* Advanced filters (price, bedrooms, property type) */}
-        {showFilters && (
-          <div className="mt-3 glass rounded-xl p-4 space-y-3">
-            <div>
-              <label className="text-[10px] text-[#5C5E72] mb-1 block">Property Type</label>
-              <select
-                value={propertyType}
-                onChange={(e) => setPropertyType(e.target.value)}
-                className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
-              >
-                <option value="">All Types</option>
-                {PROPERTY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label} {listingsByType[t.value] ? `(${listingsByType[t.value]})` : ''}</option>
-                ))}
-              </select>
+    <div className="min-h-screen bg-[#09090D] pb-24 text-white">
+      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#09090D]/95 px-4 pb-4 pt-5 backdrop-blur-xl lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-center gap-3">
+            <button onClick={() => onNavigate('home')} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-[#85879A] hover:text-white" aria-label="Back home">←</button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold">Find an apartment</h1>
+              <p className="text-[10px] text-[#686A7D]">Only available WeHouse listings are shown.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] text-[#5C5E72] mb-1 block">Max Price/yr (₦)</label>
-                <input type="number" value={priceMax} onChange={(e) => setPriceMax(e.target.value ? Number(e.target.value) : '')} placeholder="Any" className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-              </div>
-              <div>
-                <label className="text-[10px] text-[#5C5E72] mb-1 block">Min Bedrooms</label>
-                <select value={bedrooms} onChange={(e) => setBedrooms(e.target.value ? Number(e.target.value) : '')} className="w-full h-9 rounded-lg bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]">
-                  <option value="">Any</option>
-                  <option value="1">1+</option>
-                  <option value="2">2+</option>
-                  <option value="3">3+</option>
-                  <option value="4">4+</option>
-                </select>
-              </div>
-            </div>
-            <button onClick={() => { setPriceMax(''); setBedrooms(''); setFilterState(''); setFilterCity(''); setPropertyType(''); }} className="text-[10px] text-[#3B82F6] font-medium">Clear all filters</button>
+            <button onClick={() => onNavigate('hotels')} className="rounded-xl border border-rose-500/20 bg-rose-500/[0.08] px-3 py-2 text-[10px] font-semibold text-rose-300">Hotels</button>
           </div>
-        )}
+
+          <div className="mt-4 flex gap-2">
+            <div className="relative flex-1">
+              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5C5E72]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search apartment, area or location" className="h-11 w-full rounded-xl border border-white/[0.07] bg-[#14141D] pl-10 pr-4 text-sm outline-none placeholder:text-[#55576A] focus:border-violet-500/40" />
+            </div>
+            <button onClick={() => setShowFilters(value => !value)} className={`h-11 rounded-xl border px-4 text-xs font-medium ${showFilters ? 'border-violet-500/30 bg-violet-500/15 text-violet-300' : 'border-white/[0.07] bg-[#14141D] text-[#85879A]'}`}>Filters</button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <select value={filterState} onChange={event => { setFilterState(event.target.value); setFilterCity(''); }} className="h-10 rounded-xl border border-white/[0.07] bg-[#14141D] px-3 text-xs outline-none focus:border-violet-500/40">
+              <option value="">All states</option>
+              {NIGERIA_STATES.map(item => <option key={item.state} value={item.state}>{item.state}{stateCounts.get(item.state) ? ` (${stateCounts.get(item.state)})` : ''}</option>)}
+            </select>
+            <select value={filterCity} onChange={event => setFilterCity(event.target.value)} disabled={!filterState} className="h-10 rounded-xl border border-white/[0.07] bg-[#14141D] px-3 text-xs outline-none disabled:opacity-40 focus:border-violet-500/40">
+              <option value="">All LGAs</option>
+              {citiesForState.map(city => <option key={city} value={city}>{city}</option>)}
+            </select>
+          </div>
+
+          {showFilters && (
+            <div className="mt-3 grid gap-3 rounded-2xl border border-white/[0.06] bg-[#111119] p-4 md:grid-cols-3">
+              <div><label className="mb-1 block text-[9px] uppercase tracking-wide text-[#66687B]">Apartment type</label><select value={propertyType} onChange={event => setPropertyType(event.target.value)} className="h-10 w-full rounded-xl border border-white/[0.07] bg-[#181822] px-3 text-xs outline-none"><option value="">All apartment types</option>{types.map(item => <option key={item.value} value={item.value}>{item.label} ({item.count})</option>)}</select></div>
+              <div><label className="mb-1 block text-[9px] uppercase tracking-wide text-[#66687B]">Maximum price</label><input type="number" min="0" value={priceMax} onChange={event => setPriceMax(event.target.value ? Number(event.target.value) : '')} placeholder="Any price" className="h-10 w-full rounded-xl border border-white/[0.07] bg-[#181822] px-3 text-xs outline-none" /></div>
+              <div><label className="mb-1 block text-[9px] uppercase tracking-wide text-[#66687B]">Minimum bedrooms</label><select value={bedrooms} onChange={event => setBedrooms(event.target.value ? Number(event.target.value) : '')} className="h-10 w-full rounded-xl border border-white/[0.07] bg-[#181822] px-3 text-xs outline-none"><option value="">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option></select></div>
+            </div>
+          )}
+        </div>
       </header>
 
-      {/* Browse by Property Type — Quick access */}
-      {!propertyType && (
-        <div className="px-5 pt-4">
-          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Browse by Type</p>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-            {PROPERTY_TYPES.filter(t => listingsByType[t.value]).map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setPropertyType(t.value)}
-                className="flex-shrink-0 h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] text-xs text-[#8A8B9C] hover:border-[#3B82F6]/50 hover:text-white transition-colors"
-              >
-                {t.label}
-                <span className="ml-1 text-[9px] text-[#5C5E72]">{listingsByType[t.value]}</span>
-              </button>
-            ))}
-          </div>
+      <main className="mx-auto max-w-7xl px-4 py-5 lg:px-8">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div><p className="text-sm font-semibold">{loading ? 'Loading apartments…' : `${filtered.length} apartment${filtered.length === 1 ? '' : 's'}`}</p><p className="mt-1 text-[10px] text-[#66687B]">State and LGA use the location recorded on each approved listing.</p></div>
+          {hasFilters && <button onClick={clearFilters} className="text-[10px] font-medium text-violet-300">Clear filters</button>}
         </div>
-      )}
-
-      {/* Browse by State — Quick access */}
-      {!filterState && !query && (
-        <div className="px-5 pt-4">
-          <p className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-2">Browse by State</p>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-            {POPULAR_STATES.map((s) => (
-              <button
-                key={s}
-                onClick={() => setFilterState(s)}
-                className="flex-shrink-0 h-8 px-3 rounded-lg bg-[#1A1A24] border border-[#232330] text-xs text-[#8A8B9C] hover:border-[#3B82F6]/50 hover:text-white transition-colors"
-              >
-                {s.replace(' (FCT)', '')}
-                {listingsByState[s] ? (
-                  <span className="ml-1 text-[9px] text-[#5C5E72]">{listingsByState[s]}</span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Active filter indicator */}
-      {(filterState || filterCity || propertyType) && (
-        <div className="px-5 pt-3 flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-[#5C5E72]">Showing:</span>
-          {propertyType && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 font-medium">
-              {PROPERTY_TYPES.find(t => t.value === propertyType)?.label || propertyType}
-            </span>
-          )}
-          {filterState && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] font-medium">
-              {filterState}{filterCity ? ` · ${filterCity}` : ''}
-            </span>
-          )}
-          <button onClick={() => { setFilterState(''); setFilterCity(''); setPropertyType(''); }} className="text-[10px] text-red-400 hover:text-red-300 ml-auto">Clear</button>
-        </div>
-      )}
-
-      {/* Results */}
-      <div className="px-5 pt-4">
-        <div className="text-[10px] text-[#5C5E72] font-medium uppercase tracking-wider mb-3">{filtered.length} Result{filtered.length !== 1 ? 's' : ''}</div>
 
         {loading ? (
-          <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>
+          <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-full bg-[#1A1A24] flex items-center justify-center mx-auto mb-3">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-            </div>
-            <p className="text-sm text-[#8A8B9C]">No listings found</p>
-            <p className="text-xs text-[#5C5E72] mt-1">Try a different state or city</p>
-          </div>
+          <section className="rounded-3xl border border-dashed border-white/[0.08] bg-white/[0.015] px-6 py-16 text-center"><h2 className="text-sm font-semibold">No available apartments match this search</h2><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#66687B]">Change the location or filters. Pending, reserved, unavailable and deleted listings are not part of discovery.</p>{hasFilters && <button onClick={clearFilters} className="mt-5 rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold">Show all available apartments</button>}</section>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {filtered.map(l => (
-              <ListingCard key={l.id} listing={l} onClick={() => onNavigate('detail', l.id)} isSaved={savedIds.has(l.id)} onToggleSave={(e) => { e.stopPropagation(); onToggleSave(l.id); }} />
-            ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map(listing => <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event => { event.stopPropagation(); onToggleSave(listing.id); }} />)}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
