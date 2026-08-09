@@ -1,8 +1,5 @@
 import { supabase } from './client';
 
-const ACTIVE_RESERVATION_STATUSES = ['active', 'inspection_pending'];
-const ACTIVE_INSPECTION_STATUSES = ['pending', 'scheduled', 'in_progress'];
-
 // Canonical apartment reservation API. Identity, availability, fee and duplicate
 // prevention are enforced by the database; caller-supplied user or price data is ignored.
 export async function createReservation(
@@ -22,16 +19,10 @@ export async function createReservation(
 }
 
 export async function getReservationForListing(listingId: string, _userId?: string) {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*')
-    .eq('listing_id', listingId)
-    .in('status', ACTIVE_RESERVATION_STATUSES)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return { reservation: data as any, error };
+  const { data, error } = await supabase.rpc('get_my_reservation_for_listing', {
+    p_listing_id: listingId,
+  });
+  return { reservation: data as any || null, error };
 }
 
 export async function getReservationsForUser(_userId?: string) {
@@ -65,7 +56,6 @@ export async function markSupportContacted(reservationId: string) {
   return { reservation: data as any || null, error };
 }
 
-// USER INSPECTION REQUESTS (after reservation)
 export async function createInspectionRequest(
   reservationId: string,
   _listingId?: string,
