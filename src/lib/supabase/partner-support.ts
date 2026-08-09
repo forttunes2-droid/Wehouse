@@ -1,19 +1,17 @@
 import { supabase } from './client';
 
-// ═══════════════════════════════════════════════════════════════
-// PROPERTY PARTNER SUPPORT CONVERSATION API
-// ═══════════════════════════════════════════════════════════════
-
-// Create support conversation from inspection request
+// Canonical Property Partner ↔ WeHouse conversation API.
+// Property-specific values remain supported, while general support can use
+// the same secure backend workflow without creating a second conversation system.
 export async function createPartnerSupportConversation(
   partnerId: string,
   subject: string,
-  propertyName: string,
-  propertyAddress: string,
-  propertyCity: string,
-  propertyState: string,
-  propertyType: string = 'house',
-  rentalMode: string = 'long_stay'
+  propertyName: string = 'General WeHouse support',
+  propertyAddress: string = 'Not property-specific',
+  propertyCity: string = 'Not specified',
+  propertyState: string = 'Not specified',
+  propertyType: string = 'support',
+  rentalMode: string = 'general'
 ) {
   const { data, error } = await supabase.rpc('create_partner_support_conversation', {
     p_partner_id: partnerId,
@@ -28,7 +26,6 @@ export async function createPartnerSupportConversation(
   return { conversationId: data, error };
 }
 
-// Get partner's conversations
 export async function getPartnerConversations(partnerId: string) {
   const { data, error } = await supabase.rpc('get_partner_conversations', {
     p_partner_id: partnerId,
@@ -36,7 +33,6 @@ export async function getPartnerConversations(partnerId: string) {
   return { conversations: data || [], error };
 }
 
-// Get staff support conversations (for support/creator staff)
 export async function getStaffSupportConversations(staffId: string) {
   const { data, error } = await supabase.rpc('get_staff_support_conversations', {
     p_staff_id: staffId,
@@ -44,7 +40,6 @@ export async function getStaffSupportConversations(staffId: string) {
   return { conversations: data || [], error };
 }
 
-// Get support messages
 export async function getPartnerSupportMessages(conversationId: string) {
   const { data, error } = await supabase.rpc('get_partner_support_messages', {
     p_conversation_id: conversationId,
@@ -52,7 +47,6 @@ export async function getPartnerSupportMessages(conversationId: string) {
   return { messages: data || [], error };
 }
 
-// Send support message
 export async function sendPartnerSupportMessage(
   conversationId: string,
   senderId: string,
@@ -68,12 +62,11 @@ export async function sendPartnerSupportMessage(
   return { messageId: data, error };
 }
 
-// Add system action (for workflow timeline)
 export async function addConversationAction(
   conversationId: string,
   actionType: string,
   content: string,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, unknown> = {}
 ) {
   const { data, error } = await supabase.rpc('add_conversation_action', {
     p_conversation_id: conversationId,
@@ -84,7 +77,6 @@ export async function addConversationAction(
   return { messageId: data, error };
 }
 
-// Assign field officer
 export async function assignFieldOfficerToConversation(
   conversationId: string,
   staffId: string,
@@ -98,7 +90,6 @@ export async function assignFieldOfficerToConversation(
   return { success: data, error };
 }
 
-// Mark messages as read
 export async function markPartnerMessagesRead(conversationId: string, readerRole: string) {
   await supabase.rpc('mark_partner_messages_read', {
     p_conversation_id: conversationId,
@@ -106,7 +97,6 @@ export async function markPartnerMessagesRead(conversationId: string, readerRole
   });
 }
 
-// Action type labels for display
 export const ACTION_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   message: { label: 'Message', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', color: 'text-[#5C5E72]' },
   inspection_requested: { label: 'Inspection Requested', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', color: 'text-amber-400' },
@@ -120,5 +110,3 @@ export const ACTION_TYPE_LABELS: Record<string, { label: string; icon: string; c
   attachment_added: { label: 'Attachment Added', icon: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13', color: 'text-pink-400' },
   conversation_closed: { label: 'Conversation Closed', icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'text-gray-400' },
 };
-
-
