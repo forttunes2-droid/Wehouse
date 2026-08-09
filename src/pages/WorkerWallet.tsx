@@ -1,259 +1,113 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
-import { Toaster, toast } from 'sonner';
 
-interface WorkerWalletProps {
-  profile: Profile;
-}
-
-interface WalletData {
+type WalletRow = {
+  id: string;
   available_balance: number;
   pending_balance: number;
-  total_earned: number;
+  frozen_balance: number;
   total_withdrawn: number;
-  frozen: boolean;
+  is_frozen: boolean;
   frozen_reason: string | null;
-  transactions: WalletTransaction[];
-}
+};
 
-interface WalletTransaction {
+type BankAccount = {
   id: string;
-  type: string;
-  amount: number;
-  balance_after: number;
-  description: string;
-  created_at: string;
-}
-
-interface WithdrawalRequest {
-  id: string;
-  amount_requested: number;
-  withdrawal_fee: number;
-  amount_paid: number;
-  status: string;
   bank_name: string;
-  bank_account_number: string;
-  created_at: string;
-  completed_at: string | null;
-}
+  account_number: string;
+  account_name: string;
+  is_default: boolean;
+};
 
-export default function WorkerWallet({ profile }: WorkerWalletProps) {
-  const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+type Tab = 'overview' | 'withdraw' | 'activity';
+
+const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+
+export default function WorkerWallet({ profile }: { profile: Profile }) {
+  const [tab, setTab] = useState<Tab>('overview');
+  const [wallet, setWallet] = useState<WalletRow | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState('');
+  const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showWithdrawForm, setShowWithdrawForm] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { loadWallet(); }, []);
+  const selectedBank = useMemo(() => banks.find(bank => bank.id === selectedBankId) || banks.find(bank => bank.is_default) || banks[0], [banks, selectedBankId]);
 
-  async function loadWallet() {
+  async function load() {
     setLoading(true);
-    const [{ data: walletData }, { data: withdrawalData }] = await Promise.all([
-      supabase.rpc('get_user_wallet', { p_user_id: profile.user_id }),
-      supabase.from('withdrawal_requests').select('*').eq('user_id', profile.user_id).order('created_at', { ascending: false }).limit(10),
+    const [walletResult, transactionResult, withdrawalResult, bankResult] = await Promise.all([
+      supabase.from('wallets').select('id,available_balance,pending_balance,frozen_balance,total_withdrawn,is_frozen,frozen_reason').eq('owner_id', profile.user_id).eq('owner_type', 'worker').maybeSingle(),
+      supabase.from('wallet_transactions').select('*').eq('user_id', profile.user_id).order('created_at', { ascending: false }).limit(30),
+      supabase.from('withdrawals').select('id,amount,status,created_at,failed_reason,wallets!inner(owner_id)').eq('wallets.owner_id', profile.user_id).order('created_at', { ascending: false }).limit(20),
+      supabase.from('bank_accounts').select('id,bank_name,account_number,account_name,is_default').eq('user_id', profile.user_id).order('is_default', { ascending: false }),
     ]);
-    if (walletData) setWallet(typeof walletData === 'string' ? JSON.parse(walletData) : walletData);
-    setWithdrawals(withdrawalData || []);
+
+    if (walletResult.error) toast.error('Unable to load worker wallet');
+    setWallet((walletResult.data || null) as WalletRow | null);
+    setTransactions(transactionResult.data || []);
+    setWithdrawals(withdrawalResult.data || []);
+    setBanks((bankResult.data || []) as BankAccount[]);
+    if (!selectedBankId && bankResult.data?.[0]?.id) setSelectedBankId(bankResult.data[0].id);
     setLoading(false);
   }
 
-  async function handleWithdraw(e: React.FormEvent) {
-    e.preventDefault();
-    const amount = parseFloat(withdrawAmount);
-    if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
-    if (!wallet || amount > wallet.available_balance) { toast.error('Insufficient balance'); return; }
-    if (!profile.bank_code || !profile.bank_account_number) {
-      toast.error('Bank details not set. Add them in Profile Settings.');
-      return;
-    }
+  useEffect(() => { void load(); }, [profile.user_id]);
 
-    setProcessing(true);
-    const { data, error } = await supabase.rpc('create_withdrawal_request', {
-      p_user_id: profile.user_id,
-      p_amount: amount,
-      p_bank_name: profile.bank_name || '',
-      p_bank_code: profile.bank_code || '',
-      p_account_number: profile.bank_account_number || '',
+  async function withdraw() {
+    if (!wallet) return;
+    const numericAmount = Number(amount);
+    if (!numericAmount || numericAmount <= 0) return toast.error('Enter a valid amount');
+    if (numericAmount > Number(wallet.available_balance || 0)) return toast.error('Insufficient available balance');
+    if (!selectedBank) return toast.error('Add a bank account before withdrawing');
+    if (wallet.is_frozen) return toast.error(wallet.frozen_reason || 'Your wallet is frozen');
+
+    setSubmitting(true);
+    const { error } = await supabase.rpc('request_worker_withdrawal', {
+      p_amount: numericAmount,
+      p_bank_account_id: selectedBank.id,
     });
-    setProcessing(false);
+    setSubmitting(false);
 
-    if (error) {
-      toast.error(error.message || 'Withdrawal failed');
-      return;
-    }
-
-    const result = typeof data === 'string' ? JSON.parse(data) : data;
-    if (result?.success) {
-      toast.success(`Withdrawal request created! Net: N${result.net_amount}`);
-      setShowWithdrawForm(false);
-      setWithdrawAmount('');
-      loadWallet();
-    } else {
-      toast.error(result?.error || 'Failed');
-    }
+    if (error) return toast.error(error.message || 'Withdrawal request failed');
+    toast.success('Withdrawal request submitted');
+    setAmount('');
+    setTab('activity');
+    await load();
   }
 
-  const formatN = (n: number) => `N${Number(n || 0).toLocaleString()}`;
-  const statusColor = (s: string) => {
-    switch (s) {
-      case 'paid': return 'text-emerald-400 bg-emerald-500/10';
-      case 'pending': return 'text-amber-400 bg-amber-500/10';
-      case 'processing': return 'text-blue-400 bg-blue-500/10';
-      case 'failed': return 'text-red-400 bg-red-500/10';
-      default: return 'text-[#5C5E72] bg-[#12121A]';
-    }
-  };
+  if (loading) return <div className="grid min-h-56 place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>;
+  if (!wallet) return <section className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-5 text-xs text-amber-300">Your worker wallet has not been created yet. Complete worker verification or contact WeHouse support.</section>;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const tabs: Array<{ key: Tab; label: string }> = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'withdraw', label: 'Withdraw' },
+    { key: 'activity', label: 'Activity' },
+  ];
 
-  return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-24">
-      <Toaster position="top-center" richColors theme="dark" />
+  return <div className="min-h-[100dvh] bg-[#09090D] px-4 py-5 pb-24 text-white lg:px-8 lg:py-8">
+    <Toaster position="top-center" richColors />
+    <div className="mx-auto max-w-6xl space-y-5">
+      <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[0.12] via-[#151520] to-[#101018] p-5 lg:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300">Worker wallet</p><p className="mt-2 text-3xl font-bold lg:text-4xl">{money(wallet.available_balance)}</p><p className="mt-2 text-[10px] text-[#85879A]">Available earnings that can be withdrawn.</p></div>{wallet.is_frozen && <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-[10px] font-semibold text-red-300">Wallet frozen</span>}</div>
+        <div className="mt-6 grid grid-cols-3 gap-2"><Small label="Pending" value={money(wallet.pending_balance)} /><Small label="Held" value={money(wallet.frozen_balance)} /><Small label="Withdrawn" value={money(wallet.total_withdrawn)} /></div>
+      </section>
 
-      {/* Header */}
-      <div className="px-5 pt-6 pb-4">
-        <h1 className="text-lg font-bold text-white">My Wallet</h1>
-        <p className="text-[10px] text-[#5C5E72]">{profile.role === 'worker' ? 'Worker Earnings' : 'Property Partner Earnings'}</p>
-      </div>
+      <div className="flex gap-1 rounded-xl border border-white/[0.05] bg-[#111119] p-1">{tabs.map(item => <button key={item.key} onClick={() => setTab(item.key)} className={`flex-1 rounded-lg px-3 py-2.5 text-[11px] font-semibold transition ${tab === item.key ? 'bg-violet-500 text-white' : 'text-[#77798B] hover:text-white'}`}>{item.label}</button>)}</div>
 
-      <div className="px-5 space-y-4">
-        {/* Balance Card */}
-        <div className="glass rounded-2xl p-5 border border-[#3B82F6]/10">
-          {wallet?.frozen && (
-            <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
-              <p className="text-[10px] text-red-400 font-medium">Wallet Frozen: {wallet.frozen_reason}</p>
-            </div>
-          )}
+      {tab === 'overview' && <div className="space-y-4"><section className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Card label="Available" value={wallet.available_balance} /><Card label="Pending" value={wallet.pending_balance} /><Card label="Held" value={wallet.frozen_balance} /><Card label="Withdrawn" value={wallet.total_withdrawn} /></section>{wallet.frozen_reason && <section className="rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-4 text-[10px] text-red-300">{wallet.frozen_reason}</section>}<section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-4 text-[10px] leading-relaxed text-[#797B8E]">Only completed and released job earnings become available. Pending, disputed or frozen funds cannot be withdrawn.</section></div>}
 
-          <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Available Balance</p>
-          <p className="text-3xl font-bold text-white mt-1">{formatN(wallet?.available_balance || 0)}</p>
+      {tab === 'withdraw' && <section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-5"><h2 className="text-sm font-semibold">Request withdrawal</h2><p className="mt-1 text-[10px] text-[#66687B]">Choose a saved bank account and enter an amount from your available balance.</p><div className="mt-5 space-y-3"><input type="number" min="0" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Amount" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#181822] px-3 text-sm outline-none focus:border-violet-500" />{banks.length === 0 ? <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.05] p-4 text-[10px] text-amber-300">No bank account found. Add one from Account Settings before withdrawing.</div> : <div className="space-y-2">{banks.map(bank => <button key={bank.id} onClick={() => setSelectedBankId(bank.id)} className={`w-full rounded-xl border p-3 text-left ${selectedBank?.id === bank.id ? 'border-violet-500/35 bg-violet-500/[0.08]' : 'border-white/[0.06] bg-white/[0.025]'}`}><div className="flex items-center justify-between"><div><p className="text-xs font-medium">{bank.bank_name}</p><p className="mt-1 text-[9px] text-[#66687B]">{bank.account_number} · {bank.account_name}</p></div>{bank.is_default && <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] text-emerald-300">Default</span>}</div></button>)}</div>}<button onClick={() => void withdraw()} disabled={submitting || !amount || !selectedBank} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{submitting ? 'Submitting…' : 'Request withdrawal'}</button></div></section>}
 
-          <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-[#1E1E2C]">
-            <div>
-              <p className="text-[9px] text-[#5C5E72]">Pending</p>
-              <p className="text-sm font-semibold text-amber-400">{formatN(wallet?.pending_balance || 0)}</p>
-            </div>
-            <div>
-              <p className="text-[9px] text-[#5C5E72]">Total Earned</p>
-              <p className="text-sm font-semibold text-emerald-400">{formatN(wallet?.total_earned || 0)}</p>
-            </div>
-            <div>
-              <p className="text-[9px] text-[#5C5E72]">Withdrawn</p>
-              <p className="text-sm font-semibold text-blue-400">{formatN(wallet?.total_withdrawn || 0)}</p>
-            </div>
-          </div>
-
-          {/* Withdraw Button */}
-          <button
-            onClick={() => {
-              if (wallet?.frozen) { toast.error('Wallet is frozen'); return; }
-              if ((wallet?.available_balance || 0) <= 0) { toast.error('No balance to withdraw'); return; }
-              setShowWithdrawForm(true);
-            }}
-            className="w-full mt-4 h-11 rounded-xl bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition-colors"
-          >
-            Withdraw Funds
-          </button>
-        </div>
-
-        {/* Withdraw Form */}
-        {showWithdrawForm && (
-          <form onSubmit={handleWithdraw} className="glass rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-white">Request Withdrawal</p>
-            <div>
-              <label className="text-[10px] text-[#5C5E72] block mb-1">Amount (N)</label>
-              <input
-                type="number"
-                value={withdrawAmount}
-                onChange={e => setWithdrawAmount(e.target.value)}
-                placeholder={`Max: ${formatN(wallet?.available_balance || 0)}`}
-                min="1000"
-                max={wallet?.available_balance || 0}
-                className="w-full h-10 rounded-lg bg-[#12121A] border border-[#1E1E2C] text-white text-sm px-3 focus:border-[#3B82F6]/50 outline-none"
-              />
-              <p className="text-[9px] text-[#5C5E72] mt-1">Min: N1,000 • Fee: N50 per withdrawal</p>
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" disabled={processing}
-                className="flex-1 h-9 rounded-lg bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] disabled:opacity-50">
-                {processing ? 'Processing...' : 'Confirm Withdrawal'}
-              </button>
-              <button type="button" onClick={() => setShowWithdrawForm(false)}
-                className="h-9 px-4 rounded-lg bg-[#12121A] text-[#5C5E72] text-xs">
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Recent Transactions */}
-        <div className="glass rounded-xl p-4">
-          <h3 className="text-xs font-semibold text-white mb-3">Recent Transactions</h3>
-          <div className="space-y-2">
-            {(wallet?.transactions || []).map(tx => (
-              <div key={tx.id} className="flex items-center justify-between py-1.5 border-b border-[#1E1E2C] last:border-0">
-                <div>
-                  <p className="text-[11px] text-white">{tx.description}</p>
-                  <p className="text-[9px] text-[#5C5E72]">{new Date(tx.created_at).toLocaleDateString()}</p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-[11px] font-semibold ${tx.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {tx.amount >= 0 ? '+' : ''}{formatN(tx.amount)}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {(!wallet?.transactions || wallet.transactions.length === 0) && (
-              <p className="text-[10px] text-[#5C5E72] text-center py-4">No transactions yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Withdrawal History */}
-        <div className="glass rounded-xl p-4">
-          <h3 className="text-xs font-semibold text-white mb-3">Withdrawal History</h3>
-          <div className="space-y-2">
-            {withdrawals.map(w => (
-              <div key={w.id} className="flex items-center justify-between py-2 border-b border-[#1E1E2C] last:border-0">
-                <div>
-                  <p className="text-[11px] text-white font-medium">{formatN(w.amount_requested)}</p>
-                  <p className="text-[9px] text-[#5C5E72]">
-                    {w.bank_name} •••{w.bank_account_number?.slice(-4)}
-                  </p>
-                  <p className="text-[9px] text-[#5C5E72]">{new Date(w.created_at).toLocaleDateString()}</p>
-                </div>
-                <div className="text-right">
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full ${statusColor(w.status)}`}>{w.status}</span>
-                  {w.amount_paid > 0 && <p className="text-[9px] text-emerald-400 mt-0.5">Net: {formatN(w.amount_paid)}</p>}
-                </div>
-              </div>
-            ))}
-            {withdrawals.length === 0 && (
-              <p className="text-[10px] text-[#5C5E72] text-center py-4">No withdrawals yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Bank Details */}
-        <div className="glass rounded-xl p-4">
-          <h3 className="text-xs font-semibold text-white mb-2">Payout Bank Details</h3>
-          <div className="space-y-1">
-            <p className="text-[10px] text-[#5C5E72]">Bank: <span className="text-white">{profile.bank_name || 'Not set'}</span></p>
-            <p className="text-[10px] text-[#5C5E72]">Account: <span className="text-white">{profile.bank_account_number ? `•••${profile.bank_account_number.slice(-4)}` : 'Not set'}</span></p>
-          </div>
-          {!profile.bank_account_number && (
-            <p className="text-[9px] text-amber-400 mt-2">Add your bank details in Profile Settings to withdraw</p>
-          )}
-        </div>
-      </div>
+      {tab === 'activity' && <div className="grid gap-4 lg:grid-cols-2"><List title="Transactions" empty="No wallet transactions yet." rows={transactions.map(row => ({ id: row.id, title: row.description || row.transaction_type || 'Transaction', note: new Date(row.created_at).toLocaleDateString(), amount: Number(row.amount || 0), status: row.transaction_type }))} /><List title="Withdrawals" empty="No withdrawal requests yet." rows={withdrawals.map(row => ({ id: row.id, title: `Withdrawal · ${row.status}`, note: new Date(row.created_at).toLocaleDateString(), amount: -Number(row.amount || 0), status: row.status }))} /></div>}
     </div>
-  );
+  </div>;
 }
+
+function Small({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-[8px] uppercase tracking-wide text-[#6C6E80]">{label}</p><p className="mt-1 truncate text-xs font-semibold">{value}</p></div>; }
+function Card({ label, value }: { label: string; value: number }) { return <div className="rounded-2xl border border-white/[0.06] bg-[#111119] p-4"><p className="text-[9px] text-[#66687B]">{label}</p><p className="mt-2 text-lg font-bold">{money(value)}</p></div>; }
+function List({ title, empty, rows }: { title: string; empty: string; rows: Array<{ id: string; title: string; note: string; amount: number; status: string }> }) { return <section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-4"><h2 className="text-sm font-semibold">{title}</h2>{rows.length === 0 ? <p className="py-10 text-center text-[10px] text-[#5E6072]">{empty}</p> : <div className="mt-3 divide-y divide-white/[0.05]">{rows.map(row => <div key={row.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-[11px] font-medium">{row.title}</p><p className="mt-1 text-[9px] text-[#5E6072]">{row.note} · {row.status?.replace(/_/g, ' ')}</p></div><p className={`text-xs font-semibold ${row.amount < 0 ? 'text-red-300' : 'text-emerald-300'}`}>{row.amount < 0 ? '-' : '+'}{money(Math.abs(row.amount))}</p></div>)}</div>}</section>; }
