@@ -10,9 +10,7 @@ export interface DesktopNavItem {
 
 function icon(path: string) {
   return (active: boolean) => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#A78BFA' : '#8A8B9C'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d={path} />
-    </svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#A78BFA' : '#8A8B9C'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>
   );
 }
 
@@ -25,74 +23,35 @@ const SAVED = icon('M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z');
 const WALLET = icon('M3 7h18v12H3z;16 11h5');
 const ANALYTICS = icon('M18 20V10M12 20V4M6 20v-6');
 
-function badge(unreadCount: number) {
-  return unreadCount > 0 ? unreadCount : undefined;
-}
+function badge(unreadCount: number) { return unreadCount > 0 ? unreadCount : undefined; }
 
 export function getCreatorNav(): DesktopNavItem[] {
-  return [
-    { id: 'home', label: 'Home', icon: HOME },
-    { id: 'creator', label: 'Dashboard', icon: DASHBOARD },
-    { id: 'analytics', label: 'Analytics', icon: ANALYTICS },
-    { id: 'profile', label: 'Account', icon: ACCOUNT },
-  ];
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'creator', label: 'Dashboard', icon: DASHBOARD }, { id: 'analytics', label: 'Analytics', icon: ANALYTICS }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-
 export function getAdminNav(unreadCount = 0): DesktopNavItem[] {
-  return [
-    { id: 'home', label: 'Home', icon: HOME },
-    { id: 'admin', label: 'Dashboard', icon: DASHBOARD },
-    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
-    { id: 'profile', label: 'Account', icon: ACCOUNT },
-  ];
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'admin', label: 'Dashboard', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-
 export function getStaffNav(unreadCount = 0): DesktopNavItem[] {
-  return [
-    { id: 'home', label: 'Home', icon: HOME },
-    { id: 'staff_dashboard', label: 'Staff Hub', icon: DASHBOARD },
-    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
-    { id: 'profile', label: 'Account', icon: ACCOUNT },
-  ];
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'staff_dashboard', label: 'Staff Hub', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-
 export function getWorkerNav(unreadCount = 0): DesktopNavItem[] {
-  return [
-    { id: 'home', label: 'Home', icon: HOME },
-    { id: 'worker_dashboard', label: 'Dashboard', icon: DASHBOARD },
-    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
-    { id: 'wallet', label: 'Wallet', icon: WALLET },
-    { id: 'profile', label: 'Account', icon: ACCOUNT },
-  ];
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'worker_dashboard', label: 'Dashboard', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'wallet', label: 'Wallet', icon: WALLET }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-
-export function getPartnerNav(unreadCount = 0): DesktopNavItem[] {
-  return [
-    { id: 'home', label: 'Home', icon: HOME },
-    { id: 'property_partner', label: 'Dashboard', icon: DASHBOARD },
-    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
-    { id: 'wallet', label: 'Wallet', icon: WALLET },
-    { id: 'profile', label: 'Account', icon: ACCOUNT },
-  ];
+export function getPartnerNav(): DesktopNavItem[] {
+  // Partner messages and wallet are role-specific tools inside the partner dashboard.
+  // Keep global navigation focused and avoid parallel generic implementations.
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'property_partner', label: 'Dashboard', icon: DASHBOARD }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
-  return [
-    { id: 'home', label: 'Home', icon: HOME },
-    { id: 'search', label: 'Search', icon: SEARCH },
-    { id: 'saved', label: 'Saved', icon: SAVED },
-    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
-    { id: 'profile', label: 'Account', icon: ACCOUNT },
-  ];
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'search', label: 'Search', icon: SEARCH }, { id: 'saved', label: 'Saved', icon: SAVED }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-
 export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
   switch (role) {
     case 'creator': return getCreatorNav();
     case 'admin': return getAdminNav(unreadCount);
     case 'staff': return getStaffNav(unreadCount);
     case 'worker': return getWorkerNav(unreadCount);
-    case 'property_partner': return getPartnerNav(unreadCount);
+    case 'property_partner': return getPartnerNav();
     default: return getUserNav(unreadCount);
   }
 }
