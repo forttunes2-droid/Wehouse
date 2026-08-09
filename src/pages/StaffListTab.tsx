@@ -1,129 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getAllUsers } from '@/lib/supabase/admin';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
 
-const MODULE_LABELS: Record<string, string> = {
-  operations: 'Operations',
-  finance: 'Finance',
-  support: 'Support',
-  verification: 'Verification',
-  field_officer: 'Field Officer',
-};
-
-interface StaffListTabProps {
-  profile: Profile;
-}
-
-export default function StaffListTab({ profile }: StaffListTabProps) {
-  const [staff, setStaff] = useState<Profile[]>([]);
-  const [staffModules, setStaffModules] = useState<Record<string, string[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-
-  useEffect(() => { loadStaff(); }, []);
-
-  async function loadStaff() {
-    setLoading(true);
-    const { users, error } = await getAllUsers();
-    if (!error && users) {
-      const staffList = users.filter((u: any) => u.role === 'staff') as Profile[];
-      setStaff(staffList);
-
-      // Fetch modules for all staff (from staff_permissions table)
-      if (staffList.length > 0) {
-        const ids = staffList.map(s => s.user_id);
-        const { data: mods } = await supabase.from('staff_permissions').select('*').in('staff_id', ids).eq('is_active', true);
-        const moduleMap: Record<string, string[]> = {};
-        (mods || []).forEach((m: any) => {
-          if (!moduleMap[m.staff_id]) moduleMap[m.staff_id] = [];
-          moduleMap[m.staff_id].push(m.permission);
-        });
-        setStaffModules(moduleMap);
-      }
-    }
-    setLoading(false);
-  }
-
-  async function assignModule(staffId: string, module: string) {
-    setSaving(staffId);
-    const current = staffModules[staffId] || [];
-    const hasModule = current.includes(module);
-
-    // Per Constitution: Staff can only have ONE module at a time
-    // If assigning a new module, revoke all existing ones first
-    if (!hasModule) {
-      // Revoke ALL existing permissions for this staff
-      await supabase.from('staff_permissions').update({ is_active: false, revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('is_active', true);
-      // Grant only the selected module
-      const { error } = await supabase.from('staff_permissions').upsert({
-        staff_id: staffId,
-        permission: module,
-        granted_by: profile.user_id,
-        is_active: true,
-        granted_at: new Date().toISOString(),
-      }, { onConflict: 'staff_id,permission' });
-      if (error) { toast.error('Failed to assign: ' + error.message); setSaving(null); return; }
-      setStaffModules(prev => ({ ...prev, [staffId]: [module] }));
-      toast.success('Module assigned');
-    } else {
-      // Revoking the only module
-      await supabase.from('staff_permissions').update({ is_active: false, revoked_at: new Date().toISOString() }).eq('staff_id', staffId).eq('permission', module);
-      setStaffModules(prev => ({ ...prev, [staffId]: [] }));
-      toast.success('Module revoked');
-    }
-    setSaving(null);
-  }
-
-  if (loading) {
-    return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
-  }
-
-  if (staff.length === 0) {
-    return <div className="text-center py-10"><p className="text-sm text-[#5C5E72]">No staff members found</p></div>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-white">Staff Members</h3>
-        <span className="text-[10px] text-[#5C5E72]">{staff.length} total</span>
-      </div>
-      <p className="text-[10px] text-[#5C5E72]">Each staff member can have ONE module only. Select to assign, select again to remove.</p>
-      {staff.map(s => {
-        const modules = staffModules[s.user_id] || [];
-        const currentModule = modules[0] || null;
-        return (
-          <div key={s.user_id} className="glass rounded-xl p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold">
-                {(s.username || 'S').charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-xs font-medium text-white">@{s.username}</p>
-                <p className="text-[10px] text-[#5C5E72]">{s.email}</p>
-              </div>
-            </div>
-            {/* Single-select module dropdown */}
-            <div className="flex items-center gap-2">
-              <label className="text-[10px] text-[#5C5E72] flex-shrink-0">Module:</label>
-              <select
-                value={currentModule || ''}
-                onChange={(e) => assignModule(s.user_id, e.target.value)}
-                disabled={saving === s.user_id}
-                className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-[11px] px-2 focus:border-[#3B82F6]/50 outline-none"
-              >
-                <option value="">No module assigned</option>
-                {Object.entries(MODULE_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-              {saving === s.user_id && <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin flex-shrink-0" />}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+const MODULES: Record<string,string>={operations:'Operations',finance:'Finance',support:'Support',verification:'Verification',field_officer:'Field Officer'};
+export default function StaffListTab({profile:_profile}:{profile:Profile}){
+ const [staff,setStaff]=useState<Profile[]>([]),[assigned,setAssigned]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[saving,setSaving]=useState<string|null>(null);
+ async function load(){setLoading(true);const {users,error}=await getAllUsers();if(error){toast.error('Unable to load staff');setLoading(false);return}const list=(users||[]).filter((u:any)=>u.role==='staff') as Profile[];setStaff(list);if(list.length){const {data,error:permError}=await supabase.from('staff_permissions').select('staff_id,permission').in('staff_id',list.map(s=>s.user_id)).eq('is_active',true);if(permError)toast.error(permError.message);const map:Record<string,string>={};(data||[]).forEach((p:any)=>{map[p.staff_id]=p.permission});setAssigned(map)}setLoading(false)}
+ useEffect(()=>{void load()},[]);
+ async function change(staffId:string,next:string){setSaving(staffId);const current=assigned[staffId]||'';if(current===next){setSaving(null);return}if(!next&&current){const {error}=await supabase.rpc('manage_staff_permission',{p_staff_id:staffId,p_permission:current,p_enabled:false});if(error){toast.error(error.message);setSaving(null);return}setAssigned(v=>({...v,[staffId]:''}));toast.success('Module removed')}else if(next){const {error}=await supabase.rpc('manage_staff_permission',{p_staff_id:staffId,p_permission:next,p_enabled:true});if(error){toast.error(error.message);setSaving(null);return}setAssigned(v=>({...v,[staffId]:next}));toast.success('Module assigned')}setSaving(null)}
+ if(loading)return <div className="grid min-h-40 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"/></div>;
+ return <div className="space-y-4"><div><h3 className="text-sm font-bold text-white">Staff modules</h3><p className="mt-1 text-[10px] text-[#66697B]">Each staff member has one operational module. Changing it automatically revokes the previous module on the server.</p></div>{staff.length===0?<div className="rounded-xl border border-dashed border-white/[0.08] p-10 text-center text-xs text-[#66697B]">No staff members found.</div>:staff.map(s=><div key={s.user_id} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4"><div className="flex items-center justify-between gap-4"><div className="min-w-0"><p className="truncate text-xs font-semibold text-white">{s.full_name||s.username||'Staff member'}</p><p className="mt-1 truncate text-[9px] text-[#66697B]">{s.email} · {[s.assigned_lga,s.assigned_state].filter(Boolean).join(', ')||'No branch assigned'}</p></div><div className="flex items-center gap-2"><select value={assigned[s.user_id]||''} disabled={saving===s.user_id} onChange={e=>void change(s.user_id,e.target.value)} className="h-9 rounded-xl border border-white/[0.08] bg-[#171A23] px-3 text-[10px] text-white outline-none"><option value="">No module</option>{Object.entries(MODULES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>{saving===s.user_id&&<div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"/>}</div></div></div>)}</div>
 }
