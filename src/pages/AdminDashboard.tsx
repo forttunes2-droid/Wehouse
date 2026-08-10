@@ -1,949 +1,171 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  supabase, getAllUsers,
-  getAllListingsAdmin, deleteListing, getReports,
-} from '@/lib/supabase';
+import { useEffect, useMemo, useState } from 'react';
+import { Toaster, toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
 import { AnnouncementsTab } from '@/components/AnnouncementsTab';
-import BookingsTab from './BookingsTab';
-import type { Profile, Listing } from '@/types';
-import { ROLE_LABELS } from '@/types';
-import { Toaster, toast } from 'sonner';
+import StaffListTab from './StaffListTab';
+import type { Profile } from '@/types';
 
-// ── Support conversation from branch-scoped inbox ──
-interface SupportConvo {
-  id: string;
-  participant_a: string;
-  status: string;
-  last_message: string;
-  last_message_at: string;
-  unread_b: number;
-  conversation_type: string;
-  subject: string;
-  user_name: string;
-  user_email: string;
-  user_phone: string;
-  user_state: string;
-  user_lga: string;
-}
+type AdminTab = 'overview' | 'people' | 'staff' | 'listings' | 'verification' | 'bookings' | 'reports' | 'support' | 'announcements';
+type PersonFilter = 'user' | 'worker' | 'property_partner';
 
-// Constitution: Admin Tabs: Overview, Users, Workers, Property Partners, Staff, Listings, Bookings, Reports, Support, Verification, Announcements
-type AdminTab = 'overview' | 'users' | 'workers' | 'partners' | 'staff' | 'listings' | 'bookings' | 'reports' | 'support' | 'verification' | 'announcements';
-
-interface Props {
+type Props = {
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string) => void;
   onGoToChat?: (convId?: string) => void;
-}
-
-/* role badge colors — kept for future use
-const roleColors: Record<string, string> = {
-  creator: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-  admin: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/20',
-  staff: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  user: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
-  worker: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
-  property_partner: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
 };
-*/
+
+const TABS: Array<{ id: AdminTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'people', label: 'People' },
+  { id: 'staff', label: 'Staff' },
+  { id: 'listings', label: 'Listings' },
+  { id: 'verification', label: 'Worker Review' },
+  { id: 'bookings', label: 'Bookings' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'support', label: 'Support' },
+  { id: 'announcements', label: 'Announcements' },
+];
 
 export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
-  const TAB_KEY = 'wh_admin_tab';
-  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
-    try {
-      const saved = localStorage.getItem(TAB_KEY);
-      return saved && ['overview','users','workers','partners','staff','listings','bookings','reports','support','verification','announcements'].includes(saved) ? saved as AdminTab : 'overview';
-    } catch { return 'overview'; }
-  });
-
-  const handleSetTab = useCallback((tab: AdminTab) => {
-    setActiveTab(tab);
-    localStorage.setItem(TAB_KEY, tab);
-  }, []);
-
-  const [stats, setStats] = useState({ totalUsers: 0, workers: 0, partners: 0, staff: 0, listings: 0, bookings: 0, reports: 0, pendingVerifications: 0 });
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [tab, setTab] = useState<AdminTab>('overview');
+  const [stats, setStats] = useState<any>({ users: 0, workers: 0, partners: 0, staff: 0, listings: 0, pending_verifications: 0 });
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
-  const refresh = () => setRefreshKey(k => k + 1);
-
-  // Admin sees ALL data nationwide (scope not restricted)
+  const branchReady = Boolean(profile.assigned_state && profile.assigned_lga);
 
   useEffect(() => {
-    async function loadStats() {
-      const [userRes, listingRes, bookingsRes, reportsRes] = await Promise.all([
-        getAllUsers(),
-        getAllListingsAdmin(),
-        supabase.from('worker_bookings').select('*', { count: 'exact', head: true }),
-        getReports(),
-      ]);
-      const users = userRes.users || [];
-      const listings = listingRes.listings || [];
-      const isActive = (u: any) => !u.deleted && !u.deleted_at;
-
-      setStats({
-        totalUsers: users.filter(isActive).length,
-        workers: users.filter((u: any) => isActive(u) && u.role === 'worker').length,
-        partners: users.filter((u: any) => isActive(u) && u.role === 'property_partner').length,
-        staff: users.filter((u: any) => isActive(u) && u.role === 'staff').length,
-        listings: listings.length,
-        bookings: bookingsRes.count || 0,
-        reports: reportsRes.reports?.length || 0,
-        pendingVerifications: users.filter((u: any) => isActive(u) && u.role === 'worker' && u.worker_status === 'profile_under_review').length,
-      });
-    }
-    loadStats();
-  }, [profile.role, profile.user_id, refreshKey]);
-
-  // Constitution-compliant tabs
-  const tabs = [
-    { id: 'overview' as AdminTab, label: 'Overview' },
-    { id: 'users' as AdminTab, label: 'Users' },
-    { id: 'workers' as AdminTab, label: 'Workers' },
-    { id: 'partners' as AdminTab, label: 'Partners' },
-    { id: 'staff' as AdminTab, label: 'Staff' },
-    { id: 'listings' as AdminTab, label: 'Listings' },
-    { id: 'bookings' as AdminTab, label: 'Bookings' },
-    { id: 'reports' as AdminTab, label: 'Reports' },
-    { id: 'support' as AdminTab, label: 'Support' },
-    { id: 'verification' as AdminTab, label: 'Verify' },
-    { id: 'announcements' as AdminTab, label: 'Announcements' },
-  ];
+    if (!branchReady) return;
+    void (async () => {
+      const { data, error } = await supabase.rpc('admin_get_my_branch_stats');
+      if (error) toast.error(error.message);
+      else if (data) setStats(data);
+    })();
+  }, [branchReady]);
 
   return (
-    <div className="min-h-[100dvh] bg-transparent pb-nav overflow-y-auto scrollable-content">
-      <Toaster position="top-center" toastOptions={{ style: { background: '#1A1A24', color: '#fff', border: '1px solid #232330' } }} />
-
-      {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 to-indigo-800 px-5 pt-6 pb-8 lg:px-8 lg:pt-8">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg font-bold text-white">Admin Dashboard</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border text-indigo-300 bg-white/10 border-white/20">{ROLE_LABELS[profile.role as keyof typeof ROLE_LABELS] || profile.role}</span>
+    <div className="min-h-[100dvh] bg-[#080A0F] pb-24 text-white">
+      <Toaster position="top-center" richColors />
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#080A0F]/92 backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-4 pt-5 lg:px-8">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-[.24em] text-indigo-400">WeHouse Admin</p>
+              <h1 className="mt-1 truncate text-lg font-bold">{profile.full_name || profile.username || 'Branch Admin'}</h1>
+              <p className="mt-1 text-[10px] text-[#717487]">{branchReady ? `${profile.assigned_lga}, ${profile.assigned_state}` : 'Branch assignment required'}</p>
             </div>
-            <p className="text-xs text-white/60">Admin manages operations, users, and support</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {onNavigate && (
-              <button onClick={() => onNavigate('home')} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-              </button>
-            )}
-            <button onClick={onLogout} className="h-8 px-3 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">Logout</button>
-          </div>
-        </div>
-
-        {/* Stats — Constitution compliant: Users, Workers, Partners, Staff, Listings */}
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: 'Users', value: stats.totalUsers },
-            { label: 'Workers', value: stats.workers },
-            { label: 'Partners', value: stats.partners },
-            { label: 'Staff', value: stats.staff },
-          ].map(s => (
-            <div key={s.label} className="bg-white/10 backdrop-blur-sm rounded-xl p-2 text-center">
-              <div className="text-lg font-bold text-white">{s.value}</div>
-              <div className="text-[9px] text-white/60">{s.label}</div>
+            <div className="flex gap-2">
+              {onNavigate && <button onClick={() => onNavigate('home')} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#9A9CAD]">Home</button>}
+              <button onClick={onLogout} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#9A9CAD]">Log out</button>
             </div>
-          ))}
+          </div>
+          <div className="mt-4 flex gap-1 overflow-x-auto pb-3 scrollbar-hide">
+            {TABS.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`shrink-0 rounded-xl px-3.5 py-2 text-[10px] font-semibold ${tab === item.id ? 'bg-indigo-500 text-white' : 'text-[#777A8C] hover:bg-white/[0.04] hover:text-white'}`}>{item.label}{item.id === 'verification' && Number(stats.pending_verifications || 0) > 0 ? <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[8px]">{stats.pending_verifications}</span> : null}</button>)}
+          </div>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="px-5 -mt-4 lg:px-8">
-        <div className="glass rounded-xl p-1 flex gap-1 overflow-x-auto scrollbar-hide">
-          {tabs.map(tab => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleSetTab(tab.id)}
-                className={`flex-shrink-0 px-3 py-2 text-[11px] font-medium whitespace-nowrap rounded-lg transition-all ${
-                  isActive ? 'bg-indigo-500/10 text-indigo-400' : 'text-[#5C5E72] hover:text-[#8B8DA0]'
-                }`}
-              >
-                {tab.label}
-                {tab.id === 'verification' && stats.pendingVerifications > 0 && (
-                  <span className="ml-1 text-[9px] px-1 py-0.5 rounded-full bg-amber-500/20 text-amber-400">{stats.pendingVerifications}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+        {!branchReady ? <BranchMissing /> : <>
+          {tab === 'overview' && <Overview stats={stats} profile={profile} onOpen={setTab} />}
+          {tab === 'people' && <People onView={setViewingProfile} />}
+          {tab === 'staff' && <StaffListTab profile={profile} />}
+          {tab === 'listings' && <Listings />}
+          {tab === 'verification' && <Verification />}
+          {tab === 'bookings' && <Bookings />}
+          {tab === 'reports' && <Reports />}
+          {tab === 'support' && <Support onGoToChat={onGoToChat} />}
+          {tab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }} />}
+        </>}
+      </main>
 
-      {/* Content */}
-      <div className="px-5 pt-4 pb-8 lg:px-8 lg:pt-6">
-        {activeTab === 'overview' && (
-          <div className="space-y-3">
-            <div className="glass rounded-2xl p-4 border border-indigo-500/10">
-              <p className="text-xs text-[#8A8B9C]">As Admin, you manage day-to-day operations. You can view users, workers, property partners, staff, listings, bookings, reports, support tickets, and worker verifications.</p>
-              {stats.pendingVerifications > 0 && (
-                <button onClick={() => handleSetTab('verification')} className="mt-3 w-full h-9 rounded-xl bg-amber-500/10 text-amber-400 text-xs font-medium border border-amber-500/20 hover:bg-amber-500/20 transition-colors">
-                  {stats.pendingVerifications} worker{stats.pendingVerifications !== 1 ? 's' : ''} pending verification →
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        {activeTab === 'users' && <UsersTabDirector onViewUser={setViewingProfile} />}
-        {activeTab === 'workers' && <WorkersTabDirector onViewUser={setViewingProfile} />}
-        {activeTab === 'partners' && <PartnersTabDirector onViewUser={setViewingProfile} />}
-        {activeTab === 'staff' && <StaffTabDirector profile={profile} />}
-        {activeTab === 'listings' && <ListingsTabDirector refresh={refresh} />}
-        {activeTab === 'bookings' && <BookingsTab />}
-        {activeTab === 'reports' && <ReportsTabDirector />}
-        {activeTab === 'support' && <SupportTabDirector profile={profile} />}
-        {activeTab === 'verification' && <VerificationTabDirector refresh={refresh} profile={profile} />}
-        {activeTab === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
-      </div>
-
-      {/* Profile Viewer — works for ALL roles (User, Worker, Partner, Staff, Admin) */}
-      {viewingProfile && (
-        <UserProfileModal
-          user={viewingProfile}
-          adminProfile={profile}
-          onClose={() => setViewingProfile(null)}
-          onPromote={() => { refresh(); setActiveTab('staff'); }}
-          onNavigate={onNavigate}
-          onGoToChat={onGoToChat}
-        />
-      )}
+      {viewingProfile && <UserProfileModal user={viewingProfile} adminProfile={profile} onClose={() => setViewingProfile(null)} onPromote={() => setTab('staff')} onNavigate={onNavigate} onGoToChat={onGoToChat} />}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════
-// USERS TAB — All users except workers, partners, staff (those have own tabs)
-// ═══════════════════════════════════════════════════════════
-function UsersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void }) {
-  const [users, setUsers] = useState<any[]>([]);
+function Overview({ stats, profile, onOpen }: { stats: any; profile: Profile; onOpen: (t: AdminTab) => void }) {
+  const cards = [
+    ['Users', stats.users || 0, 'people'], ['Workers', stats.workers || 0, 'people'], ['Partners', stats.partners || 0, 'people'],
+    ['Staff', stats.staff || 0, 'staff'], ['Listings', stats.listings || 0, 'listings'], ['Pending worker reviews', stats.pending_verifications || 0, 'verification'],
+  ] as const;
+  return <div className="space-y-6">
+    <section className="rounded-3xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/[0.13] via-[#111522] to-[#0D1018] p-6 lg:p-8">
+      <span className="rounded-full bg-indigo-500/10 px-3 py-1 text-[9px] font-semibold text-indigo-300">BRANCH AUTHORITY</span>
+      <h2 className="mt-4 text-2xl font-bold lg:text-3xl">Manage only {profile.assigned_lga}, {profile.assigned_state}.</h2>
+      <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">Users, workers, partners, staff, listings, worker bookings, reports, support and announcements are restricted to your Creator-assigned branch.</p>
+    </section>
+    <section className="grid grid-cols-2 gap-3 md:grid-cols-3">{cards.map(([label, value, target]) => <button key={label} onClick={() => onOpen(target)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] text-[#727587]">{label}</p></button>)}</section>
+  </div>;
+}
+
+function People({ onView }: { onView: (p: Profile) => void }) {
+  const [role, setRole] = useState<PersonFilter>('user');
+  const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    // Only regular users (workers, partners, staff have their own tabs)
-    const regularUsers = (data || []).filter((u: any) =>
-      !u.deleted && u.role === 'user'
-    );
-    setUsers(regularUsers);
-    setLoading(false);
-  }
-
-  const filtered = users.filter(u =>
-    !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="space-y-3">
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..." className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-3 outline-none focus:border-[#3B82F6]" />
-      {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No users found</p>}
-          {filtered.map(u => (
-            <button
-              key={u.id}
-              onClick={() => onViewUser?.(u)}
-              className="w-full glass rounded-xl p-3 flex items-center gap-3 card-hover text-left hover:border-indigo-500/20 transition-all"
-            >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {(u.username || 'U').charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-white truncate">@{u.username || 'unknown'}</p>
-                <p className="text-[10px] text-[#5C5E72] truncate">{u.email}</p>
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  useEffect(() => { void load(); }, [role]);
+  async function load() { setLoading(true); const { data, error } = await supabase.rpc('admin_get_my_branch_profiles', { p_role: role }); if (error) toast.error(error.message); setRows(Array.isArray(data) ? data : []); setLoading(false); }
+  const filtered = useMemo(() => rows.filter(r => !search.trim() || [r.full_name,r.username,r.email,r.user_id].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())), [rows,search]);
+  return <Section title="People" note="Only accounts whose canonical location belongs to your assigned branch are returned.">
+    <div className="flex flex-wrap gap-2">{([['user','Users'],['worker','Workers'],['property_partner','Property Partners']] as const).map(([id,label]) => <Chip key={id} active={role===id} onClick={()=>setRole(id)}>{label}</Chip>)}</div>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search this branch" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs outline-none focus:border-indigo-500/40" />
+    {loading ? <Loading/> : filtered.length===0 ? <Empty title="No matching accounts" text="Nothing in this branch matches the current filter."/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{filtered.map(p => <button key={p.user_id} onClick={()=>onView(p)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex items-center gap-3"><Avatar text={p.full_name||p.username||p.email}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{p.full_name||p.username||'WeHouse user'}</p><p className="truncate text-[10px] text-[#6D7082]">{p.email}</p><p className="mt-1 text-[9px] text-[#535667]">{[p.local_government||p.city,p.state].filter(Boolean).join(', ')}</p></div></div></button>)}</div>}
+  </Section>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// WORKERS TAB
-// ═══════════════════════════════════════════════════════════
-function WorkersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void }) {
-  const [workers, setWorkers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    const w = (data || []).filter((u: any) => u.role === 'worker' && !u.deleted);
-    setWorkers(w);
-    setLoading(false);
-  }
-
-  const filtered = workers.filter(w => !statusFilter || w.worker_status === statusFilter);
-
-  return (
-    <div className="space-y-3">
-      {/* Status filter */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-        {['', 'pending', 'verification_paid', 'verified', 'suspended'].map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 h-7 rounded-lg text-[10px] font-medium whitespace-nowrap ${statusFilter === s ? 'bg-pink-500/10 text-pink-400 border border-pink-500/20' : 'bg-[#1A1A24] border border-[#232330] text-[#5C5E72]'}`}>
-            {s === '' ? 'All' : s === 'verification_paid' ? 'Blue Tick' : s === 'approved' ? 'Approved' : s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-2">
-          {filtered.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No workers found</p>}
-          {filtered.map(w => (
-            <div key={w.id} className="glass rounded-xl p-3 hover:border-pink-500/20 transition-all cursor-pointer" onClick={() => onViewUser?.(w)}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500 to-pink-700 flex items-center justify-center text-white text-xs font-bold">{(w.username || 'W').charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-medium text-white truncate">@{w.username || 'unknown'}</p>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full ${STATUS_COLORS[w.worker_status] || 'bg-gray-500/10 text-gray-400'}`}>
-                      {STATUS_LABELS[w.worker_status] || w.worker_status}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-[#5C5E72] truncate">{w.worker_occupation || 'No occupation'} · {w.email}</p>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  approved_for_verification: 'Blue Tick',
-  profile_under_review: 'Under Review',
-  verified: 'Public',
-  suspended: 'Suspended',
-  rejected: 'Rejected',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-500/10 text-amber-400',
-  approved_for_verification: 'bg-blue-500/10 text-blue-400',
-  profile_under_review: 'bg-purple-500/10 text-purple-400',
-  verified: 'bg-emerald-500/10 text-emerald-400',
-  suspended: 'bg-red-500/10 text-red-400',
-  rejected: 'bg-gray-500/10 text-gray-400',
-};
-
-// ═══════════════════════════════════════════════════════════
-// PROPERTY PARTNERS TAB
-// ═══════════════════════════════════════════════════════════
-function PartnersTabDirector({ onViewUser }: { onViewUser?: (u: Profile) => void }) {
-  const [partners, setPartners] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    const p = (data || []).filter((u: any) => u.role === 'property_partner' && !u.deleted);
-    setPartners(p);
-    setLoading(false);
-  }
-
-  return (
-    <div className="space-y-3">
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-2">
-          {partners.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No property partners found</p>}
-          {partners.map(p => (
-            <div key={p.id} className="glass rounded-xl p-3 hover:border-violet-500/20 transition-all cursor-pointer" onClick={() => onViewUser?.(p)}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-xs font-bold">{(p.username || 'P').charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">@{p.username || 'unknown'}</p>
-                  <p className="text-[10px] text-[#5C5E72] truncate">{p.email}</p>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// STAFF TAB
-// ═══════════════════════════════════════════════════════════
-const MODULE_LABELS: Record<string, string> = {
-  operations: 'Operations',
-  finance: 'Finance',
-  support: 'Support',
-  verification: 'Verification',
-  field_officer: 'Field Officer',
-};
-
-function StaffTabDirector({ profile }: { profile: Profile }) {
-  const [staff, setStaff] = useState<any[]>([]);
-  const [staffModules, setStaffModules] = useState<Record<string, string[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    const s = (data || []).filter((u: any) => u.role === 'staff' && !u.deleted && u.user_id !== profile.user_id);
-    setStaff(s);
-
-    // Fetch staff permissions from the SAME table Creator writes to
-    // (Creator assigns via staff_permissions, NOT staff_modules)
-    const { data: permsData } = await supabase.from('staff_permissions').select('*');
-    const mods: Record<string, string[]> = {};
-    (permsData || []).forEach((m: any) => {
-      if (!mods[m.staff_id]) mods[m.staff_id] = [];
-      mods[m.staff_id].push(m.module);
-    });
-    setStaffModules(mods);
-    setLoading(false);
-  }
-
-  async function assignModule(staffId: string, module: string) {
-    setSaving(staffId);
-    const current = staffModules[staffId] || [];
-    const hasModule = current.includes(module);
-
-    // Per Constitution: Staff can only have ONE module at a time
-    // Write to staff_permissions (same table Creator uses) so assignments sync
-    if (!hasModule) {
-      // Revoke ALL existing permissions first
-      await supabase.from('staff_permissions').delete().eq('staff_id', staffId);
-      // Grant only the selected module
-      await supabase.from('staff_permissions').insert({ staff_id: staffId, module, granted_by: profile.user_id });
-      setStaffModules(prev => ({ ...prev, [staffId]: [module] }));
-    } else {
-      // Revoking the only module
-      await supabase.from('staff_permissions').delete().eq('staff_id', staffId).eq('module', module);
-      setStaffModules(prev => ({ ...prev, [staffId]: [] }));
-    }
-    setSaving(null);
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[10px] text-[#5C5E72]">Each staff member can have ONE module only. Select from dropdown to assign.</p>
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-3">
-          {staff.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No staff members</p>}
-          {staff.map(s => {
-            const modules = staffModules[s.user_id] || [];
-            const currentModule = modules[0] || null;
-            const hasNoModule = !currentModule;
-            return (
-              <div key={s.user_id} className={`glass rounded-xl p-4 ${hasNoModule ? 'border border-amber-500/20 bg-amber-500/[0.02]' : ''}`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white text-xs font-bold">{(s.username || 'S').charAt(0).toUpperCase()}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-medium text-white truncate">@{s.username || 'unknown'}</p>
-                      {hasNoModule && (
-                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-400 uppercase tracking-wide">
-                          New — Assign Module
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-[#5C5E72] truncate">{s.email}</p>
-                  </div>
-                </div>
-                {/* Single-select module dropdown */}
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-[#5C5E72] flex-shrink-0">Module:</label>
-                  <select
-                    value={currentModule || ''}
-                    onChange={(e) => assignModule(s.user_id, e.target.value)}
-                    disabled={saving === s.user_id}
-                    className="flex-1 h-8 rounded-lg bg-[#1A1A24] border border-[#2A2A3A] text-white text-[11px] px-2 focus:border-[#3B82F6]/50 outline-none"
-                  >
-                    <option value="">No module assigned</option>
-                    {Object.entries(MODULE_LABELS).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                  {saving === s.user_id && <div className="w-4 h-4 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin flex-shrink-0" />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// LISTINGS TAB
-// ═══════════════════════════════════════════════════════════
-function ListingsTabDirector({ refresh }: { refresh: () => void }) {
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+function Listings() {
+  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('pending_approval'),[rejectId,setRejectId]=useState<string|null>(null),[reason,setReason]=useState('');
   const { requestAuth } = useAdminAuth();
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { listings: data } = await getAllListingsAdmin();
-    setListings(data || []);
-    setLoading(false);
-  }
-
-  async function doDelete(id: string) {
-    const { error } = await deleteListing(id);
-    if (error) { toast.error('Failed'); return; }
-    toast.success('Deleted'); load(); refresh();
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this listing?')) return;
-    requestAuth(() => doDelete(id));
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-[#5C5E72]">{listings.length} listing{listings.length !== 1 ? 's' : ''} total</p>
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-2">
-          {listings.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No listings yet</p>}
-          {listings.map((l: Listing) => (
-            <div key={l.id} className="glass rounded-xl p-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center text-lg">🏠</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{l.title || 'Untitled'}</p>
-                  <p className="text-[10px] text-[#5C5E72]">{l.property_type || 'apartment'} · N{(l.price || 0).toLocaleString()}</p>
-                </div>
-                <button onClick={() => handleDelete(l.id)} className="h-7 px-2 rounded-lg bg-red-500/10 text-red-400 text-[10px] border border-red-500/20">Delete</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  useEffect(()=>{void load()},[filter]);
+  async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_listings',{p_status:filter});if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)}
+  function review(id:string,decision:'approve'|'reject'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_review_my_branch_listing',{p_listing_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Listing approved':'Listing rejected');setRejectId(null);setReason('');void load()})}
+  return <Section title="Listings" note="Review and monitor listings inside your branch only." right={<Select value={filter} onChange={setFilter} options={[['pending_approval','Pending'],['available','Live'],['rejected','Rejected'],['all','All']]}/>}>
+    {loading?<Loading/>:rows.length===0?<Empty title="No listings" text="There are no listings in this branch for the selected status."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(l=><Card key={l.id}><div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{l.title||'Property'}</p><p className="mt-1 text-[10px] text-[#6E7183]">{[l.city,l.state].filter(Boolean).join(', ')} · {money(l.price)}</p></div><Badge value={l.status}/></div>{l.status==='pending_approval'&&(rejectId===l.id?<div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason for rejection" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="flex gap-2"><Button secondary onClick={()=>{setRejectId(null);setReason('')}}>Cancel</Button><Button danger onClick={()=>review(l.id,'reject')}>Confirm rejection</Button></div></div>:<div className="mt-4 flex gap-2"><Button onClick={()=>review(l.id,'approve')}>Approve</Button><Button danger onClick={()=>setRejectId(l.id)}>Reject</Button></div>)}</Card>)}</div>}
+  </Section>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// BOOKINGS TAB (placeholder)
-// ═══════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════
-// REPORTS TAB
-// ═══════════════════════════════════════════════════════════
-function ReportsTabDirector() {
-  const [reports, setReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { reports } = await getReports();
-    setReports(reports || []);
-    setLoading(false);
-  }
-
-  return (
-    <div className="space-y-3">
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-2">
-          {reports.length === 0 && <p className="text-center text-sm text-[#5C5E72] py-10">No reports</p>}
-          {reports.map((r: any) => (
-            <div key={r.id} className="glass rounded-xl p-3">
-              <p className="text-xs text-white">{r.reason || 'Report'}</p>
-              <p className="text-[10px] text-[#5C5E72]">{r.description || ''}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function Verification(){
+  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[selected,setSelected]=useState<any|null>(null),[reason,setReason]=useState('');
+  const { requestAuth }=useAdminAuth();
+  async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_profiles',{p_role:'worker'});if(error)toast.error(error.message);setRows((Array.isArray(data)?data:[]).filter((w:any)=>w.worker_status==='profile_under_review'));setLoading(false)}
+  useEffect(()=>{void load()},[]);
+  function review(id:string,decision:'approve'|'reject'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_review_my_branch_worker',{p_worker_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Worker verified':'Worker rejected');setSelected(null);setReason('');void load()})}
+  if(selected) return <Section title="Worker review" note="Review the submitted identity and skill evidence before deciding."><button onClick={()=>setSelected(null)} className="text-[10px] text-indigo-400">← Back to queue</button><Card><div className="flex gap-3"><Avatar text={selected.full_name||selected.username||'W'}/><div><p className="text-sm font-semibold">{selected.full_name||selected.username}</p><p className="text-[10px] text-[#707386]">{selected.worker_occupation||'No occupation'} · {[selected.local_government||selected.city,selected.state].filter(Boolean).join(', ')}</p></div></div><div className="mt-4 grid gap-3 md:grid-cols-2">{selected.worker_gov_id_url?<Evidence title="Government ID" url={selected.worker_gov_id_url}/>:<Missing label="Government ID"/>}{selected.worker_video_url?<VideoEvidence title="Skill video" url={selected.worker_video_url}/>:<Missing label="Skill video"/>}</div><div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Rejection reason (required only when rejecting)" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="flex gap-2"><Button onClick={()=>review(selected.user_id,'approve')}>Approve & publish</Button><Button danger onClick={()=>review(selected.user_id,'reject')}>Reject</Button></div></div></Card></Section>;
+  return <Section title="Worker review" note="Only workers in profile_under_review from your branch appear here.">{loading?<Loading/>:rows.length===0?<Empty title="No workers awaiting review" text="The review queue is clear."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(w=><button key={w.user_id} onClick={()=>setSelected(w)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex gap-3"><Avatar text={w.full_name||w.username||'W'}/><div><p className="text-sm font-semibold">{w.full_name||w.username}</p><p className="text-[10px] text-[#6D7082]">{w.worker_occupation||'No occupation'} · {[w.local_government||w.city,w.state].filter(Boolean).join(', ')}</p></div></div></button>)}</div>}</Section>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// SUPPORT TAB
-// ═══════════════════════════════════════════════════════════
-function SupportTabDirector({ profile }: { profile: Profile }) {
-  const [convos, setConvos] = useState<SupportConvo[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data, error } = await supabase.rpc('admin_support_inbox');
-      if (error) {
-        console.error('[SupportTab] inbox error:', error);
-      }
-      setConvos((data || []).map((c: any) => ({
-        id: c.id,
-        participant_a: c.participant_a,
-        status: c.status,
-        last_message: c.last_message,
-        last_message_at: c.last_message_at,
-        unread_b: c.unread_b,
-        conversation_type: c.conversation_type,
-        subject: c.subject,
-        user_name: c.user_name,
-        user_email: c.user_email,
-        user_phone: c.user_phone,
-        user_state: c.user_state,
-        user_lga: c.user_lga,
-      })));
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  // Show admin's branch for context
-  const branch = profile.assigned_state && (profile as any).assigned_lga
-    ? `${profile.assigned_state} / ${(profile as any).assigned_lga}`
-    : profile.state && ((profile as any).local_government || (profile as any).city)
-      ? `${profile.state} / ${(profile as any).local_government || (profile as any).city}`
-      : 'Not assigned';
-
-  return (
-    <div className="space-y-3">
-      {/* Branch context */}
-      <div className="glass rounded-xl p-3 border border-[#3B82F6]/10">
-        <p className="text-[10px] text-[#5C5E72]">
-          Showing support conversations from your branch:
-          <span className="text-[#3B82F6] font-medium ml-1">{branch}</span>
-        </p>
-      </div>
-
-      {loading && (
-        <div className="flex items-center gap-2 text-[10px] text-[#5C5E72] py-4">
-          <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-          Loading conversations...
-        </div>
-      )}
-
-      {!loading && convos.length === 0 && (
-        <div className="text-center py-10">
-          <p className="text-sm text-[#5C5E72]">No support conversations</p>
-          <p className="text-[10px] text-[#5C5E72]/70 mt-1">
-            Users in your branch ({branch}) have not started any support chats yet
-          </p>
-        </div>
-      )}
-
-      {!loading && convos.map(c => (
-        <div
-          key={c.id}
-          className="glass rounded-xl p-3 border border-white/[0.04] flex items-start gap-3"
-        >
-          <div className="w-8 h-8 rounded-full bg-[#3B82F6]/10 flex items-center justify-center flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-semibold text-white truncate">{c.user_name || 'Unknown'}</p>
-              {c.unread_b > 0 && (
-                <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center flex-shrink-0">
-                  {c.unread_b}
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-[#8A8B9C] truncate">{c.last_message || 'No messages'}</p>
-            <p className="text-[9px] text-[#5C5E72] mt-0.5">
-              {c.user_state} / {c.user_lga}
-              {' · '}
-              {c.conversation_type === 'general_support' ? 'General' : c.conversation_type === 'partner_support' ? 'Partner' : 'Inspection'}
-              {c.last_message_at && (
-                <>{' · '}{new Date(c.last_message_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</>
-              )}
-            </p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+function Bookings(){
+  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);
+  useEffect(()=>{void(async()=>{const {data,error}=await supabase.rpc('admin_get_my_branch_worker_bookings');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)})()},[]);
+  return <Section title="Worker bookings" note="Worker-service bookings are scoped by the worker's branch.">{loading?<Loading/>:rows.length===0?<Empty title="No worker bookings" text="No worker-service bookings are recorded for your branch."/>:<div className="space-y-2">{rows.map(b=><Card key={b.id}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{b.booking_code||'Worker booking'}</p><p className="mt-1 text-[9px] text-[#686B7D]">{money(b.negotiated_amount||b.agreed_amount)} · {new Date(b.created_at).toLocaleDateString()}</p></div><Badge value={b.status}/></div></Card>)}</div>}</Section>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// VERIFICATION TAB — Worker verification approval
-// ═══════════════════════════════════════════════════════════
-function VerificationTabDirector({ refresh, profile }: { refresh: () => void; profile: Profile }) {
-  const [workers, setWorkers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { requestAuth } = useAdminAuth();
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    const { users: data } = await getAllUsers();
-    // Constitution: Admin ONLY reviews workers with status = 'profile_under_review'
-    // These workers have: paid, uploaded docs + video, and clicked "Submit Verification Request"
-    const reviewQueue = (data || []).filter((u: any) =>
-      u.role === 'worker' && u.worker_status === 'profile_under_review' && !u.deleted
-    );
-    setWorkers(reviewQueue);
-    setLoading(false);
-  }
-
-  /* ── Per Constitution: Admin ONLY reviews workers who have:
-      1. Completed all info  2. Paid via Paystack  3. Uploaded Gov ID + Skill Video
-      4. Clicked "Submit Verification Request"  5. Status = profile_under_review
-      Admin NEVER grants access — workers get Golden Badge by paying.
-      Admin ONLY reviews submitted applications and approves/rejects. ── */
-
-  const [selectedWorker, setSelectedWorker] = useState<any>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showRejectForm, setShowRejectForm] = useState(false);
-
-  async function doApprove(userId: string) {
-    const { error } = await supabase.from('profiles').update({
-      worker_status: 'verified',
-      worker_verified: true,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', userId);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    // Record the review
-    try {
-      await supabase.from('worker_verification_reviews').insert({
-        worker_id: userId,
-        reviewer_id: profile.user_id,
-        reviewer_role: profile.role,
-        action: 'approved',
-      });
-    } catch (_) { /* non-critical */ }
-    toast.success('Worker approved and published');
-    setSelectedWorker(null);
-    load(); refresh();
-  }
-
-  async function doReject(userId: string) {
-    if (!rejectReason.trim()) { toast.error('Please provide a rejection reason'); return; }
-    const { error } = await supabase.from('profiles').update({
-      worker_status: 'rejected',
-      worker_verified: false,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', userId);
-    if (error) { toast.error('Failed: ' + error.message); return; }
-    // Record the review with rejection reason
-    try {
-      await supabase.from('worker_verification_reviews').insert({
-        worker_id: userId,
-        reviewer_id: profile.user_id,
-        reviewer_role: profile.role,
-        action: 'rejected',
-        rejection_reason: rejectReason.trim(),
-      });
-    } catch (_) { /* non-critical */ }
-    toast.success('Worker rejected — reason recorded');
-    setSelectedWorker(null);
-    setShowRejectForm(false);
-    setRejectReason('');
-    load(); refresh();
-  }
-
-  async function handleApprove(userId: string) {
-    requestAuth(() => doApprove(userId));
-  }
-
-  async function handleReject(userId: string) {
-    requestAuth(() => doReject(userId));
-  }
-
-  // Detail view: admin reviews the full worker application
-  if (selectedWorker) {
-    const w = selectedWorker;
-    return (
-      <div className="space-y-4">
-        {/* Back button */}
-        <button onClick={() => setSelectedWorker(null)} className="flex items-center gap-1.5 text-[10px] text-[#5C5E72] hover:text-white transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          Back to Review Queue
-        </button>
-
-        {/* Worker Profile Summary */}
-        <div className="glass rounded-2xl p-4 border border-violet-500/20">
-          <div className="flex items-center gap-3 mb-3">
-            {w.avatar_url ? (
-              <img src={w.avatar_url} alt="" className="w-14 h-14 rounded-2xl object-cover" />
-            ) : (
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white font-bold">{(w.username || 'W')[0].toUpperCase()}</div>
-            )}
-            <div>
-              <p className="text-sm font-bold text-white">{w.full_name || w.username || 'Unknown'}</p>
-              <p className="text-[10px] text-[#5C5E72]">@{w.username} · {w.email}</p>
-              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 mt-1 inline-block">Under Review</span>
-            </div>
-          </div>
-
-          {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <InfoPill label="Occupation" value={w.worker_occupation || 'Not set'} />
-            <InfoPill label="Skills" value={w.worker_skills?.join(', ') || 'Not set'} />
-            <InfoPill label="Experience" value={w.worker_experience || 'Not set'} />
-            <InfoPill label="Service Area" value={`${w.city || ''}, ${w.state || ''}`} />
-            <InfoPill label="Phone" value={w.phone || 'Not set'} />
-            <InfoPill label="Price" value={w.worker_price ? `N${w.worker_price.toLocaleString()}` : 'Not set'} />
-          </div>
-          {w.worker_bio && (
-            <div className="rounded-lg bg-white/[0.02] p-2">
-              <p className="text-[9px] text-[#5C5E72]">About</p>
-              <p className="text-[11px] text-white">{w.worker_bio}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Government ID */}
-        <div className="glass rounded-2xl p-4 border border-amber-500/20">
-          <p className="text-xs font-semibold text-white mb-2">Government ID (Identity Verification)</p>
-          {w.worker_gov_id_url ? (
-            <div className="rounded-lg overflow-hidden bg-[#1A1A24]">
-              <img src={w.worker_gov_id_url} alt="Government ID" className="w-full max-h-48 object-contain" />
-            </div>
-          ) : (
-            <p className="text-[10px] text-amber-400">No Government ID uploaded</p>
-          )}
-        </div>
-
-        {/* Additional Documents */}
-        {w.worker_cert_url && (
-          <div className="glass rounded-2xl p-4 border border-blue-500/20">
-            <p className="text-xs font-semibold text-white mb-2">Additional Documents</p>
-            <div className="rounded-lg overflow-hidden bg-[#1A1A24]">
-              <img src={w.worker_cert_url} alt="Certificate" className="w-full max-h-48 object-contain" />
-            </div>
-          </div>
-        )}
-
-        {/* Skill Demonstration Video */}
-        <div className="glass rounded-2xl p-4 border border-emerald-500/20">
-          <p className="text-xs font-semibold text-white mb-2">2-3 Minute Skill Demonstration Video</p>
-          {w.worker_video_url ? (
-            <video src={w.worker_video_url} controls className="w-full rounded-lg max-h-64 object-contain" />
-          ) : (
-            <p className="text-[10px] text-red-400">No skill demonstration video uploaded</p>
-          )}
-          <p className="text-[9px] text-[#5C5E72] mt-2">
-            This video is ONLY for evaluating the worker&apos;s professional skills.
-            It is NOT used for identity verification.
-          </p>
-        </div>
-
-        {/* Actions */}
-        {!showRejectForm ? (
-          <div className="flex gap-3">
-            <button onClick={() => handleApprove(w.user_id)} className="flex-1 h-11 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-emerald-500/20">
-              Approve & Publish
-            </button>
-            <button onClick={() => setShowRejectForm(true)} className="flex-1 h-11 rounded-xl bg-gradient-to-r from-red-500 to-red-700 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-red-500/20">
-              Reject
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-white">Rejection Reason</p>
-            <textarea
-              value={rejectReason}
-              onChange={e => setRejectReason(e.target.value)}
-              placeholder="Explain why this worker was rejected so they can fix it..."
-              rows={3}
-              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-3 py-2 placeholder-[#5C5E72] focus:border-red-500/50 outline-none resize-none"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => { setShowRejectForm(false); setRejectReason(''); }} className="flex-1 h-10 rounded-xl bg-[#1A1A24] text-[#5C5E72] text-xs font-medium">Cancel</button>
-              <button onClick={() => handleReject(w.user_id)} className="flex-1 h-10 rounded-xl bg-gradient-to-r from-red-500 to-red-700 text-white text-xs font-semibold hover:opacity-90 transition-opacity">Confirm Rejection</button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {/* Info banner */}
-      <div className="rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
-        <p className="text-[10px] text-violet-400 leading-relaxed">
-          <strong>Review Queue:</strong> These workers have completed verification payment,
-          uploaded their Government ID and Skill Demonstration Video, and submitted their
-          request for review. Review each application carefully before approving or rejecting.
-        </p>
-      </div>
-
-      {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div> : (
-        <div className="space-y-2">
-          {workers.length === 0 && (
-            <div className="text-center py-10">
-              <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
-              <p className="text-sm font-semibold text-white mb-1">No Workers to Review</p>
-              <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">
-                Workers will appear here after they complete payment, upload their documents,
-                and submit their verification request.
-              </p>
-            </div>
-          )}
-          {workers.map(w => (
-            <button key={w.id} onClick={() => setSelectedWorker(w)} className="w-full text-left glass rounded-xl p-3 hover:border-violet-500/30 transition-colors">
-              <div className="flex items-center gap-3">
-                {w.avatar_url ? (
-                  <img src={w.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover" />
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-sm font-bold">{(w.username || 'W')[0].toUpperCase()}</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-white">{w.full_name || w.username || 'Unknown'}</p>
-                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">Under Review</span>
-                  </div>
-                  <p className="text-[10px] text-[#5C5E72]">{w.worker_occupation || 'No occupation'} · {w.email}</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    {w.worker_gov_id_url && <span className="text-[8px] text-emerald-400">ID Uploaded</span>}
-                    {w.worker_video_url && <span className="text-[8px] text-emerald-400">Video Uploaded</span>}
-                    {w.worker_cert_url && <span className="text-[8px] text-blue-400">Docs Uploaded</span>}
-                  </div>
-                </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function Reports(){
+  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true); const {requestAuth}=useAdminAuth();
+  async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_reports');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)} useEffect(()=>{void load()},[]);
+  function act(id:string,action:'resolved'|'dismissed'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_resolve_my_branch_report',{p_report_id:id,p_action:action});if(error)return toast.error(error.message);toast.success(action==='resolved'?'Report resolved':'Report dismissed');void load()})}
+  return <Section title="Listing reports" note="Only reports tied to listings inside your branch are shown.">{loading?<Loading/>:rows.length===0?<Empty title="No reports" text="There are no listing reports for this branch."/>:<div className="space-y-3">{rows.map(r=><Card key={r.id}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{r.reason}</p><p className="mt-1 text-[9px] text-[#686B7D]">Listing: {r.listing_id||'Unknown'} · {new Date(r.created_at).toLocaleDateString()}</p></div><Badge value={r.status}/></div>{r.status==='pending'&&<div className="mt-4 flex gap-2"><Button onClick={()=>act(r.id,'resolved')}>Resolve</Button><Button secondary onClick={()=>act(r.id,'dismissed')}>Dismiss</Button></div>}</Card>)}</div>}</Section>;
 }
 
-
-// ═══════════════════════════════════════════════════════════════
-// HELPER: InfoPill for review detail view
-// ═══════════════════════════════════════════════════════════════
-
-function InfoPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-white/[0.02] p-2">
-      <p className="text-[9px] text-[#5C5E72]">{label}</p>
-      <p className="text-[11px] text-white truncate">{value}</p>
-    </div>
-  );
+function Support({onGoToChat}:{onGoToChat?: (id?:string)=>void}){
+  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);
+  useEffect(()=>{void(async()=>{const {data,error}=await supabase.rpc('admin_support_inbox');if(error)toast.error(error.message);setRows(data||[]);setLoading(false)})()},[]);
+  return <Section title="Support inbox" note="Conversations are restricted to users in your branch.">{loading?<Loading/>:rows.length===0?<Empty title="No support conversations" text="Your branch support inbox is clear."/>:<div className="space-y-2">{rows.map(c=><button key={c.id} onClick={()=>onGoToChat?.(c.id)} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{c.user_name||c.user_email||'WeHouse user'}</p><p className="mt-1 truncate text-[10px] text-[#6E7183]">{c.last_message||'No messages yet'}</p><p className="mt-1 text-[9px] text-[#505365]">{[c.user_lga,c.user_state].filter(Boolean).join(', ')}</p></div>{Number(c.unread_b||0)>0&&<span className="h-fit rounded-full bg-red-500 px-2 py-1 text-[8px] font-bold">{c.unread_b}</span>}</div></button>)}</div>}</Section>;
 }
+
+function BranchMissing(){return <Empty title="Admin branch not assigned" text="This dashboard fails closed until the Creator assigns both your operational state and LGA. No nationwide fallback is used."/>}
+function Section({title,note,right,children}:{title:string;note:string;right?:React.ReactNode;children:React.ReactNode}){return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 text-[10px] text-[#707386]">{note}</p></div>{right}</div>{children}</div>}
+function Card({children}:{children:React.ReactNode}){return <div className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4">{children}</div>}
+function Avatar({text}:{text:string}){return <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-sm font-bold">{(text||'W')[0].toUpperCase()}</div>}
+function Button({children,onClick,secondary,danger}:{children:React.ReactNode;onClick:()=>void;secondary?:boolean;danger?:boolean}){return <button onClick={onClick} className={`min-h-9 flex-1 rounded-xl px-3 text-[10px] font-semibold ${danger?'border border-red-500/20 bg-red-500/10 text-red-300':secondary?'border border-white/[0.08] bg-white/[0.04] text-[#A7A9B6]':'bg-indigo-500 text-white hover:bg-indigo-400'}`}>{children}</button>}
+function Chip({active,onClick,children}:{active:boolean;onClick:()=>void;children:React.ReactNode}){return <button onClick={onClick} className={`rounded-xl px-3 py-2 text-[10px] font-semibold ${active?'bg-indigo-500 text-white':'border border-white/[0.06] bg-[#10131B] text-[#777A8C]'}`}>{children}</button>}
+function Select({value,onChange,options}:{value:string;onChange:(v:string)=>void;options:string[][]}){return <select value={value} onChange={e=>onChange(e.target.value)} className="h-9 rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-[10px] outline-none">{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>}
+function Badge({value}:{value:string}){const good=['available','verified','completed','resolved','approved_released'].includes(value);const bad=['rejected','suspended','cancelled','failed','dismissed'].includes(value);return <span className={`h-fit rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${good?'bg-emerald-500/10 text-emerald-300':bad?'bg-red-500/10 text-red-300':'bg-amber-500/10 text-amber-300'}`}>{String(value||'unknown').replace(/_/g,' ')}</span>}
+function Empty({title,text}:{title:string;text:string}){return <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] px-6 py-14 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#66697B]">{text}</p></div>}
+function Loading(){return <div className="grid min-h-40 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"/></div>}
+function Evidence({title,url}:{title:string;url:string}){return <div><p className="mb-2 text-[9px] text-[#6E7183]">{title}</p><img src={url} alt={title} className="max-h-56 w-full rounded-xl bg-[#161922] object-contain"/></div>}
+function VideoEvidence({title,url}:{title:string;url:string}){return <div><p className="mb-2 text-[9px] text-[#6E7183]">{title}</p><video src={url} controls className="max-h-56 w-full rounded-xl bg-[#161922]"/></div>}
+function Missing({label}:{label:string}){return <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-red-500/20 bg-red-500/[0.03] text-[10px] text-red-300">No {label} uploaded</div>}
+function money(value:any){return `₦${Number(value||0).toLocaleString('en-NG')}`}
