@@ -1,6 +1,7 @@
 import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './operational-workspaces.css'
 import App from './App.tsx'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
