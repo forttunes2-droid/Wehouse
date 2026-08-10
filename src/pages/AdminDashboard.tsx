@@ -7,154 +7,70 @@ import { AnnouncementsTab } from '@/components/AnnouncementsTab';
 import StaffListTab from './StaffListTab';
 import type { Profile } from '@/types';
 
-type AdminTab = 'overview' | 'people' | 'staff' | 'listings' | 'verification' | 'bookings' | 'reports' | 'support' | 'announcements';
+type AdminTab = 'overview' | 'management' | 'issues' | 'announcements';
+type ManagementTab = 'people' | 'staff' | 'listings' | 'verification' | 'bookings';
+type IssueTab = 'reports' | 'support';
 type PersonFilter = 'user' | 'worker' | 'property_partner';
+type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string) => void; onGoToChat?: (convId?: string) => void };
 
-type Props = {
-  profile: Profile;
-  onLogout: () => void;
-  onNavigate?: (page: string) => void;
-  onGoToChat?: (convId?: string) => void;
-};
-
-const TABS: Array<{ id: AdminTab; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'people', label: 'People' },
-  { id: 'staff', label: 'Staff' },
-  { id: 'listings', label: 'Listings' },
-  { id: 'verification', label: 'Worker Review' },
-  { id: 'bookings', label: 'Bookings' },
-  { id: 'reports', label: 'Reports' },
-  { id: 'support', label: 'Support' },
-  { id: 'announcements', label: 'Announcements' },
+const TABS: Array<{ id: AdminTab; label: string; note: string }> = [
+  { id: 'overview', label: 'Overview', note: 'Branch health and priority work' },
+  { id: 'management', label: 'Management', note: 'People, staff, listings, worker review and bookings' },
+  { id: 'issues', label: 'Reports & Support', note: 'Resolve branch reports and support cases' },
+  { id: 'announcements', label: 'Announcements', note: 'Communicate with your assigned branch' },
 ];
 
 export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
   const [tab, setTab] = useState<AdminTab>('overview');
+  const [managementTab, setManagementTab] = useState<ManagementTab>('people');
+  const [issueTab, setIssueTab] = useState<IssueTab>('reports');
   const [stats, setStats] = useState<any>({ users: 0, workers: 0, partners: 0, staff: 0, listings: 0, pending_verifications: 0 });
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
   const branchReady = Boolean(profile.assigned_state && profile.assigned_lga);
+  const current = TABS.find(item => item.id === tab)!;
 
-  useEffect(() => {
-    if (!branchReady) return;
-    void (async () => {
-      const { data, error } = await supabase.rpc('admin_get_my_branch_stats');
-      if (error) toast.error(error.message);
-      else if (data) setStats(data);
-    })();
-  }, [branchReady]);
+  useEffect(() => { if (!branchReady) return; void (async () => { const { data, error } = await supabase.rpc('admin_get_my_branch_stats'); if (error) toast.error(error.message); else if (data) setStats(data); })(); }, [branchReady]);
 
-  return (
-    <div className="min-h-[100dvh] bg-[#080A0F] pb-24 text-white">
-      <Toaster position="top-center" richColors />
-      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#080A0F]/92 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 pt-5 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-[.24em] text-indigo-400">WeHouse Admin</p>
-              <h1 className="mt-1 truncate text-lg font-bold">{profile.full_name || profile.username || 'Branch Admin'}</h1>
-              <p className="mt-1 text-[10px] text-[#717487]">{branchReady ? `${profile.assigned_lga}, ${profile.assigned_state}` : 'Branch assignment required'}</p>
-            </div>
-            <div className="flex gap-2">
-              {onNavigate && <button onClick={() => onNavigate('home')} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#9A9CAD]">Home</button>}
-              <button onClick={onLogout} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#9A9CAD]">Log out</button>
-            </div>
-          </div>
-          <div className="mt-4 flex gap-1 overflow-x-auto pb-3 scrollbar-hide">
-            {TABS.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`shrink-0 rounded-xl px-3.5 py-2 text-[10px] font-semibold ${tab === item.id ? 'bg-indigo-500 text-white' : 'text-[#777A8C] hover:bg-white/[0.04] hover:text-white'}`}>{item.label}{item.id === 'verification' && Number(stats.pending_verifications || 0) > 0 ? <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[8px]">{stats.pending_verifications}</span> : null}</button>)}
-          </div>
-        </div>
-      </header>
+  function openManagement(section: ManagementTab) { setManagementTab(section); setTab('management'); }
 
-      <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        {!branchReady ? <BranchMissing /> : <>
-          {tab === 'overview' && <Overview stats={stats} profile={profile} onOpen={setTab} />}
-          {tab === 'people' && <People onView={setViewingProfile} />}
-          {tab === 'staff' && <StaffListTab profile={profile} />}
-          {tab === 'listings' && <Listings />}
-          {tab === 'verification' && <Verification />}
-          {tab === 'bookings' && <Bookings />}
-          {tab === 'reports' && <Reports />}
-          {tab === 'support' && <Support onGoToChat={onGoToChat} />}
-          {tab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }} />}
-        </>}
-      </main>
-
-      {viewingProfile && <UserProfileModal user={viewingProfile} adminProfile={profile} onClose={() => setViewingProfile(null)} onPromote={() => setTab('staff')} onNavigate={onNavigate} onGoToChat={onGoToChat} />}
-    </div>
-  );
-}
-
-function Overview({ stats, profile, onOpen }: { stats: any; profile: Profile; onOpen: (t: AdminTab) => void }) {
-  const cards = [
-    ['Users', stats.users || 0, 'people'], ['Workers', stats.workers || 0, 'people'], ['Partners', stats.partners || 0, 'people'],
-    ['Staff', stats.staff || 0, 'staff'], ['Listings', stats.listings || 0, 'listings'], ['Pending worker reviews', stats.pending_verifications || 0, 'verification'],
-  ] as const;
-  return <div className="space-y-6">
-    <section className="rounded-3xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/[0.13] via-[#111522] to-[#0D1018] p-6 lg:p-8">
-      <span className="rounded-full bg-indigo-500/10 px-3 py-1 text-[9px] font-semibold text-indigo-300">BRANCH AUTHORITY</span>
-      <h2 className="mt-4 text-2xl font-bold lg:text-3xl">Manage only {profile.assigned_lga}, {profile.assigned_state}.</h2>
-      <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">Users, workers, partners, staff, listings, worker bookings, reports, support and announcements are restricted to your Creator-assigned branch.</p>
-    </section>
-    <section className="grid grid-cols-2 gap-3 md:grid-cols-3">{cards.map(([label, value, target]) => <button key={label} onClick={() => onOpen(target)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] text-[#727587]">{label}</p></button>)}</section>
+  return <div className="min-h-[100dvh] bg-[#080A0F] pb-24 text-white">
+    <Toaster position="top-center" richColors />
+    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#080A0F]/94 backdrop-blur-xl"><div className="mx-auto max-w-7xl px-4 pt-5 lg:px-8">
+      <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.24em] text-indigo-400">WEHOUSE ADMIN · {profile.assigned_lga || 'UNASSIGNED'}</p><h1 className="mt-1 text-lg font-bold">{current.label}</h1><p className="mt-1 text-[10px] text-[#717487]">{current.note}{branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : ' · Branch assignment required'}</p></div><div className="flex shrink-0 gap-2">{onNavigate && <button onClick={() => onNavigate('profile')} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#A1A4B4]">Account</button>}<button onClick={onLogout} className="rounded-xl border border-red-500/15 bg-red-500/[0.05] px-3 py-2 text-[10px] text-red-300">Log out</button></div></div>
+      <div className="mt-4 flex gap-1 overflow-x-auto pb-3 scrollbar-hide">{TABS.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`shrink-0 rounded-xl px-3.5 py-2 text-[10px] font-semibold ${tab === item.id ? 'bg-indigo-500 text-white' : 'text-[#777A8C] hover:bg-white/[0.04] hover:text-white'}`}>{item.label}</button>)}</div>
+    </div></header>
+    <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">{!branchReady ? <BranchMissing /> : <>
+      {tab === 'overview' && <Overview stats={stats} profile={profile} openManagement={openManagement} openIssues={() => setTab('issues')} />}
+      {tab === 'management' && <Management profile={profile} active={managementTab} setActive={setManagementTab} onView={setViewingProfile} />}
+      {tab === 'issues' && <Issues active={issueTab} setActive={setIssueTab} onGoToChat={onGoToChat} />}
+      {tab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }} />}
+    </>}</main>
+    {viewingProfile && <UserProfileModal user={viewingProfile} adminProfile={profile} onClose={() => setViewingProfile(null)} onPromote={() => openManagement('staff')} onNavigate={onNavigate} onGoToChat={onGoToChat} />}
   </div>;
 }
 
-function People({ onView }: { onView: (p: Profile) => void }) {
-  const [role, setRole] = useState<PersonFilter>('user');
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  useEffect(() => { void load(); }, [role]);
-  async function load() { setLoading(true); const { data, error } = await supabase.rpc('admin_get_my_branch_profiles', { p_role: role }); if (error) toast.error(error.message); setRows(Array.isArray(data) ? data : []); setLoading(false); }
-  const filtered = useMemo(() => rows.filter(r => !search.trim() || [r.full_name,r.username,r.email,r.user_id].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())), [rows,search]);
-  return <Section title="People" note="Only accounts whose canonical location belongs to your assigned branch are returned.">
-    <div className="flex flex-wrap gap-2">{([['user','Users'],['worker','Workers'],['property_partner','Property Partners']] as const).map(([id,label]) => <Chip key={id} active={role===id} onClick={()=>setRole(id)}>{label}</Chip>)}</div>
-    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search this branch" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs outline-none focus:border-indigo-500/40" />
-    {loading ? <Loading/> : filtered.length===0 ? <Empty title="No matching accounts" text="Nothing in this branch matches the current filter."/> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{filtered.map(p => <button key={p.user_id} onClick={()=>onView(p)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex items-center gap-3"><Avatar text={p.full_name||p.username||p.email}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{p.full_name||p.username||'WeHouse user'}</p><p className="truncate text-[10px] text-[#6D7082]">{p.email}</p><p className="mt-1 text-[9px] text-[#535667]">{[p.local_government||p.city,p.state].filter(Boolean).join(', ')}</p></div></div></button>)}</div>}
-  </Section>;
+function Overview({ stats, profile, openManagement, openIssues }: { stats: any; profile: Profile; openManagement: (t: ManagementTab) => void; openIssues: () => void }) {
+  const cards: Array<[string, number, ManagementTab]> = [['Users',stats.users||0,'people'],['Workers',stats.workers||0,'people'],['Partners',stats.partners||0,'people'],['Staff',stats.staff||0,'staff'],['Listings',stats.listings||0,'listings'],['Pending worker reviews',stats.pending_verifications||0,'verification']];
+  return <div className="space-y-6"><section className="rounded-3xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/[0.13] via-[#111522] to-[#0D1018] p-6 lg:p-8"><span className="rounded-full bg-indigo-500/10 px-3 py-1 text-[9px] font-semibold text-indigo-300">BRANCH AUTHORITY</span><h2 className="mt-4 text-2xl font-bold lg:text-3xl">Manage {profile.assigned_lga}, {profile.assigned_state} without searching through unrelated pages.</h2><p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">Management contains branch people and operations. Reports & Support contains branch problems. Announcements contains branch communication. Creator-only platform finance and settings stay out of this dashboard.</p></section><section className="grid grid-cols-2 gap-3 md:grid-cols-3">{cards.map(([label,value,target])=><button key={label} onClick={()=>openManagement(target)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] text-[#727587]">{label}</p></button>)}</section><button onClick={openIssues} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-sm font-semibold">Reports & Support</p><p className="mt-1 text-[10px] text-[#727587]">Open the branch issue inbox for reports and support conversations.</p></button></div>;
 }
 
-function Listings() {
-  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('pending_approval'),[rejectId,setRejectId]=useState<string|null>(null),[reason,setReason]=useState('');
-  const { requestAuth } = useAdminAuth();
-  useEffect(()=>{void load()},[filter]);
-  async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_listings',{p_status:filter});if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)}
-  function review(id:string,decision:'approve'|'reject'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_review_my_branch_listing',{p_listing_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Listing approved':'Listing rejected');setRejectId(null);setReason('');void load()})}
-  return <Section title="Listings" note="Review and monitor listings inside your branch only." right={<Select value={filter} onChange={setFilter} options={[['pending_approval','Pending'],['available','Live'],['rejected','Rejected'],['all','All']]}/>}>
-    {loading?<Loading/>:rows.length===0?<Empty title="No listings" text="There are no listings in this branch for the selected status."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(l=><Card key={l.id}><div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{l.title||'Property'}</p><p className="mt-1 text-[10px] text-[#6E7183]">{[l.city,l.state].filter(Boolean).join(', ')} · {money(l.price)}</p></div><Badge value={l.status}/></div>{l.status==='pending_approval'&&(rejectId===l.id?<div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason for rejection" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="flex gap-2"><Button secondary onClick={()=>{setRejectId(null);setReason('')}}>Cancel</Button><Button danger onClick={()=>review(l.id,'reject')}>Confirm rejection</Button></div></div>:<div className="mt-4 flex gap-2"><Button onClick={()=>review(l.id,'approve')}>Approve</Button><Button danger onClick={()=>setRejectId(l.id)}>Reject</Button></div>)}</Card>)}</div>}
-  </Section>;
+function Management({ profile, active, setActive, onView }: { profile: Profile; active: ManagementTab; setActive: (t: ManagementTab) => void; onView: (p: Profile) => void }) {
+  const items: Array<[ManagementTab,string,string]> = [['people','People','Users, workers and property partners'],['staff','Staff','Branch staff and module assignments'],['listings','Listings','Property listing approval and monitoring'],['verification','Worker Review','Identity and skill verification'],['bookings','Bookings','Worker-service booking oversight']];
+  const selected=items.find(([id])=>id===active)!;
+  return <div className="space-y-5"><div><h2 className="text-lg font-bold">Management</h2><p className="mt-1 text-[10px] text-[#707386]">One branch-management workspace. Choose the area you need below.</p></div><div className="overflow-x-auto scrollbar-hide"><div className="flex min-w-max gap-1 rounded-2xl border border-white/[0.05] bg-[#0D1017] p-1">{items.map(([id,label])=><button key={id} onClick={()=>setActive(id)} className={`rounded-xl px-3 py-2 text-[10px] font-semibold ${active===id?'bg-indigo-500 text-white':'text-[#777A8C] hover:text-white'}`}>{label}</button>)}</div></div><div className="rounded-2xl border border-indigo-500/10 bg-indigo-500/[0.03] p-3"><p className="text-xs font-semibold">{selected[1]}</p><p className="mt-1 text-[9px] text-[#6E7183]">{selected[2]}</p></div>{active==='people'&&<People onView={onView}/>} {active==='staff'&&<StaffListTab profile={profile}/>} {active==='listings'&&<Listings/>} {active==='verification'&&<Verification/>} {active==='bookings'&&<Bookings/>}</div>;
 }
 
-function Verification(){
-  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[selected,setSelected]=useState<any|null>(null),[reason,setReason]=useState('');
-  const { requestAuth }=useAdminAuth();
-  async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_profiles',{p_role:'worker'});if(error)toast.error(error.message);setRows((Array.isArray(data)?data:[]).filter((w:any)=>w.worker_status==='profile_under_review'));setLoading(false)}
-  useEffect(()=>{void load()},[]);
-  function review(id:string,decision:'approve'|'reject'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_review_my_branch_worker',{p_worker_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Worker verified':'Worker rejected');setSelected(null);setReason('');void load()})}
-  if(selected) return <Section title="Worker review" note="Review the submitted identity and skill evidence before deciding."><button onClick={()=>setSelected(null)} className="text-[10px] text-indigo-400">← Back to queue</button><Card><div className="flex gap-3"><Avatar text={selected.full_name||selected.username||'W'}/><div><p className="text-sm font-semibold">{selected.full_name||selected.username}</p><p className="text-[10px] text-[#707386]">{selected.worker_occupation||'No occupation'} · {[selected.local_government||selected.city,selected.state].filter(Boolean).join(', ')}</p></div></div><div className="mt-4 grid gap-3 md:grid-cols-2">{selected.worker_gov_id_url?<Evidence title="Government ID" url={selected.worker_gov_id_url}/>:<Missing label="Government ID"/>}{selected.worker_video_url?<VideoEvidence title="Skill video" url={selected.worker_video_url}/>:<Missing label="Skill video"/>}</div><div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Rejection reason (required only when rejecting)" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="flex gap-2"><Button onClick={()=>review(selected.user_id,'approve')}>Approve & publish</Button><Button danger onClick={()=>review(selected.user_id,'reject')}>Reject</Button></div></div></Card></Section>;
-  return <Section title="Worker review" note="Only workers in profile_under_review from your branch appear here.">{loading?<Loading/>:rows.length===0?<Empty title="No workers awaiting review" text="The review queue is clear."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(w=><button key={w.user_id} onClick={()=>setSelected(w)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex gap-3"><Avatar text={w.full_name||w.username||'W'}/><div><p className="text-sm font-semibold">{w.full_name||w.username}</p><p className="text-[10px] text-[#6D7082]">{w.worker_occupation||'No occupation'} · {[w.local_government||w.city,w.state].filter(Boolean).join(', ')}</p></div></div></button>)}</div>}</Section>;
+function Issues({ active, setActive, onGoToChat }: { active: IssueTab; setActive: (t: IssueTab) => void; onGoToChat?: (id?:string)=>void }) {
+  return <div className="space-y-5"><div><h2 className="text-lg font-bold">Reports & Support</h2><p className="mt-1 text-[10px] text-[#707386]">Problems that need branch Admin attention live in one place.</p></div><div className="inline-flex rounded-xl border border-white/[0.06] bg-[#0D1017] p-1"><button onClick={()=>setActive('reports')} className={`rounded-lg px-4 py-2 text-[10px] font-semibold ${active==='reports'?'bg-indigo-500 text-white':'text-[#777A8C]'}`}>Reports</button><button onClick={()=>setActive('support')} className={`rounded-lg px-4 py-2 text-[10px] font-semibold ${active==='support'?'bg-indigo-500 text-white':'text-[#777A8C]'}`}>Support</button></div>{active==='reports'?<Reports/>:<Support onGoToChat={onGoToChat}/>}</div>;
 }
 
-function Bookings(){
-  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);
-  useEffect(()=>{void(async()=>{const {data,error}=await supabase.rpc('admin_get_my_branch_worker_bookings');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)})()},[]);
-  return <Section title="Worker bookings" note="Worker-service bookings are scoped by the worker's branch.">{loading?<Loading/>:rows.length===0?<Empty title="No worker bookings" text="No worker-service bookings are recorded for your branch."/>:<div className="space-y-2">{rows.map(b=><Card key={b.id}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{b.booking_code||'Worker booking'}</p><p className="mt-1 text-[9px] text-[#686B7D]">{money(b.negotiated_amount||b.agreed_amount)} · {new Date(b.created_at).toLocaleDateString()}</p></div><Badge value={b.status}/></div></Card>)}</div>}</Section>;
-}
-
-function Reports(){
-  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true); const {requestAuth}=useAdminAuth();
-  async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_reports');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)} useEffect(()=>{void load()},[]);
-  function act(id:string,action:'resolved'|'dismissed'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_resolve_my_branch_report',{p_report_id:id,p_action:action});if(error)return toast.error(error.message);toast.success(action==='resolved'?'Report resolved':'Report dismissed');void load()})}
-  return <Section title="Listing reports" note="Only reports tied to listings inside your branch are shown.">{loading?<Loading/>:rows.length===0?<Empty title="No reports" text="There are no listing reports for this branch."/>:<div className="space-y-3">{rows.map(r=><Card key={r.id}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{r.reason}</p><p className="mt-1 text-[9px] text-[#686B7D]">Listing: {r.listing_id||'Unknown'} · {new Date(r.created_at).toLocaleDateString()}</p></div><Badge value={r.status}/></div>{r.status==='pending'&&<div className="mt-4 flex gap-2"><Button onClick={()=>act(r.id,'resolved')}>Resolve</Button><Button secondary onClick={()=>act(r.id,'dismissed')}>Dismiss</Button></div>}</Card>)}</div>}</Section>;
-}
-
-function Support({onGoToChat}:{onGoToChat?: (id?:string)=>void}){
-  const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);
-  useEffect(()=>{void(async()=>{const {data,error}=await supabase.rpc('admin_support_inbox');if(error)toast.error(error.message);setRows(data||[]);setLoading(false)})()},[]);
-  return <Section title="Support inbox" note="Conversations are restricted to users in your branch.">{loading?<Loading/>:rows.length===0?<Empty title="No support conversations" text="Your branch support inbox is clear."/>:<div className="space-y-2">{rows.map(c=><button key={c.id} onClick={()=>onGoToChat?.(c.id)} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{c.user_name||c.user_email||'WeHouse user'}</p><p className="mt-1 truncate text-[10px] text-[#6E7183]">{c.last_message||'No messages yet'}</p><p className="mt-1 text-[9px] text-[#505365]">{[c.user_lga,c.user_state].filter(Boolean).join(', ')}</p></div>{Number(c.unread_b||0)>0&&<span className="h-fit rounded-full bg-red-500 px-2 py-1 text-[8px] font-bold">{c.unread_b}</span>}</div></button>)}</div>}</Section>;
-}
-
+function People({ onView }: { onView: (p: Profile) => void }) { const [role,setRole]=useState<PersonFilter>('user'),[rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[search,setSearch]=useState(''); useEffect(()=>{void load()},[role]); async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_profiles',{p_role:role});if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)} const filtered=useMemo(()=>rows.filter(r=>!search.trim()||[r.full_name,r.username,r.email,r.user_id].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())),[rows,search]); return <Section title="People" note="Only accounts whose canonical location belongs to your assigned branch are returned."><div className="flex flex-wrap gap-2">{([['user','Users'],['worker','Workers'],['property_partner','Property Partners']] as const).map(([id,label])=><Chip key={id} active={role===id} onClick={()=>setRole(id)}>{label}</Chip>)}</div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search this branch" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs outline-none focus:border-indigo-500/40"/>{loading?<Loading/>:filtered.length===0?<Empty title="No matching accounts" text="Nothing in this branch matches the current filter."/>:<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{filtered.map(p=><button key={p.user_id} onClick={()=>onView(p)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex items-center gap-3"><Avatar text={p.full_name||p.username||p.email}/><div className="min-w-0"><p className="truncate text-sm font-semibold">{p.full_name||p.username||'WeHouse user'}</p><p className="truncate text-[10px] text-[#6D7082]">{p.email}</p><p className="mt-1 text-[9px] text-[#535667]">{[p.local_government||p.city,p.state].filter(Boolean).join(', ')}</p></div></div></button>)}</div>}</Section> }
+function Listings(){const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('pending_approval'),[rejectId,setRejectId]=useState<string|null>(null),[reason,setReason]=useState('');const {requestAuth}=useAdminAuth();useEffect(()=>{void load()},[filter]);async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_listings',{p_status:filter});if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)}function review(id:string,decision:'approve'|'reject'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_review_my_branch_listing',{p_listing_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Listing approved':'Listing rejected');setRejectId(null);setReason('');void load()})}return <Section title="Listings" note="Review and monitor listings inside your branch only." right={<Select value={filter} onChange={setFilter} options={[['pending_approval','Pending'],['available','Live'],['rejected','Rejected'],['all','All']]}/>}>
+{loading?<Loading/>:rows.length===0?<Empty title="No listings" text="There are no listings in this branch for the selected status."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(l=><Card key={l.id}><div className="flex justify-between gap-3"><div><p className="text-sm font-semibold">{l.title||'Property'}</p><p className="mt-1 text-[10px] text-[#6E7183]">{[l.city,l.state].filter(Boolean).join(', ')} · {money(l.price)}</p></div><Badge value={l.status}/></div>{l.status==='pending_approval'&&(rejectId===l.id?<div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason for rejection" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="flex gap-2"><Button secondary onClick={()=>{setRejectId(null);setReason('')}}>Cancel</Button><Button danger onClick={()=>review(l.id,'reject')}>Confirm rejection</Button></div></div>:<div className="mt-4 flex gap-2"><Button onClick={()=>review(l.id,'approve')}>Approve</Button><Button danger onClick={()=>setRejectId(l.id)}>Reject</Button></div>)}</Card>)}</div>}</Section>}
+function Verification(){const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[selected,setSelected]=useState<any|null>(null),[reason,setReason]=useState('');const {requestAuth}=useAdminAuth();async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_profiles',{p_role:'worker'});if(error)toast.error(error.message);setRows((Array.isArray(data)?data:[]).filter((w:any)=>w.worker_status==='profile_under_review'));setLoading(false)}useEffect(()=>{void load()},[]);function review(id:string,decision:'approve'|'reject'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_review_my_branch_worker',{p_worker_id:id,p_decision:decision,p_reason:decision==='reject'?reason:null});if(error)return toast.error(error.message);toast.success(decision==='approve'?'Worker verified':'Worker rejected');setSelected(null);setReason('');void load()})}if(selected)return <Section title="Worker review" note="Review submitted identity and skill evidence before deciding."><button onClick={()=>setSelected(null)} className="text-[10px] text-indigo-400">← Back to queue</button><Card><div className="flex gap-3"><Avatar text={selected.full_name||selected.username||'W'}/><div><p className="text-sm font-semibold">{selected.full_name||selected.username}</p><p className="text-[10px] text-[#707386]">{selected.worker_occupation||'No occupation'} · {[selected.local_government||selected.city,selected.state].filter(Boolean).join(', ')}</p></div></div><div className="mt-4 grid gap-3 md:grid-cols-2">{selected.worker_gov_id_url?<Evidence title="Government ID" url={selected.worker_gov_id_url}/>:<Missing label="Government ID"/>}{selected.worker_video_url?<VideoEvidence title="Skill video" url={selected.worker_video_url}/>:<Missing label="Skill video"/>}</div><div className="mt-4 space-y-2"><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Rejection reason (required only when rejecting)" className="w-full rounded-xl border border-white/[0.08] bg-[#171A23] p-3 text-xs"/><div className="flex gap-2"><Button onClick={()=>review(selected.user_id,'approve')}>Approve & publish</Button><Button danger onClick={()=>review(selected.user_id,'reject')}>Reject</Button></div></div></Card></Section>;return <Section title="Worker review" note="Only workers in profile_under_review from your branch appear here.">{loading?<Loading/>:rows.length===0?<Empty title="No workers awaiting review" text="The review queue is clear."/>:<div className="grid gap-3 md:grid-cols-2">{rows.map(w=><button key={w.user_id} onClick={()=>setSelected(w)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex gap-3"><Avatar text={w.full_name||w.username||'W'}/><div><p className="text-sm font-semibold">{w.full_name||w.username}</p><p className="text-[10px] text-[#6D7082]">{w.worker_occupation||'No occupation'} · {[w.local_government||w.city,w.state].filter(Boolean).join(', ')}</p></div></div></button>)}</div>}</Section>}
+function Bookings(){const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);useEffect(()=>{void(async()=>{const {data,error}=await supabase.rpc('admin_get_my_branch_worker_bookings');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)})()},[]);return <Section title="Worker bookings" note="Worker-service bookings are scoped by the worker's branch.">{loading?<Loading/>:rows.length===0?<Empty title="No worker bookings" text="No worker-service bookings are recorded for your branch."/>:<div className="space-y-2">{rows.map(b=><Card key={b.id}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{b.booking_code||'Worker booking'}</p><p className="mt-1 text-[9px] text-[#686B7D]">{money(b.negotiated_amount||b.agreed_amount)} · {new Date(b.created_at).toLocaleDateString()}</p></div><Badge value={b.status}/></div></Card>)}</div>}</Section>}
+function Reports(){const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);const {requestAuth}=useAdminAuth();async function load(){setLoading(true);const {data,error}=await supabase.rpc('admin_get_my_branch_reports');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)}useEffect(()=>{void load()},[]);function act(id:string,action:'resolved'|'dismissed'){requestAuth(async()=>{const {error}=await supabase.rpc('admin_resolve_my_branch_report',{p_report_id:id,p_action:action});if(error)return toast.error(error.message);toast.success(action==='resolved'?'Report resolved':'Report dismissed');void load()})}return <Section title="Listing reports" note="Only reports tied to listings inside your branch are shown.">{loading?<Loading/>:rows.length===0?<Empty title="No reports" text="There are no listing reports for this branch."/>:<div className="space-y-3">{rows.map(r=><Card key={r.id}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{r.reason}</p><p className="mt-1 text-[9px] text-[#686B7D]">Listing: {r.listing_id||'Unknown'} · {new Date(r.created_at).toLocaleDateString()}</p></div><Badge value={r.status}/></div>{r.status==='pending'&&<div className="mt-4 flex gap-2"><Button onClick={()=>act(r.id,'resolved')}>Resolve</Button><Button secondary onClick={()=>act(r.id,'dismissed')}>Dismiss</Button></div>}</Card>)}</div>}</Section>}
+function Support({onGoToChat}:{onGoToChat?: (id?:string)=>void}){const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true);useEffect(()=>{void(async()=>{const {data,error}=await supabase.rpc('admin_support_inbox');if(error)toast.error(error.message);setRows(data||[]);setLoading(false)})()},[]);return <Section title="Support inbox" note="Conversations are restricted to users in your branch.">{loading?<Loading/>:rows.length===0?<Empty title="No support conversations" text="Your branch support inbox is clear."/>:<div className="space-y-2">{rows.map(c=><button key={c.id} onClick={()=>onGoToChat?.(c.id)} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{c.user_name||c.user_email||'WeHouse user'}</p><p className="mt-1 truncate text-[10px] text-[#6E7183]">{c.last_message||'No messages yet'}</p><p className="mt-1 text-[9px] text-[#505365]">{[c.user_lga,c.user_state].filter(Boolean).join(', ')}</p></div>{Number(c.unread_b||0)>0&&<span className="h-fit rounded-full bg-red-500 px-2 py-1 text-[8px] font-bold">{c.unread_b}</span>}</div></button>)}</div>}</Section>}
 function BranchMissing(){return <Empty title="Admin branch not assigned" text="This dashboard fails closed until the Creator assigns both your operational state and LGA. No nationwide fallback is used."/>}
 function Section({title,note,right,children}:{title:string;note:string;right?:React.ReactNode;children:React.ReactNode}){return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 text-[10px] text-[#707386]">{note}</p></div>{right}</div>{children}</div>}
 function Card({children}:{children:React.ReactNode}){return <div className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4">{children}</div>}
