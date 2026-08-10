@@ -28,8 +28,9 @@ function badge(unreadCount: number) { return unreadCount > 0 ? unreadCount : und
 export function getCreatorNav(): DesktopNavItem[] {
   return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'creator', label: 'Dashboard', icon: DASHBOARD }, { id: 'analytics', label: 'Analytics', icon: ANALYTICS }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
-export function getAdminNav(unreadCount = 0): DesktopNavItem[] {
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'admin', label: 'Dashboard', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+export function getAdminNav(): DesktopNavItem[] {
+  // Support and announcements are part of the branch Admin workspace; do not duplicate them as generic Messages.
+  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'admin', label: 'Dashboard', icon: DASHBOARD }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
 export function getStaffNav(unreadCount = 0): DesktopNavItem[] {
   return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'staff_dashboard', label: 'Staff Hub', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
@@ -38,8 +39,6 @@ export function getWorkerNav(unreadCount = 0): DesktopNavItem[] {
   return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'worker_dashboard', label: 'Dashboard', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'wallet', label: 'Wallet', icon: WALLET }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
 export function getPartnerNav(): DesktopNavItem[] {
-  // Partner messages and wallet are role-specific tools inside the partner dashboard.
-  // Keep global navigation focused and avoid parallel generic implementations.
   return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'property_partner', label: 'Dashboard', icon: DASHBOARD }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
 }
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
@@ -48,7 +47,7 @@ export function getUserNav(unreadCount = 0): DesktopNavItem[] {
 export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
   switch (role) {
     case 'creator': return getCreatorNav();
-    case 'admin': return getAdminNav(unreadCount);
+    case 'admin': return getAdminNav();
     case 'staff': return getStaffNav(unreadCount);
     case 'worker': return getWorkerNav(unreadCount);
     case 'property_partner': return getPartnerNav();
