@@ -26,29 +26,57 @@ const ANALYTICS = icon('M18 20V10M12 20V4M6 20v-6');
 function badge(unreadCount: number) { return unreadCount > 0 ? unreadCount : undefined; }
 
 export function getCreatorNav(): DesktopNavItem[] {
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'creator', label: 'Dashboard', icon: DASHBOARD }, { id: 'analytics', label: 'Analytics', icon: ANALYTICS }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+  return [
+    { id: 'creator', label: 'Creator Dashboard', icon: DASHBOARD },
+    { id: 'analytics', label: 'Analytics', icon: ANALYTICS },
+    { id: 'profile', label: 'Account', icon: ACCOUNT },
+  ];
 }
+
 export function getAdminNav(): DesktopNavItem[] {
-  // Support and announcements are part of the branch Admin workspace; do not duplicate them as generic Messages.
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'admin', label: 'Dashboard', icon: DASHBOARD }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+  // Admin operations, support, announcements and staff management live inside the branch dashboard.
+  // Do not expose parallel Home, Messages or Analytics workspaces.
+  return [{ id: 'admin', label: 'Admin Dashboard', icon: DASHBOARD }];
 }
-export function getStaffNav(unreadCount = 0): DesktopNavItem[] {
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'staff_dashboard', label: 'Staff Hub', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+
+export function getStaffNav(): DesktopNavItem[] {
+  // A staff account is an operational account. Its assigned module is the workspace.
+  // No generic Home/Messages/Analytics/Profile dashboard should compete with that module.
+  return [{ id: 'staff_dashboard', label: 'Staff Workspace', icon: DASHBOARD }];
 }
+
 export function getWorkerNav(unreadCount = 0): DesktopNavItem[] {
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'worker_dashboard', label: 'Dashboard', icon: DASHBOARD }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'wallet', label: 'Wallet', icon: WALLET }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+  return [
+    { id: 'worker_dashboard', label: 'Worker Dashboard', icon: DASHBOARD },
+    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
+    { id: 'wallet', label: 'Wallet', icon: WALLET },
+    { id: 'profile', label: 'Account', icon: ACCOUNT },
+  ];
 }
+
 export function getPartnerNav(): DesktopNavItem[] {
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'property_partner', label: 'Dashboard', icon: DASHBOARD }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+  // Property communication and partner finance are already inside the partner dashboard.
+  return [
+    { id: 'property_partner', label: 'Partner Dashboard', icon: DASHBOARD },
+    { id: 'profile', label: 'Account', icon: ACCOUNT },
+  ];
 }
+
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
-  return [{ id: 'home', label: 'Home', icon: HOME }, { id: 'search', label: 'Search', icon: SEARCH }, { id: 'saved', label: 'Saved', icon: SAVED }, { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) }, { id: 'profile', label: 'Account', icon: ACCOUNT }];
+  return [
+    { id: 'home', label: 'Home', icon: HOME },
+    { id: 'search', label: 'Search', icon: SEARCH },
+    { id: 'saved', label: 'Saved', icon: SAVED },
+    { id: 'messages', label: 'Messages', icon: MESSAGES, badge: badge(unreadCount) },
+    { id: 'profile', label: 'Account', icon: ACCOUNT },
+  ];
 }
+
 export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
   switch (role) {
     case 'creator': return getCreatorNav();
     case 'admin': return getAdminNav();
-    case 'staff': return getStaffNav(unreadCount);
+    case 'staff': return getStaffNav();
     case 'worker': return getWorkerNav(unreadCount);
     case 'property_partner': return getPartnerNav();
     default: return getUserNav(unreadCount);
