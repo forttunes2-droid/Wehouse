@@ -1,10 +1,38 @@
 /* Operational roles own navigation inside their role workspace.
    The global customer-style mobile bottom nav must not compete with those modules. */
 @media (max-width: 1023px) {
+  body:has(.role-workspace) .bottom-nav,
   body:has([class*="bg-[#070910]"]) .bottom-nav,
   body:has([class*="bg-[#080A0F]"]) .bottom-nav,
   body:has([class*="bg-[#080B11]"]) .bottom-nav,
   body:has([class*="bg-[#070A10]"]) .bottom-nav {
     display: none !important;
   }
+}
+
+/* Older Creator/Admin shells do not all carry the semantic marker yet.
+   Keep their existing color fallback responsive without changing their data logic. */
+@media (max-width: 639px) {
+  body:has([class*="bg-[#070910]"]) header > div > div:first-child,
+  body:has([class*="bg-[#080A0F]"]) header > div > div:first-child {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  body:has([class*="bg-[#070910]"]) header > div > div:first-child > div:last-child,
+  body:has([class*="bg-[#080A0F]"]) header > div > div:first-child > div:last-child {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.role-workspace {
+  width: 100%;
+  min-width: 0;
+}
+
+.role-workspace main,
+.role-workspace header > div {
+  min-width: 0;
 }
