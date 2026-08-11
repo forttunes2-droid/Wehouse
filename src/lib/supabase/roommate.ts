@@ -1,165 +1,91 @@
 import { supabase } from './client';
 import type { RoommatePreferences } from '@/types';
 
-// ─── ROOMMATE HELPERS ──────────────────────────────
-
-// 8-hour search window in milliseconds
-const SEARCH_DURATION_MS = 8 * 60 * 60 * 1000;
-
 export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences>) {
-  const { data, error } = await supabase
-    .from('roommate_preferences')
-    .upsert(
-      { ...prefs, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    )
-    .select()
-    .maybeSingle();
-  return { prefs: data as RoommatePreferences | null, error };
+  const { data, error } = await supabase.rpc('save_my_roommate_preferences', {
+    p_gender: prefs.gender || '',
+    p_gender_preference: prefs.gender_preference || 'no_preference',
+    p_budget_min: Number(prefs.budget_min || 0),
+    p_budget_max: Number(prefs.budget_max || 0),
+    p_cleanliness: prefs.cleanliness || 'moderate',
+    p_noise_level: prefs.noise_level || 'moderate',
+    p_sleep_time: prefs.sleep_time || '10pm-11pm',
+    p_visitors: prefs.visitors || 'sometimes',
+    p_stay_duration: prefs.stay_duration || '1_year',
+    p_area_preference: prefs.area_preference || null,
+    p_bio: prefs.bio || null,
+    p_school_name: (prefs as any).school_name || null,
+    p_campus: prefs.campus || null,
+    p_level: (prefs as any).level || null,
+    p_department: (prefs as any).department || null,
+  });
+  return { prefs: (data || null) as RoommatePreferences | null, error };
 }
 
-export async function getRoommatePreferences(userId: string) {
-  const { data, error } = await supabase.from('roommate_preferences').select('*').eq('user_id', userId).maybeSingle();
-  return { prefs: data as RoommatePreferences | null, error };
+export async function getRoommatePreferences(_userId?: string) {
+  const { data, error } = await supabase.rpc('get_my_roommate_preferences');
+  const row = Array.isArray(data) ? data[0] : data;
+  return { prefs: (row || null) as RoommatePreferences | null, error };
 }
 
-export async function findMatches(userId: string) {
-  const { data, error } = await supabase.rpc('find_roommate_matches', { p_user_id: userId });
-  return { matches: data || [], error };
+export async function startRoommateSearch(_userId?: string) {
+  const { data, error } = await supabase.rpc('start_my_roommate_search');
+  return { prefs: (data || null) as RoommatePreferences | null, error };
 }
 
-// ─── BACKGROUND SEARCH SYSTEM ──────────────────────
-
-// Start an 8-hour active search window
-export async function startRoommateSearch(userId: string) {
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + SEARCH_DURATION_MS);
-
-  const { data, error } = await supabase
-    .from('roommate_preferences')
-    .update({
-      search_status: 'active',
-      search_started_at: now.toISOString(),
-      search_expires_at: expiresAt.toISOString(),
-      search_match_count: 0,
-      updated_at: now.toISOString(),
-    })
-    .eq('user_id', userId)
-    .select()
-    .maybeSingle();
-
-  return { prefs: data as RoommatePreferences | null, error };
+export async function stopRoommateSearch(_userId?: string) {
+  const { data, error } = await supabase.rpc('stop_my_roommate_search');
+  return { prefs: (data || null) as RoommatePreferences | null, error };
 }
 
-// Stop an active search
-export async function stopRoommateSearch(userId: string) {
-  const { data, error } = await supabase
-    .from('roommate_preferences')
-    .update({
-      search_status: 'stopped',
-      search_expires_at: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-    .select()
-    .maybeSingle();
-
-  return { prefs: data as RoommatePreferences | null, error };
+export async function refreshRoommateSearch(_userId?: string) {
+  const { error } = await supabase.rpc('refresh_my_roommate_search');
+  if (error) return { matches: [], error };
+  return getSavedMatchResults();
 }
 
-// Refresh search — extends the 8-hour window and re-runs matching
-export async function refreshRoommateSearch(userId: string) {
-  // 1. Re-run the match algorithm
-  const { matches: newMatches, error: matchError } = await findMatches(userId);
-  if (matchError) return { matches: [], error: matchError };
-
-  // 2. Get existing saved matches to avoid duplicates
-  const { data: existing } = await supabase
-    .from('roommate_search_results')
-    .select('matched_user_id')
-    .eq('searcher_id', userId);
-
-  const existingIds = new Set((existing || []).map((m: any) => m.matched_user_id));
-
-  // 3. Save only new matches
-  const trulyNew = (newMatches || []).filter((m: any) => !existingIds.has(m.user_id));
-  if (trulyNew.length > 0) {
-    const rows = trulyNew.map((m: any) => ({
-      searcher_id: userId,
-      matched_user_id: m.user_id,
-      match_score: m.match_score || 0,
-      status: 'new',
-    }));
-    await supabase.from('roommate_search_results').insert(rows);
-  }
-
-  // 4. Update match count on preferences
-  const { data: allSaved } = await supabase
-    .from('roommate_search_results')
-    .select('*', { count: 'exact', head: true })
-    .eq('searcher_id', userId);
-
-  await supabase
-    .from('roommate_preferences')
-    .update({ search_match_count: allSaved?.length || 0 })
-    .eq('user_id', userId);
-
-  return { matches: newMatches || [], error: null };
+export async function getSavedMatchResults(_userId?: string) {
+  const { data, error } = await supabase.rpc('get_my_roommate_matches');
+  const matches = (data || []).map((row: any) => ({
+    id: row.id,
+    matched_user_id: row.matched_user_id,
+    match_score: row.match_score,
+    status: row.status,
+    created_at: row.created_at,
+    matched_profile: {
+      user_id: row.matched_user_id,
+      username: row.username,
+      full_name: row.full_name,
+      avatar_url: row.avatar_url,
+      gender: row.gender,
+      city: row.city,
+      state: row.state,
+      bio: row.bio,
+      school: row.school,
+      area_preference: row.area_preference,
+    },
+  }));
+  return { matches, error };
 }
 
-// Get saved match results (persisted across sessions)
-export async function getSavedMatchResults(userId: string) {
-  const { data, error } = await supabase
-    .from('roommate_search_results')
-    .select(`
-      *,
-      matched_profile:profiles!matched_user_id(username, gender, city, state, bio, school)
-    `)
-    .eq('searcher_id', userId)
-    .order('match_score', { ascending: false });
-
-  return { matches: data || [], error };
-}
-
-// Update a match status (viewed, accepted, declined)
 export async function updateMatchStatus(matchId: string, status: 'new' | 'viewed' | 'accepted' | 'declined') {
-  const { error } = await supabase
-    .from('roommate_search_results')
-    .update({ status })
-    .eq('id', matchId);
-  return { error };
+  const { data, error } = await supabase.rpc('update_my_roommate_match_status', {
+    p_match_id: matchId,
+    p_status: status,
+  });
+  return { conversationId: data || null, error };
 }
 
-// Clear all saved match results for a user
-export async function clearMatchResults(userId: string) {
-  const { error } = await supabase
-    .from('roommate_search_results')
-    .delete()
-    .eq('searcher_id', userId);
-  return { error };
+export async function clearMatchResults(_userId?: string) {
+  return { error: new Error('Roommate match history is managed by the canonical search workflow') };
 }
 
-// Check if search has expired — if so, update status
-export async function checkSearchExpiry(userId: string): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {
-  const { prefs } = await getRoommatePreferences(userId);
-  if (!prefs) return { expired: false, prefs: null };
+export async function checkSearchExpiry(_userId?: string): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {
+  const { prefs } = await getRoommatePreferences();
+  return { expired: prefs?.search_status === 'expired', prefs };
+}
 
-  // If already expired/stopped, return as-is
-  if (prefs.search_status === 'expired' || prefs.search_status === 'stopped' || prefs.search_status === 'idle') {
-    return { expired: prefs.search_status === 'expired', prefs };
-  }
-
-  // Check if the expiry time has passed
-  if (prefs.search_expires_at && new Date(prefs.search_expires_at) < new Date()) {
-    // Update to expired
-    const { data } = await supabase
-      .from('roommate_preferences')
-      .update({ search_status: 'expired' })
-      .eq('user_id', userId)
-      .select()
-      .maybeSingle();
-    return { expired: true, prefs: data as RoommatePreferences | null };
-  }
-
-  return { expired: false, prefs };
+// Compatibility helper for older callers. Matching is now server-authoritative.
+export async function findMatches(_userId?: string) {
+  return refreshRoommateSearch();
 }
