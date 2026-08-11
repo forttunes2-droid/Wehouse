@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 
 interface PropertyType {
   id: number;
@@ -31,28 +31,24 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newType, setNewType] = useState('');
+  const [usingDefaults, setUsingDefaults] = useState(false);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function load() {
     setLoading(true);
     const { data, error } = await supabase.from('property_types').select('*').order('sort_order');
-    if (!error && data && data.length > 0) {
+    if (error) {
+      toast.error(`Failed to load property types: ${error.message}`);
+      setTypes([]);
+      setUsingDefaults(false);
+    } else if (data && data.length > 0) {
       setTypes(data as PropertyType[]);
+      setUsingDefaults(false);
     } else {
-      // No DB data — seed defaults
-      setTypes(DEFAULT_TYPES);
-      // Auto-save defaults to DB
-      for (const t of DEFAULT_TYPES) {
-        await supabase.from('property_types').upsert({
-          id: t.id,
-          name: t.name,
-          icon: t.icon,
-          sort_order: t.sort_order,
-          is_active: t.is_active,
-          updated_at: new Date().toISOString(),
-        });
-      }
+      // Defaults are a draft only. Opening Settings must never mutate the DB.
+      setTypes(DEFAULT_TYPES.map(type => ({ ...type })));
+      setUsingDefaults(true);
     }
     setDeletedIds([]);
     setLoading(false);
@@ -60,157 +56,91 @@ export default function PropertyTypeManager({ profile: _profile }: { profile: Pr
 
   async function saveTypes() {
     setSaving(true);
-    let errors: string[] = [];
+    const errors: string[] = [];
 
-    // 1. Upsert all current types
-    for (const t of types) {
+    for (const type of types) {
       const { error } = await supabase.from('property_types').upsert({
-        id: t.id,
-        name: t.name,
-        icon: t.icon,
-        sort_order: t.sort_order,
-        is_active: t.is_active,
+        id: type.id,
+        name: type.name,
+        icon: type.icon,
+        sort_order: type.sort_order,
+        is_active: type.is_active,
         updated_at: new Date().toISOString(),
       });
-      if (error) errors.push(`Upsert ${t.name}: ${error.message}`);
+      if (error) errors.push(`Save ${type.name}: ${error.message}`);
     }
 
-    // 2. Actually DELETE removed types from DB
-    if (deletedIds.length > 0) {
-      for (const delId of deletedIds) {
-        const { error } = await supabase.from('property_types').delete().eq('id', delId);
-        if (error) errors.push(`Delete #${delId}: ${error.message}`);
-      }
-      if (errors.length === 0) setDeletedIds([]);
+    for (const id of deletedIds) {
+      const { error } = await supabase.from('property_types').delete().eq('id', id);
+      if (error) errors.push(`Delete #${id}: ${error.message}`);
     }
 
     setSaving(false);
-    if (errors.length > 0) {
-      toast.error('Some operations failed: ' + errors.join('; '));
-    } else {
-      toast.success('Property types saved');
+    if (errors.length) {
+      toast.error(`Some property-type changes failed: ${errors.join('; ')}`);
+      return;
     }
+
+    setDeletedIds([]);
+    setUsingDefaults(false);
+    toast.success('Property types saved');
+    void load();
   }
 
   function deleteType(id: number) {
-    // Remove from local state
-    setTypes(prev => prev.filter(t => t.id !== id));
-    // Track this ID for deletion during save
-    setDeletedIds(prev => [...prev, id]);
-    toast.success('Property type marked for deletion — click Save to confirm');
+    setTypes(prev => prev.filter(type => type.id !== id));
+    if (!usingDefaults) setDeletedIds(prev => prev.includes(id) ? prev : [...prev, id]);
   }
 
   function addType() {
-    if (!newType.trim()) return;
-    const newId = Math.max(...types.map(t => t.id), 0) + 1;
-    setTypes(prev => [...prev, {
-      id: newId,
-      name: newType.trim(),
-      icon: 'house',
-      sort_order: newId,
-      is_active: true,
-    }]);
+    const name = newType.trim();
+    if (!name) return;
+    if (types.some(type => type.name.trim().toLowerCase() === name.toLowerCase())) return toast.error('That property type already exists');
+    const id = Math.max(...types.map(type => type.id), 0) + 1;
+    setTypes(prev => [...prev, { id, name, icon: 'house', sort_order: prev.length + 1, is_active: true }]);
     setNewType('');
   }
 
   function toggleActive(id: number) {
-    setTypes(prev => prev.map(t => t.id === id ? { ...t, is_active: !t.is_active } : t));
+    setTypes(prev => prev.map(type => type.id === id ? { ...type, is_active: !type.is_active } : type));
   }
 
-  function moveUp(id: number) {
-    const idx = types.findIndex(t => t.id === id);
-    if (idx <= 0) return;
-    const newTypes = [...types];
-    [newTypes[idx], newTypes[idx - 1]] = [newTypes[idx - 1], newTypes[idx]];
-    newTypes.forEach((t, i) => t.sort_order = i + 1);
-    setTypes(newTypes);
+  function move(id: number, direction: -1 | 1) {
+    const index = types.findIndex(type => type.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= types.length) return;
+    const next = types.map(type => ({ ...type }));
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    next.forEach((type, position) => { type.sort_order = position + 1; });
+    setTypes(next);
   }
 
-  function moveDown(id: number) {
-    const idx = types.findIndex(t => t.id === id);
-    if (idx >= types.length - 1) return;
-    const newTypes = [...types];
-    [newTypes[idx], newTypes[idx + 1]] = [newTypes[idx + 1], newTypes[idx]];
-    newTypes.forEach((t, i) => t.sort_order = i + 1);
-    setTypes(newTypes);
-  }
+  if (loading) return <div className="grid min-h-32 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>;
 
-  if (loading) {
-    return <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" /></div>;
-  }
+  return <div className="space-y-4">
+    <p className="text-[10px] leading-relaxed text-[#666A7C]">Property types shown across WeHouse. Changes stay as a draft until you press Save.</p>
 
-  return (
-    <div className="space-y-4">
-      <Toaster position="top-center" richColors theme="dark" />
-      <p className="text-[11px] text-[#5C5E72]">Manage property types shown in Explore. Drag to reorder, toggle to show/hide. Click Save to apply changes to the database.</p>
+    {usingDefaults && <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.05] p-3"><p className="text-[10px] text-amber-300">No property types are stored yet. The defaults below are only a preview until you save them.</p></div>}
+    {deletedIds.length > 0 && <div className="rounded-xl border border-red-500/15 bg-red-500/[0.05] p-3"><p className="text-[10px] text-red-300">{deletedIds.length} saved type{deletedIds.length === 1 ? '' : 's'} will be deleted when you save.</p></div>}
 
-      {/* Deleted count warning */}
-      {deletedIds.length > 0 && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3">
-          <p className="text-[10px] text-red-400">{deletedIds.length} type(s) marked for deletion. Click Save to confirm.</p>
-        </div>
-      )}
-
-      {/* Add new */}
-      <div className="flex gap-2">
-        <input
-          value={newType}
-          onChange={e => setNewType(e.target.value)}
-          placeholder="New property type..."
-          className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
-        />
-        <button onClick={addType}
-          className="h-10 px-4 rounded-xl bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors">
-          Add
-        </button>
-      </div>
-
-      {/* List */}
-      <div className="space-y-2">
-        {types.map((t, idx) => (
-          <div key={t.id} className={`glass rounded-xl p-3 flex items-center gap-3 ${!t.is_active ? 'opacity-50' : ''}`}>
-            {/* Order */}
-            <span className="text-[10px] text-[#5C5E72] w-4 text-center">{idx + 1}</span>
-
-            {/* Icon */}
-            <div className="w-8 h-8 rounded-lg bg-[#1A1A24] flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2">
-                <path d={ICONS[t.icon] || ICONS.house} />
-              </svg>
-            </div>
-
-            {/* Name */}
-            <span className="flex-1 text-xs text-white">{t.name}</span>
-
-            {/* Status */}
-            <button onClick={() => toggleActive(t.id)}
-              className={`text-[9px] px-2 py-0.5 rounded-full ${t.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-              {t.is_active ? 'Active' : 'Hidden'}
-            </button>
-
-            {/* Move */}
-            <div className="flex gap-0.5">
-              <button onClick={() => moveUp(t.id)} disabled={idx === 0}
-                className="w-6 h-6 rounded bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-20">&#8593;</button>
-              <button onClick={() => moveDown(t.id)} disabled={idx === types.length - 1}
-                className="w-6 h-6 rounded bg-[#1A1A24] flex items-center justify-center text-[#5C5E72] hover:text-white disabled:opacity-20">&#8595;</button>
-            </div>
-
-            {/* Delete */}
-            <button onClick={() => deleteType(t.id)}
-              className="w-6 h-6 rounded bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Save */}
-      <button onClick={saveTypes} disabled={saving}
-        className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
-        {saving ? 'Saving...' : 'Save Property Types'}
-      </button>
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <input value={newType} onChange={event => setNewType(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addType(); }} placeholder="New property type" className="h-10 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-[#171A23] px-3 text-xs text-white outline-none focus:border-violet-500/40" />
+      <button onClick={addType} className="h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold text-white">Add type</button>
     </div>
-  );
+
+    <div className="space-y-2">
+      {types.map((type, index) => <div key={type.id} className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/[0.06] bg-[#151821] p-3 ${!type.is_active ? 'opacity-55' : ''}`}>
+        <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/[0.04]"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={ICONS[type.icon] || ICONS.house} /></svg></div>
+        <div className="min-w-0"><p className="truncate text-xs font-medium text-white">{type.name}</p><p className="mt-1 text-[9px] text-[#5F6375]">Position {index + 1}</p></div>
+        <div className="flex flex-wrap justify-end gap-1">
+          <button onClick={() => toggleActive(type.id)} className={`rounded-lg px-2 py-1.5 text-[9px] font-semibold ${type.is_active ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/[0.05] text-[#777B8E]'}`}>{type.is_active ? 'Active' : 'Hidden'}</button>
+          <button onClick={() => move(type.id, -1)} disabled={index === 0} className="h-7 w-7 rounded-lg bg-white/[0.04] text-[10px] text-[#8A8E9E] disabled:opacity-20">↑</button>
+          <button onClick={() => move(type.id, 1)} disabled={index === types.length - 1} className="h-7 w-7 rounded-lg bg-white/[0.04] text-[10px] text-[#8A8E9E] disabled:opacity-20">↓</button>
+          <button onClick={() => deleteType(type.id)} className="h-7 rounded-lg bg-red-500/10 px-2 text-[9px] text-red-300">Delete</button>
+        </div>
+      </div>)}
+    </div>
+
+    <button onClick={() => void saveTypes()} disabled={saving || types.length === 0} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{saving ? 'Saving…' : 'Save property types'}</button>
+  </div>;
 }
