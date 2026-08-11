@@ -3,21 +3,20 @@ import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import UserProfileModal from '@/components/UserProfileModal';
-import { AnnouncementsTab } from '@/components/AnnouncementsTab';
+import CommunicationsWorkspace from '@/components/CommunicationsWorkspace';
 import StaffListTab from './StaffListTab';
 import type { Profile } from '@/types';
 
-type AdminTab = 'overview' | 'operations' | 'issues' | 'announcements';
+type AdminTab = 'overview' | 'operations' | 'communications' | 'issues';
 type Operation = 'people' | 'staff' | 'listings' | 'workers' | 'bookings';
-type Issue = 'reports' | 'support';
 type PersonFilter = 'user' | 'property_partner';
 type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string) => void; onGoToChat?: (convId?: string) => void };
 
 const TOP: Array<{ id: AdminTab; label: string; note: string }> = [
   { id: 'overview', label: 'Overview', note: 'Branch health and work that needs attention' },
-  { id: 'operations', label: 'Operations', note: 'People, team, properties, workers and service bookings' },
-  { id: 'issues', label: 'Issues', note: 'Listing reports and support conversations' },
-  { id: 'announcements', label: 'Announcements', note: 'Branch communication' },
+  { id: 'operations', label: 'Operations', note: 'People, team, listings, workers and service bookings' },
+  { id: 'communications', label: 'Communications', note: 'Branch inbox and official announcements' },
+  { id: 'issues', label: 'Issues', note: 'Listing reports and moderation work' },
 ];
 
 const OPERATIONS: Array<{ id: Operation; label: string; note: string }> = [
@@ -31,7 +30,6 @@ const OPERATIONS: Array<{ id: Operation; label: string; note: string }> = [
 export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
   const [tab, setTab] = useState<AdminTab>('overview');
   const [operation, setOperation] = useState<Operation>('people');
-  const [issue, setIssue] = useState<Issue>('reports');
   const [stats, setStats] = useState<any>({ users: 0, workers: 0, partners: 0, staff: 0, listings: 0, pending_verifications: 0 });
   const [viewing, setViewing] = useState<Profile | null>(null);
   const branchReady = Boolean(profile.assigned_state && profile.assigned_lga);
@@ -80,10 +78,10 @@ export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToCh
 
       <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
         {!branchReady ? <BranchMissing /> : <>
-          {tab === 'overview' && <Overview stats={stats} profile={profile} openOperation={openOperation} openIssues={() => setTab('issues')} />}
+          {tab === 'overview' && <Overview stats={stats} profile={profile} openOperation={openOperation} openCommunications={() => setTab('communications')} openIssues={() => setTab('issues')} />}
           {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} onRefreshStats={loadStats} />}
-          {tab === 'issues' && <Issues active={issue} setActive={setIssue} onGoToChat={onGoToChat} />}
-          {tab === 'announcements' && <AnnouncementsTab profile={profile} scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }} />}
+          {tab === 'communications' && <CommunicationsWorkspace profile={profile} scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }} onOpenConversation={onGoToChat} />}
+          {tab === 'issues' && <Reports />}
         </>}
       </main>
 
@@ -92,7 +90,7 @@ export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToCh
   );
 }
 
-function Overview({ stats, profile, openOperation, openIssues }: { stats: any; profile: Profile; openOperation: (t: Operation) => void; openIssues: () => void }) {
+function Overview({ stats, profile, openOperation, openCommunications, openIssues }: { stats: any; profile: Profile; openOperation: (t: Operation) => void; openCommunications: () => void; openIssues: () => void }) {
   const cards: Array<[string, number, Operation, string]> = [
     ['Users', stats.users || 0, 'people', 'Regular users'],
     ['Property Partners', stats.partners || 0, 'people', 'Property owners'],
@@ -104,12 +102,15 @@ function Overview({ stats, profile, openOperation, openIssues }: { stats: any; p
     <section className="rounded-3xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/[0.13] via-[#111522] to-[#0D1018] p-5 sm:p-6 lg:p-8">
       <span className="rounded-full bg-indigo-500/10 px-3 py-1 text-[9px] font-semibold text-indigo-300">BRANCH AUTHORITY</span>
       <h2 className="mt-4 max-w-3xl text-2xl font-bold lg:text-3xl">{profile.assigned_lga}, {profile.assigned_state}</h2>
-      <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">This dashboard only manages the assigned branch. Platform-wide finance, global configuration and Creator controls are intentionally kept out.</p>
+      <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">Operations handles branch work. Communications handles conversations and announcements. Issues contains moderation only.</p>
     </section>
     <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
       {cards.map(([label, value, target, note]) => <button key={label} onClick={() => openOperation(target)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[9px] text-[#626678]">{note}</p></button>)}
     </section>
-    <button onClick={openIssues} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-sm font-semibold">Issues</p><p className="mt-1 text-[10px] text-[#727587]">Open listing reports and branch support conversations.</p></button>
+    <section className="grid gap-3 md:grid-cols-2">
+      <button onClick={openCommunications} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-sm font-semibold">Communications</p><p className="mt-1 text-[10px] text-[#727587]">Open branch conversations or send an official announcement.</p></button>
+      <button onClick={openIssues} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><p className="text-sm font-semibold">Issues</p><p className="mt-1 text-[10px] text-[#727587]">Review listing reports that need moderation.</p></button>
+    </section>
   </div>;
 }
 
@@ -218,24 +219,13 @@ function Bookings() {
   </Section>;
 }
 
-function Issues({ active, setActive, onGoToChat }: { active: Issue; setActive: (t: Issue) => void; onGoToChat?: (id?: string) => void }) {
-  return <div className="space-y-5"><div><h2 className="text-lg font-bold">Issues</h2><p className="mt-1 text-[10px] text-[#707386]">Branch problems are handled here instead of being mixed into operations.</p></div><div className="inline-flex rounded-xl border border-white/[0.06] bg-[#0D1017] p-1"><button onClick={() => setActive('reports')} className={`rounded-lg px-4 py-2 text-[10px] font-semibold ${active === 'reports' ? 'bg-indigo-500 text-white' : 'text-[#777A8C]'}`}>Reports</button><button onClick={() => setActive('support')} className={`rounded-lg px-4 py-2 text-[10px] font-semibold ${active === 'support' ? 'bg-indigo-500 text-white' : 'text-[#777A8C]'}`}>Support</button></div>{active === 'reports' ? <Reports /> : <Support onGoToChat={onGoToChat} />}</div>;
-}
-
 function Reports() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   async function load() { setLoading(true); const { data, error } = await supabase.rpc('admin_get_my_branch_reports'); if (error) toast.error(error.message); setRows(Array.isArray(data) ? data : []); setLoading(false); }
   useEffect(() => { void load(); }, []);
   async function act(id: string, action: 'resolved' | 'dismissed') { const { error } = await supabase.rpc('admin_resolve_my_branch_report', { p_report_id: id, p_action: action }); if (error) return toast.error(error.message); toast.success(action === 'resolved' ? 'Report resolved' : 'Report dismissed'); void load(); }
-  return <Section title="Listing reports" note="Moderation reports linked to listings in this branch.">{loading ? <Loading /> : rows.length === 0 ? <Empty title="No reports" text="No listing reports require attention." /> : <div className="space-y-3">{rows.map(row => <Card key={row.id}><Top title={row.reason || 'Listing report'} sub={`${row.listing_id || 'Unknown listing'} · ${dateText(row.created_at)}`} status={row.status || 'pending'} />{row.status === 'pending' && <div className="mt-4 flex gap-2"><Button onClick={() => void act(row.id, 'resolved')}>Resolve</Button><Button secondary onClick={() => void act(row.id, 'dismissed')}>Dismiss</Button></div>}</Card>)}</div>}</Section>;
-}
-
-function Support({ onGoToChat }: { onGoToChat?: (id?: string) => void }) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { void (async () => { const { data, error } = await supabase.rpc('admin_support_inbox'); if (error) toast.error(error.message); setRows(data || []); setLoading(false); })(); }, []);
-  return <Section title="Support" note="Support conversations belonging to this branch.">{loading ? <Loading /> : rows.length === 0 ? <Empty title="No support conversations" text="There are no branch support conversations." /> : <div className="space-y-3">{rows.map(row => <button key={row.id} onClick={() => onGoToChat?.(row.id)} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-indigo-500/25"><Top title={row.subject || row.user_name || 'Support conversation'} sub={`${row.user_email || row.participant_a || ''}${row.last_message ? ` · ${row.last_message}` : ''}`} status={row.status || 'open'} /><p className="mt-3 text-[9px] font-semibold text-indigo-400">OPEN CONVERSATION →</p></button>)}</div>}</Section>;
+  return <Section title="Issues" note="Only moderation and exception work belongs here. Conversations are handled in Communications.">{loading ? <Loading /> : rows.length === 0 ? <Empty title="No reports" text="No listing reports require attention." /> : <div className="space-y-3">{rows.map(row => <Card key={row.id}><Top title={row.reason || 'Listing report'} sub={`${row.listing_id || 'Unknown listing'} · ${dateText(row.created_at)}`} status={row.status || 'pending'} />{row.status === 'pending' && <div className="mt-4 flex gap-2"><Button onClick={() => void act(row.id, 'resolved')}>Resolve</Button><Button secondary onClick={() => void act(row.id, 'dismissed')}>Dismiss</Button></div>}</Card>)}</div>}</Section>;
 }
 
 function BranchMissing() { return <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.05] p-8 text-center"><p className="text-sm font-semibold text-amber-300">Branch assignment required</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#777B8D]">Creator must assign this Admin to a state and LGA before branch operations become available.</p></div>; }
