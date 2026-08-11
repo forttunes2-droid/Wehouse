@@ -16,9 +16,10 @@ export default function Dashboard({ profile, onLogout, onGoToProfileEdit, onGoTo
   const roleLabel = profile.role === 'property_partner' ? 'Property Partner' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
   const location = [profile.state, profile.local_government || profile.city].filter(Boolean).join(' / ') || 'Not set';
   const canEditProfile = profile.role !== 'staff';
+  const operationalRole = profile.role !== 'user';
 
   return (
-    <div className="min-h-[100dvh] bg-[#09090D] px-4 py-5 pb-24 text-white sm:px-5 lg:px-8 lg:py-8">
+    <div className={`${operationalRole ? 'role-workspace ' : ''}min-h-[100dvh] bg-[#09090D] px-4 py-5 pb-24 text-white sm:px-5 lg:px-8 lg:py-8`}>
       <div className="mx-auto max-w-5xl space-y-5">
         <section className="overflow-hidden rounded-3xl border border-blue-500/15 bg-gradient-to-br from-blue-500/[0.1] via-[#14151F] to-[#101018] p-5 sm:p-6 lg:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
