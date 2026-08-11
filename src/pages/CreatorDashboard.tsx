@@ -3,37 +3,36 @@ import { Toaster, toast } from 'sonner';
 import { supabase, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, getHotelRooms } from '@/lib/supabase';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import UserProfileModal from '@/components/UserProfileModal';
+import CommunicationsWorkspace from '@/components/CommunicationsWorkspace';
 import StaffListTab from './StaffListTab';
 import CreatorSettingsTab from './CreatorSettingsTab';
 import AnalyticsPage from './AnalyticsPage';
-import { AnnouncementsTab } from '@/components/AnnouncementsTab';
 import DomainSettingsPanel from '@/components/DomainSettingsPanel';
 import ServiceCategoryManager from '@/components/ServiceCategoryManager';
 import PropertyTypeManager from '@/components/PropertyTypeManager';
 import type { Profile, HotelRoom } from '@/types';
 
-type Tab = 'overview' | 'operations' | 'finance' | 'analytics' | 'settings';
-type Operation = 'people' | 'staff' | 'properties' | 'workers' | 'bookings' | 'issues' | 'announcements';
-type Issue = 'support' | 'reports';
-type PersonRole = 'user' | 'property_partner' | 'admin';
+type Tab = 'overview' | 'operations' | 'communications' | 'finance' | 'analytics' | 'settings';
+type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'issues';
+type PersonRole = 'user' | 'property_partner';
 type Props = { profile: Profile; onLogout: () => void; onGoToNewListing?: () => void; onNavigate?: (page: string) => void; onGoToChat?: (id?: string) => void };
 
 const TABS: Array<{ id: Tab; label: string; note: string }> = [
   { id: 'overview', label: 'Overview', note: 'Platform health and work that needs attention' },
-  { id: 'operations', label: 'Operations', note: 'Accounts, team, properties, workers, bookings and platform issues' },
+  { id: 'operations', label: 'Operations', note: 'Accounts, team, properties, workers, bookings and moderation' },
+  { id: 'communications', label: 'Communications', note: 'Platform inbox and official announcements' },
   { id: 'finance', label: 'Finance', note: 'Money movement, commission records and financial rules' },
   { id: 'analytics', label: 'Analytics', note: 'Platform performance and reporting' },
   { id: 'settings', label: 'Settings', note: 'Global platform and marketplace configuration' },
 ];
 
 const OPERATIONS: Array<{ id: Operation; label: string; note: string }> = [
-  { id: 'people', label: 'People', note: 'Regular users, Property Partners and Admin accounts' },
-  { id: 'staff', label: 'Staff', note: 'Operational staff and their assigned modules' },
+  { id: 'people', label: 'People', note: 'Regular users and Property Partners' },
+  { id: 'team', label: 'Team', note: 'Admins, Staff, branch placement and Staff modules' },
   { id: 'properties', label: 'Properties', note: 'Apartment listings, hotels and room inventory' },
   { id: 'workers', label: 'Workers', note: 'Worker accounts, status and verification review' },
   { id: 'bookings', label: 'Bookings', note: 'Worker, apartment and hotel booking records' },
-  { id: 'issues', label: 'Issues', note: 'Support conversations and listing reports' },
-  { id: 'announcements', label: 'Announcements', note: 'Platform-wide communication' },
+  { id: 'issues', label: 'Issues', note: 'Listing reports and moderation work' },
 ];
 
 export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, onNavigate, onGoToChat }: Props) {
@@ -66,8 +65,9 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, 
     </header>
 
     <main className="mx-auto max-w-[1500px] px-4 py-6 lg:px-8 lg:py-8">
-      {tab === 'overview' && <Overview openOperation={openOperation} openFinance={() => setTab('finance')} openAnalytics={() => setTab('analytics')} />}
-      {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} onGoToNewListing={onGoToNewListing} onGoToChat={onGoToChat} />}
+      {tab === 'overview' && <Overview openOperation={openOperation} openCommunications={() => setTab('communications')} openFinance={() => setTab('finance')} openAnalytics={() => setTab('analytics')} />}
+      {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} onGoToNewListing={onGoToNewListing} />}
+      {tab === 'communications' && <CommunicationsWorkspace profile={profile} scope="all" onOpenConversation={onGoToChat} />}
       {tab === 'finance' && <Finance />}
       {tab === 'analytics' && <AnalyticsPage profile={profile} />}
       {tab === 'settings' && <Settings profile={profile} />}
@@ -77,7 +77,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, 
   </div>;
 }
 
-function Overview({ openOperation, openFinance, openAnalytics }: { openOperation: (tab: Operation) => void; openFinance: () => void; openAnalytics: () => void }) {
+function Overview({ openOperation, openCommunications, openFinance, openAnalytics }: { openOperation: (tab: Operation) => void; openCommunications: () => void; openFinance: () => void; openAnalytics: () => void }) {
   const [stats, setStats] = useState<any>({ users: 0, workers: 0, partners: 0, staff: 0, listings: 0, pending_verifications: 0, hotels: 0, pendingWithdrawals: 0, pendingInspections: 0 });
   const [loading, setLoading] = useState(true);
   useEffect(() => { void (async () => {
@@ -95,7 +95,7 @@ function Overview({ openOperation, openFinance, openAnalytics }: { openOperation
   const cards: Array<[string, number, () => void, string]> = [
     ['Users', stats.users, () => openOperation('people'), 'Customer accounts'],
     ['Property Partners', stats.partners, () => openOperation('people'), 'Property owners'],
-    ['Staff', stats.staff, () => openOperation('staff'), 'Operational team'],
+    ['Team', stats.staff, () => openOperation('team'), 'Admins and operational Staff'],
     ['Workers', stats.workers, () => openOperation('workers'), `${stats.pending_verifications || 0} awaiting review`],
     ['Apartment listings', stats.listings, () => openOperation('properties'), 'Canonical listings'],
     ['Hotels', stats.hotels, () => openOperation('properties'), 'Hotel inventory'],
@@ -106,26 +106,25 @@ function Overview({ openOperation, openFinance, openAnalytics }: { openOperation
     <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[0.14] via-[#14111F] to-[#0E1118] p-5 sm:p-6 lg:p-8">
       <span className="rounded-full bg-violet-500/10 px-3 py-1 text-[9px] font-semibold text-violet-300">PLATFORM COMMAND CENTER</span>
       <h2 className="mt-4 max-w-3xl text-2xl font-bold sm:text-3xl lg:text-4xl">One platform. One clear home for every control.</h2>
-      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-[#9498A9]">Operations manages people and work. Finance manages money. Analytics measures performance. Settings contains configuration only.</p>
-      <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => openOperation('people')} className="rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Open Operations</button><button onClick={openFinance} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Finance</button><button onClick={openAnalytics} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Analytics</button></div>
+      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-[#9498A9]">Operations manages work. Communications manages conversations and announcements. Finance manages money. Settings contains configuration only.</p>
+      <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => openOperation('people')} className="rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Open Operations</button><button onClick={openCommunications} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Communications</button><button onClick={openFinance} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Finance</button><button onClick={openAnalytics} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Analytics</button></div>
     </section>
     <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label, value, action, note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value || 0}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[9px] text-[#616678]">{note}</p></button>)}</section>
   </div>;
 }
 
-function Operations({ profile, active, setActive, onView, onGoToNewListing, onGoToChat }: { profile: Profile; active: Operation; setActive: (tab: Operation) => void; onView: (p: Profile) => void; onGoToNewListing?: () => void; onGoToChat?: (id?: string) => void }) {
+function Operations({ profile, active, setActive, onView, onGoToNewListing }: { profile: Profile; active: Operation; setActive: (tab: Operation) => void; onView: (p: Profile) => void; onGoToNewListing?: () => void }) {
   const current = OPERATIONS.find(item => item.id === active)!;
   return <div className="space-y-5">
     <div><h2 className="text-lg font-bold">Platform operations</h2><p className="mt-1 text-[10px] text-[#707386]">Operational responsibilities are separated so the same records do not compete across sections.</p></div>
     <div className="overflow-x-auto scrollbar-hide"><div className="flex min-w-max gap-1 rounded-2xl border border-white/[0.05] bg-[#0D1017] p-1">{OPERATIONS.map(item => <button key={item.id} onClick={() => setActive(item.id)} className={`rounded-xl px-3 py-2 text-[10px] font-semibold ${active === item.id ? 'bg-violet-500 text-white' : 'text-[#777A8C] hover:text-white'}`}>{item.label}</button>)}</div></div>
     <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.03] p-3"><p className="text-xs font-semibold">{current.label}</p><p className="mt-1 text-[9px] text-[#6E7183]">{current.note}</p></div>
     {active === 'people' && <People onView={onView} />}
-    {active === 'staff' && <StaffListTab profile={profile} />}
+    {active === 'team' && <StaffListTab profile={profile} />}
     {active === 'properties' && <Properties profile={profile} onGoToNewListing={onGoToNewListing} />}
     {active === 'workers' && <Workers />}
     {active === 'bookings' && <Bookings />}
-    {active === 'issues' && <Issues onGoToChat={onGoToChat} />}
-    {active === 'announcements' && <AnnouncementsTab profile={profile} scope="all" />}
+    {active === 'issues' && <Issues />}
   </div>;
 }
 
@@ -143,8 +142,8 @@ function People({ onView }: { onView: (p: Profile) => void }) {
     setLoading(false);
   }
   const shown = useMemo(() => rows.filter(row => !search.trim() || [row.full_name, row.username, row.email, row.user_id].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())), [rows, search]);
-  return <Section title="People" note="Workers and Staff are intentionally excluded because they have dedicated operational areas.">
-    <div className="flex flex-wrap gap-2">{([['user', 'Users'], ['property_partner', 'Property Partners'], ['admin', 'Admins']] as const).map(([id, label]) => <Chip key={id} active={role === id} onClick={() => setRole(id)}>{label}</Chip>)}</div>
+  return <Section title="People" note="Workers and the WeHouse Team are excluded because they have dedicated operational areas.">
+    <div className="flex flex-wrap gap-2">{([['user', 'Users'], ['property_partner', 'Property Partners']] as const).map(([id, label]) => <Chip key={id} active={role === id} onClick={() => setRole(id)}>{label}</Chip>)}</div>
     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search platform accounts" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs outline-none focus:border-violet-500/40" />
     {loading ? <Loading /> : shown.length === 0 ? <Empty title="No matching accounts" text="No accounts match this filter." /> : <Grid>{shown.map(person => <button key={person.user_id} onClick={() => onView(person)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><div className="flex items-center gap-3"><Avatar text={person.full_name || person.username || person.email} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{person.full_name || person.username || 'WeHouse account'}</p><p className="truncate text-[10px] text-[#6D7082]">{person.email}</p><p className="mt-1 text-[9px] capitalize text-[#535667]">{person.role?.replace(/_/g, ' ')} · {[person.local_government || person.city, person.state].filter(Boolean).join(', ') || 'Location not set'}</p></div></div></button>)}</Grid>}
   </Section>;
@@ -241,16 +240,8 @@ function Bookings() {
   return <Section title="Bookings" note="Global monitoring across the three implemented booking systems." right={<Segment value={view} set={v => setView(v as any)} items={[['worker', 'Worker services'], ['apartments', 'Apartments'], ['hotels', 'Hotels']]} />}>{loading ? <Loading /> : rows.length === 0 ? <Empty title="No bookings" text="No records were found for this booking type." /> : <div className="space-y-3">{rows.map(row => <Card key={row.id || row.booking_id}><Top title={view === 'worker' ? (row.service_type || row.booking_code || 'Worker booking') : view === 'hotels' ? (row.hotels?.name || 'Hotel booking') : (row.reservation_code || row.listing_id || 'Apartment reservation')} sub={dateText(row.created_at)} status={row.status || 'recorded'} right={money(row.negotiated_amount || row.agreed_amount || row.total_price || row.amount || 0)} /></Card>)}</div>}</Section>;
 }
 
-function Issues({ onGoToChat }: { onGoToChat?: (id?: string) => void }) {
-  const [view, setView] = useState<Issue>('support');
-  return <Section title="Issues" note="Support and moderation are grouped together because both are exception-handling workflows." right={<Segment value={view} set={v => setView(v as Issue)} items={[['support', 'Support'], ['reports', 'Reports']]} />}>{view === 'support' ? <Support onOpen={onGoToChat} /> : <Reports />}</Section>;
-}
-
-function Support({ onOpen }: { onOpen?: (id?: string) => void }) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { void (async () => { const { data, error } = await supabase.rpc('admin_support_inbox'); if (error) toast.error(error.message); setRows(data || []); setLoading(false); })(); }, []);
-  return loading ? <Loading /> : rows.length === 0 ? <Empty title="Support inbox clear" text="No active support conversations." /> : <div className="space-y-2">{rows.map(conversation => <button key={conversation.id} onClick={() => onOpen?.(conversation.id)} className="w-full rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{conversation.user_name || conversation.user_email || 'WeHouse user'}</p><p className="mt-1 line-clamp-2 text-[10px] text-[#6D7082]">{conversation.last_message || 'Open conversation'}</p><p className="mt-1 text-[9px] text-[#535667]">{conversation.conversation_type?.replace(/_/g, ' ')}</p></div>{Number(conversation.unread_b || 0) > 0 && <span className="h-fit rounded-full bg-violet-500 px-2 py-1 text-[8px] font-bold">{conversation.unread_b}</span>}</div></button>)}</div>;
+function Issues() {
+  return <Section title="Issues" note="Moderation and exception work lives here. Conversations are handled only in Communications."><Reports /></Section>;
 }
 
 function Reports() {
