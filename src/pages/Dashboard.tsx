@@ -15,6 +15,7 @@ export default function Dashboard({ profile, onLogout, onGoToProfileEdit, onGoTo
   const initials = (profile.full_name || profile.username || profile.email || 'U')[0].toUpperCase();
   const roleLabel = profile.role === 'property_partner' ? 'Property Partner' : profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
   const location = [profile.state, profile.local_government || profile.city].filter(Boolean).join(' / ') || 'Not set';
+  const canEditProfile = profile.role !== 'staff';
 
   return (
     <div className="min-h-[100dvh] bg-[#09090D] px-4 py-5 pb-24 text-white sm:px-5 lg:px-8 lg:py-8">
@@ -29,8 +30,8 @@ export default function Dashboard({ profile, onLogout, onGoToProfileEdit, onGoTo
               <h1 className="mt-3 break-words text-2xl font-bold">{profile.full_name || profile.username || 'WeHouse account'}</h1>
               <p className="mt-1 break-all text-xs text-[#7A7C8F]">@{profile.username || 'not-set'} · {profile.email}</p>
             </div>
-            <div className="grid w-full gap-2 sm:w-auto sm:min-w-[170px]">
-              <button onClick={onGoToProfileEdit} className="rounded-xl bg-blue-500 px-4 py-3 text-xs font-semibold hover:bg-blue-400">Edit profile</button>
+            <div className={`grid w-full gap-2 sm:w-auto ${canEditProfile ? 'sm:min-w-[170px]' : ''}`}>
+              {canEditProfile && <button onClick={onGoToProfileEdit} className="rounded-xl bg-blue-500 px-4 py-3 text-xs font-semibold hover:bg-blue-400">Edit profile</button>}
               <button onClick={onGoToAccount} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold text-[#C4C5D0]">Account settings</button>
             </div>
           </div>
@@ -44,11 +45,12 @@ export default function Dashboard({ profile, onLogout, onGoToProfileEdit, onGoTo
 
         <section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-4 sm:p-5">
           <h2 className="text-sm font-semibold">Account</h2>
-          <p className="mt-1 text-[11px] leading-relaxed text-[#6E7082]">Profile editing changes your personal information. Account settings contains privacy, security and support. Operational tools stay inside your role workspace.</p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Action title="Edit profile" text="Photo and personal information" onClick={onGoToProfileEdit} />
-            <Action title="Account settings" text="Privacy, security and support" onClick={onGoToAccount} />
+          <p className="mt-1 text-[11px] leading-relaxed text-[#6E7082]">Account settings contains privacy, security and supported personal controls. Operational tools stay inside your role workspace.</p>
+          <div className={`mt-4 grid gap-2 ${canEditProfile ? 'sm:grid-cols-2' : ''}`}>
+            {canEditProfile && <Action title="Edit profile" text="Photo and personal information" onClick={onGoToProfileEdit} />}
+            <Action title="Account settings" text="Privacy, security and supported account controls" onClick={onGoToAccount} />
           </div>
+          {!canEditProfile && <p className="mt-3 text-[10px] text-amber-300/80">Staff profile changes are managed through Admin/Creator assignment workflows.</p>}
         </section>
 
         <button onClick={onLogout} className="w-full rounded-2xl border border-red-500/15 bg-red-500/[0.05] p-4 text-left text-red-300 hover:bg-red-500/[0.08]">
