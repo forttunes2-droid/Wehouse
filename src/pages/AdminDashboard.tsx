@@ -37,10 +37,13 @@ export default function AdminDashboard({ profile, onLogout, onNavigate, onGoToCh
   const branchReady = Boolean(profile.assigned_state && profile.assigned_lga);
   const current = TOP.find(item => item.id === tab)!;
 
-  async function loadStats() {
+  async function loadStats(): Promise<void> {
     if (!branchReady) return;
     const { data, error } = await supabase.rpc('admin_get_my_branch_stats');
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     setStats(data || {});
   }
 
