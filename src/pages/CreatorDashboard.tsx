@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
-import { supabase, createHotel, updateHotel, deleteHotel, createHotelRoom, deleteHotelRoom, getHotelRooms } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import UserProfileModal from '@/components/UserProfileModal';
 import CommunicationsWorkspace from '@/components/CommunicationsWorkspace';
+import PropertyPipelineWorkspace from '@/components/PropertyPipelineWorkspace';
 import StaffListTab from './StaffListTab';
 import CreatorSettingsTab from './CreatorSettingsTab';
 import AnalyticsPage from './AnalyticsPage';
 import DomainSettingsPanel from '@/components/DomainSettingsPanel';
 import ServiceCategoryManager from '@/components/ServiceCategoryManager';
 import PropertyTypeManager from '@/components/PropertyTypeManager';
-import type { Profile, HotelRoom } from '@/types';
+import type { Profile } from '@/types';
 
 type Tab = 'overview' | 'operations' | 'communications' | 'finance' | 'analytics' | 'settings';
 type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'issues';
@@ -29,13 +30,13 @@ const TABS: Array<{ id: Tab; label: string; note: string }> = [
 const OPERATIONS: Array<{ id: Operation; label: string; note: string }> = [
   { id: 'people', label: 'People', note: 'Regular users and Property Partners' },
   { id: 'team', label: 'Team', note: 'Admins, Staff, branch placement and Staff modules' },
-  { id: 'properties', label: 'Properties', note: 'Apartment listings, hotels and room inventory' },
+  { id: 'properties', label: 'Properties', note: 'Property Partner request → inspection → preparation → publication' },
   { id: 'workers', label: 'Workers', note: 'Worker accounts, status and verification review' },
   { id: 'bookings', label: 'Bookings', note: 'Worker, apartment and hotel booking records' },
   { id: 'issues', label: 'Issues', note: 'Listing reports and moderation work' },
 ];
 
-export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, onNavigate, onGoToChat }: Props) {
+export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
   const { clearAuth } = useCreatorAuth();
   const [tab, setTab] = useState<Tab>('overview');
   const [operation, setOperation] = useState<Operation>('people');
@@ -66,7 +67,7 @@ export default function CreatorDashboard({ profile, onLogout, onGoToNewListing, 
 
     <main className="mx-auto max-w-[1500px] px-4 py-6 lg:px-8 lg:py-8">
       {tab === 'overview' && <Overview openOperation={openOperation} openCommunications={() => setTab('communications')} openFinance={() => setTab('finance')} openAnalytics={() => setTab('analytics')} />}
-      {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} onGoToNewListing={onGoToNewListing} />}
+      {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} />}
       {tab === 'communications' && <CommunicationsWorkspace profile={profile} scope="all" onOpenConversation={onGoToChat} />}
       {tab === 'finance' && <Finance />}
       {tab === 'analytics' && <AnalyticsPage profile={profile} />}
@@ -83,7 +84,7 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
   useEffect(() => { void (async () => {
     const [base, hotels, withdrawals, inspections] = await Promise.all([
       supabase.rpc('admin_get_my_branch_stats'),
-      supabase.from('hotels').select('*', { count: 'exact', head: true }),
+      supabase.from('hotels').select('*', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('withdrawals').select('*', { count: 'exact', head: true }).in('status', ['pending', 'processing']),
       supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).in('status', ['pending', 'scheduled', 'in_progress']),
     ]);
@@ -97,8 +98,8 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
     ['Property Partners', stats.partners, () => openOperation('people'), 'Property owners'],
     ['Team', stats.staff, () => openOperation('team'), 'Admins and operational Staff'],
     ['Workers', stats.workers, () => openOperation('workers'), `${stats.pending_verifications || 0} awaiting review`],
-    ['Apartment listings', stats.listings, () => openOperation('properties'), 'Canonical listings'],
-    ['Hotels', stats.hotels, () => openOperation('properties'), 'Hotel inventory'],
+    ['Published apartments', stats.listings, () => openOperation('properties'), 'Inspection-linked listings'],
+    ['Published hotels', stats.hotels, () => openOperation('properties'), 'Inspection-linked hotel inventory'],
     ['Property inspections', stats.pendingInspections, () => openOperation('properties'), 'Pending field work'],
     ['Withdrawals', stats.pendingWithdrawals, openFinance, 'Pending finance work'],
   ];
@@ -107,13 +108,13 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
       <span className="rounded-full bg-violet-500/10 px-3 py-1 text-[9px] font-semibold text-violet-300">PLATFORM COMMAND CENTER</span>
       <h2 className="mt-4 max-w-3xl text-2xl font-bold sm:text-3xl lg:text-4xl">One platform. One clear home for every control.</h2>
       <p className="mt-3 max-w-2xl text-xs leading-relaxed text-[#9498A9]">Operations manages work. Communications manages conversations and announcements. Finance manages money. Settings contains configuration only.</p>
-      <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => openOperation('people')} className="rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Open Operations</button><button onClick={openCommunications} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Communications</button><button onClick={openFinance} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Finance</button><button onClick={openAnalytics} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Analytics</button></div>
+      <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => openOperation('properties')} className="rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Open Property Pipeline</button><button onClick={openCommunications} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Communications</button><button onClick={openFinance} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Finance</button><button onClick={openAnalytics} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Analytics</button></div>
     </section>
     <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label, value, action, note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value || 0}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[9px] text-[#616678]">{note}</p></button>)}</section>
   </div>;
 }
 
-function Operations({ profile, active, setActive, onView, onGoToNewListing }: { profile: Profile; active: Operation; setActive: (tab: Operation) => void; onView: (p: Profile) => void; onGoToNewListing?: () => void }) {
+function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation; setActive: (tab: Operation) => void; onView: (p: Profile) => void }) {
   const current = OPERATIONS.find(item => item.id === active)!;
   return <div className="space-y-5">
     <div><h2 className="text-lg font-bold">Platform operations</h2><p className="mt-1 text-[10px] text-[#707386]">Operational responsibilities are separated so the same records do not compete across sections.</p></div>
@@ -121,7 +122,7 @@ function Operations({ profile, active, setActive, onView, onGoToNewListing }: { 
     <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.03] p-3"><p className="text-xs font-semibold">{current.label}</p><p className="mt-1 text-[9px] text-[#6E7183]">{current.note}</p></div>
     {active === 'people' && <People onView={onView} />}
     {active === 'team' && <StaffListTab profile={profile} />}
-    {active === 'properties' && <Properties profile={profile} onGoToNewListing={onGoToNewListing} />}
+    {active === 'properties' && <PropertyPipelineWorkspace profile={profile} />}
     {active === 'workers' && <Workers />}
     {active === 'bookings' && <Bookings />}
     {active === 'issues' && <Issues />}
@@ -147,68 +148,6 @@ function People({ onView }: { onView: (p: Profile) => void }) {
     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search platform accounts" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs outline-none focus:border-violet-500/40" />
     {loading ? <Loading /> : shown.length === 0 ? <Empty title="No matching accounts" text="No accounts match this filter." /> : <Grid>{shown.map(person => <button key={person.user_id} onClick={() => onView(person)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><div className="flex items-center gap-3"><Avatar text={person.full_name || person.username || person.email} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{person.full_name || person.username || 'WeHouse account'}</p><p className="truncate text-[10px] text-[#6D7082]">{person.email}</p><p className="mt-1 text-[9px] capitalize text-[#535667]">{person.role?.replace(/_/g, ' ')} · {[person.local_government || person.city, person.state].filter(Boolean).join(', ') || 'Location not set'}</p></div></div></button>)}</Grid>}
   </Section>;
-}
-
-function Properties({ profile, onGoToNewListing }: { profile: Profile; onGoToNewListing?: () => void }) {
-  const [view, setView] = useState<'apartments' | 'hotels'>('apartments');
-  return <Section title="Properties" note="Apartment listings and hotel inventory live together because both are WeHouse property supply." right={<Segment value={view} set={v => setView(v as any)} items={[['apartments', 'Apartments'], ['hotels', 'Hotels']]} />}>{view === 'apartments' ? <ApartmentManager onAdd={onGoToNewListing} /> : <HotelManager profile={profile} />}</Section>;
-}
-
-function ApartmentManager({ onAdd }: { onAdd?: () => void }) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [reason, setReason] = useState<Record<string, string>>({});
-  async function load() { setLoading(true); const { data, error } = await supabase.rpc('admin_get_my_branch_listings', { p_status: filter }); if (error) toast.error(error.message); setRows(Array.isArray(data) ? data : []); setLoading(false); }
-  useEffect(() => { void load(); }, [filter]);
-  async function review(id: string, decision: 'approve' | 'reject') {
-    const rejection = reason[id]?.trim() || '';
-    if (decision === 'reject' && !rejection) return toast.error('Enter a rejection reason');
-    const { error } = await supabase.rpc('admin_review_my_branch_listing', { p_listing_id: id, p_decision: decision, p_reason: decision === 'reject' ? rejection : null });
-    if (error) return toast.error(error.message);
-    toast.success(decision === 'approve' ? 'Listing published' : 'Listing rejected');
-    void load();
-  }
-  return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex gap-2 overflow-x-auto scrollbar-hide">{[['all', 'All'], ['pending_approval', 'Pending'], ['available', 'Live'], ['rejected', 'Rejected']].map(([id, label]) => <Chip key={id} active={filter === id} onClick={() => setFilter(id)}>{label}</Chip>)}</div>{onAdd && <button onClick={onAdd} className="rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold">Create WeHouse listing</button>}</div>
-    {loading ? <Loading /> : rows.length === 0 ? <Empty title="No apartment listings" text="Nothing matches this status." /> : <Grid>{rows.map(row => <Card key={row.id}><Top title={row.title || 'Apartment'} sub={`${[row.city, row.state].filter(Boolean).join(', ')} · ${money(row.price)}`} status={row.status} />{row.status === 'pending_approval' && <div className="mt-4 space-y-2"><input value={reason[row.id] || ''} onChange={e => setReason(value => ({ ...value, [row.id]: e.target.value }))} placeholder="Rejection reason if rejecting" className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#171A23] px-3 text-[10px]" /><div className="flex gap-2"><Btn onClick={() => void review(row.id, 'approve')}>Approve</Btn><Btn danger onClick={() => void review(row.id, 'reject')}>Reject</Btn></div></div>}</Card>)}</Grid>}
-  </div>;
-}
-
-function HotelManager({ profile }: { profile: Profile }) {
-  const [hotels, setHotels] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [selected, setSelected] = useState<any | null>(null);
-  const [form, setForm] = useState({ name: '', state: '', city: '', address: '' });
-  async function load() { setLoading(true); const { data, error } = await supabase.from('hotels').select('*,hotel_rooms(*)').order('created_at', { ascending: false }); if (error) toast.error(error.message); setHotels(data || []); setLoading(false); }
-  useEffect(() => { void load(); }, []);
-  async function add() {
-    if (!form.name.trim() || !form.state.trim() || !form.city.trim()) return toast.error('Hotel name, state and city are required');
-    const { error } = await createHotel({ name: form.name.trim(), description: null, state: form.state.trim(), city: form.city.trim(), area: null, address: form.address.trim() || null, images: [], amenities: [], owner_id: profile.user_id, status: 'active', featured: false });
-    if (error) return toast.error(error.message);
-    toast.success('Hotel created'); setAdding(false); setForm({ name: '', state: '', city: '', address: '' }); void load();
-  }
-  async function remove(id: number) { const { error } = await deleteHotel(id); if (error) return toast.error(error.message); toast.success('Hotel removed'); setSelected(null); void load(); }
-  if (selected) return <HotelDetails hotel={selected} onBack={() => { setSelected(null); void load(); }} onDelete={() => void remove(selected.hotel_id)} />;
-  return <div className="space-y-4">
-    <div className="flex justify-end"><button onClick={() => setAdding(value => !value)} className="rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold">{adding ? 'Cancel' : 'Add hotel'}</button></div>
-    {adding && <Card><div className="grid gap-2 sm:grid-cols-2"><Field value={form.name} set={v => setForm({ ...form, name: v })} placeholder="Hotel name" /><Field value={form.state} set={v => setForm({ ...form, state: v })} placeholder="State" /><Field value={form.city} set={v => setForm({ ...form, city: v })} placeholder="City / LGA" /><Field value={form.address} set={v => setForm({ ...form, address: v })} placeholder="Address" /></div><div className="mt-3"><Btn onClick={() => void add()}>Create hotel</Btn></div></Card>}
-    {loading ? <Loading /> : hotels.length === 0 ? <Empty title="No hotels" text="Create the first WeHouse hotel record." /> : <Grid>{hotels.map(hotel => <button key={hotel.hotel_id} onClick={() => setSelected(hotel)} className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#10131B] text-left hover:border-violet-500/25">{hotel.images?.[0] ? <img src={hotel.images[0]} alt="" className="h-36 w-full object-cover" /> : <div className="grid h-36 place-items-center bg-[#151923] text-3xl">🏨</div>}<div className="p-4"><Top title={hotel.name} sub={`${hotel.city}, ${hotel.state} · ${(hotel.hotel_rooms || []).length} room types`} status={hotel.status} /></div></button>)}</Grid>}
-  </div>;
-}
-
-function HotelDetails({ hotel, onBack, onDelete }: { hotel: any; onBack: () => void; onDelete: () => void }) {
-  const [rooms, setRooms] = useState<HotelRoom[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [featured, setFeatured] = useState(Boolean(hotel.featured));
-  const [room, setRoom] = useState({ room_type: '', price: '', max_guests: '2', total_rooms: '1' });
-  async function load() { const { rooms, error } = await getHotelRooms(hotel.hotel_id); if (error) toast.error(error.message); setRooms(rooms || []); setLoading(false); }
-  useEffect(() => { void load(); }, [hotel.hotel_id]);
-  async function toggleFeatured() { const { error } = await updateHotel(hotel.hotel_id, { featured: !featured }); if (error) return toast.error(error.message); setFeatured(!featured); toast.success('Hotel updated'); }
-  async function addRoom() { if (!room.room_type.trim() || Number(room.price) <= 0) return toast.error('Room type and price are required'); const { error } = await createHotelRoom({ hotel_id: hotel.hotel_id, room_type: room.room_type.trim(), description: null, price_per_night: Number(room.price), max_guests: Number(room.max_guests) || 2, bed_type: null, images: [], amenities: [], total_rooms: Number(room.total_rooms) || 1 }); if (error) return toast.error(error.message); toast.success('Room type added'); setRoom({ room_type: '', price: '', max_guests: '2', total_rooms: '1' }); void load(); }
-  async function removeRoom(id: number) { const { error } = await deleteHotelRoom(id); if (error) return toast.error(error.message); toast.success('Room removed'); void load(); }
-  return <div className="space-y-4"><button onClick={onBack} className="text-[10px] font-semibold text-violet-400">← Back to hotels</button><Card><Top title={hotel.name} sub={`${hotel.city}, ${hotel.state}`} status={hotel.status} /><div className="mt-4 flex gap-2"><Btn onClick={() => void toggleFeatured()}>{featured ? 'Remove featured' : 'Feature hotel'}</Btn><Btn danger onClick={onDelete}>Delete hotel</Btn></div></Card><Card><h3 className="text-sm font-semibold">Add room type</h3><div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"><Field value={room.room_type} set={v => setRoom({ ...room, room_type: v })} placeholder="Room type" /><Field value={room.price} set={v => setRoom({ ...room, price: v })} placeholder="Price/night" type="number" /><Field value={room.max_guests} set={v => setRoom({ ...room, max_guests: v })} placeholder="Max guests" type="number" /><Field value={room.total_rooms} set={v => setRoom({ ...room, total_rooms: v })} placeholder="Total rooms" type="number" /></div><div className="mt-3"><Btn onClick={() => void addRoom()}>Add room</Btn></div></Card>{loading ? <Loading /> : <div className="space-y-2">{rooms.map(item => <Card key={item.room_id}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{item.room_type}</p><p className="mt-1 text-[9px] text-[#676B7D]">{money(item.price_per_night)} / night · {item.total_rooms} rooms · {item.max_guests} guests</p></div><button onClick={() => void removeRoom(item.room_id)} className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[9px] text-red-300">Remove</button></div></Card>)}</div>}</div>;
 }
 
 function Workers() {
