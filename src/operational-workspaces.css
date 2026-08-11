@@ -1,38 +1,13 @@
-/* Operational roles own navigation inside their role workspace.
-   The global customer-style mobile bottom nav must not compete with those modules. */
-@media (max-width: 1023px) {
-  body:has(.role-workspace) .bottom-nav,
-  body:has([class*="bg-[#070910]"]) .bottom-nav,
-  body:has([class*="bg-[#080A0F]"]) .bottom-nav,
-  body:has([class*="bg-[#080B11]"]) .bottom-nav,
-  body:has([class*="bg-[#070A10]"]) .bottom-nav {
-    display: none !important;
-  }
+/* Operational workspaces own their own navigation. */
+@media (max-width:1023px){body:has(.role-workspace) .bottom-nav,body:has([class*="bg-[#070910]"]) .bottom-nav,body:has([class*="bg-[#080A0F]"]) .bottom-nav,body:has([class*="bg-[#080B11]"]) .bottom-nav,body:has([class*="bg-[#070A10]"]) .bottom-nav{display:none!important}}
+.role-workspace,.role-workspace main,.role-workspace header>div{width:100%;min-width:0}.role-workspace *{min-width:0}
+@media(max-width:639px){
+ body:has([class*="bg-[#070910]"]) header>div,body:has([class*="bg-[#080A0F]"]) header>div{padding-left:1rem!important;padding-right:1rem!important}
+ body:has([class*="bg-[#070910]"]) header>div>div:first-child,body:has([class*="bg-[#080A0F]"]) header>div>div:first-child{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:.75rem!important}
+ body:has([class*="bg-[#070910]"]) header>div>div:first-child>div:last-child,body:has([class*="bg-[#080A0F]"]) header>div>div:first-child>div:last-child{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+ body:has([class*="bg-[#070910]"]) main,body:has([class*="bg-[#080A0F]"]) main{padding-left:1rem!important;padding-right:1rem!important}
+ body:has([class*="bg-[#070910]"]) table,body:has([class*="bg-[#080A0F]"]) table{min-width:640px}
+ body:has([class*="bg-[#070910]"]) main [class*="grid-cols-2"],body:has([class*="bg-[#080A0F]"]) main [class*="grid-cols-2"]{grid-template-columns:minmax(0,1fr)!important}
+ body:has([class*="bg-[#070910]"]) input,body:has([class*="bg-[#070910]"]) textarea,body:has([class*="bg-[#070910]"]) select,body:has([class*="bg-[#080A0F]"]) input,body:has([class*="bg-[#080A0F]"]) textarea,body:has([class*="bg-[#080A0F]"]) select{max-width:100%}
 }
-
-/* Older Creator/Admin shells do not all carry the semantic marker yet.
-   Keep their existing color fallback responsive without changing their data logic. */
-@media (max-width: 639px) {
-  body:has([class*="bg-[#070910]"]) header > div > div:first-child,
-  body:has([class*="bg-[#080A0F]"]) header > div > div:first-child {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  body:has([class*="bg-[#070910]"]) header > div > div:first-child > div:last-child,
-  body:has([class*="bg-[#080A0F]"]) header > div > div:first-child > div:last-child {
-    width: 100%;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
-
-.role-workspace {
-  width: 100%;
-  min-width: 0;
-}
-
-.role-workspace main,
-.role-workspace header > div {
-  min-width: 0;
-}
+@media(min-width:640px) and (max-width:1023px){body:has([class*="bg-[#070910]"]) main,body:has([class*="bg-[#080A0F]"]) main{padding-left:1.5rem!important;padding-right:1.5rem!important}}
