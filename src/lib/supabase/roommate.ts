@@ -52,6 +52,8 @@ export async function getSavedMatchResults(_userId?: string) {
     match_score: row.match_score,
     status: row.status,
     created_at: row.created_at,
+    mutual_accepted: Boolean(row.mutual_accepted),
+    conversation_id: row.conversation_id || null,
     matched_profile: {
       user_id: row.matched_user_id,
       username: row.username,
@@ -76,16 +78,11 @@ export async function updateMatchStatus(matchId: string, status: 'new' | 'viewed
   return { conversationId: data || null, error };
 }
 
-export async function clearMatchResults(_userId?: string) {
-  return { error: new Error('Roommate match history is managed by the canonical search workflow') };
-}
-
 export async function checkSearchExpiry(_userId?: string): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {
   const { prefs } = await getRoommatePreferences();
   return { expired: prefs?.search_status === 'expired', prefs };
 }
 
-// Compatibility helper for older callers. Matching is now server-authoritative.
-export async function findMatches(_userId?: string) {
-  return refreshRoommateSearch();
-}
+// Compatibility aliases retained only for callers while the UI is consolidated.
+export async function findMatches(_userId?: string) { return refreshRoommateSearch(); }
+export async function clearMatchResults(_userId?: string) { return { error: null }; }
