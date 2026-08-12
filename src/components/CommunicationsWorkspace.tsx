@@ -1,178 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect,useMemo,useState } from 'react';
 import { toast } from 'sonner';
-import { supabase, getMessages, sendMessage, markMessagesSeen } from '@/lib/supabase';
 import { AnnouncementsTab } from '@/components/AnnouncementsTab';
-import type { Profile, Message } from '@/types';
+import { getSupportInbox,getSupportMessages,markSupportMessagesRead,sendSupportMessage } from '@/lib/supabase/support';
+import type { Profile } from '@/types';
 
-type View = 'inbox' | 'announcements';
-type Scope = 'all' | { state: string; lga: string };
+type View='inbox'|'announcements';
+type Scope='all'|{state:string;lga:string};
+type Props={profile:Profile;scope:Scope;onOpenConversation?:(id?:string)=>void};
 
-type Props = {
-  profile: Profile;
-  scope: Scope;
-  onOpenConversation?: (id?: string) => void;
-};
-
-export default function CommunicationsWorkspace({ profile, scope }: Props) {
-  const [view, setView] = useState<View>('inbox');
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<any | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [messageLoading, setMessageLoading] = useState(false);
-  const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
-
-  async function loadInbox() {
-    setLoading(true);
-    const { data, error } = await supabase.rpc('admin_support_inbox');
-    if (error) {
-      toast.error(error.message);
-      setRows([]);
-    } else {
-      setRows(Array.isArray(data) ? data : []);
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    if (view === 'inbox' && !selected) void loadInbox();
-  }, [view, profile.user_id, profile.assigned_state, profile.assigned_lga, selected]);
-
-  async function openConversation(row: any) {
-    setSelected(row);
-    setMessageLoading(true);
-    const { messages: data, error } = await getMessages(row.id);
-    if (error) toast.error(error.message);
-    setMessages(data || []);
-    await markMessagesSeen(row.id, profile.user_id);
-    setRows(current => current.map(item => item.id === row.id ? { ...item, unread_b: 0 } : item));
-    setMessageLoading(false);
-  }
-
-  async function reply() {
-    const content = input.trim();
-    if (!selected || !content || sending) return;
-    setSending(true);
-    const { message, error } = await sendMessage(selected.id, profile.user_id, content);
-    if (error || !message) {
-      toast.error(error?.message || 'Unable to send reply');
-      setSending(false);
-      return;
-    }
-    setMessages(current => [...current, message]);
-    setInput('');
-    setSelected((current: any) => current ? { ...current, last_message: content, last_message_at: new Date().toISOString() } : current);
-    setSending(false);
-  }
-
-  const types = useMemo(() => {
-    const values = Array.from(new Set(rows.map(row => row.conversation_type).filter(Boolean))) as string[];
-    return ['all', ...values];
-  }, [rows]);
-
-  const shown = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter(row => {
-      if (filter !== 'all' && row.conversation_type !== filter) return false;
-      if (!q) return true;
-      return [row.subject, row.user_name, row.user_email, row.last_message, row.conversation_type]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(q);
-    });
-  }, [rows, filter, search]);
-
-  const unread = rows.filter(row => Number(row.unread_b || 0) > 0).length;
-
-  if (selected && view === 'inbox') {
-    return (
-      <div className="space-y-4">
-        <button onClick={() => { setSelected(null); setMessages([]); setInput(''); }} className="text-[10px] font-semibold text-violet-400">← Back to Communications</button>
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#10131B]">
-          <div className="border-b border-white/[0.06] p-4 sm:p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{selected.subject || selected.user_name || selected.user_email || 'Conversation'}</p>
-                <p className="mt-1 text-[10px] text-[#6D7082]">{selected.user_email || selected.participant_a || 'WeHouse account'}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-[#565A6C]">
-                  <span>{String(selected.conversation_type || 'support').replace(/_/g, ' ')}</span>
-                  {selected.user_lga && <span>· {selected.user_lga}</span>}
-                  {selected.user_state && <span>· {selected.user_state}</span>}
-                </div>
-              </div>
-              <span className="w-fit rounded-full border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-[8px] capitalize text-[#A0A3B1]">{selected.status || 'active'}</span>
-            </div>
-          </div>
-
-          <div className="max-h-[52vh] min-h-64 space-y-3 overflow-y-auto p-4 sm:p-5">
-            {messageLoading ? (
-              <div className="grid min-h-52 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
-            ) : messages.length === 0 ? (
-              <div className="grid min-h-52 place-items-center text-center"><div><p className="text-xs font-semibold text-white">No messages yet</p><p className="mt-1 text-[10px] text-[#66697B]">The conversation exists but contains no messages.</p></div></div>
-            ) : messages.map(message => {
-              const mine = message.sender_id === profile.user_id;
-              return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[86%] rounded-2xl px-3 py-2.5 text-[11px] leading-relaxed sm:max-w-[72%] ${mine ? 'bg-violet-500 text-white' : 'border border-white/[0.06] bg-[#171A23] text-[#E3E5EC]'}`}><p>{message.content || 'Attachment'}</p><p className={`mt-1 text-[8px] ${mine ? 'text-violet-100/70' : 'text-[#5F6374]'}`}>{message.created_at ? new Date(message.created_at).toLocaleString() : ''}</p></div></div>;
-            })}
-          </div>
-
-          <div className="border-t border-white/[0.06] p-3 sm:p-4">
-            <div className="flex gap-2">
-              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void reply(); } }} rows={2} placeholder="Write a reply…" className="min-h-11 flex-1 resize-none rounded-xl border border-white/[0.08] bg-[#141720] px-3 py-2 text-xs text-white outline-none focus:border-violet-500/40" />
-              <button disabled={!input.trim() || sending} onClick={() => void reply()} className="self-end rounded-xl bg-violet-500 px-4 py-3 text-[10px] font-semibold text-white disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-white">Communications</h2>
-          <p className="mt-1 text-[10px] text-[#707386]">
-            {profile.role === 'creator'
-              ? 'Platform conversations and official announcements in one workspace.'
-              : `Branch conversations and announcements for ${profile.assigned_lga || 'your assigned branch'}.`}
-          </p>
-        </div>
-        <div className="flex w-full rounded-xl border border-white/[0.06] bg-[#0D1017] p-1 sm:w-auto">
-          <button onClick={() => setView('inbox')} className={`flex-1 rounded-lg px-4 py-2 text-[10px] font-semibold sm:flex-none ${view === 'inbox' ? 'bg-violet-500 text-white' : 'text-[#777A8C]'}`}>
-            Inbox {unread > 0 ? `(${unread})` : ''}
-          </button>
-          <button onClick={() => setView('announcements')} className={`flex-1 rounded-lg px-4 py-2 text-[10px] font-semibold sm:flex-none ${view === 'announcements' ? 'bg-violet-500 text-white' : 'text-[#777A8C]'}`}>
-            Announcements
-          </button>
-        </div>
-      </div>
-
-      {view === 'announcements' ? (
-        <AnnouncementsTab profile={profile} scope={scope} />
-      ) : (
-        <div className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs text-white outline-none focus:border-violet-500/40" />
-            <div className="flex max-w-full gap-2 overflow-x-auto scrollbar-hide">
-              {types.map(type => <button key={type} onClick={() => setFilter(type)} className={`shrink-0 rounded-xl px-3 py-2 text-[9px] font-semibold ${filter === type ? 'bg-violet-500 text-white' : 'border border-white/[0.06] bg-[#10131B] text-[#777A8C]'}`}>{type === 'all' ? 'All' : type.replace(/_/g, ' ')}</button>)}
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="grid min-h-40 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
-          ) : shown.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] px-6 py-12 text-center"><p className="text-sm font-semibold text-white">Inbox clear</p><p className="mx-auto mt-2 max-w-md text-[10px] text-[#66697B]">No conversations match the current view.</p></div>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {shown.map(row => <button key={row.id} onClick={() => void openConversation(row)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold text-white">{row.subject || row.user_name || row.user_email || 'Conversation'}</p><p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-[#6D7082]">{row.last_message || 'Open conversation'}</p><div className="mt-3 flex flex-wrap items-center gap-2 text-[9px] text-[#565A6C]"><span>{String(row.conversation_type || 'support').replace(/_/g, ' ')}</span>{row.user_lga && <span>· {row.user_lga}</span>}{row.user_state && <span>· {row.user_state}</span>}</div></div>{Number(row.unread_b || 0) > 0 && <span className="shrink-0 rounded-full bg-violet-500 px-2 py-1 text-[8px] font-bold text-white">{row.unread_b}</span>}</div></button>)}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+export default function CommunicationsWorkspace({profile,scope}:Props){
+ const[view,setView]=useState<View>('inbox'),[rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('all'),[search,setSearch]=useState(''),[selected,setSelected]=useState<any|null>(null),[messages,setMessages]=useState<any[]>([]),[input,setInput]=useState(''),[sending,setSending]=useState(false);
+ async function load(){setLoading(true);const{conversations,error}=await getSupportInbox();if(error){toast.error(error.message||'Unable to load support inbox');setRows([])}else setRows(conversations||[]);setLoading(false)}
+ useEffect(()=>{if(view==='inbox'&&!selected)void load()},[view,selected,profile.user_id]);
+ async function open(row:any){setSelected(row);setLoading(true);const{messages:data,error}=await getSupportMessages(row.conversation_id);if(error)toast.error(error.message||'Unable to open conversation');setMessages(data||[]);await markSupportMessagesRead(row.conversation_id);setLoading(false)}
+ async function reply(){if(!selected||!input.trim()||sending)return;setSending(true);const{error}=await sendSupportMessage(selected.conversation_id,input.trim());setSending(false);if(error)return toast.error(error.message||'Unable to send reply');setInput('');const{messages:data}=await getSupportMessages(selected.conversation_id);setMessages(data||[]);void load()}
+ const types=useMemo(()=>['all',...Array.from(new Set(rows.map(r=>r.category).filter(Boolean)))],[rows]);
+ const shown=useMemo(()=>{const q=search.trim().toLowerCase();return rows.filter(row=>(filter==='all'||row.category===filter)&&(!q||[row.subject,row.requester_name,row.requester_email,row.requester_role,row.category,row.context_type,row.context_id,row.last_message].filter(Boolean).join(' ').toLowerCase().includes(q)))},[rows,filter,search]);
+ const unread=rows.filter(r=>Number(r.unread_count||0)>0).length;
+ if(selected&&view==='inbox')return <div className="space-y-4"><button onClick={()=>{setSelected(null);setMessages([]);setInput('')}} className="text-[10px] font-semibold text-violet-400">← Back to Support inbox</button><section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]"><header className="border-b border-white/[.06] p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words text-sm font-semibold">{selected.subject}</h3><Badge text={selected.priority||'normal'} tone={selected.priority==='urgent'||selected.priority==='high'?'danger':'neutral'}/></div><p className="mt-1 text-[10px] text-[#777B8B]">{selected.requester_name||selected.requester_email} · <span className="capitalize">{String(selected.requester_role||'user').replace(/_/g,' ')}</span></p><div className="mt-3 flex flex-wrap gap-2"><Badge text={String(selected.category||'general').replace(/_/g,' ')}/><Badge text={String(selected.context_type||'general').replace(/_/g,' ')}/>{selected.context_id&&<Badge text={`Ref ${selected.context_id}`}/>} {(selected.requester_lga||selected.requester_state)&&<Badge text={[selected.requester_lga,selected.requester_state].filter(Boolean).join(', ')}/>}</div></div><div className="text-left sm:text-right"><p className="text-[9px] uppercase tracking-wide text-[#5F6374]">Assigned to</p><p className="mt-1 text-xs font-medium">{selected.assigned_staff_name||'Support queue'}</p><p className="mt-2 text-[9px] capitalize text-[#707485]">{selected.status||'open'}</p></div></div>{selected.context_snapshot&&Object.keys(selected.context_snapshot).length>0&&<div className="mt-4 rounded-xl border border-blue-500/10 bg-blue-500/[.04] p-3"><p className="text-[9px] font-semibold uppercase tracking-wide text-blue-300">Linked context</p><div className="mt-2 grid gap-1 text-[10px] text-[#A8B4C8] sm:grid-cols-2">{Object.entries(selected.context_snapshot).slice(0,8).map(([k,v])=><p key={k}><span className="capitalize text-[#657086]">{k.replace(/_/g,' ')}:</span> {String(v??'')}</p>)}</div></div>}</header><div className="max-h-[54vh] min-h-72 space-y-3 overflow-y-auto p-4 sm:p-5">{loading?<div className="grid min-h-52 place-items-center text-xs text-[#747889]">Loading conversation…</div>:messages.length===0?<div className="grid min-h-52 place-items-center text-center text-xs text-[#747889]">No messages yet.</div>:messages.map(msg=>{const mine=msg.sender_id===profile.user_id;return <div key={msg.id} className={`flex ${mine?'justify-end':'justify-start'}`}><div className={`max-w-[86%] rounded-2xl px-3 py-2.5 text-[11px] sm:max-w-[72%] ${mine?'bg-violet-500 text-white':'border border-white/[.06] bg-[#171A23] text-[#E3E5EC]'}`}>{!mine&&<p className="mb-1 text-[9px] font-semibold text-violet-300">{msg.sender_name||'Requester'}</p>}{msg.attachments?.map((url:string,i:number)=>{const type=msg.attachment_types?.[i]||'';return type.startsWith('audio/')?<audio key={url} controls src={url} className="mb-2 max-w-full"/>:type.startsWith('image/')?<img key={url} src={url} alt="Attachment" className="mb-2 max-h-52 rounded-xl"/>:<a key={url} href={url} target="_blank" rel="noreferrer" className="mb-2 block rounded-lg bg-black/20 p-2 text-[9px] underline">Open attachment</a>})}{msg.content&&<p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}<p className={`mt-1 text-[8px] ${mine?'text-violet-100/70':'text-[#5F6374]'}`}>{msg.created_at?new Date(msg.created_at).toLocaleString():''}</p></div></div>})}</div><footer className="border-t border-white/[.06] p-3 sm:p-4"><div className="flex gap-2"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void reply()}}} rows={2} placeholder="Reply as WeHouse Support…" className="min-h-11 flex-1 resize-none rounded-xl border border-white/[.08] bg-[#141720] px-3 py-2 text-xs outline-none focus:border-violet-500/40"/><button onClick={()=>void reply()} disabled={!input.trim()||sending} className="self-end rounded-xl bg-violet-500 px-4 py-3 text-[10px] font-semibold disabled:opacity-40">{sending?'Sending…':'Send'}</button></div></footer></section></div>;
+ return <div className="space-y-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-bold">Communications</h2><p className="mt-1 text-[10px] text-[#707386]">{profile.role==='creator'?'Human support inbox and official announcements.':`Support and announcements for ${profile.assigned_lga||'your assigned branch'}.`}</p></div><div className="flex w-full rounded-xl border border-white/[.06] bg-[#0D1017] p-1 sm:w-auto"><button onClick={()=>setView('inbox')} className={`flex-1 rounded-lg px-4 py-2 text-[10px] font-semibold sm:flex-none ${view==='inbox'?'bg-violet-500':'text-[#777A8C]'}`}>Support {unread?`(${unread})`:''}</button><button onClick={()=>setView('announcements')} className={`flex-1 rounded-lg px-4 py-2 text-[10px] font-semibold sm:flex-none ${view==='announcements'?'bg-violet-500':'text-[#777A8C]'}`}>Announcements</button></div></div>{view==='announcements'?<AnnouncementsTab profile={profile} scope={scope}/>:<div className="space-y-4"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search requester, category or reference" className="h-11 rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none"/><div className="flex max-w-full gap-2 overflow-x-auto scrollbar-hide">{types.map(type=><button key={String(type)} onClick={()=>setFilter(String(type))} className={`shrink-0 rounded-xl px-3 py-2 text-[9px] font-semibold capitalize ${filter===type?'bg-violet-500':'border border-white/[.06] bg-[#10131B] text-[#777A8C]'}`}>{String(type).replace(/_/g,' ')}</button>)}</div></div>{loading?<div className="grid min-h-40 place-items-center text-xs text-[#747889]">Loading support…</div>:shown.length===0?<div className="rounded-2xl border border-dashed border-white/[.08] px-6 py-12 text-center"><p className="text-sm font-semibold">Support queue clear</p><p className="mt-2 text-[10px] text-[#66697B]">No support conversations match this view.</p></div>:<div className="grid gap-3 lg:grid-cols-2">{shown.map(row=><button key={row.conversation_id} onClick={()=>void open(row)} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap gap-2"><p className="truncate text-xs font-semibold">{row.subject}</p>{row.priority&&row.priority!=='normal'&&<Badge text={row.priority} tone="danger"/>}</div><p className="mt-1 truncate text-[10px] text-[#777B8B]">{row.requester_name||row.requester_email} · {String(row.requester_role||'user').replace(/_/g,' ')}</p><p className="mt-2 line-clamp-2 text-[10px] leading-relaxed text-[#606476]">{row.last_message||'New support request'}</p><div className="mt-3 flex flex-wrap gap-2"><Badge text={String(row.category||'general').replace(/_/g,' ')}/>{row.context_id&&<Badge text={`Ref ${row.context_id}`}/>}<Badge text={[row.requester_lga,row.requester_state].filter(Boolean).join(', ')||'Location unavailable'}/></div></div>{Number(row.unread_count||0)>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{row.unread_count}</span>}</div></button>)}</div>}</div>}</div>
 }
+function Badge({text,tone='neutral'}:{text:string;tone?:'neutral'|'danger'}){return <span className={`inline-flex w-fit rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${tone==='danger'?'bg-red-500/10 text-red-300':'border border-white/[.06] bg-white/[.03] text-[#8A8E9E]'}`}>{text}</span>}
