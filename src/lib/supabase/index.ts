@@ -33,8 +33,8 @@ export { getWorkers,parseWorkerStatus,getAllWorkers,getPendingWorkers,updateWork
 // Paystack
 export { initializePaystackPopup,getCommissionSummary } from './paystack';
 
-// Chat — booking/roommate/private workflow conversations only
-export { getConversations,getStaffConversations,getPartnerSupportInbox,getMessages,sendMessage,editMessage,deleteMessage,deleteConversation,markMessagesSeen,createConversation,acceptEnquiry,closeConversation,getOrCreateConversation } from './chat';
+// Chat — mutually accepted roommate conversations only
+export { getConversations,getMessages,sendMessage,markMessagesSeen } from './chat';
 
 // Human Support — canonical User / Worker / Property Partner support lives in ./support
 
