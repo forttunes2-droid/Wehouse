@@ -61,44 +61,6 @@
     @apply text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-
-  select {
-    appearance: none;
-    -webkit-appearance: none;
-    color-scheme: dark;
-    min-height: 44px;
-    padding-right: 2.75rem !important;
-    border-radius: 14px !important;
-    background-color: #151821 !important;
-    background-image:
-      linear-gradient(45deg, transparent 50%, #8D93A5 50%),
-      linear-gradient(135deg, #8D93A5 50%, transparent 50%),
-      linear-gradient(to right, rgba(255,255,255,.05), rgba(255,255,255,.05));
-    background-position:
-      calc(100% - 19px) 50%,
-      calc(100% - 14px) 50%,
-      calc(100% - 2.7rem) 50%;
-    background-size: 5px 5px, 5px 5px, 1px 55%;
-    background-repeat: no-repeat;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
-    transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
-  }
-
-  select:hover:not(:disabled) {
-    border-color: rgba(124,92,255,.28) !important;
-    background-color: #181B25 !important;
-  }
-
-  select:focus {
-    outline: none;
-    border-color: rgba(124,92,255,.55) !important;
-    box-shadow: 0 0 0 3px rgba(124,92,255,.10), inset 0 1px 0 rgba(255,255,255,.03);
-  }
-
-  select:disabled {
-    opacity: .45;
-    cursor: not-allowed;
-  }
 }
 
 /* Hide scrollbar for horizontal scroll */
