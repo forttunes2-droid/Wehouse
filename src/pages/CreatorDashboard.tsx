@@ -19,10 +19,10 @@ type PersonRole = 'user' | 'property_partner';
 type Props = { profile: Profile; onLogout: () => void; onGoToNewListing?: () => void; onNavigate?: (page: string) => void; onGoToChat?: (id?: string) => void };
 
 const TABS: Array<{ id: Tab; label: string; note: string }> = [
-  { id: 'overview', label: 'Overview', note: 'Platform health and work that needs attention' },
-  { id: 'operations', label: 'Operations', note: 'Accounts, team, properties, workers, bookings and moderation' },
-  { id: 'communications', label: 'Communications', note: 'Platform inbox and official announcements' },
-  { id: 'finance', label: 'Finance', note: 'Money movement, commission records and financial rules' },
+  { id: 'overview', label: 'Overview', note: 'Platform status and priority work' },
+  { id: 'operations', label: 'Operations', note: 'People, team, properties, workers, bookings and moderation' },
+  { id: 'communications', label: 'Communications', note: 'Support inbox and official announcements' },
+  { id: 'finance', label: 'Finance', note: 'Withdrawals, commissions and financial rules' },
   { id: 'analytics', label: 'Analytics', note: 'Platform performance and reporting' },
   { id: 'settings', label: 'Settings', note: 'Global platform and marketplace configuration' },
 ];
@@ -50,13 +50,13 @@ export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoTo
     <Toaster position="top-center" richColors />
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#080A12]/95 backdrop-blur-xl">
       <div className="mx-auto max-w-[1500px] px-4 pt-4 sm:pt-5 lg:px-8">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-[9px] font-bold tracking-[.25em] text-violet-400">WEHOUSE CREATOR</p>
             <h1 className="mt-1 text-lg font-bold sm:text-xl">{current.label}</h1>
             <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{current.note}</p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
             {onNavigate && <button onClick={() => onNavigate('profile')} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[10px] text-[#A3A6B5]">Account</button>}
             <button onClick={logout} className="rounded-xl border border-red-500/15 bg-red-500/[0.06] px-3 py-2 text-[10px] text-red-300">Log out</button>
           </div>
@@ -98,17 +98,17 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
     ['Property Partners', stats.partners, () => openOperation('people'), 'Property owners'],
     ['Team', stats.staff, () => openOperation('team'), 'Admins and operational Staff'],
     ['Workers', stats.workers, () => openOperation('workers'), `${stats.pending_verifications || 0} awaiting review`],
-    ['Published apartments', stats.listings, () => openOperation('properties'), 'Inspection-linked listings'],
-    ['Published hotels', stats.hotels, () => openOperation('properties'), 'Inspection-linked hotel inventory'],
-    ['Property inspections', stats.pendingInspections, () => openOperation('properties'), 'Pending field work'],
-    ['Withdrawals', stats.pendingWithdrawals, openFinance, 'Pending finance work'],
+    ['Published apartments', stats.listings, () => openOperation('properties'), 'Public apartment inventory'],
+    ['Published hotels', stats.hotels, () => openOperation('properties'), 'Public hotel inventory'],
+    ['Property inspections', stats.pendingInspections, () => openOperation('properties'), 'Awaiting or active field work'],
+    ['Withdrawals', stats.pendingWithdrawals, openFinance, 'Requests requiring finance review'],
   ];
   return <div className="space-y-6">
     <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[0.14] via-[#14111F] to-[#0E1118] p-5 sm:p-6 lg:p-8">
-      <span className="rounded-full bg-violet-500/10 px-3 py-1 text-[9px] font-semibold text-violet-300">PLATFORM COMMAND CENTER</span>
-      <h2 className="mt-4 max-w-3xl text-2xl font-bold sm:text-3xl lg:text-4xl">One platform. One clear home for every control.</h2>
-      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-[#9498A9]">Operations manages work. Communications manages conversations and announcements. Finance manages money. Settings contains configuration only.</p>
-      <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => openOperation('properties')} className="rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Open Property Pipeline</button><button onClick={openCommunications} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Communications</button><button onClick={openFinance} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Finance</button><button onClick={openAnalytics} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Open Analytics</button></div>
+      <span className="rounded-full bg-violet-500/10 px-3 py-1 text-[9px] font-semibold text-violet-300">PLATFORM OVERVIEW</span>
+      <h2 className="mt-4 max-w-3xl text-2xl font-bold sm:text-3xl lg:text-4xl">Platform status and priority work</h2>
+      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-[#9498A9]">Review the areas that need attention across users, properties, workers, bookings and finance.</p>
+      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap"><button onClick={() => openOperation('properties')} className="rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Properties</button><button onClick={openCommunications} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Communications</button><button onClick={openFinance} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Finance</button><button onClick={openAnalytics} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-xs font-semibold">Analytics</button></div>
     </section>
     <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label, value, action, note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value || 0}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[9px] text-[#616678]">{note}</p></button>)}</section>
   </div>;
@@ -117,7 +117,7 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
 function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation; setActive: (tab: Operation) => void; onView: (p: Profile) => void }) {
   const current = OPERATIONS.find(item => item.id === active)!;
   return <div className="space-y-5">
-    <div><h2 className="text-lg font-bold">Platform operations</h2><p className="mt-1 text-[10px] text-[#707386]">Operational responsibilities are separated so the same records do not compete across sections.</p></div>
+    <div><h2 className="text-lg font-bold">Platform operations</h2><p className="mt-1 text-[10px] text-[#707386]">Manage each operational area from its dedicated section.</p></div>
     <div className="overflow-x-auto scrollbar-hide"><div className="flex min-w-max gap-1 rounded-2xl border border-white/[0.05] bg-[#0D1017] p-1">{OPERATIONS.map(item => <button key={item.id} onClick={() => setActive(item.id)} className={`rounded-xl px-3 py-2 text-[10px] font-semibold ${active === item.id ? 'bg-violet-500 text-white' : 'text-[#777A8C] hover:text-white'}`}>{item.label}</button>)}</div></div>
     <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.03] p-3"><p className="text-xs font-semibold">{current.label}</p><p className="mt-1 text-[9px] text-[#6E7183]">{current.note}</p></div>
     {active === 'people' && <People onView={onView} />}
@@ -143,7 +143,7 @@ function People({ onView }: { onView: (p: Profile) => void }) {
     setLoading(false);
   }
   const shown = useMemo(() => rows.filter(row => !search.trim() || [row.full_name, row.username, row.email, row.user_id].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())), [rows, search]);
-  return <Section title="People" note="Workers and the WeHouse Team are excluded because they have dedicated operational areas.">
+  return <Section title="People" note="Users and Property Partners are managed here. Workers and team members remain in their own sections.">
     <div className="flex flex-wrap gap-2">{([['user', 'Users'], ['property_partner', 'Property Partners']] as const).map(([id, label]) => <Chip key={id} active={role === id} onClick={() => setRole(id)}>{label}</Chip>)}</div>
     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search platform accounts" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs outline-none focus:border-violet-500/40" />
     {loading ? <Loading /> : shown.length === 0 ? <Empty title="No matching accounts" text="No accounts match this filter." /> : <Grid>{shown.map(person => <button key={person.user_id} onClick={() => onView(person)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><div className="flex items-center gap-3"><Avatar text={person.full_name || person.username || person.email} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{person.full_name || person.username || 'WeHouse account'}</p><p className="truncate text-[10px] text-[#6D7082]">{person.email}</p><p className="mt-1 text-[9px] capitalize text-[#535667]">{person.role?.replace(/_/g, ' ')} · {[person.local_government || person.city, person.state].filter(Boolean).join(', ') || 'Location not set'}</p></div></div></button>)}</Grid>}
@@ -161,7 +161,7 @@ function Workers() {
   const shown = filter === 'all' ? rows : rows.filter(worker => worker.worker_status === filter);
   async function review(id: string, decision: 'approve' | 'reject') { if (decision === 'reject' && !reason.trim()) return toast.error('Enter a rejection reason'); const { error } = await supabase.rpc('admin_review_my_branch_worker', { p_worker_id: id, p_decision: decision, p_reason: decision === 'reject' ? reason.trim() : null }); if (error) return toast.error(error.message); toast.success(decision === 'approve' ? 'Worker verified' : 'Worker rejected'); setSelected(null); setReason(''); void load(); }
   if (selected) return <Section title="Worker" note="Worker identity, service information and verification evidence."><button onClick={() => { setSelected(null); setReason(''); }} className="text-[10px] font-semibold text-violet-400">← Back to workers</button><Card><Top title={selected.full_name || selected.username || 'Worker'} sub={`${selected.worker_occupation || 'Occupation not set'} · ${[selected.local_government || selected.city, selected.state].filter(Boolean).join(', ')}`} status={selected.worker_status} /><div className="mt-4 grid gap-3 md:grid-cols-2">{selected.worker_gov_id_url ? <Evidence title="Government ID" url={selected.worker_gov_id_url} /> : <Missing label="Government ID" />}{selected.worker_video_url ? <Video title="Skill video" url={selected.worker_video_url} /> : <Missing label="Skill video" />}</div>{selected.worker_status === 'profile_under_review' && <div className="mt-4 space-y-2"><Field value={reason} set={setReason} placeholder="Rejection reason if rejecting" /><div className="flex gap-2"><Btn onClick={() => void review(selected.user_id, 'approve')}>Verify worker</Btn><Btn danger onClick={() => void review(selected.user_id, 'reject')}>Reject</Btn></div></div>}</Card></Section>;
-  return <Section title="Workers" note="This is the single home for worker accounts, public status and verification review."><div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{[['all', 'All'], ['pending', 'Pending'], ['verification_paid', 'Verification paid'], ['profile_under_review', 'Under review'], ['verified', 'Verified'], ['rejected', 'Rejected'], ['suspended', 'Suspended']].map(([id, label]) => <Chip key={id} active={filter === id} onClick={() => setFilter(id)}>{label}</Chip>)}</div>{loading ? <Loading /> : shown.length === 0 ? <Empty title="No workers" text="No workers match this status." /> : <Grid>{shown.map(worker => <button key={worker.user_id} onClick={() => setSelected(worker)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><Top title={worker.full_name || worker.username || 'Worker'} sub={`${worker.worker_occupation || 'Occupation not set'} · ${[worker.local_government || worker.city, worker.state].filter(Boolean).join(', ')}`} status={worker.worker_status} /><p className="mt-3 text-[9px] font-semibold text-violet-400">OPEN WORKER →</p></button>)}</Grid>}</Section>;
+  return <Section title="Workers" note="Worker accounts, public availability and verification review are managed here."><div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{[['all', 'All'], ['pending', 'Pending'], ['verification_paid', 'Verification paid'], ['profile_under_review', 'Under review'], ['verified', 'Verified'], ['rejected', 'Rejected'], ['suspended', 'Suspended']].map(([id, label]) => <Chip key={id} active={filter === id} onClick={() => setFilter(id)}>{label}</Chip>)}</div>{loading ? <Loading /> : shown.length === 0 ? <Empty title="No workers" text="No workers match this status." /> : <Grid>{shown.map(worker => <button key={worker.user_id} onClick={() => setSelected(worker)} className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><Top title={worker.full_name || worker.username || 'Worker'} sub={`${worker.worker_occupation || 'Occupation not set'} · ${[worker.local_government || worker.city, worker.state].filter(Boolean).join(', ')}`} status={worker.worker_status} /><p className="mt-3 text-[9px] font-semibold text-violet-400">OPEN WORKER →</p></button>)}</Grid>}</Section>;
 }
 
 function Bookings() {
@@ -176,11 +176,11 @@ function Bookings() {
     else { const result = await supabase.from('hotel_bookings').select('*,hotels(name,city,state),hotel_rooms(room_type)').order('created_at', { ascending: false }).limit(100); data = result.data || []; error = result.error; }
     if (error) toast.error(error.message); setRows(data); setLoading(false);
   }
-  return <Section title="Bookings" note="Global monitoring across the three implemented booking systems." right={<Segment value={view} set={v => setView(v as any)} items={[['worker', 'Worker services'], ['apartments', 'Apartments'], ['hotels', 'Hotels']]} />}>{loading ? <Loading /> : rows.length === 0 ? <Empty title="No bookings" text="No records were found for this booking type." /> : <div className="space-y-3">{rows.map(row => <Card key={row.id || row.booking_id}><Top title={view === 'worker' ? (row.service_type || row.booking_code || 'Worker booking') : view === 'hotels' ? (row.hotels?.name || 'Hotel booking') : (row.reservation_code || row.listing_id || 'Apartment reservation')} sub={dateText(row.created_at)} status={row.status || 'recorded'} right={money(row.negotiated_amount || row.agreed_amount || row.total_price || row.amount || 0)} /></Card>)}</div>}</Section>;
+  return <Section title="Bookings" note="Review worker-service, apartment and hotel booking records." right={<Segment value={view} set={v => setView(v as any)} items={[['worker', 'Worker services'], ['apartments', 'Apartments'], ['hotels', 'Hotels']]} />}>{loading ? <Loading /> : rows.length === 0 ? <Empty title="No bookings" text="No records were found for this booking type." /> : <div className="space-y-3">{rows.map(row => <Card key={row.id || row.booking_id}><Top title={view === 'worker' ? (row.service_type || row.booking_code || 'Worker booking') : view === 'hotels' ? (row.hotels?.name || 'Hotel booking') : (row.reservation_code || row.listing_id || 'Apartment reservation')} sub={dateText(row.created_at)} status={row.status || 'recorded'} right={money(row.negotiated_amount || row.agreed_amount || row.total_price || row.amount || 0)} /></Card>)}</div>}</Section>;
 }
 
 function Issues() {
-  return <Section title="Issues" note="Moderation and exception work lives here. Conversations are handled only in Communications."><Reports /></Section>;
+  return <Section title="Issues" note="Review moderation and exception cases that require action."><Reports /></Section>;
 }
 
 function Reports() {
@@ -205,10 +205,10 @@ function Finance() {
     setRows(data || []); setLoading(false);
   }
   const total = rows.reduce((sum, row) => sum + Number(view === 'withdrawals' ? row.amount : row.commission_amount || 0), 0);
-  return <Section title="Finance" note="Financial records and the exact settings used by the live settlement workflows." right={<Segment value={view} set={v => setView(v as any)} items={[['withdrawals', 'Withdrawals'], ['commissions', 'Commissions']]} />}>
+  return <Section title="Finance" note="Review financial records and manage the rules used by settlements." right={<Segment value={view} set={v => setView(v as any)} items={[['withdrawals', 'Withdrawals'], ['commissions', 'Commissions']]} />}>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.8fr)]">
       <div className="space-y-4"><Stats items={[['Records', rows.length], ['Value', money(total)]]} />{loading ? <Loading /> : rows.length === 0 ? <Empty title="No finance records" text="No records are available." /> : <div className="space-y-2">{rows.map(row => <Card key={row.id}><Top title={view === 'withdrawals' ? (row.snapshot_bank_account_name || 'Withdrawal') : (row.booking_type || 'Commission')} sub={dateText(row.created_at)} status={row.status || 'recorded'} right={money(view === 'withdrawals' ? row.amount : row.commission_amount)} /></Card>)}</div>}</div>
-      <div className="space-y-4"><DomainSettingsPanel title="Financial rules" description="These keys are read by the implemented worker and Property Partner settlement flows." settings={[
+      <div className="space-y-4"><DomainSettingsPanel title="Financial rules" description="Commission and withdrawal rules used by worker and Property Partner settlements." settings={[
         { key: 'worker_commission_rate', label: 'Worker commission (%)', description: 'WeHouse commission retained from completed worker jobs.', type: 'number', defaultValue: '10' },
         { key: 'commission_apartment', label: 'Apartment partner commission (%)', description: 'WeHouse commission on eligible apartment rent paid to Property Partners.', type: 'number', defaultValue: '10' },
         { key: 'commission_hotel', label: 'Hotel partner commission (%)', description: 'WeHouse commission on eligible hotel payments paid to Property Partners.', type: 'number', defaultValue: '10' },
@@ -222,7 +222,7 @@ function Finance() {
 function Settings({ profile }: { profile: Profile }) {
   return <div className="space-y-7">
     <CreatorSettingsTab profile={profile} />
-    <section className="space-y-4"><div><h2 className="text-base font-bold">Marketplace configuration</h2><p className="mt-1 text-[10px] text-[#686C7E]">These lists define choices used across the marketplace. They are global configuration, not operational records.</p></div><div className="grid gap-5 xl:grid-cols-2"><Card><h3 className="mb-3 text-sm font-semibold">Worker service categories</h3><ServiceCategoryManager profile={profile} /></Card><Card><h3 className="mb-3 text-sm font-semibold">Property types</h3><PropertyTypeManager profile={profile} /></Card></div></section>
+    <section className="space-y-4"><div><h2 className="text-base font-bold">Marketplace configuration</h2><p className="mt-1 text-[10px] text-[#686C7E]">Manage the service and property choices available across WeHouse.</p></div><div className="grid gap-5 xl:grid-cols-2"><Card><h3 className="mb-3 text-sm font-semibold">Worker service categories</h3><ServiceCategoryManager profile={profile} /></Card><Card><h3 className="mb-3 text-sm font-semibold">Property types</h3><PropertyTypeManager profile={profile} /></Card></div></section>
   </div>;
 }
 
