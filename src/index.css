@@ -258,3 +258,51 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Worker discovery: keep scalable native dropdown behaviour, but make the
+   closed filter controls feel like one modern control deck on every device. */
+label:has(> div > select[aria-label="Service category"]),
+label:has(> div > select[aria-label="Specific service"]),
+label:has(> div > select[aria-label="State"]),
+label:has(> div > select[aria-label="Local Government"]) {
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 18px;
+  padding: 10px 12px 12px;
+  background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 8px 22px rgba(0,0,0,.12);
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+label:has(> div > select[aria-label="Service category"]:focus),
+label:has(> div > select[aria-label="Specific service"]:focus),
+label:has(> div > select[aria-label="State"]:focus),
+label:has(> div > select[aria-label="Local Government"]:focus) {
+  border-color: rgba(59,130,246,.34);
+  background: linear-gradient(145deg, rgba(59,130,246,.07), rgba(255,255,255,.014));
+}
+label:has(> div > select[aria-label="Service category"]) > span,
+label:has(> div > select[aria-label="Specific service"]) > span,
+label:has(> div > select[aria-label="State"]) > span,
+label:has(> div > select[aria-label="Local Government"]) > span {
+  margin-left: 2px;
+  color: #74798a !important;
+  letter-spacing: .12em !important;
+}
+label:has(> div > select[aria-label="Service category"]) select,
+label:has(> div > select[aria-label="Specific service"]) select,
+label:has(> div > select[aria-label="State"]) select,
+label:has(> div > select[aria-label="Local Government"]) select {
+  min-height: 44px !important;
+  border: 0 !important;
+  border-radius: 13px !important;
+  background: rgba(8,10,16,.58) !important;
+  box-shadow: none !important;
+}
+@media (hover:hover) {
+  label:has(> div > select[aria-label="Service category"]):hover,
+  label:has(> div > select[aria-label="Specific service"]):hover,
+  label:has(> div > select[aria-label="State"]):hover,
+  label:has(> div > select[aria-label="Local Government"]):hover {
+    border-color: rgba(255,255,255,.11);
+    transform: translateY(-1px);
+  }
+}
