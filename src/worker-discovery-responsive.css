@@ -1,0 +1,25 @@
+/* Worker discovery: never force category/service choices into a horizontal rail. */
+@media (max-width: 1023px) {
+  body:has(input[placeholder="Search by name, occupation, skill..."]) .flex.gap-1\.5.overflow-x-auto {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .55rem !important;
+    overflow-x: visible !important;
+    padding-bottom: 0 !important;
+  }
+  body:has(input[placeholder="Search by name, occupation, skill..."]) .flex.gap-1\.5.overflow-x-auto > button {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 2.6rem !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
+    padding: .65rem .7rem !important;
+    text-align: center !important;
+    overflow-wrap: anywhere !important;
+  }
+}
+@media (max-width: 420px) {
+  body:has(input[placeholder="Search by name, occupation, skill..."]) .flex.gap-1\.5.overflow-x-auto {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
