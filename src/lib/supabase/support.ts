@@ -16,6 +16,15 @@ export type SupportThread = {
   created_at:string;
 };
 
+export type SupportOpenContext={
+  subject?:string;
+  category?:string;
+  contextType?:string;
+  contextId?:string|null;
+  contextSnapshot?:Record<string,unknown>;
+  priority?:string;
+};
+
 export async function createSupportConversation(input:{subject:string;category?:string;contextType?:string;contextId?:string|null;contextSnapshot?:Record<string,unknown>;priority?:string}){
   const {data,error}=await supabase.rpc('create_support_conversation',{
     p_subject:input.subject,
@@ -58,11 +67,19 @@ export async function getSupportInbox(){
   return {conversations:data||[],error};
 }
 
-export async function uploadSupportAttachment(userId:string,file:File){
-  const ext=file.name.split('.').pop()||'bin';
-  const path=`support/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const {error}=await supabase.storage.from('chat-files').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type||undefined});
-  if(error)return {url:null,error};
-  const {data}=supabase.storage.from('chat-files').getPublicUrl(path);
-  return {url:data.publicUrl,error:null};
+export async function uploadSupportAttachment(conversationId:string,file:File){
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-100)||'attachment';
+  const path=`${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+  const {error}=await supabase.storage.from('support-files').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type||undefined});
+  return {path:error?null:path,error};
+}
+
+export async function getSupportAttachmentUrl(path:string,expiresIn=3600){
+  const {data,error}=await supabase.storage.from('support-files').createSignedUrl(path,expiresIn);
+  return {url:data?.signedUrl||null,error};
+}
+
+export async function deleteSupportAttachment(path:string){
+  const {error}=await supabase.storage.from('support-files').remove([path]);
+  return {error};
 }
