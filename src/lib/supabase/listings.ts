@@ -239,23 +239,3 @@ export async function updateListingStatus(listingId: string, status: string, _up
   const { data, error } = await supabase.rpc('set_listing_status_internal', { p_listing_id: listingId, p_status: status });
   return { listing: data as Listing | null, error };
 }
-
-export async function createEnquiry(listingId: string, userId: string, message: string) {
-  const { data, error } = await supabase.from('enquiries').insert({ listing_id: listingId, user_id: userId, message, status: 'active' }).select().maybeSingle();
-  return { enquiry: data || null, error };
-}
-
-export async function getEnquiriesForListing(listingId: string) {
-  const { data, error } = await supabase.from('enquiries').select('*').eq('listing_id', listingId).order('created_at', { ascending: false });
-  return { enquiries: data as any[] | null, error };
-}
-
-export async function getEnquiriesForUser(userId: string) {
-  const { data, error } = await supabase.from('enquiries').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-  return { enquiries: data as any[] | null, error };
-}
-
-export async function replyToEnquiry(enquiryId: string, staffId: string, reply: string) {
-  const { error } = await supabase.from('enquiries').update({ reply, staff_id: staffId, status: 'replied', replied_at: new Date().toISOString() }).eq('id', enquiryId);
-  return { error };
-}
