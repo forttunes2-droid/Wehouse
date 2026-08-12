@@ -2,7 +2,6 @@ import { useEffect,useMemo,useState } from 'react';
 import type { ReactNode } from 'react';
 import type { NavPage } from '@/types/nav';
 import type { DesktopNavItem } from '@/lib/desktop-nav';
-import SupportBridge from '@/components/SupportBridge';
 
 interface Props{children:ReactNode;navItems:DesktopNavItem[];activePage:NavPage;onNavigate:(page:NavPage)=>void;userName?:string;userRole?:string;userAvatar?:string;onLogout?:()=>void}
 type MirroredTab={label:string;button:HTMLButtonElement};
@@ -87,6 +86,5 @@ export default function DesktopLayout({children,navItems,activePage,onNavigate,u
       {moreOpen&&<div className="fixed inset-0 z-[69] bg-black/55 lg:hidden" onClick={()=>setMoreOpen(false)}><div className="absolute inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-2xl border border-white/[.08] bg-[#11131B] p-2 shadow-2xl" onClick={e=>e.stopPropagation()}>{mobilePlan.extra.map(tab=><button key={tab.label} onClick={()=>openMirrored(tab)} className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-xs font-semibold text-[#D8DAE3] hover:bg-white/[.04]"><span>{tab.label}</span><span className="text-[#626678]">›</span></button>)}{accountItem&&<button onClick={()=>{setMoreOpen(false);onNavigate('profile')}} className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-xs font-semibold text-[#D8DAE3] hover:bg-white/[.04]"><span>Account</span><span className="text-[#626678]">›</span></button>}</div></div>}
       <nav className="fixed inset-x-0 bottom-0 z-[70] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"><div className="mx-auto flex min-h-16 max-w-lg items-stretch px-1">{mobilePlan.direct.map((tab,index)=>{const active=activeWorkspaceTab===tab.label;const display=index===0&&tab.label==='Overview'?'Home':tab.label==='Communications'||tab.label==='Communication'?'Comms':tab.label==='Property Requests'?'Requests':tab.label==='My Properties'?'Properties':tab.label==='Professional Profile'?'Profile':tab.label;return <button key={tab.label} onClick={()=>openMirrored(tab)} className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold ${active?'text-violet-300':'text-[#6E7282]'}`}><span className={`h-1.5 w-1.5 rounded-full ${active?'bg-violet-400':'bg-transparent'}`}/><span className="max-w-full truncate">{display}</span></button>})}{(mobilePlan.extra.length>0||accountItem)&&<button onClick={()=>setMoreOpen(v=>!v)} className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold ${moreOpen?'text-violet-300':'text-[#6E7282]'}`}><span className={`h-1.5 w-1.5 rounded-full ${moreOpen?'bg-violet-400':'bg-transparent'}`}/><span>More</span></button>}</div></nav>
     </>}
-    {(role==='worker'||role==='property_partner')&&<SupportBridge/>}
   </div>;
 }
