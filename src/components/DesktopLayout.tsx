@@ -32,7 +32,7 @@ export default function DesktopLayout({children,navItems,activePage,onNavigate,u
       const buttons=Array.from(source.querySelectorAll(':scope button')).filter((node):node is HTMLButtonElement=>node instanceof HTMLButtonElement&&Boolean(node.textContent?.trim()));
       setWorkspaceTabs(buttons.map(button=>({label:button.textContent!.trim(),button})));
       const sync=()=>{
-        const selected=buttons.find(button=>/(bg-(?:violet|indigo|cyan|blue)-500|text-white)/.test(button.className)&&!/text-\[#/.test(button.className));
+        const selected=buttons.find(button=>['bg-violet-500','bg-indigo-500','bg-cyan-500','bg-blue-500'].some(cls=>button.className.includes(cls)));
         if(selected?.textContent)setActiveWorkspaceTab(selected.textContent.trim());
       };
       sync();
