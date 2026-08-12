@@ -10,299 +10,51 @@ export { runDiagnostics } from './client';
 export { compressImageFile } from './utils';
 
 // Auth
-export {
-  signUpWithEmail,
-  signInWithEmail,
-  signInWithGoogle,
-  resetPassword,
-  getSession,
-  isUsernameTaken,
-  updateUsername,
-  changePassword,
-  logPasswordChange,
-} from './auth';
+export { signUpWithEmail,signInWithEmail,signInWithGoogle,resetPassword,getSession,isUsernameTaken,updateUsername,changePassword,logPasswordChange } from './auth';
 
 // Profile
-export {
-  getProfile,
-  getProfileByAuthId,
-  getPublicAgentInfo,
-  getPublicAgentByUserId,
-  getProfileByEmail,
-  linkProfileToAuth,
-  createProfile,
-  uploadAvatar,
-  validateUsername,
-  checkUsernameAvailable,
-  removeAvatar,
-  updateProfile,
-  updatePrivacySettings,
-} from './profile';
+export { getProfile,getProfileByAuthId,getPublicAgentInfo,getPublicAgentByUserId,getProfileByEmail,linkProfileToAuth,createProfile,uploadAvatar,validateUsername,checkUsernameAvailable,removeAvatar,updateProfile,updatePrivacySettings } from './profile';
 
 // Session
-export {
-  parseDeviceInfo,
-  trackSession,
-  endSession,
-  getSessionHistory,
-  createUserSession,
-  deactivateUserSession,
-  isSessionActive,
-  getStoredSessionId,
-  updateSessionLastSeen,
-} from './session';
+export { parseDeviceInfo,trackSession,endSession,getSessionHistory,createUserSession,deactivateUserSession,isSessionActive,getStoredSessionId,updateSessionLastSeen } from './session';
 
 // Listings
-export {
-  getAllListings,
-  getListing,
-  getCreatorListings,
-  getAvailableChatAgents,
-  detectDuplicateImage,
-  checkDuplicateListing,
-  uploadListingImage,
-  uploadListingVideo,
-  deleteListing,
-  saveListing,
-  unsaveListing,
-  getSavedListings,
-  createListing,
-  getRequiredApproverRank,
-  getApproverLabel,
-  canApproveListing,
-  getListingsPendingApproval,
-  approveListing,
-  rejectListing,
-  getMyPendingListings,
-  updateListingStatus,
-  createEnquiry,
-  getEnquiriesForListing,
-  getEnquiriesForUser,
-  replyToEnquiry,
-} from './listings';
+export { getAllListings,getListing,getCreatorListings,getAvailableChatAgents,detectDuplicateImage,checkDuplicateListing,uploadListingImage,uploadListingVideo,deleteListing,saveListing,unsaveListing,getSavedListings,createListing,getRequiredApproverRank,getApproverLabel,canApproveListing,getListingsPendingApproval,approveListing,rejectListing,getMyPendingListings,updateListingStatus,createEnquiry,getEnquiriesForListing,getEnquiriesForUser,replyToEnquiry } from './listings';
 
 // Reservations
-export {
-  createReservation,
-  getReservationForListing,
-  getReservationsForUser,
-  cancelReservation,
-  markSupportContacted,
-  updateReservationPlan,
-  createInspectionRequest,
-  getInspectionRequestForReservation,
-  getInspectionRequestsForUser,
-  getPendingInspectionRequests,
-  getInspectionRequestsForFieldOfficer,
-  assignFieldOfficer,
-  startInspection,
-  completeInspection,
-  cancelInspectionRequest,
-} from './reservations';
+export { createReservation,getReservationForListing,getReservationsForUser,cancelReservation,markSupportContacted,updateReservationPlan,createInspectionRequest,getInspectionRequestForReservation,getInspectionRequestsForUser,getPendingInspectionRequests,getInspectionRequestsForFieldOfficer,assignFieldOfficer,startInspection,completeInspection,cancelInspectionRequest } from './reservations';
 
 // Roommate
-export {
-  saveRoommatePreferences,
-  getRoommatePreferences,
-  findMatches,
-  startRoommateSearch,
-  stopRoommateSearch,
-  refreshRoommateSearch,
-  getSavedMatchResults,
-  updateMatchStatus,
-  clearMatchResults,
-  checkSearchExpiry,
-} from './roommate';
+export { saveRoommatePreferences,getRoommatePreferences,findMatches,startRoommateSearch,stopRoommateSearch,refreshRoommateSearch,getSavedMatchResults,updateMatchStatus,clearMatchResults,checkSearchExpiry } from './roommate';
 
-// Workers (v2 — Categories, Verification, Wallet, Payouts)
-export {
-  getWorkers,
-  parseWorkerStatus,
-  getAllWorkers,
-  getPendingWorkers,
-  updateWorkerStatus,
-  getServiceCategories,
-  getServiceSubcategories,
-  getCategoryWithSubcategories,
-  createServiceCategory,
-  updateServiceCategory,
-  deleteServiceCategory,
-  createServiceSubcategory,
-  updateServiceSubcategory,
-  deleteServiceSubcategory,
-  seedSubcategoriesForCategory,
-  submitWorkerVerification,
-  uploadWorkerVerificationVideo,
-  getWorkerVerification,
-  getVerificationsByStatus,
-  reviewWorkerVerification,
-  getBlueBadgeSubscription,
-  createBlueBadgeSubscription,
-  cancelBlueBadgeSubscription,
-  getOrCreateWallet,
-  getWallet,
-  getWalletTransactions,
-  creditWallet,
-  updateWalletBankDetails,
-  createEscrowTransaction,
-  getEscrowForBooking,
-  releaseEscrow,
-  refundEscrow,
-  requestWithdrawal,
-  getWithdrawals,
-  logFinancialEvent,
-  getFinancialAuditLogs,
-  getWorkerDashboardData,
-  getWorkerSystemStats,
-  setWorkerAvailability,
-} from './workers';
+// Workers
+export { getWorkers,parseWorkerStatus,getAllWorkers,getPendingWorkers,updateWorkerStatus,getServiceCategories,getServiceSubcategories,getCategoryWithSubcategories,createServiceCategory,updateServiceCategory,deleteServiceCategory,createServiceSubcategory,updateServiceSubcategory,deleteServiceSubcategory,seedSubcategoriesForCategory,submitWorkerVerification,uploadWorkerVerificationVideo,getWorkerVerification,getVerificationsByStatus,reviewWorkerVerification,getBlueBadgeSubscription,createBlueBadgeSubscription,cancelBlueBadgeSubscription,getOrCreateWallet,getWallet,getWalletTransactions,creditWallet,updateWalletBankDetails,createEscrowTransaction,getEscrowForBooking,releaseEscrow,refundEscrow,requestWithdrawal,getWithdrawals,logFinancialEvent,getFinancialAuditLogs,getWorkerDashboardData,getWorkerSystemStats,setWorkerAvailability } from './workers';
 
 // Paystack
-export {
-  initializePaystackPopup,
-  getCommissionSummary,
-} from './paystack';
+export { initializePaystackPopup,getCommissionSummary } from './paystack';
 
-// Chat
-export {
-  getConversations,
-  getStaffConversations,
-  getPartnerSupportInbox,
-  getMessages,
-  sendMessage,
-  editMessage,
-  deleteMessage,
-  deleteConversation,
-  markMessagesSeen,
-  createConversation,
-  acceptEnquiry,
-  closeConversation,
-  getOrCreateConversation,
-} from './chat';
+// Chat — booking/roommate/private workflow conversations only
+export { getConversations,getStaffConversations,getPartnerSupportInbox,getMessages,sendMessage,editMessage,deleteMessage,deleteConversation,markMessagesSeen,createConversation,acceptEnquiry,closeConversation,getOrCreateConversation } from './chat';
 
-// Partner Support
-export {
-  createPartnerSupportConversation,
-  getPartnerConversations,
-  getStaffSupportConversations,
-  getPartnerSupportMessages,
-  sendPartnerSupportMessage,
-  addConversationAction,
-  assignFieldOfficerToConversation,
-  markPartnerMessagesRead,
-  ACTION_TYPE_LABELS,
-} from './partner-support';
+// Human Support — canonical User / Worker / Property Partner support lives in ./support
 
 // Announcements
-export {
-  checkAnnouncementTables,
-  sendAnnouncement,
-  getAnnouncementsForUser,
-  markAnnouncementRead,
-  deleteAnnouncement,
-  getAnnouncementsSentBy,
-  getAllAnnouncements,
-  getUnreadAnnouncementCount,
-  getAnnouncementStats,
-  getOfficialMessagesForUser,
-  markOfficialMessageRead,
-  deleteOfficialMessage,
-  getOfficialMessagesSentBy,
-  getAllOfficialMessages,
-  getUnreadOfficialCount,
-  checkOfficialMessageTables,
-  getMessageRecipientCount,
-  getFilteredRecipientCount,
-} from './announcements';
+export { checkAnnouncementTables,sendAnnouncement,getAnnouncementsForUser,markAnnouncementRead,deleteAnnouncement,getAnnouncementsSentBy,getAllAnnouncements,getUnreadAnnouncementCount,getAnnouncementStats,getOfficialMessagesForUser,markOfficialMessageRead,deleteOfficialMessage,getOfficialMessagesSentBy,getAllOfficialMessages,getUnreadOfficialCount,checkOfficialMessageTables,getMessageRecipientCount,getFilteredRecipientCount } from './announcements';
 
 // Activity
-export {
-  getUserActivity,
-  getUserMatches,
-  getUserRoomInterests,
-  getSavedListingsWithData,
-  getReviews,
-  createReview,
-  getRoomInterests,
-  createRoomInterest,
-} from './activity';
+export { getUserActivity,getUserMatches,getUserRoomInterests,getSavedListingsWithData,getReviews,createReview,getRoomInterests,createRoomInterest } from './activity';
 
 // Admin
-export {
-  getAllUsers,
-  getUserCount,
-  getCreatorDashboardStats,
-  type CreatorDashboardStats,
-  canChangeRole,
-  updateUserRole,
-  getRoleChangeHistory,
-  deleteAccount,
-  toggleMaintenanceExempt,
-  getAllListingsAdmin,
-  getReports,
-  createReport,
-  resolveReport,
-  dismissReport,
-  suspendUser,
-  reactivateUser,
-  freezeUser,
-  banUser,
-  getAuditLogs,
-  logAuditAction,
-  getSystemSettings,
-  updateSystemSetting,
-  submitStaffReview,
-  getStaffReviews,
-  getStaffRatingSummary,
-} from './admin';
+export { getAllUsers,getUserCount,getCreatorDashboardStats,type CreatorDashboardStats,canChangeRole,updateUserRole,getRoleChangeHistory,deleteAccount,toggleMaintenanceExempt,getAllListingsAdmin,getReports,createReport,resolveReport,dismissReport,suspendUser,reactivateUser,freezeUser,banUser,getAuditLogs,logAuditAction,getSystemSettings,updateSystemSetting,submitStaffReview,getStaffReviews,getStaffRatingSummary } from './admin';
 
 // Notifications
-export {
-  getNotifications,
-  getUnreadNotificationCount,
-  markNotificationsRead,
-  markNotificationRead,
-  subscribeToNotifications,
-} from './notifications';
+export { getNotifications,getUnreadNotificationCount,markNotificationsRead,markNotificationRead,subscribeToNotifications } from './notifications';
 
 // Permissions
-export {
-  getStaffPermissions,
-  grantPermission,
-  revokePermission,
-  hasPermission,
-  hasAnyPermission,
-  getAllStaffWithPermissions,
-  getStaffByPermission,
-} from './permissions';
+export { getStaffPermissions,grantPermission,revokePermission,hasPermission,hasAnyPermission,getAllStaffWithPermissions,getStaffByPermission } from './permissions';
 
 // Hotels
-export {
-  getHotels,
-  getHotelById,
-  getHotelRooms,
-  getRoomById,
-  getHotelReviews,
-  addHotelReview,
-  createHotelBooking,
-  getHotelBookingsForUser,
-  getHotelBookingsForHotel,
-  updateBookingStatus,
-  getHotelsByOwner,
-  createHotel,
-  updateHotel,
-  deleteHotel,
-  createHotelRoom,
-  updateHotelRoom,
-  deleteHotelRoom,
-  uploadHotelImage,
-  uploadRoomImage,
-} from './hotels';
+export { getHotels,getHotelById,getHotelRooms,getRoomById,getHotelReviews,addHotelReview,createHotelBooking,getHotelBookingsForUser,getHotelBookingsForHotel,updateBookingStatus,getHotelsByOwner,createHotel,updateHotel,deleteHotel,createHotelRoom,updateHotelRoom,deleteHotelRoom,uploadHotelImage,uploadRoomImage } from './hotels';
 
 // Platform Settings
-export {
-  getPlatformSettings,
-  getPlatformSetting,
-  updatePlatformSetting,
-  getTypedSetting,
-} from './platform-settings';
+export { getPlatformSettings,getPlatformSetting,updatePlatformSetting,getTypedSetting } from './platform-settings';
