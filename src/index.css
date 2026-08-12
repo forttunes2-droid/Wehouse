@@ -61,6 +61,44 @@
     @apply text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    color-scheme: dark;
+    min-height: 44px;
+    padding-right: 2.75rem !important;
+    border-radius: 14px !important;
+    background-color: #151821 !important;
+    background-image:
+      linear-gradient(45deg, transparent 50%, #8D93A5 50%),
+      linear-gradient(135deg, #8D93A5 50%, transparent 50%),
+      linear-gradient(to right, rgba(255,255,255,.05), rgba(255,255,255,.05));
+    background-position:
+      calc(100% - 19px) 50%,
+      calc(100% - 14px) 50%,
+      calc(100% - 2.7rem) 50%;
+    background-size: 5px 5px, 5px 5px, 1px 55%;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+    transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
+  }
+
+  select:hover:not(:disabled) {
+    border-color: rgba(124,92,255,.28) !important;
+    background-color: #181B25 !important;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: rgba(124,92,255,.55) !important;
+    box-shadow: 0 0 0 3px rgba(124,92,255,.10), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  select:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
 }
 
 /* Hide scrollbar for horizontal scroll */
@@ -257,123 +295,4 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.gradient-text {
-  background: linear-gradient(135deg, #7C5CFF 0%, #A78BFA 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fadeIn {
-  animation: fadeIn 0.25s ease-out;
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-}
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
-  border-radius: 4px;
-}
-
-@property --card-shine {
-  syntax: '<angle>';
-  initial-value: 135deg;
-  inherits: false;
-}
-
-.card-shine {
-  position: relative;
-  overflow: hidden;
-}
-.card-shine::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.03),
-    transparent
-  );
-  transition: left 0.7s ease;
-  pointer-events: none;
-}
-.card-shine:hover::before {
-  left: 100%;
-}
-
-html, body, #root {
-  min-height: 100dvh;
-  min-height: -webkit-fill-available;
-}
-
-.scrollable-content {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scroll-padding-bottom: 120px;
-}
-
-.scrollable-content::-webkit-scrollbar {
-  width: 3px;
-}
-.scrollable-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollable-content::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
-  border-radius: 10px;
-}
-
-input:focus, textarea:focus {
-  scroll-margin-bottom: 100px;
-}
-
-.pb-safe {
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
-}
-
-.pb-nav {
-  padding-bottom: max(80px, env(safe-area-inset-bottom) + 64px);
-}
-
-.keyboard-page {
-  padding-bottom: max(120px, env(safe-area-inset-bottom) + 100px);
-}
-
-.bottom-nav-fixed {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-form {
-  min-height: 0;
-}
-
-.chat-input-container {
-  position: sticky;
-  bottom: 0;
-  z-index: 40;
-  background: var(--wh-surface);
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
-}
-
-/* The operational role dashboards keep one canonical tab implementation.
-   Desktop uses the original header rail; mobile mirrors those exact buttons
-   into DesktopLayout's persistent bottom navigation and hides the source rail. */
-@media (max-width: 1023px) {
-  .workspace-primary-rail {
-    display: none !important;
-  }
 }
