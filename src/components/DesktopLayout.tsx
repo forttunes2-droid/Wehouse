@@ -22,25 +22,35 @@ export default function DesktopLayout({children,navItems,activePage,onNavigate,u
 
   useEffect(()=>{
     if(!operational){setWorkspaceTabs([]);return;}
-    let observer:MutationObserver|undefined;
+    const content=document.querySelector('[data-desktop-content-root]') as HTMLElement|null;
+    if(!content)return;
     let source:HTMLElement|null=null;
-    const timer=window.setTimeout(()=>{
-      const content=document.querySelector('[data-desktop-content-root]');
-      source=content?.querySelector('header .scrollbar-hide') as HTMLElement|null;
-      if(!source){setWorkspaceTabs([]);return;}
+    let classObserver:MutationObserver|undefined;
+
+    const attach=()=>{
+      const next=content.querySelector('header .scrollbar-hide') as HTMLElement|null;
+      if(next===source)return;
+      classObserver?.disconnect();
+      source?.classList.remove('workspace-primary-rail');
+      source=next;
+      if(!source){setWorkspaceTabs([]);setActiveWorkspaceTab('');return;}
       source.classList.add('workspace-primary-rail');
       const buttons=Array.from(source.querySelectorAll(':scope button')).filter((node):node is HTMLButtonElement=>node instanceof HTMLButtonElement&&Boolean(node.textContent?.trim()));
       setWorkspaceTabs(buttons.map(button=>({label:button.textContent!.trim(),button})));
       const sync=()=>{
         const selected=buttons.find(button=>['bg-violet-500','bg-indigo-500','bg-cyan-500','bg-blue-500'].some(cls=>button.className.includes(cls)));
-        if(selected?.textContent)setActiveWorkspaceTab(selected.textContent.trim());
+        setActiveWorkspaceTab(selected?.textContent?.trim()||'');
       };
       sync();
-      observer=new MutationObserver(sync);
-      buttons.forEach(button=>observer!.observe(button,{attributes:true,attributeFilter:['class']}));
-    },0);
-    return()=>{window.clearTimeout(timer);observer?.disconnect();source?.classList.remove('workspace-primary-rail');};
-  },[activePage,operational,children]);
+      classObserver=new MutationObserver(sync);
+      buttons.forEach(button=>classObserver!.observe(button,{attributes:true,attributeFilter:['class']}));
+    };
+
+    attach();
+    const structureObserver=new MutationObserver(attach);
+    structureObserver.observe(content,{subtree:true,childList:true});
+    return()=>{structureObserver.disconnect();classObserver?.disconnect();source?.classList.remove('workspace-primary-rail');};
+  },[activePage,operational]);
 
   const mobilePlan=useMemo(()=>{
     const role=userRole||'';
