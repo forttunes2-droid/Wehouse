@@ -11,7 +11,7 @@ type Published={privacy:boolean;terms:boolean};
 export default function AccountCenter({profile,onBack,onGoToPrivacy,onGoToSecurity,onGoToProfileEdit,onLogout}:Props){
  const p=profile as any;
  const[panel,setPanel]=useState<'notifications'|'legal'|'official'|null>(null),[emailNotifs,setEmailNotifs]=useState(p.pref_email_notif!==false),[pushNotifs,setPushNotifs]=useState(p.pref_push_notif!==false),[legal,setLegal]=useState<Legal>({privacy_accepted:false,terms_accepted:false}),[published,setPublished]=useState<Published>({privacy:false,terms:false}),[acceptPrivacy,setAcceptPrivacy]=useState(false),[acceptTerms,setAcceptTerms]=useState(false),[saving,setSaving]=useState(false);
- const role=profile.role,external=['user','worker','property_partner'].includes(role),isUser=role==='user',canEditProfile=role!=='staff',needsOfficialInAccount=role==='worker'||role==='staff';
+ const role=profile.role,external=['user','worker','property_partner'].includes(role),isUser=role==='user',canEditProfile=role!=='staff',needsOfficialInAccount=role==='worker';
  const roleLabel=role==='property_partner'?'Property Partner':role.charAt(0).toUpperCase()+role.slice(1).replace(/_/g,' ');
  const initials=(profile.full_name||profile.username||profile.email||'U')[0].toUpperCase();
  useEffect(()=>{void(async()=>{const[{data:status},{data:docs}]=await Promise.all([supabase.rpc('get_my_legal_status'),supabase.from('platform_settings').select('key,value').in('key',['privacy_policy','terms_of_service'])]);if(status)setLegal(status as Legal);const next={privacy:false,terms:false};for(const row of docs||[]){if(row.key==='privacy_policy')next.privacy=Boolean(row.value?.trim());if(row.key==='terms_of_service')next.terms=Boolean(row.value?.trim())}setPublished(next)})()},[]);
