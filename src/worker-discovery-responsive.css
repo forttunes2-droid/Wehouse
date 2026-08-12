@@ -1,4 +1,4 @@
-/* Worker discovery: never force category/service choices into a horizontal rail. */
+/* Worker discovery: categories and sub-services must scale vertically, not become endless horizontal rails. */
 @media (max-width: 1023px) {
   body:has(input[placeholder="Search by name, occupation, skill..."]) .flex.gap-1\.5.overflow-x-auto {
     display: grid !important;
@@ -22,4 +22,18 @@
   body:has(input[placeholder="Search by name, occupation, skill..."]) .flex.gap-1\.5.overflow-x-auto {
     grid-template-columns: minmax(0, 1fr) !important;
   }
+}
+
+/* Legacy empty-state copy said workers appear after signup. Public workers actually require verification + availability. */
+body:has(input[placeholder="Search by name, occupation, skill..."]) .text-center.py-16 > p:nth-of-type(1),
+body:has(input[placeholder="Search by name, occupation, skill..."]) .text-center.py-16 > p:nth-of-type(2) {
+  font-size: 0 !important;
+}
+body:has(input[placeholder="Search by name, occupation, skill..."]) .text-center.py-16 > p:nth-of-type(1)::after {
+  content: 'No verified workers available';
+  font-size: .875rem;
+}
+body:has(input[placeholder="Search by name, occupation, skill..."]) .text-center.py-16 > p:nth-of-type(2)::after {
+  content: 'Verified and available professionals will appear here.';
+  font-size: .75rem;
 }
