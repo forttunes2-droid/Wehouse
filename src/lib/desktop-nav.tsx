@@ -10,15 +10,16 @@ const SEARCH = icon('M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z');
 const SAVED = icon('M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z');
 function badge(unreadCount: number) { return unreadCount > 0 ? unreadCount : undefined; }
 
-// Operational roles own their work inside one canonical dashboard. Desktop navigation
-// therefore exposes the workspace + account, instead of parallel Home/Analytics/Messages/Wallet pages.
-export function getCreatorNav(): DesktopNavItem[] { return [{ id:'creator', label:'Creator', icon:DASHBOARD }, { id:'profile', label:'Account', icon:ACCOUNT }]; }
-export function getAdminNav(): DesktopNavItem[] { return [{ id:'admin', label:'Admin', icon:DASHBOARD }, { id:'profile', label:'Account', icon:ACCOUNT }]; }
+// Creator, Admin and Worker already expose Account in their workspace header.
+// Keep only one Account entry point instead of rendering the same destination twice.
+export function getCreatorNav(): DesktopNavItem[] { return [{ id:'creator', label:'Creator', icon:DASHBOARD }]; }
+export function getAdminNav(): DesktopNavItem[] { return [{ id:'admin', label:'Admin', icon:DASHBOARD }]; }
+export function getWorkerNav(): DesktopNavItem[] { return [{ id:'worker_dashboard', label:'Worker', icon:DASHBOARD }]; }
+
+// Staff has no duplicate header Account. Property Partner now uses the shared Account entry only.
 export function getStaffNav(): DesktopNavItem[] { return [{ id:'staff_dashboard', label:'Staff Workspace', icon:DASHBOARD }, { id:'profile', label:'Account', icon:ACCOUNT }]; }
-export function getWorkerNav(): DesktopNavItem[] { return [{ id:'worker_dashboard', label:'Worker', icon:DASHBOARD }, { id:'profile', label:'Account', icon:ACCOUNT }]; }
 export function getPartnerNav(): DesktopNavItem[] { return [{ id:'property_partner', label:'Property Partner', icon:DASHBOARD }, { id:'profile', label:'Account', icon:ACCOUNT }]; }
 
-// Customer navigation remains customer-focused.
 export function getUserNav(unreadCount = 0): DesktopNavItem[] { return [{ id:'home', label:'Home', icon:DASHBOARD }, { id:'search', label:'Explore', icon:SEARCH }, { id:'saved', label:'Saved', icon:SAVED }, { id:'messages', label:'Messages', icon:MESSAGES, badge:badge(unreadCount) }, { id:'profile', label:'Account', icon:ACCOUNT }]; }
 export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
   switch (role) {
