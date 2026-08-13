@@ -8,7 +8,19 @@ export async function createBookingRequest(workerId:string,serviceType:string,de
 
 export async function getMyBookingConversations(userId:string){
   const{data,error}=await supabase.rpc('get_my_booking_conversations',{p_user_id:userId});
-  return{conversations:(data||[]).map((row:any)=>({conversation_id:row.conversation_id,booking_id:row.booking_id,booking_code:row.booking_code,booking_status:row.booking_status,service_type:row.service_type,negotiated_amount:row.negotiated_amount||0,other_person_name:row.other_person_name||'Unknown',other_person_username:'',updated_at:row.updated_at,unread_count:row.unread_count||0})),error};
+  return{conversations:(data||[]).map((row:any)=>({conversation_id:row.conversation_id,booking_id:row.booking_id,booking_code:row.booking_code,booking_status:row.booking_status,service_type:row.service_type,negotiated_amount:row.negotiated_amount||0,other_person_id:row.other_person_id||null,other_person_name:row.other_person_name||'Unknown',other_person_username:'',updated_at:row.updated_at,unread_count:row.unread_count||0})),error};
+}
+
+// Customer discovery only needs to know which workers already have an active booking.
+// Reuse the caller-checked booking conversation RPC instead of reading worker_bookings directly.
+export async function getUserActiveBookings(userId:string){
+  const{conversations,error}=await getMyBookingConversations(userId);
+  if(error)return{bookings:[],error};
+  const terminal=new Set(['cancelled','refunded','approved_released']);
+  const bookings=(conversations||[])
+    .filter((row:any)=>!terminal.has(row.booking_status))
+    .map((row:any)=>({id:row.booking_id,worker_id:row.other_person_id,status:row.booking_status}));
+  return{bookings,error:null};
 }
 
 async function signChatPath(path:string){
