@@ -39,16 +39,16 @@ BEGIN
     avatar_url=NULLIF(BTRIM(COALESCE(p_avatar_url,'')),''),
     worker_occupation=BTRIM(p_occupation),
     occupation=BTRIM(p_occupation),
-    worker_skills=COALESCE(p_skills,'{}'),
+    worker_skills=to_jsonb(COALESCE(p_skills,'{}'::text[])),
     worker_experience=NULLIF(BTRIM(COALESCE(p_experience,'')),''),
     worker_bio=NULLIF(BTRIM(COALESCE(p_bio,'')),''),
     bio=NULLIF(BTRIM(COALESCE(p_bio,'')),''),
-    worker_price=GREATEST(COALESCE(p_price,0),0),
+    worker_price=GREATEST(COALESCE(p_price,0),0)::integer,
     updated_at=now()
   WHERE user_id=v_profile.user_id;
 
   INSERT INTO public.worker_service_coverage(worker_id,state,lga,areas,updated_at)
-  VALUES(v_profile.user_id,BTRIM(p_service_state),BTRIM(p_service_lga),COALESCE(p_service_areas,'{}'),now())
+  VALUES(v_profile.user_id,BTRIM(p_service_state),BTRIM(p_service_lga),COALESCE(p_service_areas,'{}'::text[]),now())
   ON CONFLICT(worker_id) DO UPDATE SET state=EXCLUDED.state,lga=EXCLUDED.lga,areas=EXCLUDED.areas,updated_at=now();
 
   SELECT id INTO v_id FROM public.worker_verifications WHERE worker_id=v_profile.user_id ORDER BY created_at DESC LIMIT 1;
