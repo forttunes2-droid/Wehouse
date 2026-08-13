@@ -1,11 +1,29 @@
 import { supabase } from './client';
 import type { Conversation,Message } from '@/types';
 
+export type RoommatePeer={user_id:string;name:string;avatar:string|null};
+
 // Canonical generic chat is now roommate-only.
 // Worker booking chat and human WeHouse Support use their own workflow APIs.
 export async function getConversations(userId:string){
   const{data,error}=await supabase.rpc('get_user_conversations',{p_user_id:userId});
   return{conversations:(data||[]) as Conversation[],error};
+}
+
+// Safe peer identity comes from the roommate-match backend projection instead
+// of granting cross-user reads on the full profiles table.
+export async function getRoommateConversationPeople(){
+  const{data,error}=await supabase.rpc('get_my_roommate_matches');
+  const people:Record<string,RoommatePeer>={};
+  for(const row of data||[]){
+    if(!row.matched_user_id)continue;
+    people[row.matched_user_id]={
+      user_id:row.matched_user_id,
+      name:row.full_name||row.username||'Roommate',
+      avatar:row.avatar_url||null,
+    };
+  }
+  return{people,error};
 }
 
 export async function getMessages(conversationId:string){
