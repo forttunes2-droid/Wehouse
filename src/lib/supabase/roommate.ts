@@ -14,12 +14,22 @@ export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences
     p_stay_duration: prefs.stay_duration || '1_year',
     p_area_preference: prefs.area_preference || null,
     p_bio: prefs.bio || null,
-    p_school_name: (prefs as any).school_name || null,
+    p_school_name: prefs.school_name || null,
     p_campus: prefs.campus || null,
-    p_level: (prefs as any).level || null,
-    p_department: (prefs as any).department || null,
+    p_level: prefs.level || null,
+    p_department: prefs.department || null,
   });
-  return { prefs: (data || null) as RoommatePreferences | null, error };
+  if (error || !data) return { prefs: (data || null) as RoommatePreferences | null, error };
+
+  const { data: schoolData, error: schoolError } = await supabase.rpc('set_my_roommate_school_filter', {
+    p_school_match: Boolean(prefs.school_match),
+    p_school_name: prefs.school_name || null,
+    p_campus: prefs.campus || null,
+  });
+  return {
+    prefs: (schoolData || data || null) as RoommatePreferences | null,
+    error: schoolError,
+  };
 }
 
 export async function getRoommatePreferences(_userId?: string) {
