@@ -1,438 +1,48 @@
-import { useState, useEffect, useRef } from 'react';
-import { supabase, signUpWithEmail, signInWithEmail, signInWithGoogle, resetPassword, runDiagnostics, getProfileByAuthId } from '@/lib/supabase';
+import { useEffect,useRef,useState } from 'react';
+import { supabase,signUpWithEmail,signInWithEmail,signInWithGoogle,resetPassword,runDiagnostics,getProfileByAuthId } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
 
-interface LoginProps {
-  onLoginSuccess: (authId: string, email: string, role?: 'user' | 'worker' | 'property_partner') => void;
-  serverError: string;
-  kickedOut?: boolean;
+type PublicRole='user'|'worker'|'property_partner';
+type Mode='choose'|'choose_role'|'signin'|'signup'|'forgot';
+type PendingMethod='authenticated'|'email'|null;
+interface LoginProps{onLoginSuccess:(authId:string,email:string,role?:PublicRole)=>void;serverError:string;kickedOut?:boolean}
+
+function friendlyError(raw:string){const msg=raw.toLowerCase();if(msg.includes('api key')||msg.includes('invalid key'))return'Authentication service not configured. Please contact support.';if(msg.includes('banned'))return'Your account has been permanently banned. Contact support for assistance.';if(msg.includes('suspended'))return'Your account has been suspended. Contact support for assistance.';if(msg.includes('deleted'))return'This account has been deleted. Please contact support if you believe this is an error.';if(msg.includes('invalid login credentials')||msg.includes('invalid credentials'))return'Invalid email or password. Please check and try again.';if(msg.includes('email not confirmed')||msg.includes('not confirmed'))return'Please confirm your email address before signing in.';if(msg.includes('already registered'))return'An account with this email already exists. Try signing in instead.';if(msg.includes('user not found'))return'No account found with this email. Please sign up first.';if(msg.includes('network')||msg.includes('fetch')||msg.includes('connection'))return'Connection failed. Please check your internet and try again.';if(msg.includes('timeout'))return'Request timed out. Please try again.';if(msg.includes('password')&&msg.includes('weak'))return'Password is too weak. Use at least 8 characters.';if(msg.includes('for security'))return'Too many attempts. Please wait a moment and try again.';return raw.length>120?'Something went wrong. Please try again.':raw}
+function EyeIcon({visible,onClick}:{visible:boolean;onClick:()=>void}){return <button type="button" onClick={onClick} tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#5C5E72] transition-colors hover:text-[#8B8DA0]" aria-label={visible?'Hide password':'Show password'}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>{visible&&<path d="M9.88 9.88l4.24 4.24M14.12 9.88l-4.24 4.24"/>}</svg></button>}
+
+export default function Login({onLoginSuccess,serverError,kickedOut}:LoginProps){
+ const[mode,setMode]=useState<Mode>('choose'),[signupRole,setSignupRole]=useState<PublicRole>('user'),[pendingMethod,setPendingMethod]=useState<PendingMethod>(null),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[showPassword,setShowPassword]=useState(false),[working,setWorking]=useState(false),[error,setError]=useState(''),[info,setInfo]=useState(''),[diag,setDiag]=useState<string|null>(null);
+ const authenticatedIdentityRef=useRef<string|null>(null);
+
+ useEffect(()=>{runDiagnostics().then(result=>{console.log('[WeHouse Diagnostics]',result);if(result.authTest!=='ok')setDiag(`Auth: ${result.authTest}${result.authError?` — ${result.authError}`:''}`)})},[]);
+
+ // The auth controller owns session restoration and routing. This effect only handles
+ // the one case that needs UI input: an authenticated identity with no WeHouse profile.
+ useEffect(()=>{let cancelled=false;void(async()=>{const{data}=await supabase.auth.getUser();const user=data.user;if(cancelled||!user)return;if(authenticatedIdentityRef.current===user.id)return;const{profile}=await getProfileByAuthId(user.id);if(cancelled||profile)return;authenticatedIdentityRef.current=user.id;const metadataRole=user.user_metadata?.signup_role as PublicRole|undefined;if(metadataRole&&['user','worker','property_partner'].includes(metadataRole)){onLoginSuccess(user.id,user.email||'',metadataRole);return}setPendingMethod('authenticated');setMode('choose_role')})();return()=>{cancelled=true}},[onLoginSuccess]);
+
+ const displayError=error||serverError;
+ function withTimeout<T>(promise:Promise<T>,ms:number):Promise<T>{return Promise.race([promise,new Promise<T>((_,reject)=>setTimeout(()=>reject(new Error('Timeout')),ms))])}
+ async function handleSubmit(e:React.FormEvent,isSignup:boolean){e.preventDefault();setError('');setInfo('');if(!email.includes('@'))return setError('Enter a valid email address');if(password.length<8)return setError('Password must be at least 8 characters');setWorking(true);try{if(isSignup){const{data,error:err}=await withTimeout(signUpWithEmail(email.trim(),password,signupRole),15000);if(err)return setError(friendlyError(err.message));if(data.session?.user){setInfo('Finishing your WeHouse account…');return}if(data.user){setInfo('Account created. Check your email to confirm your address, then WeHouse will continue with the account type you selected.');return}setError('Signup incomplete. Please try again.')}else{const{data,error:err}=await withTimeout(signInWithEmail(email.trim(),password),15000);if(err)return setError(friendlyError(err.message));if(!data.session?.user)return setError('Login failed. Please try again.');setInfo('Signing you in…')}}catch(err:any){setError(friendlyError(err?.message||'Connection timeout'))}finally{setWorking(false)}}
+ async function handleGoogle(){setError('');setInfo('');setWorking(true);const{error:err}=await signInWithGoogle();if(err){setError(friendlyError(err.message));setWorking(false)}}
+ async function chooseRole(role:PublicRole){setSignupRole(role);setError('');if(pendingMethod==='authenticated'){setWorking(true);try{const{data,error:authError}=await supabase.auth.getUser();if(authError||!data.user)throw authError||new Error('Your sign-in session expired. Please sign in again.');await onLoginSuccess(data.user.id,data.user.email||'',role)}catch(e:any){setError(friendlyError(e?.message||'Could not finish account setup'))}finally{setWorking(false)}return}setMode('signup')}
+ async function handleForgot(e:React.FormEvent){e.preventDefault();if(!email.includes('@'))return setError('Enter a valid email address');setWorking(true);const{error:err}=await resetPassword(email.trim());if(err)setError(friendlyError(err.message));else setInfo('Reset link sent. Check your email inbox.');setWorking(false)}
+ function backToChoose(){setMode('choose');setPendingMethod(null);setError('');setInfo('')}
+
+ return <div className="flex min-h-screen items-center justify-center bg-transparent px-5"><div className="w-full max-w-[360px]">
+   <div className="mb-8 text-center"><div className="glow-blue mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB]"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><h1 className="text-2xl font-bold tracking-tight text-white">WeHouse</h1><p className="mt-1 text-xs text-[#5C5E72]">We make living easy</p></div>
+   {diag&&<details className="mb-3"><summary className="cursor-pointer text-[10px] text-[#5C5E72] hover:text-[#8B8DA0]">Debug info</summary><div className="mt-1 break-all rounded-lg border border-[#232330] bg-[#1A1A24] p-2 font-mono text-[10px] text-[#5C5E72]">{diag}</div></details>}
+   {kickedOut&&<div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-center text-xs leading-relaxed text-amber-400"><p className="mb-1 font-semibold">You were logged out</p><p>Another device signed into this account. Sign in again here if you want this device to become the active session.</p></div>}
+   {displayError&&<div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-center text-xs leading-relaxed text-red-400">{displayError}</div>}
+   {info&&<div className="mb-4 rounded-xl border border-[#3B82F6]/20 bg-[#3B82F6]/10 p-3 text-center text-xs leading-relaxed text-[#3B82F6]">{info}</div>}
+
+   {mode==='choose'&&<div className="space-y-3"><button onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-medium text-[#0A0A0F] transition-colors hover:bg-white/90 disabled:opacity-50"><svg className="h-4 w-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Continue with Google</button><div className="relative my-5"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"/></div><div className="relative flex justify-center"><span className="bg-[#0A0A0F] px-4 text-[10px] uppercase tracking-wider text-[#5C5E72]">or</span></div></div><button onClick={()=>{setMode('signin');setError('')}} className="h-12 w-full rounded-xl border border-[#232330] bg-[#1A1A24] text-sm font-medium text-white transition-all hover:border-[#3B82F6]/50 hover:bg-[#1E1E2C]">Sign In with Email</button><button onClick={()=>{setPendingMethod('email');setMode('choose_role');setError('')}} className="glow-blue-sm h-12 w-full rounded-xl bg-[#3B82F6] text-sm font-medium text-white transition-colors hover:bg-[#2563EB]">Create Account</button></div>}
+
+   {mode==='choose_role'&&<div className="space-y-3"><p className="mb-2 text-center text-xs text-[#5C5E72]">How do you want to use WeHouse?</p><RoleButton title="Find Housing" detail="Browse listings, roommates and services" tone="blue" onClick={()=>void chooseRole('user')}/><RoleButton title="Offer Services" detail="Register as a service provider" tone="green" onClick={()=>void chooseRole('worker')}/><RoleButton title="List My Property" detail="Property Partner — WeHouse manages the workflow" tone="violet" onClick={()=>void chooseRole('property_partner')}/><button type="button" disabled={working} onClick={backToChoose} className="w-full pt-2 text-center text-xs text-[#5C5E72] transition-colors hover:text-[#8B8DA0] disabled:opacity-50">Back</button></div>}
+
+   {(mode==='signin'||mode==='signup')&&<form onSubmit={e=>handleSubmit(e,mode==='signup')} className="space-y-4"><div><label className="mb-1.5 block text-[11px] font-medium text-[#8B8DA0]">Email</label><Input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required className="h-12 rounded-xl border-[#232330] bg-[#1A1A24] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20"/></div><div className="relative"><label className="mb-1.5 block text-[11px] font-medium text-[#8B8DA0]">Password</label><Input type={showPassword?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" required minLength={8} className="h-12 rounded-xl border-[#232330] bg-[#1A1A24] pr-10 text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20"/><EyeIcon visible={showPassword} onClick={()=>setShowPassword(!showPassword)}/></div><button type="submit" disabled={working} className={`btn-press h-12 w-full rounded-xl text-sm font-medium transition-all ${mode==='signup'?'glow-blue-sm bg-[#3B82F6] text-white hover:bg-[#2563EB]':'border border-[#232330] bg-[#1A1A24] text-white hover:border-[#3B82F6]/50'} disabled:opacity-50`}>{working?'Please wait…':mode==='signup'?'Create Account':'Sign In'}</button>{mode==='signin'&&<button type="button" onClick={()=>{setMode('forgot');setError('')}} className="w-full text-center text-xs text-[#5C5E72] transition-colors hover:text-[#3B82F6]">Forgot password?</button>}<button type="button" onClick={backToChoose} className="w-full text-center text-xs text-[#5C5E72] transition-colors hover:text-[#8B8DA0]">Back</button></form>}
+
+   {mode==='forgot'&&<form onSubmit={handleForgot} className="space-y-4"><div><label className="mb-1.5 block text-[11px] font-medium text-[#8B8DA0]">Email</label><Input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required className="h-12 rounded-xl border-[#232330] bg-[#1A1A24] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20"/></div><button type="submit" disabled={working} className="glow-blue-sm h-12 w-full rounded-xl bg-[#3B82F6] text-sm font-medium text-white transition-colors hover:bg-[#2563EB] disabled:opacity-50">{working?'Sending…':'Send Reset Link'}</button><button type="button" onClick={()=>{setMode('signin');setError('')}} className="w-full text-center text-xs text-[#5C5E72] transition-colors hover:text-[#8B8DA0]">Back to Sign In</button></form>}
+ </div></div>
 }
 
-type Mode = 'choose' | 'choose_role' | 'signin' | 'signup' | 'forgot';
-
-// ─── ERROR TRANSLATION ─────────────────────────────
-function friendlyError(raw: string): string {
-  const msg = raw.toLowerCase();
-  if (msg.includes('api key') || msg.includes('invalid key')) {
-    return 'Authentication service not configured. Please contact support.';
-  }
-  if (msg.includes('banned') || msg.includes('permanently banned')) {
-    return 'Your account has been permanently banned. Contact support for assistance.';
-  }
-  if (msg.includes('suspended') || msg.includes('account has been suspended')) {
-    return 'Your account has been suspended. Contact support for assistance.';
-  }
-  if (msg.includes('deleted') || msg.includes('this account has been deleted')) {
-    return 'This account has been deleted. Please contact support if you believe this is an error.';
-  }
-  if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-    return 'Invalid email or password. Please check and try again.';
-  }
-  if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
-    return 'Please confirm your email address before signing in.';
-  }
-  if (msg.includes('user already registered') || msg.includes('already registered')) {
-    return 'An account with this email already exists. Try signing in instead.';
-  }
-  if (msg.includes('user not found')) {
-    return 'No account found with this email. Please sign up first.';
-  }
-  if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
-    return 'Connection failed. Please check your internet and try again.';
-  }
-  if (msg.includes('timeout')) {
-    return 'Request timed out. Please try again.';
-  }
-  if (msg.includes('password') && msg.includes('weak')) {
-    return 'Password is too weak. Use at least 8 characters.';
-  }
-  if (msg.includes('for security')) {
-    return 'Too many attempts. Please wait a moment and try again.';
-  }
-  return raw.length > 120 ? 'Something went wrong. Please try again.' : raw;
-}
-
-// ─── PASSWORD VISIBILITY ICON ──────────────────────
-
-function EyeIcon({ visible, onClick }: { visible: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      tabIndex={-1}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5C5E72] hover:text-[#8B8DA0] transition-colors p-1"
-      aria-label={visible ? 'Hide password' : 'Show password'}
-    >
-      {visible ? (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-          <circle cx="12" cy="12" r="3" />
-          <path d="M9.88 9.88l4.24 4.24M14.12 9.88l-4.24 4.24" />
-        </svg>
-      ) : (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
-// ─── MAIN COMPONENT ────────────────────────────────
-
-export default function Login({ onLoginSuccess, serverError, kickedOut }: LoginProps) {
-  const [mode, setMode] = useState<Mode>('choose');
-  const [signupRole, setSignupRole] = useState<'user' | 'worker' | 'property_partner'>('user');
-  const [pendingAuthMethod, setPendingAuthMethod] = useState<'google' | 'email' | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
-  const [diag, setDiag] = useState<string | null>(null);
-  const oauthProcessedRef = useRef(false);
-
-  // Run diagnostics once on mount — log to console, don't block UI
-  useEffect(() => {
-    runDiagnostics().then((result) => {
-      console.log('[WeHouse Diagnostics]', result);
-      if (result.authTest !== 'ok') {
-        setDiag(`Auth: ${result.authTest}${result.authError ? ` — ${result.authError}` : ''}`);
-      }
-    });
-  }, []);
-
-  // ─── POST-OAUTH HANDLING ───────────────────────────
-  // After Google OAuth redirect, the user is authenticated.
-  // Check if a WeHouse profile exists for this auth identity.
-  // If YES → route to existing account (no role selection).
-  // If NO  → show role selection for new account.
-  useEffect(() => {
-    if (oauthProcessedRef.current) return;
-
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        localStorage.removeItem('wh_pending_role');
-        return;
-      }
-
-      getProfileByAuthId(user.id).then(({ profile }) => {
-        if (oauthProcessedRef.current) return;
-
-        if (profile) {
-          // EXISTING account — route directly, never ask for role
-          oauthProcessedRef.current = true;
-          localStorage.removeItem('wh_pending_role');
-          onLoginSuccess(user.id, user.email!);
-        } else {
-          // NEW account — no profile yet
-          oauthProcessedRef.current = true;
-          const pendingRole = localStorage.getItem('wh_pending_role') as 'user' | 'worker' | 'property_partner' | null;
-
-          if (pendingRole && ['user', 'worker', 'property_partner'].includes(pendingRole)) {
-            // Role was already selected before OAuth — create profile
-            localStorage.removeItem('wh_pending_role');
-            onLoginSuccess(user.id, user.email!, pendingRole);
-          } else {
-            // No role selected yet — force role selection
-            setMode('choose_role');
-            setPendingAuthMethod('google');
-          }
-        }
-      });
-    });
-  }, [onLoginSuccess]);
-
-  const displayError = error || serverError;
-
-  function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-    return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))]);
-  }
-
-  async function handleSubmit(e: React.FormEvent, isSignup: boolean) {
-    e.preventDefault();
-    setError('');
-    setInfo('');
-
-    if (!email.includes('@')) { setError('Enter a valid email address'); return; }
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
-
-    setWorking(true);
-
-    try {
-      if (isSignup) {
-        const { data, error: err } = await withTimeout(signUpWithEmail(email.trim(), password), 15000);
-        if (err) {
-          console.error('[WeHouse SignUp Error]', err.message);
-          setError(friendlyError(err.message));
-        } else if (data.session?.user) {
-          onLoginSuccess(data.session.user.id, data.session.user.email || email, signupRole);
-        } else if (data.user) {
-          setInfo('Account created! Check your email to confirm.');
-        } else {
-          setError('Signup incomplete. Please try again.');
-        }
-      } else {
-        const { data, error: err } = await withTimeout(signInWithEmail(email.trim(), password), 15000);
-        if (err) {
-          console.error('[WeHouse SignIn Error]', err.message);
-          setError(friendlyError(err.message));
-        } else if (data.session?.user) {
-          onLoginSuccess(data.session.user.id, data.session.user.email || email);
-        } else {
-          setError('Login failed. Please try again.');
-        }
-      }
-    } catch (err: any) {
-      console.error('[WeHouse Login Catch]', err);
-      setError(friendlyError(err?.message || 'Connection timeout'));
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function handleGoogle() {
-    setWorking(true);
-    const { error: err } = await signInWithGoogle();
-    if (err) {
-      console.error('[WeHouse Google Error]', err.message);
-      setError(friendlyError(err.message));
-      setWorking(false);
-    }
-  }
-
-  async function handleForgot(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.includes('@')) { setError('Enter a valid email address'); return; }
-    setWorking(true);
-    const { error: err } = await resetPassword(email.trim());
-    if (err) {
-      console.error('[WeHouse Forgot Error]', err.message);
-      setError(friendlyError(err.message));
-    } else {
-      setInfo('Reset link sent! Check your email inbox.');
-    }
-    setWorking(false);
-  }
-
-  return (
-    <div className="min-h-screen bg-transparent flex items-center justify-center px-5">
-      <div className="w-full max-w-[360px]">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center mx-auto mb-4 glow-blue">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">WeHouse</h1>
-          <p className="text-xs text-[#5C5E72] mt-1">We make living easy</p>
-        </div>
-
-        {/* Diagnostic info (subtle, for debugging) */}
-        {diag && (
-          <details className="mb-3">
-            <summary className="text-[10px] text-[#5C5E72] cursor-pointer hover:text-[#8B8DA0]">Debug info</summary>
-            <div className="mt-1 p-2 rounded-lg bg-[#1A1A24] border border-[#232330] text-[10px] text-[#5C5E72] font-mono break-all">
-              {diag}
-            </div>
-          </details>
-        )}
-
-        {/* Kicked out from another device */}
-        {kickedOut && (
-          <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs text-center leading-relaxed">
-            <p className="font-semibold mb-1">You were logged out</p>
-            <p>Another device signed into your account. For security, only one device can be active at a time.</p>
-          </div>
-        )}
-
-        {/* Messages */}
-        {displayError && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center leading-relaxed">
-            <p>{displayError}</p>
-          </div>
-        )}
-        {info && (
-          <div className="mb-4 p-3 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs text-center leading-relaxed">
-            {info}
-          </div>
-        )}
-
-        {/* Choose */}
-        {mode === 'choose' && (
-          <div className="space-y-3">
-            {/* Google — direct OAuth, NO role selection shown yet */}
-            <button onClick={() => { handleGoogle(); }} disabled={working} className="w-full h-12 rounded-xl bg-white text-[#0A0A0F] font-medium text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-colors disabled:opacity-50">
-              <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
-              Continue with Google
-            </button>
-
-            <div className="relative my-5">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-              <div className="relative flex justify-center"><span className="bg-[#0A0A0F] px-4 text-[10px] text-[#5C5E72] uppercase tracking-wider">or</span></div>
-            </div>
-
-            <button onClick={() => { setMode('signin'); setError(''); }} className="w-full h-12 rounded-xl bg-[#1A1A24] text-white font-medium text-sm border border-[#232330] hover:border-[#3B82F6]/50 hover:bg-[#1E1E2C] transition-all">
-              Sign In with Email
-            </button>
-            <button onClick={() => { setPendingAuthMethod('email'); setMode('choose_role'); setError(''); }} className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-medium text-sm hover:bg-[#2563EB] transition-colors glow-blue-sm">
-              Create Account
-            </button>
-          </div>
-        )}
-
-        {/* Choose Role */}
-        {mode === 'choose_role' && (
-          <div className="space-y-3">
-            <p className="text-xs text-[#5C5E72] text-center mb-2">I want to...</p>
-
-            <button onClick={async () => {
-                setSignupRole('user');
-                setError('');
-                if (pendingAuthMethod === 'google') {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    onLoginSuccess(user.id, user.email!, 'user');
-                  } else {
-                    localStorage.setItem('wh_pending_role', 'user');
-                    handleGoogle();
-                  }
-                } else {
-                  setMode('signup');
-                }
-              }}
-              className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
-              <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center group-hover:bg-[#3B82F6]/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">Find Housing</div>
-                <div className="text-[10px] text-[#5C5E72]">Browse listings, roommates, services</div>
-              </div>
-            </button>
-
-            <button onClick={async () => {
-                setSignupRole('worker');
-                setError('');
-                if (pendingAuthMethod === 'google') {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    onLoginSuccess(user.id, user.email!, 'worker');
-                  } else {
-                    localStorage.setItem('wh_pending_role', 'worker');
-                    handleGoogle();
-                  }
-                } else {
-                  setMode('signup');
-                }
-              }}
-              className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
-              <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">Offer Services</div>
-                <div className="text-[10px] text-[#5C5E72]">Register as a service provider</div>
-              </div>
-            </button>
-
-            <button onClick={async () => {
-                setSignupRole('property_partner');
-                setError('');
-                if (pendingAuthMethod === 'google') {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    onLoginSuccess(user.id, user.email!, 'property_partner');
-                  } else {
-                    localStorage.setItem('wh_pending_role', 'property_partner');
-                    handleGoogle();
-                  }
-                } else {
-                  setMode('signup');
-                }
-              }}
-              className="w-full glass rounded-2xl p-4 flex items-center gap-3 text-left card-hover group">
-              <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white">List My Property</div>
-                <div className="text-[10px] text-[#5C5E72]">Property Partner — WeHouse manages everything</div>
-              </div>
-            </button>
-
-            <button type="button" onClick={() => { setMode('choose'); setError(''); setPendingAuthMethod(null); localStorage.removeItem('wh_pending_role'); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#8B8DA0] transition-colors pt-2">
-              Back
-            </button>
-          </div>
-        )}
-
-        {/* Forms */}
-        {(mode === 'signin' || mode === 'signup') && (
-          <form onSubmit={(e) => handleSubmit(e, mode === 'signup')} className="space-y-4">
-            <div>
-              <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20"
-              />
-            </div>
-            <div className="relative">
-              <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Password</label>
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 8 characters"
-                required
-                minLength={8}
-                className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20 pr-10"
-              />
-              <EyeIcon visible={showPassword} onClick={() => setShowPassword(!showPassword)} />
-            </div>
-            <button
-              type="submit"
-              disabled={working}
-              className={`w-full h-12 rounded-xl font-medium text-sm btn-press transition-all ${
-                mode === 'signup' ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] glow-blue-sm' : 'bg-[#1A1A24] text-white border border-[#232330] hover:border-[#3B82F6]/50'
-              } disabled:opacity-50`}
-            >
-              {working ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
-            </button>
-            {mode === 'signin' && (
-              <button type="button" onClick={() => { setMode('forgot'); setError(''); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#3B82F6] transition-colors">
-                Forgot password?
-              </button>
-            )}
-            <button type="button" onClick={() => { setMode('choose'); setError(''); setInfo(''); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#8B8DA0] transition-colors">
-              Back
-            </button>
-          </form>
-        )}
-
-        {/* Forgot */}
-        {mode === 'forgot' && (
-          <form onSubmit={handleForgot} className="space-y-4">
-            <div>
-              <label className="text-[11px] text-[#8B8DA0] mb-1.5 block font-medium">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required className="h-12 rounded-xl bg-[#1A1A24] border-[#232330] text-white placeholder:text-[#5C5E72] focus:border-[#3B82F6] focus:ring-[#3B82F6]/20" />
-            </div>
-            <button type="submit" disabled={working} className="w-full h-12 rounded-xl bg-[#3B82F6] text-white font-medium text-sm hover:bg-[#2563EB] transition-colors glow-blue-sm disabled:opacity-50">
-              {working ? 'Sending...' : 'Send Reset Link'}
-            </button>
-            <button type="button" onClick={() => { setMode('signin'); setError(''); }} className="w-full text-center text-xs text-[#5C5E72] hover:text-[#8B8DA0] transition-colors">
-              Back to Sign In
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
+function RoleButton({title,detail,tone,onClick}:{title:string;detail:string;tone:'blue'|'green'|'violet';onClick:()=>void}){const style=tone==='green'?'border-emerald-500/10 bg-emerald-500/[.04] hover:border-emerald-500/25':tone==='violet'?'border-violet-500/10 bg-violet-500/[.04] hover:border-violet-500/25':'border-blue-500/10 bg-blue-500/[.04] hover:border-blue-500/25';return <button onClick={onClick} className={`w-full rounded-2xl border p-4 text-left transition ${style}`}><p className="text-sm font-semibold text-white">{title}</p><p className="mt-1 text-[10px] text-[#5C5E72]">{detail}</p></button>}
