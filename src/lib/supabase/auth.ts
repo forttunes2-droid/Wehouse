@@ -10,7 +10,10 @@ export async function signUpWithEmail(email: string, password: string, role: Pub
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { source: 'wehouse', signup_role: safeRole } },
+    options: {
+      emailRedirectTo: `${window.location.origin}/`,
+      data: { source: 'wehouse', signup_role: safeRole },
+    },
   });
   return { data, error };
 }
@@ -30,7 +33,7 @@ export async function signInWithGoogle() {
 
 export async function resetPassword(email: string) {
   return supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/`,
+    redirectTo: `${window.location.origin}/?auth=recovery`,
   });
 }
 
