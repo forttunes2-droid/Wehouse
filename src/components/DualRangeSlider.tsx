@@ -25,6 +25,18 @@ export default function DualRangeSlider({min,max,floor,ceiling,step,onChange}:Du
 
   function track(e:React.MouseEvent<HTMLDivElement>){const val=fromPosition(e.clientX);if(Math.abs(val-safeMin)<Math.abs(val-safeMax))onChange(Math.max(floor,Math.min(val,safeMax-step)),safeMax);else onChange(safeMin,Math.max(safeMin+step,Math.min(val,ceiling)))}
   function digits(value:string){return value.replace(/[^0-9]/g,'')}
+  function live(which:'min'|'max',raw:string){
+    const nextDraft=digits(raw);
+    if(which==='min')setMinDraft(nextDraft);else setMaxDraft(nextDraft);
+    if(!nextDraft)return;
+    const parsed=Number(nextDraft);
+    if(!Number.isFinite(parsed))return;
+    if(which==='min'){
+      if(parsed>=floor&&parsed<=safeMax-step)onChange(parsed,safeMax);
+    }else if(parsed>=safeMin+step&&parsed<=ceiling){
+      onChange(safeMin,parsed);
+    }
+  }
   function commit(which:'min'|'max'){
     if(which==='min'){
       const parsed=Number(minDraft);const wanted=Number.isFinite(parsed)&&minDraft!==''?parsed:safeMin;const snapped=Math.round(wanted/step)*step;const next=Math.max(floor,Math.min(snapped,safeMax-step));onChange(next,safeMax);setMinDraft(String(next));
@@ -38,8 +50,8 @@ export default function DualRangeSlider({min,max,floor,ceiling,step,onChange}:Du
     <div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-[9px] uppercase tracking-wider text-[#5C5E72]">Minimum</p><p className="mt-1 text-sm font-bold text-blue-400">{money(safeMin)}</p></div><div className="h-px flex-1 bg-white/[.06]"/><div className="text-right"><p className="text-[9px] uppercase tracking-wider text-[#5C5E72]">Maximum</p><p className="mt-1 text-sm font-bold text-blue-400">{money(safeMax)}</p></div></div>
     <div ref={trackRef} onClick={track} className="relative flex h-11 touch-none cursor-pointer items-center"><div className="absolute inset-x-0 h-1.5 rounded-full bg-[#20232D]"/><div className="absolute h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{left:`${minPercent}%`,width:`${maxPercent-minPercent}%`}}/><Handle percent={minPercent} active={dragging==='min'} onMouse={(e)=>{e.stopPropagation();setDragging('min')}} onTouch={(e)=>{e.stopPropagation();setDragging('min')}}/><Handle percent={maxPercent} active={dragging==='max'} onMouse={(e)=>{e.stopPropagation();setDragging('max')}} onTouch={(e)=>{e.stopPropagation();setDragging('max')}}/></div>
     <div className="mt-1 flex justify-between text-[9px] text-[#5C5E72]"><span>{short(floor)}</span><span>{short(ceiling)}</span></div>
-    <div className="mt-4 grid grid-cols-2 gap-3"><BudgetInput label="Min (₦)" value={minDraft} onFocus={()=>setEditing('min')} onChange={v=>setMinDraft(digits(v))} onBlur={()=>commit('min')}/><BudgetInput label="Max (₦)" value={maxDraft} onFocus={()=>setEditing('max')} onChange={v=>setMaxDraft(digits(v))} onBlur={()=>commit('max')}/></div>
-    <p className="mt-2 text-[9px] leading-relaxed text-[#5F6373]">Type an amount freely, then tap outside the field to apply it. The slider updates after the amount is complete.</p>
+    <div className="mt-4 grid grid-cols-2 gap-3"><BudgetInput label="Min (₦)" value={minDraft} onFocus={()=>setEditing('min')} onChange={v=>live('min',v)} onBlur={()=>commit('min')}/><BudgetInput label="Max (₦)" value={maxDraft} onFocus={()=>setEditing('max')} onChange={v=>live('max',v)} onBlur={()=>commit('max')}/></div>
+    <p className="mt-2 text-[9px] leading-relaxed text-[#5F6373]">Drag either handle or type an amount. Valid typed amounts update the range immediately; leaving the field rounds it to the nearest ₦{step.toLocaleString()}.</p>
   </div>
 }
 function Handle({percent,active,onMouse,onTouch}:{percent:number;active:boolean;onMouse:(e:React.MouseEvent)=>void;onTouch:(e:React.TouchEvent)=>void}){return <div onMouseDown={onMouse} onTouchStart={onTouch} className={`absolute z-10 h-6 w-6 cursor-grab rounded-full border-[3px] border-[#0A0A0F] bg-blue-500 shadow-lg shadow-blue-500/25 ${active?'scale-110 ring-2 ring-blue-400/25':''}`} style={{left:`${percent}%`,transform:'translateX(-50%)'}}/>}
