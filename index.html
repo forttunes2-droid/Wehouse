@@ -9,22 +9,16 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20250725-001 -->
-    <script>window.WH_VERSION='20250725-001';</script>
-    <!-- EMERGENCY: One-time cache kill -->
+    <!-- Version: 20260813-001 -->
+    <script>window.WH_VERSION='20260813-001';</script>
     <script>
       (function() {
         if (!('serviceWorker' in navigator)) return;
-        // Check if we already killed the old SW in this session
         if (sessionStorage.getItem('sw_done')) return;
-        // Check if any SW is controlling this page
         if (!navigator.serviceWorker.controller) return;
-        // Old SW is active - register kill-switch to replace it
         navigator.serviceWorker.register('/sw.js').then(function() {
-          // Kill-switch will activate, clear caches, reload page, then unregister
           sessionStorage.setItem('sw_done', '1');
         }).catch(function() {
-          // Fallback: manual unregister
           navigator.serviceWorker.getRegistrations().then(function(regs) {
             Promise.all(regs.map(function(r) { return r.unregister(); }));
           });
@@ -39,29 +33,26 @@
     <meta name="msapplication-TileColor" content="#0A0A0F" />
     <meta name="msapplication-tap-highlight" content="no" />
 
-    <!-- No PWA manifest - prevents service worker caching -->
-
-    <!-- Icons -->
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="mask-icon" href="/icon-192.png" color="#3B82F6" />
-
-    <!-- Preconnect to Supabase -->
-    <link rel="preconnect" href="https://btpqlxmqaqfttmtllegx.supabase.co" />
+    <link rel="preconnect" href="https://rkrhnkhppeihvmuwvsvn.supabase.co" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3yn7kHlhOuYs40dFJwLUDd6P4SFA8=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <title>WeHouse</title>
-
     <style>
-      /* Prevent flash of white on load */
       html, body { background: #0A0A0F; }
-      /* Safe area padding for notched devices */
       .safe-area-top { padding-top: env(safe-area-inset-top); }
       .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+      .leaflet-container { background: #11141c; font-family: inherit; }
+      .leaflet-control-attribution { font-size: 8px !important; }
+      .wehouse-map-pin { background: transparent !important; border: 0 !important; }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-
   </body>
 </html>
