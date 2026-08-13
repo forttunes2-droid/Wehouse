@@ -3,11 +3,14 @@ import { parseDeviceInfo } from './session';
 
 // ─── AUTH HELPERS ──────────────────────────────────
 
-export async function signUpWithEmail(email: string, password: string) {
+type PublicSignupRole = 'user' | 'worker' | 'property_partner';
+
+export async function signUpWithEmail(email: string, password: string, role: PublicSignupRole = 'user') {
+  const safeRole: PublicSignupRole = ['user','worker','property_partner'].includes(role) ? role : 'user';
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { source: 'wehouse' } },
+    options: { data: { source: 'wehouse', signup_role: safeRole } },
   });
   return { data, error };
 }
@@ -25,8 +28,6 @@ export async function signInWithGoogle() {
   });
 }
 
-
-
 export async function resetPassword(email: string) {
   return supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/`,
@@ -37,7 +38,7 @@ export async function getSession() {
   return supabase.auth.getSession();
 }
 
-// ─── SETUP HELPERS ─────────────────────────────────
+// ─── SETUP HELPERS ──────────────────────────────────
 
 export async function isUsernameTaken(username: string): Promise<boolean> {
   const { data } = await supabase
@@ -59,7 +60,6 @@ export async function updateUsername(userId: string, username: string) {
 // ─── PASSWORD CHANGE ───────────────────────────────
 
 export async function changePassword(currentPassword: string, newPassword: string, email: string) {
-  // Step 1: Verify current password by re-authenticating
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password: currentPassword,
@@ -68,7 +68,6 @@ export async function changePassword(currentPassword: string, newPassword: strin
     return { error: { message: 'Current password is incorrect' } };
   }
 
-  // Step 2: Update password
   const { error: updateError } = await supabase.auth.updateUser({
     password: newPassword,
   });
