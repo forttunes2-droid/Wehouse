@@ -16,7 +16,7 @@ export { signUpWithEmail,signInWithEmail,signInWithGoogle,resetPassword,getSessi
 export { getProfile,getProfileByAuthId,getPublicAgentInfo,getPublicAgentByUserId,getProfileByEmail,linkProfileToAuth,createProfile,uploadAvatar,validateUsername,checkUsernameAvailable,removeAvatar,updateProfile,updatePrivacySettings } from './profile';
 
 // Session
-export { parseDeviceInfo,trackSession,endSession,getSessionHistory,createUserSession,deactivateUserSession,isSessionActive,getStoredSessionId,updateSessionLastSeen } from './session';
+export { parseDeviceInfo,trackSession,endSession,getSessionHistory,createUserSession,deactivateUserSession,isSessionActive,getStoredSessionId,clearStoredSessionId,getUserSessionState,updateSessionLastSeen } from './session';
 
 // Listings
 export { getAllListings,getListing,getCreatorListings,getAvailableChatAgents,detectDuplicateImage,checkDuplicateListing,uploadListingImage,uploadListingVideo,deleteListing,saveListing,unsaveListing,getSavedListings,createListing,getRequiredApproverRank,getApproverLabel,canApproveListing,getListingsPendingApproval,approveListing,rejectListing,getMyPendingListings,updateListingStatus } from './listings';
