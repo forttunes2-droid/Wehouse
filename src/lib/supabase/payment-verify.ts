@@ -5,8 +5,6 @@
 
 import { supabase } from './client';
 
-const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-verify`;
-
 export interface VerifyPaymentResult {
   success: boolean;
   verified?: boolean;
@@ -24,53 +22,42 @@ export async function verifyPaymentServerSide(
   options?: {
     purpose?: string;
     expected_amount?: number;
-  }
+  },
 ): Promise<VerifyPaymentResult> {
-  // Get the user's session JWT — the Edge Function requires valid auth.
   const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
-
-  if (!accessToken) {
+  if (!sessionData.session?.access_token) {
     return { success: false, error: 'Not authenticated' };
   }
 
-  const res = await fetch(EDGE_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
+  // Use the configured Supabase client rather than reconstructing the Edge
+  // Function URL from a separate Vite environment variable. This keeps the
+  // payment verifier tied to the same project as Auth/Database/Storage.
+  const { data, error } = await supabase.functions.invoke('paystack-verify', {
+    body: {
       reference,
       purpose: options?.purpose,
       expected_amount: options?.expected_amount,
-    }),
+    },
   });
 
-  const data = await res.json();
-  return data as VerifyPaymentResult;
+  if (error) {
+    return { success: false, error: error.message || 'Payment verification request failed' };
+  }
+  return (data || { success: false, error: 'Empty payment verification response' }) as VerifyPaymentResult;
 }
 
 // ─── Verify + retry with backoff ───
-// Retries only on network failures or 5xx server errors.
-// Does NOT retry on 400-499 client errors (auth failure, amount mismatch, etc.)
-// because those are deterministic and will not resolve by retrying.
+// Retries only on transient failures. Deterministic auth/ownership/amount errors
+// return immediately rather than repeatedly calling Paystack.
 export async function verifyPaymentWithRetry(
   reference: string,
   options?: { purpose?: string; expected_amount?: number },
-  maxRetries = 3
+  maxRetries = 3,
 ): Promise<VerifyPaymentResult> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await verifyPaymentServerSide(reference, options);
     if (result.success) return result;
 
-    // Do NOT retry on client errors (4xx): these are deterministic.
-    // The Edge Function returns 4xx for:
-    //   401 = missing/invalid auth
-    //   403 = wrong user, inactive account
-    //   404 = payment or booking not found
-    //   400 = amount mismatch, purpose mismatch, bad currency, etc.
-    // Only retry on transient failures (no success flag, no error, or 5xx).
     const isClientError = result.error && (
       result.error.includes('Not authenticated') ||
       result.error.includes('Invalid or expired token') ||
@@ -84,13 +71,10 @@ export async function verifyPaymentWithRetry(
       result.error.includes('Worker booking ID not found')
     );
 
-    if (isClientError) {
-      return result;
-    }
+    if (isClientError) return result;
 
-    // Wait before retry (exponential backoff)
     if (attempt < maxRetries - 1) {
-      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
     }
   }
   return { success: false, error: 'Max retries exceeded' };
