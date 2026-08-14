@@ -9,8 +9,22 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="-1" />
-    <!-- Version: 20260813-001 -->
-    <script>window.WH_VERSION='20260813-001';</script>
+    <!-- Phase 1 foundation build marker -->
+    <script>window.WH_VERSION='20260814-phase1';</script>
+    <script>
+      (function() {
+        // One-time compatibility cleanup: Property Partner is the only
+        // canonical Partner workspace. Never restore the retired owner alias.
+        try {
+          if (localStorage.getItem('wh_navpage') === 'property_owner') {
+            localStorage.setItem('wh_navpage', 'property_partner');
+          }
+          if (window.history.state && window.history.state.page === 'property_owner') {
+            window.history.replaceState({ page: 'property_partner' }, '', '#property_partner');
+          }
+        } catch (_) {}
+      })();
+    </script>
     <script>
       (function() {
         if (!('serviceWorker' in navigator)) return;
