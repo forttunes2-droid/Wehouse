@@ -22,7 +22,6 @@ export type NavPage =
   | 'admin'
   | 'staff_dashboard'
   | 'worker_dashboard'
-  | 'property_owner'
   | 'property_partner'
   // ── Role workflow subpages ──
   | 'new_listing'
