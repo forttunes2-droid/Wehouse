@@ -1,23 +1,7 @@
 -- WeHouse Phase 1: privileged RPC execution and scope hardening
 
--- 1) SECURITY DEFINER functions must never be anonymously executable by default.
-DO $$
-DECLARE r record;
-BEGIN
-  FOR r IN
-    SELECT p.oid::regprocedure AS sig, p.prorettype
-    FROM pg_proc p
-    JOIN pg_namespace n ON n.oid=p.pronamespace
-    WHERE n.nspname='public' AND p.prosecdef
-  LOOP
-    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon', r.sig);
-    IF r.prorettype <> 'trigger'::regtype THEN
-      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated, service_role', r.sig);
-    END IF;
-  END LOOP;
-END $$;
-
--- Internal helpers are callable by other trusted functions/policies, not directly via API.
+-- 1) SECURITY DEFINER functions must never inherit anonymous execution from PUBLIC.
+-- Existing explicit authenticated/service_role grants are preserved exactly as-is.
 DO $$
 DECLARE r record;
 BEGIN
@@ -25,10 +9,9 @@ BEGIN
     SELECT p.oid::regprocedure AS sig
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid=p.pronamespace
-    WHERE n.nspname='public' AND p.prosecdef AND p.proname LIKE '\_%' ESCAPE '\'
+    WHERE n.nspname='public' AND p.prosecdef
   LOOP
-    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM authenticated, anon, PUBLIC', r.sig);
-    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', r.sig);
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon', r.sig);
   END LOOP;
 END $$;
 
