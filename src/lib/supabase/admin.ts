@@ -1,54 +1,24 @@
 import { supabase } from './client';
 import type { AdminAuditLog, Listing, Profile, SystemSetting } from '@/types';
 
-// ─── ADMIN HELPERS ─────────────────────────────────
-
-// ── USERS (with soft-delete filtering) ─────────────
-
 export async function getAllUsers() {
-  // Use RPC to bypass RLS — creator needs to see ALL users
+  // Server RPC is the authority. Never fall back to an unrestricted profile query.
   const { data, error } = await supabase.rpc('admin_get_all_users');
-  if (error) {
-    // Fallback: if RPC fails, try direct query (for debugging)
-    const { data: directData, error: directErr } = await supabase
-      .from('profiles')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-    if (directErr) return { users: null, error: directErr };
-    return { users: directData as Profile[] | null, error: null };
-  }
-  return { users: data as Profile[] | null, error };
+  return { users: error ? null : (data as Profile[] | null), error };
 }
 
 export async function getUserCount(callerRole: 'admin' | 'creator' = 'admin') {
-  // Use getAllUsers() which uses RPC (bypasses RLS) — counts from array are reliable
-  const { users, error } = await getAllUsers();
-  if (error || !users) {
-    return { total: 0, today: 0, error };
-  }
-
-  const activeUsers = users.filter((u: any) => !u.deleted);
-
-  // Admin: exclude creator. Creator: see all.
-  const filtered = callerRole === 'admin'
-    ? activeUsers.filter((u: any) => u.role !== 'creator')
-    : activeUsers;
-
-  // Count today's signups
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayCount = filtered.filter((u: any) => {
-    const created = new Date(u.created_at);
-    return created >= todayStart;
-  }).length;
-
-  return { total: filtered.length, today: todayCount, error: null };
+  const { data, error } = await supabase.rpc('admin_get_user_count');
+  if (error) return { total: 0, today: 0, error };
+  const row = Array.isArray(data) ? data[0] : data;
+  // The server already applies Creator-global/Admin-branch scope.
+  return {
+    total: Number((row as any)?.total || 0),
+    today: Number((row as any)?.today || 0),
+    error: null,
+    callerRole,
+  };
 }
-
-// ═══════════════════════════════════════════════════════════════
-// COMPREHENSIVE CREATOR DASHBOARD STATS — Direct Queries
-// ═══════════════════════════════════════════════════════════════
 
 export interface CreatorDashboardStats {
   totalUsers: number;
@@ -73,32 +43,13 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
     activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups: 0,
   };
 
-  // Use getAllUsers() which uses RPC (bypasses RLS)
   const { users, error: usersErr } = await getAllUsers();
+  if (usersErr || !users) return { stats: ZERO_STATS, error: usersErr };
 
-  if (usersErr || !users) {
-    // RPC failed — return zero stats with the error so UI can show it
-    return { stats: ZERO_STATS, error: usersErr };
-  }
-
-  // Count from the array (reliable, bypasses RLS)
   const activeUsers = users.filter((u: any) => !u.deleted && !u.deleted_at);
-  const totalUsers = activeUsers.length;
-  const totalWorkers = activeUsers.filter((u: any) => u.role === 'worker').length;
-  const totalPartners = activeUsers.filter((u: any) => u.role === 'property_partner').length;
-  const totalStaff = activeUsers.filter((u: any) => u.role === 'staff').length;
-  const totalAdmins = activeUsers.filter((u: any) => u.role === 'admin').length;
-  const pendingVerifications = activeUsers.filter((u: any) => u.role === 'worker' && u.worker_status === 'pending').length;
-
-  // Today's signups
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const todaySignups = activeUsers.filter((u: any) => {
-    const created = new Date(u.created_at);
-    return created >= todayStart;
-  }).length;
 
-  // Direct queries for other tables (RLS may block some)
   const [{ count: listingsCount }, { count: inspectionsCount }, { count: bookingsCount }] = await Promise.all([
     supabase.from('listings').select('*', { count: 'exact', head: true }).is('deleted_at', null),
     supabase.from('inspection_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -107,123 +58,101 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
 
   return {
     stats: {
-      totalUsers, totalWorkers, totalPartners, totalStaff, totalAdmins,
+      totalUsers: activeUsers.length,
+      totalWorkers: activeUsers.filter((u: any) => u.role === 'worker').length,
+      totalPartners: activeUsers.filter((u: any) => u.role === 'property_partner').length,
+      totalStaff: activeUsers.filter((u: any) => u.role === 'staff').length,
+      totalAdmins: activeUsers.filter((u: any) => u.role === 'admin').length,
       totalListings: listingsCount || 0,
       pendingInspections: inspectionsCount || 0,
-      pendingVerifications,
+      pendingVerifications: activeUsers.filter((u: any) => u.role === 'worker' && ['pending', 'verification_paid', 'profile_under_review'].includes(u.worker_status)).length,
       activeWorkerBookings: bookingsCount || 0,
-      totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups,
+      totalRevenue: 0,
+      pendingPayouts: 0,
+      escrowBalance: 0,
+      todaySignups: activeUsers.filter((u: any) => new Date(u.created_at) >= todayStart).length,
     },
     error: null,
   };
 }
 
-// ── ROLE MANAGEMENT ────────────────────────────────
-
-// ═══════════════════════════════════════════════════════════════
-// ROLE HIERARCHY — ENFORCED THROUGHOUT PLATFORM
-// Creator > Admin > Staff > Property Partner > Worker > User
-// ═══════════════════════════════════════════════════════════════
-
-// Base transitions (Creator can do ALL of these + admin promotions)
 const BASE_TRANSITIONS: Record<string, string[]> = {
-  user: ['staff'],           // User can become Staff
-  staff: ['user'],           // Staff can be demoted to User
-  admin: ['user', 'staff'],  // Admin can be demoted
-  property_partner: [],      // Partners sign up as partners — fixed
-  worker: [],                // Workers sign up as workers — fixed
-  creator: [],               // Creator never changes
+  user: ['staff'],
+  staff: ['user'],
+  admin: ['user', 'staff'],
+  property_partner: [],
+  worker: [],
+  creator: [],
 };
 
-/**
- * Check if a role change is allowed.
- * @param currentRole — the user's current role
- * @param newRole — the desired new role
- * @param changerRole — who is making the change ('creator' | 'admin' | 'staff')
- */
 export function canChangeRole(
   currentRole: string,
   newRole: string,
   changerRole: 'creator' | 'admin' | 'staff' = 'creator'
 ): { allowed: boolean; reason?: string } {
-  // Nobody can change a Creator (not even another Creator)
   if (currentRole === 'creator') return { allowed: false, reason: 'Creator role is immutable.' };
-  // Nobody can assign Creator role
   if (newRole === 'creator') return { allowed: false, reason: 'Creator role cannot be assigned.' };
-  // Workers and Partners have fixed roles from signup
-  if (currentRole === 'worker') return { allowed: false, reason: 'Workers signed up as workers. Role cannot be changed.' };
-  if (currentRole === 'property_partner') return { allowed: false, reason: 'Property partners signed up as partners. Role cannot be changed.' };
-  if (newRole === 'worker') return { allowed: false, reason: 'Workers must sign up via worker registration.' };
-  if (newRole === 'property_partner') return { allowed: false, reason: 'Partners must sign up via partner registration.' };
+  if (currentRole === 'worker' || newRole === 'worker') return { allowed: false, reason: 'Worker role is managed through worker registration.' };
+  if (currentRole === 'property_partner' || newRole === 'property_partner') return { allowed: false, reason: 'Property Partner role is managed through partner registration.' };
 
-  // Admin promotion: ONLY Creator can promote someone TO admin
-  // Admin demotion: Creator can demote admin → user/staff
-  if (newRole === 'admin') {
-    if (changerRole !== 'creator') {
-      return { allowed: false, reason: 'Only the Creator can create Admins.' };
+  if (changerRole === 'admin') {
+    if (!['user', 'staff'].includes(currentRole) || !['user', 'staff'].includes(newRole)) {
+      return { allowed: false, reason: 'Admin can manage only User and Staff roles in the assigned branch.' };
     }
-    // Creator can promote User or Staff to Admin
-    if (currentRole === 'user' || currentRole === 'staff') {
-      return { allowed: true };
-    }
-    return { allowed: false, reason: `Cannot promote ${currentRole} directly to Admin.` };
+    return { allowed: BASE_TRANSITIONS[currentRole]?.includes(newRole) || false, reason: BASE_TRANSITIONS[currentRole]?.includes(newRole) ? undefined : 'Invalid Admin role transition.' };
   }
 
-  // Admin making changes: can only manage users and staff (not other admins)
-  if (changerRole === 'admin') {
-    if (currentRole === 'admin') {
-      return { allowed: false, reason: 'Admins cannot modify other Admins. Contact Creator.' };
+  if (changerRole === 'creator') {
+    if (!['user', 'staff', 'admin'].includes(currentRole) || !['user', 'staff', 'admin'].includes(newRole)) {
+      return { allowed: false, reason: 'Creator Team management supports User, Staff and Admin roles only.' };
     }
-    // Admin can: user ↔ staff
-    const allowed = BASE_TRANSITIONS[currentRole] || [];
-    if (!allowed.includes(newRole)) {
-      return { allowed: false, reason: `As Admin, you cannot change ${currentRole} to ${newRole}.` };
-    }
+    if (currentRole === newRole) return { allowed: false, reason: 'Account already has that role.' };
     return { allowed: true };
   }
 
-  // Creator can do any valid base transition + admin promotions
-  const allowed = changerRole === 'creator'
-    ? [...(BASE_TRANSITIONS[currentRole] || []), 'admin'] // Creator gets admin too
-    : (BASE_TRANSITIONS[currentRole] || []);
-
-  if (!allowed.includes(newRole)) {
-    return { allowed: false, reason: `Cannot change ${currentRole} to ${newRole}.` };
-  }
-  return { allowed: true };
+  return { allowed: false, reason: 'Staff cannot change account roles.' };
 }
 
+/**
+ * Admin-only User <-> Staff transition. The server enforces State + LGA scope and writes audit/history.
+ * Creator role management must use creatorSetTeamRole because branch/module fields are mandatory.
+ */
 export async function updateUserRole(
   userId: string,
   newRole: string,
   currentRole: string,
-  changedBy: string,
-  changedByEmail: string,
-  userEmail: string,
-  changerRole: 'creator' | 'admin' | 'staff' = 'creator'
+  _changedBy: string,
+  _changedByEmail: string,
+  _userEmail: string,
+  changerRole: 'creator' | 'admin' | 'staff' = 'admin'
 ) {
-  // 1. Validate transition with role hierarchy
   const validation = canChangeRole(currentRole, newRole, changerRole);
   if (!validation.allowed) return { error: { message: validation.reason } as any };
-
-  // 2. Update role via RPC (bypasses RLS)
+  if (changerRole !== 'admin') {
+    return { error: { message: 'Creator must use Team management so State, LGA and module are recorded.' } as any };
+  }
   const { error } = await supabase.rpc('admin_update_role', {
-    target_user_id: userId,
-    new_role: newRole,
+    p_target_user_id: userId,
+    p_new_role: newRole,
   });
-  if (error) return { error };
+  return { error };
+}
 
-  // 3. Log to role_change_history
-  await supabase.from('role_change_history').insert({
-    user_id: userId,
-    user_email: userEmail,
-    old_role: currentRole,
-    new_role: newRole,
-    changed_by: changedBy,
-    changed_by_email: changedByEmail,
+export async function creatorSetTeamRole(
+  userId: string,
+  newRole: 'user' | 'staff' | 'admin',
+  state?: string | null,
+  lga?: string | null,
+  module?: 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | null,
+) {
+  const { data, error } = await supabase.rpc('creator_set_team_role', {
+    p_target_user_id: userId,
+    p_new_role: newRole,
+    p_state: state || null,
+    p_lga: lga || null,
+    p_module: module || null,
   });
-
-  return { error: null };
+  return { data, error };
 }
 
 export async function getRoleChangeHistory(userId?: string) {
@@ -233,30 +162,18 @@ export async function getRoleChangeHistory(userId?: string) {
   return { history: data as any[] | null, error };
 }
 
-// ── ACCOUNT ACTIONS (server-side RPC only) ────────
-
-// All account deletion must go through the server-side SECURITY DEFINER RPC.
-// Client-side soft-delete is NOT allowed.
 export async function deleteAccount(userId: string) {
   const { data, error } = await supabase.rpc('delete_user_account', { p_user_id: userId });
   return { data, error };
 }
 
-// Toggle maintenance exemption (creator can whitelist accounts for testing during upgrades)
 export async function toggleMaintenanceExempt(userId: string, exempt: boolean) {
-  const { error } = await supabase.rpc('admin_toggle_exempt', {
-    target_user_id: userId,
-    exempt: exempt,
-  });
+  const { error } = await supabase.rpc('admin_toggle_exempt', { target_user_id: userId, exempt });
   return { error };
 }
 
 export async function getAllListingsAdmin() {
-  const { data, error } = await supabase
-    .from('listings')
-    .select('*')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('listings').select('*').is('deleted_at', null).order('created_at', { ascending: false });
   return { listings: data as Listing[] | null, error };
 }
 
@@ -286,24 +203,22 @@ export async function dismissReport(reportId: string, adminId: string) {
   return { error };
 }
 
-export async function suspendUser(userId: string) {
-  const { error } = await supabase.rpc('admin_suspend_user', { target_user_id: userId });
+export async function suspendUser(userId: string, reason?: string) {
+  const { error } = await supabase.rpc('admin_suspend_user', { p_target_user_id: userId, p_reason: reason || null });
   return { error };
 }
 
 export async function reactivateUser(userId: string) {
-  const { error } = await supabase.rpc('admin_reactivate_user', { target_user_id: userId });
+  const { error } = await supabase.rpc('admin_reactivate_user', { p_target_user_id: userId });
   return { error };
 }
 
-export async function freezeUser(userId: string) {
-  // Freeze is same as suspend
-  const { error } = await supabase.rpc('admin_suspend_user', { target_user_id: userId });
-  return { error };
+export async function freezeUser(userId: string, reason?: string) {
+  return suspendUser(userId, reason || 'Account frozen by administrator');
 }
 
-export async function banUser(userId: string) {
-  const { error } = await supabase.rpc('admin_ban_user', { target_user_id: userId });
+export async function banUser(userId: string, reason?: string) {
+  const { error } = await supabase.rpc('admin_ban_user', { p_target_user_id: userId, p_reason: reason || null });
   return { error };
 }
 
@@ -324,8 +239,6 @@ export async function logAuditAction(adminId: string, email: string, action: str
   return { error };
 }
 
-// Settings table: platform_settings
-// Reads ALL rows from the DB and merges with defaults
 const DEFAULT_SETTINGS: Record<string, string> = {
   platform_name: 'WeHouse',
   listing_approval_required: 'false',
@@ -340,7 +253,6 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 
 export async function getSystemSettings() {
   const { data, error } = await supabase.from('platform_settings').select('*');
-  // Start with ALL database rows
   const merged: SystemSetting[] = (data || []).map((dbRow: any) => ({
     id: dbRow.id,
     key: dbRow.key,
@@ -348,46 +260,30 @@ export async function getSystemSettings() {
     updated_by: dbRow.updated_by || null,
     updated_at: dbRow.updated_at || new Date().toISOString(),
   }));
-  // Add any missing defaults that aren't in the DB yet
   Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
     if (!merged.find((m) => m.key === key)) {
-      merged.push({
-        id: key,
-        key,
-        value,
-        updated_by: null,
-        updated_at: new Date().toISOString(),
-      });
+      merged.push({ id: key, key, value, updated_by: null, updated_at: new Date().toISOString() });
     }
   });
   return { settings: merged, error };
 }
 
 export async function updateSystemSetting(key: string, value: string, updatedBy: string) {
-  // Try upsert — insert if not exists, update if exists
-  const { error } = await supabase
-    .from('platform_settings')
-    .upsert(
-      { key, value, updated_by: updatedBy, updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
+  const { error } = await supabase.from('platform_settings').upsert(
+    { key, value, updated_by: updatedBy, updated_at: new Date().toISOString() },
+    { onConflict: 'key' },
+  );
   return { error };
 }
 
-// ─── STAFF REVIEWS ─────────────────────────────────
-
 export async function submitStaffReview(reviewerId: string, staffId: string, rating: number, comment?: string, bookingId?: number) {
-  const { data, error } = await supabase
-    .from('staff_reviews')
-    .insert({
-      reviewer_id: reviewerId,
-      staff_id: staffId,
-      booking_id: bookingId || null,
-      rating,
-      comment: comment || null,
-    })
-    .select()
-    .maybeSingle();
+  const { data, error } = await supabase.from('staff_reviews').insert({
+    reviewer_id: reviewerId,
+    staff_id: staffId,
+    booking_id: bookingId || null,
+    rating,
+    comment: comment || null,
+  }).select().maybeSingle();
   return { review: data, error };
 }
 
@@ -401,9 +297,6 @@ export async function getStaffReviews(staffId: string) {
 }
 
 export async function getStaffRatingSummary(staffId: string) {
-  const { data, error } = await supabase.rpc('get_staff_rating', { staff_user_id: staffId });
+  const { data, error } = await supabase.rpc('get_staff_rating', { p_staff_user_id: staffId });
   return { summary: data?.[0] || { avg_rating: 0, review_count: 0 }, error };
 }
-
-// force deploy Fri May 29 09:06:48 CST 2026
-// deploy trigger 1780037607
