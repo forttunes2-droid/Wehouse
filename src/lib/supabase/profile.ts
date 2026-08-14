@@ -6,7 +6,7 @@ export type SafeProfileUpdates = Pick<Partial<Profile>,
   | 'username' | 'full_name' | 'avatar_url' | 'bio' | 'phone' | 'occupation'
   | 'gender' | 'is_student' | 'school' | 'state' | 'local_government'
   | 'city' | 'area' | 'profile_complete' | 'country'
-  | 'worker_occupation' | 'worker_skills' | 'worker_price' | 'worker_bio'
+  | 'worker_occupation' | 'worker_skills' | 'worker_price' | 'worker_bio' | 'worker_experience'
 >;
 export type SafePrivacyUpdates = Pick<Partial<Profile>, 'privacy_profile_visible'|'privacy_search_visible'|'privacy_activity_visible'|'privacy_email_visible'|'privacy_phone_visible'>;
 export async function getProfile(userId:string){const{data,error}=await supabase.from('profiles').select('*').eq('user_id',userId).maybeSingle();return{profile:data as Profile|null,error};}
