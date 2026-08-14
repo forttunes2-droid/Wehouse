@@ -6,7 +6,6 @@ BEGIN;
 -- Creator = global. Admin/Staff = assigned State + LGA. Public roles = self/feature scoped.
 -- ============================================================
 
--- 1) Canonical role and scope invariants.
 UPDATE public.profiles
 SET scope = CASE
   WHEN role = 'creator' THEN 'global'
@@ -20,7 +19,6 @@ ALTER TABLE public.profiles
   CHECK (role IN ('user','worker','property_partner','staff','admin','creator')) NOT VALID;
 ALTER TABLE public.profiles VALIDATE CONSTRAINT profiles_role_check;
 
--- Normalize Worker status vocabulary without changing the Worker product flow.
 UPDATE public.profiles
 SET worker_status = CASE
   WHEN worker_status = 'approved_for_verification' THEN 'verification_paid'
@@ -38,7 +36,6 @@ ALTER TABLE public.worker_verifications
   ADD CONSTRAINT worker_verifications_status_check
   CHECK (status IS NULL OR status IN ('draft','pending','profile_under_review','verified','rejected'));
 
--- 2) Canonical identity and branch helpers.
 CREATE OR REPLACE FUNCTION public.current_profile_user_id()
 RETURNS text
 LANGUAGE sql
@@ -154,7 +151,6 @@ GRANT EXECUTE ON FUNCTION public.current_actor_in_scope(text,text) TO authentica
 GRANT EXECUTE ON FUNCTION public.can_current_actor_read_profile(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.current_user_is_staff() TO authenticated;
 
--- 3) Server-side role changes. UI validation is not trusted.
 CREATE OR REPLACE FUNCTION public.admin_update_role(p_target_user_id text, p_new_role text)
 RETURNS void
 LANGUAGE plpgsql
@@ -222,7 +218,6 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_update_role(text,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_update_role(text,text) TO authenticated;
 
--- 4) Profile access remains self + scoped operations + Creator.
 DROP POLICY IF EXISTS profiles_select ON public.profiles;
 DROP POLICY IF EXISTS profiles_self_read ON public.profiles;
 DROP POLICY IF EXISTS profiles_self_write ON public.profiles;
@@ -233,7 +228,6 @@ CREATE POLICY profiles_self_update_canonical ON public.profiles FOR UPDATE TO au
   USING (auth_id=auth.uid()::text AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false)
   WITH CHECK (auth_id=auth.uid()::text AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false);
 
--- 5) Property Partner metadata: own record + scoped internal visibility; no public financial edits.
 DROP POLICY IF EXISTS partners_insert ON public.property_partners;
 DROP POLICY IF EXISTS partners_select ON public.property_partners;
 DROP POLICY IF EXISTS partners_update ON public.property_partners;
@@ -285,7 +279,6 @@ CREATE POLICY property_partners_admin_update_canonical ON public.property_partne
     )
   );
 
--- 6) Worker services: Worker owns data; public discovery stays through get_public_workers().
 DROP POLICY IF EXISTS ws_delete ON public.worker_services;
 DROP POLICY IF EXISTS ws_insert ON public.worker_services;
 DROP POLICY IF EXISTS ws_select ON public.worker_services;
@@ -303,7 +296,6 @@ CREATE POLICY worker_services_owner_update_canonical ON public.worker_services F
 CREATE POLICY worker_services_owner_delete_canonical ON public.worker_services FOR DELETE TO authenticated
   USING (worker_id=public.current_profile_user_id() AND public.current_profile_role()='worker');
 
--- 7) Immutable user activity stream: own writes/reads; operational scoped reads; no browser edits/deletes.
 DROP POLICY IF EXISTS ua_all ON public.user_activity;
 DROP POLICY IF EXISTS user_activity_owner ON public.user_activity;
 CREATE POLICY user_activity_insert_own_canonical ON public.user_activity FOR INSERT TO authenticated
@@ -311,7 +303,6 @@ CREATE POLICY user_activity_insert_own_canonical ON public.user_activity FOR INS
 CREATE POLICY user_activity_read_canonical ON public.user_activity FOR SELECT TO authenticated
   USING (public.can_current_actor_read_profile(user_id));
 
--- 8) Reports: reporter owns report; branch operations can work it; Creator global.
 DROP POLICY IF EXISTS listing_reports_policy ON public.listing_reports;
 DROP POLICY IF EXISTS lr_all ON public.listing_reports;
 DROP POLICY IF EXISTS reports_insert ON public.listing_reports;
@@ -324,7 +315,6 @@ CREATE POLICY listing_reports_operational_update_canonical ON public.listing_rep
   USING (public.current_profile_role() IN ('staff','admin','creator') AND public.can_current_actor_read_profile(reporter_id))
   WITH CHECK (public.current_profile_role() IN ('staff','admin','creator') AND public.can_current_actor_read_profile(reporter_id));
 
--- 9) Notifications: only trusted operational senders; recipient owns reads.
 DROP POLICY IF EXISTS notif_insert ON public.notifications;
 DROP POLICY IF EXISTS notif_select ON public.notifications;
 DROP POLICY IF EXISTS notif_update ON public.notifications;
@@ -342,7 +332,6 @@ CREATE POLICY notifications_operational_insert_canonical ON public.notifications
     OR (public.current_profile_role() IN ('admin','staff') AND public.can_current_actor_read_profile(recipient_id))
   );
 
--- 10) Audit/role-history tables are no longer public mutable surfaces.
 DROP POLICY IF EXISTS al_all ON public.admin_audit_log;
 CREATE POLICY admin_audit_insert_canonical ON public.admin_audit_log FOR INSERT TO authenticated
   WITH CHECK (admin_id=public.current_profile_user_id() AND public.current_profile_role() IN ('staff','admin','creator'));
@@ -358,13 +347,11 @@ CREATE POLICY role_change_history_read_canonical ON public.role_change_history F
     OR (public.current_profile_role()='admin' AND public.can_current_actor_read_profile(user_id))
   );
 
--- Empty legacy logging tables remain for migration compatibility but lose broad browser access.
 DROP POLICY IF EXISTS "Allow_insert_activity_logs" ON public.activity_logs;
 DROP POLICY IF EXISTS "Creator_read_activity_logs" ON public.activity_logs;
 DROP POLICY IF EXISTS admin_insert_logs ON public.admin_logs;
 DROP POLICY IF EXISTS admin_read_logs ON public.admin_logs;
 
--- 11) Hotel reviews: public readable, authenticated User writes own review only.
 DROP POLICY IF EXISTS hotel_reviews_all ON public.hotel_reviews;
 DROP POLICY IF EXISTS hotel_reviews_insert ON public.hotel_reviews;
 DROP POLICY IF EXISTS hotel_reviews_select ON public.hotel_reviews;
@@ -372,13 +359,11 @@ CREATE POLICY hotel_reviews_public_read_canonical ON public.hotel_reviews FOR SE
 CREATE POLICY hotel_reviews_user_insert_canonical ON public.hotel_reviews FOR INSERT TO authenticated
   WITH CHECK (user_id=public.current_profile_user_id() AND public.current_profile_role()='user');
 
--- Duplicate image hashes are internal integrity data, not a shared authenticated scratch table.
 DROP POLICY IF EXISTS image_hashes_all ON public.listing_image_hashes;
 DROP POLICY IF EXISTS image_hashes_read ON public.listing_image_hashes;
 CREATE POLICY listing_image_hashes_internal_read ON public.listing_image_hashes FOR SELECT TO authenticated
   USING (public.current_profile_role() IN ('staff','admin','creator'));
 
--- 12) Listing ownership and approval authority.
 DROP POLICY IF EXISTS listings_canonical_select ON public.listings;
 CREATE POLICY listings_read_canonical ON public.listings FOR SELECT TO authenticated
 USING (
@@ -508,11 +493,10 @@ GRANT EXECUTE ON FUNCTION public.approve_listing_internal(uuid) TO authenticated
 GRANT EXECUTE ON FUNCTION public.reject_listing_internal(uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.soft_delete_listing_internal(uuid) TO authenticated;
 
--- 13) Storage write hardening. Public buckets may be publicly readable, but writes require auth + role/ownership.
 DROP POLICY IF EXISTS avatars_delete_own ON storage.objects;
 DROP POLICY IF EXISTS avatars_insert_own ON storage.objects;
 DROP POLICY IF EXISTS avatars_update_own ON storage.objects;
-DROP POLICY IF EXISTS listing-videos-public ON storage.objects;
+DROP POLICY IF EXISTS "listing-videos-public" ON storage.objects;
 DROP POLICY IF EXISTS listing_images_delete_auth ON storage.objects;
 DROP POLICY IF EXISTS listing_images_insert_auth ON storage.objects;
 DROP POLICY IF EXISTS listing_images_update_auth ON storage.objects;
@@ -543,7 +527,6 @@ CREATE POLICY listing_media_delete_owner_or_creator ON storage.objects FOR DELET
     AND (owner_id=auth.uid()::text OR public.current_profile_role()='creator')
   );
 
--- Private Worker evidence buckets. Worker uploads only under their own profile-user-id folder.
 DROP POLICY IF EXISTS worker_files_insert_own ON storage.objects;
 DROP POLICY IF EXISTS worker_files_select_own ON storage.objects;
 DROP POLICY IF EXISTS worker_files_delete_own ON storage.objects;
@@ -566,7 +549,6 @@ CREATE POLICY worker_private_delete_own ON storage.objects FOR DELETE TO authent
     AND (storage.foldername(name))[1]=public.current_profile_user_id()
   );
 
--- worker-files was a legacy mixed public bucket; keep it inaccessible for new writes.
 UPDATE storage.buckets SET public=false WHERE id='worker-files';
 
 COMMIT;
