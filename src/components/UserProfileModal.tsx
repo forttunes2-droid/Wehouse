@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
+import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
 
@@ -31,6 +32,10 @@ interface PartnerProperty {
   created_at: string;
 }
 
+type CreatorTeamRole='admin'|'staff';
+type StaffModule='operations'|'finance'|'support'|'verification'|'field_officer';
+const STAFF_MODULES:Array<[StaffModule,string]>=[['operations','Operations'],['finance','Finance'],['support','Support'],['verification','Verification'],['field_officer','Field Officer']];
+
 export default function UserProfileModal({ user, adminProfile, onClose, onPromote, onNavigate, onGoToChat }: UserProfileModalProps) {
   if (!user) return null;
 
@@ -39,14 +44,22 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   const [workerStats, setWorkerStats] = useState<WorkerStats | null>(null);
   const [partnerProperties, setPartnerProperties] = useState<PartnerProperty[]>([]);
   const [supportConvoId, setSupportConvoId] = useState<string | null>(null);
+  const [creatorRole,setCreatorRole]=useState<CreatorTeamRole>('staff');
+  const [teamState,setTeamState]=useState(user.state||'');
+  const [teamLga,setTeamLga]=useState((user as any).local_government||(user as any).city||'');
+  const [teamModule,setTeamModule]=useState<StaffModule>('operations');
+  const [teamSaving,setTeamSaving]=useState(false);
 
   const isAdmin = adminProfile?.role === 'admin';
+  const isCreator = adminProfile?.role === 'creator';
   const adminState = adminProfile?.assigned_state || adminProfile?.state || '';
   const adminLga = (adminProfile as any)?.assigned_lga || (adminProfile as any).local_government || (adminProfile as any).city || '';
   const userState = user.state || '';
   const userLga = (user as any).local_government || (user as any).city || '';
   const inBranch = userState === adminState && userLga === adminLga;
   const canAppoint = isAdmin && inBranch && user.role === 'user';
+  const canCreatorAssign = isCreator && user.role === 'user';
+  const teamStateData=NIGERIA_STATES.find(item=>item.state===teamState);
   const initials = (user.username || user.email[0] || 'U').toUpperCase();
 
   useEffect(() => {
@@ -76,6 +89,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
     }
 
     async function findSupportConvo() {
+      setSupportConvoId(null);
       const { data: convos } = await supabase.from('conversations').select('id').or(`participant_a.eq.${u.user_id},participant_b.eq.${u.user_id}`).in('conversation_type', ['partner_support', 'general_support']).limit(1);
       if (convos && convos.length > 0) setSupportConvoId(convos[0].id);
     }
@@ -85,7 +99,6 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
     findSupportConvo();
   }, [user.user_id, user.role]);
 
-  // Lock body scroll
   useEffect(() => {
     const orig = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -102,24 +115,25 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
     if (data) { toast.success(`${user.username || 'User'} appointed as Staff`); onPromote?.(); onClose(); }
   }
 
+  async function handleCreatorAssign(){
+    if(!teamState||!teamLga)return toast.error('Choose the State and LGA for this team member');
+    if(creatorRole==='staff'&&!teamModule)return toast.error('Choose the Staff operational module');
+    setTeamSaving(true);
+    const{data,error}=await supabase.rpc('creator_set_team_role',{p_target_user_id:user.user_id,p_new_role:creatorRole,p_state:teamState,p_lga:teamLga,p_module:creatorRole==='staff'?teamModule:null});
+    setTeamSaving(false);
+    if(error||data!==true)return toast.error(error?.message||'Could not assign team role');
+    toast.success(`${user.username||'User'} assigned as ${creatorRole==='admin'?'Admin':'Staff'} in ${teamLga}, ${teamState}`);
+    onPromote?.();
+    onClose();
+  }
+
   const roleLabel = user.role === 'user' ? 'User' : user.role === 'worker' ? 'Worker' : user.role === 'property_partner' ? 'Partner' : user.role === 'staff' ? 'Staff' : user.role === 'admin' ? 'Admin' : user.role;
 
   const content = (
-    <div
-      className="fixed inset-0 bg-black/75 backdrop-blur-sm"
-      style={{ zIndex: 99999, touchAction: 'none' }}
-      onClick={onClose}
-    >
-      <div
-        className="absolute inset-0 overflow-y-auto"
-        style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" style={{ zIndex: 99999, touchAction: 'none' }} onClick={onClose}>
+      <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain' }} onClick={(e) => e.stopPropagation()}>
         <div className="h-[5vh]" />
-
         <div className="bg-[#0E0E14] w-full sm:w-[460px] sm:rounded-3xl rounded-t-3xl border border-[#232330] mx-auto shadow-2xl" style={{ minHeight: '88vh' }}>
-
-          {/* Header */}
           <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-6">
             <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center active:bg-white/20">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -137,46 +151,23 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
             </div>
           </div>
 
-          {/* Content */}
           <div className="px-5 pb-8 space-y-3">
-
-            {/* Worker Stats */}
             {user.role === 'worker' && workerStats && (
               <div className="grid grid-cols-2 gap-2">
-                <div className="glass rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">{workerStats.totalBookings}</p>
-                  <p className="text-[10px] text-[#5C5E72]">Total Bookings</p>
-                </div>
-                <div className="glass rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-emerald-400">{workerStats.completedBookings}</p>
-                  <p className="text-[10px] text-[#5C5E72]">Completed</p>
-                </div>
-                <div className="glass rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">N{workerStats.totalEarnings.toLocaleString()}</p>
-                  <p className="text-[10px] text-[#5C5E72]">Earnings</p>
-                </div>
-                <div className="glass rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-amber-400">{workerStats.avgRating > 0 ? workerStats.avgRating.toFixed(1) : '—'}</p>
-                  <p className="text-[10px] text-[#5C5E72]">{workerStats.reviewCount} Reviews</p>
-                </div>
+                <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-white">{workerStats.totalBookings}</p><p className="text-[10px] text-[#5C5E72]">Total Bookings</p></div>
+                <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-emerald-400">{workerStats.completedBookings}</p><p className="text-[10px] text-[#5C5E72]">Completed</p></div>
+                <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-white">N{workerStats.totalEarnings.toLocaleString()}</p><p className="text-[10px] text-[#5C5E72]">Earnings</p></div>
+                <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-amber-400">{workerStats.avgRating > 0 ? workerStats.avgRating.toFixed(1) : '—'}</p><p className="text-[10px] text-[#5C5E72]">{workerStats.reviewCount} Reviews</p></div>
               </div>
             )}
 
-            {/* Partner Stats */}
             {user.role === 'property_partner' && (
               <div className="grid grid-cols-2 gap-2">
-                <div className="glass rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">{partnerProperties.length}</p>
-                  <p className="text-[10px] text-[#5C5E72]">Properties</p>
-                </div>
-                <div className="glass rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-emerald-400">{partnerProperties.filter(p => p.status === 'available').length}</p>
-                  <p className="text-[10px] text-[#5C5E72]">Available</p>
-                </div>
+                <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-white">{partnerProperties.length}</p><p className="text-[10px] text-[#5C5E72]">Properties</p></div>
+                <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-emerald-400">{partnerProperties.filter(p => p.status === 'available').length}</p><p className="text-[10px] text-[#5C5E72]">Available</p></div>
               </div>
             )}
 
-            {/* Details */}
             <div className="glass rounded-2xl p-4 space-y-3">
               {[
                 { label: 'ID', value: user.user_id },
@@ -185,142 +176,64 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
                 { label: 'State', value: user.state || 'Not set' },
                 { label: 'LGA', value: (user as any).local_government || (user as any).city || 'Not set' },
                 { label: 'Joined', value: new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) },
-                { label: 'Status', value: (user as any).deleted ? 'Deleted' : (user as any).worker_status === 'suspended' ? 'Suspended' : 'Active' },
-              ].map(item => (
-                <div key={item.label} className="flex justify-between text-xs">
-                  <span className="text-[#5C5E72]">{item.label}</span>
-                  <span className="text-white/80 font-medium">{item.value}</span>
-                </div>
-              ))}
+                { label: 'Status', value: (user as any).deleted ? 'Deleted' : (user as any).banned ? 'Banned' : (user as any).suspended ? 'Suspended' : 'Active' },
+              ].map(item => <div key={item.label} className="flex justify-between gap-4 text-xs"><span className="text-[#5C5E72]">{item.label}</span><span className="text-right text-white/80 font-medium">{item.value}</span></div>)}
             </div>
 
-            {/* Worker Details */}
             {user.role === 'worker' && (
               <>
-                {user.worker_occupation && (
-                  <div className="glass rounded-2xl p-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p>
-                    <p className="text-xs text-white/80 font-medium">{user.worker_occupation}</p>
-                  </div>
-                )}
-                {user.worker_bio && (
-                  <div className="glass rounded-2xl p-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p>
-                    <p className="text-xs text-white/80 leading-relaxed">{user.worker_bio}</p>
-                  </div>
-                )}
-                {user.worker_skills && user.worker_skills.length > 0 && (
-                  <div className="glass rounded-2xl p-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Skills</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {user.worker_skills.map((s: string, i: number) => (
-                        <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {user.worker_price && (
-                  <div className="glass rounded-2xl p-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Service Price</p>
-                    <p className="text-xs text-white/80 font-medium">N{user.worker_price.toLocaleString()}</p>
-                  </div>
-                )}
-                {user.worker_experience && (
-                  <div className="glass rounded-2xl p-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Experience</p>
-                    <p className="text-xs text-white/80">{user.worker_experience}</p>
-                  </div>
-                )}
+                {user.worker_occupation && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p><p className="text-xs text-white/80 font-medium">{user.worker_occupation}</p></div>}
+                {user.worker_bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{user.worker_bio}</p></div>}
+                {user.worker_skills && user.worker_skills.length > 0 && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Skills</p><div className="flex flex-wrap gap-1.5">{user.worker_skills.map((s: string, i: number) => <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{s}</span>)}</div></div>}
+                {user.worker_price && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Service Price</p><p className="text-xs text-white/80 font-medium">N{user.worker_price.toLocaleString()}</p></div>}
+                {user.worker_experience && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Experience</p><p className="text-xs text-white/80">{user.worker_experience}</p></div>}
               </>
             )}
 
-            {/* Partner Properties */}
             {user.role === 'property_partner' && partnerProperties.length > 0 && (
               <div className="glass rounded-2xl p-4 space-y-3">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Properties ({partnerProperties.length})</p>
-                {partnerProperties.slice(0, 5).map(prop => (
-                  <button key={prop.id} onClick={() => { onNavigate?.(`detail_${prop.id}`); onClose(); }} className="w-full text-left glass rounded-xl p-3 hover:bg-[#1A1A24] transition-colors">
-                    <p className="text-xs font-medium text-white truncate">{prop.title}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[10px] text-[#5C5E72]">{prop.city}, {prop.state}</span>
-                      <span className="text-[10px] text-[#3B82F6]">N{prop.price?.toLocaleString()}</span>
-                    </div>
-                  </button>
-                ))}
+                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.(`detail_${prop.id}`); onClose(); }} className="w-full text-left glass rounded-xl p-3 hover:bg-[#1A1A24] transition-colors"><p className="text-xs font-medium text-white truncate">{prop.title}</p><div className="flex items-center justify-between mt-1"><span className="text-[10px] text-[#5C5E72]">{prop.city}, {prop.state}</span><span className="text-[10px] text-[#3B82F6]">N{prop.price?.toLocaleString()}</span></div></button>)}
               </div>
             )}
 
-            {/* Bio */}
-            {(user as any).bio && (
-              <div className="glass rounded-2xl p-4">
-                <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p>
-                <p className="text-xs text-white/80 leading-relaxed">{(user as any).bio}</p>
-              </div>
-            )}
+            {(user as any).bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{(user as any).bio}</p></div>}
 
-            {/* Contact */}
             <div className="glass rounded-2xl p-4 space-y-2">
               <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Contact</p>
-              {user.email && (
-                <div className="flex items-center gap-2 text-xs text-white">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-                  {user.email}
-                </div>
-              )}
-              {user.phone && (
-                <div className="flex items-center gap-2 text-xs text-white">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                  {user.phone}
-                </div>
-              )}
+              {user.email && <div className="flex items-center gap-2 break-all text-xs text-white"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>{user.email}</div>}
+              {user.phone && <div className="flex items-center gap-2 text-xs text-white"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>{user.phone}</div>}
             </div>
 
-            {/* Action Buttons */}
-            {(user.role === 'user' || user.role === 'worker' || user.role === 'property_partner') && (
-              <button
-                onClick={() => {
-                  if (!supportConvoId) {
-                    toast.info('No support conversation found');
-                    return;
-                  }
-                  if (onGoToChat) {
-                    onGoToChat(supportConvoId);
-                    onClose();
-                  } else if (onNavigate) {
-                    onNavigate(`chat_${supportConvoId}`);
-                    onClose();
-                  }
-                }}
-                className="w-full h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs font-semibold hover:bg-[#3B82F6]/20 transition-colors flex items-center justify-center gap-2"
-              >
+            {supportConvoId && (user.role === 'user' || user.role === 'worker' || user.role === 'property_partner') && (
+              <button onClick={() => {if (onGoToChat) {onGoToChat(supportConvoId);onClose();} else if (onNavigate) {onNavigate(`chat_${supportConvoId}`);onClose();}}} className="w-full h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs font-semibold hover:bg-[#3B82F6]/20 transition-colors flex items-center justify-center gap-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 Go to Support Conversation
               </button>
             )}
 
-            {/* Promote */}
-            {canAppoint && (
-              <div className="glass rounded-2xl p-4 border border-amber-500/10">
-                <h4 className="text-xs font-semibold text-amber-400 mb-2">Management</h4>
-                {!confirmingPromote ? (
-                  <button onClick={() => setConfirmingPromote(true)} className="w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors">
-                    Appoint as Staff
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-[10px] text-[#5C5E72]">Promote <span className="text-white">@{user.username}</span> to Staff?</p>
-                    <div className="flex gap-2">
-                      <button onClick={() => setConfirmingPromote(false)} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold">Cancel</button>
-                      <button onClick={handlePromote} disabled={promoting} className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50">{promoting ? 'Appointing...' : 'Confirm'}</button>
-                    </div>
-                  </div>
-                )}
+            {canCreatorAssign && (
+              <div className="glass rounded-2xl border border-violet-500/15 p-4">
+                <h4 className="text-xs font-semibold text-violet-300">Team assignment</h4>
+                <p className="mt-1 text-[10px] leading-relaxed text-[#686D7E]">Creator assigns operational roles to an existing WeHouse User account. Admin and Staff are never public registration choices.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Role</span><select value={creatorRole} onChange={e=>setCreatorRole(e.target.value as CreatorTeamRole)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="admin">Admin</option><option value="staff">Staff</option></select></label>
+                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">State</span><select value={teamState} onChange={e=>{setTeamState(e.target.value);setTeamLga('')}} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Select State</option>{NIGERIA_STATES.map(item=><option key={item.state} value={item.state}>{item.state}</option>)}</select></label>
+                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">LGA</span><select value={teamLga} disabled={!teamState} onChange={e=>setTeamLga(e.target.value)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs disabled:opacity-40"><option value="">Select LGA</option>{(teamStateData?.cities||[]).map(lga=><option key={lga} value={lga}>{lga}</option>)}</select></label>
+                  {creatorRole==='staff'&&<label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Staff module</span><select value={teamModule} onChange={e=>setTeamModule(e.target.value as StaffModule)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs">{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
+                </div>
+                <button onClick={()=>void handleCreatorAssign()} disabled={teamSaving||!teamState||!teamLga} className="mt-3 h-10 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{teamSaving?'Assigning…':`Assign as ${creatorRole==='admin'?'Admin':'Staff'}`}</button>
               </div>
             )}
 
-            <button onClick={onClose} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] text-xs font-semibold hover:bg-[#232330] transition-colors">
-              Close
-            </button>
+            {canAppoint && (
+              <div className="glass rounded-2xl p-4 border border-amber-500/10">
+                <h4 className="text-xs font-semibold text-amber-400 mb-2">Management</h4>
+                {!confirmingPromote ? <button onClick={() => setConfirmingPromote(true)} className="w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors">Appoint as Staff</button> : <div className="space-y-2"><p className="text-[10px] text-[#5C5E72]">Promote <span className="text-white">@{user.username}</span> to Staff?</p><div className="flex gap-2"><button onClick={() => setConfirmingPromote(false)} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold">Cancel</button><button onClick={handlePromote} disabled={promoting} className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50">{promoting ? 'Appointing...' : 'Confirm'}</button></div></div>}
+              </div>
+            )}
+
+            <button onClick={onClose} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] text-xs font-semibold hover:bg-[#232330] transition-colors">Close</button>
           </div>
         </div>
         <div className="h-20" />
