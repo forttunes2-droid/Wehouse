@@ -44,12 +44,9 @@ export async function getSession() {
 // ─── SETUP HELPERS ──────────────────────────────────
 
 export async function isUsernameTaken(username: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', username.toLowerCase())
-    .maybeSingle();
-  return !!data;
+  const { data, error } = await supabase.rpc('is_username_available', { p_username: username.trim().toLowerCase() });
+  if (error) return false;
+  return data !== true;
 }
 
 export async function updateUsername(userId: string, username: string) {

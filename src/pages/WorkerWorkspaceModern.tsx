@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
-import WorkerSummaryPanelV2 from '@/components/WorkerSummaryPanelV2';
+import WorkerActivationHome from '@/components/WorkerActivationHome';
 import WorkerPriorityPanelV2 from '@/components/WorkerPriorityPanelV2';
 import WorkerNextJobPanelV2 from '@/components/WorkerNextJobPanelV2';
 import WorkerJobsPanelV2 from '@/components/WorkerJobsPanelV2';
@@ -9,6 +9,21 @@ import WorkerWallet from './WorkerWallet';
 import type { Profile } from '@/types';
 
 type Tab='home'|'jobs'|'earnings'|'profile';
-const NAV=[{id:'home',label:'Home'},{id:'jobs',label:'Jobs'},{id:'earnings',label:'Earnings'},{id:'profile',label:'Profile'}];
-export default function WorkerWorkspaceModern({profile,onGoToSetup,onLogout,onNavigate}:{profile:Profile;onGoToSetup:()=>void;onLogout:()=>void;onNavigate?:(page:string)=>void}){const[tab,setTab]=useState<Tab>('home');const content=tab==='jobs'?<WorkerJobsPanelV2 profile={profile}/>:tab==='earnings'?<WorkerWallet profile={profile}/>:tab==='profile'?<WorkerProfilePanelV2 profile={profile} onEdit={onGoToSetup} onVerification={()=>onNavigate?.('worker_verification')}/>:<WorkerHome profile={profile} setTab={setTab} onNavigate={onNavigate}/>;return <WorkspaceFrameV2 label="WEHOUSE LOCAL SERVICES" title={NAV.find(x=>x.id===tab)?.label||'Worker'} items={NAV} active={tab} setActive={id=>setTab(id as Tab)} onAccount={onNavigate?()=>onNavigate('profile'):undefined} onLogout={onLogout}>{content}</WorkspaceFrameV2>}
-function WorkerHome({profile,setTab,onNavigate}:{profile:Profile;setTab:(tab:Tab)=>void;onNavigate?:(page:string)=>void}){return <div className="space-y-5"><WorkerSummaryPanelV2 profile={profile} onJobs={()=>setTab('jobs')} onEarnings={()=>setTab('earnings')} onProfile={()=>setTab('profile')} onVerification={()=>onNavigate?.('worker_verification')}/><div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]"><WorkerPriorityPanelV2 profile={profile} onOpenJobs={()=>setTab('jobs')}/><WorkerNextJobPanelV2 profile={profile} onOpenJobs={()=>setTab('jobs')}/></div></div>}
+const LIVE_NAV=[{id:'home',label:'Home'},{id:'jobs',label:'Jobs'},{id:'earnings',label:'Earnings'},{id:'profile',label:'Profile'}];
+const ACTIVATION_NAV=[{id:'home',label:'Home'},{id:'profile',label:'Profile'}];
+
+export default function WorkerWorkspaceModern({profile,onGoToSetup,onLogout,onNavigate}:{profile:Profile;onGoToSetup:()=>void;onLogout:()=>void;onNavigate?:(page:string)=>void}){
+ const live=profile.worker_status==='verified'&&profile.worker_verified===true;
+ const nav=live?LIVE_NAV:ACTIVATION_NAV;
+ const[tab,setTab]=useState<Tab>('home');
+ const safeTab=!live&&(tab==='jobs'||tab==='earnings')?'home':tab;
+ let content:React.ReactNode;
+ if(safeTab==='profile') content=<WorkerProfilePanelV2 profile={profile} onEdit={onGoToSetup} onVerification={()=>onNavigate?.('worker_verification')}/>;
+ else if(live&&safeTab==='jobs') content=<WorkerJobsPanelV2 profile={profile}/>;
+ else if(live&&safeTab==='earnings') content=<WorkerWallet profile={profile}/>;
+ else if(live) content=<LiveHome profile={profile} setTab={setTab}/>;
+ else content=<WorkerActivationHome profile={profile} onProfile={()=>setTab('profile')} onVerification={()=>onNavigate?.('worker_verification')}/>;
+ return <WorkspaceFrameV2 label={live?'WEHOUSE LOCAL SERVICES · LIVE':'WEHOUSE LOCAL SERVICES · ACTIVATION'} title={nav.find(x=>x.id===safeTab)?.label||'Worker'} items={nav} active={safeTab} setActive={id=>setTab(id as Tab)} onAccount={onNavigate?()=>onNavigate('profile'):undefined} onLogout={onLogout}>{content}</WorkspaceFrameV2>
+}
+
+function LiveHome({profile,setTab}:{profile:Profile;setTab:(tab:Tab)=>void}){return <div className="space-y-5"><section className="rounded-3xl border border-cyan-500/15 bg-[#0F171E] p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="flex items-center gap-2"><p className="text-[9px] font-bold uppercase tracking-[.18em] text-cyan-300">LIVE PROFESSIONAL</p><span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] font-semibold text-emerald-300">VERIFIED</span></div><h2 className="mt-3 text-2xl font-bold">{profile.full_name||profile.username||'Your work'}</h2><p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Only work that needs your attention appears here.</p></div><div className="flex gap-2"><button onClick={()=>setTab('jobs')} className="rounded-xl bg-cyan-500 px-4 py-3 text-xs font-semibold text-[#051018]">Open jobs</button><button onClick={()=>setTab('profile')} className="rounded-xl border border-white/[.08] px-4 py-3 text-xs font-semibold">Profile</button></div></div></section><div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]"><WorkerPriorityPanelV2 profile={profile} onOpenJobs={()=>setTab('jobs')}/><WorkerNextJobPanelV2 profile={profile} onOpenJobs={()=>setTab('jobs')}/></div></div>}

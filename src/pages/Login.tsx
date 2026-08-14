@@ -36,7 +36,7 @@ export default function Login({onLoginSuccess,serverError,kickedOut}:LoginProps)
  return <div className="flex min-h-screen items-center justify-center bg-transparent px-5 text-white"><div className="w-full max-w-[380px]">
   <Brand/>
   {diag&&<details className="mb-3"><summary className="cursor-pointer text-[10px] text-[#5C5E72]">Debug info</summary><div className="mt-1 break-all rounded-xl border border-white/[.06] bg-[#141720] p-2 font-mono text-[10px] text-[#6F7485]">{diag}</div></details>}
-  {kickedOut&&<Notice tone="warning" title="You were logged out">Another device became the active session for this account. Sign in here again if you want to make this device active.</Notice>}
+  {kickedOut&&<Notice tone="warning" title="This device was signed out">This device's WeHouse session is no longer active. Sign in again to start a new session on this device.</Notice>}
   {displayError&&<Notice tone="error">{displayError}</Notice>}
   {info&&<Notice tone="info">{info}</Notice>}
 
