@@ -48,6 +48,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   const [teamState,setTeamState]=useState(user.state||'');
   const [teamLga,setTeamLga]=useState((user as any).local_government||(user as any).city||'');
   const [teamModule,setTeamModule]=useState<StaffModule>('operations');
+  const [adminModule,setAdminModule]=useState<StaffModule>('operations');
   const [teamSaving,setTeamSaving]=useState(false);
 
   const isAdmin = adminProfile?.role === 'admin';
@@ -109,10 +110,10 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   async function handlePromote() {
     if (!user) return;
     setPromoting(true);
-    const { data, error } = await supabase.rpc('admin_promote_to_staff', { p_target_user_id: user.user_id });
+    const { data, error } = await supabase.rpc('admin_appoint_staff', { p_target_user_id: user.user_id, p_module: adminModule });
     setPromoting(false); setConfirmingPromote(false);
     if (error) { toast.error(`Failed: ${error.message}`); return; }
-    if (data) { toast.success(`${user.username || 'User'} appointed as Staff`); onPromote?.(); onClose(); }
+    if (data) { toast.success(`${user.username || 'User'} appointed as ${STAFF_MODULES.find(([id])=>id===adminModule)?.[1]||'Staff'} Staff`); onPromote?.(); onClose(); }
   }
 
   async function handleCreatorAssign(){
@@ -228,8 +229,10 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
 
             {canAppoint && (
               <div className="glass rounded-2xl p-4 border border-amber-500/10">
-                <h4 className="text-xs font-semibold text-amber-400 mb-2">Management</h4>
-                {!confirmingPromote ? <button onClick={() => setConfirmingPromote(true)} className="w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors">Appoint as Staff</button> : <div className="space-y-2"><p className="text-[10px] text-[#5C5E72]">Promote <span className="text-white">@{user.username}</span> to Staff?</p><div className="flex gap-2"><button onClick={() => setConfirmingPromote(false)} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold">Cancel</button><button onClick={handlePromote} disabled={promoting} className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50">{promoting ? 'Appointing...' : 'Confirm'}</button></div></div>}
+                <h4 className="text-xs font-semibold text-amber-400">Management</h4>
+                <p className="mt-1 text-[10px] text-[#666B7B]">Appoint this branch User as Staff and choose the one operational module they will work in.</p>
+                <label className="mt-3 block"><span className="mb-1 block text-[9px] uppercase tracking-wide text-[#5E6375]">Staff module</span><select value={adminModule} disabled={promoting} onChange={e=>setAdminModule(e.target.value as StaffModule)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white disabled:opacity-50">{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+                {!confirmingPromote ? <button onClick={() => setConfirmingPromote(true)} className="mt-3 w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors">Appoint as Staff</button> : <div className="mt-3 space-y-2"><p className="text-[10px] text-[#5C5E72]">Appoint <span className="text-white">@{user.username}</span> to the <span className="text-white">{STAFF_MODULES.find(([id])=>id===adminModule)?.[1]}</span> module?</p><div className="flex gap-2"><button onClick={() => setConfirmingPromote(false)} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold">Cancel</button><button onClick={handlePromote} disabled={promoting} className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50">{promoting ? 'Appointing...' : 'Confirm'}</button></div></div>}
               </div>
             )}
 
