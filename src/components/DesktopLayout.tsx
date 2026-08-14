@@ -40,19 +40,23 @@ export default function DesktopLayout({children,navItems,activePage,onNavigate,u
     if(!content)return;
     let source:HTMLElement|null=null;
     let classObserver:MutationObserver|undefined;
+    const clearSource=()=>source?.classList.remove('workspace-primary-rail','hidden','lg:block');
     const attach=()=>{
       const next=content.querySelector('header .scrollbar-hide') as HTMLElement|null;
       if(next===source)return;
-      classObserver?.disconnect();source?.classList.remove('workspace-primary-rail');source=next;
+      classObserver?.disconnect();clearSource();source=next;
       if(!source){setWorkspaceTabs([]);setActiveWorkspaceTab('');return}
-      source.classList.add('workspace-primary-rail');
+      // The workspace owns one navigation model. On phone/tablet the mirrored
+      // bottom rail is the primary control; the original header rail remains
+      // visible only on desktop so the same tabs are never presented twice.
+      source.classList.add('workspace-primary-rail','hidden','lg:block');
       const buttons=Array.from(source.querySelectorAll(':scope button')).filter((node):node is HTMLButtonElement=>node instanceof HTMLButtonElement&&Boolean(node.textContent?.trim()));
       setWorkspaceTabs(buttons.map(button=>({label:button.textContent!.trim(),button})));
       const sync=()=>{const selected=buttons.find(button=>['bg-violet-500','bg-indigo-500','bg-cyan-500','bg-blue-500'].some(cls=>button.className.includes(cls)));setActiveWorkspaceTab(selected?.textContent?.trim()||'')};
       sync();classObserver=new MutationObserver(sync);buttons.forEach(button=>classObserver!.observe(button,{attributes:true,attributeFilter:['class']}));
     };
     attach();const structureObserver=new MutationObserver(attach);structureObserver.observe(content,{subtree:true,childList:true});
-    return()=>{structureObserver.disconnect();classObserver?.disconnect();source?.classList.remove('workspace-primary-rail')};
+    return()=>{structureObserver.disconnect();classObserver?.disconnect();clearSource()};
   },[activePage,workspaceRoot]);
 
   const mobilePlan=useMemo(()=>{
