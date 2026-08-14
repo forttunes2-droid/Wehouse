@@ -8,7 +8,7 @@ REVOKE ALL ON FUNCTION public.save_my_worker_verification(
 ) FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.save_my_worker_verification(
-  text,text,text,text,text,text,text[],text,text,text,text,text,text,integer,uuid,uuid
+  text,text,text,text,text,text[],text,text,text,text,text,text,integer,uuid,uuid
 ) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.save_my_worker_verification(
@@ -16,7 +16,7 @@ GRANT EXECUTE ON FUNCTION public.save_my_worker_verification(
 ) TO service_role;
 
 GRANT EXECUTE ON FUNCTION public.save_my_worker_verification(
-  text,text,text,text,text,text,text[],text,text,text,text,text,text,integer,uuid,uuid
+  text,text,text,text,text,text[],text,text,text,text,text,text,integer,uuid,uuid
 ) TO service_role;
 
 COMMIT;
