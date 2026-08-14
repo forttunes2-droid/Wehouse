@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Profile } from '@/types';
-import { supabase, uploadAvatar } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { initializePaystackPopup } from '@/lib/supabase/paystack';
+import WorkerReadinessTest from '@/components/WorkerReadinessTest';
 import { Toaster, toast } from 'sonner';
 
 interface WorkerVerificationProps {
@@ -9,173 +10,78 @@ interface WorkerVerificationProps {
   onBack: () => void;
 }
 
-type Step = 'form' | 'payment' | 'ready' | 'reviewing' | 'rejected';
+type Activation = {
+  worker_status: string;
+  live: boolean;
+  profile_complete: boolean;
+  payment_status: string | null;
+  gold_badge: boolean;
+  test_passed: boolean;
+  test_percent: number | null;
+  test_attempts_24h: number;
+  evidence_saved: boolean;
+  submitted: boolean;
+  review_status: string | null;
+  identity_status: string;
+  identity_provider: string | null;
+  identity_checked_at: string | null;
+  rejection_reason: string | null;
+};
+
+const EMPTY_ACTIVATION: Activation = {
+  worker_status: 'pending',
+  live: false,
+  profile_complete: false,
+  payment_status: null,
+  gold_badge: false,
+  test_passed: false,
+  test_percent: null,
+  test_attempts_24h: 0,
+  evidence_saved: false,
+  submitted: false,
+  review_status: null,
+  identity_status: 'not_started',
+  identity_provider: null,
+  identity_checked_at: null,
+  rejection_reason: null,
+};
 
 export default function WorkerVerification({ profile, onBack }: WorkerVerificationProps) {
-  const avatarInput = useRef<HTMLInputElement>(null);
-  const idInput = useRef<HTMLInputElement>(null);
   const certificateInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const selfieInput = useRef<HTMLInputElement>(null);
 
-  const initialStep: Step = profile.worker_status === 'profile_under_review'
-    ? 'reviewing'
-    : profile.worker_status === 'verification_paid'
-      ? 'ready'
-      : profile.worker_status === 'rejected'
-        ? 'rejected'
-        : 'form';
-
-  const [step, setStep] = useState<Step>(initialStep);
-  const [saving, setSaving] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [activation, setActivation] = useState<Activation>(EMPTY_ACTIVATION);
+  const [loading, setLoading] = useState(true);
   const [fee, setFee] = useState(0);
-  const [avatar, setAvatar] = useState(profile.avatar_url || '');
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-
-  const [form, setForm] = useState({
-    fullName: profile.full_name || '',
-    occupation: profile.worker_occupation || '',
-    skills: (profile.worker_skills || []).join(', '),
-    experience: profile.worker_experience || '',
-    serviceState: '',
-    serviceLga: '',
-    serviceAreas: '',
-    bio: profile.worker_bio || '',
-    price: profile.worker_price ? String(profile.worker_price) : '',
-  });
-
-  const [govIdPath, setGovIdPath] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [certificatePath, setCertificatePath] = useState('');
   const [videoPath, setVideoPath] = useState('');
   const [videoPreview, setVideoPreview] = useState('');
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [vNin, setVNin] = useState('');
+  const [selfie, setSelfie] = useState<File | null>(null);
+  const [consent, setConsent] = useState(false);
+  const [identityBusy, setIdentityBusy] = useState(false);
+
+  async function refresh() {
+    const [{ data, error }, feeResult] = await Promise.all([
+      supabase.rpc('get_my_worker_activation'),
+      supabase.rpc('get_setting_v2', { p_key: 'worker_verification_fee' }),
+    ]);
+    if (error) toast.error(error.message);
+    else setActivation({ ...EMPTY_ACTIVATION, ...(data || {}) } as Activation);
+    setFee(feeResult.data ? Number(feeResult.data) : 0);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    supabase.rpc('get_setting_v2', { p_key: 'worker_verification_fee' })
-      .then(({ data }) => setFee(data ? Number(data) : 0));
-
-    supabase.from('worker_service_coverage')
-      .select('state,lga,areas')
-      .eq('worker_id', profile.user_id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!data) return;
-        setForm((current) => ({
-          ...current,
-          serviceState: data.state || '',
-          serviceLga: data.lga || '',
-          serviceAreas: Array.isArray(data.areas) ? data.areas.join(', ') : '',
-        }));
-      });
-
-    if (profile.worker_status === 'rejected') {
-      supabase.from('worker_verification_reviews')
-        .select('rejection_reason')
-        .eq('worker_id', profile.user_id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => setRejectionReason(data?.rejection_reason || ''));
-    }
-  }, [profile.user_id, profile.worker_status]);
+    void refresh();
+  }, [profile.user_id]);
 
   useEffect(() => () => {
     if (videoPreview) URL.revokeObjectURL(videoPreview);
   }, [videoPreview]);
-
-  const initials = useMemo(() => (form.fullName || profile.username || 'W')[0].toUpperCase(), [form.fullName, profile.username]);
-
-  async function uploadPrivate(file: File, kind: 'gov-id' | 'certificate' | 'skill-video') {
-    const extension = file.name.split('.').pop() || 'bin';
-    const path = `${profile.user_id}/${kind}-${Date.now()}.${extension}`;
-    const { error } = await supabase.storage.from('worker-files').upload(path, file, {
-      contentType: file.type || undefined,
-      upsert: false,
-    });
-    if (error) throw error;
-    return path;
-  }
-
-  async function changeAvatar(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploadingAvatar(true);
-    const { url, error } = await uploadAvatar(file, profile.user_id);
-    setUploadingAvatar(false);
-    if (error || !url) return toast.error(error?.message || 'Profile photo upload failed');
-    setAvatar(url);
-    toast.success('Profile photo uploaded');
-  }
-
-  async function changeGovId(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) return toast.error('Government ID must be under 10MB');
-    try {
-      setGovIdPath(await uploadPrivate(file, 'gov-id'));
-      toast.success('Government ID uploaded securely');
-    } catch (error: any) { toast.error(error.message || 'ID upload failed'); }
-  }
-
-  async function changeCertificate(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) return toast.error('Certificate must be under 10MB');
-    try {
-      setCertificatePath(await uploadPrivate(file, 'certificate'));
-      toast.success('Certificate uploaded securely');
-    } catch (error: any) { toast.error(error.message || 'Certificate upload failed'); }
-  }
-
-  async function changeVideo(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > 100 * 1024 * 1024) return toast.error('Skill video must be under 100MB');
-    try {
-      const path = await uploadPrivate(file, 'skill-video');
-      setVideoPath(path);
-      if (videoPreview) URL.revokeObjectURL(videoPreview);
-      setVideoPreview(URL.createObjectURL(file));
-      toast.success('Skill video uploaded securely');
-    } catch (error: any) { toast.error(error.message || 'Video upload failed'); }
-  }
-
-  function validate() {
-    if (!form.fullName.trim()) return 'Full name is required';
-    if (!avatar) return 'Profile photo is required';
-    if (!form.occupation.trim()) return 'Occupation is required';
-    if (!form.skills.trim()) return 'At least one skill is required';
-    if (!form.experience.trim()) return 'Experience is required';
-    if (!form.serviceState.trim() || !form.serviceLga.trim()) return 'Service State and LGA are required';
-    if (!govIdPath) return 'Government ID is required';
-    if (!videoPath) return 'Skill demonstration video is required';
-    return null;
-  }
-
-  async function saveVerification() {
-    const message = validate();
-    if (message) return toast.error(message);
-    setSaving(true);
-    const { error } = await supabase.rpc('save_my_worker_verification', {
-      p_full_name: form.fullName.trim(),
-      p_avatar_url: avatar,
-      p_occupation: form.occupation.trim(),
-      p_skills: form.skills.split(',').map((item) => item.trim()).filter(Boolean),
-      p_experience: form.experience.trim(),
-      p_service_state: form.serviceState.trim(),
-      p_service_lga: form.serviceLga.trim(),
-      p_service_areas: form.serviceAreas.split(',').map((item) => item.trim()).filter(Boolean),
-      p_bio: form.bio.trim(),
-      p_price: form.price ? Math.max(0, Number(form.price)) : 0,
-      p_gov_id_path: govIdPath,
-      p_certificate_path: certificatePath,
-      p_video_path: videoPath,
-    });
-    setSaving(false);
-    if (error) return toast.error(error.message || 'Could not save verification information');
-    toast.success('Verification information saved');
-    setStep('payment');
-  }
 
   async function pay() {
     if (fee <= 0) return toast.error('Verification fee is not configured');
@@ -185,6 +91,7 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
       setPaying(false);
       return toast.error(bootstrap?.error || bootstrapError?.message || 'Payment initialization failed');
     }
+
     const { data: publicKey } = await supabase.rpc('get_setting_v2', { p_key: 'paystack_public_key' });
     if (!publicKey) {
       setPaying(false);
@@ -194,101 +101,218 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
     initializePaystackPopup({
       publicKey,
       email: profile.email,
-      amountKobo: bootstrap.amount * 100,
+      amountKobo: Number(bootstrap.amount) * 100,
       reference: bootstrap.reference,
-      metadata: { payment_type: 'worker_verification', worker_id: profile.user_id },
+      metadata: {
+        payment_type: 'worker_verification',
+        expected_amount: Number(bootstrap.amount),
+        worker_id: profile.user_id,
+      },
       onSuccess: () => {
         setPaying(false);
-        setStep('ready');
-        toast.success('Payment confirmed. Submit your verification request.');
+        toast.success('Payment confirmed. Your verification Gold Tick is active.');
+        void refresh();
       },
       onCancel: () => {
         setPaying(false);
-        toast.info('Payment cancelled');
+        toast.info('Payment was not completed');
       },
     });
   }
 
-  async function submit() {
+  async function uploadEvidence(file: File, bucket: 'worker-certificates' | 'worker-verification-videos', kind: string) {
+    const extension = (file.name.split('.').pop() || (bucket === 'worker-verification-videos' ? 'mp4' : 'bin')).toLowerCase();
+    const path = `${profile.user_id}/${kind}-${Date.now()}.${extension}`;
+    const { error } = await supabase.storage.from(bucket).upload(path, file, {
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+    if (error) throw error;
+    return path;
+  }
+
+  async function chooseCertificate(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return toast.error('Certificate must be under 10MB');
+    try {
+      setCertificatePath(await uploadEvidence(file, 'worker-certificates', 'certificate'));
+      toast.success('Professional certificate uploaded');
+    } catch (error: any) {
+      toast.error(error?.message || 'Certificate upload failed');
+    }
+  }
+
+  async function chooseVideo(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) return toast.error('Skill video must be under 50MB');
+    if (!file.type.startsWith('video/')) return toast.error('Choose a video file');
+    try {
+      const path = await uploadEvidence(file, 'worker-verification-videos', 'skill-video');
+      setVideoPath(path);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+      setVideoPreview(URL.createObjectURL(file));
+      toast.success('Skill demonstration video uploaded');
+    } catch (error: any) {
+      toast.error(error?.message || 'Video upload failed');
+    }
+  }
+
+  async function saveEvidence() {
+    if (!videoPath) return toast.error('Skill demonstration video is required');
+    setSaving(true);
+    const { error } = await supabase.rpc('save_my_worker_professional_evidence', {
+      p_certificate_path: certificatePath || null,
+      p_video_path: videoPath,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success('Professional evidence saved');
+    await refresh();
+  }
+
+  function readDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Could not read selfie'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function verifyIdentity() {
+    if (!vNin.trim()) return toast.error('Enter your virtual NIN (vNIN)');
+    if (!selfie) return toast.error('Take or choose a clear selfie');
+    if (!consent) return toast.error('Consent is required for the external identity check');
+    if (selfie.size > 5 * 1024 * 1024) return toast.error('Selfie must be under 5MB');
+
+    setIdentityBusy(true);
+    try {
+      const selfieImage = await readDataUrl(selfie);
+      const { data, error } = await supabase.functions.invoke('worker-identity-verify', {
+        body: {
+          vnin: vNin.trim(),
+          selfieImage,
+          isSubjectConsent: true,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'External identity verification could not be completed');
+      if (data?.verified) toast.success('External government identity verified');
+      else toast.error(data?.reason || 'Identity verification did not pass');
+      await refresh();
+    } catch (error: any) {
+      toast.error(error?.message || 'Identity verification failed');
+    } finally {
+      setIdentityBusy(false);
+    }
+  }
+
+  async function submitForReview() {
     setSaving(true);
     const { error } = await supabase.rpc('submit_my_worker_verification');
     setSaving(false);
     if (error) return toast.error(error.message || 'Submission failed');
-    setStep('reviewing');
-    toast.success('Verification submitted for review');
+    toast.success('Professional verification submitted to WeHouse review');
+    await refresh();
   }
 
+  if (loading) {
+    return <State title="Loading Worker verification…" text="Checking your activation progress." />;
+  }
+
+  const identityVerified = activation.identity_status === 'verified';
+  const underReview = activation.worker_status === 'profile_under_review' || activation.submitted;
+  const live = activation.live || activation.worker_status === 'verified';
+
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-24 text-white">
+    <div className="min-h-[100dvh] bg-[#080A0F] pb-24 text-white">
       <Toaster position="top-center" richColors theme="dark" />
-      <header className="sticky top-0 z-30 bg-[#0A0A0F]/95 backdrop-blur border-b border-white/[0.05] px-4 py-4 flex items-center gap-3">
-        <button onClick={onBack} className="w-9 h-9 rounded-xl bg-[#1A1A24] flex items-center justify-center" aria-label="Back">←</button>
-        <div><h1 className="text-lg font-bold">Worker Verification</h1><p className="text-[10px] text-[#5C5E72]">Professional details and private verification evidence</p></div>
+      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#080A0F]/95 px-4 py-4 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <button onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.03] text-[#A4A8B5]" aria-label="Back">←</button>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold tracking-[.2em] text-cyan-300">WORKER ACTIVATION</p>
+            <h1 className="mt-1 text-lg font-bold">Verification</h1>
+            <p className="mt-0.5 text-[10px] text-[#6D7383]">One path from private Worker account to public professional.</p>
+          </div>
+          {activation.gold_badge && <span className="ml-auto shrink-0 rounded-full border border-amber-400/20 bg-amber-400/[.08] px-2.5 py-1 text-[9px] font-bold text-amber-300">GOLD TICK</span>}
+        </div>
       </header>
 
-      <main className="max-w-lg mx-auto px-4 py-6 space-y-5">
-        {step === 'form' && (
-          <>
-            <Notice title="Private verification" text="Government ID, certificates and review video are stored privately. They are not part of your public profile." />
-            <Panel>
-              <div className="flex items-center gap-4">
-                <button onClick={() => avatarInput.current?.click()} className="w-20 h-20 rounded-2xl overflow-hidden bg-amber-500 flex items-center justify-center text-2xl font-bold">
-                  {avatar ? <img src={avatar} alt="Profile" className="w-full h-full object-cover" /> : initials}
-                </button>
-                <input ref={avatarInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={changeAvatar} />
-                <div><p className="text-sm font-semibold">Public profile photo</p><p className="text-[10px] text-[#5C5E72]">{uploadingAvatar ? 'Uploading…' : 'Visible on your approved Worker profile'}</p></div>
-              </div>
-              <Field label="Full Name" value={form.fullName} onChange={(value) => setForm({ ...form, fullName: value })} />
-              <Field label="Occupation" value={form.occupation} onChange={(value) => setForm({ ...form, occupation: value })} />
-              <Field label="Skills (comma separated)" value={form.skills} onChange={(value) => setForm({ ...form, skills: value })} />
-              <Field label="Experience" value={form.experience} onChange={(value) => setForm({ ...form, experience: value })} />
-              <Field label="Service State" value={form.serviceState} onChange={(value) => setForm({ ...form, serviceState: value })} />
-              <Field label="Service LGA" value={form.serviceLga} onChange={(value) => setForm({ ...form, serviceLga: value })} />
-              <Field label="Other service areas (optional, comma separated)" value={form.serviceAreas} onChange={(value) => setForm({ ...form, serviceAreas: value })} />
-              <Field label="Starting Price" value={form.price} onChange={(value) => setForm({ ...form, price: value })} inputMode="numeric" />
-              <TextArea label="About Your Services" value={form.bio} onChange={(value) => setForm({ ...form, bio: value })} />
-            </Panel>
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-5">
+        <Progress activation={activation} />
 
-            <Panel>
-              <UploadButton label={govIdPath ? 'Government ID uploaded' : 'Upload Government ID'} onClick={() => idInput.current?.click()} complete={!!govIdPath} />
-              <input ref={idInput} type="file" accept="image/*,.pdf" className="hidden" onChange={changeGovId} />
-              <UploadButton label={certificatePath ? 'Certificate uploaded' : 'Upload Certificate (optional)'} onClick={() => certificateInput.current?.click()} complete={!!certificatePath} />
-              <input ref={certificateInput} type="file" accept="image/*,.pdf" className="hidden" onChange={changeCertificate} />
-              <UploadButton label={videoPath ? 'Skill video uploaded' : 'Upload 2–3 minute Skill Video'} onClick={() => videoInput.current?.click()} complete={!!videoPath} />
-              <input ref={videoInput} type="file" accept="video/*" className="hidden" onChange={changeVideo} />
-              {videoPreview && <video src={videoPreview} controls className="w-full rounded-xl max-h-56" />}
-            </Panel>
-            <Primary label={saving ? 'Saving…' : 'Continue to Payment'} onClick={saveVerification} disabled={saving} />
-          </>
-        )}
-
-        {step === 'payment' && (
+        {live ? (
           <Panel>
-            <Notice title="Verification fee" text="Payment confirms the verification request fee. It does not approve or publish your Worker profile." />
-            <div className="text-center py-5"><p className="text-xs text-[#8A8B9C]">Amount</p><p className="text-3xl font-bold mt-1">₦{fee.toLocaleString()}</p></div>
-            <Primary label={paying ? 'Opening Paystack…' : 'Pay with Paystack'} onClick={pay} disabled={paying || fee <= 0} />
-            <Secondary label="Back" onClick={() => setStep('form')} />
+            <Status good title="Worker profile is live" text="Your professional profile is approved and can appear in Local Services while your account is active." />
+            <Secondary label="Back to Worker dashboard" onClick={onBack} />
           </Panel>
-        )}
-
-        {step === 'ready' && (
+        ) : underReview ? (
           <Panel>
-            <Notice title="Payment confirmed" text="Your Golden Badge confirms payment only. Submit the request so WeHouse can review your information and evidence." />
-            <Primary label={saving ? 'Submitting…' : 'Submit Verification Request'} onClick={submit} disabled={saving} />
+            <Status good title="WeHouse professional review" text="Your payment, Worker test, professional evidence and external identity gate are complete. Your profile remains private until this final review is approved." />
+            <Secondary label="Back to Worker dashboard" onClick={onBack} />
           </Panel>
-        )}
-
-        {step === 'reviewing' && (
+        ) : !activation.profile_complete ? (
           <Panel>
-            <div className="text-center py-6"><div className="text-4xl">✓</div><h2 className="text-xl font-bold mt-3">Under Review</h2><p className="text-sm text-[#8A8B9C] mt-2">WeHouse is reviewing your professional profile and private verification evidence. Only approval makes your Worker profile public.</p></div>
-            <Secondary label="Back to Dashboard" onClick={onBack} />
+            <Status title="Complete your professional profile first" text="Add your service, experience, price and coverage from the Profile tab. Verification begins after your professional profile is complete." />
+            <Secondary label="Back to Profile" onClick={onBack} />
           </Panel>
-        )}
-
-        {step === 'rejected' && (
+        ) : !activation.gold_badge ? (
           <Panel>
-            <Notice title="Verification not approved" text={rejectionReason || 'Review the required information, correct it and submit again.'} danger />
-            <Primary label="Edit and Re-submit" onClick={() => setStep('form')} />
+            <Status title="Pay the verification fee" text="A successful Paystack verification payment gives your Worker account the Gold Tick. The Gold Tick confirms payment only; it does not make you public." />
+            <div className="rounded-2xl border border-white/[.06] bg-black/10 p-5 text-center">
+              <p className="text-[9px] uppercase tracking-wide text-[#686F80]">Verification fee</p>
+              <p className="mt-2 text-3xl font-bold">₦{fee.toLocaleString()}</p>
+            </div>
+            <Primary label={paying ? 'Opening Paystack…' : 'Pay securely with Paystack'} onClick={() => void pay()} disabled={paying || fee <= 0} />
+          </Panel>
+        ) : !activation.test_passed ? (
+          <WorkerReadinessTest onPassed={refresh} />
+        ) : !activation.evidence_saved ? (
+          <Panel>
+            <Status good title="Worker test passed" text={`Your readiness gate is complete${activation.test_percent != null ? ` at ${activation.test_percent}%` : ''}. Now show what you can actually do.`} />
+            <div className="space-y-3">
+              <UploadButton label={certificatePath ? 'Certificate uploaded' : 'Professional certificate (optional)'} complete={Boolean(certificatePath)} onClick={() => certificateInput.current?.click()} />
+              <input ref={certificateInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={chooseCertificate} />
+              <UploadButton label={videoPath ? 'Skill video uploaded' : 'Skill demonstration video · required'} complete={Boolean(videoPath)} onClick={() => videoInput.current?.click()} />
+              <input ref={videoInput} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={chooseVideo} />
+              {videoPreview && <video src={videoPreview} controls playsInline className="max-h-72 w-full rounded-2xl bg-black object-contain" />}
+            </div>
+            <p className="text-[10px] leading-relaxed text-[#717889]">This is professional evidence for review. It is separate from the Work Stories and Portfolio you can publish after your Worker profile goes live.</p>
+            <Primary label={saving ? 'Saving evidence…' : 'Save professional evidence'} onClick={() => void saveEvidence()} disabled={saving || !videoPath} />
+          </Panel>
+        ) : !identityVerified ? (
+          <Panel>
+            <Status title="External government identity check" text="Government identity is checked by Youverify. WeHouse Staff do not inspect your government ID. WeHouse keeps the provider result/reference, not an uploaded ID document." />
+            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[.04] p-4 text-[10px] leading-relaxed text-[#8C94A4]">
+              Generate a virtual NIN for Youverify using the NIMC vNIN flow. Youverify's enterprise/short code is <span className="font-bold text-cyan-200">471335</span>. Your vNIN and selfie are sent to the external provider for this check and are not uploaded to WeHouse Storage.
+            </div>
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-semibold text-[#8B91A0]">Virtual NIN (vNIN)</span>
+              <input value={vNin} onChange={(event) => setVNin(event.target.value)} autoCapitalize="characters" autoComplete="off" placeholder="Enter vNIN" className="h-12 w-full rounded-xl border border-white/[.08] bg-[#151921] px-3 text-sm outline-none focus:border-cyan-500/30" />
+            </label>
+            <UploadButton label={selfie ? 'Selfie selected' : 'Take or choose a clear selfie'} complete={Boolean(selfie)} onClick={() => selfieInput.current?.click()} />
+            <input ref={selfieInput} type="file" accept="image/jpeg,image/png,image/webp" capture="user" className="hidden" onChange={(event) => setSelfie(event.target.files?.[0] || null)} />
+            <button type="button" onClick={() => setConsent((value) => !value)} className="flex w-full items-start gap-3 rounded-2xl border border-white/[.07] bg-black/10 p-4 text-left">
+              <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border text-xs ${consent ? 'border-cyan-500 bg-cyan-500 text-[#041014]' : 'border-white/15'}`}>{consent ? '✓' : ''}</span>
+              <span className="text-[11px] leading-relaxed text-[#959BA9]">I consent to Youverify checking this government identity information and comparing my selfie for Worker verification.</span>
+            </button>
+            {activation.identity_status !== 'not_started' && activation.identity_status !== 'ready_for_external' && (
+              <Status danger={activation.identity_status === 'failed'} title={`Identity status: ${activation.identity_status.replace(/_/g, ' ')}`} text="If the provider could not verify the identity, check the vNIN/selfie and try again or use the supported recovery path." />
+            )}
+            <Primary label={identityBusy ? 'Checking with Youverify…' : 'Verify identity with Youverify'} onClick={() => void verifyIdentity()} disabled={identityBusy || !vNin.trim() || !selfie || !consent} />
+          </Panel>
+        ) : (
+          <Panel>
+            <Status good title="External identity verified" text="The identity provider gate is complete. Submit your professional evidence to WeHouse for the final approval decision." />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Info label="Provider" value={activation.identity_provider || 'Youverify'} />
+              <Info label="Checked" value={activation.identity_checked_at ? new Date(activation.identity_checked_at).toLocaleString() : 'Verified'} />
+            </div>
+            {activation.rejection_reason && <Status danger title="Previous review feedback" text={activation.rejection_reason} />}
+            <Primary label={saving ? 'Submitting…' : 'Submit for final WeHouse review'} onClick={() => void submitForReview()} disabled={saving} />
           </Panel>
         )}
       </main>
@@ -296,10 +320,51 @@ export default function WorkerVerification({ profile, onBack }: WorkerVerificati
   );
 }
 
-function Panel({ children }: { children: React.ReactNode }) { return <section className="rounded-2xl bg-[#12121A]/75 border border-white/[0.06] p-4 space-y-4">{children}</section>; }
-function Notice({ title, text, danger=false }: { title:string; text:string; danger?:boolean }) { return <div className={`rounded-xl border p-3 ${danger?'border-red-500/20 bg-red-500/5':'border-amber-500/20 bg-amber-500/5'}`}><p className={`text-xs font-semibold ${danger?'text-red-300':'text-amber-300'}`}>{title}</p><p className="text-[11px] text-[#8A8B9C] mt-1">{text}</p></div>; }
-function Field({ label, value, onChange, inputMode }: { label:string; value:string; onChange:(value:string)=>void; inputMode?:React.HTMLAttributes<HTMLInputElement>['inputMode'] }) { return <label className="block"><span className="text-[11px] text-[#8A8B9C] mb-1 block">{label}</span><input value={value} inputMode={inputMode} onChange={(event)=>onChange(event.target.value)} className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] px-3 text-sm outline-none focus:border-amber-500/50" /></label>; }
-function TextArea({ label, value, onChange }: { label:string; value:string; onChange:(value:string)=>void }) { return <label className="block"><span className="text-[11px] text-[#8A8B9C] mb-1 block">{label}</span><textarea rows={4} value={value} onChange={(event)=>onChange(event.target.value)} className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] p-3 text-sm outline-none resize-none focus:border-amber-500/50" /></label>; }
-function UploadButton({ label, onClick, complete }: { label:string; onClick:()=>void; complete:boolean }) { return <button onClick={onClick} className={`w-full h-11 rounded-xl border text-sm font-medium ${complete?'border-emerald-500/30 bg-emerald-500/10 text-emerald-300':'border-[#2A2A3A] bg-[#1A1A24] text-white'}`}>{complete?'✓ ':''}{label}</button>; }
-function Primary({ label, onClick, disabled=false }: { label:string; onClick:()=>void; disabled?:boolean }) { return <button onClick={onClick} disabled={disabled} className="w-full h-12 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 text-white text-sm font-semibold disabled:opacity-40">{label}</button>; }
-function Secondary({ label, onClick }: { label:string; onClick:()=>void }) { return <button onClick={onClick} className="w-full h-11 rounded-xl bg-[#1A1A24] text-white text-sm font-semibold">{label}</button>; }
+function Progress({ activation }: { activation: Activation }) {
+  const steps = [
+    ['Professional profile', activation.profile_complete],
+    ['Paystack Gold Tick', activation.gold_badge],
+    ['Worker test', activation.test_passed],
+    ['Professional evidence', activation.evidence_saved],
+    ['External identity', activation.identity_status === 'verified'],
+    ['WeHouse review', activation.live],
+  ] as const;
+  return (
+    <section className="rounded-3xl border border-white/[.06] bg-[#0F131B] p-4 sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div><p className="text-[9px] font-bold tracking-[.18em] text-[#656D7D]">ACTIVATION PATH</p><p className="mt-1 text-xs text-[#A6ABB7]">One status path. No duplicate verification dashboards.</p></div>
+        <span className="text-xs font-bold text-cyan-300">{steps.filter(([, done]) => done).length}/{steps.length}</span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {steps.map(([label, done], index) => (
+          <div key={label} className={`rounded-xl border p-3 ${done ? 'border-emerald-500/15 bg-emerald-500/[.05]' : 'border-white/[.06] bg-black/10'}`}>
+            <div className="flex items-center gap-2"><span className={`grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold ${done ? 'bg-emerald-500 text-[#03110A]' : 'bg-white/[.06] text-[#697181]'}`}>{done ? '✓' : index + 1}</span><span className={`text-[10px] font-semibold ${done ? 'text-emerald-200' : 'text-[#89909F]'}`}>{label}</span></div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return <section className="space-y-4 rounded-3xl border border-white/[.06] bg-[#10141C] p-4 sm:p-5">{children}</section>;
+}
+function Status({ title, text, good = false, danger = false }: { title: string; text: string; good?: boolean; danger?: boolean }) {
+  const cls = danger ? 'border-red-500/20 bg-red-500/[.05]' : good ? 'border-emerald-500/20 bg-emerald-500/[.05]' : 'border-cyan-500/15 bg-cyan-500/[.04]';
+  return <div className={`rounded-2xl border p-4 ${cls}`}><p className="text-sm font-semibold">{title}</p><p className="mt-1.5 text-[10px] leading-relaxed text-[#858C9B]">{text}</p></div>;
+}
+function UploadButton({ label, complete, onClick }: { label: string; complete: boolean; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className={`flex min-h-12 w-full items-center justify-between rounded-xl border px-4 text-left text-xs ${complete ? 'border-emerald-500/20 bg-emerald-500/[.05] text-emerald-200' : 'border-white/[.08] bg-[#151921] text-[#A9AFBB]'}`}><span>{label}</span><span>{complete ? '✓' : '＋'}</span></button>;
+}
+function Primary({ label, onClick, disabled = false }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014] disabled:opacity-40">{label}</button>;
+}
+function Secondary({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="h-12 w-full rounded-2xl border border-white/[.08] bg-white/[.025] text-xs font-semibold text-[#B2B7C2]">{label}</button>;
+}
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-white/[.06] bg-black/10 p-3"><p className="text-[9px] uppercase tracking-wide text-[#626A79]">{label}</p><p className="mt-1.5 break-words text-[11px] font-semibold text-[#CDD1DA]">{value}</p></div>;
+}
+function State({ title, text }: { title: string; text: string }) {
+  return <div className="grid min-h-[70dvh] place-items-center bg-[#080A0F] px-5 text-center text-white"><div><p className="text-sm font-semibold">{title}</p><p className="mt-2 text-[10px] text-[#707787]">{text}</p></div></div>;
+}
