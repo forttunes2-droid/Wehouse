@@ -117,6 +117,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   }
 
   async function handleCreatorAssign(){
+    if(!user)return;
     if(!teamState||!teamLga)return toast.error('Choose the State and LGA for this team member');
     if(creatorRole==='staff'&&!teamModule)return toast.error('Choose the Staff operational module');
     setTeamSaving(true);
