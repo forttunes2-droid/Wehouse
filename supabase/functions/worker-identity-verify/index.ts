@@ -63,6 +63,9 @@ serve(async (req) => {
     if (!testResult.data?.length) return response({ success: false, error: 'Pass the Worker readiness test first' }, 409);
     if (!evidenceResult.data?.verification_video_url) return response({ success: false, error: 'Professional evidence is required first' }, 409);
     if (evidenceResult.data.identity_status === 'verified') return response({ success: true, verified: true, already_verified: true });
+    if (evidenceResult.data.identity_status === 'pending_external') {
+      return response({ success: true, verified: false, pending: true, reason: 'Identity verification is still being processed by Youverify' });
+    }
 
     const body = await req.json();
     const vnin = String(body?.vnin || '').trim().toUpperCase();
@@ -112,11 +115,31 @@ serve(async (req) => {
     }
 
     const providerData = provider.data || {};
+    const providerReference = String(providerData.id || '').trim();
+    const providerStatus = String(providerData.status || '').trim().toLowerCase();
+
+    if (providerStatus === 'pending') {
+      const { error: recordPendingError } = await admin.rpc('record_external_worker_identity_result', {
+        p_worker_id: profile.user_id,
+        p_provider: 'youverify',
+        p_reference: providerReference || null,
+        p_status: 'pending_external',
+        p_failure_reason: null,
+      });
+      if (recordPendingError) return response({ success: false, error: recordPendingError.message }, 500);
+      return response({
+        success: true,
+        verified: false,
+        pending: true,
+        reference: providerReference || undefined,
+        reason: 'Identity verification is still being processed by Youverify',
+      });
+    }
+
     const face = providerData?.validations?.selfie?.selfieVerification;
-    const found = providerData.status === 'found';
+    const found = providerStatus === 'found';
     const faceMatch = face?.match === true;
     const verified = found && faceMatch;
-    const providerReference = String(providerData.id || '');
     const reason = verified
       ? null
       : (providerData?.validations?.validationMessages || providerData?.reason || (!found ? 'Government identity was not found' : 'Selfie did not match the government identity'));
@@ -133,6 +156,7 @@ serve(async (req) => {
     return response({
       success: true,
       verified,
+      pending: false,
       reference: providerReference || undefined,
       reason: reason || undefined,
     });
