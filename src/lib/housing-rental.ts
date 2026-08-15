@@ -9,6 +9,10 @@ export type HousingRentTerms = {
   installmentBalance: number;
   installmentCount: number;
   installments: number[];
+  futureYears: number;
+  contributionStartMonth: number;
+  contributionsPerFutureYear: number;
+  monthlyContribution: number;
 };
 
 export const HOUSING_RENTAL_PLANS: Array<{
@@ -16,46 +20,41 @@ export const HOUSING_RENTAL_PLANS: Array<{
   label: string;
   description: string;
 }> = [
-  { durationYears: 1, label: '1 Year', description: 'Full contract rent before move-in' },
-  { durationYears: 2, label: '2 Years', description: 'No installment plan — full 2-year contract rent before move-in' },
-  { durationYears: 3, label: '3 Years', description: '68% upfront, remaining 32% split into 4 installments' },
+  { durationYears: 1, label: '1 Year', description: 'Pay Year 1 rent in full before move-in' },
+  { durationYears: 2, label: '2 Years', description: 'Pay Year 1 in full; months 5–12 build Year 2 rent' },
+  { durationYears: 3, label: '3 Years', description: 'Pay Year 1 in full; each later year is funded in the previous year from month 5' },
 ];
 
-export function calculateHousingRentTerms(annualRent: number, durationYears: RentalDuration): HousingRentTerms {
-  const safeAnnual = Math.max(0, Math.round(Number(annualRent) || 0));
-  const totalContractRent = safeAnnual * durationYears;
-
-  if (durationYears <= 2) {
-    return {
-      durationYears,
-      annualRent: safeAnnual,
-      totalContractRent,
-      upfrontPercent: 100,
-      upfrontAmount: totalContractRent,
-      installmentBalance: 0,
-      installmentCount: 0,
-      installments: [],
-    };
-  }
-
-  const upfrontAmount = Math.round(totalContractRent * 0.68);
-  const installmentBalance = totalContractRent - upfrontAmount;
-  const installmentCount = 4;
-  const base = Math.floor(installmentBalance / installmentCount);
-  const installments = Array.from({ length: installmentCount }, (_, index) =>
-    index === installmentCount - 1
-      ? installmentBalance - base * (installmentCount - 1)
-      : base,
+function splitAnnualRentIntoEight(annualRent: number) {
+  const cents = Math.max(0, Math.round(annualRent * 100));
+  const base = Math.floor(cents / 8);
+  return Array.from({ length: 8 }, (_, index) =>
+    (index === 7 ? cents - base * 7 : base) / 100,
   );
+}
+
+export function calculateHousingRentTerms(annualRent: number, durationYears: RentalDuration): HousingRentTerms {
+  const safeAnnual = Math.max(0, Math.round((Number(annualRent) || 0) * 100) / 100);
+  const futureYears = Math.max(Number(durationYears) - 1, 0);
+  const totalContractRent = Math.round(safeAnnual * Number(durationYears) * 100) / 100;
+  const upfrontAmount = safeAnnual;
+  const installmentBalance = Math.round(safeAnnual * futureYears * 100) / 100;
+  const contributionsPerFutureYear = 8;
+  const oneYearCycle = splitAnnualRentIntoEight(safeAnnual);
+  const installments = Array.from({ length: futureYears }, () => oneYearCycle).flat();
 
   return {
     durationYears,
     annualRent: safeAnnual,
     totalContractRent,
-    upfrontPercent: 68,
+    upfrontPercent: Number(durationYears) > 0 ? Math.round((100 / Number(durationYears)) * 100) / 100 : 100,
     upfrontAmount,
     installmentBalance,
-    installmentCount,
+    installmentCount: futureYears * contributionsPerFutureYear,
     installments,
+    futureYears,
+    contributionStartMonth: 5,
+    contributionsPerFutureYear,
+    monthlyContribution: oneYearCycle[0] || 0,
   };
 }
