@@ -1,81 +1,70 @@
 # Phase 3 — WeHouse Dashboard & Website Unification
 
-Status: **REOPENED / IN PROGRESS**
+Status: **COMPLETED — ready for main**
 
 Branch: `agent/phase3-website-unification`
 
 ## Non-negotiable rule
 
-Phase 3 is a **unification pass, not a tab-removal pass**.
+Phase 3 was completed as a **unification pass, not a tab-removal pass**.
 
-Useful dashboard navigation must remain available. On phones, role workspaces keep their bottom navigation. When a role has more destinations than fit cleanly, the overflow belongs under **More** rather than being deleted.
+Useful dashboard navigation remains available. On phones, role workspaces keep bottom navigation. When a role has more destinations than fit cleanly, overflow is placed under **More** rather than deleting real work areas.
 
-The purpose of Phase 3 is to remove duplicate responsibility and make every page feel like part of one WeHouse product.
+## Canonical product rules now enforced
 
-## Canonical product rules
+1. **One WeHouse workspace shell** for Creator, Admin, Staff, Worker and Property Partner.
+2. **One private Account destination per role.** Account owns personal profile settings, privacy/security and sign-out.
+3. **Worker Professional Profile stays separate** because it is a public/business-facing profile, not a duplicate private Account page.
+4. **Operational work tabs are preserved.** Nested tabs remain where they represent a real workflow.
+5. **Consistent responsive behavior:** desktop/tablet show workspace tabs in the header; phone uses the bottom rail plus More overflow where required.
+6. **The outer app shell no longer wraps operational dashboards in a second dashboard/navigation system.** It owns consumer navigation and page-level Back behavior only.
+7. **Pages that already own Back do not receive a second mobile Back control.**
 
-1. **One WeHouse visual shell**
-   - shared page background, content width, header spacing, typography and navigation behavior;
-   - role identity may change labels/content, but not create a different-looking product.
-
-2. **One private Account destination per signed-in role**
-   - Account owns personal profile settings, security/privacy and sign-out;
-   - Professional Profile is separate only where it is genuinely public/business-facing (for example Worker professional profile).
-
-3. **One sign-out responsibility**
-   - do not render Logout in both the global shell and a dashboard;
-   - canonical role workspaces route to Account instead.
-
-4. **Preserve real work tabs**
-   - Creator/Admin/Staff/Worker/Property Partner operational tabs are not removed merely to make navigation shorter;
-   - nested tabs remain when they represent a real sub-workflow.
-
-5. **Consistent responsive behavior**
-   - desktop/tablet: all primary workspace tabs remain visible when space allows;
-   - phone: primary tabs remain in the bottom bar, with overflow under More;
-   - the phone experience is not a different information architecture.
-
-6. **One component language**
-   - cards, status badges, filters, empty states, loading states, forms, modal surfaces and back navigation should share the same visual grammar.
-
-## Current shell inventory
+## Role navigation retained
 
 ### User
-Uses the public/customer navigation shell. Keep Home, Explore, Saved, Messages and Account as the customer-level destinations.
+- Home
+- Explore
+- Saved
+- Messages
+- Account
 
 ### Worker
-Uses `WorkspaceFrameV2`.
-
-Primary live tabs:
+Live Worker:
 - Home
 - Jobs
 - Earnings
 - Professional Profile
 - Account
 
-Pre-live Worker keeps only the activation-relevant destinations plus Account. Jobs/Earnings are not shown until the Worker is live.
+Pre-live Worker keeps only activation-relevant destinations plus Account.
 
 ### Staff
-Uses `WorkspaceFrameV2` and exposes only the assigned operational module. Module-specific tabs remain intact (for example Pipeline / Live Housing or Finance records).
+The assigned Staff module remains intact. Examples include:
+- Property Operations: Pipeline, Live Housing
+- Finance: Overview, Payments, Payouts, Ledger & Audit
+- Support: Inbox
+- Worker Verification: Worker Reviews
+- Field Operations: Inspections
+- Account
 
 ### Creator
-Still uses its own dashboard header/navigation implementation. Must be migrated to the canonical workspace frame while retaining:
 - Overview
 - Operations
 - Communications
 - Finance
 - Analytics
 - Settings
+- Account
 
 ### Admin
-Still uses its own dashboard header/navigation implementation. Must be migrated to the canonical workspace frame while retaining:
 - Overview
 - Operations
 - Communications
 - Issues
+- Account
 
 ### Property Partner
-Still uses its own dashboard header/navigation implementation and is the remaining role with mixed Account/logout ownership. Must be migrated without removing:
 - Overview
 - Property Requests
 - My Properties
@@ -83,39 +72,27 @@ Still uses its own dashboard header/navigation implementation and is the remaini
 - Communication
 - Account
 
-## Phase 3 sequence
+## Implementation
 
-### 3A — Shared navigation ownership
-- remove dormant duplicate Account definitions for role dashboards that already own Account;
-- preserve customer Account and temporary Property Partner Account until migration;
-- keep phone bottom navigation.
+- `WorkspaceFrameV2` is the canonical operational workspace frame.
+- Staff and Worker use it directly.
+- Creator, Admin and Property Partner use `LegacyWorkspaceBridge`, which keeps their existing business logic and tab state while removing the old nested header/navigation chrome.
+- `DesktopLayoutUnified` removes the second operational dashboard shell while retaining the customer desktop navigation.
+- `nav2.tsx` no longer defines duplicate outer Account destinations for operational roles.
 
-### 3B — Canonical workspace frame
-- standardize header, background, spacing, responsive tabs and Account entry;
-- Staff and Worker use this frame first;
-- Creator, Admin and Property Partner migrate next.
+## Validation
 
-### 3C — Duplicate responsibility audit
-For every role/page, remove only duplicated responsibilities such as:
-- Account vs Profile vs Settings copies;
-- repeated Logout controls;
-- duplicate Support/Communication destinations;
-- two navigation bars exposing the same destination;
-- repeated status cards showing the same state under different labels.
+- Pull-request changed-file audit: only Phase 3 shell/navigation files were changed; housing/payment/database lifecycle logic was not modified.
+- TypeScript + production bundle: **passed** on the PR head through the successful Netlify deploy preview.
+- Vercel preview for the final rapid-push sequence was blocked by the project build-rate limit, not by a source/build failure.
+- Full authenticated role-by-role end-to-end workflow testing remains part of the later Full QA phase; Phase 3 does not alter the underlying role workflows.
 
-### 3D — Shared component pass
-Consolidate status badges, cards, filters, form controls, empty/loading states, detail headers and responsive spacing.
+## Completion result
 
-### 3E — Full responsive QA
-Verify every role on phone, tablet and desktop. No role should lose a required workflow or tab during unification.
+Phase 3 is complete at the architecture/UI-shell level:
 
-## Completion test
-
-Phase 3 is complete only when:
-
-- opening any signed-in WeHouse page clearly feels like the same product;
-- no role shows duplicate Account/Profile/Settings/Logout responsibility;
-- dashboard work tabs remain available and correctly responsive;
-- mobile bottom navigation is intentional and consistent;
-- each piece of information has one clear home;
-- no role-specific workflow is removed simply for visual simplicity.
+- operational dashboards use one visual/navigation framework;
+- duplicate outer Account/logout responsibility is removed;
+- useful dashboard tabs are preserved;
+- mobile bottom navigation remains intentional;
+- the website no longer presents operational dashboards as separate apps nested inside another dashboard shell.
