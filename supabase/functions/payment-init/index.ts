@@ -9,7 +9,7 @@ const cors = {
 };
 
 const PAYMENT_RETURN_URL = 'https://www.wehouse.com.ng/#payment-return';
-const SUPPORTED_PURPOSES = new Set(['apartment_reservation']);
+const SUPPORTED_PURPOSES = new Set(['apartment_reservation', 'apartment_rent']);
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: cors });
@@ -78,43 +78,60 @@ serve(async (req) => {
     if (!Number.isFinite(amount) || amount <= 0) return json({ success: false, error: 'Invalid payment amount' }, 409);
     if ((payment.currency || 'NGN') !== 'NGN') return json({ success: false, error: 'Payment must be in NGN' }, 409);
 
-    if (payment.purpose === 'apartment_reservation') {
-      const meta = payment.metadata && typeof payment.metadata === 'object'
-        ? payment.metadata as Record<string, unknown>
-        : {};
-      const reservationId = String(meta.reservation_id || '').trim();
-      if (!reservationId) return json({ success: false, error: 'Reservation link is missing' }, 409);
+    const meta = payment.metadata && typeof payment.metadata === 'object'
+      ? payment.metadata as Record<string, unknown>
+      : {};
+    const reservationId = String(meta.reservation_id || '').trim();
+    if (!reservationId) return json({ success: false, error: 'Reservation link is missing' }, 409);
 
-      const { data: reservation, error: reservationError } = await db
-        .from('reservations')
-        .select('id,user_id,listing_id,status,payment_reference,payment_expires_at')
-        .eq('id', reservationId)
-        .maybeSingle();
-      if (reservationError) return json({ success: false, error: reservationError.message }, 500);
-      if (!reservation || reservation.user_id !== profile.user_id || reservation.payment_reference !== reference) {
-        return json({ success: false, error: 'Reservation does not match this payment' }, 403);
-      }
-      if (reservation.status !== 'payment_pending') {
+    const { data: reservation, error: reservationError } = await db
+      .from('reservations')
+      .select('id,user_id,listing_id,status,payment_reference,payment_expires_at,rent_payment_status,rent_payment_reference,upfront_rent_required')
+      .eq('id', reservationId)
+      .maybeSingle();
+    if (reservationError) return json({ success: false, error: reservationError.message }, 500);
+    if (!reservation || reservation.user_id !== profile.user_id) {
+      return json({ success: false, error: 'Reservation does not match this account' }, 403);
+    }
+
+    const { data: listing, error: listingError } = await db
+      .from('listings')
+      .select('id,status,current_reservation_id,deleted_at')
+      .eq('id', reservation.listing_id)
+      .maybeSingle();
+    if (listingError) return json({ success: false, error: listingError.message }, 500);
+    if (!listing || listing.deleted_at || listing.current_reservation_id !== reservation.id) {
+      return json({ success: false, error: 'Property reservation is no longer valid' }, 409);
+    }
+
+    if (payment.purpose === 'apartment_reservation') {
+      if (reservation.payment_reference !== reference || reservation.status !== 'payment_pending') {
         return json({ success: false, error: 'Reservation is no longer waiting for checkout' }, 409);
       }
       if (reservation.payment_expires_at && new Date(reservation.payment_expires_at).getTime() < Date.now()) {
         return json({ success: false, error: 'Reservation checkout hold has expired. Start the reservation again.' }, 409);
       }
-
-      const { data: listing, error: listingError } = await db
-        .from('listings')
-        .select('id,status,current_reservation_id,deleted_at')
-        .eq('id', reservation.listing_id)
-        .maybeSingle();
-      if (listingError) return json({ success: false, error: listingError.message }, 500);
-      if (!listing || listing.deleted_at || listing.current_reservation_id !== reservation.id || listing.status !== 'reserved') {
+      if (listing.status !== 'reserved') {
         return json({ success: false, error: 'Property checkout hold is no longer valid' }, 409);
       }
     }
 
-    const meta = payment.metadata && typeof payment.metadata === 'object'
-      ? payment.metadata as Record<string, unknown>
-      : {};
+    if (payment.purpose === 'apartment_rent') {
+      if (reservation.status !== 'ready_for_move_in') {
+        return json({ success: false, error: 'Contract rent is payable only after the inspection gate passes' }, 409);
+      }
+      if (reservation.rent_payment_status !== 'payment_pending' || reservation.rent_payment_reference !== reference) {
+        return json({ success: false, error: 'Contract-rent checkout is no longer active' }, 409);
+      }
+      const required = Number(reservation.upfront_rent_required || 0);
+      if (!Number.isFinite(required) || Math.round(required * 100) !== Math.round(amount * 100)) {
+        return json({ success: false, error: 'Contract-rent amount does not match the reservation terms' }, 409);
+      }
+      if (listing.status !== 'reserved') {
+        return json({ success: false, error: 'Property is no longer reserved for this contract' }, 409);
+      }
+    }
+
     const existingUrl = typeof meta.paystack_authorization_url === 'string' ? meta.paystack_authorization_url : '';
     const existingCode = typeof meta.paystack_access_code === 'string' ? meta.paystack_access_code : '';
     if (existingUrl && existingCode) {
@@ -137,8 +154,8 @@ serve(async (req) => {
           purpose: payment.purpose,
           payment_id: payment.id,
           listing_id: payment.listing_id || null,
-          reservation_id: meta.reservation_id || null,
-          return_page: payment.purpose === 'apartment_reservation' ? 'my_reservations' : null,
+          reservation_id: reservationId,
+          return_page: 'my_reservations',
         }),
       }),
     });
