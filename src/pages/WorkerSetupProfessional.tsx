@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { getServiceCategories, getServiceSubcategories, updateProfile, uploadAvatar } from '@/lib/supabase';
 import LocationSelector from '@/legacy/LocationSelector';
+import SearchableSelect from '@/components/SearchableSelect';
 import type { Profile, ServiceCategory, ServiceSubcategory } from '@/types';
 
 type Props = { profile: Profile; onComplete: () => void };
@@ -31,9 +32,12 @@ export default function WorkerSetupProfessional({ profile, onComplete }: Props) 
   }, [profile.worker_occupation]);
 
   useEffect(() => {
-    if (!category) return void setSubs([]);
+    if (!category) { setSubs([]); return; }
     void getServiceSubcategories(category).then(({ subcategories }) => setSubs(subcategories || []));
   }, [category]);
+
+  const categoryOptions = useMemo(() => categories.map((item) => ({ value: item.id, label: item.name })), [categories]);
+  const specialtyOptions = useMemo(() => subs.map((item) => ({ value: item.name, label: item.name })), [subs]);
 
   async function photo(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -48,64 +52,92 @@ export default function WorkerSetupProfessional({ profile, onComplete }: Props) 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     const service = categories.find((item) => item.id === category);
-    if (!name.trim()) return toast.error('Full name is required');
+    if (!name.trim()) return toast.error('Add your full name');
     if (!service || !specialty) return toast.error('Choose your service and specialty');
+    if (!experience.trim()) return toast.error('Add your work experience');
     if (!location.state || !location.city) return toast.error('Choose your State and LGA');
-    if (!experience.trim()) return toast.error('Describe your professional experience');
 
     setBusy(true);
     const { error } = await updateProfile(profile.user_id, {
-      full_name: name.trim(), avatar_url: avatar || null, phone: phone.trim() || null,
-      worker_occupation: service.name, worker_skills: [specialty], worker_price: price ? Number(price) : null,
-      worker_bio: bio.trim() || null, worker_experience: experience.trim(), country: location.country,
-      state: location.state, city: location.city, local_government: location.city, area: location.area || null,
+      full_name: name.trim(),
+      avatar_url: avatar || null,
+      phone: phone.trim() || null,
+      worker_occupation: service.name,
+      worker_skills: [specialty],
+      worker_price: price ? Number(price) : null,
+      worker_bio: bio.trim() || null,
+      worker_experience: experience.trim(),
+      country: location.country,
+      state: location.state,
+      city: location.city,
+      local_government: location.city,
+      area: location.area || null,
       profile_complete: true,
     });
     setBusy(false);
     if (error) return toast.error(error.message);
+    toast.success('Professional profile saved');
 
-    if (!profile.profile_complete) {
-      localStorage.setItem('wh_navpage', 'worker_dashboard');
-      window.location.reload();
-      return;
-    }
-    toast.success('Professional profile updated');
+    try {
+      if (sessionStorage.getItem('wh_worker_setup_return') === 'verification') {
+        sessionStorage.removeItem('wh_worker_setup_return');
+        localStorage.setItem('wh_navpage', 'worker_verification');
+        window.history.replaceState({ page: 'worker_verification' }, '', '#worker_verification');
+        window.location.reload();
+        return;
+      }
+    } catch {}
     onComplete();
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B11] text-white">
-      <Toaster position="top-center" richColors />
-      <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
-        <div>
-          <p className="text-[9px] font-bold tracking-[.18em] text-cyan-400">PROFESSIONAL PROFILE</p>
-          <h1 className="mt-2 text-2xl font-bold">{profile.profile_complete ? 'Edit your service profile' : 'Set up your local service profile'}</h1>
-          <p className="mt-2 text-[11px] leading-relaxed text-[#747A8B]">This is the professional profile customers will rely on. Payment confirmation, the WeHouse readiness check, work evidence and internal professional review happen afterward in Verification.</p>
-        </div>
-
-        <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => photoRef.current?.click()} className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-cyan-500 text-xl font-bold">{avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : (name || 'W')[0]}</button>
-            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={photo} />
-            <div className="flex-1"><Field label="Full name" value={name} set={setName} /></div>
+    <div className="min-h-[100dvh] bg-[#090B11] pb-8 text-white">
+      <Toaster position="top-center" richColors theme="dark" />
+      <main className="mx-auto max-w-2xl px-4 py-5 sm:px-5">
+        <header className="mb-4">
+          <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">PROFESSIONAL PROFILE</p>
+          <div className="mt-1 flex items-end justify-between gap-3">
+            <h1 className="text-xl font-bold">{profile.profile_complete ? 'Edit profile' : 'Set up your work profile'}</h1>
+            <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.03] px-2.5 py-1 text-[8px] font-semibold text-[#777E8E]">PUBLIC AFTER APPROVAL</span>
           </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Phone" value={phone} set={setPhone} /><Field label="Starting price" value={price} set={(value) => setPrice(value.replace(/[^0-9]/g, ''))} /></div>
-        </section>
+        </header>
 
-        <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
-          <div className="grid gap-3 sm:grid-cols-2"><Select label="Service category" value={category} set={(value) => { setCategory(value); setSpecialty(''); }} options={categories.map((item) => [item.id, item.name])} /><Select label="Specialty" value={specialty} set={setSpecialty} options={subs.map((item) => [item.name, item.name])} /></div>
-          <label className="mt-3 block"><span className="mb-1 block text-[9px] uppercase text-[#666D7E]">Professional experience</span><textarea value={experience} onChange={(event) => setExperience(event.target.value)} rows={3} placeholder="Example: 4 years installing and repairing household electrical systems" className="w-full rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none" /></label>
-          <textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={5} placeholder="Describe the work you handle and what customers can expect" className="mt-3 w-full rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none" />
-        </section>
+        <form onSubmit={save} className="space-y-3">
+          <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => photoRef.current?.click()} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-500/20 bg-violet-500/15 text-lg font-bold text-violet-200">
+                {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : (name || 'W')[0].toUpperCase()}
+              </button>
+              <input ref={photoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={photo} />
+              <div className="min-w-0 flex-1"><Field label="Full name" value={name} set={setName} /></div>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Phone" value={phone} set={setPhone} /><Field label="Starting price (₦)" value={price} inputMode="numeric" set={(value) => setPrice(value.replace(/[^0-9]/g, ''))} /></div>
+          </section>
 
-        <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4"><h2 className="text-sm font-semibold">Service coverage</h2><p className="mt-1 text-[10px] leading-relaxed text-[#747A8B]">Your State and LGA decide where customers can discover you. The server saves this as your Worker service coverage.</p><div className="mt-3"><LocationSelector value={location} onChange={setLocation} /></div></section>
+          <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+            <div className="mb-3"><h2 className="text-sm font-semibold">What do you do?</h2><p className="mt-1 text-[9px] text-[#697080]">Choose your main service and specialty.</p></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SearchableSelect label="Service" value={category} onChange={(value) => { setCategory(value); setSpecialty(''); }} options={categoryOptions} placeholder="Choose service" searchPlaceholder="Search services" />
+              <SearchableSelect label="Specialty" value={specialty} onChange={setSpecialty} options={specialtyOptions} placeholder={category ? 'Choose specialty' : 'Choose service first'} searchPlaceholder="Search specialty" disabled={!category} />
+            </div>
+            <label className="mt-3 block"><span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">Experience</span><textarea value={experience} onChange={(event) => setExperience(event.target.value)} rows={3} placeholder="Example: 4 years installing and repairing home electrical systems" className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181B24] p-3 text-xs outline-none placeholder:text-[#5E6473] focus:border-violet-500/40" /></label>
+            <label className="mt-3 block"><span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">About your work <span className="text-[#5E6473]">(optional)</span></span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} placeholder="What can customers expect from you?" className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181B24] p-3 text-xs outline-none placeholder:text-[#5E6473] focus:border-violet-500/40" /></label>
+          </section>
 
-        {profile.worker_status === 'verified' && <p className="rounded-xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[10px] text-amber-200">Major professional changes to a live Worker may require a new review before they are reflected publicly.</p>}
-        <button onClick={save as any} disabled={busy} className="h-12 w-full rounded-xl bg-cyan-500 text-sm font-semibold text-[#051018] disabled:opacity-40">{busy ? 'Saving…' : 'Save professional profile'}</button>
+          <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+            <div className="mb-3"><h2 className="text-sm font-semibold">Where do you work?</h2><p className="mt-1 text-[9px] text-[#697080]">Customers discover you within this service area.</p></div>
+            <LocationSelector value={location} onChange={setLocation} />
+          </section>
+
+          {profile.worker_status === 'verified' && <div className="rounded-xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[9px] text-amber-200">Major changes to a live profile may require review again.</div>}
+
+          <button type="submit" disabled={busy} className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Saving…' : profile.profile_complete ? 'Save changes' : 'Save & continue'}</button>
+        </form>
       </main>
     </div>
   );
 }
 
-function Field({ label, value, set }: { label: string; value: string; set: (value: string) => void }) { return <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#666D7E]">{label}</span><input value={value} onChange={(event) => set(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none" /></label>; }
-function Select({ label, value, set, options }: { label: string; value: string; set: (value: string) => void; options: string[][] }) { return <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#666D7E]">{label}</span><select value={value} onChange={(event) => set(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs"><option value="">Choose</option>{options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}</select></label>; }
+function Field({ label, value, set, inputMode }: { label: string; value: string; set: (value: string) => void; inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'] }) {
+  return <label className="block"><span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">{label}</span><input value={value} inputMode={inputMode} onChange={(event) => set(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181B24] px-3 text-xs outline-none focus:border-violet-500/40" /></label>;
+}
