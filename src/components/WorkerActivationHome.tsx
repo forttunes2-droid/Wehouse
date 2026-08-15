@@ -7,8 +7,8 @@ type Activation = {
   worker_status: string;
   live: boolean;
   profile_complete: boolean;
-  gold_badge: boolean;
-  identity_captured: boolean;
+  payment_confirmed?: boolean;
+  gold_badge?: boolean;
   identity_passed: boolean;
   test_passed: boolean;
   evidence_saved: boolean;
@@ -32,7 +32,8 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
   if (error) return <State text={error} />;
   if (!data) return <State text="Loading…" />;
 
-  const verificationDone = data.identity_captured && data.gold_badge && data.test_passed && data.evidence_saved;
+  const paymentDone = Boolean(data.payment_confirmed ?? data.gold_badge);
+  const verificationDone = data.identity_passed && paymentDone && data.test_passed && data.evidence_saved;
   const underReview = data.worker_status === 'profile_under_review' || data.submitted;
   const live = data.live || data.worker_status === 'verified';
   const stages = [
@@ -53,18 +54,18 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
     action = onProfile;
     actionLabel = 'View professional profile';
   } else if (underReview) {
-    title = 'Review in progress';
-    note = data.identity_passed ? 'Your identity/liveness and work evidence are being finalized.' : 'Verification Staff are reviewing your private identity/liveness and work evidence.';
+    title = 'Professional review in progress';
+    note = 'Your automatic private face check already passed. Verification Staff are reviewing your work evidence.';
     action = onVerification;
     actionLabel = 'View review status';
   } else if (data.profile_complete && verificationDone) {
     title = 'Ready for WeHouse review';
-    note = 'Your private identity capture, payment, readiness check and work evidence are complete.';
+    note = 'Your face check, payment, readiness check and work evidence are complete.';
     action = onVerification;
     actionLabel = 'Submit for review';
   } else if (data.profile_complete) {
     title = 'Complete work verification';
-    note = 'Private face check, verification payment, readiness check and work evidence.';
+    note = 'Private automatic face check, verification payment, readiness check and work evidence.';
     action = onVerification;
     actionLabel = 'Continue work verification';
   }
@@ -91,7 +92,7 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
         </div>
         <button onClick={action} className="mt-4 h-12 w-full rounded-2xl bg-violet-500 text-[11px] font-semibold text-white">{actionLabel}</button>
       </section>
-      {data.rejection_reason && <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-[9px] font-semibold text-red-200">Review feedback</p><p className="mt-1 text-[10px] text-red-100/70">{data.rejection_reason}</p></section>}
+      {data.rejection_reason && <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-[9px] font-semibold text-red-200">Professional review feedback</p><p className="mt-1 text-[10px] text-red-100/70">{data.rejection_reason}</p></section>}
     </div>
   );
 }
