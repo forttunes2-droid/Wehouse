@@ -1,0 +1,4 @@
+# WeHouse production is deployed through Vercel.
+# Keep any legacy Netlify site from building repository pushes automatically.
+[build]
+  ignore = "exit 0"
