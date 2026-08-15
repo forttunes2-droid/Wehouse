@@ -13,6 +13,7 @@ export interface VerifyPaymentResult {
   amount?: number;
   paystack_status?: string;
   transaction_id?: number;
+  purpose?: string;
   error?: string;
   expected?: number;
 }
