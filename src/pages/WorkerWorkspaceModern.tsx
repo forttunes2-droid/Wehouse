@@ -47,6 +47,7 @@ export default function WorkerWorkspaceModern({
         profile={profile}
         onEdit={onGoToSetup}
         onVerification={() => onNavigate?.('worker_verification')}
+        onShowcase={live ? () => setTab('showcase') : undefined}
       />
     );
   } else if (live && safeTab === 'jobs') {
@@ -67,15 +68,21 @@ export default function WorkerWorkspaceModern({
     );
   }
 
+  const description = safeTab === 'profile'
+    ? live
+      ? 'Preview and manage the professional profile customers see.'
+      : 'Build the professional profile customers will see after approval.'
+    : safeTab === 'showcase'
+      ? 'Share current work and keep your best work in Portfolio.'
+      : live
+        ? 'Manage your work from one place.'
+        : 'Finish verification before your services become public.';
+
   return (
     <WorkspaceFrameV2
       label="WEHOUSE · WORKER"
       title={nav.find((item) => item.id === safeTab)?.label || 'Worker'}
-      description={
-        live
-          ? 'Manage jobs, Work Status updates, Portfolio, earnings and your public professional profile from one workspace.'
-          : 'Complete WeHouse professional verification before your services become public.'
-      }
+      description={description}
       items={nav}
       active={safeTab}
       setActive={(id) => setTab(id as Tab)}
@@ -98,9 +105,7 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
               <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] font-semibold text-emerald-300">WEHOUSE VERIFIED</span>
             </div>
             <h2 className="mt-3 truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
-            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">
-              Keep your jobs moving, show customers what you are working on, and keep your professional profile current.
-            </p>
+            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Keep jobs moving and keep your public work current.</p>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[9px] text-[#6F7787]">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -113,14 +118,14 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
         <button onClick={() => setTab('showcase')} className="rounded-3xl border border-violet-500/15 bg-violet-500/[.05] p-5 text-left transition hover:bg-violet-500/[.08]">
           <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">SHOW YOUR WORK</p>
           <h3 className="mt-2 text-base font-bold">Post a Work Status</h3>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#777E8E]">Share a 24-hour photo or video update, or add permanent work to your Portfolio.</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-[#777E8E]">24-hour update or permanent Portfolio work.</p>
           <p className="mt-3 text-[10px] font-semibold text-violet-300">Open Showcase →</p>
         </button>
         <button onClick={() => setTab('profile')} className="rounded-3xl border border-white/[.07] bg-[#10141C] p-5 text-left transition hover:bg-white/[.035]">
           <p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#6E7484]">CUSTOMER VIEW</p>
           <h3 className="mt-2 text-base font-bold">Professional Profile</h3>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#777E8E]">Keep your service, skills, price, coverage and professional description accurate.</p>
-          <p className="mt-3 text-[10px] font-semibold text-[#B3B8C4]">Manage profile →</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-[#777E8E]">Preview and update what customers see.</p>
+          <p className="mt-3 text-[10px] font-semibold text-[#B3B8C4]">Open profile →</p>
         </button>
       </div>
 
