@@ -63,6 +63,7 @@ serve(async (req) => {
     if (!testResult.data?.length) return response({ success: false, error: 'Pass the Worker readiness test first' }, 409);
     if (!evidenceResult.data?.verification_video_url) return response({ success: false, error: 'Professional evidence is required first' }, 409);
     if (evidenceResult.data.identity_status === 'verified') return response({ success: true, verified: true, already_verified: true });
+    if (evidenceResult.data.identity_status === 'pending_external') return response({ success: true, verified: false, pending: true, already_pending: true });
 
     const body = await req.json();
     const vnin = String(body?.vnin || '').trim().toUpperCase();
@@ -104,7 +105,7 @@ serve(async (req) => {
       await admin.rpc('record_external_worker_identity_result', {
         p_worker_id: profile.user_id,
         p_provider: 'youverify',
-        p_reference: provider?.data?.id || null,
+        p_reference: provider?.data?.id || provider?.data?.verificationId || null,
         p_status: transient ? 'needs_retry' : 'failed',
         p_failure_reason: failure,
       });
@@ -112,11 +113,38 @@ serve(async (req) => {
     }
 
     const providerData = provider.data || {};
+    const providerStatus = String(providerData.status || '').toLowerCase();
+    const providerReference = String(providerData.id || providerData.verificationId || providerData.referenceId || '');
+
+    // Youverify can accept the request while an upstream identity source is
+    // temporarily unavailable. Preserve that state and wait for the signed
+    // identity.completed webhook instead of incorrectly failing the Worker.
+    if (providerStatus === 'pending') {
+      if (!providerReference) {
+        await admin.rpc('record_external_worker_identity_result', {
+          p_worker_id: profile.user_id,
+          p_provider: 'youverify',
+          p_reference: null,
+          p_status: 'needs_retry',
+          p_failure_reason: 'Identity provider returned pending without a verification reference',
+        });
+        return response({ success: false, verified: false, reason: 'Identity provider returned an incomplete pending response' }, 503);
+      }
+      const { error: pendingError } = await admin.rpc('record_external_worker_identity_result', {
+        p_worker_id: profile.user_id,
+        p_provider: 'youverify',
+        p_reference: providerReference,
+        p_status: 'pending_external',
+        p_failure_reason: null,
+      });
+      if (pendingError) return response({ success: false, error: pendingError.message }, 500);
+      return response({ success: true, verified: false, pending: true, reference: providerReference });
+    }
+
     const face = providerData?.validations?.selfie?.selfieVerification;
-    const found = providerData.status === 'found';
+    const found = providerStatus === 'found';
     const faceMatch = face?.match === true;
     const verified = found && faceMatch;
-    const providerReference = String(providerData.id || '');
     const reason = verified
       ? null
       : (providerData?.validations?.validationMessages || providerData?.reason || (!found ? 'Government identity was not found' : 'Selfie did not match the government identity'));
