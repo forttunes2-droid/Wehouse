@@ -83,8 +83,9 @@ The assigned Staff module remains intact. Examples include:
 ## Validation
 
 - Pull-request changed-file audit: only Phase 3 shell/navigation files were changed; housing/payment/database lifecycle logic was not modified.
-- TypeScript + production bundle: **passed** on the PR head through the successful Netlify deploy preview.
-- Vercel preview for the final rapid-push sequence was blocked by the project build-rate limit, not by a source/build failure.
+- TypeScript + production bundle: **passed** on commit `a56f468c707548dd21887bb9a7b2b05a50b3aaed` through the successful Netlify deploy-preview build.
+- The following closeout commit changes this document only; it does not alter runtime code.
+- Vercel preview checks during the rapid-push closeout were blocked by the project build-rate limit, not by a source/build failure.
 - Full authenticated role-by-role end-to-end workflow testing remains part of the later Full QA phase; Phase 3 does not alter the underlying role workflows.
 
 ## Completion result
