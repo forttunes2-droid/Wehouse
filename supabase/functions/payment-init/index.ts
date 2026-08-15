@@ -1,0 +1,178 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json',
+};
+
+const PAYMENT_RETURN_URL = 'https://www.wehouse.com.ng/#payment-return';
+const SUPPORTED_PURPOSES = new Set(['apartment_reservation']);
+
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: cors });
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return json({ success: false, error: 'Method not allowed' }, 405);
+
+  try {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) return json({ success: false, error: 'Authorization required' }, 401);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const paystackSecret = Deno.env.get('PAYSTACK_SECRET_KEY');
+    if (!supabaseUrl || !serviceKey || !paystackSecret) {
+      return json({ success: false, error: 'Payment server configuration is incomplete' }, 503);
+    }
+
+    const db = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: { user }, error: authError } = await db.auth.getUser(token);
+    if (authError || !user?.email) return json({ success: false, error: 'Invalid or expired session' }, 401);
+
+    const { data: profile, error: profileError } = await db
+      .from('profiles')
+      .select('user_id,role,deleted,suspended,banned')
+      .eq('auth_id', user.id)
+      .maybeSingle();
+    if (profileError) return json({ success: false, error: profileError.message }, 500);
+    if (!profile || profile.deleted || profile.suspended || profile.banned) {
+      return json({ success: false, error: 'Account is not active' }, 403);
+    }
+
+    const body = await req.json();
+    const reference = String(body?.reference || '').trim();
+    if (!/^[A-Za-z0-9.=_-]{6,120}$/.test(reference)) {
+      return json({ success: false, error: 'Invalid payment reference' }, 400);
+    }
+
+    const { data: payment, error: paymentError } = await db
+      .from('booking_payments')
+      .select('id,user_id,payer_user_id,amount,amount_total,currency,status,purpose,paystack_reference,listing_id,metadata')
+      .eq('paystack_reference', reference)
+      .maybeSingle();
+    if (paymentError) return json({ success: false, error: paymentError.message }, 500);
+    if (!payment || !SUPPORTED_PURPOSES.has(String(payment.purpose || ''))) {
+      return json({ success: false, error: 'Unsupported payment request' }, 404);
+    }
+
+    const owner = payment.payer_user_id || payment.user_id;
+    if (!owner || owner !== profile.user_id) {
+      return json({ success: false, error: 'Payment does not belong to the authenticated account' }, 403);
+    }
+    if (payment.status === 'paid' || payment.status === 'completed') {
+      return json({ success: true, already_paid: true, reference, purpose: payment.purpose });
+    }
+    if (payment.status !== 'pending') {
+      return json({ success: false, error: 'This payment can no longer be initialized' }, 409);
+    }
+
+    const amount = Number(payment.amount_total ?? payment.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) return json({ success: false, error: 'Invalid payment amount' }, 409);
+    if ((payment.currency || 'NGN') !== 'NGN') return json({ success: false, error: 'Payment must be in NGN' }, 409);
+
+    if (payment.purpose === 'apartment_reservation') {
+      const meta = payment.metadata && typeof payment.metadata === 'object'
+        ? payment.metadata as Record<string, unknown>
+        : {};
+      const reservationId = String(meta.reservation_id || '').trim();
+      if (!reservationId) return json({ success: false, error: 'Reservation link is missing' }, 409);
+
+      const { data: reservation, error: reservationError } = await db
+        .from('reservations')
+        .select('id,user_id,listing_id,status,payment_reference,payment_expires_at')
+        .eq('id', reservationId)
+        .maybeSingle();
+      if (reservationError) return json({ success: false, error: reservationError.message }, 500);
+      if (!reservation || reservation.user_id !== profile.user_id || reservation.payment_reference !== reference) {
+        return json({ success: false, error: 'Reservation does not match this payment' }, 403);
+      }
+      if (reservation.status !== 'payment_pending') {
+        return json({ success: false, error: 'Reservation is no longer waiting for checkout' }, 409);
+      }
+      if (reservation.payment_expires_at && new Date(reservation.payment_expires_at).getTime() < Date.now()) {
+        return json({ success: false, error: 'Reservation checkout hold has expired. Start the reservation again.' }, 409);
+      }
+
+      const { data: listing, error: listingError } = await db
+        .from('listings')
+        .select('id,status,current_reservation_id,deleted_at')
+        .eq('id', reservation.listing_id)
+        .maybeSingle();
+      if (listingError) return json({ success: false, error: listingError.message }, 500);
+      if (!listing || listing.deleted_at || listing.current_reservation_id !== reservation.id || listing.status !== 'reserved') {
+        return json({ success: false, error: 'Property checkout hold is no longer valid' }, 409);
+      }
+    }
+
+    const meta = payment.metadata && typeof payment.metadata === 'object'
+      ? payment.metadata as Record<string, unknown>
+      : {};
+    const existingUrl = typeof meta.paystack_authorization_url === 'string' ? meta.paystack_authorization_url : '';
+    const existingCode = typeof meta.paystack_access_code === 'string' ? meta.paystack_access_code : '';
+    if (existingUrl && existingCode) {
+      return json({ success: true, reference, purpose: payment.purpose, authorization_url: existingUrl, access_code: existingCode, existing: true });
+    }
+
+    const response = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${paystackSecret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: user.email,
+        amount: String(Math.round(amount * 100)),
+        currency: 'NGN',
+        reference,
+        callback_url: PAYMENT_RETURN_URL,
+        metadata: JSON.stringify({
+          purpose: payment.purpose,
+          payment_id: payment.id,
+          listing_id: payment.listing_id || null,
+          reservation_id: meta.reservation_id || null,
+          return_page: payment.purpose === 'apartment_reservation' ? 'my_reservations' : null,
+        }),
+      }),
+    });
+
+    let initialized: any = null;
+    try { initialized = await response.json(); } catch { initialized = null; }
+    if (!response.ok || !initialized?.status || !initialized?.data?.authorization_url || !initialized?.data?.access_code) {
+      return json({ success: false, error: initialized?.message || 'Paystack could not initialize this payment' }, response.status >= 500 ? 502 : 400);
+    }
+
+    const authorizationUrl = String(initialized.data.authorization_url);
+    const accessCode = String(initialized.data.access_code);
+    const nextMeta = {
+      ...meta,
+      paystack_access_code: accessCode,
+      paystack_authorization_url: authorizationUrl,
+      paystack_initialized_at: new Date().toISOString(),
+    };
+    const { error: updateError } = await db
+      .from('booking_payments')
+      .update({ metadata: nextMeta, updated_at: new Date().toISOString() })
+      .eq('id', payment.id)
+      .eq('status', 'pending');
+    if (updateError) return json({ success: false, error: 'Could not persist payment session' }, 500);
+
+    return json({
+      success: true,
+      reference,
+      purpose: payment.purpose,
+      authorization_url: authorizationUrl,
+      access_code: accessCode,
+      existing: false,
+    });
+  } catch (error) {
+    return json({ success: false, error: error instanceof Error ? error.message : 'Payment initialization failed' }, 500);
+  }
+});
