@@ -1,4 +1,4 @@
-import AdminDashboardModern from './AdminDashboardModern';
+import AdminDashboardModernV2 from './AdminDashboardModernV2';
 import type { Profile } from '@/types';
 
 type Props = {
@@ -9,5 +9,5 @@ type Props = {
 };
 
 export default function AdminDashboardUnified(props: Props) {
-  return <AdminDashboardModern {...props} />;
+  return <AdminDashboardModernV2 {...props} />;
 }
