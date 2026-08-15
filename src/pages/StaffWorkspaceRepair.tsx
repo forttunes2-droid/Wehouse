@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Toaster } from 'sonner';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
 import PropertyPipelineWorkspace from '@/components/PropertyPipelineWorkspace';
@@ -8,6 +8,7 @@ import StaffVerificationQueueV2 from '@/components/StaffVerificationQueueV2';
 import StaffInspectionWorkspaceV2 from '@/components/StaffInspectionWorkspaceV2';
 import StaffFinanceSummary from '@/components/StaffFinanceSummary';
 import StaffFinanceRecords from '@/components/StaffFinanceRecords';
+import { supabase } from '@/lib/supabase';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
 import type { Profile } from '@/types';
 
@@ -19,36 +20,65 @@ type Props = {
   onNavigate?: (page: string) => void;
 };
 
+type StaffTrust = {
+  status: 'probation' | 'trusted' | 'restricted' | 'revoked';
+  notes?: string | null;
+  appointed_at?: string | null;
+  trusted_at?: string | null;
+};
+
 const MODULES: Module[] = ['operations', 'finance', 'support', 'verification', 'field_officer'];
 
 export default function StaffWorkspaceRepair({ profile, onLogout, onNavigate }: Props) {
   const { permissions, loading } = useStaffPermissions(profile.user_id);
+  const [trust, setTrust] = useState<StaffTrust | null>(null);
+  const [trustLoading, setTrustLoading] = useState(true);
+  const [trustError, setTrustError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void supabase.rpc('get_my_staff_trust_status').then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        setTrustError(error.message);
+        setTrust(null);
+      } else {
+        setTrust((data || null) as StaffTrust | null);
+        setTrustError('');
+      }
+      setTrustLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile.user_id]);
+
   const assigned = useMemo(
     () => permissions.filter((value): value is Module => MODULES.includes(value as Module)),
     [permissions],
   );
 
-  if (loading) return <State text="Loading staff workspace…" />;
+  if (loading || trustLoading) return <State title="Loading staff workspace" text="Checking your Staff assignment and WeHouse trust status…" />;
+  if (trustError) return <State title="Staff trust check unavailable" text={trustError} />;
+  if (!trust || trust.status !== 'trusted') {
+    const message = trust?.status === 'restricted'
+      ? 'Your Staff account is temporarily restricted. Contact your Admin or Creator before handling operational work.'
+      : trust?.status === 'revoked'
+        ? 'Your Staff trust access has been revoked. Operational permissions are disabled.'
+        : 'Your Staff account is in probation. Your Admin or Creator must complete the WeHouse trust review before operational permissions become active.';
+    return <State title={`Staff trust · ${trust?.status || 'probation'}`} text={message} />;
+  }
+
   if (assigned.length !== 1) {
     return (
       <State
-        text={
-          assigned.length
-            ? 'This Staff account has conflicting module assignments.'
-            : 'No Staff module is assigned to this account.'
-        }
+        title="Staff assignment needs attention"
+        text={assigned.length ? 'This Staff account has conflicting module assignments.' : 'No Staff module is assigned to this account.'}
       />
     );
   }
 
-  return (
-    <Workspace
-      module={assigned[0]}
-      profile={profile}
-      onLogout={onLogout}
-      onNavigate={onNavigate}
-    />
-  );
+  return <Workspace module={assigned[0]} profile={profile} onLogout={onLogout} onNavigate={onNavigate} />;
 }
 
 function Workspace({
@@ -104,7 +134,7 @@ function Workspace({
               }
             : {
                 title: 'Worker Verification',
-                description: 'Review professional evidence and the external identity result before activation.',
+                description: 'Review Worker professional readiness and work evidence before activation.',
                 items: [{ id: 'reviews', label: 'Worker Reviews' }],
               };
 
@@ -116,12 +146,7 @@ function Workspace({
   } else if (module === 'field_officer') {
     content = <StaffInspectionWorkspaceV2 profile={profile} />;
   } else if (module === 'finance') {
-    content =
-      tab === 'overview' ? (
-        <StaffFinanceSummary open={setTab as any} />
-      ) : (
-        <StaffFinanceRecords view={tab as 'payments' | 'payouts' | 'ledger'} />
-      );
+    content = tab === 'overview' ? <StaffFinanceSummary open={setTab as any} /> : <StaffFinanceRecords view={tab as 'payments' | 'payouts' | 'ledger'} />;
   } else {
     content = <StaffVerificationQueueV2 />;
   }
@@ -132,7 +157,7 @@ function Workspace({
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
-        label="WEHOUSE · STAFF"
+        label="WEHOUSE · STAFF · TRUSTED"
         title={config.title}
         description={`${config.description} · ${branch}`}
         items={config.items}
@@ -147,10 +172,14 @@ function Workspace({
   );
 }
 
-function State({ text }: { text: string }) {
+function State({ title, text }: { title: string; text: string }) {
   return (
-    <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-center text-xs text-[#747A8B]">
-      {text}
+    <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white">
+      <div className="w-full max-w-lg rounded-3xl border border-white/[.07] bg-[#10141C] p-6 text-center">
+        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">WEHOUSE STAFF TRUST</p>
+        <h1 className="mt-3 text-lg font-bold capitalize">{title}</h1>
+        <p className="mt-2 text-[11px] leading-relaxed text-[#747A8B]">{text}</p>
+      </div>
     </div>
   );
 }

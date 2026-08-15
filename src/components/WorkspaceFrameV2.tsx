@@ -28,13 +28,27 @@ export default function WorkspaceFrameV2({
   // route, not duplicate Logout in both the workspace chrome and Account.
   void onLogout;
   const [more, setMore] = useState(false);
-  const hasOverflow = items.length > 4;
-  const direct = hasOverflow ? items.slice(0, onAccount ? 3 : 4) : items;
-  const extra = hasOverflow ? items.slice(direct.length) : [];
+
+  // Phone navigation should never render a confusing "More" tab followed by
+  // another permanent Account tab. If everything fits in five slots we show it
+  // directly. Otherwise the first four work destinations stay visible and all
+  // overflow (including Account) lives inside one More sheet.
+  const mobileSlotCount = items.length + (onAccount ? 1 : 0);
+  const hasOverflow = mobileSlotCount > 5;
+  const direct = hasOverflow ? items.slice(0, 4) : items;
+  const extra = hasOverflow ? items.slice(4) : [];
+  const accountInMore = hasOverflow && Boolean(onAccount);
+  const accountDirect = !hasOverflow && Boolean(onAccount);
 
   function go(id: string) {
     setActive(id);
     setMore(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function goAccount() {
+    setMore(false);
+    onAccount?.();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -55,7 +69,7 @@ export default function WorkspaceFrameV2({
             </div>
             {onAccount && (
               <button
-                onClick={onAccount}
+                onClick={goAccount}
                 className="hidden min-h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[.08] bg-white/[.03] px-3 text-[10px] font-semibold text-[#A4A9B8] transition hover:bg-white/[.05] hover:text-white sm:flex"
               >
                 <NavIcon id="account" />
@@ -85,7 +99,7 @@ export default function WorkspaceFrameV2({
 
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 lg:px-8 lg:py-7">{children}</main>
 
-      {more && extra.length > 0 && (
+      {more && hasOverflow && (
         <>
           <button
             aria-label="Close more navigation"
@@ -103,14 +117,19 @@ export default function WorkspaceFrameV2({
                 <span className="text-[#626878]">›</span>
               </button>
             ))}
+            {accountInMore && (
+              <button
+                onClick={goAccount}
+                className="flex min-h-12 w-full items-center justify-between rounded-2xl px-4 text-left text-xs font-semibold text-[#D7DAE2] transition hover:bg-white/[.04]"
+              >
+                <span className="flex items-center gap-3"><NavIcon id="account" /><span>Account</span></span>
+                <span className="text-[#626878]">›</span>
+              </button>
+            )}
           </div>
         </>
       )}
 
-      {/*
-        Phone navigation is intentionally retained. Phase 3 unifies ownership
-        and styling; it does not remove useful role dashboard tabs.
-      */}
       <nav className="fixed inset-x-0 bottom-0 z-[67] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
         <div className="mx-auto flex min-h-[4.5rem] max-w-lg items-stretch px-1">
           {direct.map((item) => (
@@ -123,11 +142,11 @@ export default function WorkspaceFrameV2({
             />
           ))}
 
-          {extra.length > 0 && (
+          {hasOverflow && (
             <BottomTab id="more" label="More" active={more} onClick={() => setMore((value) => !value)} />
           )}
 
-          {onAccount && <BottomTab id="account" label="Account" active={false} onClick={onAccount} />}
+          {accountDirect && <BottomTab id="account" label="Account" active={false} onClick={goAccount} />}
         </div>
       </nav>
     </div>
@@ -171,7 +190,7 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'jobs' || id === 'reviews' || id === 'pipeline' || id === 'housing' || id === 'properties') {
+  if (id === 'jobs' || id === 'reviews' || id === 'pipeline' || id === 'housing' || id === 'properties' || id === 'showcase') {
     return (
       <svg {...common}>
         <rect x="4" y="6" width="16" height="13" rx="2" />
