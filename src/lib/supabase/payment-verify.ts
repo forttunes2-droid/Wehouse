@@ -11,6 +11,7 @@ export interface VerifyPaymentResult {
   recorded?: boolean;
   already_processed?: boolean;
   amount?: number;
+  purpose?: string;
   paystack_status?: string;
   transaction_id?: number;
   error?: string;
