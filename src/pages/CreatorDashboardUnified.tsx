@@ -1,4 +1,4 @@
-import CreatorDashboardModern from './CreatorDashboardModern';
+import CreatorDashboardModernV2 from './CreatorDashboardModernV2';
 import type { Profile } from '@/types';
 
 type Props = {
@@ -10,5 +10,5 @@ type Props = {
 };
 
 export default function CreatorDashboardUnified(props: Props) {
-  return <CreatorDashboardModern {...props} />;
+  return <CreatorDashboardModernV2 {...props} />;
 }
