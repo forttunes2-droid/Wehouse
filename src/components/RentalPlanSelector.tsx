@@ -1,19 +1,23 @@
 import { useMemo, useState } from 'react';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { HOUSING_RENTAL_PLANS, calculateHousingRentTerms } from '@/lib/housing-rental';
+import type { HousingRentalDuration } from '@/lib/housing-rental';
 import type { RentalDuration } from '@/types';
 
 interface Props {
   annualRent: number;
   subType?: 'short_let' | 'long_stay';
   securityDepositAmount?: number | null;
+  // ListingDetail still carries the legacy RentalDuration alias. The Housing
+  // workflow itself supports 1–5 years; this cast boundary can disappear when
+  // the legacy shared rental types are retired.
   onSelectPlan: (plan: { durationYears: RentalDuration; year1Upfront: number; monthlyInstallment: number }) => void;
 }
 
 export default function RentalPlanSelector({ annualRent, subType = 'long_stay', securityDepositAmount, onSelectPlan }: Props) {
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
-  const [selectedDuration, setSelectedDuration] = useState<RentalDuration>(1);
+  const [selectedDuration, setSelectedDuration] = useState<HousingRentalDuration>(1);
 
   const terms = useMemo(
     () => calculateHousingRentTerms(annualRent, selectedDuration),
@@ -21,11 +25,11 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
   );
   const securityDeposit = subType === 'short_let' ? Math.max(0, Number(securityDepositAmount || 0)) : 0;
 
-  function select(years: RentalDuration) {
+  function select(years: HousingRentalDuration) {
     setSelectedDuration(years);
     const next = calculateHousingRentTerms(annualRent, years);
     onSelectPlan({
-      durationYears: years,
+      durationYears: years as unknown as RentalDuration,
       year1Upfront: next.upfrontAmount,
       monthlyInstallment: next.monthlyContribution,
     });
@@ -59,7 +63,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
       <Line label="Months 1–4" value="No next-year contribution" />
       <Line label="Months 5–12" value={`${terms.contributionsPerFutureYear} monthly contributions`} />
       <Line label="Typical monthly amount" value={`₦${terms.monthlyContribution.toLocaleString()}`} strong />
-      <p className="text-[9px] leading-4 text-[#77738A]">Those eight payments add up to one full annual rent. {terms.futureYears > 1 ? 'When Year 2 begins, the same four-month break and eight-payment cycle funds Year 3.' : 'By renewal, Year 2 rent is already funded.'} You can pay an upcoming contribution early if that is more convenient.</p>
+      <p className="text-[9px] leading-4 text-[#77738A]">Those eight payments add up to one full annual rent. {terms.futureYears > 1 ? `For each later year, the same four-month break and eight-payment cycle repeats until Year ${selectedDuration} is funded.` : 'By renewal, Year 2 rent is already funded.'} You can pay an upcoming contribution early if that is more convenient.</p>
     </section>}
 
     <div className="rounded-xl border border-white/[.06] bg-white/[.025] p-3"><p className="text-[9px] leading-4 text-[#7B8090]">WeHouse stores the rent schedule against your tenancy. Each contribution has its own due date, Paystack reference and payment status so the customer and Housing Operations see the same record.</p></div>
