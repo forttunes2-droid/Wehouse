@@ -18,18 +18,10 @@ export async function getHotels(filters?: {
     .select('*, hotel_rooms(room_id, price_per_night, room_type)')
     .eq('status', 'active');
 
-  if (filters?.state) {
-    query = query.ilike('state', `%${filters.state}%`);
-  }
-  if (filters?.city) {
-    query = query.ilike('city', `%${filters.city}%`);
-  }
-  if (filters?.featured) {
-    query = query.eq('featured', true);
-  }
-  if (filters?.search) {
-    query = query.ilike('name', `%${filters.search}%`);
-  }
+  if (filters?.state) query = query.ilike('state', `%${filters.state}%`);
+  if (filters?.city) query = query.ilike('city', `%${filters.city}%`);
+  if (filters?.featured) query = query.eq('featured', true);
+  if (filters?.search) query = query.ilike('name', `%${filters.search}%`);
 
   const { data, error } = await query.order('featured', { ascending: false }).order('created_at', { ascending: false });
   return { hotels: data as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[] | null, error };
@@ -79,32 +71,46 @@ export async function addHotelReview(hotelId: number, userId: string, rating: nu
     .insert({ hotel_id: hotelId, user_id: userId, rating, comment: comment || null })
     .select()
     .maybeSingle();
-  // Update hotel average rating
   if (!error) {
-    const { data: allReviews } = await supabase
-      .from('hotel_reviews')
-      .select('rating')
-      .eq('hotel_id', hotelId);
+    const { data: allReviews } = await supabase.from('hotel_reviews').select('rating').eq('hotel_id', hotelId);
     if (allReviews) {
-      const avg = allReviews.reduce((s, r) => s + r.rating, 0) / allReviews.length;
-      await supabase.from('hotels').update({
-        rating: Math.round(avg * 10) / 10,
-        review_count: allReviews.length,
-      }).eq('hotel_id', hotelId);
+      const avg = allReviews.reduce((sum, review) => sum + review.rating, 0) / allReviews.length;
+      await supabase.from('hotels').update({ rating: Math.round(avg * 10) / 10, review_count: allReviews.length }).eq('hotel_id', hotelId);
     }
   }
   return { review: data as HotelReview | null, error };
 }
 
-// ── Bookings ───────────────────────────────────────────
+// ── Bookings ────────────────────────────────────────────
 
+// The browser supplies guest choices only. Identity, availability, room price,
+// nights, total and pending-hold status are computed again by Postgres.
 export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
-    .from('hotel_bookings')
-    .insert(booking)
-    .select()
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('create_my_hotel_booking', {
+    p_hotel_id: booking.hotel_id,
+    p_room_id: booking.room_id,
+    p_check_in: booking.check_in,
+    p_check_out: booking.check_out,
+    p_guest_count: booking.guest_count,
+    p_guest_name: booking.guest_name,
+    p_guest_phone: booking.guest_phone,
+    p_special_requests: booking.special_requests || null,
+  });
   return { booking: data as HotelBooking | null, error };
+}
+
+export async function initializeHotelBookingPayment(bookingId: number) {
+  const { data: bootstrap, error: bootstrapError } = await supabase.rpc('create_hotel_booking_payment', {
+    p_booking_id: bookingId,
+  });
+  if (bootstrapError) return { result: null, error: bootstrapError };
+  if (!bootstrap?.success) return { result: bootstrap || null, error: null };
+  if (bootstrap.already_paid) return { result: bootstrap, error: null };
+
+  const reference = String(bootstrap.reference || '');
+  if (!reference) return { result: { success: false, error: 'Hotel payment reference is missing' }, error: null };
+  const { data, error } = await supabase.functions.invoke('payment-init', { body: { reference } });
+  return { result: data as any, error };
 }
 
 export async function getHotelBookingsForUser(userId: string) {
@@ -126,11 +132,11 @@ export async function getHotelBookingsForHotel(hotelId: number) {
 }
 
 export async function updateBookingStatus(bookingId: number, status: HotelBooking['status']) {
-  const { error } = await supabase
-    .from('hotel_bookings')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('booking_id', bookingId);
-  return { error };
+  if (status === 'cancelled') {
+    const { error } = await supabase.rpc('cancel_my_hotel_booking', { p_booking_id: bookingId });
+    return { error };
+  }
+  return { error: { message: 'Hotel booking status is controlled by the verified booking workflow.' } as any };
 }
 
 // ── Hotel Owner Dashboard (CRUD) ───────────────────────
@@ -145,21 +151,12 @@ export async function getHotelsByOwner(ownerId: string) {
 }
 
 export async function createHotel(hotel: Omit<Hotel, 'hotel_id' | 'rating' | 'review_count' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
-    .from('hotels')
-    .insert(hotel)
-    .select()
-    .maybeSingle();
+  const { data, error } = await supabase.from('hotels').insert(hotel).select().maybeSingle();
   return { hotel: data as Hotel | null, error };
 }
 
 export async function updateHotel(hotelId: number, updates: Partial<Hotel>) {
-  const { data, error } = await supabase
-    .from('hotels')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('hotel_id', hotelId)
-    .select()
-    .maybeSingle();
+  const { data, error } = await supabase.from('hotels').update({ ...updates, updated_at: new Date().toISOString() }).eq('hotel_id', hotelId).select().maybeSingle();
   return { hotel: data as Hotel | null, error };
 }
 
@@ -169,21 +166,12 @@ export async function deleteHotel(hotelId: number) {
 }
 
 export async function createHotelRoom(room: Omit<HotelRoom, 'room_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
-    .from('hotel_rooms')
-    .insert(room)
-    .select()
-    .maybeSingle();
+  const { data, error } = await supabase.from('hotel_rooms').insert(room).select().maybeSingle();
   return { room: data as HotelRoom | null, error };
 }
 
 export async function updateHotelRoom(roomId: number, updates: Partial<HotelRoom>) {
-  const { data, error } = await supabase
-    .from('hotel_rooms')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('room_id', roomId)
-    .select()
-    .maybeSingle();
+  const { data, error } = await supabase.from('hotel_rooms').update({ ...updates, updated_at: new Date().toISOString() }).eq('room_id', roomId).select().maybeSingle();
   return { room: data as HotelRoom | null, error };
 }
 
@@ -221,4 +209,3 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
     return { url: null, error: { message: err.message || 'Upload failed' } };
   }
 }
-

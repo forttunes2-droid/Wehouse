@@ -22,7 +22,7 @@ export { parseDeviceInfo,trackSession,endSession,getSessionHistory,createUserSes
 export { getAllListings,getListing,getCreatorListings,getAvailableChatAgents,detectDuplicateImage,checkDuplicateListing,uploadListingImage,uploadListingVideo,deleteListing,saveListing,unsaveListing,getSavedListings,createListing,getRequiredApproverRank,getApproverLabel,canApproveListing,getListingsPendingApproval,approveListing,rejectListing,getMyPendingListings,updateListingStatus } from './listings';
 
 // Reservations
-export { createReservation,getReservationForListing,getReservationsForUser,cancelReservation,markSupportContacted,updateReservationPlan,createInspectionRequest,getInspectionRequestForReservation,getInspectionRequestsForUser,getPendingInspectionRequests,getInspectionRequestsForFieldOfficer,assignFieldOfficer,startInspection,completeInspection,cancelInspectionRequest } from './reservations';
+export { createReservation,initializeReservationPayment,getReservationForListing,getReservationsForUser,cancelReservation,markSupportContacted,updateReservationPlan,createInspectionRequest,getInspectionRequestForReservation,getInspectionRequestsForUser,getPendingInspectionRequests,getInspectionRequestsForFieldOfficer,assignFieldOfficer,startInspection,completeInspection,cancelInspectionRequest,processReservationRefund,calculateReservationRefund,completeInspectionResult,activateApartmentTenancy,completeApartmentTenancy,expireOverdueReservations } from './reservations';
 
 // Roommate
 export { saveRoommatePreferences,getRoommatePreferences,findMatches,startRoommateSearch,stopRoommateSearch,refreshRoommateSearch,getSavedMatchResults,updateMatchStatus,clearMatchResults,checkSearchExpiry } from './roommate';
@@ -55,7 +55,7 @@ export { getNotifications,getUnreadNotificationCount,markNotificationsRead,markN
 export { getStaffPermissions,grantPermission,revokePermission,hasPermission,hasAnyPermission,getAllStaffWithPermissions,getStaffByPermission } from './permissions';
 
 // Hotels
-export { getHotels,getHotelById,getHotelRooms,getRoomById,getHotelReviews,addHotelReview,createHotelBooking,getHotelBookingsForUser,getHotelBookingsForHotel,updateBookingStatus,getHotelsByOwner,createHotel,updateHotel,deleteHotel,createHotelRoom,updateHotelRoom,deleteHotelRoom,uploadHotelImage,uploadRoomImage } from './hotels';
+export { getHotels,getHotelById,getHotelRooms,getRoomById,getHotelReviews,addHotelReview,createHotelBooking,initializeHotelBookingPayment,getHotelBookingsForUser,getHotelBookingsForHotel,updateBookingStatus,getHotelsByOwner,createHotel,updateHotel,deleteHotel,createHotelRoom,updateHotelRoom,deleteHotelRoom,uploadHotelImage,uploadRoomImage } from './hotels';
 
 // Platform Settings
 export { getPlatformSettings,getPlatformSetting,updatePlatformSetting,getTypedSetting } from './platform-settings';

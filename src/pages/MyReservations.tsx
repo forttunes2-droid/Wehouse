@@ -1,165 +1,158 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { cancelReservation, getReservationsForUser, initializeReservationPayment } from '@/lib/supabase/reservations';
+import { initializeApartmentRentPayment } from '@/lib/supabase/housing-payments';
 import { getHotelBookingsForUser, updateBookingStatus } from '@/lib/supabase/hotels';
 import type { Profile } from '@/types';
-import type { HotelBooking } from '@/types';
 import { toast, Toaster } from 'sonner';
 
-interface MyReservationsProps {
-  profile: Profile;
-  onBack: () => void;
-}
+type Props = { profile: Profile; onBack: () => void };
+type View = 'all' | 'housing' | 'hotels';
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pending', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  confirmed: { label: 'Confirmed', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  checked_in: { label: 'Checked In', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  checked_out: { label: 'Checked Out', color: 'bg-gray-500/10 text-gray-400 border-gray-500/20' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  refunded: { label: 'Refunded', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+const HOUSING_STATUS: Record<string, { label: string; cls: string }> = {
+  payment_pending: { label: 'Payment pending', cls: 'border-amber-500/20 bg-amber-500/10 text-amber-300' },
+  reserved: { label: 'Reserved', cls: 'border-blue-500/20 bg-blue-500/10 text-blue-300' },
+  inspection_pending: { label: 'Inspection', cls: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300' },
+  ready_for_move_in: { label: 'Ready for move-in', cls: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' },
+  occupied: { label: 'Occupied', cls: 'border-violet-500/20 bg-violet-500/10 text-violet-300' },
+  completed: { label: 'Completed', cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' },
+  cancelled: { label: 'Cancelled', cls: 'border-red-500/20 bg-red-500/10 text-red-300' },
+  expired: { label: 'Expired', cls: 'border-orange-500/20 bg-orange-500/10 text-orange-300' },
+  refunded: { label: 'Refunded', cls: 'border-purple-500/20 bg-purple-500/10 text-purple-300' },
+  payment_conflict: { label: 'Payment review', cls: 'border-red-500/20 bg-red-500/10 text-red-300' },
+};
+const HOTEL_STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'Pending', cls: 'border-amber-500/20 bg-amber-500/10 text-amber-300' },
+  confirmed: { label: 'Confirmed', cls: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' },
+  checked_in: { label: 'Checked in', cls: 'border-blue-500/20 bg-blue-500/10 text-blue-300' },
+  checked_out: { label: 'Checked out', cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' },
+  completed: { label: 'Completed', cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' },
+  cancelled: { label: 'Cancelled', cls: 'border-red-500/20 bg-red-500/10 text-red-300' },
+  refunded: { label: 'Refunded', cls: 'border-purple-500/20 bg-purple-500/10 text-purple-300' },
 };
 
-export default function MyReservations({ profile, onBack }: MyReservationsProps) {
-  const [bookings, setBookings] = useState<HotelBooking[]>([]);
+export default function MyReservations({ profile, onBack }: Props) {
+  const [housing, setHousing] = useState<any[]>([]);
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [view, setView] = useState<View>('all');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadBookings();
-  }, [profile.user_id]);
-
-  async function loadBookings() {
+  async function load() {
     setLoading(true);
-    const { bookings: data } = await getHotelBookingsForUser(profile.user_id);
-    setBookings(data || []);
+    const [housingResult, hotelResult] = await Promise.all([getReservationsForUser(profile.user_id), getHotelBookingsForUser(profile.user_id)]);
+    if (housingResult.error) toast.error(housingResult.error.message);
+    setHousing(housingResult.reservations || []);
+    setHotels(hotelResult.bookings || []);
     setLoading(false);
   }
+  useEffect(() => { void load(); }, [profile.user_id]);
 
-  async function handleCancel(bookingId: number) {
-    if (!confirm('Cancel this reservation?')) return;
-    const { error } = await updateBookingStatus(bookingId, 'cancelled');
-    if (error) {
-      toast.error('Failed to cancel: ' + error.message);
-      return;
+  const rows = useMemo(() => {
+    const housingRows = housing.map(row => ({ kind: 'housing' as const, row, date: row.created_at || '' }));
+    const hotelRows = hotels.map(row => ({ kind: 'hotel' as const, row, date: row.created_at || '' }));
+    return [...housingRows, ...hotelRows]
+      .filter(item => view === 'all' || (view === 'housing' ? item.kind === 'housing' : item.kind === 'hotel'))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [housing, hotels, view]);
+
+  async function continueHousingPayment(row: any) {
+    const reference = String(row.payment_reference || '');
+    if (!reference) return toast.error('Payment reference is missing');
+    setBusyId(row.id);
+    try {
+      const { result, error } = await initializeReservationPayment(reference);
+      if (error) throw error;
+      if (result?.already_paid) { toast.success('Payment is already confirmed'); await load(); return; }
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || 'Could not open Paystack');
+      window.location.assign(result.authorization_url);
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not continue payment');
+      setBusyId(null);
     }
-    toast.success('Reservation cancelled');
-    loadBookings();
   }
 
-  const filtered = filter === 'all'
-    ? bookings
-    : filter === 'active'
-      ? bookings.filter(b => ['pending', 'confirmed', 'checked_in'].includes(b.status))
-      : bookings.filter(b => ['cancelled', 'checked_out', 'refunded'].includes(b.status));
+  async function continueRentPayment(row: any) {
+    setBusyId(row.id);
+    try {
+      const { result, error } = await initializeApartmentRentPayment(row.id);
+      if (error) throw error;
+      if (result?.already_paid) { toast.success('Contract rent is already confirmed'); await load(); setBusyId(null); return; }
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || 'Could not open contract-rent checkout');
+      window.location.assign(result.authorization_url);
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not continue contract-rent payment');
+      setBusyId(null);
+    }
+  }
 
-  return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-6">
-      <Toaster position="top-center" richColors />
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#0A0A0F]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          </button>
-          <div>
-            <h1 className="text-base font-bold text-white">My Reservations</h1>
-            <p className="text-[10px] text-[#5C5E72]">{bookings.length} reservation{bookings.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-      </header>
+  async function cancelHousing(row: any) {
+    if (!confirm('Cancel this unpaid property reservation?')) return;
+    setBusyId(row.id);
+    const { error } = await cancelReservation(row.id);
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success('Reservation cancelled and property released');
+    await load();
+  }
 
-      <div className="px-4 py-4 space-y-4">
-        {/* Filters */}
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-          {[
-            { key: 'all', label: 'All' },
-            { key: 'active', label: 'Active' },
-            { key: 'past', label: 'Past' },
-          ].map(f => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors ${
-                filter === f.key ? 'bg-[#3B82F6]/15 text-[#3B82F6]' : 'bg-[#12121A] text-[#5C5E72] hover:text-white'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+  async function cancelHotel(row: any) {
+    if (!confirm('Cancel this hotel reservation?')) return;
+    const id = Number(row.booking_id);
+    setBusyId(`hotel-${id}`);
+    const { error } = await updateBookingStatus(id, 'cancelled');
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success('Hotel reservation cancelled');
+    await load();
+  }
 
-        {/* Reservations List */}
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#7C3AED]/10 flex items-center justify-center mx-auto">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2">
-                <path d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z" />
-                <path d="m2 20h20" />
-                <path d="M12 11v-6" />
-                <path d="M9 11v-2" />
-                <path d="M15 11v-2" />
-              </svg>
-            </div>
-            <p className="text-sm font-semibold text-white">No reservations yet</p>
-            <p className="text-[11px] text-[#5C5E72] max-w-xs mx-auto">Book a hotel room from the Hotels tab to see your reservations here.</p>
-            <button onClick={onBack} className="h-10 px-6 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-xs font-semibold">
-              Browse Hotels
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((b: any) => {
-              const statusInfo = STATUS_LABELS[b.status] || { label: b.status, color: 'bg-gray-500/10 text-gray-400' };
-              return (
-                <div key={b.booking_id} className="bg-[#12121A] border border-[#1E1E2C] rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusInfo.color}`}>
-                      {statusInfo.label}
-                    </span>
-                    <span className="text-[9px] text-[#5C5E72]">#{b.booking_code || b.booking_id}</span>
-                  </div>
+  function housingSupport(row: any) {
+    window.dispatchEvent(new CustomEvent('openSupportChat', { detail: {
+      category: row.status === 'payment_pending' || row.rent_payment_status === 'payment_pending' ? 'payment' : 'apartment_booking',
+      subject: `Housing reservation · ${row.listing_title || 'Property'}`,
+      contextType: 'apartment_reservation', contextId: row.id,
+      contextSnapshot: { reservation_id: row.id, listing_id: row.listing_id, listing_title: row.listing_title, status: row.status, payment_reference: row.payment_reference, rental_plan_years: row.rental_plan_years, rent_payment_status: row.rent_payment_status, tenancy_start_date: row.tenancy_start_date, tenancy_end_date: row.tenancy_end_date },
+    }}));
+  }
 
-                  <h3 className="text-sm font-semibold text-white">{b.hotel?.name || 'Hotel'}</h3>
-                  <p className="text-[10px] text-[#8A8B9C] mt-0.5">{b.room?.room_type || 'Room'}</p>
-
-                  <div className="mt-3 space-y-1.5">
-                    <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                      Check-in: {b.check_in_date ? new Date(b.check_in_date).toLocaleDateString() : '—'}
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                      Check-out: {b.check_out_date ? new Date(b.check_out_date).toLocaleDateString() : '—'}
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-[#5C5E72]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                      {b.num_guests} guest{b.num_guests !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E1E2C]">
-                    <span className="text-sm font-bold text-emerald-400">₦{b.total_amount?.toLocaleString()}</span>
-                    <span className="text-[9px] text-[#5C5E72]">{b.nights} night{b.nights !== 1 ? 's' : ''}</span>
-                  </div>
-
-                  {/* Cancel button for pending bookings */}
-                  {b.status === 'pending' && (
-                    <button
-                      onClick={() => handleCancel(b.booking_id)}
-                      className="mt-2 w-full h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] hover:bg-red-500/20 transition-colors"
-                    >
-                      Cancel Reservation
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <div className="min-h-[100dvh] bg-[#0A0A0F] pb-8 text-white">
+    <Toaster position="top-center" richColors />
+    <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl"><div className="mx-auto flex max-w-3xl items-center gap-3"><button onClick={onBack} className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.07] bg-white/[.04] text-[#8A8B9C]">←</button><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[.15em] text-blue-300">WEHOUSE STAYS</p><h1 className="text-base font-bold">My reservations</h1></div><span className="rounded-full border border-white/[.07] bg-white/[.03] px-2.5 py-1 text-[9px] text-[#7D8291]">{housing.length + hotels.length} total</span></div></header>
+    <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
+      <section className="grid grid-cols-3 gap-2"><Metric label="Housing" value={housing.filter(row => !['completed','cancelled','expired','refunded'].includes(row.status)).length} /><Metric label="Hotels" value={hotels.filter(row => !['completed','checked_out','cancelled','refunded'].includes(row.status)).length} /><Metric label="Occupied" value={housing.filter(row => row.status === 'occupied').length} /></section>
+      <div className="flex gap-1 rounded-xl border border-white/[.06] bg-[#10131A] p-1">{([['all','All'],['housing','Housing'],['hotels','Hotels']] as const).map(([id,label]) => <button key={id} onClick={() => setView(id)} className={`flex-1 rounded-lg px-3 py-2 text-[10px] font-semibold ${view === id ? 'bg-blue-500 text-white' : 'text-[#74798A]'}`}>{label}</button>)}</div>
+      {loading ? <Loading /> : rows.length === 0 ? <Empty onBack={onBack} /> : <div className="space-y-3">{rows.map(item => item.kind === 'housing'
+        ? <HousingCard key={`housing-${item.row.id}`} row={item.row} busy={busyId === item.row.id} onPay={() => void continueHousingPayment(item.row)} onRentPay={() => void continueRentPayment(item.row)} onCancel={() => void cancelHousing(item.row)} onSupport={() => housingSupport(item.row)} />
+        : <HotelCard key={`hotel-${item.row.booking_id}`} row={item.row} busy={busyId === `hotel-${item.row.booking_id}`} onCancel={() => void cancelHotel(item.row)} />)}</div>}
+    </main>
+  </div>;
 }
+
+function HousingCard({ row, busy, onPay, onRentPay, onCancel, onSupport }: { row: any; busy: boolean; onPay: () => void; onRentPay: () => void; onCancel: () => void; onSupport: () => void }) {
+  const state = HOUSING_STATUS[row.status] || { label: String(row.status || 'Unknown').replace(/_/g,' '), cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' };
+  const rentReady = ['paid','upfront_paid'].includes(String(row.rent_payment_status || ''));
+  return <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4">
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-blue-300">Housing</p><h2 className="mt-1 truncate text-sm font-semibold">{row.listing_title || 'Apartment reservation'}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.listing_location || 'WeHouse property'}</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[8px] font-semibold ${state.cls}`}>{state.label}</span></div>
+    <div className="mt-4 grid grid-cols-2 gap-2"><Info label="Reservation fee" value={`₦${Number(row.amount || 0).toLocaleString()}`} /><Info label="Tenure" value={`${row.rental_plan_years || 1} year${Number(row.rental_plan_years || 1) === 1 ? '' : 's'}`} /></div>
+    {row.contract_rent_total && <div className="mt-2 grid grid-cols-2 gap-2"><Info label="Contract total" value={`₦${Number(row.contract_rent_total).toLocaleString()}`} /><Info label="Rent status" value={String(row.rent_payment_status || 'not_started').replace(/_/g,' ')} /></div>}
+    {row.status === 'payment_pending' && <div className="mt-3 rounded-xl border border-amber-500/10 bg-amber-500/[.04] p-3"><p className="text-[10px] text-amber-200">Finish checkout to turn this temporary hold into a paid reservation.</p>{row.payment_expires_at && <p className="mt-1 text-[9px] text-[#8E7658]">Checkout expires {new Date(row.payment_expires_at).toLocaleString()}</p>}</div>}
+    {row.status === 'ready_for_move_in' && !rentReady && <div className="mt-3 rounded-xl border border-emerald-500/10 bg-emerald-500/[.04] p-3"><p className="text-[10px] text-emerald-200">Inspection passed. Required before move-in: ₦{Number(row.upfront_rent_required || 0).toLocaleString()}.</p>{Number(row.installment_balance || 0) > 0 && <p className="mt-1 text-[9px] text-[#6D8B79]">Remaining ₦{Number(row.installment_balance).toLocaleString()} across {row.installment_count || 4} installments.</p>}</div>}
+    {row.hold_expires_at && ['reserved','inspection_pending','ready_for_move_in'].includes(row.status) && <p className="mt-3 text-[9px] text-amber-300">Reservation hold until {new Date(row.hold_expires_at).toLocaleString()}</p>}
+    {row.status === 'occupied' && <div className="mt-3 rounded-xl border border-violet-500/10 bg-violet-500/[.04] p-3"><Row label="Move-in" value={date(row.tenancy_start_date)} /><Row label="Tenancy ends" value={date(row.tenancy_end_date)} /><Row label="Grace until" value={date(row.move_out_grace_until)} />{Number(row.installment_balance || 0) > 0 && <Row label="Installment balance" value={`₦${Number(row.installment_balance).toLocaleString()}`} />}</div>}
+    {row.status === 'payment_conflict' && <p className="mt-3 rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-[10px] text-red-200">Your payment requires WeHouse review because the property hold changed before fulfillment. No second occupancy is created automatically.</p>}
+    <div className="mt-4 flex flex-wrap gap-2">{row.status === 'payment_pending' && <button disabled={busy} onClick={onPay} className="h-10 flex-1 rounded-xl bg-blue-500 px-3 text-[10px] font-semibold disabled:opacity-50">{busy ? 'Opening…' : 'Continue reservation payment'}</button>}{row.status === 'payment_pending' && <button disabled={busy} onClick={onCancel} className="h-10 rounded-xl border border-red-500/15 px-3 text-[10px] font-semibold text-red-300 disabled:opacity-50">Cancel</button>}{row.status === 'ready_for_move_in' && !rentReady && <button disabled={busy} onClick={onRentPay} className="h-10 flex-1 rounded-xl bg-emerald-500 px-3 text-[10px] font-semibold text-[#03100B] disabled:opacity-50">{busy ? 'Opening…' : row.rent_payment_status === 'payment_pending' ? 'Continue rent payment' : 'Pay contract rent'}</button>}<button onClick={onSupport} className="h-10 rounded-xl border border-white/[.08] px-3 text-[10px] font-semibold text-[#B2B6C2]">Support</button></div>
+  </article>;
+}
+
+function HotelCard({ row, busy, onCancel }: { row: any; busy: boolean; onCancel: () => void }) {
+  const state = HOTEL_STATUS[row.status] || { label: String(row.status || 'Unknown').replace(/_/g,' '), cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' };
+  const checkIn = row.check_in_date || row.check_in, checkOut = row.check_out_date || row.check_out, amount = row.total_amount ?? row.total_price ?? 0;
+  return <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Hotel</p><h2 className="mt-1 truncate text-sm font-semibold">{row.hotel?.name || row.hotel_name || 'Hotel reservation'}</h2><p className="mt-1 text-[10px] text-[#676C7D]">{row.room?.room_type || row.room_type || 'Room'}</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[8px] font-semibold ${state.cls}`}>{state.label}</span></div><div className="mt-4 grid grid-cols-2 gap-2"><Info label="Check-in" value={date(checkIn)} /><Info label="Check-out" value={date(checkOut)} /></div><div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3"><span className="text-sm font-bold text-emerald-300">₦{Number(amount).toLocaleString()}</span>{row.status === 'pending' && <button disabled={busy} onClick={onCancel} className="rounded-xl border border-red-500/15 px-3 py-2 text-[9px] font-semibold text-red-300 disabled:opacity-50">{busy ? 'Cancelling…' : 'Cancel'}</button>}</div></article>;
+}
+
+function Metric({ label, value }: { label: string; value: number }) { return <div className="rounded-2xl border border-white/[.06] bg-[#12151D] p-3"><p className="text-[8px] uppercase tracking-wide text-[#5E6474]">{label}</p><p className="mt-1 text-lg font-bold">{value}</p></div>; }
+function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-white/[.025] p-3"><p className="text-[8px] uppercase text-[#5D6272]">{label}</p><p className="mt-1 truncate text-[10px] font-semibold capitalize text-[#C5C8D1]">{value}</p></div>; }
+function Row({ label, value }: { label: string; value: string }) { return <div className="mt-1 flex justify-between gap-3 text-[9px]"><span className="text-[#777C8C]">{label}</span><span className="text-right font-semibold text-violet-200">{value}</span></div>; }
+function date(value: any) { return value ? new Date(value).toLocaleDateString() : '—'; }
+function Loading() { return <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /></div>; }
+function Empty({ onBack }: { onBack: () => void }) { return <div className="rounded-3xl border border-dashed border-white/[.08] px-5 py-14 text-center"><p className="text-sm font-semibold">No reservations yet</p><p className="mx-auto mt-2 max-w-xs text-[10px] leading-5 text-[#606575]">Housing and hotel reservations stay together here with their real workflow status.</p><button onClick={onBack} className="mt-4 rounded-xl bg-blue-500 px-4 py-2.5 text-[10px] font-semibold">Back</button></div>; }

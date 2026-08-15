@@ -18,6 +18,25 @@ export async function createReservation(
   };
 }
 
+export async function initializeReservationPayment(reference: string) {
+  const { data, error } = await supabase.functions.invoke('payment-init', {
+    body: { reference },
+  });
+  return {
+    result: data as {
+      success?: boolean;
+      already_paid?: boolean;
+      reference?: string;
+      purpose?: string;
+      authorization_url?: string;
+      access_code?: string;
+      existing?: boolean;
+      error?: string;
+    } | null,
+    error,
+  };
+}
+
 export async function getReservationForListing(listingId: string, _userId?: string) {
   const { data, error } = await supabase.rpc('get_my_reservation_for_listing', {
     p_listing_id: listingId,
@@ -29,6 +48,7 @@ export async function getReservationsForUser(_userId?: string) {
   const { data, error } = await supabase
     .from('reservations')
     .select('*')
+    .eq('reservation_type', 'apartment')
     .order('created_at', { ascending: false });
 
   return { reservations: data as any[] | null, error };
@@ -207,6 +227,25 @@ export async function completeInspectionResult(
     p_result: result,
   });
   return { success: data, error };
+}
+
+export async function activateApartmentTenancy(reservationId: string, startDate?: string) {
+  const { data, error } = await supabase.rpc('activate_apartment_tenancy', {
+    p_reservation_id: reservationId,
+    p_start_date: startDate || new Date().toISOString().slice(0, 10),
+  });
+  return { reservation: data as any || null, error };
+}
+
+export async function completeApartmentTenancy(
+  reservationId: string,
+  nextStatus: 'maintenance' | 'available' | 'closed' = 'maintenance'
+) {
+  const { data, error } = await supabase.rpc('complete_apartment_tenancy', {
+    p_reservation_id: reservationId,
+    p_next_status: nextStatus,
+  });
+  return { reservation: data as any || null, error };
 }
 
 export async function expireOverdueReservations() {
