@@ -26,16 +26,10 @@ serve(async (req) => {
     const youverifyBaseUrl = Deno.env.get('YOUVERIFY_BASE_URL');
     if (!supabaseUrl || !serviceKey) return response({ success: false, error: 'Server configuration incomplete' }, 500);
     if (!youverifyToken || !youverifyBaseUrl) {
-      return response({
-        success: false,
-        error: 'Youverify connection is not configured yet',
-        code: 'YOUVERIFY_NOT_CONFIGURED',
-      }, 503);
+      return response({ success: false, error: 'Youverify connection is not configured yet', code: 'YOUVERIFY_NOT_CONFIGURED' }, 503);
     }
 
-    const admin = createClient(supabaseUrl, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const token = authHeader.replace(/^Bearer\s+/i, '');
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user) return response({ success: false, error: 'Invalid or expired session' }, 401);
@@ -63,51 +57,33 @@ serve(async (req) => {
     if (!testResult.data?.length) return response({ success: false, error: 'Pass the Worker readiness test first' }, 409);
     if (!evidenceResult.data?.verification_video_url) return response({ success: false, error: 'Professional evidence is required first' }, 409);
     if (evidenceResult.data.identity_status === 'verified') return response({ success: true, verified: true, already_verified: true });
-    if (evidenceResult.data.identity_status === 'pending_external') {
-      return response({ success: true, verified: false, pending: true, reason: 'Identity verification is still being processed by Youverify' });
-    }
+    if (evidenceResult.data.identity_status === 'pending_external') return response({ success: true, verified: false, pending: true, already_pending: true });
 
     const body = await req.json();
     const vnin = String(body?.vnin || '').trim().toUpperCase();
     const selfieImage = String(body?.selfieImage || '');
     const isSubjectConsent = body?.isSubjectConsent === true;
-
     if (!isSubjectConsent) return response({ success: false, error: 'Identity verification consent is required' }, 400);
     if (!/^[A-Z0-9-]{8,40}$/.test(vnin)) return response({ success: false, error: 'Enter a valid virtual NIN' }, 400);
     if (!/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(selfieImage)) return response({ success: false, error: 'A clear selfie image is required' }, 400);
     if (selfieImage.length > 7_500_000) return response({ success: false, error: 'Selfie image is too large' }, 413);
 
-    // Raw vNIN/selfie are deliberately not inserted into WeHouse tables/storage
-    // and are not written to logs. They are sent only to the configured provider.
     const providerUrl = `${youverifyBaseUrl.replace(/\/$/, '')}/v2/api/identity/ng/vnin`;
     const providerResponse = await fetch(providerUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        token: youverifyToken,
-      },
-      body: JSON.stringify({
-        id: vnin,
-        isSubjectConsent: true,
-        validations: { selfie: { image: selfieImage } },
-        metadata: { requestId: `wehouse-worker-${profile.user_id}-${Date.now()}` },
-      }),
+      headers: { 'Content-Type': 'application/json', token: youverifyToken },
+      body: JSON.stringify({ id: vnin, isSubjectConsent: true, validations: { selfie: { image: selfieImage } }, metadata: { requestId: `wehouse-worker-${profile.user_id}-${Date.now()}` } }),
     });
 
     let provider: any = null;
-    try {
-      provider = await providerResponse.json();
-    } catch {
-      provider = null;
-    }
-
+    try { provider = await providerResponse.json(); } catch { provider = null; }
     if (!providerResponse.ok || !provider?.success) {
       const transient = providerResponse.status >= 500 || providerResponse.status === 429;
       const failure = transient ? 'Identity provider is temporarily unavailable' : (provider?.message || 'Identity verification request failed');
       await admin.rpc('record_external_worker_identity_result', {
         p_worker_id: profile.user_id,
         p_provider: 'youverify',
-        p_reference: provider?.data?.id || null,
+        p_reference: provider?.data?.id || provider?.data?.verificationId || null,
         p_status: transient ? 'needs_retry' : 'failed',
         p_failure_reason: failure,
       });
@@ -115,35 +91,35 @@ serve(async (req) => {
     }
 
     const providerData = provider.data || {};
-    const providerReference = String(providerData.id || '').trim();
-    const providerStatus = String(providerData.status || '').trim().toLowerCase();
-
+    const providerStatus = String(providerData.status || '').toLowerCase();
+    const providerReference = String(providerData.id || providerData.verificationId || providerData.referenceId || '');
     if (providerStatus === 'pending') {
-      const { error: recordPendingError } = await admin.rpc('record_external_worker_identity_result', {
+      if (!providerReference) {
+        await admin.rpc('record_external_worker_identity_result', {
+          p_worker_id: profile.user_id,
+          p_provider: 'youverify',
+          p_reference: null,
+          p_status: 'needs_retry',
+          p_failure_reason: 'Identity provider returned pending without a verification reference',
+        });
+        return response({ success: false, verified: false, reason: 'Identity provider returned an incomplete pending response' }, 503);
+      }
+      const { error: pendingError } = await admin.rpc('record_external_worker_identity_result', {
         p_worker_id: profile.user_id,
         p_provider: 'youverify',
-        p_reference: providerReference || null,
+        p_reference: providerReference,
         p_status: 'pending_external',
         p_failure_reason: null,
       });
-      if (recordPendingError) return response({ success: false, error: recordPendingError.message }, 500);
-      return response({
-        success: true,
-        verified: false,
-        pending: true,
-        reference: providerReference || undefined,
-        reason: 'Identity verification is still being processed by Youverify',
-      });
+      if (pendingError) return response({ success: false, error: pendingError.message }, 500);
+      return response({ success: true, verified: false, pending: true, reference: providerReference });
     }
 
     const face = providerData?.validations?.selfie?.selfieVerification;
     const found = providerStatus === 'found';
     const faceMatch = face?.match === true;
     const verified = found && faceMatch;
-    const reason = verified
-      ? null
-      : (providerData?.validations?.validationMessages || providerData?.reason || (!found ? 'Government identity was not found' : 'Selfie did not match the government identity'));
-
+    const reason = verified ? null : (providerData?.validations?.validationMessages || providerData?.reason || (!found ? 'Government identity was not found' : 'Selfie did not match the government identity'));
     const { error: recordError } = await admin.rpc('record_external_worker_identity_result', {
       p_worker_id: profile.user_id,
       p_provider: 'youverify',
@@ -152,14 +128,7 @@ serve(async (req) => {
       p_failure_reason: reason,
     });
     if (recordError) return response({ success: false, error: recordError.message }, 500);
-
-    return response({
-      success: true,
-      verified,
-      pending: false,
-      reference: providerReference || undefined,
-      reason: reason || undefined,
-    });
+    return response({ success: true, verified, reference: providerReference || undefined, reason: reason || undefined });
   } catch (error) {
     return response({ success: false, error: error instanceof Error ? error.message : 'Internal error' }, 500);
   }
