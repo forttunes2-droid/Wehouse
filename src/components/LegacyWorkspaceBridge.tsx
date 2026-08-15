@@ -73,6 +73,22 @@ export default function LegacyWorkspaceBridge({ label, items, onAccount, onLogou
       onAccount={onAccount}
       onLogout={onLogout}
     >
+      <style>{`
+        .legacy-workspace-bridge > div {
+          min-height: 0 !important;
+          padding-bottom: 0 !important;
+          background: transparent !important;
+        }
+        .legacy-workspace-bridge > div > header {
+          display: none !important;
+        }
+        .legacy-workspace-bridge > div > main {
+          width: 100% !important;
+          max-width: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+      `}</style>
       <div ref={hostRef} className="legacy-workspace-bridge">
         {children}
       </div>
