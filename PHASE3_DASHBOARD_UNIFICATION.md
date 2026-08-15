@@ -5,7 +5,6 @@ Status: **COMPLETED — ready for main**
 Phase 3 was completed as a **unification pass, not a tab-removal pass**. Useful dashboard navigation remains available. On phones, role workspaces keep bottom navigation, with overflow under **More** instead of deleting real work areas.
 
 ## Result
-
 - Creator, Admin, Staff, Worker and Property Partner use one canonical WeHouse operational workspace shell.
 - Account is the single private destination for personal profile settings, privacy/security and sign-out.
 - Worker Professional Profile remains separate because it is public/business-facing.
@@ -13,8 +12,7 @@ Phase 3 was completed as a **unification pass, not a tab-removal pass**. Useful 
 - Existing operational tabs and nested workflows are preserved.
 - Pages that own their own Back control do not receive a duplicate mobile Back control.
 
-## Retained role navigation
-
+## Retained navigation
 **User:** Home, Explore, Saved, Messages, Account.
 
 **Worker:** Home, Jobs, Earnings, Professional Profile, Account. Pre-live Workers keep activation-relevant destinations plus Account.
@@ -28,7 +26,6 @@ Phase 3 was completed as a **unification pass, not a tab-removal pass**. Useful 
 **Property Partner:** Overview, Property Requests, My Properties, Finance, Communication, Account.
 
 ## Validation
-
 - Changed-file audit confirmed this PR is limited to Phase 3 shell/navigation work; Housing, payment and database lifecycle logic were not modified.
 - TypeScript plus production bundle passed on runtime code commit `a56f468c707548dd21887bb9a7b2b05a50b3aaed` through the successful Netlify deploy preview.
 - Later closeout commits modify this document only, not runtime code.
