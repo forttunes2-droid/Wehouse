@@ -1,3 +1,5 @@
+// Phase 5 Housing rent terms: one full first year, then one eight-payment
+// months-5-to-12 funding cycle for every additional contract year.
 export type HousingRentalDuration = 1 | 2 | 3 | 4 | 5;
 
 export type HousingRentTerms = {
