@@ -87,6 +87,16 @@ export default function WorkerSetupProfessional({ profile, onComplete }: Props) 
         return;
       }
     } catch {}
+
+    if (!profile.profile_complete) {
+      try {
+        localStorage.setItem('wh_navpage', 'worker_dashboard');
+        window.history.replaceState({ page: 'worker_dashboard' }, '', '#worker_dashboard');
+      } catch {}
+      window.location.reload();
+      return;
+    }
+
     onComplete();
   }
 
