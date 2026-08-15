@@ -89,17 +89,30 @@ export default function StaffVerificationQueueV2() {
     await loadIdentity(worker.user_id);
   }
 
+  async function removeReviewedIdentityMedia(paths: string[]) {
+    if (!paths.length) return true;
+    const { error } = await supabase.storage.from('worker-identity-private').remove(paths);
+    if (error) {
+      toast.warning('Review saved, but private identity media cleanup needs attention');
+      return false;
+    }
+    return true;
+  }
+
   async function reviewIdentity(decision: 'pass' | 'fail') {
     if (!selected) return;
     if (decision === 'fail' && !identityReason.trim()) return toast.error('Enter why the private identity check failed');
+    const mediaPaths = [identity?.photo_path, identity?.liveness_path].filter(Boolean) as string[];
     setIdentitySaving(true);
     const { error } = await supabase.rpc('review_my_staff_worker_identity_check', {
       p_worker_id: selected.user_id,
       p_decision: decision,
       p_reason: decision === 'fail' ? identityReason.trim() : null,
     });
+    if (!error) await removeReviewedIdentityMedia(mediaPaths);
     setIdentitySaving(false);
     if (error) return toast.error(error.message);
+
     if (decision === 'fail') {
       toast.success('Identity check returned to the Worker for retry');
       setSelected(null);
@@ -109,6 +122,7 @@ export default function StaffVerificationQueueV2() {
       void load();
       return;
     }
+
     toast.success('Identity & liveness check passed');
     setIdentityReason('');
     await loadIdentity(selected.user_id);
@@ -166,25 +180,31 @@ export default function StaffVerificationQueueV2() {
                 <IdentityBadge status={identity?.status || 'not_started'} />
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="overflow-hidden rounded-xl border border-white/[.06] bg-black/20">
-                  {identityPhotoUrl ? <img src={identityPhotoUrl} alt="Private Worker enrollment" className="aspect-square w-full object-cover" /> : <Missing text="No private photo" />}
-                  <p className="px-2 py-2 text-[8px] text-[#62697A]">PRIVATE PHOTO · NOT PUBLIC</p>
-                </div>
-                <div className="overflow-hidden rounded-xl border border-white/[.06] bg-black/20">
-                  {identityVideoUrl ? <video src={identityVideoUrl} controls playsInline className="aspect-square w-full bg-black object-contain" /> : <Missing text="No liveness video" />}
-                  <p className="px-2 py-2 text-[8px] text-[#62697A]">CENTER → LEFT → RIGHT → CENTER</p>
-                </div>
-              </div>
-
-              {identity?.status === 'pending_review' && (
-                <div className="mt-3 space-y-2">
-                  <input value={identityReason} onChange={(event) => setIdentityReason(event.target.value)} placeholder="Reason only if failing identity check" className="h-10 w-full rounded-xl border border-white/[.08] bg-black/20 px-3 text-[10px] outline-none focus:border-violet-500/40" />
-                  <div className="flex gap-2">
-                    <Button onClick={() => void reviewIdentity('pass')} disabled={identitySaving || !identityPhotoUrl || !identityVideoUrl}>Pass identity check</Button>
-                    <Button danger onClick={() => void reviewIdentity('fail')} disabled={identitySaving}>Fail & retry</Button>
+              {identity?.status === 'passed' ? (
+                <p className="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.04] p-3 text-[9px] text-emerald-300">Identity & liveness passed. The raw private photo/video has been cleared from the review record.</p>
+              ) : (
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="overflow-hidden rounded-xl border border-white/[.06] bg-black/20">
+                      {identityPhotoUrl ? <img src={identityPhotoUrl} alt="Private Worker enrollment" className="aspect-square w-full object-cover" /> : <Missing text="No private photo" />}
+                      <p className="px-2 py-2 text-[8px] text-[#62697A]">PRIVATE PHOTO · NOT PUBLIC</p>
+                    </div>
+                    <div className="overflow-hidden rounded-xl border border-white/[.06] bg-black/20">
+                      {identityVideoUrl ? <video src={identityVideoUrl} controls playsInline className="aspect-square w-full bg-black object-contain" /> : <Missing text="No liveness video" />}
+                      <p className="px-2 py-2 text-[8px] text-[#62697A]">CENTER → LEFT → RIGHT → CENTER</p>
+                    </div>
                   </div>
-                </div>
+
+                  {identity?.status === 'pending_review' && (
+                    <div className="mt-3 space-y-2">
+                      <input value={identityReason} onChange={(event) => setIdentityReason(event.target.value)} placeholder="Reason only if failing identity check" className="h-10 w-full rounded-xl border border-white/[.08] bg-black/20 px-3 text-[10px] outline-none focus:border-violet-500/40" />
+                      <div className="flex gap-2">
+                        <Button onClick={() => void reviewIdentity('pass')} disabled={identitySaving || !identityPhotoUrl || !identityVideoUrl}>Pass identity check</Button>
+                        <Button danger onClick={() => void reviewIdentity('fail')} disabled={identitySaving}>Fail & retry</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               {identity?.status === 'failed' && <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">{identity.rejection_reason || 'Worker must repeat the private identity check.'}</p>}
             </section>
