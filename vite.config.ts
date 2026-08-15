@@ -24,6 +24,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/AdminDashboardUnified.tsx'),
       },
       {
+        find: /^@\/components\/DesktopLayout$/,
+        replacement: path.resolve(__dirname, './src/components/DesktopLayoutUnified.tsx'),
+      },
+      {
         find: '@',
         replacement: path.resolve(__dirname, './src'),
       },
