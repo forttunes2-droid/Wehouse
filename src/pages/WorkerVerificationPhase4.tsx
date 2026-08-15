@@ -12,9 +12,9 @@ type Activation = {
   live: boolean;
   profile_complete: boolean;
   payment_status: string | null;
-  gold_badge: boolean;
+  payment_confirmed?: boolean;
+  gold_badge?: boolean;
   identity_status: string;
-  identity_captured: boolean;
   identity_passed: boolean;
   test_passed: boolean;
   test_percent: number | null;
@@ -27,7 +27,7 @@ type Activation = {
 
 const EMPTY: Activation = {
   worker_status: 'pending', live: false, profile_complete: false, payment_status: null,
-  gold_badge: false, identity_status: 'not_started', identity_captured: false, identity_passed: false,
+  payment_confirmed: false, gold_badge: false, identity_status: 'not_started', identity_passed: false,
   test_passed: false, test_percent: null, test_attempts_24h: 0,
   evidence_saved: false, submitted: false, review_status: null, rejection_reason: null,
 };
@@ -58,7 +58,6 @@ export default function WorkerVerificationPhase4({ profile, onBack }: Props) {
 
   useEffect(() => { void refresh(); }, [profile.user_id]);
   useEffect(() => () => { if (videoPreview) URL.revokeObjectURL(videoPreview); }, [videoPreview]);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -71,12 +70,15 @@ export default function WorkerVerificationPhase4({ profile, onBack }: Props) {
         try { localStorage.removeItem(PAYMENT_REF_KEY); } catch {}
         toast.success('Verification payment confirmed');
         await refresh();
-      } else if (result.error && !result.error.includes('Max retries')) {
-        toast.info('Payment is not confirmed yet');
-      }
+      } else if (result.error && !result.error.includes('Max retries')) toast.info('Payment is not confirmed yet');
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const paymentDone = Boolean(activation.payment_confirmed ?? activation.gold_badge);
+  const verificationComplete = activation.identity_passed && paymentDone && activation.test_passed && activation.evidence_saved;
+  const underReview = activation.worker_status === 'profile_under_review' || activation.submitted;
+  const live = activation.live || activation.worker_status === 'verified';
 
   function openProfessionalProfile() {
     try {
@@ -131,9 +133,9 @@ export default function WorkerVerificationPhase4({ profile, onBack }: Props) {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('video/')) return toast.error('Choose a video file');
-    if (file.size > 50 * 1024 * 1024) return toast.error('Skill video must be under 50MB');
+    if (file.size > 50 * 1024 * 1024) return toast.error('Work video must be under 50MB');
     try {
-      const path = await upload(file, 'worker-verification-videos', 'skill-video');
+      const path = await upload(file, 'worker-verification-videos', 'work-video');
       setVideoPath(path);
       if (videoPreview) URL.revokeObjectURL(videoPreview);
       setVideoPreview(URL.createObjectURL(file));
@@ -161,10 +163,6 @@ export default function WorkerVerificationPhase4({ profile, onBack }: Props) {
 
   if (loading) return <Screen><div className="grid min-h-[60dvh] place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div></Screen>;
 
-  const verificationComplete = activation.identity_captured && activation.gold_badge && activation.test_passed && activation.evidence_saved;
-  const underReview = activation.worker_status === 'profile_under_review' || activation.submitted;
-  const live = activation.live || activation.worker_status === 'verified';
-
   return (
     <Screen>
       <Toaster position="top-center" richColors theme="dark" />
@@ -177,24 +175,24 @@ export default function WorkerVerificationPhase4({ profile, onBack }: Props) {
 
       <main className="mx-auto max-w-2xl space-y-3 px-4 py-4 sm:px-5">
         <Progress profileDone={activation.profile_complete} verificationDone={verificationComplete} reviewDone={live} />
-        {activation.rejection_reason && activation.identity_status !== 'failed' && <Notice title="Review feedback" text={activation.rejection_reason} />}
+        {activation.rejection_reason && <Notice title="Professional review feedback" text={activation.rejection_reason} />}
 
         {live ? (
-          <ActionCard eyebrow="LIVE" title="Your services are public" text="Customers can now find your reviewed professional profile."><Primary label="Back to dashboard" onClick={onBack} /></ActionCard>
+          <ActionCard eyebrow="LIVE" title="Your services are public" text="Customers can now find your WeHouse Reviewed professional profile."><Primary label="Back to dashboard" onClick={onBack} /></ActionCard>
         ) : underReview ? (
-          <ActionCard eyebrow="WEHOUSE REVIEW" title="Review in progress" text="Verification Staff are checking your private identity/liveness and professional work evidence. Your profile remains private until approval."><StatusLine text={activation.identity_passed ? 'Identity & liveness passed' : 'Identity & liveness awaiting review'} good={activation.identity_passed} /><Secondary label="Back to dashboard" onClick={onBack} /></ActionCard>
+          <ActionCard eyebrow="3 · WEHOUSE REVIEW" title="Professional review in progress" text="Your automatic private face check already passed. Verification Staff are reviewing your readiness and work evidence. Your profile remains private until approval."><StatusLine text="Automatic private face check passed" good /><Secondary label="Back to dashboard" onClick={onBack} /></ActionCard>
         ) : !activation.profile_complete ? (
           <ActionCard eyebrow="1 · WORK PROFILE" title="Complete your work profile" text="Add your service, experience, price and work location."><Primary label="Complete work profile" onClick={openProfessionalProfile} /></ActionCard>
-        ) : !activation.identity_captured || activation.identity_status === 'failed' ? (
-          <WorkerIdentityCheck profile={profile} status={activation.identity_status} rejectionReason={activation.identity_status === 'failed' ? activation.rejection_reason : null} onSaved={refresh} />
-        ) : !activation.gold_badge ? (
-          <ActionCard eyebrow="2 · WORK VERIFICATION" title="Pay the verification fee" text="This pays for the verification process. Payment does not buy trust, approval or public visibility."><StatusLine text="Private face & liveness captured" good /><div className="flex items-center justify-between rounded-xl border border-white/[.07] bg-black/10 px-4 py-3"><span className="text-[10px] text-[#717888]">Verification fee</span><span className="text-xl font-bold">₦{fee.toLocaleString()}</span></div><Primary label={busy ? 'Opening Paystack…' : 'Continue to Paystack'} disabled={busy || fee <= 0} onClick={() => void pay()} /></ActionCard>
+        ) : !activation.identity_passed ? (
+          <WorkerIdentityCheck profile={profile} status={activation.identity_status} onSaved={refresh} />
+        ) : !paymentDone ? (
+          <ActionCard eyebrow="2 · WORK VERIFICATION" title="Pay the verification fee" text="This pays for the verification process. Payment does not buy trust, approval or public visibility."><StatusLine text="Automatic private face check passed" good /><div className="flex items-center justify-between rounded-xl border border-white/[.07] bg-black/10 px-4 py-3"><span className="text-[10px] text-[#717888]">Verification fee</span><span className="text-xl font-bold">₦{fee.toLocaleString()}</span></div><Primary label={busy ? 'Opening Paystack…' : 'Continue to Paystack'} disabled={busy || fee <= 0} onClick={() => void pay()} /></ActionCard>
         ) : !activation.test_passed ? (
-          <ActionCard eyebrow="2 · WORK VERIFICATION" title="Complete the readiness check" text="A short WeHouse check before you submit work evidence."><StatusLine text="Identity captured · payment confirmed" good /><WorkerReadinessTest onPassed={refresh} /></ActionCard>
+          <ActionCard eyebrow="2 · WORK VERIFICATION" title="Complete the readiness check" text="A short WeHouse check before you submit work evidence."><StatusLine text="Face check and payment complete" good /><WorkerReadinessTest onPassed={refresh} /></ActionCard>
         ) : !activation.evidence_saved ? (
-          <ActionCard eyebrow="2 · WORK VERIFICATION" title="Show us your work" text="Add one short skill/work video for private review. A professional certificate is optional."><StatusLine text="Identity, payment and readiness complete" good /><Upload label={certificatePath ? 'Certificate added' : 'Certificate · optional'} done={!!certificatePath} onClick={() => certificateInput.current?.click()} /><input ref={certificateInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={chooseCertificate} /><Upload label={videoPath ? 'Work video added' : 'Work video · required'} done={!!videoPath} onClick={() => videoInput.current?.click()} /><input ref={videoInput} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={chooseVideo} />{videoPreview && <video src={videoPreview} controls playsInline className="max-h-64 w-full rounded-2xl bg-black object-contain" />}<Primary label={busy ? 'Saving…' : 'Save work evidence'} disabled={busy || !videoPath} onClick={() => void saveEvidence()} /></ActionCard>
+          <ActionCard eyebrow="2 · WORK VERIFICATION" title="Show us your work" text="Add one short skill/work video for private professional review. A certificate is optional."><StatusLine text="Face check, payment and readiness complete" good /><Upload label={certificatePath ? 'Certificate added' : 'Certificate · optional'} done={!!certificatePath} onClick={() => certificateInput.current?.click()} /><input ref={certificateInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={chooseCertificate} /><Upload label={videoPath ? 'Work video added' : 'Work video · required'} done={!!videoPath} onClick={() => videoInput.current?.click()} /><input ref={videoInput} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={chooseVideo} />{videoPreview && <video src={videoPreview} controls playsInline className="max-h-64 w-full rounded-2xl bg-black object-contain" />}<Primary label={busy ? 'Saving…' : 'Save work evidence'} disabled={busy || !videoPath} onClick={() => void saveEvidence()} /></ActionCard>
         ) : (
-          <ActionCard eyebrow="3 · WEHOUSE REVIEW" title="Ready to submit" text="Your work profile, private identity capture, payment, readiness check and work video are ready for WeHouse review."><Primary label={busy ? 'Submitting…' : 'Submit to WeHouse'} disabled={busy} onClick={() => void submitReview()} /></ActionCard>
+          <ActionCard eyebrow="3 · WEHOUSE REVIEW" title="Ready to submit" text="Your work profile, automatic face check, payment, readiness check and work evidence are ready for WeHouse professional review."><Primary label={busy ? 'Submitting…' : 'Submit to WeHouse'} disabled={busy} onClick={() => void submitReview()} /></ActionCard>
         )}
       </main>
     </Screen>
@@ -208,4 +206,4 @@ function Secondary({ label, onClick }: { label: string; onClick: () => void }) {
 function Upload({ label, done, onClick }: { label: string; done: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} className={`flex min-h-12 w-full items-center justify-between rounded-xl border px-4 text-left text-xs ${done ? 'border-emerald-500/20 bg-emerald-500/[.05] text-emerald-300' : 'border-white/[.08] bg-black/10 text-[#A2A7B3]'}`}><span>{label}</span><span>{done ? '✓' : '+'}</span></button>; }
 function Notice({ title, text }: { title: string; text: string }) { return <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-xs font-semibold text-red-200">{title}</p><p className="mt-1 text-[10px] text-red-100/70">{text}</p></section>; }
 function StatusLine({ text, good = false }: { text: string; good?: boolean }) { return <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[9px] ${good ? 'border-emerald-500/15 bg-emerald-500/[.05] text-emerald-300' : 'border-white/[.06] bg-black/10 text-[#737A8A]'}`}><span className={`h-2 w-2 rounded-full ${good ? 'bg-emerald-400' : 'bg-violet-400'}`} />{text}</div>; }
-function Progress({ profileDone, verificationDone, reviewDone }: { profileDone: boolean; verificationDone: boolean; reviewDone: boolean }) { const stages = [{ label: 'Work profile', done: profileDone }, { label: 'Work verification', done: verificationDone }, { label: 'WeHouse review', done: reviewDone }]; return <section className="rounded-2xl border border-white/[.06] bg-[#0F131A] p-3"><div className="grid grid-cols-3 gap-2">{stages.map((stage, index) => { const active = !stage.done && stages.slice(0, index).every((item) => item.done); return <div key={stage.label} className={`rounded-xl border px-2 py-3 text-center ${stage.done ? 'border-emerald-500/15 bg-emerald-500/[.05]' : active ? 'border-violet-500/20 bg-violet-500/[.06]' : 'border-white/[.05] bg-black/10'}`}><span className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[9px] font-bold ${stage.done ? 'bg-emerald-500 text-[#04120A]' : active ? 'bg-violet-500 text-white' : 'bg-white/[.05] text-[#656C7B]'}`}>{stage.done ? '✓' : index + 1}</span><p className={`mt-2 text-[8px] font-medium leading-tight ${stage.done ? 'text-emerald-300' : active ? 'text-violet-200' : 'text-[#676E7E]'}`}>{stage.label}</p></div>; })}</div></section>; }
+function Progress({ profileDone, verificationDone, reviewDone }: { profileDone: boolean; verificationDone: boolean; reviewDone: boolean }) { const stages = [{ label: 'Work profile', done: profileDone }, { label: 'Work verification', done: verificationDone }, { label: 'WeHouse review', done: reviewDone }]; return <section className="rounded-2xl border border-white/[.06] bg-[#0F131A] p-3"><div className="grid grid-cols-3 gap-2">{stages.map((stage, index) => { const active = !stage.done && stages.slice(0, index).every((item) => item.done); return <div key={stage.label} className={`rounded-xl border px-2 py-3 text-center ${stage.done ? 'border-emerald-500/15 bg-emerald-500/[.05]' : active ? 'border-violet-500/20 bg-violet-500/[.06]' : 'border-white/[.05] bg-black/10'}`}><span className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[9px] font-bold ${stage.done ? 'bg-emerald-500 text-[#04120A]' : active ? 'bg-violet-500 text-white' : 'bg-white/[.05] text-[#656C7B]'}`}>{stage.done ? '✓' : index + 1}</span><p className={`mt-2 text-[8px] ${stage.done ? 'text-emerald-300' : active ? 'text-violet-200' : 'text-[#676E7E]'}`}>{stage.label}</p></div>; })}</div></section>; }
