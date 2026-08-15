@@ -17,6 +17,7 @@ export type NavPage =
   | 'security'
   | 'my_bookings'
   | 'my_reservations'
+  | 'payment_return'
   // ── Canonical role workspaces ──
   | 'creator'
   | 'admin'
