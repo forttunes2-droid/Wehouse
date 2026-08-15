@@ -14,9 +14,24 @@ export default defineConfig({
     port: 3000,
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      {
+        find: /^@\/pages\/CreatorDashboard$/,
+        replacement: path.resolve(__dirname, './src/pages/CreatorDashboardUnified.tsx'),
+      },
+      {
+        find: /^@\/pages\/AdminDashboard$/,
+        replacement: path.resolve(__dirname, './src/pages/AdminDashboardUnified.tsx'),
+      },
+      {
+        find: /^@\/components\/DesktopLayout$/,
+        replacement: path.resolve(__dirname, './src/components/DesktopLayoutUnified.tsx'),
+      },
+      {
+        find: '@',
+        replacement: path.resolve(__dirname, './src'),
+      },
+    ],
   },
   build: {
     // Capacitor needs relative paths
