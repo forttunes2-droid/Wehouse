@@ -22,6 +22,7 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
   'worker_discovery', 'worker_categories', 'privacy_policy', 'terms_of_service',
   'profile_edit', 'privacy', 'security', 'detail', 'hotel_detail', 'hotel_booking',
   'hotel_reservation', 'my_bookings', 'my_reservations', 'worker_verification', 'worker_setup',
+  'new_listing', 'payment_return',
 ]);
 const OPERATIONAL_ROLES = new Set(['creator', 'admin', 'staff', 'worker', 'property_partner']);
 
@@ -97,7 +98,7 @@ export default function DesktopLayoutUnified({
 
       <div className={`${!operational ? `lg:ml-[240px] ${collapsed ? 'lg:!ml-[72px]' : ''}` : ''} min-h-[100dvh] min-w-0 transition-all duration-300`}>
         {showBack && (
-          <div className="sticky top-0 z-[55] border-b border-white/[.05] bg-[#080A0F]/95 px-4 py-2 backdrop-blur-xl sm:px-5 lg:px-8">
+          <div className={`sticky top-0 z-[55] border-b border-white/[.05] bg-[#080A0F]/95 px-4 py-2 backdrop-blur-xl sm:px-5 lg:px-8 ${showMobileBack ? '' : 'hidden lg:block'}`}>
             <div className="mx-auto flex min-h-10 max-w-7xl items-center justify-between gap-3">
               <button onClick={back} className="flex min-h-9 items-center gap-2 rounded-xl border border-white/[.07] bg-white/[.025] px-3 text-[10px] font-semibold text-[#A8ADBB] hover:bg-white/[.04] hover:text-white">
                 <span>←</span><span>Back</span>
@@ -114,7 +115,6 @@ export default function DesktopLayoutUnified({
           </header>
         )}
 
-        {showMobileBack && <div className="hidden" aria-hidden="true" />}
         <main data-desktop-content-root className="min-w-0">{children}</main>
       </div>
     </div>
