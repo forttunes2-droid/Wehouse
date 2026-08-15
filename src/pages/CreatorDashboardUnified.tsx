@@ -1,5 +1,5 @@
 import LegacyWorkspaceBridge from '@/components/LegacyWorkspaceBridge';
-import CreatorDashboard from '@/pages/CreatorDashboard';
+import CreatorDashboard from './CreatorDashboard';
 import type { Profile } from '@/types';
 
 const ITEMS = [
