@@ -33,11 +33,8 @@ const SAVED = icon('M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z');
 
 const account = (): DesktopNavItem => ({ id: 'profile', label: 'Account', icon: ACCOUNT });
 
-// Phase 3 navigation contract:
-// Operational dashboards own their private Account entry inside their workspace.
-// The outer application shell must not define a second Account destination for
-// Creator, Admin, Staff or Worker. Property Partner keeps the outer Account
-// temporarily until its dashboard is migrated to the canonical workspace frame.
+// Operational dashboards own their private Account destination inside the
+// canonical workspace frame. The outer shell only owns public/user navigation.
 export function getCreatorNav(): DesktopNavItem[] {
   return [{ id: 'creator', label: 'Creator', icon: DASHBOARD }];
 }
@@ -55,7 +52,7 @@ export function getStaffNav(): DesktopNavItem[] {
 }
 
 export function getPartnerNav(): DesktopNavItem[] {
-  return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }, account()];
+  return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }];
 }
 
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
