@@ -8,6 +8,7 @@ import {
   initializeReservationPayment,
   updateReservationPlan,
 } from '@/lib/supabase';
+import { initializeApartmentRentPayment } from '@/lib/supabase/housing-payments';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing, Profile, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
@@ -23,7 +24,6 @@ type Props = {
 };
 
 type Plan = { durationYears: RentalDuration; year1Upfront: number; monthlyInstallment: number };
-
 type ListingState = 'pending_approval' | 'available' | 'reserved' | 'occupied' | 'maintenance' | 'closed' | 'rejected';
 const LISTING_STATES: Record<ListingState, { label: string; cls: string }> = {
   pending_approval: { label: 'Pending approval', cls: 'border-blue-500/20 bg-blue-500/10 text-blue-300' },
@@ -34,7 +34,6 @@ const LISTING_STATES: Record<ListingState, { label: string; cls: string }> = {
   closed: { label: 'Closed', cls: 'border-white/10 bg-white/[.04] text-[#8A8E9D]' },
   rejected: { label: 'Rejected', cls: 'border-red-500/20 bg-red-500/10 text-red-300' },
 };
-
 const ACTIVE_RESERVATION_STATES = new Set(['payment_pending', 'reserved', 'inspection_pending', 'ready_for_move_in', 'occupied']);
 
 export default function ListingDetail({ listingId, onNavigate, profile, isSaved, onToggleSave }: Props) {
@@ -57,7 +56,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
       const { reservation: current } = await getReservationForListing(listingId, profile.user_id);
       setReservation(current);
       if (current?.rental_plan_years) {
-        setPlan({ durationYears: current.rental_plan_years as RentalDuration, year1Upfront: 0, monthlyInstallment: 0 });
+        setPlan({ durationYears: current.rental_plan_years as RentalDuration, year1Upfront: Number(current.upfront_rent_required || 0), monthlyInstallment: current.installment_count ? Number(current.installment_balance || 0) / Number(current.installment_count) : 0 });
       }
       if (current?.id) {
         const { inspection: request } = await getInspectionRequestForReservation(current.id);
@@ -98,6 +97,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
           price: listing.price,
           reservation_id: reservation?.id || null,
           reservation_status: reservation?.status || null,
+          rent_payment_status: reservation?.rent_payment_status || null,
           inspection_id: inspection?.id || null,
           inspection_status: inspection?.status || null,
         },
@@ -111,19 +111,16 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
     try {
       const { reservation: created, error: reserveError } = await createReservation(listingId, profile.user_id);
       if (reserveError || !created) throw new Error(reserveError?.message || 'Could not start this reservation');
-
       const { reservation: planned, error: planError } = await updateReservationPlan(created.id, plan.durationYears);
       if (planError) throw new Error(planError.message);
       const next = planned || created;
       setReservation(next);
-
       if (next.status !== 'payment_pending') {
         toast.success('Your reservation is already active');
         setShowPlan(false);
         await load();
         return;
       }
-
       const reference = String(next.payment_reference || '');
       if (!reference) throw new Error('Reservation payment reference is missing');
       const { result, error } = await initializeReservationPayment(reference);
@@ -134,9 +131,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
         await load();
         return;
       }
-      if (!result?.success || !result.authorization_url) {
-        throw new Error(result?.error || 'Paystack checkout could not be opened');
-      }
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || 'Paystack checkout could not be opened');
       window.location.assign(result.authorization_url);
     } catch (error: any) {
       toast.error(error?.message || 'Could not start payment');
@@ -164,15 +159,30 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
     }
   }
 
+  async function payContractRent() {
+    if (!reservation?.id) return;
+    setBusy(true);
+    try {
+      const { result, error } = await initializeApartmentRentPayment(reservation.id);
+      if (error) throw error;
+      if (result?.already_paid) {
+        toast.success('Required contract rent is already confirmed');
+        await load();
+        setBusy(false);
+        return;
+      }
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || 'Could not open contract-rent checkout');
+      window.location.assign(result.authorization_url);
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not start contract-rent payment');
+      setBusy(false);
+    }
+  }
+
   async function requestInspection() {
     if (!reservation) return;
     setBusy(true);
-    const { inspection: request, error } = await createInspectionRequest(
-      reservation.id,
-      listingId,
-      profile.user_id,
-      `Inspection requested for ${listing?.title || 'property'}`,
-    );
+    const { inspection: request, error } = await createInspectionRequest(reservation.id, listingId, profile.user_id, `Inspection requested for ${listing?.title || 'property'}`);
     setBusy(false);
     if (error) return toast.error(error.message);
     setInspection(request || null);
@@ -180,120 +190,57 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
     toast.success('Inspection requested');
   }
 
-  if (loading) {
-    return <div className="grid min-h-[70dvh] place-items-center bg-[#090A0F]"><div className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /></div>;
-  }
-  if (!listing) {
-    return <div className="grid min-h-[70dvh] place-items-center bg-[#090A0F] px-4 text-center text-white"><div><p className="text-sm font-semibold">Property unavailable</p><button onClick={onNavigate} className="mt-4 text-xs text-blue-400">← Go back</button></div></div>;
-  }
+  if (loading) return <div className="grid min-h-[70dvh] place-items-center bg-[#090A0F]"><div className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /></div>;
+  if (!listing) return <div className="grid min-h-[70dvh] place-items-center bg-[#090A0F] px-4 text-center text-white"><div><p className="text-sm font-semibold">Property unavailable</p><button onClick={onNavigate} className="mt-4 text-xs text-blue-400">← Go back</button></div></div>;
 
   const status = String(listing.status || 'available') as ListingState;
   const state = LISTING_STATES[status] || LISTING_STATES.closed;
   const images = listing.images?.length ? listing.images : ['https://placehold.co/900x650/171922/666A7A?text=No+Image'];
   const hasOwnActiveReservation = Boolean(reservation && ACTIVE_RESERVATION_STATES.has(String(reservation.status)));
   const canStartReservation = status === 'available' && !hasOwnActiveReservation;
-  const paymentPending = reservation?.status === 'payment_pending';
-  const paidReservation = Boolean(reservation && ['reserved', 'inspection_pending', 'ready_for_move_in', 'occupied'].includes(reservation.status));
 
-  return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-12 text-white">
-      <Toaster position="top-center" richColors />
-      <div className="mx-auto max-w-6xl">
-        <section className="relative overflow-hidden bg-[#11141C] sm:m-4 sm:rounded-3xl">
-          <img src={images[imageIndex]} alt={listing.title} className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
-          <button onClick={onNavigate} className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur">←</button>
-          <button onClick={onToggleSave} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-sm backdrop-blur">{isSaved ? '★' : '☆'}</button>
-          <span className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase ${state.cls}`}>{state.label}</span>
-          {images.length > 1 && <div className="absolute bottom-4 right-4 flex gap-1.5">{images.map((_, index) => <button key={index} onClick={() => setImageIndex(index)} className={`h-2 rounded-full ${index === imageIndex ? 'w-5 bg-white' : 'w-2 bg-white/40'}`} />)}</div>}
-        </section>
+  return <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-12 text-white">
+    <Toaster position="top-center" richColors />
+    <div className="mx-auto max-w-6xl">
+      <section className="relative overflow-hidden bg-[#11141C] sm:m-4 sm:rounded-3xl">
+        <img src={images[imageIndex]} alt={listing.title} className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
+        <button onClick={onNavigate} className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur">←</button>
+        <button onClick={onToggleSave} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-sm backdrop-blur">{isSaved ? '★' : '☆'}</button>
+        <span className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase ${state.cls}`}>{state.label}</span>
+        {images.length > 1 && <div className="absolute bottom-4 right-4 flex gap-1.5">{images.map((_, index) => <button key={index} onClick={() => setImageIndex(index)} className={`h-2 rounded-full ${index === imageIndex ? 'w-5 bg-white' : 'w-2 bg-white/40'}`} />)}</div>}
+      </section>
 
-        <main className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="min-w-0 space-y-5">
-              <section>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0"><h1 className="break-words text-2xl font-bold">{listing.title}</h1><p className="mt-1 text-xs text-[#777B8B]">{[listing.address, listing.city, listing.state].filter(Boolean).join(', ')}</p></div>
-                  <p className="shrink-0 text-xl font-bold text-blue-400">₦{Number(listing.price || 0).toLocaleString()}<span className="ml-1 text-[10px] font-normal text-[#686C7D]">/year</span></p>
-                </div>
-              </section>
-
-              <section className="grid grid-cols-3 gap-2">
-                <Fact label="Type" value={listing.sub_type ? listing.sub_type.replace(/_/g, ' ') : listing.property_type || 'Apartment'} />
-                <Fact label="Bedrooms" value={listing.bedrooms || '—'} />
-                <Fact label="Bathrooms" value={listing.bathrooms || '—'} />
-              </section>
-
-              {listing.description && <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5"><h2 className="text-sm font-semibold">About this property</h2><p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#9599A8]">{listing.description}</p></section>}
-
-              {listing.videos?.length > 0 && <section><h2 className="mb-3 text-sm font-semibold">Property videos</h2><div className="grid gap-3 sm:grid-cols-2">{listing.videos.map((url, index) => <video key={url} src={url} controls playsInline preload="metadata" className="aspect-video w-full rounded-2xl bg-black object-contain" aria-label={`Property video ${index + 1}`} />)}</div></section>}
-
-              <section className="rounded-2xl border border-blue-500/12 bg-blue-500/[.035] p-4 sm:p-5">
-                <h2 className="text-sm font-semibold">WeHouse property support</h2>
-                <p className="mt-1 text-[11px] leading-relaxed text-[#7C8191]">Questions, reservation help and inspection context stay linked to this property.</p>
-                <button onClick={() => support('property')} className="mt-4 h-11 w-full rounded-xl border border-blue-500/20 bg-blue-500/10 text-xs font-semibold text-blue-300">Message WeHouse Support</button>
-              </section>
-            </div>
-
-            <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
-              {hasOwnActiveReservation ? (
-                <ReservationPanel
-                  reservation={reservation}
-                  inspection={inspection}
-                  busy={busy}
-                  fee={reservationFee}
-                  onResume={() => void resumeCheckout()}
-                  onInspect={() => void requestInspection()}
-                  onSupport={() => support(reservation?.status === 'payment_pending' ? 'payment' : inspection ? 'inspection' : 'reservation')}
-                />
-              ) : canStartReservation ? (
-                <section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Available</p>
-                  <h2 className="mt-2 text-lg font-bold">Reserve this property</h2>
-                  <p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Choose your tenure, then pay the reservation fee through Paystack. The database protects the checkout hold so another customer cannot reserve the same property at the same time.</p>
-                  <div className="mt-3 flex items-center justify-between rounded-xl bg-white/[.035] p-3 text-xs"><span className="text-[#747889]">Reservation fee</span><span className="font-semibold">₦{reservationFee.toLocaleString()}</span></div>
-                  <button onClick={() => setShowPlan(true)} className="mt-4 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold">Choose tenure & reserve</button>
-                </section>
-              ) : (
-                <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5"><h2 className="text-sm font-semibold">{state.label}</h2><p className="mt-2 text-[11px] text-[#8A8E9D]">This property is not open for a new reservation right now.</p></section>
-              )}
-            </aside>
-          </div>
-        </main>
-      </div>
-
-      {showPlan && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 sm:items-center sm:p-4" onClick={() => !busy && setShowPlan(false)}>
-          <section className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 text-white sm:rounded-3xl" onClick={event => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300">Housing reservation</p><h2 className="mt-1 text-lg font-bold">Choose your rental tenure</h2></div><button disabled={busy} onClick={() => setShowPlan(false)} className="text-[#777B8B]">×</button></div>
-            <div className="mt-5"><RentalPlanSelector annualRent={listing.price || 0} subType={listing.sub_type || 'long_stay'} securityDepositAmount={listing.security_deposit_amount} onSelectPlan={setPlan} /></div>
-            <button onClick={() => void openCheckout()} disabled={!plan || busy} className="mt-5 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Continue to Paystack · ₦${reservationFee.toLocaleString()}`}</button>
-            <p className="mt-3 text-center text-[9px] leading-4 text-[#656A79]">Your reservation is not considered paid until WeHouse verifies the Paystack transaction server-side.</p>
-          </section>
+      <main className="px-4 py-5 sm:px-6 lg:px-8"><div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-5">
+          <section><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><h1 className="break-words text-2xl font-bold">{listing.title}</h1><p className="mt-1 text-xs text-[#777B8B]">{[listing.address, listing.city, listing.state].filter(Boolean).join(', ')}</p></div><p className="shrink-0 text-xl font-bold text-blue-400">₦{Number(listing.price || 0).toLocaleString()}<span className="ml-1 text-[10px] font-normal text-[#686C7D]">/year</span></p></div></section>
+          <section className="grid grid-cols-3 gap-2"><Fact label="Type" value={listing.sub_type ? listing.sub_type.replace(/_/g, ' ') : listing.property_type || 'Apartment'} /><Fact label="Bedrooms" value={listing.bedrooms || '—'} /><Fact label="Bathrooms" value={listing.bathrooms || '—'} /></section>
+          {listing.description && <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5"><h2 className="text-sm font-semibold">About this property</h2><p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#9599A8]">{listing.description}</p></section>}
+          {listing.videos?.length > 0 && <section><h2 className="mb-3 text-sm font-semibold">Property videos</h2><div className="grid gap-3 sm:grid-cols-2">{listing.videos.map((url, index) => <video key={url} src={url} controls playsInline preload="metadata" className="aspect-video w-full rounded-2xl bg-black object-contain" aria-label={`Property video ${index + 1}`} />)}</div></section>}
+          <section className="rounded-2xl border border-blue-500/12 bg-blue-500/[.035] p-4 sm:p-5"><h2 className="text-sm font-semibold">WeHouse property support</h2><p className="mt-1 text-[11px] leading-relaxed text-[#7C8191]">Questions, reservation help and inspection context stay linked to this property.</p><button onClick={() => support('property')} className="mt-4 h-11 w-full rounded-xl border border-blue-500/20 bg-blue-500/10 text-xs font-semibold text-blue-300">Message WeHouse Support</button></section>
         </div>
-      )}
+
+        <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+          {hasOwnActiveReservation ? <ReservationPanel reservation={reservation} inspection={inspection} busy={busy} fee={reservationFee} onResume={() => void resumeCheckout()} onInspect={() => void requestInspection()} onRentPay={() => void payContractRent()} onSupport={() => support(reservation?.status === 'payment_pending' || reservation?.rent_payment_status === 'payment_pending' ? 'payment' : inspection ? 'inspection' : 'reservation')} /> : canStartReservation ? <section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Available</p><h2 className="mt-2 text-lg font-bold">Reserve this property</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Choose your tenure, then pay the reservation fee through Paystack. The database protects the checkout hold so another customer cannot reserve the same property at the same time.</p><div className="mt-3 flex items-center justify-between rounded-xl bg-white/[.035] p-3 text-xs"><span className="text-[#747889]">Reservation fee</span><span className="font-semibold">₦{reservationFee.toLocaleString()}</span></div><button onClick={() => setShowPlan(true)} className="mt-4 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold">Choose tenure & reserve</button></section> : <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5"><h2 className="text-sm font-semibold">{state.label}</h2><p className="mt-2 text-[11px] text-[#8A8E9D]">This property is not open for a new reservation right now.</p></section>}
+        </aside>
+      </div></main>
     </div>
-  );
+
+    {showPlan && <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 sm:items-center sm:p-4" onClick={() => !busy && setShowPlan(false)}><section className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 text-white sm:rounded-3xl" onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300">Housing reservation</p><h2 className="mt-1 text-lg font-bold">Choose your rental tenure</h2></div><button disabled={busy} onClick={() => setShowPlan(false)} className="text-[#777B8B]">×</button></div><div className="mt-5"><RentalPlanSelector annualRent={listing.price || 0} subType={listing.sub_type || 'long_stay'} securityDepositAmount={listing.security_deposit_amount} onSelectPlan={setPlan} /></div><button onClick={() => void openCheckout()} disabled={!plan || busy} className="mt-5 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Continue to Paystack · ₦${reservationFee.toLocaleString()}`}</button><p className="mt-3 text-center text-[9px] leading-4 text-[#656A79]">The reservation fee holds the property. Contract rent is verified separately after inspection and before move-in.</p></section></div>}
+  </div>;
 }
 
-function ReservationPanel({ reservation, inspection, busy, fee, onResume, onInspect, onSupport }: { reservation: any; inspection: any; busy: boolean; fee: number; onResume: () => void; onInspect: () => void; onSupport: () => void }) {
+function ReservationPanel({ reservation, inspection, busy, fee, onResume, onInspect, onRentPay, onSupport }: { reservation: any; inspection: any; busy: boolean; fee: number; onResume: () => void; onInspect: () => void; onRentPay: () => void; onSupport: () => void }) {
   const status = String(reservation?.status || 'payment_pending');
-  if (status === 'payment_pending') {
-    return <section className="rounded-3xl border border-amber-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-amber-300">Checkout pending</p><h2 className="mt-2 text-lg font-bold">Finish your reservation</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">This property is temporarily held while you complete the ₦{fee.toLocaleString()} reservation payment.</p>{reservation.payment_expires_at && <p className="mt-3 text-[10px] text-amber-300">Checkout hold ends · {new Date(reservation.payment_expires_at).toLocaleString()}</p>}<button disabled={busy} onClick={onResume} className="mt-4 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold disabled:opacity-50">{busy ? 'Opening Paystack…' : 'Continue secure payment'}</button><button onClick={onSupport} className="mt-2 h-10 w-full text-xs text-blue-300">Payment help</button></section>;
-  }
-  if (status === 'occupied') {
-    return <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Occupied</p><h2 className="mt-2 text-lg font-bold">Your tenancy is active</h2>{reservation.tenancy_start_date && <Row label="Started" value={new Date(reservation.tenancy_start_date).toLocaleDateString()} />}{reservation.tenancy_end_date && <Row label="Tenancy ends" value={new Date(reservation.tenancy_end_date).toLocaleDateString()} />}{reservation.move_out_grace_until && <Row label="Grace until" value={new Date(reservation.move_out_grace_until).toLocaleDateString()} />}<button onClick={onSupport} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold">Housing support</button></section>;
-  }
+  if (status === 'payment_pending') return <section className="rounded-3xl border border-amber-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-amber-300">Checkout pending</p><h2 className="mt-2 text-lg font-bold">Finish your reservation</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">This property is temporarily held while you complete the ₦{fee.toLocaleString()} reservation payment.</p>{reservation.payment_expires_at && <p className="mt-3 text-[10px] text-amber-300">Checkout hold ends · {new Date(reservation.payment_expires_at).toLocaleString()}</p>}<button disabled={busy} onClick={onResume} className="mt-4 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold disabled:opacity-50">{busy ? 'Opening Paystack…' : 'Continue secure payment'}</button><button onClick={onSupport} className="mt-2 h-10 w-full text-xs text-blue-300">Payment help</button></section>;
+  if (status === 'occupied') return <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Occupied</p><h2 className="mt-2 text-lg font-bold">Your tenancy is active</h2>{reservation.tenancy_start_date && <Row label="Started" value={new Date(reservation.tenancy_start_date).toLocaleDateString()} />}{reservation.tenancy_end_date && <Row label="Tenancy ends" value={new Date(reservation.tenancy_end_date).toLocaleDateString()} />}{reservation.move_out_grace_until && <Row label="Grace until" value={new Date(reservation.move_out_grace_until).toLocaleDateString()} />}{Number(reservation.installment_balance || 0) > 0 && <Row label="Installment balance" value={`₦${Number(reservation.installment_balance).toLocaleString()}`} />}<button onClick={onSupport} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold">Housing support</button></section>;
   if (status === 'ready_for_move_in') {
-    return <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Ready for move-in</p><h2 className="mt-2 text-lg font-bold">Inspection gate completed</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Housing Operations will activate the tenancy when move-in is confirmed. That is the event that changes the property to Occupied.</p><button onClick={onSupport} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold">Contact Housing Operations</button></section>;
+    const rentPaid = ['paid','upfront_paid'].includes(String(reservation.rent_payment_status || ''));
+    if (!rentPaid) return <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Inspection passed</p><h2 className="mt-2 text-lg font-bold">Settle contract rent</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Move-in cannot be activated until WeHouse verifies the required contract-rent payment.</p><div className="mt-3 rounded-xl bg-white/[.035] p-3"><Row label="Total contract" value={`₦${Number(reservation.contract_rent_total || 0).toLocaleString()}`} /><Row label="Required now" value={`₦${Number(reservation.upfront_rent_required || 0).toLocaleString()}`} />{Number(reservation.installment_balance || 0) > 0 && <Row label={`${reservation.installment_count || 4} installments later`} value={`₦${Number(reservation.installment_balance).toLocaleString()}`} />}</div><button disabled={busy} onClick={onRentPay} className="mt-4 h-12 w-full rounded-xl bg-emerald-500 text-sm font-semibold text-[#03100B] disabled:opacity-50">{busy ? 'Opening Paystack…' : reservation.rent_payment_status === 'payment_pending' ? 'Continue contract-rent payment' : 'Pay required contract rent'}</button><button onClick={onSupport} className="mt-2 h-10 w-full text-xs text-blue-300">Payment support</button></section>;
+    return <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Ready for move-in</p><h2 className="mt-2 text-lg font-bold">Contract payment verified</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Housing Operations can now confirm the actual move-in date. That workflow event changes the property from Reserved to Occupied.</p>{reservation.rent_paid_at && <Row label="Rent verified" value={new Date(reservation.rent_paid_at).toLocaleString()} />}<button onClick={onSupport} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold">Contact Housing Operations</button></section>;
   }
   return <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Reservation paid</p><h2 className="mt-2 text-lg font-bold">Property held for you</h2>{reservation.hold_expires_at && <p className="mt-2 text-[10px] text-amber-300">Current hold · until {new Date(reservation.hold_expires_at).toLocaleString()}</p>}<div className="mt-3 rounded-xl bg-white/[.035] p-3"><Row label="Tenure" value={`${reservation.rental_plan_years || 1} year${Number(reservation.rental_plan_years || 1) === 1 ? '' : 's'}`} /><Row label="Reservation fee" value={`₦${Number(reservation.amount || fee).toLocaleString()}`} /></div>{inspection ? <div className="mt-3 rounded-xl border border-blue-500/10 bg-blue-500/[.05] p-3 text-[10px] text-blue-300">Inspection · {String(inspection.status || 'pending').replace(/_/g, ' ')}</div> : <button disabled={busy} onClick={onInspect} className="mt-4 h-11 w-full rounded-xl bg-blue-500 text-xs font-semibold disabled:opacity-50">{busy ? 'Requesting…' : 'Request property inspection'}</button>}<button onClick={onSupport} className="mt-2 h-10 w-full text-xs text-blue-300">Reservation support</button></section>;
 }
 
-function Fact({ label, value }: { label: string; value: string | number }) {
-  return <div className="min-w-0 rounded-2xl border border-white/[.06] bg-[#11141C] p-3 text-center"><p className="truncate text-[9px] uppercase text-[#5E6272]">{label}</p><p className="mt-1 truncate text-xs font-semibold capitalize">{value}</p></div>;
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return <div className="mt-2 flex items-center justify-between gap-3 text-[10px]"><span className="text-[#707586]">{label}</span><span className="text-right font-semibold text-[#D5D8E0]">{value}</span></div>;
-}
+function Fact({ label, value }: { label: string; value: string | number }) { return <div className="min-w-0 rounded-2xl border border-white/[.06] bg-[#11141C] p-3 text-center"><p className="truncate text-[9px] uppercase text-[#5E6272]">{label}</p><p className="mt-1 truncate text-xs font-semibold capitalize">{value}</p></div>; }
+function Row({ label, value }: { label: string; value: string }) { return <div className="mt-2 flex items-center justify-between gap-3 text-[10px]"><span className="text-[#707586]">{label}</span><span className="text-right font-semibold text-[#D5D8E0]">{value}</span></div>; }
