@@ -31,7 +31,9 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
   if (purpose === 'worker_booking') return role === 'user' ? 'my_bookings' : role === 'worker' ? 'worker_dashboard' : 'home';
   if (purpose === 'hotel_booking') return role === 'user' ? 'my_bookings' : 'home';
-  if (purpose === 'housing_reservation' || purpose === 'reservation_fee') return role === 'user' ? 'my_reservations' : 'home';
+  if (['apartment_reservation', 'housing_reservation', 'reservation_fee'].includes(purpose || '')) {
+    return role === 'user' ? 'my_reservations' : 'home';
+  }
   if (role === 'worker') return 'worker_dashboard';
   if (role === 'property_partner') return 'property_partner';
   if (role === 'creator') return 'creator';
@@ -70,7 +72,9 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       setState({
         kind: 'success',
         purpose: result.purpose,
-        message: 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.',
+        message: result.purpose === 'apartment_reservation'
+          ? 'Reservation payment confirmed. This property is now held for you and the Housing workflow is unlocked.'
+          : 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.',
       });
     })();
 
@@ -92,7 +96,13 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
     try {
       localStorage.removeItem('wh_worker_verification_payment_ref');
     } catch {}
-    setState({ kind: 'success', purpose: result.purpose, message: 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.' });
+    setState({
+      kind: 'success',
+      purpose: result.purpose,
+      message: result.purpose === 'apartment_reservation'
+        ? 'Reservation payment confirmed. This property is now held for you and the Housing workflow is unlocked.'
+        : 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.',
+    });
   }
 
   return (
