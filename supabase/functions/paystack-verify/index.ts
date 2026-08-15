@@ -63,7 +63,7 @@ serve(async (req) => {
     }
 
     if (payment.status === 'paid' || payment.status === 'completed') {
-      return new Response(JSON.stringify({ success: true, verified: true, already_processed: true, amount: verifiedAmount }), { status: 200, headers: cors });
+      return new Response(JSON.stringify({ success: true, verified: true, already_processed: true, amount: verifiedAmount, purpose: payment.purpose }), { status: 200, headers: cors });
     }
 
     const transactionId = String(verified.data.id ?? '');
@@ -77,7 +77,7 @@ serve(async (req) => {
         p_transaction_id: transactionId,
       });
       if (error) return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: cors });
-      return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, result: data }), { status: 200, headers: cors });
+      return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
     }
 
     const { data, error } = await admin.rpc('confirm_booking_payment', {
@@ -88,7 +88,7 @@ serve(async (req) => {
       p_purpose: payment.purpose,
     });
     if (error) return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: cors });
-    return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, result: data }), { status: 200, headers: cors });
+    return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
   } catch (error) {
     return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Internal error' }), { status: 500, headers: cors });
   }
