@@ -41,6 +41,7 @@ export default function MyReservations({ profile, onBack }: Props) {
     setLoading(true);
     const [housingResult, hotelResult] = await Promise.all([getReservationsForUser(profile.user_id), getHotelBookingsForUser(profile.user_id)]);
     if (housingResult.error) toast.error(housingResult.error.message);
+    if (hotelResult.error) toast.error(hotelResult.error.message);
     setHousing(housingResult.reservations || []);
     setHotels(hotelResult.bookings || []);
     setLoading(false);
@@ -76,11 +77,11 @@ export default function MyReservations({ profile, onBack }: Props) {
     try {
       const { result, error } = await initializeApartmentRentPayment(row.id);
       if (error) throw error;
-      if (result?.already_paid) { toast.success('Contract rent is already confirmed'); await load(); setBusyId(null); return; }
-      if (!result?.success || !result.authorization_url) throw new Error(result?.error || 'Could not open contract-rent checkout');
+      if (result?.already_paid) { toast.success('Year 1 rent is already confirmed'); await load(); setBusyId(null); return; }
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || 'Could not open Year 1 rent checkout');
       window.location.assign(result.authorization_url);
     } catch (error: any) {
-      toast.error(error?.message || 'Could not continue contract-rent payment');
+      toast.error(error?.message || 'Could not continue Year 1 rent payment');
       setBusyId(null);
     }
   }
@@ -109,9 +110,9 @@ export default function MyReservations({ profile, onBack }: Props) {
   function housingSupport(row: any) {
     window.dispatchEvent(new CustomEvent('openSupportChat', { detail: {
       category: row.status === 'payment_pending' || row.rent_payment_status === 'payment_pending' ? 'payment' : 'apartment_booking',
-      subject: `Housing reservation · ${row.listing_title || 'Property'}`,
+      subject: `Housing reservation · ${row.booking_code || row.listing_title || 'Property'}`,
       contextType: 'apartment_reservation', contextId: row.id,
-      contextSnapshot: { reservation_id: row.id, listing_id: row.listing_id, listing_title: row.listing_title, status: row.status, payment_reference: row.payment_reference, rental_plan_years: row.rental_plan_years, rent_payment_status: row.rent_payment_status, tenancy_start_date: row.tenancy_start_date, tenancy_end_date: row.tenancy_end_date },
+      contextSnapshot: { reservation_id: row.id, booking_code: row.booking_code, listing_id: row.listing_id, listing_title: row.listing_title, status: row.status, payment_reference: row.payment_reference, rental_plan_years: row.rental_plan_years, rent_payment_status: row.rent_payment_status, tenancy_start_date: row.tenancy_start_date, tenancy_end_date: row.tenancy_end_date },
     }}));
   }
 
@@ -128,26 +129,34 @@ export default function MyReservations({ profile, onBack }: Props) {
   </div>;
 }
 
+function BookingCode({ code }: { code?: string | null }) {
+  if (!code) return null;
+  return <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-blue-500/15 bg-blue-500/[.04] px-3 py-2.5"><div><p className="text-[8px] uppercase tracking-[.14em] text-[#6E7890]">Your WeHouse booking code</p><p className="mt-1 text-sm font-black tracking-[.12em] text-blue-300">{code}</p></div><span className="max-w-[45%] text-right text-[8px] leading-4 text-[#687082]">Show this at arrival. Staff will match it with your booking details.</span></div>;
+}
+
 function HousingCard({ row, busy, onPay, onRentPay, onCancel, onSupport }: { row: any; busy: boolean; onPay: () => void; onRentPay: () => void; onCancel: () => void; onSupport: () => void }) {
   const state = HOUSING_STATUS[row.status] || { label: String(row.status || 'Unknown').replace(/_/g,' '), cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' };
   const rentReady = ['paid','upfront_paid'].includes(String(row.rent_payment_status || ''));
+  const years = Number(row.rental_plan_years || 1);
   return <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4">
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-blue-300">Housing</p><h2 className="mt-1 truncate text-sm font-semibold">{row.listing_title || 'Apartment reservation'}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.listing_location || 'WeHouse property'}</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[8px] font-semibold ${state.cls}`}>{state.label}</span></div>
-    <div className="mt-4 grid grid-cols-2 gap-2"><Info label="Reservation fee" value={`₦${Number(row.amount || 0).toLocaleString()}`} /><Info label="Tenure" value={`${row.rental_plan_years || 1} year${Number(row.rental_plan_years || 1) === 1 ? '' : 's'}`} /></div>
-    {row.contract_rent_total && <div className="mt-2 grid grid-cols-2 gap-2"><Info label="Contract total" value={`₦${Number(row.contract_rent_total).toLocaleString()}`} /><Info label="Rent status" value={String(row.rent_payment_status || 'not_started').replace(/_/g,' ')} /></div>}
+    <BookingCode code={row.booking_code} />
+    <div className="mt-4 grid grid-cols-2 gap-2"><Info label="Reservation fee" value={`₦${Number(row.amount || 0).toLocaleString()}`} /><Info label="Tenure" value={`${years} year${years === 1 ? '' : 's'}`} /></div>
+    {row.contract_rent_total && <div className="mt-2 grid grid-cols-2 gap-2"><Info label="Year 1 rent" value={`₦${Number(row.upfront_rent_required || row.annual_rent_snapshot || 0).toLocaleString()}`} /><Info label="Rent status" value={String(row.rent_payment_status || 'not_started').replace(/_/g,' ')} /></div>}
+    {years > 1 && <div className="mt-3 rounded-xl border border-emerald-500/10 bg-emerald-500/[.035] p-3"><p className="text-[10px] font-semibold text-emerald-200">Future-year plan</p><p className="mt-1 text-[9px] leading-5 text-[#739080]">Year 1 is paid in full. After move-in you get four full months without future-year contributions. From months 5–12, eight monthly contributions build the next year’s rent. The same cycle repeats for every additional year.</p></div>}
     {row.status === 'payment_pending' && <div className="mt-3 rounded-xl border border-amber-500/10 bg-amber-500/[.04] p-3"><p className="text-[10px] text-amber-200">Finish checkout to turn this temporary hold into a paid reservation.</p>{row.payment_expires_at && <p className="mt-1 text-[9px] text-[#8E7658]">Checkout expires {new Date(row.payment_expires_at).toLocaleString()}</p>}</div>}
-    {row.status === 'ready_for_move_in' && !rentReady && <div className="mt-3 rounded-xl border border-emerald-500/10 bg-emerald-500/[.04] p-3"><p className="text-[10px] text-emerald-200">Inspection passed. Required before move-in: ₦{Number(row.upfront_rent_required || 0).toLocaleString()}.</p>{Number(row.installment_balance || 0) > 0 && <p className="mt-1 text-[9px] text-[#6D8B79]">Remaining ₦{Number(row.installment_balance).toLocaleString()} across {row.installment_count || 4} installments.</p>}</div>}
+    {row.status === 'ready_for_move_in' && !rentReady && <div className="mt-3 rounded-xl border border-emerald-500/10 bg-emerald-500/[.04] p-3"><p className="text-[10px] text-emerald-200">Inspection passed. Pay the full first-year rent before move-in: ₦{Number(row.upfront_rent_required || 0).toLocaleString()}.</p></div>}
     {row.hold_expires_at && ['reserved','inspection_pending','ready_for_move_in'].includes(row.status) && <p className="mt-3 text-[9px] text-amber-300">Reservation hold until {new Date(row.hold_expires_at).toLocaleString()}</p>}
-    {row.status === 'occupied' && <div className="mt-3 rounded-xl border border-violet-500/10 bg-violet-500/[.04] p-3"><Row label="Move-in" value={date(row.tenancy_start_date)} /><Row label="Tenancy ends" value={date(row.tenancy_end_date)} /><Row label="Grace until" value={date(row.move_out_grace_until)} />{Number(row.installment_balance || 0) > 0 && <Row label="Installment balance" value={`₦${Number(row.installment_balance).toLocaleString()}`} />}</div>}
+    {row.status === 'occupied' && <div className="mt-3 rounded-xl border border-violet-500/10 bg-violet-500/[.04] p-3"><Row label="Move-in" value={date(row.tenancy_start_date)} /><Row label="Tenancy ends" value={date(row.tenancy_end_date)} /><Row label="Grace until" value={date(row.move_out_grace_until)} /></div>}
     {row.status === 'payment_conflict' && <p className="mt-3 rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-[10px] text-red-200">Your payment requires WeHouse review because the property hold changed before fulfillment. No second occupancy is created automatically.</p>}
-    <div className="mt-4 flex flex-wrap gap-2">{row.status === 'payment_pending' && <button disabled={busy} onClick={onPay} className="h-10 flex-1 rounded-xl bg-blue-500 px-3 text-[10px] font-semibold disabled:opacity-50">{busy ? 'Opening…' : 'Continue reservation payment'}</button>}{row.status === 'payment_pending' && <button disabled={busy} onClick={onCancel} className="h-10 rounded-xl border border-red-500/15 px-3 text-[10px] font-semibold text-red-300 disabled:opacity-50">Cancel</button>}{row.status === 'ready_for_move_in' && !rentReady && <button disabled={busy} onClick={onRentPay} className="h-10 flex-1 rounded-xl bg-emerald-500 px-3 text-[10px] font-semibold text-[#03100B] disabled:opacity-50">{busy ? 'Opening…' : row.rent_payment_status === 'payment_pending' ? 'Continue rent payment' : 'Pay contract rent'}</button>}<button onClick={onSupport} className="h-10 rounded-xl border border-white/[.08] px-3 text-[10px] font-semibold text-[#B2B6C2]">Support</button></div>
+    <div className="mt-4 flex flex-wrap gap-2">{row.status === 'payment_pending' && <button disabled={busy} onClick={onPay} className="h-10 flex-1 rounded-xl bg-blue-500 px-3 text-[10px] font-semibold disabled:opacity-50">{busy ? 'Opening…' : 'Continue reservation payment'}</button>}{row.status === 'payment_pending' && <button disabled={busy} onClick={onCancel} className="h-10 rounded-xl border border-red-500/15 px-3 text-[10px] font-semibold text-red-300 disabled:opacity-50">Cancel</button>}{row.status === 'ready_for_move_in' && !rentReady && <button disabled={busy} onClick={onRentPay} className="h-10 flex-1 rounded-xl bg-emerald-500 px-3 text-[10px] font-semibold text-[#03100B] disabled:opacity-50">{busy ? 'Opening…' : row.rent_payment_status === 'payment_pending' ? 'Continue Year 1 payment' : 'Pay Year 1 rent'}</button>}<button onClick={onSupport} className="h-10 rounded-xl border border-white/[.08] px-3 text-[10px] font-semibold text-[#B2B6C2]">Support</button></div>
   </article>;
 }
 
 function HotelCard({ row, busy, onCancel }: { row: any; busy: boolean; onCancel: () => void }) {
   const state = HOTEL_STATUS[row.status] || { label: String(row.status || 'Unknown').replace(/_/g,' '), cls: 'border-white/10 bg-white/[.04] text-[#9AA0AE]' };
   const checkIn = row.check_in_date || row.check_in, checkOut = row.check_out_date || row.check_out, amount = row.total_amount ?? row.total_price ?? 0;
-  return <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Hotel</p><h2 className="mt-1 truncate text-sm font-semibold">{row.hotel?.name || row.hotel_name || 'Hotel reservation'}</h2><p className="mt-1 text-[10px] text-[#676C7D]">{row.room?.room_type || row.room_type || 'Room'}</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[8px] font-semibold ${state.cls}`}>{state.label}</span></div><div className="mt-4 grid grid-cols-2 gap-2"><Info label="Check-in" value={date(checkIn)} /><Info label="Check-out" value={date(checkOut)} /></div><div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3"><span className="text-sm font-bold text-emerald-300">₦{Number(amount).toLocaleString()}</span>{row.status === 'pending' && <button disabled={busy} onClick={onCancel} className="rounded-xl border border-red-500/15 px-3 py-2 text-[9px] font-semibold text-red-300 disabled:opacity-50">{busy ? 'Cancelling…' : 'Cancel'}</button>}</div></article>;
+  return <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Hotel</p><h2 className="mt-1 truncate text-sm font-semibold">{row.hotels?.name || row.hotel?.name || row.hotel_name || 'Hotel reservation'}</h2><p className="mt-1 text-[10px] text-[#676C7D]">{row.hotel_rooms?.room_type || row.room?.room_type || row.room_type || 'Room'}</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[8px] font-semibold ${state.cls}`}>{state.label}</span></div><BookingCode code={row.booking_code} /><div className="mt-4 grid grid-cols-2 gap-2"><Info label="Check-in" value={date(checkIn)} /><Info label="Check-out" value={date(checkOut)} /></div><div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3"><span className="text-sm font-bold text-emerald-300">₦{Number(amount).toLocaleString()}</span>{row.status === 'pending' && <button disabled={busy} onClick={onCancel} className="rounded-xl border border-red-500/15 px-3 py-2 text-[9px] font-semibold text-red-300 disabled:opacity-50">{busy ? 'Cancelling…' : 'Cancel'}</button>}</div></article>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) { return <div className="rounded-2xl border border-white/[.06] bg-[#12151D] p-3"><p className="text-[8px] uppercase tracking-wide text-[#5E6474]">{label}</p><p className="mt-1 text-lg font-bold">{value}</p></div>; }
