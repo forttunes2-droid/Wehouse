@@ -17,7 +17,6 @@ function paymentReferenceFromLocation() {
   const pageParams = new URLSearchParams(window.location.search);
   let reference = pageParams.get('reference') || pageParams.get('trxref') || '';
   if (reference) return reference.trim();
-
   const hash = window.location.hash || '';
   const queryIndex = hash.indexOf('?');
   if (queryIndex >= 0) {
@@ -31,7 +30,7 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
   if (purpose === 'worker_booking') return role === 'user' ? 'my_bookings' : role === 'worker' ? 'worker_dashboard' : 'home';
   if (purpose === 'hotel_booking') return role === 'user' ? 'my_bookings' : 'home';
-  if (['apartment_reservation', 'housing_reservation', 'reservation_fee'].includes(purpose || '')) {
+  if (['apartment_reservation','apartment_rent','housing_reservation','reservation_fee'].includes(purpose || '')) {
     return role === 'user' ? 'my_reservations' : 'home';
   }
   if (role === 'worker') return 'worker_dashboard';
@@ -40,6 +39,12 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
   if (role === 'admin') return 'admin';
   if (role === 'staff') return 'staff_dashboard';
   return 'home';
+}
+
+function successMessage(purpose?: string) {
+  if (purpose === 'apartment_reservation') return 'Reservation payment confirmed. This property is now held for you and the Housing workflow is unlocked.';
+  if (purpose === 'apartment_rent') return 'Contract-rent payment confirmed. If the required move-in amount is complete, Housing Operations can now activate the tenancy.';
+  return 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.';
 }
 
 export default function PaymentReturn({ profile, onNavigate }: Props) {
@@ -52,35 +57,17 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       setState({ kind: 'error', message: 'Paystack did not return a payment reference.' });
       return;
     }
-
     void (async () => {
       const result = await verifyPaymentWithRetry(reference, undefined, 4);
       if (cancelled) return;
-
       if (!result.success || !result.verified) {
-        setState({
-          kind: 'error',
-          message: result.error || 'We could not confirm this payment yet. You can retry safely.',
-        });
+        setState({ kind: 'error', message: result.error || 'We could not confirm this payment yet. You can retry safely.' });
         return;
       }
-
-      try {
-        localStorage.removeItem('wh_worker_verification_payment_ref');
-      } catch {}
-
-      setState({
-        kind: 'success',
-        purpose: result.purpose,
-        message: result.purpose === 'apartment_reservation'
-          ? 'Reservation payment confirmed. This property is now held for you and the Housing workflow is unlocked.'
-          : 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.',
-      });
+      try { localStorage.removeItem('wh_worker_verification_payment_ref'); } catch {}
+      setState({ kind: 'success', purpose: result.purpose, message: successMessage(result.purpose) });
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [reference]);
 
   const destination = state.kind === 'success' ? destinationForPurpose(state.purpose, profile.role) : destinationForPurpose(undefined, profile.role);
@@ -93,58 +80,23 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       setState({ kind: 'error', message: result.error || 'Payment is not confirmed yet.' });
       return;
     }
-    try {
-      localStorage.removeItem('wh_worker_verification_payment_ref');
-    } catch {}
-    setState({
-      kind: 'success',
-      purpose: result.purpose,
-      message: result.purpose === 'apartment_reservation'
-        ? 'Reservation payment confirmed. This property is now held for you and the Housing workflow is unlocked.'
-        : 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.',
-    });
+    try { localStorage.removeItem('wh_worker_verification_payment_ref'); } catch {}
+    setState({ kind: 'success', purpose: result.purpose, message: successMessage(result.purpose) });
   }
 
-  return (
-    <div className="min-h-[100dvh] bg-[#080A0F] px-4 py-8 text-white">
-      <div className="mx-auto max-w-md">
-        <div className="mb-8 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.04] text-sm font-black">WH</div>
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[.2em] text-cyan-300">WEHOUSE PAYMENTS</p>
-            <h1 className="mt-1 text-lg font-bold">Payment confirmation</h1>
-          </div>
-        </div>
-
-        <section className="rounded-3xl border border-white/[.07] bg-[#11151D] p-5 shadow-2xl">
-          <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-300' : 'bg-cyan-500/10 text-cyan-300'}`}>
-            {state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : '…'}
-          </div>
-          <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? 'Payment confirmed' : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>
-          <p className="mt-2 text-sm leading-6 text-[#8C92A1]">{state.message}</p>
-          {reference && <p className="mt-4 break-all rounded-2xl border border-white/[.06] bg-black/15 px-3 py-2 text-[10px] text-[#6E7483]">Reference: {reference}</p>}
-
-          <div className="mt-6 space-y-2">
-            {state.kind === 'success' && (
-              <button type="button" onClick={() => onNavigate(destination)} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">
-                Continue in WeHouse
-              </button>
-            )}
-            {state.kind === 'error' && reference && (
-              <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">
-                Check payment again
-              </button>
-            )}
-            {state.kind !== 'checking' && (
-              <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-white/[.08] text-xs font-semibold text-[#A7ADBA]">
-                Back to WeHouse
-              </button>
-            )}
-          </div>
-        </section>
-
-        <p className="mt-4 text-center text-[10px] leading-5 text-[#5E6573]">WeHouse never activates a paid service from the browser redirect alone. The transaction is verified server-side before value is released.</p>
+  return <div className="min-h-[100dvh] bg-[#080A0F] px-4 py-8 text-white"><div className="mx-auto max-w-md">
+    <div className="mb-8 flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.04] text-sm font-black">WH</div><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-cyan-300">WEHOUSE PAYMENTS</p><h1 className="mt-1 text-lg font-bold">Payment confirmation</h1></div></div>
+    <section className="rounded-3xl border border-white/[.07] bg-[#11151D] p-5 shadow-2xl">
+      <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-300' : 'bg-cyan-500/10 text-cyan-300'}`}>{state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : '…'}</div>
+      <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? 'Payment confirmed' : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#8C92A1]">{state.message}</p>
+      {reference && <p className="mt-4 break-all rounded-2xl border border-white/[.06] bg-black/15 px-3 py-2 text-[10px] text-[#6E7483]">Reference: {reference}</p>}
+      <div className="mt-6 space-y-2">
+        {state.kind === 'success' && <button type="button" onClick={() => onNavigate(destination)} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">Continue in WeHouse</button>}
+        {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">Check payment again</button>}
+        {state.kind !== 'checking' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-white/[.08] text-xs font-semibold text-[#A7ADBA]">Back to WeHouse</button>}
       </div>
-    </div>
-  );
+    </section>
+    <p className="mt-4 text-center text-[10px] leading-5 text-[#5E6573]">WeHouse never activates a paid service from the browser redirect alone. The transaction is verified server-side before value is released.</p>
+  </div></div>;
 }
