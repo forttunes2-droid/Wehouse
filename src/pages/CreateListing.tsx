@@ -16,6 +16,7 @@ const VIDEO_TYPES = new Set(['video/mp4','video/quicktime','video/webm']);
 export default function CreateListing({ profile, onBack, onSuccess }: CreateListingProps) {
   const imageInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<LocalMedia[]>([]);
   const [saving, setSaving] = useState(false);
   const [images, setImages] = useState<LocalMedia[]>([]);
   const [videos, setVideos] = useState<LocalMedia[]>([]);
@@ -25,7 +26,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [location,setLocation]=useState({country:profile.country||'Nigeria',state:profile.state||'',city:profile.city||'',area:profile.area||''});
 
   useEffect(()=>{ void (async()=>{ const {data}=await supabase.from('profiles').select('user_id,username,full_name').eq('role','property_partner').eq('deleted',false).eq('suspended',false).eq('banned',false).order('username'); setPartners(data||[]); })(); },[]);
-  useEffect(()=>()=>{ [...images,...videos].forEach(item=>URL.revokeObjectURL(item.preview)); },[images,videos]);
+  useEffect(()=>{ previewRef.current=[...images,...videos]; },[images,videos]);
+  useEffect(()=>()=>{ previewRef.current.forEach(item=>URL.revokeObjectURL(item.preview)); },[]);
 
   function addImages(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
@@ -115,8 +117,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       if (error || !listing) throw new Error(error?.message || 'Could not create listing');
 
       toast.success(listing.status==='available'?'Listing published':'Listing submitted for approval');
-      images.forEach(item=>URL.revokeObjectURL(item.preview));
-      videos.forEach(item=>URL.revokeObjectURL(item.preview));
+      previewRef.current.forEach(item=>URL.revokeObjectURL(item.preview));
+      previewRef.current=[];
       onSuccess?.();
     } catch (error: any) {
       await cleanupUploaded(uploaded);
