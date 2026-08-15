@@ -12,13 +12,20 @@ function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
 
 export function compressImageFile(
   file: File,
-  maxDim: number = 2560,
-  quality: number = 0.86,
+  requestedMaxDim: number = 2560,
+  requestedQuality: number = 0.86,
   maxBytes: number = 2.5 * 1024 * 1024,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
+
+    // Existing property upload helpers historically requested 1200/1600px.
+    // Preserve their API while upgrading only those property-photo presets to
+    // 4K-class output. Avatar (600px) and chat (1920px) callers stay compact.
+    const propertyPhotoPreset = requestedMaxDim === 1200 || requestedMaxDim === 1600;
+    const maxDim = propertyPhotoPreset ? 3840 : requestedMaxDim;
+    const preferredQuality = propertyPhotoPreset ? Math.max(0.88, requestedQuality) : requestedQuality;
 
     img.onload = async () => {
       URL.revokeObjectURL(url);
@@ -31,7 +38,7 @@ export function compressImageFile(
         width = Math.max(1, Math.round(width * initialScale));
         height = Math.max(1, Math.round(height * initialScale));
 
-        let currentQuality = Math.min(0.94, Math.max(0.72, quality));
+        let currentQuality = Math.min(0.94, Math.max(0.72, preferredQuality));
         let result: Blob | null = null;
 
         // At most four dimension passes. Most normal phone images finish on pass 1.
