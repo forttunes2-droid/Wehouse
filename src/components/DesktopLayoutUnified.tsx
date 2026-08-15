@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import UserMobileNav, { userMobileNavVisible } from '@/components/UserMobileNav';
 import type { NavPage } from '@/types/nav';
 import type { DesktopNavItem } from '@/lib/desktop-nav';
 
@@ -26,6 +27,13 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
 ]);
 const OPERATIONAL_ROLES = new Set(['creator', 'admin', 'staff', 'worker', 'property_partner']);
 
+function userDesktopItemActive(item: DesktopNavItem, page: NavPage) {
+  if (item.id === 'search') return ['search', 'explore', 'worker_discovery', 'worker_categories', 'hotels', 'hotel_detail'].includes(page);
+  if (item.id === 'messages') return page === 'messages' || page === 'chat';
+  if (item.id === 'profile') return ['profile', 'account', 'profile_edit', 'privacy', 'security'].includes(page);
+  return item.id === page;
+}
+
 export default function DesktopLayoutUnified({
   children,
   navItems,
@@ -38,6 +46,7 @@ export default function DesktopLayoutUnified({
   const [collapsed, setCollapsed] = useState(false);
   const role = userRole || 'user';
   const operational = OPERATIONAL_ROLES.has(role);
+  const userMobileNav = role === 'user' && userMobileNavVisible(activePage);
   const showBack = !ROOT_PAGES.has(activePage);
   const showMobileBack = showBack && !OWN_MOBILE_BACK.has(activePage);
   const initials = (userName || 'U').charAt(0).toUpperCase();
@@ -53,7 +62,7 @@ export default function DesktopLayoutUnified({
         <aside className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/[.05] bg-[#080A0F] transition-all duration-300 lg:flex ${collapsed ? 'w-[72px]' : 'w-[240px]'}`}>
           <div className="flex h-16 items-center border-b border-white/[.05] px-4">
             <button onClick={() => onNavigate('home')} className="flex min-w-0 items-center" aria-label="WeHouse home">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-blue-500 text-white shadow-lg shadow-blue-500/10">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-violet-500 text-white shadow-lg shadow-violet-500/10">
                 <HomeIcon />
               </span>
               {!collapsed && <span className="ml-3 truncate text-sm font-bold tracking-tight">WeHouse</span>}
@@ -69,13 +78,14 @@ export default function DesktopLayoutUnified({
 
           <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
             {navItems.map((item) => {
-              const active = activePage === item.id;
+              const active = userDesktopItemActive(item, activePage);
               return (
                 <button
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
                   title={collapsed ? item.label : undefined}
-                  className={`relative flex h-11 w-full items-center gap-3 rounded-xl px-3 transition ${active ? 'border border-blue-500/20 bg-blue-500/10 text-blue-300' : 'text-[#858A9B] hover:bg-white/[.035] hover:text-white'}`}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative flex h-11 w-full items-center gap-3 rounded-xl px-3 transition ${active ? 'border border-violet-500/20 bg-violet-500/10 text-violet-300' : 'text-[#858A9B] hover:bg-white/[.035] hover:text-white'}`}
                 >
                   <span className="shrink-0">{item.icon(active)}</span>
                   {!collapsed && <span className="min-w-0 flex-1 truncate text-left text-[12px] font-semibold">{item.label}</span>}
@@ -115,8 +125,15 @@ export default function DesktopLayoutUnified({
           </header>
         )}
 
-        <main data-desktop-content-root className="min-w-0">{children}</main>
+        <main
+          data-desktop-content-root
+          className={`min-w-0 ${userMobileNav ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0' : ''}`}
+        >
+          {children}
+        </main>
       </div>
+
+      {role === 'user' && <UserMobileNav items={navItems} activePage={activePage} onNavigate={onNavigate} />}
     </div>
   );
 }
