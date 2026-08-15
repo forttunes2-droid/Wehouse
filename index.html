@@ -13,6 +13,25 @@
     <script>window.WH_VERSION='20260815-phase4';</script>
     <script>
       (function() {
+        // Capture provider return data before React restores/canonicalizes the
+        // SPA hash. Paystack may append the reference before or after the hash
+        // depending on how it constructs the callback URL.
+        try {
+          var hash = window.location.hash || '';
+          if (hash.indexOf('#payment-return') === 0) {
+            var hashQuery = '';
+            var qIndex = hash.indexOf('?');
+            if (qIndex >= 0) hashQuery = hash.slice(qIndex + 1);
+            var searchQuery = (window.location.search || '').replace(/^\?/, '');
+            var params = new URLSearchParams(hashQuery || searchQuery);
+            var reference = params.get('reference') || params.get('trxref');
+            if (reference) localStorage.setItem('wh_payment_return_ref', reference);
+          }
+        } catch (_) {}
+      })();
+    </script>
+    <script>
+      (function() {
         // One-time compatibility cleanup: Property Partner is the only
         // canonical Partner workspace. Never restore the retired owner alias.
         try {
