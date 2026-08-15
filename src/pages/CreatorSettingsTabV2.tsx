@@ -10,17 +10,16 @@ type DbSetting={key:string;value:string;is_active:boolean};
 type Group={id:string;label:string;description:string;note?:string;settings:Def[]};
 
 const GROUPS:Group[]=[
- {id:'identity',label:'Platform identity',description:'Public WeHouse contact and identity information.',settings:[
+ {id:'identity',label:'Platform identity',description:'Public WeHouse contact information.',settings:[
   {key:'company_name',label:'Company name',description:'Name shown across the platform.',kind:'text',defaultValue:'WeHouse'},
   {key:'support_email',label:'Support email',description:'Primary public support email.',kind:'email',defaultValue:''},
   {key:'support_phone',label:'Support phone',description:'Primary public support phone number.',kind:'text',defaultValue:''},
  ]},
- {id:'worker_verification',label:'Worker verification',description:'Rules for the private WeHouse Worker verification journey.',note:'Payment is only a verification fee. It never buys approval, public visibility or marketplace trust. Raw face/liveness media is removed after Verification Staff review.',settings:[
-  {key:'worker_verification_fee',label:'Verification fee (₦)',description:'Amount Paystack charges when a Worker reaches the payment step. Set 0 to disable new verification payments.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'worker'},
-  {key:'worker_identity_check_required',label:'Require private face & liveness check',description:'Require a private WeHouse selfie and head-turn liveness challenge before a Worker can be approved.',kind:'toggle',defaultValue:'true',category:'worker'},
+ {id:'worker_verification',label:'Worker verification',description:'Creator-controlled commercial settings for Worker verification.',note:'The private automatic face check is a fixed WeHouse safety requirement: clear live selfie → same-face comparison → automatic head movement/liveness check. No government ID and no liveness video. Payment is only a verification fee and never buys approval or trust.',settings:[
+  {key:'worker_verification_fee',label:'Verification fee (₦)',description:'Amount Paystack charges when a Worker reaches the payment step. Set 0 to temporarily disable new verification payments.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'worker'},
  ]},
- {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, cancellation behaviour and dispute history.',settings:[
-  {key:'worker_trust_enabled',label:'Enable WeHouse Trusted',description:'Turn on automatic earned marketplace trust after you are satisfied with the thresholds below.',kind:'toggle',defaultValue:'false',category:'worker_trust'},
+ {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, Worker-caused cancellations and unresolved disputes.',settings:[
+  {key:'worker_trust_enabled',label:'Enable WeHouse Trusted',description:'Turn on automatic earned marketplace trust only after Worker-booking reputation data is ready.',kind:'toggle',defaultValue:'false',category:'worker_trust'},
   {key:'worker_trusted_min_completed_jobs',label:'Minimum completed WeHouse jobs',description:'Completed Worker bookings required before Trusted can be earned.',kind:'number',defaultValue:'5',min:0,max:10000,step:1,category:'worker_trust'},
   {key:'worker_trusted_min_rating',label:'Minimum rating',description:'Minimum marketplace rating required for Trusted.',kind:'number',defaultValue:'4.5',min:0,max:5,step:0.1,category:'worker_trust'},
   {key:'worker_trusted_max_cancel_rate',label:'Maximum Worker cancellation rate (%)',description:'Maximum percentage of terminal jobs cancelled by the Worker while retaining Trusted.',kind:'number',defaultValue:'20',min:0,max:100,step:1,category:'worker_trust'},
