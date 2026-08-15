@@ -55,7 +55,7 @@ export { getNotifications,getUnreadNotificationCount,markNotificationsRead,markN
 export { getStaffPermissions,grantPermission,revokePermission,hasPermission,hasAnyPermission,getAllStaffWithPermissions,getStaffByPermission } from './permissions';
 
 // Hotels
-export { getHotels,getHotelById,getHotelRooms,getRoomById,getHotelReviews,addHotelReview,createHotelBooking,getHotelBookingsForUser,getHotelBookingsForHotel,updateBookingStatus,getHotelsByOwner,createHotel,updateHotel,deleteHotel,createHotelRoom,updateHotelRoom,deleteHotelRoom,uploadHotelImage,uploadRoomImage } from './hotels';
+export { getHotels,getHotelById,getHotelRooms,getRoomById,getHotelReviews,addHotelReview,createHotelBooking,initializeHotelBookingPayment,getHotelBookingsForUser,getHotelBookingsForHotel,updateBookingStatus,getHotelsByOwner,createHotel,updateHotel,deleteHotel,createHotelRoom,updateHotelRoom,deleteHotelRoom,uploadHotelImage,uploadRoomImage } from './hotels';
 
 // Platform Settings
 export { getPlatformSettings,getPlatformSetting,updatePlatformSetting,getTypedSetting } from './platform-settings';
