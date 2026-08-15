@@ -8,6 +8,9 @@ const cors = {
   'Content-Type': 'application/json',
 };
 
+const PAYMENT_RETURN_URL = 'https://www.wehouse.com.ng/#payment-return';
+const WORKER_VERIFICATION_CANCEL_URL = 'https://www.wehouse.com.ng/#worker_verification';
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: cors });
 }
@@ -87,11 +90,13 @@ serve(async (req) => {
         amount: String(Math.round(amount * 100)),
         currency: 'NGN',
         reference,
-        callback_url: 'https://www.wehouse.com.ng/#worker_verification',
+        callback_url: PAYMENT_RETURN_URL,
         metadata: JSON.stringify({
           purpose: 'worker_verification',
           worker_id: profile.user_id,
           payment_id: payment.id,
+          return_page: 'worker_verification',
+          cancel_action: WORKER_VERIFICATION_CANCEL_URL,
         }),
       }),
     });
@@ -107,6 +112,7 @@ serve(async (req) => {
     const nextMeta = {
       ...meta,
       source: meta.source || 'create_worker_verification_payment',
+      return_page: 'worker_verification',
       paystack_access_code: accessCode,
       paystack_authorization_url: authorizationUrl,
       paystack_initialized_at: new Date().toISOString(),
