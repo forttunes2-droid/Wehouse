@@ -87,7 +87,7 @@ serve(async (req) => {
         amount: String(Math.round(amount * 100)),
         currency: 'NGN',
         reference,
-        callback_url: 'https://www.wehouse.com.ng/#worker_verification',
+        callback_url: 'https://www.wehouse.com.ng/#payment-return',
         metadata: JSON.stringify({
           purpose: 'worker_verification',
           worker_id: profile.user_id,
@@ -107,6 +107,7 @@ serve(async (req) => {
     const nextMeta = {
       ...meta,
       source: meta.source || 'create_worker_verification_payment',
+      payment_return_route: 'worker_verification',
       paystack_access_code: accessCode,
       paystack_authorization_url: authorizationUrl,
       paystack_initialized_at: new Date().toISOString(),
