@@ -9,15 +9,17 @@ import WorkerWallet from './WorkerWallet';
 import type { Profile } from '@/types';
 
 type Tab = 'home' | 'jobs' | 'earnings' | 'profile';
+
 const LIVE_NAV = [
   { id: 'home', label: 'Home' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'earnings', label: 'Earnings' },
-  { id: 'profile', label: 'Profile' },
+  { id: 'profile', label: 'Professional Profile' },
 ];
+
 const ACTIVATION_NAV = [
   { id: 'home', label: 'Home' },
-  { id: 'profile', label: 'Profile' },
+  { id: 'profile', label: 'Professional Profile' },
 ];
 
 export default function WorkerWorkspaceModern({
@@ -63,8 +65,13 @@ export default function WorkerWorkspaceModern({
 
   return (
     <WorkspaceFrameV2
-      label={live ? 'WEHOUSE LOCAL SERVICES · LIVE' : 'WEHOUSE LOCAL SERVICES · ACTIVATION'}
+      label="WEHOUSE · WORKER"
       title={nav.find((item) => item.id === safeTab)?.label || 'Worker'}
+      description={
+        live
+          ? 'Manage your jobs, earnings and public professional profile from one workspace.'
+          : 'Complete your worker activation and professional profile before your services become public.'
+      }
       items={nav}
       active={safeTab}
       setActive={(id) => setTab(id as Tab)}
@@ -79,15 +86,17 @@ export default function WorkerWorkspaceModern({
 function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) => void }) {
   return (
     <div className="space-y-5">
-      <section className="rounded-3xl border border-cyan-500/15 bg-[#0F171E] p-5 sm:p-6">
+      <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.10] via-[#12141C] to-[#0F1218] p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[9px] font-bold uppercase tracking-[.18em] text-cyan-300">LIVE PROFESSIONAL</p>
+              <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">LIVE PROFESSIONAL</p>
               <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] font-semibold text-emerald-300">VERIFIED</span>
             </div>
             <h2 className="mt-3 truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
-            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Home shows only work that needs your attention and your next scheduled job. Use the bottom tabs to move between Jobs, Earnings, Profile and Account.</p>
+            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">
+              Home shows work that needs your attention and your next scheduled job. Use the dashboard tabs below to move between Jobs, Earnings, Professional Profile and Account.
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[9px] text-[#6F7787]">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
