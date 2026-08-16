@@ -16,6 +16,7 @@ interface PaystackPopupConfig {
   metadata?: Record<string, any>;
   onSuccess?: (reference: string) => void;
   onCancel?: () => void;
+  onError?: (message: string) => void;
 }
 
 export function initializePaystackPopup(config: PaystackPopupConfig): void {
@@ -26,7 +27,7 @@ export function initializePaystackPopup(config: PaystackPopupConfig): void {
     loadPaystackScript().then(() => {
       openPaystackPopup(config);
     }).catch(() => {
-      alert('Failed to load Paystack. Please try again.');
+      config.onError?.('Failed to load Paystack. Please try again.');
     });
     return;
   }
@@ -39,7 +40,7 @@ function openPaystackPopup(config: PaystackPopupConfig): void {
     key: config.publicKey,
     email: config.email,
     amount: config.amountKobo,
-    ref: config.reference,
+    reference: config.reference,
     currency: 'NGN',
     metadata: {
       custom_fields: [
@@ -51,22 +52,14 @@ function openPaystackPopup(config: PaystackPopupConfig): void {
         })) : []),
       ],
     },
-    callback: (response: any) => {
-      verifyPaymentOnFrontend(response.reference, {
-        purpose: config.metadata?.payment_type,
-        expected_amount: config.metadata?.expected_amount,
-      }).then((verified) => {
-        if (verified) {
-          config.onSuccess?.(response.reference);
-        } else {
-          config.onCancel?.();
-        }
-      }).catch(() => {
-        config.onCancel?.();
-      });
+    onSuccess: (transaction: any) => {
+      config.onSuccess?.(transaction?.reference || config.reference);
     },
-    onClose: () => {
+    onCancel: () => {
       config.onCancel?.();
+    },
+    onError: (error: any) => {
+      config.onError?.(error?.message || 'Paystack could not start this payment.');
     },
   };
 
@@ -95,22 +88,6 @@ function loadPaystackScript(): Promise<void> {
     script.onerror = () => reject();
     document.head.appendChild(script);
   });
-}
-
-async function verifyPaymentOnFrontend(
-  reference: string,
-  options?: { purpose?: string; expected_amount?: number }
-): Promise<boolean> {
-  try {
-    const { verifyPaymentWithRetry } = await import('./payment-verify');
-    const result = await verifyPaymentWithRetry(reference, {
-      purpose: options?.purpose,
-      expected_amount: options?.expected_amount,
-    });
-    return result.success === true;
-  } catch (e) {
-    return false;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════
