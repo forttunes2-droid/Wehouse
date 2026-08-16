@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
+import GoldTickBadge from '@/components/GoldTickBadge';
 import WorkerActivationHome from '@/components/WorkerActivationHome';
 import WorkerPriorityPanelV2 from '@/components/WorkerPriorityPanelV2';
 import WorkerNextJobPanelV2 from '@/components/WorkerNextJobPanelV2';
@@ -102,9 +103,12 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">LIVE PROFESSIONAL</p>
-              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] font-semibold text-emerald-300">WEHOUSE VERIFIED</span>
+              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] font-semibold text-emerald-300">WEHOUSE REVIEWED</span>
             </div>
-            <h2 className="mt-3 truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
+            <div className="mt-3 flex min-w-0 items-center gap-2">
+              <h2 className="truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
+              <GoldTickBadge title="Gold Tick · verification payment confirmed" />
+            </div>
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Keep jobs moving and keep your public work current.</p>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[9px] text-[#6F7787]">

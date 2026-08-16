@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { checkUsernameAvailable, removeAvatar, updateProfile, uploadAvatar, validateUsername } from '@/lib/supabase';
 import SearchableSelect from '@/components/SearchableSelect';
+import AccountShell from '@/components/AccountShell';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
@@ -87,48 +88,44 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     setSaving(false);
     if (error || !updated) return toast.error(error?.message || 'Could not save profile');
     onUpdate(updated);
-    toast.success('Profile updated');
+    toast.success('Personal details updated');
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#09090D] pb-24 text-white">
+    <AccountShell profile={profile} title="Personal details" description={isUser ? 'Your personal profile and location used by WeHouse.' : 'Private personal details for this account.'} onBack={onBack}>
       <Toaster position="top-center" richColors />
-      <header className="border-b border-white/[0.06] bg-[#0D0E14] px-4 py-4 sm:px-5">
-        <div className="mx-auto flex max-w-3xl items-center gap-3"><button onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07] text-[#8A8D9D]">←</button><div><h1 className="text-base font-semibold">Profile</h1><p className="mt-0.5 text-[10px] text-[#626678]">Your personal account details.</p></div></div>
-      </header>
-
-      <form onSubmit={save} className="mx-auto max-w-3xl space-y-4 px-4 py-5 sm:px-5">
-        <section className="rounded-2xl border border-white/[0.06] bg-[#11131B] p-4 sm:p-5">
+      <form onSubmit={save} className="space-y-4">
+        <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
           <div className="flex items-center gap-4">
-            <button type="button" onClick={() => fileRef.current?.click()} className="grid h-18 w-18 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</button>
+            <button type="button" onClick={() => fileRef.current?.click()} className="grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</button>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={changePhoto} className="hidden" />
-            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Profile photo</p><p className="mt-1 text-[10px] text-[#686C7D]">{uploading ? 'Uploading…' : 'JPG, PNG or WebP'}</p><div className="mt-3 flex gap-2"><button type="button" onClick={() => fileRef.current?.click()} className="rounded-xl border border-white/[0.08] px-3 py-2 text-[10px] font-semibold">{avatar ? 'Change' : 'Add photo'}</button>{avatar && <button type="button" onClick={() => void deletePhoto()} className="rounded-xl border border-red-500/15 px-3 py-2 text-[10px] font-semibold text-red-300">Remove</button>}</div></div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Profile photo</p><p className="mt-1 text-[10px] text-[#6F7585]">{uploading ? 'Uploading…' : 'JPG, PNG or WebP'}</p><div className="mt-3 flex gap-2"><button type="button" onClick={() => fileRef.current?.click()} className="rounded-xl border border-white/[.08] bg-white/[.02] px-3 py-2 text-[10px] font-semibold">{avatar ? 'Change' : 'Add photo'}</button>{avatar && <button type="button" onClick={() => void deletePhoto()} className="rounded-xl border border-red-500/15 px-3 py-2 text-[10px] font-semibold text-red-300">Remove</button>}</div></div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/[0.06] bg-[#11131B] p-4 sm:p-5">
+        <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" value={fullName} onChange={setFullName} />
-            <div><Field label="Username" value={username} onChange={setUsername} /><p className={`mt-1 text-[9px] ${usernameState === 'available' ? 'text-emerald-300' : usernameState === 'taken' || usernameState === 'invalid' ? 'text-red-300' : 'text-[#626678]'}`}>{usernameState === 'checking' ? 'Checking…' : usernameState === 'available' ? 'Username available' : usernameState === 'taken' ? 'Username already taken' : usernameState === 'invalid' ? 'Use 3–20 letters, numbers or underscores' : ''}</p></div>
+            <div><Field label="Username" value={username} onChange={setUsername} /><p className={`mt-1 text-[9px] ${usernameState === 'available' ? 'text-emerald-300' : usernameState === 'taken' || usernameState === 'invalid' ? 'text-red-300' : 'text-[#62697A]'}`}>{usernameState === 'checking' ? 'Checking…' : usernameState === 'available' ? 'Username available' : usernameState === 'taken' ? 'Username already taken' : usernameState === 'invalid' ? 'Use 3–20 letters, numbers or underscores' : ''}</p></div>
             <Field label="Phone" value={phone} onChange={setPhone} />
           </div>
-          {!isUser && <div className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-3 text-[10px] text-[#8C91A0]">Work role and operational details stay in your role workspace.</div>}
+          {!isUser && <div className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.04] p-3 text-[10px] text-[#8C92A1]">Role and operational details stay inside your role workspace.</div>}
         </section>
 
         {isUser && <>
-          <section className="rounded-2xl border border-white/[0.06] bg-[#11131B] p-4 sm:p-5">
+          <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
             <h2 className="text-sm font-semibold">About you</h2>
             <div className="mt-4 space-y-4">
-              <label className="block"><span className="mb-1 block text-[10px] text-[#777B8D]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-white/[0.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
-              <div><p className="mb-2 text-[10px] text-[#777B8D]">Gender</p><div className="flex gap-2">{[['male', 'Male'], ['female', 'Female']].map(([id, label]) => <button type="button" key={id} onClick={() => setGender(id)} className={`rounded-xl px-4 py-2 text-[10px] font-semibold ${gender === id ? 'bg-violet-500' : 'border border-white/[0.08] text-[#A0A4B3]'}`}>{label}</button>)}</div></div>
-              <label className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"><div><p className="text-xs font-medium">Student</p><p className="mt-1 text-[9px] text-[#626678]">Add your institution for roommate matching.</p></div><button type="button" onClick={() => setIsStudent((value) => !value)} className={`relative h-6 w-11 rounded-full ${isStudent ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${isStudent ? 'translate-x-5' : ''}`} /></button></label>
+              <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
+              <div><p className="mb-2 text-[10px] text-[#777E8E]">Gender</p><div className="flex gap-2">{[['male', 'Male'], ['female', 'Female']].map(([id, label]) => <button type="button" key={id} onClick={() => setGender(id)} className={`rounded-xl px-4 py-2 text-[10px] font-semibold ${gender === id ? 'bg-violet-500' : 'border border-white/[.08] text-[#A0A5B3]'}`}>{label}</button>)}</div></div>
+              <label className="flex items-center justify-between gap-4 rounded-xl border border-white/[.06] bg-black/10 p-3"><div><p className="text-xs font-medium">Student</p><p className="mt-1 text-[9px] text-[#62697A]">Add your institution for roommate matching.</p></div><button type="button" onClick={() => setIsStudent((value) => !value)} className={`relative h-6 w-11 rounded-full ${isStudent ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${isStudent ? 'translate-x-5' : ''}`} /></button></label>
               {isStudent && <Field label="Institution" value={school} onChange={setSchool} />}
             </div>
           </section>
 
-          <section className="rounded-2xl border border-white/[0.06] bg-[#11131B] p-4 sm:p-5">
+          <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[#686C7D]">Used for nearby homes, services and roommate matching.</p>
+            <p className="mt-1 text-[10px] text-[#6F7585]">Used for nearby homes, services and roommate matching.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
               <SearchableSelect label="Local Government" value={lga} onChange={setLga} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
@@ -137,10 +134,10 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </section>
         </>}
 
-        <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save profile'}</button>
+        <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save personal details'}</button>
       </form>
-    </div>
+    </AccountShell>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block"><span className="mb-1 block text-[10px] text-[#777B8D]">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#181A23] px-3 text-xs outline-none focus:border-violet-500/40" /></label>; }
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181A23] px-3 text-xs outline-none focus:border-violet-500/40" /></label>; }

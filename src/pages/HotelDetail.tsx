@@ -1,383 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getHotelById, getHotelReviews, addHotelReview } from '@/lib/supabase';
 import type { Hotel, HotelRoom, HotelReview } from '@/types';
 import { Toaster, toast } from 'sonner';
 import { useHotelReservationSettings, calculateReservationFee } from '@/hooks/useHotelReservationSettings';
 
-interface HotelDetailProps {
-  hotelId: number;
-  onBack: () => void;
-  onBook: (hotelId: number, roomId: number, checkIn: string, checkOut: string) => void;
-  onReserve: (hotelId: number, roomId: number) => void; // Called when reservation mode is ON
-  profile: { user_id: string; username: string | null };
+type ReviewRow=HotelReview&{profiles:{username:string|null;avatar_url:string|null}};
+type Props={hotelId:number;onBack:()=>void;onBook:(hotelId:number,roomId:number,checkIn:string,checkOut:string)=>void;onReserve:(hotelId:number,roomId:number)=>void;profile:{user_id:string;username:string|null}};
+
+export default function HotelDetail({hotelId,onBack,onBook,onReserve,profile}:Props){
+ const[hotel,setHotel]=useState<(Hotel&{hotel_rooms:HotelRoom[]})|null>(null),[reviews,setReviews]=useState<ReviewRow[]>([]),[loading,setLoading]=useState(true),[currentImage,setCurrentImage]=useState(0),[showAllAmenities,setShowAllAmenities]=useState(false),[showReviewForm,setShowReviewForm]=useState(false),[reviewRating,setReviewRating]=useState(5),[reviewComment,setReviewComment]=useState(''),[submittingReview,setSubmittingReview]=useState(false),[selectedRoom,setSelectedRoom]=useState<HotelRoom|null>(null),[checkIn,setCheckIn]=useState(''),[checkOut,setCheckOut]=useState('');
+ const reservationSettings=useHotelReservationSettings();
+ useEffect(()=>{void load()},[hotelId]);
+ async function load(){setLoading(true);const{hotel:h,error}=await getHotelById(hotelId);if(error||!h){toast.error('Hotel could not be loaded');setLoading(false);return}setHotel(h);setSelectedRoom(h.hotel_rooms?.[0]||null);const{reviews:r}=await getHotelReviews(hotelId);setReviews((r||[]) as ReviewRow[]);setLoading(false)}
+ async function submitReview(){if(!profile.user_id)return;setSubmittingReview(true);const{error}=await addHotelReview(hotelId,profile.user_id,reviewRating,reviewComment||undefined);setSubmittingReview(false);if(error)return toast.error('Review could not be submitted');toast.success('Review submitted');setShowReviewForm(false);setReviewComment('');const{reviews:r}=await getHotelReviews(hotelId);setReviews((r||[]) as ReviewRow[]);const{hotel:h}=await getHotelById(hotelId);if(h)setHotel(h)}
+ const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);const tomorrowStr=tomorrow.toISOString().split('T')[0];
+ function minCheckout(){if(!checkIn)return tomorrowStr;const next=new Date(checkIn);next.setDate(next.getDate()+1);return next.toISOString().split('T')[0]}
+ const nights=checkIn&&checkOut?Math.ceil((new Date(checkOut).getTime()-new Date(checkIn).getTime())/86400000):0;
+ const totalPrice=selectedRoom&&nights>0?nights*selectedRoom.price_per_night:0;
+ const reservationFee=reservationSettings.enabled?calculateReservationFee(reservationSettings,nights):0;
+ function proceed(){if(!selectedRoom)return toast.error('Choose a room first');if(reservationSettings.enabled){onReserve(hotelId,selectedRoom.room_id);return}if(!checkIn||!checkOut)return toast.error('Select check-in and check-out');if(nights<=0)return toast.error('Check-out must be after check-in');onBook(hotelId,selectedRoom.room_id,checkIn,checkOut)}
+ if(loading)return <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F]"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>;
+ if(!hotel)return <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white"><div className="text-center"><p className="text-sm font-semibold">Hotel not found</p><button onClick={onBack} className="mt-4 rounded-xl bg-violet-500 px-4 py-2 text-xs font-semibold">Back to hotels</button></div></div>;
+ const images=hotel.images?.length?hotel.images:[],allAmenities=hotel.amenities||[],displayedAmenities=showAllAmenities?allAmenities:allAmenities.slice(0,8);
+ return <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white"><Toaster position="top-center" richColors/>
+  <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl sm:px-6"><div className="mx-auto flex max-w-5xl items-center gap-3"><button onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.08] bg-white/[.03] text-[#9DA3B2]">←</button><div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-400">WEHOUSE · HOTELS</p><p className="mt-1 truncate text-sm font-semibold">{hotel.name}</p></div></div></header>
+  <main className="mx-auto max-w-5xl space-y-5 px-4 py-5 sm:px-6">
+   <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#10141C]">
+    <div className="relative aspect-[16/9] bg-[#171B24]">{images.length?<img src={images[currentImage]} alt={hotel.name} className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-[10px] text-[#62697A]">No hotel image yet</div>}<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"/>{images.length>1&&<div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">{images.map((_,index)=><button key={index} onClick={()=>setCurrentImage(index)} className={`h-1.5 rounded-full ${index===currentImage?'w-5 bg-violet-400':'w-1.5 bg-white/45'}`}/>)}</div>}</div>
+    <div className="p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h1 className="text-xl font-bold">{hotel.name}</h1><p className="mt-1 text-[10px] text-[#747B8B]">{[hotel.area,hotel.city,hotel.state].filter(Boolean).join(', ')}</p></div>{Number(hotel.rating||0)>0&&<span className="rounded-full border border-amber-500/20 bg-amber-500/[.08] px-2.5 py-1 text-[9px] font-semibold text-amber-300">★ {Number(hotel.rating).toFixed(1)}</span>}</div>{hotel.description&&<p className="mt-4 text-[11px] leading-5 text-[#9399A8]">{hotel.description}</p>}{hotel.address&&<div className="mt-4 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">{hotel.address}</div>}</div>
+   </section>
+
+   {allAmenities.length>0&&<section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Amenities</h2>{allAmenities.length>8&&<button onClick={()=>setShowAllAmenities(value=>!value)} className="text-[9px] font-semibold text-violet-300">{showAllAmenities?'Show less':`+${allAmenities.length-8} more`}</button>}</div><div className="mt-3 flex flex-wrap gap-2">{displayedAmenities.map(item=><span key={item} className="rounded-xl border border-white/[.06] bg-white/[.025] px-2.5 py-1.5 text-[9px] text-[#A0A6B4]">{item}</span>)}</div></section>}
+
+   <section><div className="mb-3"><h2 className="text-base font-bold">Choose a room</h2><p className="mt-1 text-[9px] text-[#666D7E]">Select the room you want before continuing.</p></div>{hotel.hotel_rooms?.length?<div className="grid gap-3 sm:grid-cols-2">{hotel.hotel_rooms.map(room=><button key={room.room_id} onClick={()=>setSelectedRoom(room)} className={`rounded-2xl border p-4 text-left transition ${selectedRoom?.room_id===room.room_id?'border-violet-500/35 bg-violet-500/[.07]':'border-white/[.07] bg-[#11141C] hover:border-white/[.12]'}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">{room.room_type}</h3>{selectedRoom?.room_id===room.room_id&&<span className="rounded-full bg-violet-500 px-2 py-0.5 text-[7px] font-bold">SELECTED</span>}</div>{room.description&&<p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-[#6F7585]">{room.description}</p>}<p className="mt-2 text-[9px] text-[#858B9A]">Up to {room.max_guests} guest{room.max_guests===1?'':'s'}{room.bed_type?` · ${room.bed_type}`:''}</p></div><div className="shrink-0 text-right"><p className="text-sm font-bold text-violet-200">₦{Number(room.price_per_night).toLocaleString()}</p><p className="text-[8px] text-[#62697A]">per night</p></div></div>{room.amenities?.length>0&&<div className="mt-3 flex flex-wrap gap-1.5">{room.amenities.slice(0,4).map(item=><span key={item} className="rounded-lg border border-white/[.05] px-2 py-1 text-[8px] text-[#777E8E]">{item}</span>)}</div>}</button>)}</div>:<div className="rounded-2xl border border-dashed border-white/[.08] p-10 text-center text-[10px] text-[#666D7E]">No rooms are currently available.</div>}</section>
+
+   {!reservationSettings.enabled&&selectedRoom&&<section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4"><h2 className="text-sm font-semibold">Stay dates</h2><div className="mt-4 grid grid-cols-2 gap-3"><DateField label="Check-in" value={checkIn} min={tomorrowStr} onChange={value=>{setCheckIn(value);if(checkOut&&checkOut<=value)setCheckOut('')}}/><DateField label="Check-out" value={checkOut} min={minCheckout()} onChange={setCheckOut}/></div>{nights>0&&<div className="mt-4 grid grid-cols-2 gap-2"><Fact label="Nights" value={String(nights)}/><Fact label="Stay total" value={`₦${totalPrice.toLocaleString()}`}/></div>}</section>}
+
+   {reservationSettings.enabled&&selectedRoom&&<section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4"><p className="text-sm font-semibold">Reservation mode</p><p className="mt-1 text-[10px] leading-relaxed text-[#858B9A]">Continue to the current WeHouse hotel reservation flow for this room.</p>{reservationFee>0&&<p className="mt-3 text-[10px] font-semibold text-violet-200">Reservation fee: ₦{reservationFee.toLocaleString()}</p>}</section>}
+
+   <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4"><div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Guest reviews</h2><p className="mt-1 text-[9px] text-[#666D7E]">{reviews.length} review{reviews.length===1?'':'s'}</p></div><button onClick={()=>setShowReviewForm(value=>!value)} className="rounded-xl border border-white/[.08] px-3 py-2 text-[9px] font-semibold text-violet-300">{showReviewForm?'Cancel':'Write review'}</button></div>{showReviewForm&&<div className="mt-4 space-y-3 rounded-2xl border border-white/[.06] bg-black/10 p-3"><div className="flex gap-1">{[1,2,3,4,5].map(value=><button key={value} onClick={()=>setReviewRating(value)} className={`text-lg ${value<=reviewRating?'text-amber-300':'text-[#444A58]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value)} rows={3} placeholder="Share your experience" className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none focus:border-violet-500/40"/><button onClick={()=>void submitReview()} disabled={submittingReview} className="h-11 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-50">{submittingReview?'Submitting…':'Submit review'}</button></div>}<div className="mt-4 space-y-2">{reviews.length?reviews.slice(0,6).map(review=><div key={review.review_id} className="rounded-xl border border-white/[.05] bg-black/10 p-3"><div className="flex items-center justify-between gap-3"><p className="text-[10px] font-semibold">@{review.profiles?.username||'guest'}</p><p className="text-[9px] text-amber-300">{'★'.repeat(Number(review.rating||0))}</p></div>{review.comment&&<p className="mt-2 text-[10px] leading-relaxed text-[#858B9A]">{review.comment}</p>}</div>):<p className="py-5 text-center text-[10px] text-[#666D7E]">No reviews yet.</p>}</div></section>
+  </main>
+  <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl"><div className="mx-auto max-w-5xl"><button onClick={proceed} disabled={!selectedRoom} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{reservationSettings.enabled?'Continue reservation':'Continue booking'}</button></div></div>
+ </div>
 }
 
-export default function HotelDetail({ hotelId, onBack, onBook, onReserve, profile }: HotelDetailProps) {
-  const [hotel, setHotel] = useState<(Hotel & { hotel_rooms: HotelRoom[] }) | null>(null);
-  const [reviews, setReviews] = useState<(HotelReview & { profiles: { username: string | null; avatar_url: string | null } })[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentImage, setCurrentImage] = useState(0);
-  const [showAllAmenities, setShowAllAmenities] = useState(false);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
-  const [submittingReview, setSubmittingReview] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
-
-  // Date selection (for non-reservation flow)
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
-
-  // Hotel reservation settings from Creator
-  const reservationSettings = useHotelReservationSettings();
-
-  useEffect(() => {
-    loadHotel();
-  }, [hotelId]);
-
-  async function loadHotel() {
-    setLoading(true);
-    const { hotel: h, error } = await getHotelById(hotelId);
-    if (error || !h) {
-      toast.error('Failed to load hotel');
-      setLoading(false);
-      return;
-    }
-    setHotel(h);
-    const { reviews: r } = await getHotelReviews(hotelId);
-    setReviews(r || []);
-    if (h.hotel_rooms?.[0]) setSelectedRoom(h.hotel_rooms[0]);
-    setLoading(false);
-  }
-
-  async function handleSubmitReview() {
-    if (!profile?.user_id) return;
-    setSubmittingReview(true);
-    const { error } = await addHotelReview(hotelId, profile.user_id, reviewRating, reviewComment || undefined);
-    setSubmittingReview(false);
-    if (error) { toast.error('Failed to submit review'); return; }
-    toast.success('Review submitted!');
-    setShowReviewForm(false);
-    setReviewComment('');
-    setReviewRating(5);
-    const { reviews: r } = await getHotelReviews(hotelId);
-    setReviews(r || []);
-    const { hotel: h } = await getHotelById(hotelId);
-    if (h) setHotel(h);
-  }
-
-  // Date helpers
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-  const getMinCheckOut = () => {
-    if (!checkIn) return tomorrowStr;
-    const dayAfter = new Date(checkIn);
-    dayAfter.setDate(dayAfter.getDate() + 1);
-    return dayAfter.toISOString().split('T')[0];
-  };
-
-  const calculateNights = () => {
-    if (!checkIn || !checkOut) return 0;
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    const diff = end.getTime() - start.getTime();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-  };
-
-  const nights = calculateNights();
-  const totalPrice = selectedRoom && nights > 0 ? nights * selectedRoom.price_per_night : 0;
-  const reservationFee = reservationSettings.enabled
-    ? calculateReservationFee(reservationSettings, nights)
-    : 0;
-
-  // Handle proceed button
-  const handleProceed = () => {
-    if (!selectedRoom) return;
-
-    if (reservationSettings.enabled) {
-      // Reservation ON: go to reservation flow
-      onReserve(hotelId, selectedRoom.room_id);
-    } else {
-      // Reservation OFF: need dates first
-      if (!checkIn || !checkOut) { toast.error('Select check-in and check-out dates'); return; }
-      if (nights <= 0) { toast.error('Check-out must be after check-in'); return; }
-      onBook(hotelId, selectedRoom.room_id, checkIn, checkOut);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-transparent flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!hotel) {
-    return (
-      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center gap-3">
-        <p className="text-sm text-[#5C5E72]">Hotel not found</p>
-        <button onClick={onBack} className="text-xs text-[#3B82F6]">Go back</button>
-      </div>
-    );
-  }
-
-  const images = hotel.images?.length > 0 ? hotel.images : ['https://placehold.co/600x400/1A1A24/5C5E72?text=No+Image'];
-  const allAmenities = hotel.amenities || [];
-  const displayedAmenities = showAllAmenities ? allAmenities : allAmenities.slice(0, 8);
-
-  return (
-    <div className="min-h-screen bg-transparent pb-6">
-      <Toaster position="top-center" richColors />
-
-      {/* Image Gallery */}
-      <div className="relative">
-        <img src={images[currentImage]} alt={hotel.name} className="w-full aspect-[16/10] object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <button onClick={onBack} className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-        </button>
-        {images.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-            {images.map((_, i) => (
-              <button key={i} onClick={() => setCurrentImage(i)} className={`w-2 h-2 rounded-full transition-all ${i === currentImage ? 'bg-white w-4' : 'bg-white/40'}`} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Hotel Info */}
-      <div className="px-5 py-5">
-        {/* Name & Rating */}
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div>
-            <h1 className="text-lg font-bold text-white">{hotel.name}</h1>
-            <div className="flex items-center gap-1 mt-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-              <p className="text-xs text-[#5C5E72]">{hotel.city}, {hotel.state}{hotel.area ? ` · ${hotel.area}` : ''}</p>
-            </div>
-          </div>
-          {hotel.rating > 0 && (
-            <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-              <span className="text-xs font-bold text-amber-400">{hotel.rating}</span>
-            </div>
-          )}
-        </div>
-
-        {hotel.description && <p className="text-xs text-[#8B8DA0] leading-relaxed mb-4">{hotel.description}</p>}
-
-        {/* Amenities */}
-        <div className="mb-5">
-          <h3 className="text-xs font-semibold text-white mb-2">Amenities</h3>
-          <div className="flex flex-wrap gap-1.5">
-            {displayedAmenities.map(a => (
-              <span key={a} className="text-[10px] font-medium text-[#8B8DA0] bg-[#1A1A24] border border-[#2A2A3A] px-2.5 py-1 rounded-full">{a}</span>
-            ))}
-          </div>
-          {allAmenities.length > 8 && (
-            <button onClick={() => setShowAllAmenities(!showAllAmenities)} className="text-[10px] text-[#3B82F6] mt-2 font-medium">
-              {showAllAmenities ? 'Show less' : `+${allAmenities.length - 8} more`}
-            </button>
-          )}
-        </div>
-
-        {/* Address */}
-        {hotel.address && (
-          <div className="flex items-start gap-2 mb-5 p-3 rounded-xl bg-[#1A1A24] border border-[#2A2A3A]">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5E72" strokeWidth="2" className="mt-0.5 flex-shrink-0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-            <p className="text-xs text-[#8B8DA0]">{hotel.address}</p>
-          </div>
-        )}
-
-        {/* ─── ROOMS ─────────────────────────────────── */}
-        <div className="mb-5">
-          <h3 className="text-sm font-semibold text-white mb-3">Choose a Room</h3>
-          {hotel.hotel_rooms?.length === 0 ? (
-            <p className="text-xs text-[#5C5E72]">No rooms available</p>
-          ) : (
-            <div className="space-y-3">
-              {hotel.hotel_rooms?.map(room => (
-                <button
-                  key={room.room_id}
-                  onClick={() => setSelectedRoom(room)}
-                  className={`w-full text-left p-4 rounded-2xl border transition-all ${
-                    selectedRoom?.room_id === room.room_id
-                      ? 'border-[#3B82F6] bg-[#3B82F6]/5'
-                      : 'border-[#2A2A3A] bg-[#12121A] hover:border-[#3B82F6]/30'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-sm font-bold text-white">{room.room_type}</h4>
-                        {selectedRoom?.room_id === room.room_id && (
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#3B82F6]">SELECTED</span>
-                        )}
-                      </div>
-                      {room.description && <p className="text-[10px] text-[#5C5E72] mb-2">{room.description}</p>}
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1 text-[10px] text-[#8B8DA0]">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                          {room.max_guests} guest{room.max_guests !== 1 ? 's' : ''}
-                        </span>
-                        {room.bed_type && (
-                          <span className="flex items-center gap-1 text-[10px] text-[#8B8DA0]">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20h20M5 20v-5a3 3 0 0 1 6 0v5M13 20v-5a3 3 0 0 1 6 0v5M8 12V7a3 3 0 0 1 6 0v5" /></svg>
-                            {room.bed_type}
-                          </span>
-                        )}
-                      </div>
-                      {room.amenities && room.amenities.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {room.amenities.slice(0, 4).map(a => (
-                            <span key={a} className="text-[8px] text-[#5C5E72] bg-[#1A1A24] px-1.5 py-0.5 rounded-full">{a}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-base font-bold text-[#3B82F6]">₦{room.price_per_night.toLocaleString()}</p>
-                      <p className="text-[9px] text-[#5C5E72]">per night</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ─── DATE SELECTION (only when reservation is OFF) ─── */}
-        {!reservationSettings.enabled && selectedRoom && (
-          <div className="mb-5 p-4 rounded-2xl bg-[#12121A] border border-[#2A2A3A]">
-            <h3 className="text-sm font-semibold text-white mb-3">Select Dates</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] text-[#5C5E72] mb-1 block">Check-in</label>
-                <input
-                  type="date"
-                  value={checkIn}
-                  min={tomorrowStr}
-                  onChange={(e) => { setCheckIn(e.target.value); if (checkOut && e.target.value >= checkOut) setCheckOut(''); }}
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-[#5C5E72] mb-1 block">Check-out</label>
-                <input
-                  type="date"
-                  value={checkOut}
-                  min={getMinCheckOut()}
-                  onChange={(e) => setCheckOut(e.target.value)}
-                  className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 focus:border-[#3B82F6]/50 outline-none"
-                />
-              </div>
-            </div>
-            {nights > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#2A2A3A]">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[#5C5E72]">{nights} night{nights !== 1 ? 's' : ''} × ₦{selectedRoom.price_per_night.toLocaleString()}</span>
-                  <span className="text-white font-semibold">₦{totalPrice.toLocaleString()}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── RESERVATION INFO (only when reservation is ON) ─── */}
-        {reservationSettings.enabled && selectedRoom && (
-          <div className="mb-5 p-4 rounded-2xl bg-[#3B82F6]/5 border border-[#3B82F6]/20">
-            <div className="flex items-start gap-2 mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <div>
-                <p className="text-xs font-semibold text-white">Reservation Required</p>
-                <p className="text-[10px] text-[#5C5E72] mt-0.5">
-                  A reservation fee of <span className="text-[#3B82F6] font-semibold">₦{reservationFee.toLocaleString()}</span> is required before booking.
-                  {reservationSettings.feeType === 'per_day' && ' (Per day rate)'}
-                </p>
-                <p className="text-[9px] text-[#5C5E72] mt-1">
-                  Expires in {reservationSettings.expiryHours} hours. {reservationSettings.refundPolicy}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── PROCEED BUTTON ─── */}
-        {selectedRoom && (
-          <button
-            onClick={handleProceed}
-            disabled={!reservationSettings.enabled && (!checkIn || !checkOut)}
-            className="w-full h-13 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity py-3.5 flex items-center justify-center gap-2 mb-6 disabled:opacity-40"
-          >
-            {reservationSettings.enabled ? (
-              <>Proceed with Reservation — ₦{reservationFee.toLocaleString()}</>
-            ) : (
-              <>Proceed with Booking{nights > 0 ? ` — ₦${totalPrice.toLocaleString()}` : ''}</>
-            )}
-          </button>
-        )}
-
-        {/* ─── REVIEWS ───────────────────────────────── */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white">Reviews ({reviews.length})</h3>
-            <button onClick={() => setShowReviewForm(!showReviewForm)} className="text-[10px] text-[#3B82F6] font-medium">
-              {showReviewForm ? 'Cancel' : 'Write a Review'}
-            </button>
-          </div>
-
-          {showReviewForm && (
-            <div className="glass rounded-2xl p-4 border border-[#2A2A3A] mb-4">
-              <div className="flex items-center gap-1 mb-3">
-                {[1,2,3,4,5].map(star => (
-                  <button key={star} onClick={() => setReviewRating(star)} className="p-0.5">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill={star <= reviewRating ? '#F59E0B' : 'none'} stroke={star <= reviewRating ? '#F59E0B' : '#5C5E72'} strokeWidth="1.5">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </button>
-                ))}
-                <span className="text-xs text-[#5C5E72] ml-2">{reviewRating}/5</span>
-              </div>
-              <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder="Share your experience..." rows={3}
-                className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-xs px-3 py-2 placeholder-[#5C5E72] focus:border-[#3B82F6]/50 outline-none resize-none mb-3" />
-              <button onClick={handleSubmitReview} disabled={submittingReview}
-                className="w-full h-9 rounded-xl bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition-colors disabled:opacity-40">
-                {submittingReview ? 'Submitting...' : 'Submit Review'}
-              </button>
-            </div>
-          )}
-
-          {reviews.length === 0 ? (
-            <p className="text-xs text-[#5C5E72] text-center py-4">No reviews yet. Be the first to review!</p>
-          ) : (
-            <div className="space-y-3">
-              {reviews.map(r => (
-                <div key={r.review_id} className="p-3 rounded-xl bg-[#12121A] border border-[#1E1E2C]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center text-white text-[10px] font-bold">
-                      {(r.profiles?.username || 'U').charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-white">@{r.profiles?.username || 'User'}</p>
-                      <div className="flex items-center gap-0.5">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <svg key={i} width="8" height="8" viewBox="0 0 24 24" fill={i < r.rating ? '#F59E0B' : 'none'} stroke={i < r.rating ? '#F59E0B' : '#5C5E72'} strokeWidth="2">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                          </svg>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {r.comment && <p className="text-xs text-[#8B8DA0] leading-relaxed">{r.comment}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+function DateField({label,value,min,onChange}:{label:string;value:string;min:string;onChange:(value:string)=>void}){return <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span><input type="date" value={value} min={min} onChange={event=>onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40"/></label>}
+function Fact({label,value}:{label:string;value:string}){return <div className="rounded-xl border border-white/[.05] bg-black/10 p-3"><p className="text-[8px] uppercase tracking-wide text-[#62697A]">{label}</p><p className="mt-1 text-[11px] font-semibold">{value}</p></div>}

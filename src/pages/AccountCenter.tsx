@@ -3,6 +3,7 @@ import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import CommunicationInbox from '@/components/CommunicationInbox';
 import OfficialChannel from '@/components/OfficialChannel';
+import AccountShell, { AccountInfo, AccountRow, AccountSection } from '@/components/AccountShell';
 import type { Profile } from '@/types';
 
 type Props = {
@@ -21,12 +22,12 @@ type Legal = {
   terms_accepted_at?: string | null;
   legal_version?: string | null;
 };
-
 type Published = { privacy: boolean; terms: boolean };
+type Panel = 'notifications' | 'legal' | 'communication' | 'official' | null;
 
 export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
   const p = profile as any;
-  const [panel, setPanel] = useState<'notifications' | 'legal' | 'communication' | 'official' | null>(null);
+  const [panel, setPanel] = useState<Panel>(null);
   const [emailNotifs, setEmailNotifs] = useState(p.pref_email_notif !== false);
   const [pushNotifs, setPushNotifs] = useState(p.pref_push_notif !== false);
   const [legal, setLegal] = useState<Legal>({ privacy_accepted: false, terms_accepted: false });
@@ -72,25 +73,17 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
   }
 
   async function acceptLegal() {
-    if ((published.privacy && !legal.privacy_accepted && !acceptPrivacy) || (published.terms && !legal.terms_accepted && !acceptTerms)) {
-      return toast.error('Read and accept each published document');
-    }
+    if ((published.privacy && !legal.privacy_accepted && !acceptPrivacy) || (published.terms && !legal.terms_accepted && !acceptTerms)) return toast.error('Read and accept each published document');
     setSaving(true);
     let next = legal;
     if (published.privacy && !legal.privacy_accepted) {
       const { data, error } = await supabase.rpc('accept_current_legal', { p_document: 'privacy' });
-      if (error) {
-        setSaving(false);
-        return toast.error(error.message);
-      }
+      if (error) { setSaving(false); return toast.error(error.message); }
       if (data) next = data as Legal;
     }
     if (published.terms && !legal.terms_accepted) {
       const { data, error } = await supabase.rpc('accept_current_legal', { p_document: 'terms' });
-      if (error) {
-        setSaving(false);
-        return toast.error(error.message);
-      }
+      if (error) { setSaving(false); return toast.error(error.message); }
       if (data) next = data as Legal;
     }
     setSaving(false);
@@ -101,10 +94,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
   }
 
   async function logout() {
-    if (onLogout) {
-      onLogout();
-      return;
-    }
+    if (onLogout) return onLogout();
     await supabase.auth.signOut({ scope: 'local' });
     window.location.reload();
   }
@@ -114,227 +104,140 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
     window.dispatchEvent(new PopStateEvent('popstate', { state: { page } }));
   }
 
-  if (panel === 'official') return <OfficialChannel profile={profile} onBack={() => setPanel(null)} />;
+  if (panel === 'official') {
+    return (
+      <AccountShell profile={profile} title="Official updates" description="Platform and branch announcements from WeHouse." onBack={() => setPanel(null)}>
+        <OfficialChannel profile={profile} embedded />
+      </AccountShell>
+    );
+  }
+
   if (panel === 'communication') {
     return (
-      <SubPage title="Communication" onBack={() => setPanel(null)}>
-        <CommunicationInbox profile={profile} title="Messages" description="WeHouse Official updates and one continuous human-support conversation." />
-      </SubPage>
+      <AccountShell profile={profile} title="Support & updates" description="Private communication with WeHouse." onBack={() => setPanel(null)}>
+        <CommunicationInbox profile={profile} title="Messages" description="WeHouse Official updates and your human-support conversation." />
+      </AccountShell>
     );
   }
+
   if (panel === 'notifications') {
     return (
-      <SubPage title="Notifications" onBack={() => setPanel(null)}>
-        <Card>
+      <AccountShell profile={profile} title="Notifications" description="Choose how WeHouse should alert this account." onBack={() => setPanel(null)}>
+        <Toaster position="top-center" richColors />
+        <AccountSection>
           <Toggle label="Email notifications" detail="Account and service updates by email." value={emailNotifs} onChange={setEmailNotifs} />
-          <Divider />
           <Toggle label="Push notifications" detail="Time-sensitive alerts on supported devices." value={pushNotifs} onChange={setPushNotifs} />
-        </Card>
-        <button onClick={() => void saveNotifications()} disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      </SubPage>
+        </AccountSection>
+        <button onClick={() => void saveNotifications()} disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save notification preferences'}</button>
+      </AccountShell>
     );
   }
+
   if (panel === 'legal') {
     const any = published.privacy || published.terms;
     const done = (!published.privacy || legal.privacy_accepted) && (!published.terms || legal.terms_accepted);
     return (
-      <SubPage title="Legal & consent" onBack={() => setPanel(null)}>
-        <Card>
-          <p className="text-sm font-semibold">Published WeHouse documents</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#747889]">Only documents actually published by Creator can be accepted.</p>
+      <AccountShell profile={profile} title="Legal & consent" description="Published WeHouse documents and your current consent status." onBack={() => setPanel(null)}>
+        <Toaster position="top-center" richColors />
+        <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
+          <p className="text-sm font-semibold">Published documents</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-[#74798B]">Only documents actually published by WeHouse can be accepted.</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <LegalCard title="Privacy Policy" published={published.privacy} accepted={legal.privacy_accepted} onClick={() => openLegal('privacy_policy')} />
             <LegalCard title="Terms & Conditions" published={published.terms} accepted={legal.terms_accepted} onClick={() => openLegal('terms_of_service')} />
           </div>
-        </Card>
-        {!any ? (
-          <Empty title="Nothing to accept yet" text="Privacy Policy and Terms & Conditions have not been published." />
-        ) : (
+        </section>
+
+        {!any ? <Empty title="Nothing to accept yet" text="Privacy Policy and Terms & Conditions have not been published." /> : (
           <>
             {!done && (
-              <Card>
+              <AccountSection>
                 {published.privacy && !legal.privacy_accepted && <Check label="I have read and accept the published Privacy Policy" value={acceptPrivacy} set={setAcceptPrivacy} />}
-                {published.privacy && !legal.privacy_accepted && published.terms && !legal.terms_accepted && <Divider />}
                 {published.terms && !legal.terms_accepted && <Check label="I have read and accept the published Terms & Conditions" value={acceptTerms} set={setAcceptTerms} />}
-              </Card>
+              </AccountSection>
             )}
-            {done ? (
-              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.05] p-4 text-xs text-emerald-300">Current published documents accepted.</div>
-            ) : (
-              <button
-                onClick={() => void acceptLegal()}
-                disabled={saving || (published.privacy && !legal.privacy_accepted && !acceptPrivacy) || (published.terms && !legal.terms_accepted && !acceptTerms)}
-                className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
-              >
-                {saving ? 'Saving…' : 'Accept published documents'}
-              </button>
-            )}
+            {done ? <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.05] p-4 text-xs text-emerald-300">Current published documents accepted.</div> : <button onClick={() => void acceptLegal()} disabled={saving || (published.privacy && !legal.privacy_accepted && !acceptPrivacy) || (published.terms && !legal.terms_accepted && !acceptTerms)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving ? 'Saving…' : 'Accept published documents'}</button>}
           </>
         )}
-      </SubPage>
+      </AccountShell>
     );
   }
 
   const anyPublished = published.privacy || published.terms;
   const legalDone = anyPublished && (!published.privacy || legal.privacy_accepted) && (!published.terms || legal.terms_accepted);
-  const items = [
-    ...(canEditGenericProfile ? [{ title: 'Profile', detail: 'Photo, name, phone and personal information', action: onGoToProfileEdit }] : []),
-    ...(isUser ? [{ title: 'Privacy', detail: 'Roommate discovery and profile visibility', action: onGoToPrivacy }] : []),
-    ...(isWorker ? [{ title: 'Communication', detail: 'WeHouse Official updates and human support', action: () => setPanel('communication' as const) }] : []),
-    ...(isStaff ? [{ title: 'WeHouse Official', detail: 'Read official platform and branch announcements', action: () => setPanel('official' as const) }] : []),
-    { title: 'Notifications', detail: 'Email and push preferences', action: () => setPanel('notifications' as const) },
-    { title: 'Security', detail: 'Password, devices and account protection', action: onGoToSecurity },
-    {
-      title: 'Legal & consent',
-      detail: !anyPublished ? 'No legal documents published yet' : legalDone ? 'Current documents accepted' : 'Review current published documents',
-      action: () => setPanel('legal' as const),
-    },
-  ];
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-10 text-white">
+    <AccountShell profile={profile} title="Account" description="Private account controls. Work and operational settings stay inside your role workspace." onBack={onBack}>
       <Toaster position="top-center" richColors />
-      <header className="border-b border-white/[.06] bg-[#0D1017] px-4 py-4 sm:px-5">
-        <div className="mx-auto flex max-w-4xl items-center gap-3">
-          {onBack && (
-            <button onClick={onBack} aria-label="Back" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.03] text-[#9A9EAD]">←</button>
-          )}
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold tracking-[.2em] text-violet-300">ACCOUNT</p>
-            <h1 className="mt-1 text-lg font-bold sm:text-xl">{isWorker ? 'Private account' : 'Your WeHouse account'}</h1>
+
+      <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-base font-bold text-violet-200">
+            {profile.avatar_url && !isWorker ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-sm font-semibold">{isWorker ? (profile.username ? `@${profile.username}` : 'Worker account') : (profile.full_name || `@${profile.username || 'account'}`)}</h2>
+              <span className="rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#9CA2B2]">{roleLabel}</span>
+              {isWorker && <span className="rounded-full border border-violet-500/15 bg-violet-500/[.06] px-2 py-1 text-[8px] font-semibold text-violet-300">PRIVATE</span>}
+            </div>
+            <p className="mt-1 truncate text-[10px] text-[#777E8E]">{profile.email || 'No email'}</p>
+            {isWorker && <p className="mt-2 text-[9px] leading-relaxed text-[#62697A]">Professional identity, service details and work media are managed only from Professional Profile.</p>}
           </div>
         </div>
-      </header>
+      </section>
 
-      <main className="mx-auto max-w-4xl space-y-4 px-4 py-5 sm:px-5 lg:py-7">
-        {isWorker ? (
-          <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
-            <div className="flex items-start gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-sm font-bold text-violet-200">{initials}</div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold">Worker account</p>
-                  <Chip text="Private" />
-                </div>
-                <p className="mt-1 truncate text-[10px] text-[#7B8190]">@{profile.username || 'not-set'}</p>
-                <p className="mt-1 truncate text-[10px] text-[#666D7E]">{profile.email || 'No email shown'}</p>
-                <p className="mt-3 text-[9px] leading-relaxed text-[#606778]">Professional information is managed only from Professional Profile in the Worker workspace.</p>
-              </div>
-            </div>
-          </section>
-        ) : (
-          <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-5 sm:p-6">
-            <div className="flex items-center gap-4">
-              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500 text-xl font-bold">
-                {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-lg font-semibold">{profile.full_name || `@${profile.username || 'user'}`}</h2>
-                <p className="mt-1 truncate text-[10px] text-[#777B8C]">@{profile.username || 'not-set'}</p>
-                <div className="mt-3 flex flex-wrap gap-2"><Chip text={roleLabel} /></div>
-              </div>
-            </div>
-          </section>
-        )}
+      <AccountSection title="Account">
+        {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
+        {isUser && <AccountRow title="Privacy" detail="Roommate discovery and personal visibility" onClick={onGoToPrivacy} icon={<PrivacyIcon />} />}
+      </AccountSection>
 
-        <section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-          {items.map((item, index) => (
-            <div key={item.title}>
-              {index > 0 && <Divider />}
-              <button onClick={item.action} className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-white/[.025] sm:px-5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-[#696D7D]">{item.detail}</p>
-                </div>
-                <span className="text-[#55596A]">›</span>
-              </button>
-            </div>
-          ))}
-        </section>
+      <AccountSection title="Preferences & protection">
+        <AccountRow title="Notifications" detail="Email and push preferences" onClick={() => setPanel('notifications')} icon={<BellIcon />} />
+        <AccountRow title="Security" detail="Password, devices and account protection" onClick={onGoToSecurity} icon={<ShieldIcon />} />
+      </AccountSection>
 
-        <section className="grid gap-3 sm:grid-cols-3">
-          <Info label="Email" value={profile.email_verified ? 'Verified' : 'Not verified'} />
-          {isWorker ? <Info label="Account ID" value={profile.user_id || 'Not set'} /> : <Info label="Location" value={[profile.state, profile.local_government || profile.city].filter(Boolean).join(' / ') || 'Not set'} />}
-          <Info label="Member since" value={new Date(profile.created_at).toLocaleDateString()} />
-        </section>
+      {(isWorker || isStaff) && (
+        <AccountSection title="Support & information">
+          {isWorker && <AccountRow title="Support & updates" detail="WeHouse Official updates and human support" onClick={() => setPanel('communication')} icon={<MessageIcon />} />}
+          {isStaff && <AccountRow title="Official updates" detail="Platform and branch announcements" onClick={() => setPanel('official')} icon={<MessageIcon />} />}
+          <AccountRow title="Legal & consent" detail={!anyPublished ? 'No documents published yet' : legalDone ? 'Current documents accepted' : 'Review current published documents'} onClick={() => setPanel('legal')} icon={<DocumentIcon />} />
+        </AccountSection>
+      )}
 
-        {isStaff && (
-          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[10px] leading-relaxed text-amber-200/80">
-            Staff identity, branch and permissions are controlled by authorized Admin/Creator workflows.
-          </div>
-        )}
+      {!isWorker && !isStaff && (
+        <AccountSection title="Legal">
+          <AccountRow title="Legal & consent" detail={!anyPublished ? 'No documents published yet' : legalDone ? 'Current documents accepted' : 'Review current published documents'} onClick={() => setPanel('legal')} icon={<DocumentIcon />} />
+        </AccountSection>
+      )}
 
-        <button onClick={() => void logout()} className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.05] p-4 text-left">
-          <p className="text-sm font-medium text-red-300">Log out</p>
-          <p className="mt-1 text-[10px] text-red-300/60">Sign out of this device</p>
-        </button>
-      </main>
-    </div>
+      <section className="grid gap-3 sm:grid-cols-3">
+        <AccountInfo label="Email" value={profile.email_verified ? 'Verified' : 'Not verified'} />
+        <AccountInfo label="Account ID" value={profile.user_id || 'Not set'} />
+        <AccountInfo label="Member since" value={new Date(profile.created_at).toLocaleDateString()} />
+      </section>
+
+      {isStaff && <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[10px] leading-relaxed text-amber-200/80">Staff role, branch and operational permissions are managed through authorized Admin/Creator workflows.</div>}
+
+      <button onClick={() => void logout()} className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06]">
+        <p className="text-[12px] font-semibold text-red-300">Log out</p>
+        <p className="mt-1 text-[9px] text-red-300/60">Sign out of this device</p>
+      </button>
+    </AccountShell>
   );
 }
-
-function SubPage({ title, onBack, children }: { title: string; onBack: () => void; children: React.ReactNode }) {
-  return (
-    <div className="min-h-[100dvh] bg-[#090A0F] text-white">
-      <Toaster position="top-center" richColors />
-      <header className="border-b border-white/[.06] bg-[#0D1017] px-4 py-4">
-        <div className="mx-auto flex max-w-4xl items-center gap-3">
-          <button onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07] bg-white/[.03]">←</button>
-          <h1 className="text-base font-semibold">{title}</h1>
-        </div>
-      </header>
-      <main className="mx-auto max-w-4xl space-y-4 px-4 py-5 sm:px-5">{children}</main>
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">{children}</section>;
-}
-
-function Divider() { return <div className="h-px bg-white/[.05]" />; }
 
 function Toggle({ label, detail, value, onChange }: { label: string; detail: string; value: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <div><p className="text-sm font-medium">{label}</p><p className="mt-1 text-[10px] text-[#696D7D]">{detail}</p></div>
-      <button onClick={() => onChange(!value)} className={`relative h-6 w-11 shrink-0 rounded-full ${value ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}>
-        <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : ''}`} />
-      </button>
-    </div>
-  );
+  return <div className="flex min-h-[4.5rem] items-center justify-between gap-4 border-b border-white/[.05] px-4 py-3.5 last:border-b-0 sm:px-5"><div><p className="text-[12px] font-semibold">{label}</p><p className="mt-0.5 text-[9px] leading-relaxed text-[#6F7585]">{detail}</p></div><button type="button" onClick={() => onChange(!value)} className={`relative h-6 w-11 shrink-0 rounded-full transition ${value ? 'bg-violet-500' : 'bg-[#292D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : ''}`} /></button></div>;
 }
+function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) { return <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5"><input type="checkbox" checked={value} onChange={(event) => set(event.target.checked)} className="h-4 w-4 accent-violet-500" /><span className="text-[10px] leading-relaxed text-[#B3B8C4]">{label}</span></label>; }
+function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} disabled={!published} className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"><p className="text-[11px] font-semibold">{title}</p><p className={`mt-2 text-[9px] ${accepted ? 'text-emerald-300' : 'text-[#6E7484]'}`}>{!published ? 'Not published' : accepted ? 'Accepted' : 'Review document'}</p></button>; }
+function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] text-[#666D7E]">{text}</p></div>; }
 
-function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="rounded-xl border border-white/[.08] p-3 text-left">
-      <p className="text-xs font-medium">{title}</p>
-      <p className={`mt-1 text-[9px] ${!published ? 'text-[#727687]' : accepted ? 'text-emerald-300' : 'text-amber-300'}`}>
-        {!published ? 'Not published yet' : accepted ? 'Current version accepted' : 'Published · review required'}
-      </p>
-    </button>
-  );
-}
-
-function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) {
-  return (
-    <button onClick={() => set(!value)} className="flex w-full items-center gap-3 py-2 text-left">
-      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border text-xs ${value ? 'border-violet-500 bg-violet-500' : 'border-white/[.15]'}`}>{value ? '✓' : ''}</span>
-      <span className="text-xs">{label}</span>
-    </button>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4"><p className="text-[9px] uppercase tracking-wide text-[#606475]">{label}</p><p className="mt-2 break-words text-xs font-medium text-[#D1D3DC]">{value}</p></div>;
-}
-
-function Chip({ text }: { text: string }) {
-  return <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-2.5 py-1 text-[9px] font-semibold text-violet-300">{text}</span>;
-}
-
-function Empty({ title, text }: { title: string; text: string }) {
-  return <div className="rounded-2xl border border-dashed border-white/[.08] p-6 text-center"><p className="text-sm font-semibold">{title}</p><p className="mt-2 text-[10px] text-[#6D7182]">{text}</p></div>;
-}
+const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
+function PersonIcon(){return <svg {...iconProps}><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/></svg>}
+function PrivacyIcon(){return <svg {...iconProps}><path d="M12 3 4.5 6v5c0 4.8 3 8.2 7.5 10 4.5-1.8 7.5-5.2 7.5-10V6L12 3Z"/><path d="M9.5 12 11 13.5 14.5 10"/></svg>}
+function BellIcon(){return <svg {...iconProps}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 19h4"/></svg>}
+function ShieldIcon(){return <svg {...iconProps}><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3Z"/><path d="M9 12.5 11 14l4-4"/></svg>}
+function MessageIcon(){return <svg {...iconProps}><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 3V7a2 2 0 0 1 2-2Z"/></svg>}
+function DocumentIcon(){return <svg {...iconProps}><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg>}
