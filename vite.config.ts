@@ -24,6 +24,30 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/AdminDashboardUnified.tsx'),
       },
       {
+        find: /^@\/pages\/Chat$/,
+        replacement: path.resolve(__dirname, './src/pages/ChatPhase9.tsx'),
+      },
+      {
+        find: /^@\/pages\/WorkerVerification$/,
+        replacement: path.resolve(__dirname, './src/pages/WorkerVerificationPhase9.tsx'),
+      },
+      {
+        find: /^@\/pages\/WorkerDashboard$/,
+        replacement: path.resolve(__dirname, './src/pages/WorkerWorkspacePhase9.tsx'),
+      },
+      {
+        find: /^@\/components\/BookingNegotiationChat$/,
+        replacement: path.resolve(__dirname, './src/components/BookingNegotiationChatPhase9.tsx'),
+      },
+      {
+        find: /^@\/components\/DiscoveryShell$/,
+        replacement: path.resolve(__dirname, './src/components/DiscoveryShellPhase9.tsx'),
+      },
+      {
+        find: /^\.\/CreatorSettingsTabV2$/,
+        replacement: path.resolve(__dirname, './src/pages/CreatorSettingsPhase9.tsx'),
+      },
+      {
         find: /^@\/components\/DesktopLayout$/,
         replacement: path.resolve(__dirname, './src/components/DesktopLayoutUnified.tsx'),
       },
