@@ -1,1 +1,1 @@
-Production redeploy trigger for current WeHouse main. No runtime behavior change.
+Production redeploy trigger for WeHouse main after discovery filter consolidation and roommate scaling hardening.
