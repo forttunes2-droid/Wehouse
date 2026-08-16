@@ -1,6 +1,8 @@
 import { supabase } from './client';
 import type { RoommatePreferences } from '@/types';
 
+const DEFAULT_MATCH_PAGE = 24;
+
 export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences>) {
   const { data, error } = await supabase.rpc('save_my_roommate_preferences', {
     p_gender: prefs.gender || '',
@@ -50,13 +52,19 @@ export async function stopRoommateSearch(_userId?: string) {
 
 export async function refreshRoommateSearch(_userId?: string) {
   const { error } = await supabase.rpc('refresh_my_roommate_search');
-  if (error) return { matches: [], error };
-  return getSavedMatchResults();
+  if (error) return { matches: [], hasMore: false, error };
+  return getSavedMatchResults(DEFAULT_MATCH_PAGE, 0);
 }
 
-export async function getSavedMatchResults(_userId?: string) {
-  const { data, error } = await supabase.rpc('get_my_roommate_matches');
-  const matches = (data || []).map((row: any) => ({
+export async function getSavedMatchResults(limit = DEFAULT_MATCH_PAGE, offset = 0) {
+  const pageSize = Math.max(1, Math.min(limit, 48));
+  const { data, error } = await supabase.rpc('get_my_roommate_matches_page', {
+    p_limit: pageSize + 1,
+    p_offset: Math.max(0, offset),
+  });
+  const rows = data || [];
+  const hasMore = rows.length > pageSize;
+  const matches = rows.slice(0, pageSize).map((row: any) => ({
     id: row.id,
     matched_user_id: row.matched_user_id,
     match_score: row.match_score,
@@ -77,7 +85,7 @@ export async function getSavedMatchResults(_userId?: string) {
       area_preference: row.area_preference,
     },
   }));
-  return { matches, error };
+  return { matches, hasMore, error };
 }
 
 export async function updateMatchStatus(matchId: string, status: 'new' | 'viewed' | 'accepted' | 'declined') {
