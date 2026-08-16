@@ -16,10 +16,10 @@ export default function RoommateWorkspace({profile,onGoToChat,onEditProfile}:Pro
  const discoveryAllowed=profile.privacy_search_visible!==false&&profile.privacy_profile_visible!==false;
  const canMatch=profileReady&&discoveryAllowed;
  const location=[profile.local_government||profile.city,profile.state].filter(Boolean).join(', ');
- const matchingActive=prefs?.search_status==='active'&&prefs?.active!==false;
+ const matchingActive=prefs?.search_status==='active'&&prefs?.active!==false&&discoveryAllowed;
  const matchingLabel=matchingActive?'Active':prefs?'Paused':'Set preferences';
 
- const load=useCallback(async()=>{setLoading(true);const{prefs:p}=await checkSearchExpiry();let rows:any[]=[];if(p?.search_status==='active'){const result=await getSavedMatchResults().catch(()=>({matches:[],error:null}));rows=result.matches||[]}setPrefs(p);setMatches(rows);if(p)setForm({gender_preference:p.gender_preference||'no_preference',budget_min:Number(p.budget_min||180000),budget_max:Number(p.budget_max||500000),cleanliness:p.cleanliness||'moderate',noise_level:p.noise_level||'moderate',visitors:p.visitors||'sometimes',stay_duration:p.stay_duration||'1_year',area_preference:'',school_name:p.school_name||profile.school||'',school_match:Boolean(p.school_match)});setLoading(false)},[profile.school]);
+ const load=useCallback(async()=>{setLoading(true);const{prefs:p}=await checkSearchExpiry();let rows:any[]=[];if(p?.search_status==='active'&&discoveryAllowed){const result=await getSavedMatchResults().catch(()=>({matches:[],error:null}));rows=result.matches||[]}setPrefs(p);setMatches(rows);if(p)setForm({gender_preference:p.gender_preference||'no_preference',budget_min:Number(p.budget_min||180000),budget_max:Number(p.budget_max||500000),cleanliness:p.cleanliness||'moderate',noise_level:p.noise_level||'moderate',visitors:p.visitors||'sometimes',stay_duration:p.stay_duration||'1_year',area_preference:'',school_name:p.school_name||profile.school||'',school_match:Boolean(p.school_match)});setLoading(false)},[profile.school,discoveryAllowed]);
  useEffect(()=>{void load()},[load]);
 
  async function save(){
