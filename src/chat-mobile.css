@@ -1,0 +1,40 @@
+/* Private Roommate + Worker booking chat fit.
+   Full-screen private chats use z-50; the global user nav now stays below them. */
+@media (max-width: 430px) {
+  .fixed.inset-0.z-50 {
+    max-width: 100vw;
+    overflow: hidden;
+  }
+
+  .fixed.inset-0.z-50 > header,
+  .fixed.inset-0.z-50 > main,
+  .fixed.inset-0.z-50 > footer {
+    min-width: 0;
+    max-width: 100vw;
+  }
+
+  .fixed.inset-0.z-50 > footer {
+    padding-left: max(.5rem, env(safe-area-inset-left));
+    padding-right: max(.5rem, env(safe-area-inset-right));
+  }
+
+  .fixed.inset-0.z-50 > footer .flex.items-end.gap-2 {
+    gap: .375rem;
+    min-width: 0;
+  }
+
+  .fixed.inset-0.z-50 > footer button.h-11.w-11 {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .fixed.inset-0.z-50 > footer textarea {
+    min-width: 0;
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .fixed.inset-0.z-50 > footer .flex-1 {
+    min-width: 0;
+  }
+}
