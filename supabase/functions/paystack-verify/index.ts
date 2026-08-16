@@ -94,7 +94,7 @@ serve(async (req) => {
           error: data?.error || 'Payment was verified but the Worker booking could not be finalized. WeHouse review is required.',
           amount: verifiedAmount,
           purpose: payment.purpose,
-        }), { status: 409, headers: cors });
+        }), { status: 200, headers: cors });
       }
       return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
     }
