@@ -5,6 +5,7 @@ import CommunicationsWorkspace from '@/components/CommunicationsWorkspace';
 import PropertyPipelineWorkspace from '@/components/PropertyPipelineWorkspace';
 import CreatorWorkerOversight from '@/components/CreatorWorkerOversight';
 import CreatorAuditWorkspace from '@/components/CreatorAuditWorkspace';
+import ServiceBookingOversight from '@/components/ServiceBookingOversight';
 import UserProfileModal from '@/components/UserProfileModal';
 import DomainSettingsPanel from '@/components/DomainSettingsPanel';
 import ServiceCategoryManager from '@/components/ServiceCategoryManager';
@@ -26,7 +27,7 @@ const NAV = [
   { id: 'communications', label: 'Communications' },
   { id: 'finance', label: 'Finance' },
   { id: 'analytics', label: 'Analytics' },
-  { id: 'audit', label: 'Audit' },
+  { id: 'audit', label: 'Change History' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -36,7 +37,7 @@ const NOTES: Record<Tab, string> = {
   communications: 'Human Support conversations and official announcements.',
   finance: 'Payout requests, commission records and settlement policy.',
   analytics: 'Trends, marketplace movement and lifecycle distribution.',
-  audit: 'Recorded management and system change history.',
+  audit: 'Safe operational history of important management changes.',
   settings: 'Global platform, Worker verification, trust and marketplace configuration.',
 };
 
@@ -113,7 +114,7 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
     ['Payout requests', stats?.pendingPayouts || 0, openFinance, 'Worker/Partner settlement requests'],
   ];
 
-  return <div className="space-y-5"><section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.12] via-[#14111F] to-[#0E1118] p-5 sm:p-6 lg:p-8"><p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-300">PLATFORM OVERVIEW</p><h2 className="mt-3 text-2xl font-bold sm:text-3xl">What needs your attention</h2><p className="mt-2 max-w-2xl text-[10px] leading-relaxed text-[#858B9B]">Overview summarizes. Each action opens the one workspace that owns the responsibility.</p><div className="mt-5 flex flex-wrap gap-2"><Quick label="Properties" onClick={() => openOperation('properties')} primary /><Quick label="Communications" onClick={openCommunications} /><Quick label="Finance" onClick={openFinance} /><Quick label="Analytics" onClick={openAnalytics} /><Quick label="Audit" onClick={openAudit} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
+  return <div className="space-y-5"><section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.12] via-[#14111F] to-[#0E1118] p-5 sm:p-6 lg:p-8"><p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-300">PLATFORM OVERVIEW</p><h2 className="mt-3 text-2xl font-bold sm:text-3xl">What needs your attention</h2><p className="mt-2 max-w-2xl text-[10px] leading-relaxed text-[#858B9B]">Overview summarizes. Each action opens the one workspace that owns the responsibility.</p><div className="mt-5 flex flex-wrap gap-2"><Quick label="Properties" onClick={() => openOperation('properties')} primary /><Quick label="Communications" onClick={openCommunications} /><Quick label="Finance" onClick={openFinance} /><Quick label="Analytics" onClick={openAnalytics} /><Quick label="Change History" onClick={openAudit} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
 }
 
 function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation; setActive: (value: Operation) => void; onView: (profile: Profile) => void }) {
@@ -134,10 +135,10 @@ function People({ onView }: { onView: (profile: Profile) => void }) {
 
 function Bookings() {
   const [view,setView]=useState<'worker'|'apartments'|'hotels'>('worker');
-  const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(true);
-  useEffect(()=>{void load()},[view]);
-  async function load(){setLoading(true);let data:any[]=[];let error:any=null;if(view==='worker'){const r=await supabase.rpc('admin_get_my_branch_worker_bookings');data=Array.isArray(r.data)?r.data:[];error=r.error}else if(view==='apartments'){const r=await supabase.from('reservations').select('*').order('created_at',{ascending:false}).limit(100);data=r.data||[];error=r.error}else{const r=await supabase.from('hotel_bookings').select('*,hotels(name,city,state)').order('created_at',{ascending:false}).limit(100);data=r.data||[];error=r.error}if(error)toast.error(error.message);setRows(data);setLoading(false)}
-  return <Section title="Bookings" note="Oversight for Worker-service, apartment and hotel bookings."><div className="flex gap-1 overflow-x-auto scrollbar-hide">{([['worker','Worker services'],['apartments','Apartments'],['hotels','Hotels']] as const).map(([id,label])=><Chip key={id} active={view===id} onClick={()=>setView(id)}>{label}</Chip>)}</div>{loading?<Loading/>:rows.length===0?<Empty text="No bookings in this view."/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id||row.booking_id}><Top title={view==='worker'?(row.service_type||row.booking_code||'Worker booking'):view==='hotels'?(row.hotels?.name||'Hotel booking'):(row.reservation_code||row.listing_id||'Apartment reservation')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={row.negotiated_amount||row.agreed_amount||row.total_price||row.amount}/></Card>)}</div>}</Section>;
+  const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(false);
+  useEffect(()=>{if(view!=='worker')void load()},[view]);
+  async function load(){setLoading(true);let data:any[]=[];let error:any=null;if(view==='apartments'){const r=await supabase.from('reservations').select('*').order('created_at',{ascending:false}).limit(100);data=r.data||[];error=r.error}else if(view==='hotels'){const r=await supabase.from('hotel_bookings').select('*,hotels(name,city,state)').order('created_at',{ascending:false}).limit(100);data=r.data||[];error=r.error}if(error)toast.error(error.message);setRows(data);setLoading(false)}
+  return <div className="space-y-4"><div><h2 className="text-lg font-bold">Bookings</h2><p className="mt-1 text-[10px] text-[#707687]">One oversight area for Worker services, apartments and hotels. Each booking keeps its own status.</p></div><div className="flex gap-1 overflow-x-auto scrollbar-hide">{([['worker','Worker services'],['apartments','Apartments'],['hotels','Hotels']] as const).map(([id,label])=><Chip key={id} active={view===id} onClick={()=>setView(id)}>{label}</Chip>)}</div>{view==='worker'?<ServiceBookingOversight title="Worker service bookings" note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."/>:loading?<Loading/>:rows.length===0?<Empty text="No bookings in this view."/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id||row.booking_id}><Top title={view==='hotels'?(row.hotels?.name||'Hotel booking'):(row.reservation_code||row.listing_id||'Apartment reservation')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={row.total_price||row.amount}/></Card>)}</div>}</div>;
 }
 
 function Reports() {
