@@ -16,6 +16,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^@\/pages\/Login$/,
+        replacement: path.resolve(__dirname, './src/pages/LoginRecoveryEntry.tsx'),
+      },
+      {
         find: /^@\/pages\/CreatorDashboard$/,
         replacement: path.resolve(__dirname, './src/pages/CreatorDashboardUnified.tsx'),
       },
