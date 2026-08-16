@@ -27,7 +27,8 @@ export function initializePaystackPopup(config: PaystackPopupConfig): void {
     loadPaystackScript().then(() => {
       openPaystackPopup(config);
     }).catch(() => {
-      config.onError?.('Failed to load Paystack. Please try again.');
+      if (config.onError) config.onError('Failed to load Paystack. Please try again.');
+      else config.onCancel?.();
     });
     return;
   }
@@ -59,7 +60,9 @@ function openPaystackPopup(config: PaystackPopupConfig): void {
       config.onCancel?.();
     },
     onError: (error: any) => {
-      config.onError?.(error?.message || 'Paystack could not start this payment.');
+      const message = error?.message || 'Paystack could not start this payment.';
+      if (config.onError) config.onError(message);
+      else config.onCancel?.();
     },
   };
 
