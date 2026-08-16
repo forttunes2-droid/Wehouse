@@ -1,4 +1,4 @@
-import { supabase } from './client';
+import { recoveryRequestClient, supabase } from './client';
 import { parseDeviceInfo } from './session';
 
 // ─── AUTH HELPERS ──────────────────────────────────
@@ -32,7 +32,7 @@ export async function signInWithGoogle() {
 }
 
 export async function resetPassword(email: string) {
-  return supabase.auth.resetPasswordForEmail(email, {
+  return recoveryRequestClient.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/?auth=recovery`,
   });
 }
