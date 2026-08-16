@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { checkUsernameAvailable, removeAvatar, updateProfile, uploadAvatar, validateUsername } from '@/lib/supabase';
+import { getRegisteredInstitutions, type RegisteredInstitution } from '@/lib/supabase/institutions';
 import SearchableSelect from '@/components/SearchableSelect';
 import AccountShell from '@/components/AccountShell';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
@@ -24,9 +25,31 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [state, setState] = useState(profile.state || '');
   const [lga, setLga] = useState(profile.local_government || profile.city || '');
   const [area, setArea] = useState(profile.area || '');
+  const [institutions, setInstitutions] = useState<RegisteredInstitution[]>([]);
+  const [institutionsLoading, setInstitutionsLoading] = useState(false);
+  const [institutionsError, setInstitutionsError] = useState<string | null>(null);
   const isUser = profile.role === 'user';
   const states = useMemo(() => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })), []);
   const lgas = useMemo(() => (NIGERIA_STATES.find((item) => item.state === state)?.cities || []).map((name) => ({ value: name, label: name })), [state]);
+  const institutionOptions = useMemo(() => {
+    const typeLabel: Record<RegisteredInstitution['institution_type'], string> = { university: 'University', polytechnic: 'Polytechnic', college: 'College' };
+    const ordered = [...institutions].sort((a, b) => {
+      const aLocal = Boolean(lga && a.local_government === lga);
+      const bLocal = Boolean(lga && b.local_government === lga);
+      if (aLocal !== bLocal) return aLocal ? -1 : 1;
+      return a.canonical_name.localeCompare(b.canonical_name);
+    });
+    const options = ordered.map((item) => ({
+      value: item.canonical_name,
+      label: item.canonical_name,
+      meta: `${typeLabel[item.institution_type]} · ${item.local_government || item.state}`,
+      keywords: `${item.aliases.join(' ')} ${item.regulator} ${item.local_government || ''}`,
+    }));
+    if (school && !options.some((option) => option.value === school)) {
+      options.unshift({ value: school, label: school, meta: 'Current value', keywords: school });
+    }
+    return options;
+  }, [institutions, lga, school]);
 
   useEffect(() => {
     const value = username.trim().toLowerCase();
@@ -40,6 +63,20 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     }, 350);
     return () => window.clearTimeout(timer);
   }, [username, profile.username, profile.user_id]);
+
+  useEffect(() => {
+    if (!isUser || !isStudent || !state) { setInstitutions([]); setInstitutionsError(null); return; }
+    let cancelled = false;
+    setInstitutionsLoading(true);
+    setInstitutionsError(null);
+    void getRegisteredInstitutions(state).then(({ institutions: rows, error }) => {
+      if (cancelled) return;
+      setInstitutions(rows);
+      setInstitutionsError(error?.message || null);
+      setInstitutionsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isUser, isStudent, state]);
 
   async function changePhoto(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -118,8 +155,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
             <div className="mt-4 space-y-4">
               <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
               <div><p className="mb-2 text-[10px] text-[#777E8E]">Gender</p><div className="flex gap-2">{[['male', 'Male'], ['female', 'Female']].map(([id, label]) => <button type="button" key={id} onClick={() => setGender(id)} className={`rounded-xl px-4 py-2 text-[10px] font-semibold ${gender === id ? 'bg-violet-500' : 'border border-white/[.08] text-[#A0A5B3]'}`}>{label}</button>)}</div></div>
-              <label className="flex items-center justify-between gap-4 rounded-xl border border-white/[.06] bg-black/10 p-3"><div><p className="text-xs font-medium">Student</p><p className="mt-1 text-[9px] text-[#62697A]">Add your institution for roommate matching.</p></div><button type="button" onClick={() => setIsStudent((value) => !value)} className={`relative h-6 w-11 rounded-full ${isStudent ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${isStudent ? 'translate-x-5' : ''}`} /></button></label>
-              {isStudent && <Field label="Institution" value={school} onChange={setSchool} />}
+              <label className="flex items-center justify-between gap-4 rounded-xl border border-white/[.06] bg-black/10 p-3"><div><p className="text-xs font-medium">Student</p><p className="mt-1 text-[9px] text-[#62697A]">Choose your registered University, Polytechnic or College.</p></div><button type="button" onClick={() => setIsStudent((value) => !value)} className={`relative h-6 w-11 rounded-full ${isStudent ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${isStudent ? 'translate-x-5' : ''}`} /></button></label>
+              {isStudent && <div><SearchableSelect label="Institution" value={school} onChange={setSchool} options={institutionOptions} placeholder={!state ? 'Choose State first' : institutionsLoading ? 'Loading institutions…' : 'Choose institution'} searchPlaceholder="Search University, Polytechnic or College" disabled={!state || institutionsLoading} emptyText="No registered institution found in this State yet" />{institutionsError && <p className="mt-1.5 text-[9px] text-red-300">Could not load registered institutions.</p>}{!institutionsError && state && !institutionsLoading && <p className="mt-1.5 text-[9px] text-[#62697A]">Schools in {lga ? `${lga} appear first, followed by the rest of ${state}.` : state}. Search also recognizes common abbreviations.</p>}</div>}
             </div>
           </section>
 
@@ -127,7 +164,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
             <h2 className="text-sm font-semibold">Location</h2>
             <p className="mt-1 text-[10px] text-[#6F7585]">Used for nearby homes, services and roommate matching.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
+              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
               <SearchableSelect label="Local Government" value={lga} onChange={setLga} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
               <div className="sm:col-span-2"><Field label="Area / neighbourhood (optional)" value={area} onChange={setArea} /></div>
             </div>
