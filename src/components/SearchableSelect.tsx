@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-type Option = { value: string; label: string; meta?: string };
+type Option = { value: string; label: string; meta?: string; keywords?: string };
 type Props = {
   label?: string;
   value: string;
@@ -29,7 +29,7 @@ export default function SearchableSelect({
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) return options;
-    return options.filter((option) => `${option.label} ${option.value} ${option.meta || ''}`.toLowerCase().includes(needle));
+    return options.filter((option) => `${option.label} ${option.value} ${option.meta || ''} ${option.keywords || ''}`.toLowerCase().includes(needle));
   }, [options, search]);
 
   useEffect(() => {
