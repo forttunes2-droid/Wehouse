@@ -25,7 +25,11 @@ export default defineConfig({
       },
       {
         find: /^@\/pages\/Chat$/,
-        replacement: path.resolve(__dirname, './src/pages/ChatPhase9.tsx'),
+        replacement: path.resolve(__dirname, './src/pages/ChatPhase10.tsx'),
+      },
+      {
+        find: /^@\/pages\/PrivacySettings$/,
+        replacement: path.resolve(__dirname, './src/pages/PrivacySettingsPhase10.tsx'),
       },
       {
         find: /^@\/pages\/WorkerVerification$/,
@@ -36,8 +40,12 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/WorkerWorkspacePhase9.tsx'),
       },
       {
+        find: /^@\/components\/WorkerIdentityCheck$/,
+        replacement: path.resolve(__dirname, './src/components/WorkerIdentityCheckPhase10Live.tsx'),
+      },
+      {
         find: /^@\/components\/BookingNegotiationChat$/,
-        replacement: path.resolve(__dirname, './src/components/BookingNegotiationChatPhase9.tsx'),
+        replacement: path.resolve(__dirname, './src/components/BookingNegotiationChatPhase10.tsx'),
       },
       {
         find: /^@\/components\/DiscoveryShell$/,
@@ -49,7 +57,7 @@ export default defineConfig({
       },
       {
         find: /^@\/components\/DesktopLayout$/,
-        replacement: path.resolve(__dirname, './src/components/DesktopLayoutUnified.tsx'),
+        replacement: path.resolve(__dirname, './src/components/DesktopLayoutPhase10.tsx'),
       },
       {
         find: '@',
