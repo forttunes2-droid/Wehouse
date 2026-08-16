@@ -49,25 +49,25 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
   let actionLabel = 'Complete work profile';
 
   if (live) {
-    title = 'Your services are live';
-    note = 'Customers can now find your WeHouse Reviewed professional profile.';
+    title = 'You’re ready for customers';
+    note = 'Your professional profile is live on WeHouse.';
     action = onProfile;
     actionLabel = 'View professional profile';
   } else if (underReview) {
-    title = 'Professional review in progress';
-    note = 'Your automatic private face check already passed. Verification Staff are reviewing your work evidence.';
+    title = 'Review in progress';
+    note = 'WeHouse is reviewing your professional evidence.';
     action = onVerification;
-    actionLabel = 'View review status';
+    actionLabel = 'View status';
   } else if (data.profile_complete && verificationDone) {
     title = 'Ready for WeHouse review';
-    note = 'Your face check, payment, readiness check and work evidence are complete.';
+    note = 'Your setup is complete.';
     action = onVerification;
     actionLabel = 'Submit for review';
   } else if (data.profile_complete) {
-    title = 'Complete work verification';
-    note = 'Private automatic face check, verification payment, readiness check and work evidence.';
+    title = 'Finish your Worker setup';
+    note = 'Complete the remaining checks to make your services public.';
     action = onVerification;
-    actionLabel = 'Continue work verification';
+    actionLabel = 'Finish setup';
   }
 
   return (
@@ -75,7 +75,7 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.09] via-[#12141C] to-[#0F1218] p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">GET READY TO WORK</p>
+            <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">WORKER SETUP</p>
             <h2 className="mt-2 text-xl font-bold leading-tight">{title}</h2>
             <p className="mt-1 max-w-md text-[10px] leading-relaxed text-[#747B8B]">{note}</p>
           </div>
@@ -92,7 +92,7 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
         </div>
         <button onClick={action} className="mt-4 h-12 w-full rounded-2xl bg-violet-500 text-[11px] font-semibold text-white">{actionLabel}</button>
       </section>
-      {data.rejection_reason && <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-[9px] font-semibold text-red-200">Professional review feedback</p><p className="mt-1 text-[10px] text-red-100/70">{data.rejection_reason}</p></section>}
+      {data.rejection_reason && <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-[9px] font-semibold text-red-200">Review feedback</p><p className="mt-1 text-[10px] text-red-100/70">{data.rejection_reason}</p></section>}
     </div>
   );
 }

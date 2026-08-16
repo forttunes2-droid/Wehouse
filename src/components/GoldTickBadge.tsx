@@ -4,14 +4,15 @@ type Props = {
   className?: string;
 };
 
-export default function GoldTickBadge({ size = 'md', title = 'Gold Tick · verification payment confirmed', className = '' }: Props) {
+export default function GoldTickBadge({ size = 'md', className = '' }: Props) {
   const dimensions = size === 'sm' ? 'h-[15px] w-[15px]' : 'h-[18px] w-[18px]';
+  const accessibleLabel = 'WeHouse professional badge';
 
   return (
     <span
       role="img"
-      aria-label={title}
-      title={title}
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
       className={`inline-grid shrink-0 place-items-center align-middle ${dimensions} ${className}`}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true" className="h-full w-full drop-shadow-[0_0_6px_rgba(245,190,48,.28)]">
