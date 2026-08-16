@@ -25,11 +25,11 @@ export default function PrivacySettings({profile,onUpdate,onBack}:Props){
   }
 
   const isUser=profile.role==='user';
-  return <AccountShell profile={profile} title="Privacy" description="Control the personal visibility rules that are actually used by WeHouse." onBack={onBack}>
+  return <AccountShell profile={profile} title="Privacy" description="Control who can discover you through WeHouse." onBack={onBack}>
     <Toaster position="top-center" richColors/>
     {isUser?<section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-      <Row label="Roommate profile visibility" text="Allow verified, compatible roommate candidates to see your roommate profile." value={settings.privacy_profile_visible} disabled={saving==='privacy_profile_visible'} onChange={v=>void toggle('privacy_profile_visible',v)}/>
-      <Row label="Roommate discovery" text="Allow your profile to participate in verified roommate matching while your search is active." value={settings.privacy_search_visible} disabled={saving==='privacy_search_visible'} onChange={v=>void toggle('privacy_search_visible',v)}/>
+      <Row label="Roommate profile visibility" text="Allow compatible roommate candidates to see your roommate profile while matching is active." value={settings.privacy_profile_visible} disabled={saving==='privacy_profile_visible'} onChange={v=>void toggle('privacy_profile_visible',v)}/>
+      <Row label="Roommate discovery" text="Allow your profile to participate in roommate matching when you turn matching on." value={settings.privacy_search_visible} disabled={saving==='privacy_search_visible'} onChange={v=>void toggle('privacy_search_visible',v)}/>
     </section>:<div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-6 text-center"><p className="text-sm font-semibold">No personal discovery controls for this role</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#6F7585]">Operational visibility is controlled by the role workflow, availability and authorization rules rather than personal privacy switches.</p></div>}
   </AccountShell>
 }
