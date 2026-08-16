@@ -182,4 +182,15 @@ BEGIN
 END;
 $$;
 
+-- These SECURITY DEFINER endpoints still perform their own actor/role checks,
+-- but the browser should not expose them to the anonymous database role at all.
+REVOKE EXECUTE ON FUNCTION public.creator_get_change_history(text,integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.creator_get_change_history(text,integer) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.admin_get_my_branch_worker_booking_summaries() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_get_my_branch_worker_booking_summaries() TO authenticated;
+
+-- Raw audit rows are server-owned. Creator reads the sanitized projection above.
+REVOKE SELECT ON TABLE public.audit_logs FROM anon, authenticated;
+
 COMMIT;
