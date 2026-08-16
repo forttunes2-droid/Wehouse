@@ -29,7 +29,7 @@ export default function SearchableSelect({
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) return options;
-    return options.filter((option) => `${option.label} ${option.value}`.toLowerCase().includes(needle));
+    return options.filter((option) => `${option.label} ${option.value} ${option.meta || ''}`.toLowerCase().includes(needle));
   }, [options, search]);
 
   useEffect(() => {
