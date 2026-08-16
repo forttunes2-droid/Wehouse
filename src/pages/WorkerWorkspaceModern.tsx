@@ -7,6 +7,7 @@ import WorkerNextJobPanelV2 from '@/components/WorkerNextJobPanelV2';
 import WorkerJobsPanelV2 from '@/components/WorkerJobsPanelV2';
 import WorkerProfilePanelV2 from '@/components/WorkerProfilePanelV2';
 import WorkerShowcaseManager from '@/components/WorkerShowcaseManager';
+import PayoutAccountManager from '@/components/PayoutAccountManager';
 import WorkerWallet from './WorkerWallet';
 import type { Profile } from '@/types';
 
@@ -56,7 +57,7 @@ export default function WorkerWorkspaceModern({
   } else if (live && safeTab === 'showcase') {
     content = <WorkerShowcaseManager profile={profile} />;
   } else if (live && safeTab === 'earnings') {
-    content = <WorkerWallet profile={profile} />;
+    content = <div className="space-y-5"><PayoutAccountManager profile={profile}/><WorkerWallet profile={profile} /></div>;
   } else if (live) {
     content = <LiveHome profile={profile} setTab={setTab} />;
   } else {
@@ -107,7 +108,7 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
             </div>
             <div className="mt-3 flex min-w-0 items-center gap-2">
               <h2 className="truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
-              <GoldTickBadge title="Gold Tick · verification payment confirmed" />
+              <GoldTickBadge title="WeHouse professional badge" />
             </div>
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Keep jobs moving and keep your public work current.</p>
           </div>

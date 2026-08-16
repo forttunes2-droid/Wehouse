@@ -1,0 +1,60 @@
+/* Canonical mobile chat viewport.
+   Private chat screens must own the viewport instead of competing with the
+   app bottom navigation or browser-safe-area overlays. */
+.fixed.inset-0.z-50.flex.h-\[100dvh\] {
+  z-index: 180 !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.fixed.inset-0.z-\[100\] {
+  z-index: 180 !important;
+}
+
+@supports (height: 100svh) {
+  @media (max-width: 640px) {
+    .fixed.inset-0.z-50.flex.h-\[100dvh\] {
+      height: 100svh !important;
+      max-height: 100svh !important;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > header,
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer {
+    position: relative;
+    z-index: 2;
+    min-width: 0;
+  }
+
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > main {
+    position: relative;
+    z-index: 1;
+    min-height: 0 !important;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer {
+    padding-bottom: max(.6rem, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer {
+    padding-left: .4rem !important;
+    padding-right: .4rem !important;
+  }
+
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer .flex.items-end {
+    gap: .35rem !important;
+  }
+
+  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer button.h-11.w-11 {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+}
