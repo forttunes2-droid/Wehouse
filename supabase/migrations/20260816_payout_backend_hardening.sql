@@ -1,11 +1,13 @@
--- Final payout-account security boundary.
--- First account: any Paystack-resolved account is allowed.
--- Replacement: at least two meaningful verified bank-name tokens must match
--- the saved WeHouse full name. Both Worker and Property Partner withdrawals
--- always use the one current verified payout account stored by WeHouse.
+-- Final payout-account rule.
+-- 1) First account: any Paystack-resolved Nigerian account may be saved.
+-- 2) Every additional account: at least two meaningful verified bank-name tokens
+--    must match the saved WeHouse full name.
+-- 3) Previous accounts remain saved and remain valid withdrawal destinations.
+-- 4) Withdrawals can only target a saved, verified account owned by the caller.
 
-CREATE UNIQUE INDEX IF NOT EXISTS bank_accounts_one_current_per_user
-  ON public.bank_accounts(user_id);
+DROP INDEX IF EXISTS public.bank_accounts_one_current_per_user;
+CREATE UNIQUE INDEX IF NOT EXISTS bank_accounts_unique_user_destination
+  ON public.bank_accounts(user_id,bank_code,account_number);
 
 REVOKE INSERT,UPDATE,DELETE ON public.bank_accounts FROM anon,authenticated;
 REVOKE ALL ON FUNCTION public.upsert_my_bank_account(text,text,text) FROM PUBLIC,anon,authenticated;
@@ -26,12 +28,12 @@ AS $$
 DECLARE
   v_claim_role text:=COALESCE(current_setting('request.jwt.claim.role',true),'');
   v_profile public.profiles;
-  v_existing public.bank_accounts;
   v_account public.bank_accounts;
-  v_replacing boolean:=false;
+  v_existing_count integer:=0;
   v_profile_tokens text[];
   v_account_tokens text[];
   v_match_count integer:=0;
+  v_is_first boolean:=false;
 BEGIN
   IF v_claim_role<>'service_role' THEN RAISE EXCEPTION 'Service role required'; END IF;
 
@@ -49,12 +51,23 @@ BEGIN
   IF COALESCE(BTRIM(p_account_number),'') !~ '^[0-9]{10}$' THEN RAISE EXCEPTION 'Bank account number must contain 10 digits'; END IF;
   IF COALESCE(BTRIM(p_account_name),'')='' THEN RAISE EXCEPTION 'Verified account name is required'; END IF;
 
-  SELECT * INTO v_existing FROM public.bank_accounts WHERE user_id=p_user_id FOR UPDATE;
-  v_replacing:=v_existing IS NOT NULL;
+  IF EXISTS(
+    SELECT 1 FROM public.bank_accounts
+    WHERE user_id=p_user_id
+      AND bank_code=BTRIM(p_bank_code)
+      AND account_number=BTRIM(p_account_number)
+  ) THEN
+    RAISE EXCEPTION 'This bank account is already saved';
+  END IF;
 
-  IF v_replacing THEN
+  SELECT count(*)::integer INTO v_existing_count
+  FROM public.bank_accounts
+  WHERE user_id=p_user_id;
+  v_is_first:=v_existing_count=0;
+
+  IF NOT v_is_first THEN
     IF COALESCE(BTRIM(v_profile.full_name),'')='' THEN
-      RAISE EXCEPTION 'Complete your WeHouse full name before changing your payout account';
+      RAISE EXCEPTION 'Complete your WeHouse full name before adding another payout account';
     END IF;
 
     SELECT ARRAY(
@@ -78,7 +91,7 @@ BEGIN
     ) INTO v_account_tokens;
 
     IF COALESCE(cardinality(v_profile_tokens),0)<2 THEN
-      RAISE EXCEPTION 'Your WeHouse full name must contain at least two names before changing your payout account';
+      RAISE EXCEPTION 'Your WeHouse full name must contain at least two names before adding another payout account';
     END IF;
 
     SELECT count(DISTINCT token)::integer INTO v_match_count
@@ -90,23 +103,24 @@ BEGIN
     END IF;
   END IF;
 
-  DELETE FROM public.bank_accounts WHERE user_id=p_user_id;
-
   INSERT INTO public.bank_accounts(
     user_id,account_number,bank_code,bank_name,account_name,
     paystack_recipient_code,is_default,verified_at,created_at
   ) VALUES (
     p_user_id,BTRIM(p_account_number),BTRIM(p_bank_code),BTRIM(p_bank_name),BTRIM(p_account_name),
-    NULLIF(BTRIM(COALESCE(p_recipient_code,'')),''),true,now(),now()
+    NULLIF(BTRIM(COALESCE(p_recipient_code,'')),''),v_is_first,now(),now()
   ) RETURNING * INTO v_account;
 
-  UPDATE public.wallets
-  SET bank_name=v_account.bank_name,
-      bank_account_number=v_account.account_number,
-      bank_account_name=v_account.account_name,
-      paystack_recipient_code=v_account.paystack_recipient_code,
-      updated_at=now()
-  WHERE owner_id=p_user_id AND owner_type=v_profile.role;
+  -- Keep the legacy wallet snapshot aligned with the default/first destination only.
+  IF v_is_first THEN
+    UPDATE public.wallets
+    SET bank_name=v_account.bank_name,
+        bank_account_number=v_account.account_number,
+        bank_account_name=v_account.account_name,
+        paystack_recipient_code=v_account.paystack_recipient_code,
+        updated_at=now()
+    WHERE owner_id=p_user_id AND owner_type=v_profile.role;
+  END IF;
 
   INSERT INTO public.bank_account_history(
     user_id,bank_name,bank_code,bank_account_number,bank_account_name,
@@ -119,21 +133,22 @@ BEGIN
   INSERT INTO public.financial_audit_logs(
     event_type,user_id,target_user_id,reference_id,reference_type,description,metadata,created_at
   ) VALUES (
-    CASE WHEN v_replacing THEN 'payout_account_changed' ELSE 'payout_account_added' END,
+    CASE WHEN v_is_first THEN 'payout_account_added' ELSE 'additional_payout_account_added' END,
     p_user_id,p_user_id,v_account.id::text,'bank_account',
-    CASE WHEN v_replacing THEN 'Verified payout account changed' ELSE 'Verified payout account added' END,
+    CASE WHEN v_is_first THEN 'First verified payout account added' ELSE 'Additional verified payout account added' END,
     jsonb_build_object(
       'bank_name',v_account.bank_name,
       'account_last4',RIGHT(v_account.account_number,4),
       'account_name',v_account.account_name,
-      'replacement',v_replacing,
-      'matching_name_tokens',CASE WHEN v_replacing THEN v_match_count ELSE NULL END
+      'first_account',v_is_first,
+      'matching_name_tokens',CASE WHEN v_is_first THEN NULL ELSE v_match_count END
     ),now()
   );
 
   RETURN jsonb_build_object(
     'success',true,
-    'replacement',v_replacing,
+    'first_account',v_is_first,
+    'additional_account',NOT v_is_first,
     'name_match_count',v_match_count,
     'account',jsonb_build_object(
       'id',v_account.id,
@@ -141,7 +156,7 @@ BEGIN
       'bank_code',v_account.bank_code,
       'account_number',v_account.account_number,
       'account_name',v_account.account_name,
-      'is_default',true,
+      'is_default',v_account.is_default,
       'verified_at',v_account.verified_at
     )
   );
@@ -162,14 +177,13 @@ SET search_path=public
 AS $$
 DECLARE
   v_user_id text;
-  v_role text;
   v_wallet public.wallets;
   v_bank public.bank_accounts;
   v_min numeric;
   v_request_id uuid;
   v_new_balance numeric;
 BEGIN
-  SELECT user_id,role INTO v_user_id,v_role
+  SELECT user_id INTO v_user_id
   FROM public.profiles
   WHERE auth_id=auth.uid()::text
     AND role='worker'
@@ -177,14 +191,21 @@ BEGIN
     AND COALESCE(suspended,false)=false
     AND COALESCE(banned,false)=false
   LIMIT 1;
-  IF v_user_id IS NULL OR v_role<>'worker' THEN RETURN jsonb_build_object('success',false,'error','Worker account required'); END IF;
+  IF v_user_id IS NULL THEN RETURN jsonb_build_object('success',false,'error','Worker account required'); END IF;
   IF p_amount IS NULL OR p_amount<=0 THEN RETURN jsonb_build_object('success',false,'error','Amount must be positive'); END IF;
 
-  SELECT * INTO v_bank
-  FROM public.bank_accounts
-  WHERE user_id=v_user_id AND verified_at IS NOT NULL
-  LIMIT 1;
-  IF v_bank IS NULL THEN RETURN jsonb_build_object('success',false,'error','Add and verify your payout account first'); END IF;
+  IF p_bank_account_id IS NOT NULL THEN
+    SELECT * INTO v_bank
+    FROM public.bank_accounts
+    WHERE id=p_bank_account_id AND user_id=v_user_id AND verified_at IS NOT NULL;
+  ELSE
+    SELECT * INTO v_bank
+    FROM public.bank_accounts
+    WHERE user_id=v_user_id AND verified_at IS NOT NULL
+    ORDER BY is_default DESC,created_at ASC
+    LIMIT 1;
+  END IF;
+  IF v_bank IS NULL THEN RETURN jsonb_build_object('success',false,'error','Choose one of your saved verified payout accounts'); END IF;
 
   SELECT * INTO v_wallet
   FROM public.wallets
@@ -221,7 +242,7 @@ BEGIN
     jsonb_build_object('wallet_id',v_wallet.id,'amount',p_amount,'bank_account_id',v_bank.id),now()
   );
 
-  RETURN jsonb_build_object('success',true,'request_id',v_request_id,'amount',p_amount,'status','pending');
+  RETURN jsonb_build_object('success',true,'request_id',v_request_id,'amount',p_amount,'status','pending','bank_account_id',v_bank.id);
 END;
 $$;
 
@@ -239,13 +260,12 @@ SET search_path=public
 AS $$
 DECLARE
   v_user_id text;
-  v_role text;
   v_wallet public.wallets;
   v_bank public.bank_accounts;
   v_withdrawal_id uuid;
   v_min numeric:=5000;
 BEGIN
-  SELECT user_id,role INTO v_user_id,v_role
+  SELECT user_id INTO v_user_id
   FROM public.profiles
   WHERE auth_id=auth.uid()::text
     AND role='property_partner'
@@ -253,14 +273,17 @@ BEGIN
     AND COALESCE(suspended,false)=false
     AND COALESCE(banned,false)=false
   LIMIT 1;
-  IF v_user_id IS NULL OR v_role<>'property_partner' THEN RAISE EXCEPTION 'Property Partner account required'; END IF;
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'Property Partner account required'; END IF;
   IF p_amount IS NULL OR p_amount<=0 THEN RAISE EXCEPTION 'Amount must be greater than 0'; END IF;
 
   SELECT * INTO v_bank
   FROM public.bank_accounts
-  WHERE user_id=v_user_id AND verified_at IS NOT NULL
+  WHERE user_id=v_user_id
+    AND verified_at IS NOT NULL
+    AND account_number=BTRIM(p_bank_account_number)
+    AND bank_code=BTRIM(p_bank_code)
   LIMIT 1;
-  IF v_bank IS NULL THEN RAISE EXCEPTION 'Add and verify your payout account first'; END IF;
+  IF v_bank IS NULL THEN RAISE EXCEPTION 'Choose one of your saved verified payout accounts'; END IF;
 
   SELECT COALESCE(NULLIF(value,'')::numeric,5000) INTO v_min
   FROM public.platform_settings
