@@ -15,6 +15,19 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+// Password recovery is a client-only WeHouse flow. Use an isolated implicit-flow
+// client only to REQUEST the recovery email so the resulting link can be opened
+// on another browser/device without depending on a locally stored PKCE verifier.
+// The main application client above remains PKCE for sign-up and OAuth.
+export const recoveryRequestClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+    flowType: 'implicit',
+  },
+});
+
 // ─── DIAGNOSTICS ───────────────────────────────────
 
 export interface DiagnosticsResult {
