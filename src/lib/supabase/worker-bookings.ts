@@ -11,15 +11,26 @@ export async function getMyBookingConversations(userId:string){
   return{conversations:(data||[]).map((row:any)=>({conversation_id:row.conversation_id,booking_id:row.booking_id,booking_code:row.booking_code,booking_status:row.booking_status,service_type:row.service_type,negotiated_amount:row.negotiated_amount||0,other_person_id:row.other_person_id||null,other_person_name:row.other_person_name||'Unknown',other_person_username:'',updated_at:row.updated_at,unread_count:row.unread_count||0})),error};
 }
 
-// Customer discovery only needs to know which workers already have an active booking.
-// Reuse the caller-checked booking conversation RPC instead of reading worker_bookings directly.
+export async function getCommunicationBookingConversations(userId:string){
+  const{data,error}=await supabase.rpc('get_my_booking_conversations_v2',{p_user_id:userId});
+  return{conversations:(data||[]).map((row:any)=>({...row,negotiated_amount:Number(row.negotiated_amount||0),unread_count:Number(row.unread_count||0)})),error};
+}
+
+export async function markBookingMessagesRead(conversationId:string){
+  const{error}=await supabase.rpc('mark_my_booking_messages_read',{p_conversation_id:conversationId});
+  return{error};
+}
+
+export async function hideBookingConversation(conversationId:string){
+  const{data,error}=await supabase.rpc('hide_my_booking_conversation',{p_conversation_id:conversationId});
+  return{hidden:data===true,error};
+}
+
 export async function getUserActiveBookings(userId:string){
   const{conversations,error}=await getMyBookingConversations(userId);
   if(error)return{bookings:[],error};
   const terminal=new Set(['cancelled','refunded','approved_released']);
-  const bookings=(conversations||[])
-    .filter((row:any)=>!terminal.has(row.booking_status))
-    .map((row:any)=>({id:row.booking_id,worker_id:row.other_person_id,status:row.booking_status}));
+  const bookings=(conversations||[]).filter((row:any)=>!terminal.has(row.booking_status)).map((row:any)=>({id:row.booking_id,worker_id:row.other_person_id,status:row.booking_status}));
   return{bookings,error:null};
 }
 
@@ -51,20 +62,14 @@ export async function uploadBookingChatAttachment(file:File,conversationId:strin
     let upload:Blob|File=file;
     let contentType=file.type||'application/octet-stream';
     let extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
-    if(file.type.startsWith('image/')){
-      upload=await compressImageFile(file,1920,.85);
-      contentType='image/jpeg';
-      extension='jpg';
-    }
+    if(file.type.startsWith('image/')){upload=await compressImageFile(file,1920,.85);contentType='image/jpeg';extension='jpg'}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'file';
     const path=`${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeBase}.${extension}`;
     const{error}=await supabase.storage.from('chat-files').upload(path,upload,{contentType,upsert:false});
     if(error)return{path:null,signedUrl:null,error};
     const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(path,3600);
     return{path,signedUrl:signed?.signedUrl||null,error:signedError};
-  }catch(e:any){
-    return{path:null,signedUrl:null,error:{message:e?.message||'Upload failed'} as any};
-  }
+  }catch(e:any){return{path:null,signedUrl:null,error:{message:e?.message||'Upload failed'} as any}}
 }
 
 export async function uploadBookingChatImage(file:File,conversationId:string){return uploadBookingChatAttachment(file,conversationId)}
@@ -78,8 +83,6 @@ export async function customerConfirmCompletion(bookingId:string){const{data,err
 export async function customerRaiseDispute(bookingId:string,reason:string){const{data,error}=await supabase.rpc('customer_raise_dispute',{p_booking_id:bookingId,p_reason:reason});return{success:data,error}}
 export async function cancelBooking(bookingId:string,reason:string){const{data,error}=await supabase.rpc('cancel_booking',{p_booking_id:bookingId,p_reason:reason});return{success:data,error}}
 
-// Booking identity/details come from a participant-checked backend projection.
-// The UI never needs broad cross-user profile reads or customer phone data here.
 export async function getBookingDetails(bookingId:string){
   const{data,error}=await supabase.rpc('get_my_worker_booking_details',{p_booking_id:bookingId});
   return{booking:error?null:data||null,error};
