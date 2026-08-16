@@ -75,12 +75,23 @@ serve(async req=>{
     const accountName=String(resolved?.account_name||'').trim();
     if(!accountName)return json({success:false,error:'Paystack could not verify this account name'},400);
 
-    const{count:existingCount,error:countError}=await admin.from('bank_accounts').select('id',{count:'exact',head:true}).eq('user_id',profile.user_id);
+    const[{count:existingCount,error:countError},{data:alreadySaved,error:existingError}]=await Promise.all([
+      admin.from('bank_accounts').select('id',{count:'exact',head:true}).eq('user_id',profile.user_id),
+      admin.from('bank_accounts')
+        .select('id,bank_name,bank_code,account_number,account_name,paystack_recipient_code,is_default,verified_at')
+        .eq('user_id',profile.user_id)
+        .eq('bank_code',bankCode)
+        .eq('account_number',accountNumber)
+        .maybeSingle(),
+    ]);
     if(countError)return json({success:false,error:countError.message},500);
-    const replacing=Number(existingCount||0)>0;
+    if(existingError)return json({success:false,error:existingError.message},500);
+
+    const totalSaved=Number(existingCount||0);
+    const addingAdditional=totalSaved>0&&!alreadySaved;
     const profileTokens=nameTokens(String(profile.full_name||''));
     const matched=matchCount(String(profile.full_name||''),accountName);
-    const replacementAllowed=!replacing||(profileTokens.length>=2&&matched>=2);
+    const additionAllowed=!addingAdditional||(profileTokens.length>=2&&matched>=2);
 
     if(action==='resolve'){
       return json({
@@ -88,33 +99,39 @@ serve(async req=>{
         bank:{code:bankCode,name:String(bank.name)},
         account_number:accountNumber,
         account_name:accountName,
-        replacement:replacing,
-        replacement_allowed:replacementAllowed,
+        already_saved:Boolean(alreadySaved),
+        additional_account:addingAdditional,
+        addition_allowed:additionAllowed,
         matched_names:matched,
-        needs_full_name:replacing&&profileTokens.length<2,
+        needs_full_name:addingAdditional&&profileTokens.length<2,
+        saved_count:totalSaved,
       });
     }
 
     if(action!=='save')return json({success:false,error:'Unknown action'},400);
-    if(replacing&&profileTokens.length<2){
-      return json({success:false,error:'Complete your full name in Personal Details before changing your payout account.',code:'FULL_NAME_REQUIRED'},409);
+
+    if(addingAdditional&&profileTokens.length<2){
+      return json({success:false,error:'Complete your full name in Personal Details before adding another payout account.',code:'FULL_NAME_REQUIRED'},409);
     }
-    if(replacing&&matched<2){
-      return json({success:false,error:'The verified bank account name must match at least two names from your WeHouse full name.',code:'NAME_MISMATCH'},409);
+    if(addingAdditional&&matched<2){
+      return json({success:false,error:'A new additional bank account must match at least two names from your WeHouse full name.',code:'NAME_MISMATCH'},409);
     }
 
-    const recipient=await paystack('/transferrecipient',paystackSecret,{
-      method:'POST',
-      body:JSON.stringify({
-        type:'nuban',
-        name:accountName,
-        account_number:accountNumber,
-        bank_code:bankCode,
-        currency:'NGN',
-      }),
-    });
-    const recipientCode=String(recipient?.recipient_code||'').trim();
-    if(!recipientCode)return json({success:false,error:'Paystack could not create a payout recipient'},502);
+    let recipientCode=String(alreadySaved?.paystack_recipient_code||'').trim();
+    if(!recipientCode){
+      const recipient=await paystack('/transferrecipient',paystackSecret,{
+        method:'POST',
+        body:JSON.stringify({
+          type:'nuban',
+          name:accountName,
+          account_number:accountNumber,
+          bank_code:bankCode,
+          currency:'NGN',
+        }),
+      });
+      recipientCode=String(recipient?.recipient_code||'').trim();
+      if(!recipientCode)return json({success:false,error:'Paystack could not create a payout recipient'},502);
+    }
 
     const{data:saved,error:saveError}=await admin.rpc('save_verified_payout_account',{
       p_user_id:profile.user_id,
@@ -126,7 +143,12 @@ serve(async req=>{
     });
     if(saveError)return json({success:false,error:saveError.message},500);
 
-    return json({success:true,replacement:replacing,account:(saved as any)?.account||saved});
+    return json({
+      success:true,
+      already_saved:Boolean((saved as any)?.already_saved??alreadySaved),
+      additional_account:Boolean((saved as any)?.additional_account??addingAdditional),
+      account:(saved as any)?.account||saved,
+    });
   }catch(error){
     return json({success:false,error:error instanceof Error?error.message:'Payout account request failed'},500);
   }
