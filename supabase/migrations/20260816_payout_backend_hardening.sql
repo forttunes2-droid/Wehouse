@@ -60,7 +60,7 @@ BEGIN
     SELECT ARRAY(
       SELECT DISTINCT token
       FROM unnest(regexp_split_to_array(
-        lower(regexp_replace(unaccent(v_profile.full_name),'[^a-zA-Z0-9 ]',' ','g')),
+        lower(regexp_replace(v_profile.full_name,'[^a-zA-Z0-9 ]',' ','g')),
         '\s+'
       )) token
       WHERE length(token)>1
@@ -70,7 +70,7 @@ BEGIN
     SELECT ARRAY(
       SELECT DISTINCT token
       FROM unnest(regexp_split_to_array(
-        lower(regexp_replace(unaccent(p_account_name),'[^a-zA-Z0-9 ]',' ','g')),
+        lower(regexp_replace(p_account_name,'[^a-zA-Z0-9 ]',' ','g')),
         '\s+'
       )) token
       WHERE length(token)>1
