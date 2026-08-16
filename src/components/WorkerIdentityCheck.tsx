@@ -10,15 +10,9 @@ type Props = {
   onSaved: () => Promise<void> | void;
 };
 
-type Stage = 'intro' | 'loading' | 'camera' | 'ready' | 'checking' | 'failed';
+type Stage = 'intro' | 'loading' | 'capture' | 'reference' | 'checking' | 'failed';
 type ChallengeStep = 'center_start' | 'side_one' | 'side_two' | 'center_end';
-
-type FaceSample = {
-  similarity: number;
-  live: number;
-  real: number;
-  yaw: number;
-};
+type FaceSample = { similarity: number; live: number; real: number; yaw: number };
 
 const HUMAN_MODULE_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/dist/human.esm.js';
 const HUMAN_MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/models/';
@@ -28,21 +22,23 @@ const REAL_MIN = 0.5;
 const CENTER_YAW_MAX = 0.18;
 const TURN_YAW_MIN = 0.3;
 const STABLE_FRAMES = 2;
-const CHECK_TIMEOUT_MS = 28000;
+const CHECK_TIMEOUT_MS = 30000;
+const MAX_SELFIE_BYTES = 10 * 1024 * 1024;
 
 const STEP_LABELS: Record<ChallengeStep, string> = {
-  center_start: 'Look straight at the camera',
+  center_start: 'Look straight',
   side_one: 'Turn your head to one side',
-  side_two: 'Now turn your head to the other side',
-  center_end: 'Look straight at the camera again',
+  side_two: 'Turn to the other side',
+  center_end: 'Look straight again',
 };
 
 export default function WorkerIdentityCheck({ profile, status, rejectionReason, onSaved }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const humanRef = useRef<any>(null);
-  const enrollmentEmbeddingRef = useRef<number[] | null>(null);
-  const photoRef = useRef<Blob | null>(null);
+  const referenceEmbeddingRef = useRef<number[] | null>(null);
+  const referencePhotoRef = useRef<Blob | null>(null);
   const photoUrlRef = useRef('');
   const cancelledRef = useRef(false);
 
@@ -61,14 +57,13 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     return () => {
       cancelledRef.current = true;
       stopCamera();
-      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+      clearPreview();
     };
   }, []);
 
   async function ensureHuman() {
     if (humanRef.current) return humanRef.current;
     setStage('loading');
-    setPrompt('Preparing secure face check…');
     try {
       const module: any = await import(/* @vite-ignore */ HUMAN_MODULE_URL);
       const Human = module.default || module.Human;
@@ -99,8 +94,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       return human;
     } catch (error: any) {
       setStage('intro');
-      setPrompt('');
-      throw new Error(error?.message || 'Automatic face check could not start');
+      throw new Error(error?.message || 'Face check could not start');
     }
   }
 
@@ -110,26 +104,62 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     if (videoRef.current) videoRef.current.srcObject = null;
   }
 
-  async function openCamera() {
-    if (!consent) return toast.error('Confirm the private face-check consent first');
-    if (!navigator.mediaDevices?.getUserMedia) return toast.error('Camera verification is not supported in this browser');
+  function clearPreview() {
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    photoUrlRef.current = '';
+  }
+
+  async function openFrontCamera(nextStage: Stage) {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera is not supported in this browser');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
+    });
+    stopCamera();
+    streamRef.current = stream;
+    setStage(nextStage);
+    await twoFrames();
+    const video = videoRef.current;
+    if (!video) throw new Error('Camera view could not open');
+    video.srcObject = stream;
+    await video.play().catch(() => undefined);
+    await waitForVideo(video);
+    return video;
+  }
+
+  async function takeSelfie() {
+    if (!consent) return toast.error('Confirm the privacy notice first');
     setBusy(true);
     try {
       await ensureHuman();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
-      });
-      stopCamera();
-      streamRef.current = stream;
-      setStage('camera');
-      setPrompt('Place your face inside the frame');
-      requestAnimationFrame(() => {
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      });
+      await openFrontCamera('capture');
+      setPrompt('Center your face');
     } catch (error: any) {
-      toast.error(error?.name === 'NotAllowedError' ? 'Allow camera access to continue' : error?.message || 'Could not open the front camera');
+      stopCamera();
       setStage('intro');
+      toast.error(error?.name === 'NotAllowedError' ? 'Allow camera access to continue' : error?.message || 'Could not open the camera');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function chooseUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!consent) return toast.error('Confirm the privacy notice first');
+    if (!file.type.startsWith('image/')) return toast.error('Choose a clear selfie image');
+    if (file.size > MAX_SELFIE_BYTES) return toast.error('Selfie must be under 10MB');
+
+    setBusy(true);
+    setStage('loading');
+    try {
+      await ensureHuman();
+      const canvas = await canvasFromImageFile(file);
+      await acceptReferenceSelfie(canvas);
+    } catch (error: any) {
+      setStage('intro');
+      toast.error(error?.message || 'That selfie could not be used');
     } finally {
       setBusy(false);
     }
@@ -138,49 +168,73 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
   function canvasFromVideo() {
     const video = videoRef.current;
     if (!video || video.readyState < 2) return null;
-    const side = Math.min(video.videoWidth || 720, video.videoHeight || 720);
+    const width = video.videoWidth || 720;
+    const height = video.videoHeight || 720;
+    const side = Math.min(width, height);
     const canvas = document.createElement('canvas');
     canvas.width = side;
     canvas.height = side;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    const sx = Math.max(0, ((video.videoWidth || side) - side) / 2);
-    const sy = Math.max(0, ((video.videoHeight || side) - side) / 2);
+    const sx = Math.max(0, (width - side) / 2);
+    const sy = Math.max(0, (height - side) / 2);
     ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side);
     return canvas;
   }
 
-  async function captureLiveSelfie() {
-    const human = humanRef.current;
+  async function captureReferenceSelfie() {
     const canvas = canvasFromVideo();
-    if (!human || !canvas) return toast.error('Camera is still starting');
+    if (!canvas) return toast.error('Camera is still starting');
     setBusy(true);
-    setPrompt('Checking selfie quality…');
     try {
-      const result = await human.detect(canvas);
-      if (result.face?.length !== 1) throw new Error('Keep only one face clearly visible');
-      const face = result.face[0];
-      if (!face.embedding?.length) throw new Error('Could not read your face clearly. Try better lighting');
-      const yaw = Math.abs(Number(face.rotation?.angle?.yaw ?? 99));
-      const pitch = Math.abs(Number(face.rotation?.angle?.pitch ?? 99));
-      if (yaw > CENTER_YAW_MAX || pitch > 0.22) throw new Error('Look straight at the camera for the selfie');
-      if (Number(face.score || 0) < 0.7 || Number(face.faceScore || 0) < 0.7) throw new Error('Move into better light and keep your face clear');
-      if (Number(face.live ?? 0) < LIVE_MIN || Number(face.real ?? 0) < REAL_MIN) throw new Error('We could not confirm a live face. Try again in clear light');
-
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-      if (!blob) throw new Error('Could not capture the selfie');
-
-      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
-      const url = URL.createObjectURL(blob);
-      photoUrlRef.current = url;
-      photoRef.current = blob;
-      enrollmentEmbeddingRef.current = [...face.embedding];
-      setPhotoUrl(url);
-      setStage('ready');
-      setPrompt('Selfie ready');
+      await acceptReferenceSelfie(canvas);
+      stopCamera();
     } catch (error: any) {
-      setPrompt('Place your face inside the frame');
-      toast.error(error?.message || 'Selfie could not be validated');
+      toast.error(error?.message || 'Selfie could not be used');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function acceptReferenceSelfie(canvas: HTMLCanvasElement) {
+    const human = humanRef.current;
+    if (!human) throw new Error('Face-check engine is not ready');
+    const result = await human.detect(canvas);
+    if (result.face?.length !== 1) throw new Error('Use a photo with one clear face only');
+    const face = result.face[0];
+    if (!face.embedding?.length) throw new Error('Your face is not clear enough. Try another photo');
+    const yaw = Math.abs(Number(face.rotation?.angle?.yaw ?? 99));
+    const pitch = Math.abs(Number(face.rotation?.angle?.pitch ?? 99));
+    if (yaw > CENTER_YAW_MAX || pitch > 0.24) throw new Error('Use a front-facing selfie looking at the camera');
+    if (Number(face.score || 0) < 0.7 || Number(face.faceScore || 0) < 0.7) throw new Error('Use a brighter, clearer selfie');
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    if (!blob) throw new Error('Could not prepare the selfie');
+
+    clearPreview();
+    const url = URL.createObjectURL(blob);
+    photoUrlRef.current = url;
+    referencePhotoRef.current = blob;
+    referenceEmbeddingRef.current = [...face.embedding];
+    setPhotoUrl(url);
+    setFailure('');
+    setPrompt('');
+    setStage('reference');
+  }
+
+  async function startLiveCheck() {
+    if (!referencePhotoRef.current || !referenceEmbeddingRef.current) return toast.error('Choose your private selfie first');
+    setBusy(true);
+    setFailure('');
+    try {
+      await ensureHuman();
+      await openFrontCamera('checking');
+      setStepIndex(0);
+      await runAutomaticCheck();
+    } catch (error: any) {
+      stopCamera();
+      setFailure(error?.name === 'NotAllowedError' ? 'Allow camera access to complete the live check.' : error?.message || 'Live face check could not start');
+      setStage('failed');
     } finally {
       setBusy(false);
     }
@@ -189,27 +243,22 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
   async function readLiveSample(): Promise<FaceSample> {
     const human = humanRef.current;
     const video = videoRef.current;
-    const reference = enrollmentEmbeddingRef.current;
-    if (!human || !video || !reference) throw new Error('Retake your live selfie');
+    const reference = referenceEmbeddingRef.current;
+    if (!human || !video || !reference) throw new Error('Reference selfie is missing');
     const result = await human.detect(video);
-    if (result.face?.length !== 1) throw new Error('Keep only your face in the camera');
+    if (result.face?.length !== 1) throw new Error('Keep only your face in the frame');
     const face = result.face[0];
     if (!face.embedding?.length || !face.rotation) throw new Error('Keep your full face visible');
     const similarity = Number(human.match.similarity(reference, face.embedding));
     const live = Number(face.live ?? 0);
     const real = Number(face.real ?? 0);
     const yaw = Number(face.rotation.angle.yaw ?? 0);
-    if (similarity < MATCH_MIN) throw new Error('The live face does not match your selfie closely enough');
-    if (live < LIVE_MIN || real < REAL_MIN) throw new Error('We could not confirm a live face. Do not use a photo or another screen');
+    if (similarity < MATCH_MIN) throw new Error('This face does not match your private selfie');
+    if (live < LIVE_MIN || real < REAL_MIN) throw new Error('We could not confirm a live face');
     return { similarity, live, real, yaw };
   }
 
   async function runAutomaticCheck() {
-    if (!photoRef.current || !enrollmentEmbeddingRef.current) return toast.error('Take the live selfie first');
-    setBusy(true);
-    setFailure('');
-    setStage('checking');
-    setStepIndex(0);
     const steps: ChallengeStep[] = ['center_start', 'side_one', 'side_two', 'center_end'];
     const samples: FaceSample[] = [];
     let sideSign = 0;
@@ -219,17 +268,16 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
 
     try {
       while (!cancelledRef.current && current < steps.length) {
-        if (Date.now() - started > CHECK_TIMEOUT_MS) throw new Error('Face check timed out. Follow each movement a little more clearly');
+        if (Date.now() - started > CHECK_TIMEOUT_MS) throw new Error('The live check timed out. Try again and follow each movement slowly');
         const step = steps[current];
         setPrompt(STEP_LABELS[step]);
         setStepIndex(current);
         let sample: FaceSample;
         try {
           sample = await readLiveSample();
-        } catch (error: any) {
+        } catch {
           stable = 0;
-          setPrompt(error?.message || STEP_LABELS[step]);
-          await sleep(260);
+          await sleep(250);
           continue;
         }
 
@@ -246,33 +294,35 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
             if (step === 'side_one') sideSign = Math.sign(sample.yaw) || 1;
             current += 1;
             stable = 0;
-            setStepIndex(Math.min(current, steps.length - 1));
-            await sleep(320);
+            await sleep(280);
           }
         } else {
           stable = 0;
         }
-        await sleep(220);
+        await sleep(210);
       }
 
       if (cancelledRef.current) return;
-      if (!samples.length) throw new Error('We could not complete the face check');
-      const minimum = (key: keyof Pick<FaceSample, 'similarity' | 'live' | 'real'>) => Math.min(...samples.map((sample) => sample[key]));
+      if (!samples.length) throw new Error('Live face check could not complete');
+      const minimum = (key: 'similarity' | 'live' | 'real') => Math.min(...samples.map((sample) => sample[key]));
       await savePassedCheck(minimum('similarity'), minimum('live'), minimum('real'));
     } catch (error: any) {
-      setFailure(error?.message || 'Automatic face check failed. Try again');
-      setStage('failed');
+      stopCamera();
+      setFailure(error?.message || 'Live face check failed. Try again');
       setPrompt('');
-    } finally {
-      setBusy(false);
+      setStage('failed');
     }
   }
 
   async function savePassedCheck(faceMatchScore: number, livenessScore: number, antiSpoofScore: number) {
-    const photo = photoRef.current;
-    if (!photo) throw new Error('Live selfie is missing');
-    const path = `${profile.user_id}/live-selfie-${Date.now()}.jpg`;
-    const upload = await supabase.storage.from('worker-identity-private').upload(path, photo, { contentType: 'image/jpeg', upsert: false });
+    const photo = referencePhotoRef.current;
+    if (!photo) throw new Error('Private selfie is missing');
+
+    const path = `${profile.user_id}/identity-selfie-${Date.now()}.jpg`;
+    const upload = await supabase.storage.from('worker-identity-private').upload(path, photo, {
+      contentType: 'image/jpeg',
+      upsert: false,
+    });
     if (upload.error) throw upload.error;
 
     const challengeResult = {
@@ -283,6 +333,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       automatic: true,
       recorded_video: false,
     };
+
     const { error } = await supabase.rpc('complete_my_worker_identity_check', {
       p_photo_path: path,
       p_face_match_score: faceMatchScore,
@@ -291,109 +342,179 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       p_challenge_result: challengeResult,
       p_consent: true,
     });
+
     if (error) {
       await supabase.storage.from('worker-identity-private').remove([path]);
       throw error;
     }
 
-    toast.success('Automatic face check passed');
     stopCamera();
+    toast.success('Private face check complete');
     await onSaved();
   }
 
-  function retryCheck() {
-    setFailure('');
-    setPrompt('Look straight at the camera');
-    setStage('ready');
-  }
-
-  function retakeSelfie() {
-    enrollmentEmbeddingRef.current = null;
-    photoRef.current = null;
-    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
-    photoUrlRef.current = '';
+  function changeSelfie() {
+    stopCamera();
+    referenceEmbeddingRef.current = null;
+    referencePhotoRef.current = null;
+    clearPreview();
     setPhotoUrl('');
+    setPrompt('');
     setFailure('');
-    setPrompt('Place your face inside the frame');
-    setStage('camera');
+    setStage('intro');
   }
 
   if (passed) {
-    return <StatusCard title="Automatic face check passed" text="Your live selfie matched the live camera check and the required head movements were detected. No liveness video was recorded or stored." />;
+    return (
+      <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-4">
+        <p className="text-xs font-semibold text-emerald-300">Private face check complete</p>
+        <p className="mt-1 text-[9px] leading-relaxed text-[#747B8B]">Your reference selfie is stored privately with your Worker identity. The live camera check was not recorded or saved as a video.</p>
+      </section>
+    );
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#10141D]">
+    <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#10141D]">
       <div className="border-b border-white/[.05] p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">PRIVATE FACE CHECK</p>
-            <h3 className="mt-1 text-base font-bold">Confirm it is really you</h3>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#747B8B]">Take one clear live selfie. WeHouse then compares the live camera face to that selfie and automatically detects your head movement. No government ID and no liveness video.</p>
+            <h3 className="mt-1 text-lg font-bold">Confirm your Worker identity</h3>
           </div>
-          <span className="shrink-0 rounded-full bg-white/[.04] px-2 py-1 text-[8px] text-[#7D8392]">NOT PUBLIC</span>
+          <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#858B99]">PRIVATE</span>
         </div>
-        {rejectionReason && <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[.05] p-3 text-[9px] text-red-200">Previous check needs attention: {rejectionReason}</div>}
+        {rejectionReason && <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[.05] p-3 text-[9px] text-red-200">{rejectionReason}</div>}
       </div>
 
-      {stage === 'intro' || stage === 'loading' ? (
-        <div className="space-y-3 p-4 sm:p-5">
-          <div className="grid grid-cols-3 gap-2">
-            <MiniStep n="1" label="Live selfie" />
-            <MiniStep n="2" label="Automatic movement" />
-            <MiniStep n="3" label="Face matched" />
+      {(stage === 'intro' || stage === 'loading') && (
+        <div className="space-y-4 p-4 sm:p-5">
+          <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4">
+            <p className="text-xs font-semibold text-white">Your private identity selfie</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">Choose one clear selfie. This is the only face image WeHouse keeps privately with your Worker identity after the check passes. It never appears on your public profile.</p>
           </div>
-          <label className="flex items-start gap-3 rounded-xl border border-white/[.07] bg-black/10 p-3">
+
+          <div className="grid grid-cols-2 gap-2">
+            <InfoStep n="1" title="Choose selfie" text="Take one now or upload one" active />
+            <InfoStep n="2" title="Live check" text="Match face and follow movements" />
+          </div>
+
+          <label className="flex items-start gap-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
             <input type="checkbox" checked={consent} disabled={stage === 'loading'} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-violet-500" />
-            <span className="text-[9px] leading-relaxed text-[#7A8190]">I agree to WeHouse using my private live selfie and on-device face-check results only for Worker verification. My selfie will not appear on my public profile.</span>
+            <span className="text-[9px] leading-relaxed text-[#808796]">I understand that my reference selfie is stored privately for Worker identity checks. The live camera check is analyzed in real time and is not recorded as a video.</span>
           </label>
-          <button onClick={() => void openCamera()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' ? 'Preparing face check…' : 'Start private face check'}</button>
-        </div>
-      ) : (
-        <div className="space-y-3 p-4 sm:p-5">
-          <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[28px] border border-white/[.08] bg-black">
-            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover" />
-            <div className="pointer-events-none absolute inset-[12%] rounded-[42%] border border-white/35" />
-            {photoUrl && stage !== 'camera' && <img src={photoUrl} alt="Private live selfie" className="absolute bottom-3 right-3 h-16 w-16 rounded-2xl border-2 border-white/60 object-cover" />}
-            {(stage === 'checking' || prompt) && <div className="absolute inset-x-3 bottom-3 rounded-2xl bg-black/75 px-3 py-3 text-center text-xs font-semibold text-white backdrop-blur">{prompt}</div>}
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button onClick={() => void takeSelfie()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Preparing…' : 'Take selfie'}</button>
+            <button onClick={() => uploadInputRef.current?.click()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl border border-white/[.09] bg-white/[.03] text-xs font-semibold text-white disabled:opacity-40">Upload selfie</button>
           </div>
+          <input ref={uploadInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={chooseUpload} />
+        </div>
+      )}
 
-          {stage === 'camera' && <button onClick={() => void captureLiveSelfie()} disabled={busy} className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy ? 'Checking selfie…' : 'Take live selfie'}</button>}
+      {stage === 'capture' && (
+        <div className="space-y-3 p-4 sm:p-5">
+          <CameraFrame videoRef={videoRef} prompt={prompt || 'Center your face'} />
+          <p className="text-center text-[9px] text-[#747B8B]">Look straight at the camera in clear light.</p>
+          <button onClick={() => void captureReferenceSelfie()} disabled={busy} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{busy ? 'Checking selfie…' : 'Use this selfie'}</button>
+          <button onClick={changeSelfie} disabled={busy} className="h-10 w-full text-[10px] font-semibold text-[#9298A6]">Cancel</button>
+        </div>
+      )}
 
-          {stage === 'ready' && (
-            <div className="space-y-2">
-              <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[.04] p-3 text-[9px] text-emerald-300">Live selfie is clear. Keep the same person in front of the camera for the automatic movement check.</div>
-              <button onClick={() => void runAutomaticCheck()} disabled={busy} className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">Start automatic check</button>
-              <button onClick={retakeSelfie} disabled={busy} className="h-10 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-[#A8ADBA]">Retake selfie</button>
-            </div>
-          )}
+      {stage === 'reference' && (
+        <div className="space-y-4 p-4 sm:p-5">
+          <div className="mx-auto w-full max-w-xs overflow-hidden rounded-[28px] border border-white/[.08] bg-black">
+            <img src={photoUrl} alt="Private Worker identity selfie" className="aspect-square w-full object-cover" />
+          </div>
+          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-3">
+            <p className="text-xs font-semibold text-emerald-300">Reference selfie ready</p>
+            <p className="mt-1 text-[9px] leading-relaxed text-[#818897]">The live check will compare the camera face with this picture. If it passes, this picture is attached privately to your Worker identity.</p>
+          </div>
+          <button onClick={() => void startLiveCheck()} disabled={busy} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{busy ? 'Opening camera…' : 'Start live face check'}</button>
+          <button onClick={changeSelfie} disabled={busy} className="h-10 w-full text-[10px] font-semibold text-[#9298A6]">Choose a different selfie</button>
+        </div>
+      )}
 
-          {stage === 'checking' && (
-            <div className="space-y-2">
-              <div className="grid grid-cols-4 gap-1">{['Straight', 'One side', 'Other side', 'Straight'].map((label, index) => <div key={label} className={`rounded-lg px-1 py-2 text-center text-[8px] ${index < stepIndex ? 'bg-emerald-500/10 text-emerald-300' : index === stepIndex ? 'bg-violet-500/15 text-violet-200' : 'bg-white/[.03] text-[#5E6575]'}`}>{index < stepIndex ? '✓ ' : ''}{label}</div>)}</div>
-              <p className="text-center text-[9px] text-[#72798A]">The camera is analyzed live. Nothing from this movement step is recorded as a video.</p>
-            </div>
-          )}
+      {stage === 'checking' && (
+        <div className="space-y-3 p-4 sm:p-5">
+          <CameraFrame videoRef={videoRef} prompt={prompt || 'Look straight'} />
+          <div className="grid grid-cols-4 gap-1.5">
+            {['Straight', 'Turn', 'Other side', 'Straight'].map((label, index) => (
+              <div key={label} className={`rounded-xl border px-1 py-2 text-center text-[8px] font-medium ${index < stepIndex ? 'border-emerald-500/15 bg-emerald-500/[.05] text-emerald-300' : index === stepIndex ? 'border-violet-500/20 bg-violet-500/[.08] text-violet-200' : 'border-white/[.05] bg-black/10 text-[#626979]'}`}>{index < stepIndex ? '✓ ' : ''}{label}</div>
+            ))}
+          </div>
+          <p className="text-center text-[9px] leading-relaxed text-[#747B8B]">Keep your face inside the frame. The camera is analyzed live — no liveness video is saved.</p>
+        </div>
+      )}
 
-          {stage === 'failed' && (
-            <div className="space-y-2">
-              <div className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3 text-[9px] leading-relaxed text-red-200">{failure}</div>
-              <button onClick={retryCheck} disabled={busy} className="h-11 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Try live check again</button>
-              <button onClick={retakeSelfie} disabled={busy} className="h-10 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-[#A8ADBA]">Retake selfie</button>
-            </div>
-          )}
+      {stage === 'failed' && (
+        <div className="space-y-3 p-4 sm:p-5">
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/[.05] p-4">
+            <p className="text-xs font-semibold text-red-200">We couldn’t complete the live check</p>
+            <p className="mt-1 text-[9px] leading-relaxed text-red-100/70">{failure}</p>
+          </div>
+          <button onClick={() => void startLiveCheck()} disabled={busy} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">Try live check again</button>
+          <button onClick={changeSelfie} disabled={busy} className="h-10 w-full text-[10px] font-semibold text-[#9298A6]">Use a different selfie</button>
         </div>
       )}
     </section>
   );
 }
 
-function MiniStep({ n, label }: { n: string; label: string }) {
-  return <div className="rounded-xl border border-white/[.06] bg-black/10 p-3 text-center"><span className="mx-auto grid h-7 w-7 place-items-center rounded-full bg-violet-500/10 text-[9px] font-bold text-violet-300">{n}</span><p className="mt-2 text-[8px] text-[#747B8B]">{label}</p></div>;
+function CameraFrame({ videoRef, prompt }: { videoRef: React.RefObject<HTMLVideoElement | null>; prompt: string }) {
+  return (
+    <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[30px] border border-white/[.08] bg-black">
+      <video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover" />
+      <div className="pointer-events-none absolute inset-[11%] rounded-[43%] border-2 border-white/35 shadow-[0_0_0_999px_rgba(0,0,0,.18)]" />
+      <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-black/70 px-4 py-3 text-center text-xs font-semibold text-white backdrop-blur">{prompt}</div>
+    </div>
+  );
 }
 
-function StatusCard({ title, text }: { title: string; text: string }) {
-  return <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-4"><p className="text-xs font-semibold text-emerald-300">{title}</p><p className="mt-1 text-[9px] leading-relaxed text-[#747B8B]">{text}</p></section>;
+function InfoStep({ n, title, text, active = false }: { n: string; title: string; text: string; active?: boolean }) {
+  return (
+    <div className={`rounded-2xl border p-3 ${active ? 'border-violet-500/20 bg-violet-500/[.06]' : 'border-white/[.06] bg-black/10'}`}>
+      <span className={`grid h-7 w-7 place-items-center rounded-full text-[9px] font-bold ${active ? 'bg-violet-500 text-white' : 'bg-white/[.06] text-[#777E8E]'}`}>{n}</span>
+      <p className="mt-2 text-[10px] font-semibold text-white">{title}</p>
+      <p className="mt-1 text-[8px] leading-relaxed text-[#717888]">{text}</p>
+    </div>
+  );
+}
+
+async function canvasFromImageFile(file: File) {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Could not read that image'));
+      image.src = url;
+    });
+    const side = Math.min(image.naturalWidth, image.naturalHeight);
+    if (side < 320) throw new Error('Use a clearer selfie with a larger face');
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.min(side, 1024);
+    canvas.height = Math.min(side, 1024);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not prepare that selfie');
+    const sx = Math.max(0, (image.naturalWidth - side) / 2);
+    const sy = Math.max(0, (image.naturalHeight - side) / 2);
+    ctx.drawImage(image, sx, sy, side, side, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function waitForVideo(video: HTMLVideoElement) {
+  for (let i = 0; i < 30; i += 1) {
+    if (video.readyState >= 2 && video.videoWidth > 0) return;
+    await sleep(100);
+  }
+  throw new Error('Camera is taking too long to start');
+}
+
+function twoFrames() {
+  return new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
 function sleep(ms: number) {
