@@ -1,5 +1,3 @@
-import GoldTickBadge from '@/components/GoldTickBadge';
-
 type Props = {
   identityPassed: boolean;
   paymentConfirmed: boolean;
@@ -9,10 +7,10 @@ type Props = {
 
 export default function WorkerVerificationChecklist({ identityPassed, paymentConfirmed, readinessPassed, skillVideoSaved }: Props) {
   const items = [
-    { label: 'Private face check', done: identityPassed, premium: false },
-    { label: 'Payment', done: paymentConfirmed, premium: paymentConfirmed },
-    { label: 'Readiness test', done: readinessPassed, premium: false },
-    { label: 'Skill video', done: skillVideoSaved, premium: false },
+    { label: 'Private face check', done: identityPassed },
+    { label: 'Onboarding fee', done: paymentConfirmed },
+    { label: 'Readiness test', done: readinessPassed },
+    { label: 'Skill video', done: skillVideoSaved },
   ];
 
   const firstPending = items.findIndex((item) => !item.done);
@@ -22,7 +20,7 @@ export default function WorkerVerificationChecklist({ identityPassed, paymentCon
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.16em] text-[#686F7F]">WORK VERIFICATION</p>
-          <p className="mt-1 text-[10px] text-[#8A90A0]">Four requirements before WeHouse review</p>
+          <p className="mt-1 text-[10px] text-[#8A90A0]">Complete these before WeHouse review</p>
         </div>
         <span className="text-[9px] font-semibold text-violet-300">{items.filter((item) => item.done).length}/4</span>
       </div>
@@ -32,7 +30,7 @@ export default function WorkerVerificationChecklist({ identityPassed, paymentCon
           return (
             <div key={item.label} className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2.5 ${item.done ? 'border-emerald-500/15 bg-emerald-500/[.04]' : active ? 'border-violet-500/18 bg-violet-500/[.045]' : 'border-white/[.05] bg-black/10'}`}>
               <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[8px] font-bold ${item.done ? 'bg-emerald-500 text-[#03120A]' : active ? 'bg-violet-500 text-white' : 'bg-white/[.05] text-[#636A7A]'}`}>
-                {item.premium ? <GoldTickBadge size="sm" /> : item.done ? '✓' : index + 1}
+                {item.done ? '✓' : index + 1}
               </span>
               <span className={`text-[8px] font-medium leading-tight ${item.done ? 'text-emerald-300' : active ? 'text-violet-200' : 'text-[#676E7E]'}`}>{item.label}</span>
             </div>
