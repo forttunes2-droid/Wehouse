@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       const { data, error } = await db.rpc('confirm_worker_booking_payment', { p_booking_id: payment.worker_booking_id, p_paystack_reference: reference, p_amount_verified: amount, p_currency: 'NGN', p_transaction_id: transactionId });
       if (error) return new Response('Processing error', { status: 500 });
       if (!data?.success) {
-        await db.from('booking_payments').update({
+        const { error: reviewError } = await db.from('booking_payments').update({
           status: 'review_required',
           paystack_transaction_id: transactionId || null,
           verified_amount: amount,
@@ -46,7 +46,8 @@ Deno.serve(async (req) => {
           verification_source: 'webhook',
           updated_at: new Date().toISOString(),
         }).eq('id', payment.id);
-        return new Response('Worker payment requires WeHouse review', { status: 500 });
+        if (reviewError) return new Response('Could not record payment review state', { status: 500 });
+        return new Response('Worker payment review recorded', { status: 200 });
       }
       return new Response('OK', { status: 200 });
     }
