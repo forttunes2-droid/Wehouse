@@ -10,6 +10,8 @@ export interface VerifyPaymentResult {
   verified?: boolean;
   recorded?: boolean;
   already_processed?: boolean;
+  charged?: boolean;
+  requires_review?: boolean;
   amount?: number;
   paystack_status?: string;
   transaction_id?: number;
@@ -49,7 +51,7 @@ export async function verifyPaymentServerSide(
 
 // ─── Verify + retry with backoff ───
 // Retries only on transient failures. Deterministic auth/ownership/amount errors
-// return immediately rather than repeatedly calling Paystack.
+// and verified charges that require WeHouse review return immediately.
 export async function verifyPaymentWithRetry(
   reference: string,
   options?: { purpose?: string; expected_amount?: number },
@@ -57,7 +59,7 @@ export async function verifyPaymentWithRetry(
 ): Promise<VerifyPaymentResult> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await verifyPaymentServerSide(reference, options);
-    if (result.success) return result;
+    if (result.success || result.requires_review) return result;
 
     const isClientError = result.error && (
       result.error.includes('Not authenticated') ||

@@ -77,6 +77,26 @@ serve(async (req) => {
         p_transaction_id: transactionId,
       });
       if (error) return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: cors });
+      if (!data?.success) {
+        const { error: reviewError } = await admin.from('booking_payments').update({
+          status: 'review_required',
+          paystack_transaction_id: transactionId || null,
+          verified_amount: verifiedAmount,
+          verified_at: new Date().toISOString(),
+          verification_source: 'edge_function',
+          updated_at: new Date().toISOString(),
+        }).eq('id', payment.id);
+        if (reviewError) return new Response(JSON.stringify({ success: false, error: 'Verified payment could not be placed into WeHouse review' }), { status: 500, headers: cors });
+        return new Response(JSON.stringify({
+          success: false,
+          verified: true,
+          charged: true,
+          requires_review: true,
+          error: data?.error || 'Payment was verified but the Worker booking could not be finalized. WeHouse review is required.',
+          amount: verifiedAmount,
+          purpose: payment.purpose,
+        }), { status: 200, headers: cors });
+      }
       return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
     }
 

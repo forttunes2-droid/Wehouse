@@ -35,8 +35,20 @@ Deno.serve(async (req) => {
     if (Math.round(expected * 100) !== Math.round(amount * 100)) return new Response('Amount mismatch', { status: 400 });
     if (payment.purpose === 'worker_booking') {
       if (!payment.worker_booking_id) return new Response('Worker booking ID missing', { status: 409 });
-      const { error } = await db.rpc('confirm_worker_booking_payment', { p_booking_id: payment.worker_booking_id, p_paystack_reference: reference, p_amount_verified: amount, p_currency: 'NGN', p_transaction_id: transactionId });
+      const { data, error } = await db.rpc('confirm_worker_booking_payment', { p_booking_id: payment.worker_booking_id, p_paystack_reference: reference, p_amount_verified: amount, p_currency: 'NGN', p_transaction_id: transactionId });
       if (error) return new Response('Processing error', { status: 500 });
+      if (!data?.success) {
+        const { error: reviewError } = await db.from('booking_payments').update({
+          status: 'review_required',
+          paystack_transaction_id: transactionId || null,
+          verified_amount: amount,
+          verified_at: new Date().toISOString(),
+          verification_source: 'webhook',
+          updated_at: new Date().toISOString(),
+        }).eq('id', payment.id);
+        if (reviewError) return new Response('Could not record payment review state', { status: 500 });
+        return new Response('Worker payment review recorded', { status: 200 });
+      }
       return new Response('OK', { status: 200 });
     }
     const { error } = await db.rpc('confirm_booking_payment', { p_reference: reference, p_transaction_id: transactionId, p_verified_amount: amount, p_verification_source: 'webhook', p_purpose: payment.purpose });
