@@ -75,12 +75,18 @@ serve(async req=>{
     const accountName=String(resolved?.account_name||'').trim();
     if(!accountName)return json({success:false,error:'Paystack could not verify this account name'},400);
 
-    const{count:existingCount,error:countError}=await admin.from('bank_accounts').select('id',{count:'exact',head:true}).eq('user_id',profile.user_id);
-    if(countError)return json({success:false,error:countError.message},500);
-    const replacing=Number(existingCount||0)>0;
+    const{data:existing,error:existingError}=await admin.from('bank_accounts')
+      .select('id,bank_code,account_number')
+      .eq('user_id',profile.user_id);
+    if(existingError)return json({success:false,error:existingError.message},500);
+    const savedAccounts=Array.isArray(existing)?existing:[];
+    const firstAccount=savedAccounts.length===0;
+    const duplicate=savedAccounts.some((row:any)=>String(row.bank_code||'')===bankCode&&String(row.account_number||'')===accountNumber);
+    if(duplicate)return json({success:false,error:'This bank account is already saved',code:'ACCOUNT_EXISTS'},409);
+
     const profileTokens=nameTokens(String(profile.full_name||''));
     const matched=matchCount(String(profile.full_name||''),accountName);
-    const replacementAllowed=!replacing||(profileTokens.length>=2&&matched>=2);
+    const additionalAllowed=firstAccount||(profileTokens.length>=2&&matched>=2);
 
     if(action==='resolve'){
       return json({
@@ -88,18 +94,19 @@ serve(async req=>{
         bank:{code:bankCode,name:String(bank.name)},
         account_number:accountNumber,
         account_name:accountName,
-        replacement:replacing,
-        replacement_allowed:replacementAllowed,
+        first_account:firstAccount,
+        additional_account:!firstAccount,
+        additional_allowed:additionalAllowed,
         matched_names:matched,
-        needs_full_name:replacing&&profileTokens.length<2,
+        needs_full_name:!firstAccount&&profileTokens.length<2,
       });
     }
 
     if(action!=='save')return json({success:false,error:'Unknown action'},400);
-    if(replacing&&profileTokens.length<2){
-      return json({success:false,error:'Complete your full name in Personal Details before changing your payout account.',code:'FULL_NAME_REQUIRED'},409);
+    if(!firstAccount&&profileTokens.length<2){
+      return json({success:false,error:'Complete your full name in Personal Details before adding another payout account.',code:'FULL_NAME_REQUIRED'},409);
     }
-    if(replacing&&matched<2){
+    if(!firstAccount&&matched<2){
       return json({success:false,error:'The verified bank account name must match at least two names from your WeHouse full name.',code:'NAME_MISMATCH'},409);
     }
 
@@ -126,7 +133,7 @@ serve(async req=>{
     });
     if(saveError)return json({success:false,error:saveError.message},500);
 
-    return json({success:true,replacement:replacing,account:(saved as any)?.account||saved});
+    return json({success:true,first_account:firstAccount,additional_account:!firstAccount,account:(saved as any)?.account||saved});
   }catch(error){
     return json({success:false,error:error instanceof Error?error.message:'Payout account request failed'},500);
   }
