@@ -28,10 +28,11 @@
     <script>
       (function() {
         if (!('serviceWorker' in navigator)) return;
-        if (sessionStorage.getItem('sw_done')) return;
-        if (!navigator.serviceWorker.controller) return;
         navigator.serviceWorker.register('/sw.js').then(function() {
           sessionStorage.setItem('sw_done', '1');
+          navigator.serviceWorker.getRegistration('/').then(function(registration) {
+            if (registration) registration.update();
+          });
         }).catch(function() {
           navigator.serviceWorker.getRegistrations().then(function(regs) {
             Promise.all(regs.map(function(r) { return r.unregister(); }));
