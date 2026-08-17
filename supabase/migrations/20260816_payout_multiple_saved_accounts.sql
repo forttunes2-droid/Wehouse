@@ -9,6 +9,10 @@ DROP INDEX IF EXISTS public.bank_accounts_one_current_per_user;
 CREATE UNIQUE INDEX IF NOT EXISTS bank_accounts_unique_user_destination
   ON public.bank_accounts(user_id,bank_code,account_number);
 
+ALTER TABLE public.withdrawals
+  ADD COLUMN IF NOT EXISTS bank_account_id uuid REFERENCES public.bank_accounts(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS payout_recipient_code text;
+
 REVOKE INSERT,UPDATE,DELETE ON public.bank_accounts FROM anon,authenticated;
 REVOKE ALL ON FUNCTION public.upsert_my_bank_account(text,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.upsert_my_bank_account(text,text,text) TO service_role;
@@ -246,7 +250,10 @@ BEGIN
 
   SELECT NULLIF(trim(value),'')::numeric INTO v_min
   FROM public.platform_settings
-  WHERE key='wallet_minimum_withdrawal' AND is_active=true;
+  WHERE key IN ('wallet_minimum_withdrawal','min_withdrawal')
+    AND COALESCE(is_active,true)=true
+  ORDER BY CASE key WHEN 'wallet_minimum_withdrawal' THEN 0 ELSE 1 END
+  LIMIT 1;
   IF v_min IS NULL THEN RETURN jsonb_build_object('success',false,'error','Minimum withdrawal setting is missing'); END IF;
   IF p_amount<v_min THEN RETURN jsonb_build_object('success',false,'error',format('Minimum withdrawal is ₦%s',v_min)); END IF;
   IF p_amount>COALESCE(v_wallet.available_balance,0) THEN RETURN jsonb_build_object('success',false,'error','Insufficient balance'); END IF;
@@ -259,9 +266,11 @@ BEGIN
   WHERE id=v_wallet.id;
 
   INSERT INTO public.withdrawals(
-    wallet_id,amount,bank_name,bank_account_number,bank_account_name,status,created_at,updated_at
+    wallet_id,amount,bank_name,bank_account_number,bank_account_name,
+    bank_account_id,payout_recipient_code,status,created_at,updated_at
   ) VALUES (
-    v_wallet.id,p_amount,v_bank.bank_name,v_bank.account_number,v_bank.account_name,'pending',now(),now()
+    v_wallet.id,p_amount,v_bank.bank_name,v_bank.account_number,v_bank.account_name,
+    v_bank.id,v_bank.paystack_recipient_code,'pending',now(),now()
   ) RETURNING id INTO v_request_id;
 
   INSERT INTO public.wallet_transactions(
@@ -309,9 +318,11 @@ BEGIN
   LIMIT 1;
   IF v_bank IS NULL THEN RAISE EXCEPTION 'Choose one of your saved verified payout accounts'; END IF;
 
-  SELECT COALESCE(NULLIF(value,'')::numeric,5000) INTO v_min
+  SELECT NULLIF(trim(value),'')::numeric INTO v_min
   FROM public.platform_settings
-  WHERE key='min_withdrawal'
+  WHERE key IN ('wallet_minimum_withdrawal','min_withdrawal')
+    AND COALESCE(is_active,true)=true
+  ORDER BY CASE key WHEN 'wallet_minimum_withdrawal' THEN 0 ELSE 1 END
   LIMIT 1;
   v_min:=COALESCE(v_min,5000);
   IF p_amount<v_min THEN RAISE EXCEPTION 'Minimum withdrawal is N%',v_min; END IF;
@@ -332,10 +343,12 @@ BEGIN
 
   INSERT INTO public.withdrawals(
     wallet_id,amount,status,bank_name,bank_account_number,bank_account_name,
+    bank_account_id,payout_recipient_code,
     snapshot_bank_name,snapshot_bank_account_number,snapshot_bank_account_name,snapshot_bank_code,
     created_at,updated_at
   ) VALUES (
     v_wallet.id,p_amount,'pending',v_bank.bank_name,v_bank.account_number,v_bank.account_name,
+    v_bank.id,v_bank.paystack_recipient_code,
     v_bank.bank_name,v_bank.account_number,v_bank.account_name,v_bank.bank_code,now(),now()
   ) RETURNING id INTO v_withdrawal_id;
 
