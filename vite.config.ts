@@ -29,7 +29,7 @@ export default defineConfig({
       },
       {
         find: /^@\/pages\/Chat$/,
-        replacement: path.resolve(__dirname, './src/pages/ChatPhase10.tsx'),
+        replacement: path.resolve(__dirname, './src/pages/ChatPhase10Modern.tsx'),
       },
       {
         find: /^@\/pages\/PrivacySettings$/,
