@@ -10,11 +10,11 @@ export async function getConversations(userId:string){
 }
 
 export async function getRoommateConversationPeople(){
-  const{data,error}=await supabase.rpc('get_my_roommate_matches');
+  const{data,error}=await supabase.rpc('get_my_roommate_conversation_people');
   const people:Record<string,RoommatePeer>={};
   for(const row of data||[]){
-    if(!row.matched_user_id)continue;
-    people[row.matched_user_id]={user_id:row.matched_user_id,name:row.full_name||row.username||'Roommate',avatar:row.avatar_url||null};
+    if(!row.user_id)continue;
+    people[row.user_id]={user_id:row.user_id,name:row.full_name||row.username||'Roommate',avatar:row.avatar_url||null};
   }
   return{people,error};
 }
