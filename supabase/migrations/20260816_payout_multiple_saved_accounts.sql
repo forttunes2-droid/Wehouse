@@ -283,7 +283,7 @@ BEGIN
 
   RETURN jsonb_build_object('success',true,'request_id',v_request_id,'amount',p_amount,'status','pending','bank_account_id',v_bank.id);
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.request_worker_withdrawal(numeric,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.request_worker_withdrawal(numeric,uuid) TO authenticated;
