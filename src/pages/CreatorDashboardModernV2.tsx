@@ -43,7 +43,7 @@ const NOTES: Record<Tab, string> = {
 
 const OPS: Array<{ id: Operation; label: string; note: string }> = [
   { id: 'people', label: 'People', note: 'Regular Users and Property Partners.' },
-  { id: 'team', label: 'Team', note: 'Admins, Staff capacity, branch placement, modules and Staff trust.' },
+  { id: 'team', label: 'Team', note: 'Admins, Staff capacity, branch placement and operational modules.' },
   { id: 'properties', label: 'Properties', note: 'Property request → inspection → preparation → publication.' },
   { id: 'workers', label: 'Workers', note: 'Worker lifecycle oversight. Verification Staff own routine approval.' },
   { id: 'bookings', label: 'Bookings', note: 'Worker-service, apartment and hotel booking records.' },
