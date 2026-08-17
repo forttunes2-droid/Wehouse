@@ -28,6 +28,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/AdminDashboardUnified.tsx'),
       },
       {
+        find: /^@\/pages\/Search$/,
+        replacement: path.resolve(__dirname, './src/pages/SearchHousingModern.tsx'),
+      },
+      {
         find: /^@\/pages\/Chat$/,
         replacement: path.resolve(__dirname, './src/pages/ChatPhase10Modern.tsx'),
       },
@@ -65,7 +69,7 @@ export default defineConfig({
       },
       {
         find: /^@\/components\/DiscoveryShell$/,
-        replacement: path.resolve(__dirname, './src/components/DiscoveryShellPhase9.tsx'),
+        replacement: path.resolve(__dirname, './src/components/DiscoveryShellModern.tsx'),
       },
       {
         find: /^\.\/CreatorSettingsTabV2$/,
