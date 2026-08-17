@@ -7,6 +7,7 @@ import CreatorSettingsPhase9 from './CreatorSettingsPhase9';
 
 type Def={key:string;label:string;unit?:string;min:number;max:number;step:number;note:string};
 const DEFS:Def[]=[
+ {key:'admin_staff_limit',label:'Maximum Staff per Admin',unit:'Staff accounts',min:0,max:1000,step:1,note:'Maximum active Staff one Admin can appoint. Use 0 for unlimited.'},
  {key:'reservation_fee',label:'Apartment reservation fee',unit:'₦',min:0,max:1000000,step:100,note:'WeHouse reservation fee paid before either Long Stay or Short Stay is secured.'},
  {key:'apartment_payment_hold_minutes',label:'Unpaid checkout hold',unit:'minutes',min:5,max:120,step:5,note:'Temporary Paystack checkout hold before an unpaid reservation expires.'},
  {key:'apartment_reservation_hold_days',label:'Long Stay decision hold',unit:'days',min:1,max:30,step:1,note:'Long Stay only. Paid Short Stay bookings use their reserved dates instead of this timeout.'},
