@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { getAllUsers } from '@/lib/supabase/admin';
 import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
-import StaffTrustManager from '@/components/StaffTrustManager';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
 
@@ -510,10 +509,6 @@ function ManageSheet({ person, actor, creator, module, trust, staffLimit, appoin
                 <TrustBadge status={trust?.status || 'probation'} />
               </div>
             </section>
-          )}
-
-          {person.role === 'staff' && (
-            <StaffTrustManager staff={person} actor={actor} />
           )}
 
           <button onClick={() => void onReload()} className="h-10 w-full rounded-xl border border-white/[0.08] text-[9px] font-semibold text-[#A1A7B5]">Refresh team data</button>
