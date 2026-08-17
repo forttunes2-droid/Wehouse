@@ -125,8 +125,8 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
       <AccountShell profile={profile} title="Notifications" description="Choose how WeHouse should alert this account." onBack={() => setPanel(null)}>
         <Toaster position="top-center" richColors />
         <AccountSection>
-          <Toggle label="Email notifications" detail="Account and service updates by email." value={emailNotifs} onChange={setEmailNotifs} />
-          <Toggle label="Push notifications" detail="Time-sensitive alerts on supported devices." value={pushNotifs} onChange={setPushNotifs} />
+          <Toggle label="Email notifications" detail="Allow WeHouse to send important account and service emails." value={emailNotifs} onChange={setEmailNotifs} />
+          <Toggle label="In-app alerts" detail="Show new-message and announcement popups while WeHouse is open." value={pushNotifs} onChange={setPushNotifs} />
         </AccountSection>
         <button onClick={() => void saveNotifications()} disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save notification preferences'}</button>
       </AccountShell>
@@ -193,7 +193,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
-        <AccountRow title="Notifications" detail="Email and push preferences" onClick={() => setPanel('notifications')} icon={<BellIcon />} />
+        <AccountRow title="Notifications" detail="Email and in-app alert preferences" onClick={() => setPanel('notifications')} icon={<BellIcon />} />
         <AccountRow title="Security" detail="Password, devices and account protection" onClick={onGoToSecurity} icon={<ShieldIcon />} />
       </AccountSection>
 
@@ -214,7 +214,7 @@ export default function AccountCenter({ profile, onBack, onGoToPrivacy, onGoToSe
       <section className="grid gap-3 sm:grid-cols-3">
         <AccountInfo label="Email" value={profile.email_verified ? 'Verified' : 'Not verified'} />
         <AccountInfo label="Account ID" value={profile.user_id || 'Not set'} />
-        <AccountInfo label="Member since" value={new Date(profile.created_at).toLocaleDateString()} />
+        <AccountInfo label={isStaff || role === 'admin' ? 'Assigned branch' : role === 'creator' ? 'Access scope' : 'Member since'} value={isStaff || role === 'admin' ? [profile.assigned_lga,profile.assigned_state].filter(Boolean).join(', ') || 'Not assigned' : role === 'creator' ? 'Worldwide platform' : new Date(profile.created_at).toLocaleDateString()} />
       </section>
 
       {isStaff && <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[10px] leading-relaxed text-amber-200/80">Staff role, branch and operational permissions are managed through authorized Admin/Creator workflows.</div>}
