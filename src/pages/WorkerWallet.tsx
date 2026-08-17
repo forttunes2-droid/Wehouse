@@ -67,13 +67,14 @@ export default function WorkerWallet({ profile }: { profile: Profile }) {
     if (wallet.is_frozen) return toast.error(wallet.frozen_reason || 'Your wallet is frozen');
 
     setSubmitting(true);
-    const { error } = await supabase.rpc('request_worker_withdrawal', {
+    const { data, error } = await supabase.rpc('request_worker_withdrawal', {
       p_amount: numericAmount,
       p_bank_account_id: selectedBank.id,
     });
     setSubmitting(false);
 
-    if (error) return toast.error(error.message || 'Withdrawal request failed');
+    if (error) return toast.error('We could not submit this withdrawal. Please try again.');
+    if (!data?.success) return toast.error(data?.error || 'Withdrawal request failed');
     toast.success('Withdrawal request submitted');
     setAmount('');
     setTab('activity');
