@@ -21,7 +21,7 @@ export default function DiscoveryPriceRangeSlider({
   maxValue,
   onMinChange,
   onMaxChange,
-  helper = 'Choose your budget. Results update as you move the range.',
+  helper,
 }: Props) {
   if (!Number.isFinite(floor) || !Number.isFinite(ceiling) || ceiling <= floor || step <= 0) return null;
 
@@ -39,7 +39,7 @@ export default function DiscoveryPriceRangeSlider({
       <div className="mb-2 flex items-end justify-between gap-3">
         <div>
           <p className="text-[9px] font-semibold uppercase tracking-wide text-[#74798A]">{label}</p>
-          <p className="mt-1 text-[9px] leading-relaxed text-[#606777]">{helper}</p>
+          {helper ? <p className="mt-1 text-[9px] leading-relaxed text-[#606777]">{helper}</p> : null}
         </div>
         {active ? (
           <button type="button" onClick={() => { onMinChange(''); onMaxChange(''); }} className="shrink-0 text-[9px] font-semibold text-violet-300">

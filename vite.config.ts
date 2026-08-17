@@ -28,8 +28,12 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/AdminDashboardUnified.tsx'),
       },
       {
+        find: /^@\/pages\/Search$/,
+        replacement: path.resolve(__dirname, './src/pages/SearchHousingModern.tsx'),
+      },
+      {
         find: /^@\/pages\/Chat$/,
-        replacement: path.resolve(__dirname, './src/pages/ChatPhase10.tsx'),
+        replacement: path.resolve(__dirname, './src/pages/ChatPhase10Modern.tsx'),
       },
       {
         find: /^@\/pages\/PrivacySettings$/,
@@ -44,6 +48,18 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/WorkerWorkspacePhase9.tsx'),
       },
       {
+        find: /^@\/pages\/ListingDetail$/,
+        replacement: path.resolve(__dirname, './src/pages/ListingDetailHousingStructural.tsx'),
+      },
+      {
+        find: /^@\/components\/PropertyPipelineWorkspace$/,
+        replacement: path.resolve(__dirname, './src/components/PropertyPipelineWorkspaceHousingStructural.tsx'),
+      },
+      {
+        find: /^@\/components\/HousingOperationsWorkspace$/,
+        replacement: path.resolve(__dirname, './src/components/HousingOperationsWorkspaceHousingStructural.tsx'),
+      },
+      {
         find: /^@\/components\/WorkerIdentityCheck$/,
         replacement: path.resolve(__dirname, './src/components/WorkerIdentityCheckPhase10Live.tsx'),
       },
@@ -53,11 +69,11 @@ export default defineConfig({
       },
       {
         find: /^@\/components\/DiscoveryShell$/,
-        replacement: path.resolve(__dirname, './src/components/DiscoveryShellPhase9.tsx'),
+        replacement: path.resolve(__dirname, './src/components/DiscoveryShellModern.tsx'),
       },
       {
         find: /^\.\/CreatorSettingsTabV2$/,
-        replacement: path.resolve(__dirname, './src/pages/CreatorSettingsPhase9.tsx'),
+        replacement: path.resolve(__dirname, './src/pages/CreatorSettingsHousingStructural.tsx'),
       },
       {
         find: /^@\/components\/DesktopLayout$/,
@@ -70,12 +86,10 @@ export default defineConfig({
     ],
   },
   build: {
-    // Capacitor needs relative paths
     assetsInlineLimit: 0,
     rollupOptions: {
       output: {
         manualChunks: {
-          // Split heavy vendor libraries into separate chunks
           'vendor-react': ['react', 'react-dom'],
           'vendor-router': ['react-router-dom'],
           'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-popover', '@radix-ui/react-slot', '@radix-ui/react-separator', '@radix-ui/react-tabs', 'class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'],
