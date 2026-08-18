@@ -32,7 +32,7 @@ export default function DiscoveryShell({ active, title, description, onNavigate,
     <header className="sticky top-0 z-40 border-b border-white/[.055] bg-[#090B10]/95 backdrop-blur-2xl">
       <div className="mx-auto max-w-7xl px-4 pb-3 pt-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-          {active && <button type="button" onClick={() => onNavigate('explore')} aria-label="Back to Explore" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.025] text-[#9DA3B2] transition hover:bg-white/[.06] hover:text-white"><BackIcon /></button>}
+          {active && <button type="button" onClick={() => onNavigate('home')} aria-label="Back to Home" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.025] text-[#9DA3B2] transition hover:bg-white/[.06] hover:text-white"><BackIcon /></button>}
           <div className="min-w-0 flex-1"><p className="text-[8px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE · EXPLORE</p><h1 className="mt-1 break-words text-[clamp(1.25rem,5vw,1.75rem)] font-bold leading-tight">{title}</h1>{description && <p className="mt-1 block max-w-full break-words text-[10px] leading-relaxed text-[#74798B] sm:max-w-2xl sm:text-[11px]">{description}</p>}</div>
         </div>
         <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Explore categories">
