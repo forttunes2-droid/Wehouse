@@ -22,6 +22,14 @@ export async function initializeReservationPayment(reference: string) {
   const { data, error } = await supabase.functions.invoke('payment-init', {
     body: { reference },
   });
+  if (error) {
+    let message = error.message || 'Reservation checkout could not start';
+    try {
+      const body = await (error as any).context?.json?.();
+      if (body?.error) message = String(body.error);
+    } catch { /* The network response may not contain JSON. */ }
+    return { result: { success: false, error: message }, error: null };
+  }
   return {
     result: data as {
       success?: boolean;
@@ -33,7 +41,7 @@ export async function initializeReservationPayment(reference: string) {
       existing?: boolean;
       error?: string;
     } | null,
-    error,
+    error: null,
   };
 }
 
