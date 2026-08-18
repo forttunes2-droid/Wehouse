@@ -114,12 +114,12 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
       <button onClick={()=>setView('history')} className={`min-h-10 rounded-xl px-5 text-xs font-semibold ${view==='history'?'bg-blue-500 text-white':'text-[#777B8D]'}`}>Sent · {history.length}</button>
     </div>
 
-    {view==='compose'&&canSend&&<section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#10131B]">
-      <div className="border-b border-white/[.05] p-4 sm:p-5">
+    {view==='compose'&&canSend&&<section className="overflow-hidden">
+      <div className="border-b border-white/[.05] px-1 pb-4 pt-2">
         <p className="text-sm font-semibold">New official announcement</p>
         <p className="mt-1 text-[10px] leading-relaxed text-[#6C7080]">Recipients receive this inside the same WeHouse Official channel used throughout the app.</p>
       </div>
-      <div className="space-y-4 p-4 sm:p-5">
+      <div className="space-y-4 py-4">
         <label className="block"><span className="mb-1.5 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Title</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="What is this update about?" className="h-12 w-full rounded-2xl border border-white/[.08] bg-[#171A23] px-4 text-sm outline-none focus:border-blue-500/40"/></label>
         <label className="block"><span className="mb-1.5 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Message</span><textarea value={message} onChange={e=>setMessage(e.target.value)} rows={6} placeholder="Write the announcement…" className="w-full resize-y rounded-2xl border border-white/[.08] bg-[#171A23] p-4 text-sm leading-6 outline-none focus:border-blue-500/40"/></label>
 
