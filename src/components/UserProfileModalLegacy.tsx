@@ -135,27 +135,26 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
 
   const content = (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" style={{ zIndex: 99999, touchAction: 'none' }} onClick={onClose}>
-      <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain' }} onClick={(e) => e.stopPropagation()}>
-        <div className="h-[5vh]" />
-        <div className="bg-[#0E0E14] w-full sm:w-[460px] sm:rounded-3xl rounded-t-3xl border border-[#232330] mx-auto shadow-2xl" style={{ minHeight: '88vh' }}>
-          <div className="relative bg-gradient-to-br from-indigo-900/30 to-[#0E0E14] px-5 pt-6 pb-6">
+      <div className="absolute inset-0 overflow-y-auto bg-[#0E0E14] sm:bg-transparent sm:p-6" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain' }} onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto min-h-full w-full bg-[#0E0E14] sm:min-h-0 sm:max-w-[560px] sm:rounded-3xl sm:border sm:border-[#232330] sm:shadow-2xl">
+          <div className="relative border-b border-white/[.06] px-5 pb-5 pt-16 sm:pt-8">
             <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center active:bg-white/20">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xl font-bold mb-3">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xl font-bold">
                 {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full rounded-2xl object-cover" alt="" /> : initials}
               </div>
-              <h3 className="text-base font-bold text-white">@{user.username || 'unknown'}</h3>
-              <p className="text-xs text-[#5C5E72] mt-0.5">{user.email}</p>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="min-w-0"><h3 className="truncate text-lg font-bold text-white">{user.full_name||`@${user.username||'unknown'}`}</h3>
+              <p className="mt-0.5 truncate text-xs text-[#6D7282]">@{user.username||'unknown'} · {user.email}</p>
+              <div className="mt-2 flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{roleLabel}</span>
                 {user.worker_verified && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Verified</span>}
-              </div>
+              </div></div>
             </div>
           </div>
 
-          <div className="px-5 pb-8 space-y-3">
+          <div className="space-y-0 px-5 pb-8">
             {user.role === 'worker' && workerStats && (
               <div className="grid grid-cols-2 gap-2">
                 <div className="glass rounded-xl p-3 text-center"><p className="text-lg font-bold text-white">{workerStats.totalBookings}</p><p className="text-[10px] text-[#5C5E72]">Total Bookings</p></div>
@@ -172,7 +171,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
               </div>
             )}
 
-            <div className="glass rounded-2xl p-4 space-y-3">
+            <section className="divide-y divide-white/[.055] border-b border-white/[.06] py-3">
               {[
                 { label: 'ID', value: user.user_id },
                 { label: 'Full Name', value: user.full_name || 'Not set' },
@@ -181,8 +180,8 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
                 { label: 'LGA', value: (user as any).local_government || (user as any).city || 'Not set' },
                 { label: 'Joined', value: new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) },
                 { label: 'Status', value: (user as any).deleted ? 'Deleted' : (user as any).banned ? 'Banned' : (user as any).suspended ? 'Suspended' : 'Active' },
-              ].map(item => <div key={item.label} className="flex justify-between gap-4 text-xs"><span className="text-[#5C5E72]">{item.label}</span><span className="text-right text-white/80 font-medium">{item.value}</span></div>)}
-            </div>
+              ].map(item => <div key={item.label} className="flex min-h-11 items-center justify-between gap-4 text-xs"><span className="text-[#676C7D]">{item.label}</span><span className="max-w-[65%] break-words text-right font-medium text-white/85">{item.value}</span></div>)}
+            </section>
 
             {user.role === 'worker' && (
               <>
@@ -242,8 +241,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
             <button onClick={onClose} className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] text-xs font-semibold hover:bg-[#232330] transition-colors">Close</button>
           </div>
         </div>
-        <div className="h-20" />
-      </div>
+       </div>
       <Toaster position="top-center" richColors />
     </div>
   );
