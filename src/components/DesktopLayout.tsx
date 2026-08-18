@@ -21,6 +21,7 @@ const ROOT_PAGES = new Set<NavPage>([
   'explore',
   'search',
   'saved',
+  'my_reservations',
   'messages',
   'profile',
   'creator',
