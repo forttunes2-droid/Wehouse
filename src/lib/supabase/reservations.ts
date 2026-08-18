@@ -1,5 +1,16 @@
 import { supabase } from './client';
 
+type PaymentInitResult = {
+  success?: boolean;
+  already_paid?: boolean;
+  reference?: string;
+  purpose?: string;
+  authorization_url?: string;
+  access_code?: string;
+  existing?: boolean;
+  error?: string;
+};
+
 // Canonical apartment reservation API. Identity, availability, fee and duplicate
 // prevention are enforced by the database; caller-supplied user or price data is ignored.
 export async function createReservation(
@@ -28,19 +39,10 @@ export async function initializeReservationPayment(reference: string) {
       const body = await (error as any).context?.json?.();
       if (body?.error) message = String(body.error);
     } catch { /* The network response may not contain JSON. */ }
-    return { result: { success: false, error: message }, error: null };
+    return { result: { success: false, error: message } as PaymentInitResult, error: null };
   }
   return {
-    result: data as {
-      success?: boolean;
-      already_paid?: boolean;
-      reference?: string;
-      purpose?: string;
-      authorization_url?: string;
-      access_code?: string;
-      existing?: boolean;
-      error?: string;
-    } | null,
+    result: data as PaymentInitResult | null,
     error: null,
   };
 }
