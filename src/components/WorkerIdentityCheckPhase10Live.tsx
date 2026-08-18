@@ -28,7 +28,9 @@ type RefData = {
 };
 
 const MODULE = 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/dist/human.esm.js';
-const MODELS = 'https://vladmandic.github.io/human-models/models/';
+// Keep the engine and its models on the same CDN. The previous GitHub Pages
+// model host could hang indefinitely on mobile networks after the UI loaded.
+const MODELS = 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/models/';
 const LABEL: Record<Step, string> = {
   center_start: 'Look straight at the camera',
   side_one: 'Slowly turn your head to one side',
@@ -119,7 +121,10 @@ export default function WorkerIdentityCheckPhase10Live({ profile, status, reject
       gesture: { enabled: false },
       segmentation: { enabled: false },
     });
-    await instance.load();
+    await Promise.race([
+      instance.load(),
+      new Promise((_, reject) => window.setTimeout(() => reject(new Error('The secure face engine could not load. Check your connection and tap Try again.')), 20000)),
+    ]);
     humanRef.current = instance;
     return instance;
   }
