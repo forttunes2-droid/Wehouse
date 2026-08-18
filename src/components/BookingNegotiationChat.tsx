@@ -18,7 +18,7 @@ export default function BookingNegotiationChat({conversationId,bookingId,profile
  useEffect(()=>{void loadAll()},[conversationId,bookingId]);
  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages.length,files.length]);
  useEffect(()=>()=>{if(mediaRef.current?.state==='recording')mediaRef.current.stop()},[]);
- useEffect(()=>{window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open:true}}));return()=>window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open:false}}))},[]);
+ useEffect(()=>{window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open:true}}));return()=>{window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open:false}}))}},[]);
  useEffect(()=>{const channel=supabase.channel(`booking-chat-live:${conversationId}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'booking_messages',filter:`conversation_id=eq.${conversationId}`},()=>void loadAll(true)).on('postgres_changes',{event:'UPDATE',schema:'public',table:'booking_messages',filter:`conversation_id=eq.${conversationId}`},()=>void loadAll(true)).subscribe();return()=>{void supabase.removeChannel(channel)}},[conversationId,bookingId]);
  async function loadAll(quiet=false){if(!quiet)setLoading(true);const[msgRes,bookingRes]=await Promise.all([getBookingMessages(conversationId),getBookingDetails(bookingId)]);setMessages(msgRes.messages||[]);setBooking(bookingRes.booking);await markBookingMessagesRead(conversationId);if(!quiet)setLoading(false)}
  function openSupport(){setMenuOpen(false);window.dispatchEvent(new CustomEvent('openSupportChat',{detail:{category:'worker_booking',subject:`Worker booking ${booking?.booking_code||''}`.trim(),contextType:'worker_booking',contextId:bookingId,contextSnapshot:{booking_code:booking?.booking_code||null,service_type:booking?.service_type||null,status:booking?.status||null,scheduled_date:booking?.scheduled_date||null,agreed_amount:booking?.negotiated_amount||booking?.agreed_amount||null,address:booking?.address||null,worker_id:booking?.worker_id||null,customer_id:booking?.user_id||null}}}))}
@@ -116,7 +116,7 @@ export default function BookingNegotiationChat({conversationId,bookingId,profile
 <p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p>
 <button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Human Support</button>
 </div>}</footer>
-  {profileOpen&&<ConversationIdentitySheet booking={booking} isWorker={isWorker} name={peerName} avatar={peerAvatar} presence={presenceText} onClose={()=>setProfileOpen(false)}/>}
+  {profileOpen&&<ConversationIdentitySheet booking={booking} isWorker={isWorker} name={peerName} avatar={peerAvatar} presence={presenceText||''} onClose={()=>setProfileOpen(false)}/>}
   {confirmDelete&&<DeleteSheet onCancel={()=>setConfirmDelete(false)} onDelete={()=>void deleteFromMessages()}/>} 
  </div>
 }
