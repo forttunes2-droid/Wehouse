@@ -83,6 +83,14 @@ export async function getSavedMatchResults(limit = DEFAULT_MATCH_PAGE, offset = 
       bio: row.bio,
       school: row.school,
       area_preference: row.area_preference,
+      score_factors: {
+        budget: Number(row.budget_score || 0),
+        location: Number(row.location_score || 0),
+        cleanliness: Number(row.cleanliness_score || 0),
+        noise: Number(row.noise_score || 0),
+        visitors: Number(row.visitors_score || 0),
+        stay: Number(row.stay_score || 0),
+      },
     },
   }));
   return { matches, hasMore, error };
