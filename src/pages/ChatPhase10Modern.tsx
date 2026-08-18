@@ -22,6 +22,7 @@ const MAX_FILES=6,MAX_FILE_SIZE=25*1024*1024;
 
 export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conversationId}:Props){
  const[roommates,setRoommates]=useState<any[]>([]),[workers,setWorkers]=useState<WorkerConversation[]>([]),[people,setPeople]=useState<Record<string,Person>>({}),[loading,setLoading]=useState(true),[active,setActive]=useState<any|null>(null),[worker,setWorker]=useState<{conversationId:string;bookingId:string}|null>(null),[official,setOfficial]=useState(false),[assistant,setAssistant]=useState(false),[messages,setMessages]=useState<any[]>([]),[input,setInput]=useState(''),[files,setFiles]=useState<File[]>([]),[sending,setSending]=useState(false),[recording,setRecording]=useState(false),[recordSeconds,setRecordSeconds]=useState(0),[more,setMore]=useState(false),[profileOpen,setProfileOpen]=useState(false),[editing,setEditing]=useState<string|null>(null),[editText,setEditText]=useState(''),[editWindow,setEditWindow]=useState(10),[now,setNow]=useState(Date.now());
+ const[peerProfile,setPeerProfile]=useState<any>(null);
  const fileRef=useRef<HTMLInputElement>(null),inputRef=useRef<HTMLTextAreaElement>(null),bottomRef=useRef<HTMLDivElement>(null),recorderRef=useRef<MediaRecorder|null>(null),chunksRef=useRef<Blob[]>([]),recordStartedRef=useRef(0);
  const otherId=useCallback((row:any)=>row.participant_a===profile.user_id?row.participant_b:row.participant_a,[profile.user_id]);
  const unread=useCallback((row:any)=>Number(row.participant_a===profile.user_id?row.unread_a:row.unread_b)||0,[profile.user_id]);
@@ -36,11 +37,12 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages.length,files.length,editing]);
  useEffect(()=>{if(!recording){setRecordSeconds(0);return}const timer=window.setInterval(()=>setRecordSeconds(value=>value+1),1000);return()=>window.clearInterval(timer)},[recording]);
  useEffect(()=>()=>{if(recorderRef.current?.state==='recording')recorderRef.current.stop()},[]);
- useEffect(()=>{const open=Boolean(active||worker||official||assistant);window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open}}));return()=>{if(open)window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open:false}}))}},[active,worker,official,assistant]);
+ useEffect(()=>{const open=Boolean(active||worker||official||assistant);document.body.classList.toggle('wehouse-conversation-open',open);window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open}}));return()=>{document.body.classList.remove('wehouse-conversation-open');if(open)window.dispatchEvent(new CustomEvent('wehouse:conversation-open',{detail:{open:false}}))}},[active,worker,official,assistant]);
  async function openRoommate(row:any){setActive(row);await loadMessages(row.id);requestAnimationFrame(()=>inputRef.current?.focus())}
  function chooseFiles(list:FileList|null){if(!list)return;const incoming=Array.from(list).filter(file=>{if(!file.type.startsWith('image/')){toast.error('Roommate chat supports photos and voice notes');return false}if(file.size>MAX_FILE_SIZE){toast.error(`${file.name} is larger than 25MB`);return false}return true});setFiles(current=>[...current,...incoming].slice(0,MAX_FILES));if(fileRef.current)fileRef.current.value=''}
  async function voice(){if(recording){recorderRef.current?.stop();return}if(files.length>=MAX_FILES)return toast.error('Remove an attachment before recording');try{const stream=await navigator.mediaDevices.getUserMedia({audio:true}),mime=['audio/mp4','audio/webm;codecs=opus','audio/webm'].find(type=>MediaRecorder.isTypeSupported(type)),recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);chunksRef.current=[];recordStartedRef.current=Date.now();recorder.ondataavailable=e=>{if(e.data.size)chunksRef.current.push(e.data)};recorder.onstop=()=>{const type=recorder.mimeType||'audio/webm',blob=new Blob(chunksRef.current,{type}),ext=type.includes('mp4')?'m4a':'webm',elapsed=Math.max(1,Math.round((Date.now()-recordStartedRef.current)/1000));setFiles(current=>[...current,new File([blob],`voice-${Date.now()}-${elapsed}s.${ext}`,{type})].slice(0,MAX_FILES));stream.getTracks().forEach(track=>track.stop());setRecording(false)};recorderRef.current=recorder;recorder.start(250);setRecording(true)}catch{toast.error('Microphone permission is required')}}
  async function startCall(type:'audio'|'video'){if(!active)return;const{capabilities,error}=await getCallCapabilities('roommate',active.id);if(error||!capabilities)return toast.error(error?.message||'Call is not available');if(type==='audio'&&!capabilities.allow_audio_calls)return toast.error('This person has disabled audio calls');if(type==='video'&&!capabilities.allow_video_calls)return toast.error('This person has disabled video calls');launchPrivateCall('roommate',active.id,type)}
+ async function openPeerProfile(){if(!active)return;const{data,error}=await supabase.rpc('get_allowed_conversation_profile',{p_context_type:'roommate',p_context_id:active.id});if(error)return toast.error('Profile could not be opened');setPeerProfile(data||null);setProfileOpen(true)}
  async function send(){if(!active||sending||(!input.trim()&&!files.length))return;setSending(true);const paths:string[]=[],types:string[]=[];try{for(const file of files){const up=await uploadRoommateChatAttachment(file,active.id);if(up.error||!up.path)throw new Error(up.error?.message||'Upload failed');paths.push(up.path);types.push(up.type||file.type)}const result=await sendMessage(active.id,input.trim(),paths,types);if(result.error||!result.message)throw new Error(result.error?.message||'Message failed');setInput('');setFiles([]);await loadMessages(active.id);void loadInbox(true)}catch(error:any){for(const path of paths)await deleteRoommateChatAttachment(path);toast.error(error?.message||'Message failed')}finally{setSending(false)}}
  async function saveEdit(id:string){const text=editText.trim();if(!text)return toast.error('Message cannot be empty');const{error}=await supabase.rpc('edit_my_roommate_message',{p_message_id:id,p_content:text});if(error)return toast.error(error.message);setEditing(null);setEditText('');await loadMessages(active.id);void loadInbox(true)}
  async function remove(){if(!active)return;const{hidden,error}=await hideRoommateConversation(active.id);if(error||!hidden)return toast.error(error?.message||'Could not remove chat');setActive(null);setMore(false);toast.success('Conversation removed from Messages');void loadInbox(true)}
@@ -53,7 +55,7 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 <header className="shrink-0 border-b border-white/[.055] bg-[#0D1016]/97 px-2 pb-2 pt-[max(.55rem,env(safe-area-inset-top))] backdrop-blur-xl">
 <div className="mx-auto flex max-w-3xl items-center gap-1">
 <button onClick={()=>setActive(null)} className="grid h-10 w-10 place-items-center rounded-full text-2xl text-[#A3A8B6]">‹</button>
-<button onClick={()=>setProfileOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left active:bg-white/[.04]">
+<button onClick={()=>void openPeerProfile()} className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left active:bg-white/[.04]">
 <Avatar person={person}/>
 <div className="min-w-0 flex-1">
 <p className="truncate text-[13px] font-semibold">{person?.name||'Roommate'}</p>
@@ -83,7 +85,7 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 <p className="text-xs font-semibold">{person?.name||'Roommate'}</p>
 <p className="mt-1 text-[8px] text-[#5F6677]">Matched on WeHouse</p>
 </div>
-<div className="space-y-0.5">{messages.map((msg:any,index:number)=>{const mine=msg.sender_id===profile.user_id,prev=messages[index-1],next=messages[index+1],start=!prev||prev.sender_id!==msg.sender_id,end=!next||next.sender_id!==msg.sender_id,canEdit=mine&&!msg.attachments?.length&&Boolean(msg.content)&&now-new Date(msg.created_at).getTime()<=editWindow*60000;return <Bubble key={msg.id} msg={msg} mine={mine} start={start} end={end} editing={editing===msg.id} editText={editText} canEdit={canEdit} startEdit={()=>{setEditing(msg.id);setEditText(msg.content||'')}} changeEdit={setEditText} cancelEdit={()=>{setEditing(null);setEditText('')}} saveEdit={()=>void saveEdit(String(msg.id))}/>})}<div ref={bottomRef}/>
+<div className="space-y-0.5">{messages.map((msg:any,index:number)=>{const mine=msg.sender_id===profile.user_id,prev=messages[index-1],next=messages[index+1],start=!prev||prev.sender_id!==msg.sender_id,end=!next||next.sender_id!==msg.sender_id,canEdit=mine&&!msg.attachments?.length&&Boolean(msg.content)&&now-new Date(msg.created_at).getTime()<=editWindow*60000,showDay=!prev||new Date(prev.created_at).toDateString()!==new Date(msg.created_at).toDateString();return <div key={msg.id}>{showDay&&<DaySeparator value={msg.created_at}/>}<Bubble msg={msg} mine={mine} start={start} end={end} editing={editing===msg.id} editText={editText} canEdit={canEdit} startEdit={()=>{setEditing(msg.id);setEditText(msg.content||'')}} changeEdit={setEditText} cancelEdit={()=>{setEditing(null);setEditText('')}} saveEdit={()=>void saveEdit(String(msg.id))}/></div>})}<div ref={bottomRef}/>
 </div>
 </div>
 </main>
@@ -109,15 +111,22 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 </div>
 </footer>
 {profileOpen&&<div className="fixed inset-0 z-[80] flex items-end bg-black/70 backdrop-blur-sm sm:items-center sm:justify-center" onClick={()=>setProfileOpen(false)}>
-<section onClick={e=>e.stopPropagation()} className="w-full rounded-t-[30px] border border-white/[.08] bg-[#11151D] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl sm:max-w-sm sm:rounded-[30px]">
+<section onClick={e=>e.stopPropagation()} className="max-h-[88dvh] w-full overflow-y-auto rounded-t-[30px] bg-[#11151D] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl sm:max-w-sm sm:rounded-[30px]">
 <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-white/15"/>
-<Avatar person={person} large/>
-<h2 className="mt-3 text-center text-lg font-bold">{person?.name||'Roommate'}</h2>
+<div className="mx-auto h-20 w-20 overflow-hidden rounded-full bg-violet-500/15">{peerProfile?.avatar_url?<img src={peerProfile.avatar_url} alt="" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-xl font-bold text-violet-300">{(peerProfile?.full_name||person?.name||'R')[0]}</div>}</div>
+<h2 className="mt-3 text-center text-lg font-bold">{peerProfile?.full_name||person?.name||'Roommate'}</h2>
+{peerProfile?.username&&<p className="mt-1 text-center text-[9px] text-[#777E8E]">@{peerProfile.username}</p>}
 <p className={`mt-1 text-center text-[10px] ${presence?.online?'text-emerald-300':'text-[#737A8A]'}`}>{presenceText||'Roommate connection'}</p>
-<div className="mt-5 rounded-2xl border border-white/[.06] bg-black/15 p-4">
-<p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[#737A8B]">WeHouse connection</p>
-<p className="mt-2 text-xs leading-relaxed text-[#C5C9D2]">You matched through Roommate. Only profile information allowed for this match is shown here.</p>
-</div>
+{peerProfile?.bio&&<p className="mx-auto mt-4 max-w-xs text-center text-[11px] leading-5 text-[#B5BAC6]">{peerProfile.bio}</p>}
+<div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]">{[
+ ['School',peerProfile?.school],
+ ['Location',[peerProfile?.lga,peerProfile?.state].filter(Boolean).join(', ')],
+ ['Age',peerProfile?.roommate?.age],
+ ['Budget',peerProfile?.roommate?.budget_min||peerProfile?.roommate?.budget_max?`₦${Number(peerProfile?.roommate?.budget_min||0).toLocaleString()} – ₦${Number(peerProfile?.roommate?.budget_max||0).toLocaleString()}`:null],
+ ['Preferred area',peerProfile?.roommate?.area],
+ ['Personality',peerProfile?.roommate?.personality_type],
+ ['Stay',peerProfile?.roommate?.stay_duration],
+].filter(([,value])=>value!==null&&value!==undefined&&value!=='').map(([label,value])=><div key={String(label)} className="flex items-center justify-between gap-5 py-3.5"><span className="text-[9px] text-[#6F7686]">{label}</span><span className="text-right text-[11px] font-semibold text-[#E1E4EA]">{value}</span></div>)}</div>
 <div className="mt-4 grid grid-cols-2 gap-2">
 <button onClick={()=>{setProfileOpen(false);void startCall('audio')}} className="h-11 rounded-xl border border-white/[.07] bg-white/[.035] text-xs font-semibold">Audio call</button>
 <button onClick={()=>{setProfileOpen(false);void startCall('video')}} className="h-11 rounded-xl bg-violet-500 text-xs font-semibold">Video call</button>
@@ -169,7 +178,7 @@ function Bubble({msg,mine,start,end,editing,editText,canEdit,startEdit,changeEdi
 </a>)}</div>}{msg.content&&<div className={`px-3 py-2 text-[12px] leading-[1.42] ${radius} ${mine?'bg-violet-500':'bg-[#191D25]'}`}>
 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
 <div className={`mt-1 flex justify-end gap-1 text-[7px] ${mine?'text-violet-100/65':'text-[#676E7F]'}`}>
-<span>{time(msg.created_at)}</span>{msg.edited_at&&<span>· edited</span>}{mine&&<span>✓✓</span>}</div>
+<span>{time(msg.created_at)}</span>{msg.edited_at&&<span>· edited</span>}{mine&&<span className={msg.is_read?'font-bold text-cyan-200':'text-violet-100/55'}>{msg.is_read?'✓✓':'✓'}</span>}</div>
 </div>}{canEdit&&<button onClick={startEdit} className="ml-auto mt-1 hidden px-1 text-[7px] text-[#626979] group-hover:block">Edit</button>}</div>
 </div>}
 function RoommateRow({row,person,count,open}:any){return <button onClick={open} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-white/[.035]">
@@ -196,6 +205,7 @@ function WorkerRow({row,open}:any){return <button onClick={open} className="flex
 </button>}
 function Avatar({person,large=false}:{person?:Person;large?:boolean}){const initials=(person?.name||'R').split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();return <div className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-[#202531] font-bold text-[#D9DCE4] ${large?'h-16 w-16 text-base':'h-11 w-11 text-xs'}`}>{person?.avatar?<img src={person.avatar} alt="" className="h-full w-full object-cover"/>:initials}</div>}
 function Divider(){return <div className="ml-[4.25rem] h-px bg-white/[.05]"/>}
+function DaySeparator({value}:{value:string}){const date=new Date(value),today=new Date(),yesterday=new Date();yesterday.setDate(today.getDate()-1);const label=date.toDateString()===today.toDateString()?'Today':date.toDateString()===yesterday.toDateString()?'Yesterday':date.toLocaleDateString([],{day:'numeric',month:'short',year:date.getFullYear()===today.getFullYear()?undefined:'numeric'});return <div className="flex items-center gap-3 py-4"><span className="h-px flex-1 bg-white/[.05]"/><span className="text-[8px] font-semibold text-[#697080]">{label}</span><span className="h-px flex-1 bg-white/[.05]"/></div>}
 function Round({label,onClick,children}:any){return <button onClick={onClick} aria-label={label} className="grid h-9 w-9 place-items-center rounded-full text-[#9FA5B4]">{children}</button>}
 function Loading(){return <div className="grid min-h-48 place-items-center">
 <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/>
