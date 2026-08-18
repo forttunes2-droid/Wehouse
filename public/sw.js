@@ -1,6 +1,6 @@
 // WeHouse update controller. Keep this worker installed so an old cached app
 // cannot continue controlling normal Chrome sessions after a deployment.
-// Version: 20260817-production-refresh-2
+// Version: 20260818-creator-canonical-1
 self.addEventListener('install', function(e) {
   self.skipWaiting();
 });
