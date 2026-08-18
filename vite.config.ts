@@ -20,10 +20,6 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/LoginRecoveryEntry.tsx'),
       },
       {
-        find: /^@\/pages\/CreatorDashboard$/,
-        replacement: path.resolve(__dirname, './src/pages/CreatorDashboardUnified.tsx'),
-      },
-      {
         find: /^@\/pages\/AdminDashboard$/,
         replacement: path.resolve(__dirname, './src/pages/AdminDashboardUnified.tsx'),
       },
