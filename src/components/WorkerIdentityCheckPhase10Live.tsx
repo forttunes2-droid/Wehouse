@@ -35,9 +35,9 @@ const LABEL: Record<Step, string> = {
   side_two: 'Now turn to the other side',
   center_end: 'Look straight again',
 };
-const CENTER = 0.2;
+const CENTER = 0.3;
 const PITCH = 0.28;
-const TURN = 0.27;
+const TURN = 0.18;
 const POSE_MATCH = 0.45;
 const FINAL_MATCH = 0.55;
 const ANCHOR_MIN = 0.5;
@@ -264,7 +264,9 @@ export default function WorkerIdentityCheckPhase10Live({ profile, status, reject
     const current = currentEmbeddingRef.current;
     if (!video || !engine || !current) throw new Error('Face reference is not ready');
 
-    const result = await engine.detect(video);
+    const canvas = currentCanvas();
+    if (!canvas) throw new Error('Camera frame is not ready');
+    const result = await engine.detect(canvas);
     const face = result.face?.[0];
     if (result.face?.length !== 1) throw new Error('Keep only your face in the frame');
     if (!face?.embedding?.length || !face.rotation) throw new Error('Keep your full face visible');
@@ -335,7 +337,7 @@ export default function WorkerIdentityCheckPhase10Live({ profile, status, reject
       stable += 1;
       all.push(value);
       if (currentStep === 'center_start' || currentStep === 'center_end') security.push(value);
-      if (stable >= 2) {
+      if (stable >= 1) {
         if (currentStep === 'side_one') sideSign = Math.sign(value.yaw) || 1;
         current += 1;
         stable = 0;
@@ -346,7 +348,7 @@ export default function WorkerIdentityCheckPhase10Live({ profile, status, reject
     }
 
     if (cancelled.current) return;
-    if (all.length < 6 || security.length < 4) throw new Error('We could not collect enough clear face frames. Try again.');
+    if (all.length < 4 || security.length < 2) throw new Error('We could not collect enough clear face frames. Try again.');
 
     const identityScores = all.map((value) => existing ? Math.max(value.anchorSimilarity, value.recentSimilarity) : value.similarity);
     const match = median(identityScores);
