@@ -108,7 +108,3 @@ export async function checkSearchExpiry(_userId?: string): Promise<{ expired: bo
   const { prefs } = await getRoommatePreferences();
   return { expired: prefs?.search_status === 'expired', prefs };
 }
-
-// Compatibility aliases retained only for callers while the UI is consolidated.
-export async function findMatches(_userId?: string) { return refreshRoommateSearch(); }
-export async function clearMatchResults(_userId?: string) { return { error: null }; }
