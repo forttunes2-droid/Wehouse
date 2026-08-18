@@ -9,9 +9,9 @@ interface ExploreProps {
 }
 
 const choices = [
-  { route: 'search', eyebrow: 'LONG STAY', title: 'Homes', text: 'Browse available homes by location, price, type and distance.', accent: 'from-violet-500/20 via-violet-500/[.06] to-transparent', icon: <HomeIcon /> },
+  { route: 'search', eyebrow: 'LONG LET', title: 'Homes', text: 'Browse available homes by location, price, type and distance.', accent: 'from-violet-500/20 via-violet-500/[.06] to-transparent', icon: <HomeIcon /> },
   { route: 'roommate', eyebrow: 'MATCH', title: 'Roommates', text: 'Find compatible people using your roommate preferences and matching rules.', accent: 'from-indigo-500/20 via-indigo-500/[.06] to-transparent', icon: <PeopleIcon /> },
-  { route: 'hotels', eyebrow: 'SHORT STAY', title: 'Hotels', text: 'Find rooms and short stays with the same WeHouse discovery experience.', accent: 'from-fuchsia-500/18 via-fuchsia-500/[.05] to-transparent', icon: <HotelIcon /> },
+  { route: 'hotels', eyebrow: 'SHORT LET', title: 'Hotels', text: 'Find rooms and short lets with the same WeHouse discovery experience.', accent: 'from-fuchsia-500/18 via-fuchsia-500/[.05] to-transparent', icon: <HotelIcon /> },
   { route: 'worker_discovery', eyebrow: 'LOCAL SERVICES', title: 'Professionals', text: 'See reviewed local professionals, current Work Status and Portfolio work.', accent: 'from-emerald-500/18 via-emerald-500/[.05] to-transparent', icon: <ToolsIcon /> },
 ];
 
@@ -19,28 +19,28 @@ export default function Explore({ onNavigate }: ExploreProps) {
   return (
     <DiscoveryShell
       title="What are you looking for?"
-      description="Homes, roommates, short stays and trusted local services — one Explore experience."
+      description="Homes, roommates, short lets and trusted local services — one Explore experience."
       onNavigate={onNavigate}
     >
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="divide-y divide-white/[.065] border-y border-white/[.065] sm:grid sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
           {choices.map((item) => (
             <button
               key={item.route}
               type="button"
               onClick={() => onNavigate(item.route)}
-              className={`group relative min-h-48 overflow-hidden rounded-3xl border border-white/[.07] bg-gradient-to-br ${item.accent} p-5 text-left transition hover:-translate-y-0.5 hover:border-violet-500/20 hover:bg-white/[.02]`}
+              className="group flex min-h-24 items-center gap-4 px-1 py-4 text-left sm:block sm:min-h-44 sm:border-r sm:border-white/[.055] sm:p-4"
             >
-              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.07] bg-black/15 text-violet-200">{item.icon}</div>
-              <p className="mt-5 text-[8px] font-bold uppercase tracking-[.17em] text-[#72798A]">{item.eyebrow}</p>
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-200">{item.icon}</div><div className="min-w-0 flex-1">
+              <p className="sm:mt-4 text-[8px] font-bold uppercase tracking-[.17em] text-[#72798A]">{item.eyebrow}</p>
               <h2 className="mt-1 text-xl font-bold">{item.title}</h2>
               <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-[#737A8A]">{item.text}</p>
-              <span className="absolute bottom-5 right-5 grid h-9 w-9 place-items-center rounded-full bg-white/[.05] text-violet-300 transition group-hover:bg-violet-500 group-hover:text-white">→</span>
+              </div><span className="text-xl text-violet-300">›</span>
             </button>
           ))}
         </section>
 
-        <section className="mt-6 rounded-3xl border border-white/[.06] bg-[#10141C] p-5 sm:p-6">
+        <section className="mt-6 border-y border-white/[.06] py-5 sm:py-6">
           <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[.17em] text-violet-400">ONE DISCOVERY SYSTEM</p>
