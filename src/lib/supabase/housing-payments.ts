@@ -15,7 +15,13 @@ async function initializePaymentReference(reference: string) {
   const { data, error } = await supabase.functions.invoke('payment-init', {
     body: { reference },
   });
-  return { result: data as PaymentInitResult | null, error };
+  if (!error) return { result: data as PaymentInitResult | null, error: null };
+  let message = error.message || 'Payment checkout could not start';
+  try {
+    const body = await (error as any).context?.json?.();
+    if (body?.error) message = String(body.error);
+  } catch { /* The network response may not contain JSON. */ }
+  return { result: { success: false, error: message } as PaymentInitResult, error: null };
 }
 
 export async function initializeApartmentRentPayment(reservationId: string) {
