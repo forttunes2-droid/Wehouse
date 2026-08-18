@@ -22,8 +22,8 @@ const MAX_FILES=6,MAX_FILE_SIZE=25*1024*1024;
 
 export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conversationId}:Props){
  const[roommates,setRoommates]=useState<any[]>([]),[workers,setWorkers]=useState<WorkerConversation[]>([]),[people,setPeople]=useState<Record<string,Person>>({}),[loading,setLoading]=useState(true),[active,setActive]=useState<any|null>(null),[worker,setWorker]=useState<{conversationId:string;bookingId:string}|null>(null),[official,setOfficial]=useState(false),[assistant,setAssistant]=useState(false),[messages,setMessages]=useState<any[]>([]),[input,setInput]=useState(''),[files,setFiles]=useState<File[]>([]),[sending,setSending]=useState(false),[recording,setRecording]=useState(false),[recordSeconds,setRecordSeconds]=useState(0),[more,setMore]=useState(false),[profileOpen,setProfileOpen]=useState(false),[editing,setEditing]=useState<string|null>(null),[editText,setEditText]=useState(''),[editWindow,setEditWindow]=useState(10),[now,setNow]=useState(Date.now());
- const[peerProfile,setPeerProfile]=useState<any>(null);
- const fileRef=useRef<HTMLInputElement>(null),inputRef=useRef<HTMLTextAreaElement>(null),bottomRef=useRef<HTMLDivElement>(null),recorderRef=useRef<MediaRecorder|null>(null),chunksRef=useRef<Blob[]>([]),recordStartedRef=useRef(0);
+ const[peerProfile,setPeerProfile]=useState<any>(null),[messageMenu,setMessageMenu]=useState<any|null>(null),[inboxMenu,setInboxMenu]=useState<InboxItem|null>(null);
+ const fileRef=useRef<HTMLInputElement>(null),inputRef=useRef<HTMLTextAreaElement>(null),bottomRef=useRef<HTMLDivElement>(null),recorderRef=useRef<MediaRecorder|null>(null),chunksRef=useRef<Blob[]>([]),recordStartedRef=useRef(0),holdRef=useRef<number|null>(null);
  const otherId=useCallback((row:any)=>row.participant_a===profile.user_id?row.participant_b:row.participant_a,[profile.user_id]);
  const unread=useCallback((row:any)=>Number(row.participant_a===profile.user_id?row.unread_a:row.unread_b)||0,[profile.user_id]);
  const peerId=active?otherId(active):null,presence=useChatPresence(peerId),presenceText=chatPresenceLabel(presence);
@@ -46,6 +46,10 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
  async function send(){if(!active||sending||(!input.trim()&&!files.length))return;setSending(true);const paths:string[]=[],types:string[]=[];try{for(const file of files){const up=await uploadRoommateChatAttachment(file,active.id);if(up.error||!up.path)throw new Error(up.error?.message||'Upload failed');paths.push(up.path);types.push(up.type||file.type)}const result=await sendMessage(active.id,input.trim(),paths,types);if(result.error||!result.message)throw new Error(result.error?.message||'Message failed');setInput('');setFiles([]);await loadMessages(active.id);void loadInbox(true)}catch(error:any){for(const path of paths)await deleteRoommateChatAttachment(path);toast.error(error?.message||'Message failed')}finally{setSending(false)}}
  async function saveEdit(id:string){const text=editText.trim();if(!text)return toast.error('Message cannot be empty');const{error}=await supabase.rpc('edit_my_roommate_message',{p_message_id:id,p_content:text});if(error)return toast.error(error.message);setEditing(null);setEditText('');await loadMessages(active.id);void loadInbox(true)}
  async function remove(){if(!active)return;const{hidden,error}=await hideRoommateConversation(active.id);if(error||!hidden)return toast.error(error?.message||'Could not remove chat');setActive(null);setMore(false);toast.success('Conversation removed from Messages');void loadInbox(true)}
+ async function deleteMessageForMe(id:string){const{error}=await supabase.rpc('delete_conversation_message_for_me',{p_kind:'roommate',p_message_id:id});if(error)return toast.error(error.message||'Message could not be removed');setMessageMenu(null);await loadMessages(active.id)}
+ function startHold(item:InboxItem){if(holdRef.current)window.clearTimeout(holdRef.current);holdRef.current=window.setTimeout(()=>{setInboxMenu(item);holdRef.current=null},480)}
+ function stopHold(){if(holdRef.current){window.clearTimeout(holdRef.current);holdRef.current=null}}
+ async function removeInboxItem(){if(!inboxMenu)return;const result=inboxMenu.kind==='roommate'?await hideRoommateConversation(inboxMenu.row.id):await supabase.rpc('hide_my_booking_conversation',{p_conversation_id:inboxMenu.row.conversation_id});if(result.error)return toast.error(result.error.message||'Conversation could not be removed');setInboxMenu(null);toast.success('Conversation removed from Messages');void loadInbox(true)}
  const items=useMemo<InboxItem[]>(()=>[...roommates.map(row=>({kind:'roommate' as const,id:`r:${row.id}`,time:row.last_message_at||row.created_at,row})),...workers.map(row=>({kind:'worker' as const,id:`w:${row.conversation_id}`,time:row.last_message_time||row.updated_at,row}))].sort((a,b)=>new Date(b.time||0).getTime()-new Date(a.time||0).getTime()),[roommates,workers]);
  const totalUnread=roommates.reduce((sum,row)=>sum+unread(row),0)+workers.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
  if(assistant)return <WeHouseAssistantScreen profile={profile} onBack={()=>setAssistant(false)}/>;
@@ -85,7 +89,7 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 <p className="text-xs font-semibold">{person?.name||'Roommate'}</p>
 <p className="mt-1 text-[8px] text-[#5F6677]">Matched on WeHouse</p>
 </div>
-<div className="space-y-0.5">{messages.map((msg:any,index:number)=>{const mine=msg.sender_id===profile.user_id,prev=messages[index-1],next=messages[index+1],start=!prev||prev.sender_id!==msg.sender_id,end=!next||next.sender_id!==msg.sender_id,canEdit=mine&&!msg.attachments?.length&&Boolean(msg.content)&&now-new Date(msg.created_at).getTime()<=editWindow*60000,showDay=!prev||new Date(prev.created_at).toDateString()!==new Date(msg.created_at).toDateString();return <div key={msg.id}>{showDay&&<DaySeparator value={msg.created_at}/>}<Bubble msg={msg} mine={mine} start={start} end={end} editing={editing===msg.id} editText={editText} canEdit={canEdit} startEdit={()=>{setEditing(msg.id);setEditText(msg.content||'')}} changeEdit={setEditText} cancelEdit={()=>{setEditing(null);setEditText('')}} saveEdit={()=>void saveEdit(String(msg.id))}/></div>})}<div ref={bottomRef}/>
+<div className="space-y-0.5">{messages.map((msg:any,index:number)=>{const mine=msg.sender_id===profile.user_id,prev=messages[index-1],next=messages[index+1],start=!prev||prev.sender_id!==msg.sender_id,end=!next||next.sender_id!==msg.sender_id,canEdit=mine&&!msg.attachments?.length&&Boolean(msg.content)&&now-new Date(msg.created_at).getTime()<=editWindow*60000,showDay=!prev||new Date(prev.created_at).toDateString()!==new Date(msg.created_at).toDateString();return <div key={msg.id}>{showDay&&<DaySeparator value={msg.created_at}/>}<Bubble msg={msg} mine={mine} start={start} end={end} editing={editing===msg.id} editText={editText} canEdit={canEdit} openActions={()=>setMessageMenu({...msg,canEdit,mine})} startEdit={()=>{setEditing(msg.id);setEditText(msg.content||'')}} changeEdit={setEditText} cancelEdit={()=>{setEditing(null);setEditText('')}} saveEdit={()=>void saveEdit(String(msg.id))}/></div>})}<div ref={bottomRef}/>
 </div>
 </div>
 </main>
@@ -134,6 +138,7 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 <button onClick={()=>setProfileOpen(false)} className="mt-2 h-11 w-full rounded-xl text-xs text-[#8B92A2]">Close</button>
 </section>
 </div>}
+{messageMenu&&<div className="fixed inset-0 z-[90] flex items-end bg-black/55 backdrop-blur-sm" onClick={()=>setMessageMenu(null)}><section className="w-full rounded-t-[26px] bg-[#12161E] px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3" onClick={e=>e.stopPropagation()}><div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15"/><p className="mb-2 truncate px-2 text-[10px] text-[#747B8C]">{messageMenu.content||'Attachment'}</p>{messageMenu.canEdit&&<button onClick={()=>{setEditing(messageMenu.id);setEditText(messageMenu.content||'');setMessageMenu(null)}} className="flex min-h-12 w-full items-center px-3 text-left text-xs font-semibold">Edit message</button>}<button onClick={()=>void deleteMessageForMe(String(messageMenu.id))} className="flex min-h-12 w-full items-center px-3 text-left text-xs font-semibold text-red-300">Delete for me</button><button onClick={()=>setMessageMenu(null)} className="min-h-12 w-full text-xs text-[#818899]">Cancel</button></section></div>}
 </div>}
  return <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
 <header className="sticky top-0 z-20 border-b border-white/[.05] bg-[#090B10]/96 px-4 pb-3 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl">
@@ -144,11 +149,9 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 </div>{totalUnread>0&&<span className="grid h-7 min-w-7 place-items-center rounded-full bg-violet-500 px-2 text-[9px] font-bold">{totalUnread>99?'99+':totalUnread}</span>}</div>
 </header>
 <main className="mx-auto max-w-3xl px-2 py-3 sm:px-4">
-<section className="overflow-hidden rounded-2xl border border-white/[.055] bg-[#10131A]">
+<section className="divide-y divide-white/[.055] border-y border-white/[.055]">
 <AssistantEntryCard onOpen={()=>setAssistant(true)}/>
-<Divider/>
 <OfficialEntryCard profile={profile} compact onOpen={()=>setOfficial(true)}/>
-<Divider/>
 <SupportEntryCard profile={profile} compact />
 </section>
 <p className="px-2 pb-2 pt-5 text-[9px] font-bold uppercase tracking-[.12em] text-[#62697A]">Chats</p>{loading?<Loading/>:items.length===0?<div className="px-6 py-16 text-center">
@@ -157,12 +160,11 @@ export default function ChatPhase10Modern({profile,onNavigate:_onNavigate,conver
 </div>
 <p className="mt-4 text-sm font-semibold">No chats yet</p>
 <p className="mt-1 text-[9px] text-[#606777]">Roommate and Worker conversations will appear here.</p>
-</div>:<section className="overflow-hidden rounded-2xl border border-white/[.055] bg-[#10131A]">{items.map((item,index)=>
-<div key={item.id}>{index>0&&<Divider/>}{item.kind==='roommate'?<RoommateRow row={item.row} person={people[otherId(item.row)]} count={unread(item.row)} open={()=>void openRoommate(item.row)}/>:<WorkerRow row={item.row} open={()=>setWorker({conversationId:item.row.conversation_id,bookingId:item.row.booking_id})}/>}</div>)}</section>}</main>
+</div>:<section className="divide-y divide-white/[.055] border-y border-white/[.055]">{items.map(item=><div key={item.id} onPointerDown={()=>startHold(item)} onPointerUp={stopHold} onPointerCancel={stopHold} onPointerLeave={stopHold} onContextMenu={e=>{e.preventDefault();setInboxMenu(item)}}>{item.kind==='roommate'?<RoommateRow row={item.row} person={people[otherId(item.row)]} count={unread(item.row)} open={()=>void openRoommate(item.row)}/>:<WorkerRow row={item.row} open={()=>setWorker({conversationId:item.row.conversation_id,bookingId:item.row.booking_id})}/>}</div>)}</section>}{inboxMenu&&<div className="fixed inset-0 z-[80] flex items-end bg-black/55 backdrop-blur-sm" onClick={()=>setInboxMenu(null)}><section className="w-full rounded-t-[26px] bg-[#12161E] px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3" onClick={e=>e.stopPropagation()}><div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15"/><p className="px-3 pb-2 text-sm font-semibold">{inboxMenu.kind==='roommate'?(people[otherId(inboxMenu.row)]?.name||'Roommate'):(inboxMenu.row.other_person_name||'Worker')}</p><button onClick={()=>void removeInboxItem()} className="flex min-h-12 w-full items-center px-3 text-left text-xs font-semibold text-red-300">Delete conversation from my Messages</button><button onClick={()=>setInboxMenu(null)} className="min-h-12 w-full text-xs text-[#818899]">Cancel</button></section></div>}</main>
 </div>
 }
 
-function Bubble({msg,mine,start,end,editing,editText,canEdit,startEdit,changeEdit,cancelEdit,saveEdit}:any){const attachments=msg.attachments||[],types=msg.attachment_types||[];if(editing)return <div className="my-2 flex justify-end">
+function Bubble({msg,mine,start,end,editing,editText,canEdit,openActions,startEdit,changeEdit,cancelEdit,saveEdit}:any){const attachments=msg.attachments||[],types=msg.attachment_types||[];if(editing)return <div className="my-2 flex justify-end">
 <div className="w-[84%] max-w-md rounded-2xl bg-[#171B23] p-2">
 <textarea autoFocus value={editText} onChange={e=>changeEdit(e.target.value)} className="min-h-14 w-full resize-none bg-transparent p-2 text-xs outline-none"/>
 <div className="flex justify-end gap-2">
@@ -170,7 +172,7 @@ function Bubble({msg,mine,start,end,editing,editText,canEdit,startEdit,changeEdi
 <button onClick={saveEdit} className="rounded-lg bg-violet-500 px-3 py-2 text-[9px] font-semibold">Save</button>
 </div>
 </div>
-</div>;const radius=mine?`${start?'rounded-t-[18px]':'rounded-tl-[18px]'} ${end?'rounded-b-[18px] rounded-br-[5px]':'rounded-b-[18px]'}`:`${start?'rounded-t-[18px]':'rounded-tr-[18px]'} ${end?'rounded-b-[18px] rounded-bl-[5px]':'rounded-b-[18px]'}`;return <div className={`group flex ${mine?'justify-end':'justify-start'} ${start?'mt-2':'mt-[2px]'}`}>
+</div>;const radius=mine?`${start?'rounded-t-[18px]':'rounded-tl-[18px]'} ${end?'rounded-b-[18px] rounded-br-[5px]':'rounded-b-[18px]'}`:`${start?'rounded-t-[18px]':'rounded-tr-[18px]'} ${end?'rounded-b-[18px] rounded-bl-[5px]':'rounded-b-[18px]'}`;return <div onContextMenu={e=>{e.preventDefault();openActions()}} onDoubleClick={openActions} className={`group flex ${mine?'justify-end':'justify-start'} ${start?'mt-2':'mt-[2px]'}`}>
 <div className="max-w-[82%] sm:max-w-[72%]">{attachments.length>0&&<div className={`mb-0.5 overflow-hidden rounded-[18px] ${attachments.length>1?'grid grid-cols-2 gap-0.5':''}`}>{attachments.map((url:string,i:number)=>types[i]?.startsWith('audio/')?<div key={url} className={`min-w-56 p-2 ${mine?'bg-violet-500':'bg-[#191D25]'}`}>
 <VoicePlayer url={url}/>
 </div>:<a key={url} href={url} target="_blank" rel="noreferrer">
@@ -179,7 +181,7 @@ function Bubble({msg,mine,start,end,editing,editText,canEdit,startEdit,changeEdi
 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
 <div className={`mt-1 flex justify-end gap-1 text-[7px] ${mine?'text-violet-100/65':'text-[#676E7F]'}`}>
 <span>{time(msg.created_at)}</span>{msg.edited_at&&<span>· edited</span>}{mine&&<span className={msg.is_read?'font-bold text-cyan-200':'text-violet-100/55'}>{msg.is_read?'✓✓':'✓'}</span>}</div>
-</div>}{canEdit&&<button onClick={startEdit} className="ml-auto mt-1 hidden px-1 text-[7px] text-[#626979] group-hover:block">Edit</button>}</div>
+</div>}<button onClick={openActions} className="ml-auto mt-1 px-1 text-[7px] text-[#626979] opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">•••</button></div>
 </div>}
 function RoommateRow({row,person,count,open}:any){return <button onClick={open} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-white/[.035]">
 <Avatar person={person}/>

@@ -109,9 +109,9 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   return <div className="min-w-0 space-y-4">
     <ConfirmDialog {...dialogProps}/><Toaster position="top-center" richColors theme="dark"/>
     {branchScope&&<div className="rounded-2xl border border-indigo-500/15 bg-indigo-500/[.05] p-3 text-[10px] leading-relaxed text-indigo-300">Delivery is restricted by the server to {scope.lga}, {scope.state}.</div>}
-    <div className="grid grid-cols-2 rounded-2xl border border-white/[.06] bg-[#0D1017] p-1 sm:w-fit">
-      <button onClick={()=>setView('compose')} className={`min-h-10 rounded-xl px-5 text-xs font-semibold ${view==='compose'?'bg-blue-500 text-white':'text-[#777B8D]'}`}>Compose</button>
-      <button onClick={()=>setView('history')} className={`min-h-10 rounded-xl px-5 text-xs font-semibold ${view==='history'?'bg-blue-500 text-white':'text-[#777B8D]'}`}>Sent · {history.length}</button>
+    <div className="flex gap-6 border-b border-white/[.06]">
+      <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-blue-400 text-white':'border-transparent text-[#777B8D]'}`}>Compose</button>
+      <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-blue-400 text-white':'border-transparent text-[#777B8D]'}`}>Sent · {history.length}</button>
     </div>
 
     {view==='compose'&&canSend&&<section className="overflow-hidden">
@@ -120,8 +120,8 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
         <p className="mt-1 text-[10px] leading-relaxed text-[#6C7080]">Recipients receive this inside the same WeHouse Official channel used throughout the app.</p>
       </div>
       <div className="space-y-4 py-4">
-        <label className="block"><span className="mb-1.5 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Title</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="What is this update about?" className="h-12 w-full rounded-2xl border border-white/[.08] bg-[#171A23] px-4 text-sm outline-none focus:border-blue-500/40"/></label>
-        <label className="block"><span className="mb-1.5 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Message</span><textarea value={message} onChange={e=>setMessage(e.target.value)} rows={6} placeholder="Write the announcement…" className="w-full resize-y rounded-2xl border border-white/[.08] bg-[#171A23] p-4 text-sm leading-6 outline-none focus:border-blue-500/40"/></label>
+        <label className="block border-b border-white/[.08] py-2"><span className="mb-1 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Title</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="What is this update about?" className="h-11 w-full bg-transparent text-base font-semibold outline-none"/></label>
+        <label className="block border-b border-white/[.08] py-2"><span className="mb-1 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Message</span><textarea value={message} onChange={e=>setMessage(e.target.value)} rows={7} placeholder="Write the announcement…" className="w-full resize-none bg-transparent py-2 text-sm leading-6 outline-none"/></label>
 
         <div>
           <p className="mb-2 text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Recipients</p>
