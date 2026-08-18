@@ -118,8 +118,7 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
 }
 
 function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation; setActive: (value: Operation) => void; onView: (profile: Profile) => void }) {
-  const current = OPS.find((item) => item.id === active)!;
-  return <div className="space-y-5"><div><h2 className="text-lg font-bold">Platform operations</h2><p className="mt-1 text-[10px] text-[#707687]">Operational records and decisions only. Policy belongs in Settings; trends belong in Analytics.</p></div><div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{OPS.map((item) => <Chip key={item.id} active={active === item.id} onClick={() => setActive(item.id)}>{item.label}</Chip>)}</div><div className="rounded-xl border border-violet-500/10 bg-violet-500/[.03] p-3"><p className="text-xs font-semibold">{current.label}</p><p className="mt-1 text-[9px] text-[#676E7F]">{current.note}</p></div>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings />}{active === 'reports' && <Reports />}</div>;
+  return <div className="space-y-6"><div><h2 className="text-lg font-bold">Platform operations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Choose an operational area. Each area shows its own records and actions without repeating dashboard summaries.</p></div><nav aria-label="Creator operation areas" className="grid grid-cols-3 border-y border-white/[.07] sm:grid-cols-6">{OPS.map((item) => <button key={item.id} onClick={() => setActive(item.id)} className={`relative min-h-12 px-1 text-[9px] font-semibold sm:text-[10px] ${active === item.id ? 'text-violet-300' : 'text-[#73798A]'}`}>{item.label}{active === item.id && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</nav>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings />}{active === 'reports' && <Reports />}</div>;
 }
 
 function People({ onView }: { onView: (profile: Profile) => void }) {
@@ -137,8 +136,29 @@ function Bookings() {
   const [view,setView]=useState<'worker'|'apartments'|'hotels'>('worker');
   const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(false);
   useEffect(()=>{if(view!=='worker')void load()},[view]);
-  async function load(){setLoading(true);let data:any[]=[];let error:any=null;if(view==='apartments'){const r=await supabase.from('reservations').select('*').order('created_at',{ascending:false}).limit(100);data=r.data||[];error=r.error}else if(view==='hotels'){const r=await supabase.from('hotel_bookings').select('*,hotels(name,city,state)').order('created_at',{ascending:false}).limit(100);data=r.data||[];error=r.error}if(error)toast.error(error.message);setRows(data);setLoading(false)}
-  return <div className="space-y-4"><div><h2 className="text-lg font-bold">Bookings</h2><p className="mt-1 text-[10px] text-[#707687]">One oversight area for Worker services, apartments and hotels. Each booking keeps its own status.</p></div><div className="flex gap-1 overflow-x-auto scrollbar-hide">{([['worker','Worker services'],['apartments','Apartments'],['hotels','Hotels']] as const).map(([id,label])=><Chip key={id} active={view===id} onClick={()=>setView(id)}>{label}</Chip>)}</div>{view==='worker'?<ServiceBookingOversight title="Worker service bookings" note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."/>:loading?<Loading/>:rows.length===0?<Empty text="No bookings in this view."/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id||row.booking_id}><Top title={view==='hotels'?(row.hotels?.name||'Hotel booking'):(row.reservation_code||row.listing_id||'Apartment reservation')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={row.total_price||row.amount}/></Card>)}</div>}</div>;
+  async function load(){
+    setLoading(true);let data:any[]=[];let error:any=null;
+    if(view==='apartments'){
+      const reservations=await supabase.from('reservations').select('*').order('created_at',{ascending:false}).limit(100);
+      data=reservations.data||[];error=reservations.error;
+      if(!error){
+        const ids=[...new Set(data.map((row:any)=>row.listing_id).filter(Boolean))];
+        if(ids.length){
+          const listings=await supabase.from('listings').select('id,title,address,city,state,images,sub_type').in('id',ids);
+          if(listings.error) error=listings.error;
+          else {
+            const byId=new Map((listings.data||[]).map((listing:any)=>[listing.id,listing]));
+            data=data.map((row:any)=>({...row,listing:byId.get(row.listing_id)||null}));
+          }
+        }
+      }
+    }else if(view==='hotels'){
+      const result=await supabase.from('hotel_bookings').select('*,hotels(name,city,state,images),hotel_rooms(room_type)').order('created_at',{ascending:false}).limit(100);
+      data=result.data||[];error=result.error;
+    }
+    if(error)toast.error(error.message);setRows(data);setLoading(false);
+  }
+  return <div className="space-y-4"><div><h2 className="text-lg font-bold">Bookings</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Worker services, apartment reservations and hotel stays. Open records by recognisable names—not database identifiers.</p></div><nav className="grid grid-cols-3 border-y border-white/[.07]" aria-label="Booking types">{([['worker','Worker services'],['apartments','Apartments'],['hotels','Hotels']] as const).map(([id,label])=><button key={id} onClick={()=>setView(id)} className={`relative min-h-12 px-1 text-[9px] font-semibold ${view===id?'text-violet-300':'text-[#73798A]'}`}>{label}{view===id&&<span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</nav>{view==='worker'?<ServiceBookingOversight title="Worker service bookings" note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."/>:loading?<Loading/>:rows.length===0?<Empty text="No bookings in this view."/>:<div className="divide-y divide-white/[.065] border-y border-white/[.065]">{rows.map((row)=>{const media=view==='hotels'?row.hotels?.images?.[0]:row.listing?.images?.[0];const title=view==='hotels'?(row.hotels?.name||'Hotel booking'):(row.listing?.title||'Apartment reservation');const location=view==='hotels'?[row.hotels?.city,row.hotels?.state]:[row.listing?.city,row.listing?.state];const code=row.reservation_code||row.booking_code||row.id||row.booking_id;return <div key={row.id||row.booking_id} className="flex min-h-20 items-center gap-3 py-3">{media?<img src={media} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover"/>:<div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xs font-bold text-violet-300">WH</div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{title}</p><p className="mt-1 truncate text-[9px] text-[#686F7F]">{location.filter(Boolean).join(', ')||'Location unavailable'} · {new Date(row.created_at).toLocaleString()}</p><p className="mt-1 truncate text-[8px] font-semibold tracking-wide text-violet-300">{code}</p></div><div className="shrink-0 text-right">{(row.total_price||row.amount||row.reservation_fee_amount)!=null&&<p className="mb-1 text-xs font-bold">₦{Number(row.total_price||row.amount||row.reservation_fee_amount||0).toLocaleString('en-NG')}</p>}<span className="rounded-full bg-white/[.05] px-2 py-1 text-[8px] capitalize text-[#A2A7B5]">{String(row.status||'recorded').replace(/_/g,' ')}</span></div></div>})}</div>}</div>;
 }
 
 function Reports() {
