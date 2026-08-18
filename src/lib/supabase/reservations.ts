@@ -50,8 +50,15 @@ export async function getReservationsForUser(_userId?: string) {
     .select('*')
     .eq('reservation_type', 'apartment')
     .order('created_at', { ascending: false });
-
-  return { reservations: data as any[] | null, error };
+  if (error || !data?.length) return { reservations: data as any[] | null, error };
+  const listingIds = Array.from(new Set(data.map((row: any) => row.listing_id).filter(Boolean)));
+  const { data: listings, error: listingError } = await supabase
+    .from('listings')
+    .select('id,images')
+    .in('id', listingIds);
+  if (listingError) return { reservations: data as any[], error: listingError };
+  const imageByListing = new Map((listings || []).map((row: any) => [row.id, row.images?.[0] || null]));
+  return { reservations: data.map((row: any) => ({ ...row, listing_image: imageByListing.get(row.listing_id) || null })) as any[], error: null };
 }
 
 export async function cancelReservation(reservationId: string) {
