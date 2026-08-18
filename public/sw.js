@@ -1,6 +1,6 @@
 // WeHouse update controller. Keep this worker installed so an old cached app
 // cannot continue controlling normal Chrome sessions after a deployment.
-// Version: 20260818-navigation-score-modern-2
+// Version: 20260818-housing-roommate-creator-4
 self.addEventListener('install', function(e) {
   self.skipWaiting();
 });
