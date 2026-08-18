@@ -8,7 +8,7 @@ type Props = {
 export default function WorkerVerificationChecklist({ identityPassed, paymentConfirmed, skillVideoSaved }: Props) {
   const items = [
     { label: 'Private face check', done: identityPassed },
-    { label: 'Verification fee', done: paymentConfirmed },
+    { label: 'Onboarding fee', done: paymentConfirmed },
     { label: 'Skill/work video', done: skillVideoSaved },
   ];
   const firstPending = items.findIndex((item) => !item.done);

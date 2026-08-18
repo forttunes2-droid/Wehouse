@@ -54,11 +54,11 @@ export async function getReservationsForUser(_userId?: string) {
   const listingIds = Array.from(new Set(data.map((row: any) => row.listing_id).filter(Boolean)));
   const { data: listings, error: listingError } = await supabase
     .from('listings')
-    .select('id,images')
+    .select('id,images,videos')
     .in('id', listingIds);
   if (listingError) return { reservations: data as any[], error: listingError };
-  const imageByListing = new Map((listings || []).map((row: any) => [row.id, row.images?.[0] || null]));
-  return { reservations: data.map((row: any) => ({ ...row, listing_image: imageByListing.get(row.listing_id) || null })) as any[], error: null };
+  const mediaByListing = new Map((listings || []).map((row: any) => [row.id, { images: row.images || [], videos: row.videos || [] }]));
+  return { reservations: data.map((row: any) => { const media = mediaByListing.get(row.listing_id) || { images: [], videos: [] }; return { ...row, listing_image: media.images[0] || null, listing_images: media.images, listing_videos: media.videos }; }) as any[], error: null };
 }
 
 export async function cancelReservation(reservationId: string) {
