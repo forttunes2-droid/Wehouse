@@ -311,3 +311,21 @@ label:has(> div > select[aria-label="Local Government"]) select {
     transform: translateY(-1px);
   }
 }
+/* Reservation journeys are image-led, not a stack of dashboard cards. */
+article:has(button[aria-label="Preview reservation property photos"]) {
+  border: 1px solid rgba(255,255,255,.075) !important;
+  border-radius: 28px;
+  background: linear-gradient(155deg, rgba(20,24,34,.98), rgba(12,14,20,.98));
+  padding: 16px !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,.24);
+  overflow: hidden;
+}
+article:has(button[aria-label="Preview reservation property photos"]) button[aria-label="Preview reservation property photos"] {
+  width: 104px;
+  height: 104px;
+  border-radius: 22px;
+  box-shadow: 0 14px 32px rgba(0,0,0,.3);
+}
+article:has(button[aria-label="Preview reservation property photos"]) button {
+  border-radius: 16px;
+}
