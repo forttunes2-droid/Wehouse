@@ -90,13 +90,12 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-300' : 'bg-cyan-500/10 text-cyan-300'}`}>{state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : '…'}</div>
       <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? 'Payment confirmed' : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>
       <p className="mt-2 text-sm leading-6 text-[#8C92A1]">{state.message}</p>
-      {reference && <p className="mt-4 break-all rounded-2xl border border-white/[.06] bg-black/15 px-3 py-2 text-[10px] text-[#6E7483]">Reference: {reference}</p>}
+      
       <div className="mt-6 space-y-2">
-        {state.kind === 'success' && <button type="button" onClick={() => onNavigate(destination)} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">Continue in WeHouse</button>}
+        {state.kind === 'success' && <button type="button" onClick={() => onNavigate(destination)} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">{destination==='my_reservations'?'View my reservation':'Continue'}</button>}
         {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-cyan-500 text-xs font-semibold text-[#041014]">Check payment again</button>}
         {state.kind !== 'checking' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-white/[.08] text-xs font-semibold text-[#A7ADBA]">Back to WeHouse</button>}
       </div>
     </section>
-    <p className="mt-4 text-center text-[10px] leading-5 text-[#5E6573]">WeHouse never activates a paid service from the browser redirect alone. The transaction is verified server-side before value is released.</p>
   </div></div>;
 }
