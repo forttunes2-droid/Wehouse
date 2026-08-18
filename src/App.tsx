@@ -84,11 +84,11 @@ export default function App(){
  const toggle=useCallback(async(id:string)=>{if(!profile)return;const removing=savedIds.has(id);const result=removing?await unsaveListing(profile.user_id,id):await saveListing(profile.user_id,id);if(result.error)return toast.error(removing?'Could not remove saved property':'Could not save property');setSavedIds(current=>{const next=new Set(current);if(removing)next.delete(id);else next.add(id);return next});toast.success(removing?'Removed from Saved':'Property saved')},[profile,savedIds]);
  const goTo=useCallback((p:NavPage,c?:string)=>{if(c)setWorkerCategory(c);handleSetNavPage(p)},[handleSetNavPage]);
  const goToDetail=useCallback((id:string)=>{setDetailId(id);handleSetNavPage('detail')},[handleSetNavPage]);
- const goBack=useCallback(()=>{setDetailId(null);if(window.history.length>1)window.history.back();else handleSetNavPage('home')},[handleSetNavPage]);
+ const goBack=useCallback(()=>{setDetailId(null);if(navHistoryRef.current.length>1)window.history.back();else handleSetNavPage('home')},[handleSetNavPage]);
  const goToChat=useCallback((id?:string)=>{if(!isUserRole){handleSetNavPage(roleRoot());return}setChatConvId(id||null);handleSetNavPage('chat')},[isUserRole,handleSetNavPage,roleRoot]);
  const goToProfileEdit=useCallback(()=>handleSetNavPage('profile_edit'),[handleSetNavPage]),goToPrivacy=useCallback(()=>handleSetNavPage('privacy'),[handleSetNavPage]),goToSecurity=useCallback(()=>handleSetNavPage('security'),[handleSetNavPage]);
  const accountBack=useCallback(()=>{const history=navHistoryRef.current,previous=history.length>1?history[history.length-2]:null;if(previous&&previous!=='profile'&&previous!=='account'){window.history.back();return}handleSetNavPage(roleRoot())},[handleSetNavPage,roleRoot]);
- const subpageBack=useCallback(()=>{if(window.history.length>1)window.history.back();else handleSetNavPage('profile')},[handleSetNavPage]);
+ const subpageBack=useCallback(()=>{if(navHistoryRef.current.length>1)window.history.back();else handleSetNavPage('profile')},[handleSetNavPage]);
 
  if(auth.isLoading)return <PageSkeleton/>;
  if(auth.page==='login')return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut}/>;
