@@ -28,7 +28,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave }: Ho
           <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE</p>
           <h1 className="mt-3 max-w-2xl text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">{firstName ? `Welcome, ${firstName}` : 'Welcome home'}</h1>
           <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#858B9C] sm:text-sm">Find a home, roommate, short stay or local professional from one place.</p>
-          <button onClick={() => onNavigate('explore')} className="mt-5 flex min-h-13 w-full max-w-2xl items-center gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.08] px-4 text-left text-sm text-[#C9CDD6] sm:px-5">
+          <button onClick={() => onNavigate('search')} className="mt-5 flex min-h-13 w-full max-w-2xl items-center gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.08] px-4 text-left text-sm text-[#C9CDD6] sm:px-5">
             <SearchIcon />
             <span className="min-w-0 flex-1">Search WeHouse</span>
             <span className="text-violet-300">→</span>
@@ -38,7 +38,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave }: Ho
 
       <main className="mx-auto max-w-7xl space-y-7 px-4 py-6 sm:px-6 lg:px-8">
         <section>
-          <div className="mb-3"><h2 className="text-lg font-bold sm:text-xl">Explore</h2><p className="mt-1 text-[10px] text-[#666D7E]">Choose what you’re looking for.</p></div>
+          <div className="mb-3"><h2 className="text-lg font-bold sm:text-xl">Find what you need</h2><p className="mt-1 text-[10px] text-[#666D7E]">Choose a WeHouse service.</p></div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <ExploreCard title="Homes" text="Find available places" icon={<HomeIcon />} onClick={() => onNavigate('search')} />
             <ExploreCard title="Roommates" text="Find compatible people" icon={<PeopleIcon />} onClick={() => onNavigate('roommate')} />
@@ -58,7 +58,7 @@ export default function Home({ profile, onNavigate, savedIds, onToggleSave }: Ho
             <div className="rounded-3xl border border-dashed border-white/[.08] bg-white/[.015] px-5 py-12 text-center">
               <p className="text-sm font-semibold">No homes available yet</p>
               <p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#666D7E]">New listings will appear here when they become available.</p>
-              <button onClick={() => onNavigate('explore')} className="mt-4 rounded-xl border border-white/[.08] px-4 py-2.5 text-[10px] font-semibold text-[#C0C4CE]">Explore other options</button>
+              <button onClick={() => onNavigate('roommate')} className="mt-4 rounded-xl border border-white/[.08] px-4 py-2.5 text-[10px] font-semibold text-[#C0C4CE]">Find a roommate</button>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{recent.map(listing => <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event => { event.stopPropagation(); onToggleSave(listing.id); }} />)}</div>
