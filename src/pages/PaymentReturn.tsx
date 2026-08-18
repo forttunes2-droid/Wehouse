@@ -72,6 +72,12 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
 
   const destination = state.kind === 'success' ? destinationForPurpose(state.purpose, profile.role) : destinationForPurpose(undefined, profile.role);
 
+  useEffect(() => {
+    if (state.kind !== 'success') return;
+    const timer = window.setTimeout(() => onNavigate(destination), 1400);
+    return () => window.clearTimeout(timer);
+  }, [state.kind, destination, onNavigate]);
+
   async function retry() {
     if (!reference) return;
     setState({ kind: 'checking', message: 'Checking Paystack again…' });
