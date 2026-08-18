@@ -31,7 +31,7 @@ export async function getMessages(conversationId:string){
   const messages=await Promise.all((data as any[]).map(async row=>{
     const attachments=await Promise.all(((row.attachments||[]) as string[]).map(signChatPath));
     const legacy=row.file_url?[await signChatPath(String(row.file_url))]:[];
-    return{...row,attachments:attachments.length?attachments:legacy,attachment_types:attachments.length?(row.attachment_types||[]):legacy.length?[row.file_type||'']:[]} as Message;
+    return{...row,is_read:Boolean(row.is_read??row.seen),attachments:attachments.length?attachments:legacy,attachment_types:attachments.length?(row.attachment_types||[]):legacy.length?[row.file_type||'']:[]} as Message;
   }));
   return{messages,error};
 }
