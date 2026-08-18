@@ -25,7 +25,7 @@ export { getAllListings,getListing,getCreatorListings,getAvailableChatAgents,det
 export { createReservation,initializeReservationPayment,getReservationForListing,getReservationsForUser,cancelReservation,markSupportContacted,updateReservationPlan,createInspectionRequest,getInspectionRequestForReservation,getInspectionRequestsForUser,getPendingInspectionRequests,getInspectionRequestsForFieldOfficer,assignFieldOfficer,startInspection,completeInspection,cancelInspectionRequest,processReservationRefund,calculateReservationRefund,completeInspectionResult,activateApartmentTenancy,completeApartmentTenancy,expireOverdueReservations } from './reservations';
 
 // Roommate
-export { saveRoommatePreferences,getRoommatePreferences,findMatches,startRoommateSearch,stopRoommateSearch,refreshRoommateSearch,getSavedMatchResults,updateMatchStatus,clearMatchResults,checkSearchExpiry } from './roommate';
+export { saveRoommatePreferences,getRoommatePreferences,startRoommateSearch,stopRoommateSearch,refreshRoommateSearch,getSavedMatchResults,updateMatchStatus,checkSearchExpiry } from './roommate';
 
 // Workers — public discovery/availability use dedicated scoped RPC wrappers.
 export { getWorkers,setWorkerAvailability } from './workers-public';
