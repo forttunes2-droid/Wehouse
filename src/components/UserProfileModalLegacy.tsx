@@ -44,10 +44,11 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   const [workerStats, setWorkerStats] = useState<WorkerStats | null>(null);
   const [partnerProperties, setPartnerProperties] = useState<PartnerProperty[]>([]);
   const [supportConvoId, setSupportConvoId] = useState<string | null>(null);
-  const [creatorRole,setCreatorRole]=useState<CreatorTeamRole>('staff');
-  const [teamState,setTeamState]=useState(user.state||'');
-  const [teamLga,setTeamLga]=useState((user as any).local_government||(user as any).city||'');
-  const [teamModule,setTeamModule]=useState<StaffModule>('operations');
+  const [assigningTeamRole,setAssigningTeamRole]=useState(false);
+  const [creatorRole,setCreatorRole]=useState<CreatorTeamRole|''>('');
+  const [teamState,setTeamState]=useState('');
+  const [teamLga,setTeamLga]=useState('');
+  const [teamModule,setTeamModule]=useState<StaffModule|''>('');
   const [adminModule,setAdminModule]=useState<StaffModule>('operations');
   const [teamSaving,setTeamSaving]=useState(false);
 
@@ -118,6 +119,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
 
   async function handleCreatorAssign(){
     if(!user)return;
+    if(!creatorRole)return toast.error('Choose Admin or Staff');
     if(!teamState||!teamLga)return toast.error('Choose the State and LGA for this team member');
     if(creatorRole==='staff'&&!teamModule)return toast.error('Choose the Staff operational module');
     setTeamSaving(true);
@@ -217,14 +219,14 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
             {canCreatorAssign && (
               <div className="glass rounded-2xl border border-violet-500/15 p-4">
                 <h4 className="text-xs font-semibold text-violet-300">Team assignment</h4>
-                <p className="mt-1 text-[10px] leading-relaxed text-[#686D7E]">Creator assigns operational roles to an existing WeHouse User account. Admin and Staff are never public registration choices.</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Role</span><select value={creatorRole} onChange={e=>setCreatorRole(e.target.value as CreatorTeamRole)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="admin">Admin</option><option value="staff">Staff</option></select></label>
+                <p className="mt-1 text-[10px] leading-relaxed text-[#686D7E]">This account is currently a User. No operational role or module is assigned until you deliberately choose and confirm one.</p>
+                {!assigningTeamRole?<button type="button" onClick={()=>setAssigningTeamRole(true)} className="mt-3 h-10 w-full rounded-xl border border-violet-500/25 text-xs font-semibold text-violet-200">Assign team role</button>:<><div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Role</span><select value={creatorRole} onChange={e=>{setCreatorRole(e.target.value as CreatorTeamRole|'');setTeamModule('')}} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Choose role</option><option value="admin">Admin</option><option value="staff">Staff</option></select></label>
                   <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">State</span><select value={teamState} onChange={e=>{setTeamState(e.target.value);setTeamLga('')}} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Select State</option>{NIGERIA_STATES.map(item=><option key={item.state} value={item.state}>{item.state}</option>)}</select></label>
                   <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">LGA</span><select value={teamLga} disabled={!teamState} onChange={e=>setTeamLga(e.target.value)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs disabled:opacity-40"><option value="">Select LGA</option>{(teamStateData?.cities||[]).map(lga=><option key={lga} value={lga}>{lga}</option>)}</select></label>
-                  {creatorRole==='staff'&&<label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Staff module</span><select value={teamModule} onChange={e=>setTeamModule(e.target.value as StaffModule)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs">{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
+                  {creatorRole==='staff'&&<label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Staff module</span><select value={teamModule} onChange={e=>setTeamModule(e.target.value as StaffModule|'')} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Choose one module</option>{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
                 </div>
-                <button onClick={()=>void handleCreatorAssign()} disabled={teamSaving||!teamState||!teamLga} className="mt-3 h-10 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{teamSaving?'Assigning…':`Assign as ${creatorRole==='admin'?'Admin':'Staff'}`}</button>
+                <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={()=>{setAssigningTeamRole(false);setCreatorRole('');setTeamState('');setTeamLga('');setTeamModule('')}} className="h-10 rounded-xl border border-white/[.08] text-xs text-[#8C91A2]">Cancel</button><button onClick={()=>void handleCreatorAssign()} disabled={teamSaving||!creatorRole||!teamState||!teamLga||(creatorRole==='staff'&&!teamModule)} className="h-10 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{teamSaving?'Assigning…':'Confirm assignment'}</button></div></>}
               </div>
             )}
 
