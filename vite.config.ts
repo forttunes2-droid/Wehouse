@@ -48,10 +48,6 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/pages/ListingDetailHousingStructural.tsx'),
       },
       {
-        find: /^@\/components\/PropertyPipelineWorkspace$/,
-        replacement: path.resolve(__dirname, './src/components/PropertyPipelineWorkspaceHousingStructural.tsx'),
-      },
-      {
         find: /^@\/components\/HousingOperationsWorkspace$/,
         replacement: path.resolve(__dirname, './src/components/HousingOperationsWorkspaceHousingStructural.tsx'),
       },
