@@ -18,8 +18,8 @@ const choices = [
 export default function Explore({ onNavigate }: ExploreProps) {
   return (
     <DiscoveryShell
-      title="What are you looking for?"
-      description="Homes, roommates, short lets and trusted local services — one Explore experience."
+      title="Find what you need"
+      description="Long Let, Short Let, compatible roommates and trusted local services."
       onNavigate={onNavigate}
     >
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">

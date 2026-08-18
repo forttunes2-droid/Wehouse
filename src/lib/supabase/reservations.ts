@@ -54,11 +54,11 @@ export async function getReservationsForUser(_userId?: string) {
   const listingIds = Array.from(new Set(data.map((row: any) => row.listing_id).filter(Boolean)));
   const { data: listings, error: listingError } = await supabase
     .from('listings')
-    .select('id,images,videos')
+    .select('id,title,address,city,state,images,videos,sub_type,bedrooms,bathrooms,price')
     .in('id', listingIds);
   if (listingError) return { reservations: data as any[], error: listingError };
-  const mediaByListing = new Map((listings || []).map((row: any) => [row.id, { images: row.images || [], videos: row.videos || [] }]));
-  return { reservations: data.map((row: any) => { const media = mediaByListing.get(row.listing_id) || { images: [], videos: [] }; return { ...row, listing_image: media.images[0] || null, listing_images: media.images, listing_videos: media.videos }; }) as any[], error: null };
+  const mediaByListing = new Map((listings || []).map((row: any) => [row.id, { title: row.title, address: row.address, city: row.city, state: row.state, images: row.images || [], videos: row.videos || [], sub_type: row.sub_type, bedrooms: row.bedrooms, bathrooms: row.bathrooms, price: row.price }]));
+  return { reservations: data.map((row: any) => { const media = mediaByListing.get(row.listing_id) || { title: null, address: null, city: null, state: null, images: [] as string[], videos: [] as string[], sub_type: null, bedrooms: null, bathrooms: null, price: null }; return { ...row, listing_title: media.title || row.listing_title, listing_address: media.address, listing_city: media.city, listing_state: media.state, listing_image: media.images[0] || null, listing_images: media.images, listing_videos: media.videos, listing_bedrooms: media.bedrooms, listing_bathrooms: media.bathrooms, listing_price: media.price || row.listing_price }; }) as any[], error: null };
 }
 
 export async function cancelReservation(reservationId: string) {
