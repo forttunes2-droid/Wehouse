@@ -17,8 +17,6 @@ interface Props {
 type MirroredTab = { label: string; button: HTMLButtonElement };
 
 const ROOT_PAGES = new Set<NavPage>([
-  'home',
-  'explore',
   'search',
   'saved',
   'my_reservations',
@@ -53,7 +51,6 @@ const OPERATIONAL_ROLES = new Set(['creator', 'admin', 'staff', 'worker', 'prope
 const DASHBOARD_OWNS_ACCOUNT = new Set(['creator', 'admin', 'staff', 'worker']);
 
 function isWorkspaceRoot(role: string, page: NavPage) {
-  if (page === 'home') return OPERATIONAL_ROLES.has(role);
   if (role === 'creator') return page === 'creator';
   if (role === 'admin') return page === 'admin';
   if (role === 'staff') return page === 'staff_dashboard';
@@ -93,7 +90,12 @@ export default function DesktopLayout({
 
   function back() {
     if (window.history.length > 1) window.history.back();
-    else onNavigate('home');
+    else if (role === 'creator') onNavigate('creator');
+    else if (role === 'admin') onNavigate('admin');
+    else if (role === 'staff') onNavigate('staff_dashboard');
+    else if (role === 'worker') onNavigate('worker_dashboard');
+    else if (role === 'property_partner') onNavigate('property_partner');
+    else onNavigate('search');
   }
 
   useEffect(() => {

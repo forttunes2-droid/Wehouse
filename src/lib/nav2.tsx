@@ -17,7 +17,7 @@ function icon(path: string) {
 }
 
 const DASHBOARD = icon('M4 5h6v6H4z M14 5h6v6h-6z M4 15h6v4H4z M14 15h6v4h-6z');
-const HOME = icon('M3 11.5 12 4l9 7.5 M5.5 10.5V20h13v-9.5 M9.5 20v-6h5v6');
+const SEARCH = icon('M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M20 20l-4-4');
 const MESSAGES = icon('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z');
 const ACCOUNT = icon('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 0 1 0 8 4 4 0 0 1 0-8z');
 const RESERVATIONS = icon('M3 5h18v16H3z M8 3v4 M16 3v4 M3 10h18 M8 15l2 2 5-5');
@@ -32,7 +32,7 @@ export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_part
 
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
   return [
-    { id: 'home', label: 'Home', icon: HOME },
+    { id: 'search', label: 'Search', icon: SEARCH },
     { id: 'my_reservations', label: 'Reservations', icon: RESERVATIONS },
     { id: 'saved', label: 'Saved', icon: SAVED },
     { id: 'messages', label: 'Messages', icon: MESSAGES, badge: unreadCount > 0 ? unreadCount : undefined },

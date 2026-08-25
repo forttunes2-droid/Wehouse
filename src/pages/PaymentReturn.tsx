@@ -28,17 +28,17 @@ function paymentReferenceFromLocation() {
 
 function destinationForPurpose(purpose: string | undefined, role: string): NavPage {
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
-  if (purpose === 'worker_booking') return role === 'user' ? 'my_bookings' : role === 'worker' ? 'worker_dashboard' : 'home';
-  if (purpose === 'hotel_booking') return role === 'user' ? 'my_bookings' : 'home';
+  if (purpose === 'worker_booking') return role === 'user' ? 'my_bookings' : role === 'worker' ? 'worker_dashboard' : 'search';
+  if (purpose === 'hotel_booking') return role === 'user' ? 'my_bookings' : 'search';
   if (['apartment_reservation','apartment_rent','housing_reservation','reservation_fee'].includes(purpose || '')) {
-    return role === 'user' ? 'my_reservations' : 'home';
+    return role === 'user' ? 'my_reservations' : 'search';
   }
   if (role === 'worker') return 'worker_dashboard';
   if (role === 'property_partner') return 'property_partner';
   if (role === 'creator') return 'creator';
   if (role === 'admin') return 'admin';
   if (role === 'staff') return 'staff_dashboard';
-  return 'home';
+  return 'search';
 }
 
 function successMessage(purpose?: string) {

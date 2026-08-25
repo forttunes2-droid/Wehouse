@@ -1,12 +1,10 @@
 export type NavPage =
   // ── Primary customer navigation ──
-  | 'home'
-  | 'explore'
+  | 'search'
   | 'saved'
   | 'messages'
   | 'profile'
-  // ── Compatibility / internal customer routes ──
-  | 'search'
+  // ── Internal customer routes ──
   | 'roommate'
   | 'activity'
   | 'detail'
