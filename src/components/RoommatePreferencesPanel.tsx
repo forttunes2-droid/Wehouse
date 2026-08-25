@@ -7,7 +7,7 @@ type Props={form:Form;setForm:React.Dispatch<React.SetStateAction<Form>>;profile
 
 export default function RoommatePreferencesPanel({form,setForm,profileSchool,busy,onSave,onCancel}:Props){
  const set=(key:keyof Form,value:string|number|boolean)=>setForm(current=>({...current,[key]:value}));
- return <section className="rounded-2xl border border-white/[.07] bg-[#11131B] p-4 sm:p-5">
+ return <section className="border-y border-white/[.07] py-5">
   <div><h2 className="text-lg font-bold">Roommate preferences</h2><p className="mt-1 text-[10px] text-[#6C7282]">Only choices that actually affect your matches are shown here.</p></div>
   <div className="mt-5 space-y-5">
    <RoommateChoice title="Who would you live with?" value={form.gender_preference} options={[['no_preference','Anyone'],['male','Male'],['female','Female']]} onChange={value=>set('gender_preference',value)}/>
