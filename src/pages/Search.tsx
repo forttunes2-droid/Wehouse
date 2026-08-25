@@ -65,7 +65,7 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
  const locationSummary=filterCity?`${filterCity}, ${filterState}`:filterState?filterState:`${modeLabel} homes`;
  const emptyTitle=priceActive?`No ${modeLabel} homes match this ${stayType==='short_let'?'nightly':'annual'} price range`:dateActive&&checkIn&&checkOut?`No Short Stay home is free for those dates`:`No ${modeLabel} homes match these filters`;
 
- return <DiscoveryShell active="homes" title="Find a place that fits your life" description="Homes, short stays, compatible roommates and trusted local help—together in one place." onNavigate={onNavigate}>
+ return <DiscoveryShell active="homes" title="Find a place that fits" description="Homes, short stays, compatible roommates and trusted local help—together in one place." onNavigate={onNavigate}>
   <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
    <section className="grid grid-cols-2 border-b border-white/[.07]">
     <button type="button" onClick={()=>chooseStay('long_stay')} className={`border-b-2 px-1 py-3 text-left transition ${stayType==='long_stay'?'border-violet-400 text-white':'border-transparent text-[#777E8E]'}`}><span className="block text-[12px] font-bold">Long Stay</span><span className="mt-0.5 block text-[8px] text-[#666D7D]">Annual rent</span></button>
