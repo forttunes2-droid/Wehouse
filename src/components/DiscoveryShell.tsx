@@ -28,15 +28,15 @@ const categories: { id: DiscoveryKey; label: string; route: string; icon: ReactN
 ];
 
 export default function DiscoveryShell({ active, title, description, onNavigate, children }: ShellProps) {
-  return <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-    <header className="sticky top-0 z-40 border-b border-white/[.055] bg-[#090B10]/95 backdrop-blur-2xl">
-      <div className="mx-auto max-w-7xl px-4 pb-3 pt-4 sm:px-6 lg:px-8">
+  return <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_15%_-10%,rgba(124,58,237,.14),transparent_28rem),#090B10] pb-24 text-white">
+    <header className="sticky top-0 z-40 border-b border-white/[.055] bg-[#090B10]/90 backdrop-blur-2xl">
+      <div className="mx-auto max-w-7xl px-4 pb-0 pt-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-          {active && <button type="button" onClick={() => onNavigate('search')} aria-label="Back to Search" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.025] text-[#9DA3B2] transition hover:bg-white/[.06] hover:text-white"><BackIcon /></button>}
-          <div className="min-w-0 flex-1"><p className="text-[8px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE · EXPLORE</p><h1 className="mt-1 break-words text-[clamp(1.25rem,5vw,1.75rem)] font-bold leading-tight">{title}</h1>{description && <p className="mt-1 block max-w-full break-words text-[10px] leading-relaxed text-[#74798B] sm:max-w-2xl sm:text-[11px]">{description}</p>}</div>
+          {active && active !== 'homes' && <button type="button" onClick={() => onNavigate('search')} aria-label="Back to homes" className="grid h-10 w-10 shrink-0 place-items-center text-[#9DA3B2] transition hover:text-white"><BackIcon /></button>}
+          <div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.28em] text-violet-400">WEHOUSE</p><h1 className="mt-1 break-words text-[clamp(1.35rem,5vw,2rem)] font-bold leading-tight">{title}</h1>{description && <p className="mt-1 block max-w-2xl text-[10px] leading-relaxed text-[#7D8393] sm:text-[11px]">{description}</p>}</div>
         </div>
-        <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Search categories">
-          {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[10px] font-semibold transition ${selected ? 'border-violet-500/25 bg-violet-500/12 text-violet-100' : 'border-white/[.065] bg-white/[.02] text-[#858B9B] hover:bg-white/[.05] hover:text-white'}`}><span className={selected ? 'text-violet-300' : 'text-[#737A8A]'}>{item.icon}</span>{item.label}</button>; })}
+        <nav className="mt-4 flex gap-5 overflow-x-auto scrollbar-hide" aria-label="Discover categories">
+          {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 text-[10px] font-semibold transition ${selected ? 'border-violet-400 text-white' : 'border-transparent text-[#777E8E] hover:text-white'}`}><span className={selected ? 'text-violet-300' : 'text-[#697080]'}>{item.icon}</span>{item.label}</button>; })}
         </nav>
       </div>
     </header>
@@ -45,10 +45,10 @@ export default function DiscoveryShell({ active, title, description, onNavigate,
 }
 
 export function DiscoveryToolbar({ value = '', onChange, placeholder = 'Search', showSearch = true, toolbarLabel, onFilters, filterCount = 0, locationLabel, locationDetail, locationActive = false, locationBusy = false, onLocation, onClearLocation, children }: ToolbarProps) {
-  return <section className="rounded-3xl border border-white/[.065] bg-[#10131A] p-3 shadow-[0_18px_50px_rgba(0,0,0,.16)] sm:p-4">
+  return <section className="border-y border-white/[.065] py-3 sm:py-4">
     <div className="flex items-center gap-2">
-      {showSearch ? <label className="relative min-w-0 flex-1"><SearchIcon /><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} className="h-12 w-full rounded-2xl border border-white/[.075] bg-[#171A22] pl-10 pr-4 text-xs text-white outline-none placeholder:text-[#5E6473] focus:border-violet-500/40" /></label> : <div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#777E8E]">{toolbarLabel || 'Choose location'}</p><p className="mt-1 text-[10px] text-[#5E6575]">Filters update results immediately.</p></div>}
-      {onFilters && <button type="button" aria-label="Open filters" onClick={onFilters} className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition ${filterCount ? 'border-violet-500/25 bg-violet-500/[.09] text-violet-200' : 'border-white/[.075] bg-[#171A22] text-[#C4C8D2]'}`}><FilterIcon />{filterCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{filterCount}</span>}</button>}
+      {showSearch ? <label className="relative min-w-0 flex-1"><SearchIcon /><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} className="h-12 w-full rounded-full border border-white/[.09] bg-white/[.045] pl-10 pr-4 text-xs text-white outline-none placeholder:text-[#697080] focus:border-violet-400/50" /></label> : <div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#777E8E]">{toolbarLabel || 'Choose location'}</p><p className="mt-1 text-[10px] text-[#5E6575]">Filters update results immediately.</p></div>}
+      {onFilters && <button type="button" aria-label="Open filters" onClick={onFilters} className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-full border transition ${filterCount ? 'border-violet-400/35 bg-violet-500/[.12] text-violet-200' : 'border-white/[.09] bg-white/[.035] text-[#C4C8D2]'}`}><FilterIcon />{filterCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{filterCount}</span>}</button>}
     </div>
     {(onLocation || children) && <div className="mt-3 flex flex-wrap items-end gap-2">
       {children}
@@ -73,7 +73,7 @@ export function DiscoveryFilterSheet({ title = 'Filters', onClose, onClear, chil
   </>;
 }
 
-export function DiscoveryEmpty({ title, text }: { title: string; text: string }) { return <section className="rounded-3xl border border-dashed border-white/[.08] bg-white/[.015] px-6 py-14 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#666D7D]">{text}</p></section>; }
+export function DiscoveryEmpty({ title, text }: { title: string; text: string }) { return <section className="border-y border-white/[.07] px-2 py-14 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#707788]">{text}</p></section>; }
 
 function SearchIcon(){return <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#62697A]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>}
 function FilterIcon(){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M7 12h10M10 18h4"/></svg>}
