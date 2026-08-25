@@ -21,6 +21,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // The main application client above remains PKCE for sign-up and OAuth.
 export const recoveryRequestClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
+    storageKey: 'wehouse-recovery-request',
     autoRefreshToken: false,
     persistSession: false,
     detectSessionInUrl: false,
