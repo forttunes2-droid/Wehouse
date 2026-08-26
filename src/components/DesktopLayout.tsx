@@ -182,8 +182,7 @@ export default function DesktopLayout({
       direct = ['Overview', 'Jobs', 'Schedule', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
       extra = ['Professional Profile'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'property_partner') {
-      direct = ['Overview', 'Property Requests', 'My Properties', 'Communication'].map(by).filter(Boolean) as MirroredTab[];
-      extra = ['Finance'].map(by).filter(Boolean) as MirroredTab[];
+      direct = ['Properties', 'Communication', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'staff') {
       direct = workspaceTabs.slice(0, 4);
       extra = workspaceTabs.slice(4);
@@ -267,7 +266,7 @@ export default function DesktopLayout({
                   <p className="truncate text-xs font-medium text-white">{userName || 'User'}</p>
                   <p className="truncate text-[9px] capitalize text-[#5C5E72]">{role || 'User'}</p>
                 </div>
-                {!dashboardOwnsAccount && onLogout && (
+                {!dashboardOwnsAccount && role !== 'property_partner' && onLogout && (
                   <button onClick={onLogout} title="Log out" className="text-[#5C5E72] hover:text-red-400">
                     ↪
                   </button>
@@ -381,13 +380,13 @@ export default function DesktopLayout({
               })}
               {(mobilePlan.extra.length > 0 || accountItem) && (
                 <button
-                  onClick={() => setMoreOpen((value) => !value)}
+                  onClick={() => accountItem && mobilePlan.extra.length === 0 ? onNavigate('profile') : setMoreOpen((value) => !value)}
                   className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold ${
                     moreOpen ? 'text-violet-300' : 'text-[#6E7282]'
                   }`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-full ${moreOpen ? 'bg-violet-400' : 'bg-transparent'}`} />
-                  <span>More</span>
+                  <span>{accountItem && mobilePlan.extra.length === 0 ? 'Account' : 'More'}</span>
                 </button>
               )}
             </div>
