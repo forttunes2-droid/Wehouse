@@ -26,7 +26,7 @@ type Legal = {
 type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'communication' | 'official' | null;
 
-export default function AccountCenter({ profile, onBack, onGoToReservations, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
+export default function AccountCenter({ profile, onGoToReservations, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
   const p = profile as any;
   const [panel, setPanel] = useState<Panel>(null);
   const [emailNotifs, setEmailNotifs] = useState(p.pref_email_notif !== false);
@@ -168,7 +168,7 @@ export default function AccountCenter({ profile, onBack, onGoToReservations, onG
   const legalDone = anyPublished && (!published.privacy || legal.privacy_accepted) && (!published.terms || legal.terms_accepted);
 
   return (
-    <AccountShell profile={profile} title="Account" description="Private account controls. Work and operational settings stay inside your role workspace." onBack={onBack}>
+    <AccountShell profile={profile} title="Account" description="Private account controls. Work and operational settings stay inside your role workspace.">
       <Toaster position="top-center" richColors />
 
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">

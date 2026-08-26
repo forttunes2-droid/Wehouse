@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export type DiscoveryKey = 'homes' | 'roommates' | 'hotels' | 'services';
 
@@ -60,15 +61,22 @@ export function DiscoveryToolbar({ value = '', onChange, placeholder = 'Search',
 }
 
 export function DiscoveryFilterSheet({ title = 'Filters', onClose, onClear, children, resultLabel }: { title?: string; onClose: () => void; onClear?: () => void; children: ReactNode; resultLabel?: string; resultDisabled?: boolean }) {
-  return <>
-    <section className="fixed inset-0 z-[89] flex flex-col overflow-hidden bg-[radial-gradient(circle_at_15%_-10%,rgba(124,58,237,.14),transparent_28rem),#090B10] text-white">
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
+  return createPortal(
+    <section className="fixed inset-0 z-[100000] isolate flex flex-col overflow-hidden bg-[#090B10] text-white" role="dialog" aria-modal="true" aria-label={title}>
       <div className="shrink-0 border-b border-white/[.06] bg-[#090B10]/92 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><div><p className="text-[8px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · FILTERS</p><h2 className="mt-1 text-xl font-bold">{title}</h2><p className="mt-1 text-[9px] text-[#707788]">Refine what appears in your results.</p></div><button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.08] bg-white/[.035] text-xl text-[#A5AAB8]" aria-label="Close filters">×</button></div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6"><div className="mx-auto max-w-3xl space-y-5 [&_.grid-cols-2]:grid-cols-1 sm:[&_.grid-cols-2]:grid-cols-2">{children}</div></div>
       <div className="shrink-0 border-t border-white/[.06] bg-[#090B10]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"><div className="mx-auto flex max-w-3xl items-center gap-3">{onClear ? <button type="button" onClick={onClear} className="h-12 px-3 text-[10px] font-semibold text-[#9298A7]">Reset</button> : null}<button type="button" onClick={onClose} className="h-12 flex-1 rounded-full bg-violet-500 text-xs font-bold text-white">{resultLabel || 'Show results'}</button></div></div>
-    </section>
-  </>;
+    </section>,
+    document.body,
+  );
 }
 
 export function DiscoveryEmpty({ title, text }: { title: string; text: string }) { return <section className="border-y border-white/[.07] px-2 py-14 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#707788]">{text}</p></section>; }
