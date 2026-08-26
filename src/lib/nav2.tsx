@@ -28,7 +28,7 @@ export function getCreatorNav(): DesktopNavItem[] { return [{ id: 'creator', lab
 export function getAdminNav(): DesktopNavItem[] { return [{ id: 'admin', label: 'Admin', icon: DASHBOARD }]; }
 export function getWorkerNav(): DesktopNavItem[] { return [{ id: 'worker_dashboard', label: 'Worker', icon: DASHBOARD }]; }
 export function getStaffNav(): DesktopNavItem[] { return [{ id: 'staff_dashboard', label: 'Staff Workspace', icon: DASHBOARD }]; }
-export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }]; }
+export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }, account()]; }
 
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
   return [
