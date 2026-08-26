@@ -356,9 +356,7 @@ export default function DesktopLayout({
                 const display =
                   index === 0 && tab.label === 'Overview'
                     ? 'Home'
-                    : tab.label === 'Communications' || tab.label === 'Communication'
-                      ? 'Comms'
-                      : tab.label === 'Property Requests'
+                    : tab.label === 'Property Requests'
                         ? 'Requests'
                         : tab.label === 'My Properties'
                           ? 'Properties'
