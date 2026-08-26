@@ -25,15 +25,14 @@ const categories: { id: DiscoveryKey; label: string; route: string; icon: ReactN
   { id: 'homes', label: 'Homes', route: 'search', icon: <HomeIcon /> },
   { id: 'roommates', label: 'Roommates', route: 'roommate', icon: <PeopleIcon /> },
   { id: 'hotels', label: 'Hotels', route: 'hotels', icon: <HotelIcon /> },
-  { id: 'services', label: 'Local Services', route: 'worker_discovery', icon: <ToolsIcon /> },
+  { id: 'services', label: 'Artisans', route: 'worker_discovery', icon: <ToolsIcon /> },
 ];
 
 export default function DiscoveryShell({ active, title, description, onNavigate, children }: ShellProps) {
   return <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_15%_-10%,rgba(124,58,237,.14),transparent_28rem),#090B10] pb-24 text-white">
     <header className="sticky top-0 z-40 border-b border-white/[.055] bg-[#090B10]/90 backdrop-blur-2xl">
       <div className="mx-auto max-w-7xl px-4 pb-0 pt-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-          {active && active !== 'homes' && <button type="button" onClick={() => onNavigate('search')} aria-label="Back to homes" className="grid h-10 w-10 shrink-0 place-items-center text-[#9DA3B2] transition hover:text-white"><BackIcon /></button>}
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3">
           <div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.28em] text-violet-400">WEHOUSE</p><h1 className="mt-1 break-words text-[clamp(1.35rem,5vw,2rem)] font-bold leading-tight">{title}</h1>{description && <p className="mt-1 block max-w-2xl text-[10px] leading-relaxed text-[#7D8393] sm:text-[11px]">{description}</p>}</div>
         </div>
         <nav className="mt-4 flex gap-5 overflow-x-auto scrollbar-hide" aria-label="Discover categories">
@@ -85,7 +84,6 @@ export function DiscoveryEmpty({ title, text }: { title: string; text: string })
 
 function SearchIcon(){return <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#62697A]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>}
 function FilterIcon(){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M7 12h10M10 18h4"/></svg>}
-function BackIcon(){return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m15 18-6-6 6-6" /></svg>}
 function HomeIcon(){return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/></svg>}
 function PeopleIcon(){return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3.5 20c.5-4 2.4-6 5.5-6s5 2 5.5 6M14.5 15c2.9-.5 5 .9 6 4"/></svg>}
 function HotelIcon(){return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 21V5h11v16M15 10h5v11M8 9h3M8 13h3M8 17h3M17 14h1"/></svg>}

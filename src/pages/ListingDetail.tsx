@@ -220,7 +220,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
         <img src={images[imageIndex]} alt={listing.title} className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
         <button onClick={onNavigate} className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur">←</button>
-        <button onClick={onToggleSave} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-sm backdrop-blur">{isSaved ? '★' : '☆'}</button>
+        <button onClick={onToggleSave} aria-label={isSaved?'Remove from saved properties':'Save property'} aria-pressed={isSaved} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"><Heart filled={isSaved}/></button>
         <span className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase ${state.cls}`}>{state.label}</span>
         {images.length > 1 && <div className="absolute bottom-4 right-4 flex gap-1.5">{images.map((_, index) => <button key={index} onClick={() => setImageIndex(index)} className={`h-2 rounded-full ${index === imageIndex ? 'w-5 bg-white' : 'w-2 bg-white/40'}`} />)}</div>}
         {images.length > 1 && <><button type="button" aria-label="Previous photo" onClick={()=>setImageIndex(current=>(current-1+images.length)%images.length)} className="absolute left-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur">‹</button><button type="button" aria-label="Next photo" onClick={()=>setImageIndex(current=>(current+1)%images.length)} className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur">›</button><span className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-[9px] backdrop-blur">{imageIndex+1} / {images.length}</span></>}
@@ -245,6 +245,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
     <ConfirmDialog isOpen={moveInConfirm} title="Confirm your move-in" description="Only confirm after you have received access and physically moved into the home. Your tenancy begins today." confirmLabel="Confirm move-in" variant="info" onCancel={()=>setMoveInConfirm(false)} onConfirm={()=>{setMoveInConfirm(false);void confirmMoveIn()}}/>
   </div>;
 }
+function Heart({filled}:{filled:boolean}){return <svg width="18" height="18" viewBox="0 0 24 24" fill={filled?'#A78BFA':'none'} stroke={filled?'#A78BFA':'white'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
 
 function ReservationPanel({ reservation, inspection, busy, fee, onResume, onInspect, onRentPay, onMoveIn, onSupport }: { reservation: any; inspection: any; busy: boolean; fee: number; onResume: () => void; onInspect: () => void; onRentPay: () => void; onMoveIn: () => void; onSupport: () => void }) {
   const status = String(reservation?.status || 'payment_pending');

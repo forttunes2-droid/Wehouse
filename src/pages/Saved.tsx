@@ -50,7 +50,7 @@ export default function Saved({ onNavigate, savedIds, onToggleSave }: SavedProps
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#66687B" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
             </div>
             <h2 className="mt-4 text-sm font-semibold">No saved properties yet</h2>
-            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Tap the heart on a property to keep it in this private shortlist. Use Reservations for properties you have actually started reserving.</p>
+            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Tap the heart on a property to keep it in this private shortlist. Reservations only contains bookings you actually started.</p>
             <button onClick={() => onNavigate('search')} className="mt-5 rounded-full bg-violet-500 px-5 py-3 text-xs font-semibold">Browse homes</button>
           </section>
         ) : (

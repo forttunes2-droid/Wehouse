@@ -10,7 +10,7 @@ type Props = {
   profile: Profile;
   onBack?: () => void;
   onGoToPrivacy: () => void;
-  onGoToReservations: () => void;
+  onGoToSaved: () => void;
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
   onLogout?: () => void;
@@ -26,7 +26,7 @@ type Legal = {
 type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'communication' | 'official' | null;
 
-export default function AccountCenter({ profile, onBack, onGoToReservations, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
+export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
   const p = profile as any;
   const [panel, setPanel] = useState<Panel>(null);
   const [emailNotifs, setEmailNotifs] = useState(p.pref_email_notif !== false);
@@ -190,7 +190,7 @@ export default function AccountCenter({ profile, onBack, onGoToReservations, onG
 
       <AccountSection title="Account">
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
-        {isUser && <AccountRow title="My reservations" detail="Homes, Short Lets and hotels you reserved" onClick={onGoToReservations} icon={<HomeIcon />} />}
+        {isUser && <AccountRow title="Saved properties" detail="Homes you kept in your private shortlist" onClick={onGoToSaved} icon={<HeartIcon />} />}
         {isUser && <AccountRow title="Privacy" detail="Roommate discovery and personal visibility" onClick={onGoToPrivacy} icon={<PrivacyIcon />} />}
       </AccountSection>
 
@@ -237,7 +237,7 @@ function LegalCard({ title, published, accepted, onClick }: { title: string; pub
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] text-[#666D7E]">{text}</p></div>; }
 
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
-function HomeIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg>}
+function HeartIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
 function PersonIcon(){return <svg {...iconProps}><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/></svg>}
 function PrivacyIcon(){return <svg {...iconProps}><path d="M12 3 4.5 6v5c0 4.8 3 8.2 7.5 10 4.5-1.8 7.5-5.2 7.5-10V6L12 3Z"/><path d="M9.5 12 11 13.5 14.5 10"/></svg>}
 function BellIcon(){return <svg {...iconProps}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 19h4"/></svg>}
