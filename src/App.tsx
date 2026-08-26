@@ -47,9 +47,9 @@ function PageSkeleton(){return <div className="min-h-screen space-y-4 bg-[#0A0A0
 function ErrorFallback({reset}:{reset:()=>void}){return <div className="flex min-h-screen items-center justify-center bg-[#0A0A0F] px-5 text-white"><div className="max-w-sm text-center"><h2 className="text-lg font-semibold">Something went wrong</h2><p className="mb-6 mt-2 text-sm text-[#5C5E72]">The app encountered an error. Please try again.</p><button onClick={reset} className="h-11 rounded-xl bg-blue-500 px-6 text-sm font-semibold">Reload App</button></div></div>}
 
 const NAV_STORAGE_KEY='wh_navpage';
-const RESTORABLE_PAGES:NavPage[]=['search','saved','roommate','activity','profile','account','privacy','security','creator','admin','staff_dashboard','worker_dashboard','worker_verification','worker_setup','new_listing','hotels','property_partner','my_bookings','my_reservations','messages','chat','profile_edit','privacy_policy','terms_of_service'];
+const RESTORABLE_PAGES:NavPage[]=['search','saved','roommate','activity','profile','account','privacy','security','creator','admin','staff_dashboard','worker_dashboard','worker_verification','worker_setup','worker_discovery','worker_categories','new_listing','hotels','property_partner','my_bookings','my_reservations','messages','chat','profile_edit','privacy_policy','terms_of_service'];
 const ACCOUNT_PAGES=new Set<NavPage>(['profile','account','privacy','security','profile_edit']);
-const USER_PAGES=new Set<NavPage>(['search','saved','roommate','activity','messages','chat','detail','hotels','hotel_detail','hotel_booking','hotel_reservation','my_bookings','my_reservations']);
+const USER_PAGES=new Set<NavPage>(['search','saved','roommate','activity','messages','chat','detail','hotels','hotel_detail','hotel_booking','hotel_reservation','worker_discovery','worker_categories','my_bookings','my_reservations']);
 function isRestorable(p:string):p is NavPage{return RESTORABLE_PAGES.includes(p as NavPage)}
 function roleRootFor(role:string):NavPage{return role==='creator'?'creator':role==='admin'?'admin':role==='staff'?'staff_dashboard':role==='worker'?'worker_dashboard':role==='property_partner'?'property_partner':'search'}
 function normalizePageForRole(role:string,page:NavPage):NavPage{

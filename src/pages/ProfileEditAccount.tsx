@@ -185,7 +185,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </section>
         </>}
 
-        <button type="submit" disabled={!hasChanges || saving || usernameState === 'checking'} className={`w-full rounded-xl px-4 py-3 text-xs font-semibold transition disabled:cursor-not-allowed ${hasChanges ? 'bg-violet-500 text-white disabled:opacity-50' : 'border border-white/[.07] bg-white/[.025] text-[#676D7D]'}`}>{saving ? 'Saving…' : hasChanges ? 'Save changes' : 'No changes'}</button>
+        {hasChanges && <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white transition disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>}
       </form>
     </AccountShell>
   );
