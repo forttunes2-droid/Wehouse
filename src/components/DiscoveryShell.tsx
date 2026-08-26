@@ -25,7 +25,7 @@ const categories: { id: DiscoveryKey; label: string; route: string; icon: ReactN
   { id: 'homes', label: 'Homes', route: 'search', icon: <HomeIcon /> },
   { id: 'roommates', label: 'Roommates', route: 'roommate', icon: <PeopleIcon /> },
   { id: 'hotels', label: 'Hotels', route: 'hotels', icon: <HotelIcon /> },
-  { id: 'services', label: 'Artisans', route: 'worker_discovery', icon: <ToolsIcon /> },
+  { id: 'services', label: 'Services', route: 'worker_discovery', icon: <ToolsIcon /> },
 ];
 
 export default function DiscoveryShell({ active, title, description, onNavigate, children }: ShellProps) {

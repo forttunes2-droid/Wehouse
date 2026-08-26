@@ -8,9 +8,10 @@ interface SavedProps {
   onNavigate: (page: string, listingId?: string) => void;
   savedIds: Set<string>;
   onToggleSave: (listingId: string) => void;
+  onBack: () => void;
 }
 
-export default function Saved({ onNavigate, savedIds, onToggleSave }: SavedProps) {
+export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: SavedProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,10 +35,13 @@ export default function Saved({ onNavigate, savedIds, onToggleSave }: SavedProps
   return (
     <div className="min-h-screen bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[0.055] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE</p>
-          <h1 className="mt-1 text-xl font-bold">Saved properties</h1>
-          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Your private shortlist of properties to compare or revisit later. Saving does not reserve a property or remove it from availability.</p>
+        <div className="mx-auto flex max-w-5xl items-start gap-3">
+          <button type="button" onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.08] text-[#A1A6B5]" aria-label="Back to Account">←</button>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · ACCOUNT</p>
+            <h1 className="mt-1 text-xl font-bold">Saved properties</h1>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Your private shortlist of properties to compare or revisit later. Saving does not reserve a property or remove it from availability.</p>
+          </div>
         </div>
       </header>
 

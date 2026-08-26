@@ -50,6 +50,19 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     }
     return options;
   }, [institutions, lga, school]);
+  const hasChanges = useMemo(() => {
+    const current: Record<string, unknown> = {
+      full_name: fullName.trim(), username: username.trim().toLowerCase(), phone: phone.trim(),
+    };
+    const original: Record<string, unknown> = {
+      full_name: (profile.full_name || '').trim(), username: (profile.username || '').trim().toLowerCase(), phone: (profile.phone || '').trim(),
+    };
+    if (isUser) {
+      Object.assign(current, { bio: bio.trim(), gender, is_student: isStudent, school: isStudent ? school.trim() : '', state, lga, area: area.trim() });
+      Object.assign(original, { bio: (profile.bio || '').trim(), gender: profile.gender || '', is_student: Boolean(profile.is_student), school: profile.is_student ? (profile.school || '').trim() : '', state: profile.state || '', lga: profile.local_government || profile.city || '', area: (profile.area || '').trim() });
+    }
+    return JSON.stringify(current) !== JSON.stringify(original);
+  }, [fullName, username, phone, bio, gender, isStudent, school, state, lga, area, isUser, profile]);
 
   useEffect(() => {
     const value = username.trim().toLowerCase();
@@ -105,6 +118,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (!hasChanges) return;
     if (usernameState === 'taken' || usernameState === 'invalid') return toast.error('Fix the username before saving');
     if (isUser && !gender) return toast.error('Gender is required for roommate matching');
     if (isUser && (!state || !lga)) return toast.error('State and Local Government are required');
@@ -171,7 +185,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </section>
         </>}
 
-        <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save personal details'}</button>
+        <button type="submit" disabled={!hasChanges || saving || usernameState === 'checking'} className={`w-full rounded-xl px-4 py-3 text-xs font-semibold transition disabled:cursor-not-allowed ${hasChanges ? 'bg-violet-500 text-white disabled:opacity-50' : 'border border-white/[.07] bg-white/[.025] text-[#676D7D]'}`}>{saving ? 'Saving…' : hasChanges ? 'Save changes' : 'No changes'}</button>
       </form>
     </AccountShell>
   );
