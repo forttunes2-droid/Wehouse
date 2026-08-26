@@ -30,6 +30,8 @@ const ROOT_PAGES = new Set<NavPage>([
 ]);
 
 const OWN_MOBILE_BACK = new Set<NavPage>([
+  'roommate',
+  'hotels',
   'worker_discovery',
   'worker_categories',
   'privacy_policy',

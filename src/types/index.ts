@@ -608,8 +608,8 @@ export interface StaffPermissionRecord {
 // Replaces: PropertyOwner, Hotel types. One system for all accommodation.
 // ═══════════════════════════════════════════════════════════════
 
-// Property types: Apartment (Short Let or Long Stay) or Hotel
-// Short Let = daily/weekly rental | Long Stay = monthly/yearly rental
+// Property types: Apartment (Short Let or Long Let) or Hotel
+// Short Let = daily/weekly rental | Long Let = monthly/yearly rental
 export type PropertyType = 'apartment' | 'hotel';
 export type ApartmentSubType = 'short_let' | 'long_stay';
 
@@ -625,7 +625,7 @@ export const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
 
 export const APARTMENT_SUB_LABELS: Record<ApartmentSubType, string> = {
   short_let: 'Short Let',
-  long_stay: 'Long Stay',
+  long_stay: 'Long Let',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -638,7 +638,7 @@ export const WEHOUSE_FEES = {
   WORKER_COMMISSION_PERCENT: 12.5,        // 12.5% of job value (worker pays)
   WORKER_MIN_JOB_AMOUNT: 1000,            // N1,000 minimum job value
 
-  // Long Stay (monthly/yearly): Lower commission — tenant stays long-term, less management
+  // Long Let (monthly/yearly): Lower commission — tenant stays long-term, less management
   LONG_STAY_COMMISSION_PERCENT: 10,       // 10% of annual rent (from landlord)
 
   // Short Let (daily/weekly): Higher commission — more management, cleaning, turnover

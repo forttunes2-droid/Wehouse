@@ -15,7 +15,7 @@ export async function getDiscoverableHomes() {
     const type = String(listing.property_type || 'apartment').toLowerCase();
     if (type === 'hotel') return false;
     if (listing.status === 'available') return true;
-    // A currently occupied Short Stay can still have free future dates.
+    // A currently occupied Short Let can still have free future dates.
     return listing.sub_type === 'short_let';
   });
 

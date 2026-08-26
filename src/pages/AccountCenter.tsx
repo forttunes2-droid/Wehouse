@@ -26,7 +26,7 @@ type Legal = {
 type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'communication' | 'official' | null;
 
-export default function AccountCenter({ profile, onGoToReservations, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
+export default function AccountCenter({ profile, onBack, onGoToReservations, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
   const p = profile as any;
   const [panel, setPanel] = useState<Panel>(null);
   const [emailNotifs, setEmailNotifs] = useState(p.pref_email_notif !== false);
@@ -168,7 +168,7 @@ export default function AccountCenter({ profile, onGoToReservations, onGoToPriva
   const legalDone = anyPublished && (!published.privacy || legal.privacy_accepted) && (!published.terms || legal.terms_accepted);
 
   return (
-    <AccountShell profile={profile} title="Account" description="Private account controls. Work and operational settings stay inside your role workspace.">
+    <AccountShell profile={profile} title="Account" description="Private account controls. Work and operational settings stay inside your role workspace." onBack={onBack}>
       <Toaster position="top-center" richColors />
 
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
@@ -190,7 +190,7 @@ export default function AccountCenter({ profile, onGoToReservations, onGoToPriva
 
       <AccountSection title="Account">
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
-        {isUser && <AccountRow title="My reservations" detail="Homes, Short Stays and hotels you reserved" onClick={onGoToReservations} icon={<HomeIcon />} />}
+        {isUser && <AccountRow title="My reservations" detail="Homes, Short Lets and hotels you reserved" onClick={onGoToReservations} icon={<HomeIcon />} />}
         {isUser && <AccountRow title="Privacy" detail="Roommate discovery and personal visibility" onClick={onGoToPrivacy} icon={<PrivacyIcon />} />}
       </AccountSection>
 

@@ -2,7 +2,7 @@ import { supabase } from './client';
 import { compressImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
 
-export type RoommatePeer={user_id:string;name:string;avatar:string|null};
+export type RoommatePeer={user_id:string;name:string;avatar:string|null;bio:string;city:string;state:string;school:string;occupation:string;isStudent:boolean;isBlocked:boolean};
 
 export async function getConversations(userId:string){
   const{data,error}=await supabase.rpc('get_user_conversations',{p_user_id:userId});
@@ -10,11 +10,11 @@ export async function getConversations(userId:string){
 }
 
 export async function getRoommateConversationPeople(){
-  const{data,error}=await supabase.rpc('get_my_roommate_conversation_people');
+  const{data,error}=await supabase.rpc('get_my_roommate_peer_details');
   const people:Record<string,RoommatePeer>={};
   for(const row of data||[]){
     if(!row.user_id)continue;
-    people[row.user_id]={user_id:row.user_id,name:row.full_name||row.username||'Roommate',avatar:row.avatar_url||null};
+    people[row.user_id]={user_id:row.user_id,name:row.full_name||row.username||'Roommate',avatar:row.avatar_url||null,bio:row.bio||'',city:row.city||'',state:row.state||'',school:row.school||'',occupation:row.occupation||'',isStudent:Boolean(row.is_student),isBlocked:Boolean(row.is_blocked)};
   }
   return{people,error};
 }
@@ -63,6 +63,11 @@ export async function deleteRoommateChatAttachment(path:string){
 export async function hideRoommateConversation(conversationId:string){
   const{data,error}=await supabase.rpc('hide_my_roommate_conversation',{p_conversation_id:conversationId});
   return{hidden:data===true,error};
+}
+
+export async function setRoommateBlock(userId:string,blocked:boolean){
+  const{data,error}=await supabase.rpc('set_my_roommate_block',{p_user_id:userId,p_blocked:blocked});
+  return{blocked:data===true,error};
 }
 
 export async function markMessagesSeen(conversationId:string){

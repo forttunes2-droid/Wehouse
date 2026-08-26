@@ -36,6 +36,6 @@ export async function initializeShortStayPayment(reservationId: string) {
   if (bootstrapError) return { result: null, error: bootstrapError };
   if (!bootstrap?.success || bootstrap?.already_paid) return { result: bootstrap || null, error: null };
   const reference = String(bootstrap.reference || '');
-  if (!reference) return { result: { success: false, error: 'Short Stay payment reference is missing' }, error: null };
+  if (!reference) return { result: { success: false, error: 'Short Let payment reference is missing' }, error: null };
   return openPayment(reference);
 }
