@@ -10,13 +10,14 @@ import UserProfileModal from '@/components/UserProfileModal';
 import DomainSettingsPanel from '@/components/DomainSettingsPanel';
 import ServiceCategoryManager from '@/components/ServiceCategoryManager';
 import PropertyTypeManager from '@/components/PropertyTypeManager';
+import WaitlistManagement from '@/components/WaitlistManagement';
 import StaffListTab from './StaffListTab';
 import CreatorAnalyticsV2 from './CreatorAnalyticsV2';
 import CreatorSettingsTabV2 from './CreatorSettingsTabV2';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 
-type Tab = 'overview' | 'operations' | 'communications' | 'finance' | 'analytics' | 'audit' | 'settings';
+type Tab = 'overview' | 'operations' | 'waitlist' | 'communications' | 'finance' | 'analytics' | 'audit' | 'settings';
 type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'reports';
 type PersonRole = 'user' | 'property_partner';
 type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string) => void; onGoToChat?: (id?: string) => void };
@@ -24,6 +25,7 @@ type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: strin
 const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'operations', label: 'Operations' },
+  { id: 'waitlist', label: 'Waitlist' },
   { id: 'communications', label: 'Communications' },
   { id: 'finance', label: 'Finance' },
   { id: 'analytics', label: 'Analytics' },
@@ -34,6 +36,7 @@ const NAV = [
 const NOTES: Record<Tab, string> = {
   overview: 'Platform health and priority work.',
   operations: 'People, Team, properties, Worker oversight, bookings and moderation.',
+  waitlist: 'Pre-launch demand, locations, budgets and contact progress.',
   communications: 'Human Support conversations and official announcements.',
   finance: 'Payout requests, commission records and settlement policy.',
   analytics: 'Trends, marketplace movement and lifecycle distribution.',
@@ -72,6 +75,7 @@ export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoTo
       >
         {tab === 'overview' && <Overview openOperation={openOperation} openCommunications={() => setTab('communications')} openFinance={() => setTab('finance')} openAnalytics={() => setTab('analytics')} openAudit={() => setTab('audit')} />}
         {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} />}
+        {tab === 'waitlist' && <WaitlistManagement />}
         {tab === 'communications' && <CommunicationsWorkspace profile={profile} scope="all" onOpenConversation={onGoToChat} />}
         {tab === 'finance' && <Finance />}
         {tab === 'analytics' && <CreatorAnalyticsV2 profile={profile} />}
