@@ -32,6 +32,16 @@ interface PartnerProperty {
   created_at: string;
 }
 
+interface WorkerBookingSummary {
+  status: string;
+  agreed_amount: number | null;
+  worker_receives: number | null;
+}
+
+interface WorkerReviewSummary {
+  rating: number | null;
+}
+
 type CreatorTeamRole='admin'|'staff';
 type StaffModule='operations'|'finance'|'support'|'verification'|'field_officer';
 const STAFF_MODULES:Array<[StaffModule,string]>=[['operations','Operations'],['finance','Finance'],['support','Support'],['verification','Verification'],['field_officer','Field Officer']];
@@ -39,6 +49,10 @@ const STAFF_MODULES:Array<[StaffModule,string]>=[['operations','Operations'],['f
 export default function UserProfileModal({ user, adminProfile, onClose, onPromote, onNavigate, onGoToChat }: UserProfileModalProps) {
   if (!user) return null;
 
+  return <UserProfileContent user={user} adminProfile={adminProfile} onClose={onClose} onPromote={onPromote} onNavigate={onNavigate} onGoToChat={onGoToChat} />;
+}
+
+function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate, onGoToChat }: UserProfileModalProps & { user: Profile }) {
   const [confirmingPromote, setConfirmingPromote] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [workerStats, setWorkerStats] = useState<WorkerStats | null>(null);
@@ -55,9 +69,9 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
   const isAdmin = adminProfile?.role === 'admin';
   const isCreator = adminProfile?.role === 'creator';
   const adminState = adminProfile?.assigned_state || adminProfile?.state || '';
-  const adminLga = (adminProfile as any)?.assigned_lga || (adminProfile as any).local_government || (adminProfile as any).city || '';
+  const adminLga = adminProfile?.assigned_lga || adminProfile?.local_government || adminProfile?.city || '';
   const userState = user.state || '';
-  const userLga = (user as any).local_government || (user as any).city || '';
+  const userLga = user.local_government || user.city || '';
   const inBranch = userState === adminState && userLga === adminLga;
   const canAppoint = isAdmin && inBranch && user.role === 'user';
   const canCreatorAssign = isCreator && user.role === 'user';
@@ -70,12 +84,14 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
     async function loadWorkerStats() {
       if (u.role !== 'worker') return;
       const { data: bookings } = await supabase.from('worker_bookings').select('status, agreed_amount, worker_receives').eq('worker_id', u.user_id);
-      const totalBookings = bookings?.length || 0;
-      const completedBookings = bookings?.filter((b: any) => b.status === 'approved_released').length || 0;
-      const totalEarnings = bookings?.filter((b: any) => b.status === 'approved_released').reduce((sum: number, b: any) => sum + (b.worker_receives || 0), 0) || 0;
+      const bookingRows = (bookings || []) as WorkerBookingSummary[];
+      const totalBookings = bookingRows.length;
+      const completedBookings = bookingRows.filter((booking) => booking.status === 'approved_released').length;
+      const totalEarnings = bookingRows.filter((booking) => booking.status === 'approved_released').reduce((sum, booking) => sum + (booking.worker_receives || 0), 0);
       const { data: reviews } = await supabase.from('reviews').select('rating').eq('worker_id', u.user_id);
-      const reviewCount = reviews?.length || 0;
-      const avgRating = reviewCount > 0 ? (reviews!.reduce((sum: number, r: any) => sum + r.rating, 0) / reviewCount) : 0;
+      const reviewRows = (reviews || []) as WorkerReviewSummary[];
+      const reviewCount = reviewRows.length;
+      const avgRating = reviewCount > 0 ? reviewRows.reduce((sum, review) => sum + (review.rating || 0), 0) / reviewCount : 0;
       setWorkerStats({ totalBookings, completedBookings, totalEarnings, avgRating, reviewCount });
     }
 
@@ -99,7 +115,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
     loadWorkerStats();
     loadPartnerProperties();
     findSupportConvo();
-  }, [user.user_id, user.role]);
+  }, [user]);
 
   useEffect(() => {
     const orig = document.body.style.overflow;
@@ -177,9 +193,9 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
                 { label: 'Full Name', value: user.full_name || 'Not set' },
                 { label: 'Phone', value: user.phone || 'Not set' },
                 { label: 'State', value: user.state || 'Not set' },
-                { label: 'LGA', value: (user as any).local_government || (user as any).city || 'Not set' },
+                { label: 'LGA', value: user.local_government || user.city || 'Not set' },
                 { label: 'Joined', value: new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) },
-                { label: 'Status', value: (user as any).deleted ? 'Deleted' : (user as any).banned ? 'Banned' : (user as any).suspended ? 'Suspended' : 'Active' },
+                { label: 'Status', value: user.deleted ? 'Deleted' : user.banned ? 'Banned' : user.suspended ? 'Suspended' : 'Active' },
               ].map(item => <div key={item.label} className="flex min-h-11 items-center justify-between gap-4 text-xs"><span className="text-[#676C7D]">{item.label}</span><span className="max-w-[65%] break-words text-right font-medium text-white/85">{item.value}</span></div>)}
             </section>
 
@@ -200,7 +216,7 @@ export default function UserProfileModal({ user, adminProfile, onClose, onPromot
               </div>
             )}
 
-            {(user as any).bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{(user as any).bio}</p></div>}
+            {user.bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{user.bio}</p></div>}
 
             <div className="glass rounded-2xl p-4 space-y-2">
               <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Contact</p>
