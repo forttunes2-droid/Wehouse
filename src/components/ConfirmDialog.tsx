@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 export interface ConfirmOptions {
   title: string;
+  description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'danger' | 'warning' | 'info';
@@ -22,6 +23,7 @@ const btnColors: Record<string, string> = {
 export default function ConfirmDialog({
   isOpen,
   title,
+  description,
   confirmLabel = 'Proceed',
   cancelLabel = 'Cancel',
   variant = 'danger',
@@ -38,23 +40,26 @@ export default function ConfirmDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-6 animate-fadeIn" onClick={onCancel}>
-      <div className="absolute inset-0 bg-black/60" />
+    <div className="fixed inset-0 z-[100000] flex items-end justify-center p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] animate-fadeIn sm:items-center sm:px-6" onClick={onCancel} role="presentation">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-[280px] bg-[#12121A] rounded-2xl p-5 border border-[#1E1E2C] shadow-2xl animate-fadeIn"
+        className="relative w-full max-w-sm rounded-[28px] border border-white/[.09] bg-[#11141C] p-5 shadow-2xl animate-fadeIn"
         onClick={(e) => e.stopPropagation()}
+        role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title"
       >
-        <p className="text-sm font-semibold text-white text-center mb-4">{title}</p>
+        <p className="text-[8px] font-bold uppercase tracking-[.2em] text-violet-300">WEHOUSE CONFIRMATION</p>
+        <p id="confirm-dialog-title" className="mt-2 text-lg font-bold text-white">{title}</p>
+        {description&&<p className="mt-2 text-[11px] leading-5 text-[#858B9A]">{description}</p>}
         <div className="flex gap-2.5">
           <button
             onClick={onCancel}
-            className="flex-1 h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#8A8B9C] text-sm font-medium hover:text-white transition-colors"
+            className="mt-5 h-12 flex-1 rounded-full border border-white/[.09] bg-white/[.03] text-xs font-semibold text-[#A1A6B3] hover:text-white transition-colors"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 h-10 rounded-xl text-white text-sm font-semibold transition-colors ${btnColors[variant]}`}
+            className={`mt-5 h-12 flex-1 rounded-full text-white text-xs font-bold transition-colors ${btnColors[variant]}`}
           >
             {confirmLabel}
           </button>

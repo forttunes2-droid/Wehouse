@@ -13,6 +13,7 @@ import { initializeApartmentRentPayment } from '@/lib/supabase/housing-payments'
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing, Profile, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { Toaster, toast } from 'sonner';
 
 type Props = {
@@ -46,6 +47,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
   const [showPlan, setShowPlan] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [moveInConfirm, setMoveInConfirm] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
@@ -194,7 +196,6 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
 
   async function confirmMoveIn() {
     if (!reservation?.id || busy) return;
-    if (!window.confirm('Confirm that you have physically moved into this home? This starts your tenancy today.')) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('confirm_my_move_in', { p_reservation_id: reservation.id });
     setBusy(false);
@@ -235,12 +236,13 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
         </div>
 
         <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
-          {hasOwnActiveReservation ? <ReservationPanel reservation={reservation} inspection={inspection} busy={busy} fee={reservationFee} onResume={() => void resumeCheckout()} onInspect={() => void requestInspection()} onRentPay={() => void payContractRent()} onMoveIn={() => void confirmMoveIn()} onSupport={() => support(reservation?.status === 'payment_pending' || reservation?.rent_payment_status === 'payment_pending' ? 'payment' : inspection ? 'inspection' : 'reservation')} /> : canStartReservation ? <section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Available</p><h2 className="mt-2 text-lg font-bold">Reserve this property</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Choose your tenure, then pay the reservation fee through Paystack. The database protects the checkout hold so another customer cannot reserve the same property at the same time.</p><div className="mt-3 flex items-center justify-between rounded-xl bg-white/[.035] p-3 text-xs"><span className="text-[#747889]">Reservation fee</span><span className="font-semibold">₦{reservationFee.toLocaleString()}</span></div><button onClick={() => setShowPlan(true)} className="mt-4 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold">Choose tenure & reserve</button></section> : <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5"><h2 className="text-sm font-semibold">{state.label}</h2><p className="mt-2 text-[11px] text-[#8A8E9D]">This property is not open for a new reservation right now.</p></section>}
+          {hasOwnActiveReservation ? <ReservationPanel reservation={reservation} inspection={inspection} busy={busy} fee={reservationFee} onResume={() => void resumeCheckout()} onInspect={() => void requestInspection()} onRentPay={() => void payContractRent()} onMoveIn={() => setMoveInConfirm(true)} onSupport={() => support(reservation?.status === 'payment_pending' || reservation?.rent_payment_status === 'payment_pending' ? 'payment' : inspection ? 'inspection' : 'reservation')} /> : canStartReservation ? <section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Available</p><h2 className="mt-2 text-lg font-bold">Reserve this property</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Choose your tenure, then pay the reservation fee through Paystack. The database protects the checkout hold so another customer cannot reserve the same property at the same time.</p><div className="mt-3 flex items-center justify-between rounded-xl bg-white/[.035] p-3 text-xs"><span className="text-[#747889]">Reservation fee</span><span className="font-semibold">₦{reservationFee.toLocaleString()}</span></div><button onClick={() => setShowPlan(true)} className="mt-4 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold">Choose tenure & reserve</button></section> : <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5"><h2 className="text-sm font-semibold">{state.label}</h2><p className="mt-2 text-[11px] text-[#8A8E9D]">This property is not open for a new reservation right now.</p></section>}
         </aside>
       </div></main>
     </div>
 
     {showPlan && <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 sm:items-center sm:p-4" onClick={() => !busy && setShowPlan(false)}><section className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 text-white sm:rounded-3xl" onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-blue-300">Housing reservation</p><h2 className="mt-1 text-lg font-bold">Choose your rental tenure</h2></div><button disabled={busy} onClick={() => setShowPlan(false)} className="text-[#777B8B]">×</button></div><div className="mt-5"><RentalPlanSelector annualRent={listing.price || 0} subType={listing.sub_type || 'long_stay'} securityDepositAmount={listing.security_deposit_amount} onSelectPlan={setPlan} /></div><button onClick={() => void openCheckout()} disabled={!plan || busy} className="mt-5 h-12 w-full rounded-xl bg-blue-500 text-sm font-semibold disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Continue to Paystack · ₦${reservationFee.toLocaleString()}`}</button><p className="mt-3 text-center text-[9px] leading-4 text-[#656A79]">The reservation fee holds the property. Contract rent is verified separately after inspection and before move-in.</p></section></div>}
+    <ConfirmDialog isOpen={moveInConfirm} title="Confirm your move-in" description="Only confirm after you have received access and physically moved into the home. Your tenancy begins today." confirmLabel="Confirm move-in" variant="info" onCancel={()=>setMoveInConfirm(false)} onConfirm={()=>{setMoveInConfirm(false);void confirmMoveIn()}}/>
   </div>;
 }
 
