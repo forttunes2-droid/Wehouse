@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 192" role="img" aria-labelledby="title">
+  <title id="title">WeHouse</title>
+  <defs><linearGradient id="purple" x1="24" y1="26" x2="150" y2="158" gradientUnits="userSpaceOnUse"><stop stop-color="#8B5CF6"/><stop offset="1" stop-color="#6D28D9"/></linearGradient></defs>
+  <g><path fill="url(#purple)" d="M18 32h38l34 82 30-58c4-8 10-12 18-12 9 0 15 5 19 14l19 47-29 13-12-31-31 60c-4 8-11 13-20 13-10 0-17-6-21-15L18 32Z"/><path fill="#F8FAFC" d="M144 151V28l36-20v67c9-9 20-14 34-14 25 0 38 15 38 43v47h-36v-45c0-12-5-18-16-18-12 0-20 8-20 22v41h-36Z"/><path fill="#F8FAFC" d="M124 151v-35c0-20 13-33 33-33s33 13 33 33v35h-24v-34c0-7-3-11-9-11s-9 4-9 11v34h-24Z"/><path fill="url(#purple)" d="M151 151v-30c0-5 2-8 6-8s6 3 6 8v30h-12Z"/><circle cx="160" cy="134" r="2.5" fill="#09090D"/></g>
+  <text x="258" y="126" fill="#F8FAFC" font-family="Inter,Arial,sans-serif" font-size="72" font-weight="600" letter-spacing="-3"><tspan fill="#7C3AED">We</tspan><tspan>House</tspan></text>
+</svg>

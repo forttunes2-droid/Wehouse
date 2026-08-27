@@ -55,7 +55,7 @@ export default function Login({onLoginSuccess,serverError,kickedOut}:LoginProps)
  </div></div>
 }
 
-function Brand(){return <div className="mb-8 text-center"><img src="/brand-wh.png" alt="WeHouse" className="mx-auto mb-3 h-16 w-16 object-contain"/><h1 className="text-2xl font-bold">WeHouse</h1><p className="mt-1 text-xs text-[#5C6172]">Find. Connect. Live better.</p></div>}
+function Brand(){return <div className="mb-7 text-center"><img src="/brand-lockup-dark.svg" alt="WeHouse — Find. Connect. Live better." className="mx-auto h-auto w-52 max-w-full"/></div>}
 function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="block"><span className="mb-1.5 block text-[11px] font-medium text-[#8B90A0]">{label}</span>{children}</label>}
 function PasswordField({label,value,set,visible,toggle}:{label:string;value:string;set:(v:string)=>void;visible:boolean;toggle:()=>void}){return <Field label={label}><div className="relative"><Input type={visible?'text':'password'} value={value} onChange={e=>set(e.target.value)} placeholder="Minimum 8 characters" minLength={8} required className="h-12 rounded-xl border-white/[.08] bg-[#171A23] pr-12 text-white"/><button type="button" onClick={toggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#777C8C]">{visible?'Hide':'Show'}</button></div></Field>}
 function RoleButton({title,detail,onClick}:{title:string;detail:string;onClick:()=>void}){return <button onClick={onClick} className="w-full rounded-2xl border border-white/[.07] bg-[#141720] p-4 text-left transition hover:border-blue-500/25"><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-[10px] text-[#666B7C]">{detail}</p></button>}
