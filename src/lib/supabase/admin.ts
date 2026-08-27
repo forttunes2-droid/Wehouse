@@ -1,5 +1,8 @@
 import { supabase } from './client';
-import type { AdminAuditLog, Listing, Profile, SystemSetting } from '@/types';
+import type { AdminAuditLog, Listing, ListingReport, Profile, RoleChangeHistory, SystemSetting } from '@/types';
+
+type ErrorLike = { message: string };
+type UserCountRow = { total?: number | string | null; today?: number | string | null };
 
 export async function getAllUsers() {
   // Server RPC is the authority. Never fall back to an unrestricted profile query.
@@ -10,11 +13,11 @@ export async function getAllUsers() {
 export async function getUserCount(callerRole: 'admin' | 'creator' = 'admin') {
   const { data, error } = await supabase.rpc('admin_get_user_count');
   if (error) return { total: 0, today: 0, error };
-  const row = Array.isArray(data) ? data[0] : data;
+  const row = (Array.isArray(data) ? data[0] : data) as UserCountRow | null;
   // The server already applies Creator-global/Admin-branch scope.
   return {
-    total: Number((row as any)?.total || 0),
-    today: Number((row as any)?.today || 0),
+    total: Number(row?.total || 0),
+    today: Number(row?.today || 0),
     error: null,
     callerRole,
   };
@@ -36,7 +39,7 @@ export interface CreatorDashboardStats {
   todaySignups: number;
 }
 
-export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashboardStats; error: any }> {
+export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashboardStats; error: ErrorLike | null }> {
   const ZERO_STATS: CreatorDashboardStats = {
     totalUsers: 0, totalWorkers: 0, totalPartners: 0, totalStaff: 0, totalAdmins: 0,
     totalListings: 0, pendingInspections: 0, pendingVerifications: 0,
@@ -46,7 +49,7 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
   const { users, error: usersErr } = await getAllUsers();
   if (usersErr || !users) return { stats: ZERO_STATS, error: usersErr };
 
-  const activeUsers = users.filter((u: any) => !u.deleted && !u.deleted_at);
+  const activeUsers = users.filter((user) => !user.deleted && !user.deleted_at);
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -59,18 +62,18 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
   return {
     stats: {
       totalUsers: activeUsers.length,
-      totalWorkers: activeUsers.filter((u: any) => u.role === 'worker').length,
-      totalPartners: activeUsers.filter((u: any) => u.role === 'property_partner').length,
-      totalStaff: activeUsers.filter((u: any) => u.role === 'staff').length,
-      totalAdmins: activeUsers.filter((u: any) => u.role === 'admin').length,
+      totalWorkers: activeUsers.filter((user) => user.role === 'worker').length,
+      totalPartners: activeUsers.filter((user) => user.role === 'property_partner').length,
+      totalStaff: activeUsers.filter((user) => user.role === 'staff').length,
+      totalAdmins: activeUsers.filter((user) => user.role === 'admin').length,
       totalListings: listingsCount || 0,
       pendingInspections: inspectionsCount || 0,
-      pendingVerifications: activeUsers.filter((u: any) => u.role === 'worker' && ['pending', 'verification_paid', 'profile_under_review'].includes(u.worker_status)).length,
+      pendingVerifications: activeUsers.filter((user) => user.role === 'worker' && user.worker_status !== null && ['pending', 'verification_paid', 'profile_under_review'].includes(user.worker_status)).length,
       activeWorkerBookings: bookingsCount || 0,
       totalRevenue: 0,
       pendingPayouts: 0,
       escrowBalance: 0,
-      todaySignups: activeUsers.filter((u: any) => new Date(u.created_at) >= todayStart).length,
+      todaySignups: activeUsers.filter((user) => new Date(user.created_at) >= todayStart).length,
     },
     error: null,
   };
@@ -127,9 +130,9 @@ export async function updateUserRole(
   changerRole: 'creator' | 'admin' | 'staff' = 'admin'
 ) {
   const validation = canChangeRole(currentRole, newRole, changerRole);
-  if (!validation.allowed) return { error: { message: validation.reason } as any };
+  if (!validation.allowed) return { error: { message: validation.reason || 'Role change is not allowed' } };
   if (changerRole !== 'admin') {
-    return { error: { message: 'Creator must use Team management so State, LGA and module are recorded.' } as any };
+    return { error: { message: 'Creator must use Team management so State, LGA and module are recorded.' } };
   }
   const { error } = await supabase.rpc('admin_update_role', {
     p_target_user_id: userId,
@@ -159,7 +162,7 @@ export async function getRoleChangeHistory(userId?: string) {
   let query = supabase.from('role_change_history').select('*').order('created_at', { ascending: false });
   if (userId) query = query.eq('user_id', userId);
   const { data, error } = await query;
-  return { history: data as any[] | null, error };
+  return { history: data as RoleChangeHistory[] | null, error };
 }
 
 export async function deleteAccount(userId: string) {
@@ -179,7 +182,7 @@ export async function getAllListingsAdmin() {
 
 export async function getReports() {
   const { data, error } = await supabase.from('listing_reports').select('*').order('created_at', { ascending: false });
-  return { reports: data as any[] | null, error };
+  return { reports: data as ListingReport[] | null, error };
 }
 
 export async function createReport(reporterId: string, reason: string, listingId?: string, reportedUserId?: string) {
@@ -253,7 +256,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 
 export async function getSystemSettings() {
   const { data, error } = await supabase.from('platform_settings').select('*');
-  const merged: SystemSetting[] = (data || []).map((dbRow: any) => ({
+  const rows = (data || []) as SystemSetting[];
+  const merged: SystemSetting[] = rows.map((dbRow) => ({
     id: dbRow.id,
     key: dbRow.key,
     value: dbRow.value ?? DEFAULT_SETTINGS[dbRow.key] ?? '',
