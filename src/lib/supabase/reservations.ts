@@ -10,20 +10,26 @@ type PaymentInitResult = {
   existing?: boolean;
   error?: string;
 };
+type InvokeErrorWithContext={context?:{json?:()=>Promise<{error?:unknown}>}};
+type ReservationRecord=Record<string,unknown>&{id:string;listing_id?:string|null;listing_title?:string|null;listing_price?:number|null};
+type ListingMediaRow={id:string;title:string|null;address:string|null;city:string|null;state:string|null;images:string[]|null;videos:string[]|null;sub_type:string|null;bedrooms:number|null;bathrooms:number|null;price:number|null};
+type InspectionRecord=Record<string,unknown>&{id?:string;status?:string;field_officer_id?:string|null};
+type PartnerInspectionRecord=InspectionRecord&{request_code?:string;owner_id?:string;owner_phone?:string;property_address?:string;property_city?:string;property_state?:string;photo_urls?:string[]};
 
 // Canonical apartment reservation API. Identity, availability, fee and duplicate
 // prevention are enforced by the database; caller-supplied user or price data is ignored.
 export async function createReservation(
   listingId: string,
-  _userId?: string,
-  _listingSnapshot?: { title: string; price: number; location: string }
+  userId?: string,
+  listingSnapshot?: { title: string; price: number; location: string }
 ) {
+  void userId;void listingSnapshot;
   const { data, error } = await supabase.rpc('create_apartment_reservation', {
     p_listing_id: listingId,
   });
 
   return {
-    reservation: data as any || null,
+    reservation: data as ReservationRecord || null,
     error,
     alreadyExists: false,
   };
@@ -36,7 +42,7 @@ export async function initializeReservationPayment(reference: string) {
   if (error) {
     let message = error.message || 'Reservation checkout could not start';
     try {
-      const body = await (error as any).context?.json?.();
+      const body = await (error as InvokeErrorWithContext).context?.json?.();
       if (body?.error) message = String(body.error);
     } catch { /* The network response may not contain JSON. */ }
     return { result: { success: false, error: message } as PaymentInitResult, error: null };
@@ -47,35 +53,38 @@ export async function initializeReservationPayment(reference: string) {
   };
 }
 
-export async function getReservationForListing(listingId: string, _userId?: string) {
+export async function getReservationForListing(listingId: string, userId?: string) {
+  void userId;
   const { data, error } = await supabase.rpc('get_my_reservation_for_listing', {
     p_listing_id: listingId,
   });
-  return { reservation: data as any || null, error };
+  return { reservation: data as ReservationRecord || null, error };
 }
 
-export async function getReservationsForUser(_userId?: string) {
+export async function getReservationsForUser(userId?: string) {
+  void userId;
   const { data, error } = await supabase
     .from('reservations')
     .select('*')
     .eq('reservation_type', 'apartment')
     .order('created_at', { ascending: false });
-  if (error || !data?.length) return { reservations: data as any[] | null, error };
-  const listingIds = Array.from(new Set(data.map((row: any) => row.listing_id).filter(Boolean)));
+  const reservations=(data||[]) as ReservationRecord[];
+  if (error || !reservations.length) return { reservations: error?null:reservations, error };
+  const listingIds = Array.from(new Set(reservations.map((row) => row.listing_id).filter((value):value is string=>typeof value==='string'&&value.length>0)));
   const { data: listings, error: listingError } = await supabase
     .from('listings')
     .select('id,title,address,city,state,images,videos,sub_type,bedrooms,bathrooms,price')
     .in('id', listingIds);
-  if (listingError) return { reservations: data as any[], error: listingError };
-  const mediaByListing = new Map((listings || []).map((row: any) => [row.id, { title: row.title, address: row.address, city: row.city, state: row.state, images: row.images || [], videos: row.videos || [], sub_type: row.sub_type, bedrooms: row.bedrooms, bathrooms: row.bathrooms, price: row.price }]));
-  return { reservations: data.map((row: any) => { const media = mediaByListing.get(row.listing_id) || { title: null, address: null, city: null, state: null, images: [] as string[], videos: [] as string[], sub_type: null, bedrooms: null, bathrooms: null, price: null }; return { ...row, listing_title: media.title || row.listing_title, listing_address: media.address, listing_city: media.city, listing_state: media.state, listing_image: media.images[0] || null, listing_images: media.images, listing_videos: media.videos, listing_bedrooms: media.bedrooms, listing_bathrooms: media.bathrooms, listing_price: media.price || row.listing_price }; }) as any[], error: null };
+  if (listingError) return { reservations, error: listingError };
+  const mediaByListing = new Map(((listings || []) as ListingMediaRow[]).map((row) => [row.id, { title: row.title, address: row.address, city: row.city, state: row.state, images: row.images || [], videos: row.videos || [], sub_type: row.sub_type, bedrooms: row.bedrooms, bathrooms: row.bathrooms, price: row.price }]));
+  return { reservations: reservations.map((row) => { const media = (typeof row.listing_id==='string'?mediaByListing.get(row.listing_id):undefined) || { title: null, address: null, city: null, state: null, images: [] as string[], videos: [] as string[], sub_type: null, bedrooms: null, bathrooms: null, price: null }; return { ...row, listing_title: media.title || row.listing_title, listing_address: media.address, listing_city: media.city, listing_state: media.state, listing_image: media.images[0] || null, listing_images: media.images, listing_videos: media.videos, listing_bedrooms: media.bedrooms, listing_bathrooms: media.bathrooms, listing_price: media.price || row.listing_price }; }), error: null };
 }
 
 export async function cancelReservation(reservationId: string) {
   const { data, error } = await supabase.rpc('cancel_my_apartment_reservation', {
     p_reservation_id: reservationId,
   });
-  return { reservation: data as any || null, error };
+  return { reservation: data as ReservationRecord || null, error };
 }
 
 export async function updateReservationPlan(reservationId: string, planYears: number) {
@@ -83,29 +92,30 @@ export async function updateReservationPlan(reservationId: string, planYears: nu
     p_reservation_id: reservationId,
     p_plan_years: planYears,
   });
-  return { reservation: data as any || null, error };
+  return { reservation: data as ReservationRecord || null, error };
 }
 
 export async function markSupportContacted(reservationId: string) {
   const { data, error } = await supabase.rpc('mark_my_reservation_support_contacted', {
     p_reservation_id: reservationId,
   });
-  return { reservation: data as any || null, error };
+  return { reservation: data as ReservationRecord || null, error };
 }
 
 export async function createInspectionRequest(
   reservationId: string,
-  _listingId?: string,
-  _userId?: string,
+  listingId?: string,
+  userId?: string,
   notes?: string
 ) {
+  void listingId;void userId;
   const { data, error } = await supabase.rpc('create_user_inspection_request', {
     p_reservation_id: reservationId,
     p_notes: notes || null,
   });
 
   return {
-    inspection: data as any || null,
+    inspection: data as InspectionRecord || null,
     error,
     alreadyExists: false,
   };
@@ -119,15 +129,16 @@ export async function getInspectionRequestForReservation(reservationId: string) 
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  return { inspection: data as any, error };
+  return { inspection: data as InspectionRecord|null, error };
 }
 
-export async function getInspectionRequestsForUser(_userId?: string) {
+export async function getInspectionRequestsForUser(userId?: string) {
+  void userId;
   const { data, error } = await supabase
     .from('user_inspection_requests')
     .select('*')
     .order('created_at', { ascending: false });
-  return { inspections: data as any[] | null, error };
+  return { inspections: data as InspectionRecord[] | null, error };
 }
 
 export async function getPendingInspectionRequests() {
@@ -136,7 +147,7 @@ export async function getPendingInspectionRequests() {
     .select('*')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
-  return { inspections: data as any[] | null, error };
+  return { inspections: data as InspectionRecord[] | null, error };
 }
 
 export async function getInspectionRequestsForFieldOfficer(fieldOfficerId: string) {
@@ -155,7 +166,7 @@ export async function getInspectionRequestsForFieldOfficer(fieldOfficerId: strin
       .order('scheduled_date', { ascending: true }),
   ]);
 
-  const normalizedPartners = (partnerReqs.data || []).map((request: any) => ({
+  const normalizedPartners = ((partnerReqs.data || []) as PartnerInspectionRecord[]).map((request) => ({
     ...request,
     _source: 'partner',
     inspection_code: request.request_code,
@@ -182,14 +193,14 @@ export async function assignFieldOfficer(inspectionId: string, fieldOfficerId: s
     p_field_officer_id: fieldOfficerId,
     p_scheduled_date: scheduledDate || null,
   });
-  return { inspection: data as any || null, error };
+  return { inspection: data as InspectionRecord || null, error };
 }
 
 export async function startInspection(inspectionId: string) {
   const { data, error } = await supabase.rpc('staff_start_customer_inspection', {
     p_inspection_id: inspectionId,
   });
-  return { inspection: data as any || null, error };
+  return { inspection: data as InspectionRecord || null, error };
 }
 
 export async function completeInspection(
@@ -204,14 +215,14 @@ export async function completeInspection(
     p_condition: condition,
     p_photo_urls: photoUrls || [],
   });
-  return { inspection: data as any || null, error };
+  return { inspection: data as InspectionRecord || null, error };
 }
 
 export async function cancelInspectionRequest(inspectionId: string) {
   const { data, error } = await supabase.rpc('cancel_my_inspection_request', {
     p_inspection_id: inspectionId,
   });
-  return { inspection: data as any || null, error };
+  return { inspection: data as InspectionRecord || null, error };
 }
 
 export async function processReservationRefund(
@@ -251,7 +262,7 @@ export async function activateApartmentTenancy(reservationId: string, startDate?
     p_reservation_id: reservationId,
     p_start_date: startDate || new Date().toISOString().slice(0, 10),
   });
-  return { reservation: data as any || null, error };
+  return { reservation: data as ReservationRecord || null, error };
 }
 
 export async function completeApartmentTenancy(
@@ -262,7 +273,7 @@ export async function completeApartmentTenancy(
     p_reservation_id: reservationId,
     p_next_status: nextStatus,
   });
-  return { reservation: data as any || null, error };
+  return { reservation: data as ReservationRecord || null, error };
 }
 
 export async function expireOverdueReservations() {
