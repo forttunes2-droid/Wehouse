@@ -3,10 +3,21 @@
 
 import { supabase } from './client';
 import type { StaffPermission } from '@/types';
+import type { PostgrestError } from '@supabase/supabase-js';
+
+type PermissionRow = { permission: StaffPermission | null };
+type StaffProfileRow = {
+  user_id: string;
+  email: string;
+  username: string | null;
+  full_name: string | null;
+  role: string;
+};
+type StaffSummary = Pick<StaffProfileRow, 'user_id' | 'email' | 'username'>;
 
 export async function getStaffPermissions(staffId: string): Promise<{
   permissions: StaffPermission[];
-  error: any;
+  error: PostgrestError | null;
 }> {
   const { data, error } = await supabase
     .from('staff_permissions')
@@ -16,7 +27,9 @@ export async function getStaffPermissions(staffId: string): Promise<{
 
   if (error) return { permissions: [], error };
   return {
-    permissions: (data || []).map((r: any) => r.permission as StaffPermission).filter(Boolean),
+    permissions: ((data || []) as PermissionRow[])
+      .map((row) => row.permission)
+      .filter((permission): permission is StaffPermission => permission !== null),
     error: null,
   };
 }
@@ -24,8 +37,9 @@ export async function getStaffPermissions(staffId: string): Promise<{
 export async function grantPermission(
   staffId: string,
   permission: StaffPermission,
-  _grantedBy: string
-): Promise<{ success: boolean; error: any }> {
+  grantedBy: string
+): Promise<{ success: boolean; error: PostgrestError | null }> {
+  void grantedBy;
   const { error } = await supabase.rpc('manage_staff_permission', {
     p_staff_id: staffId,
     p_permission: permission,
@@ -37,7 +51,7 @@ export async function grantPermission(
 export async function revokePermission(
   staffId: string,
   permission: StaffPermission
-): Promise<{ success: boolean; error: any }> {
+): Promise<{ success: boolean; error: PostgrestError | null }> {
   const { error } = await supabase.rpc('manage_staff_permission', {
     p_staff_id: staffId,
     p_permission: permission,
@@ -65,7 +79,7 @@ export async function getAllStaffWithPermissions(): Promise<{
     role: string;
     permissions: StaffPermission[];
   }>;
-  error: any;
+  error: PostgrestError | null;
 }> {
   const { data, error } = await supabase
     .from('profiles')
@@ -74,16 +88,16 @@ export async function getAllStaffWithPermissions(): Promise<{
     .eq('deleted', false);
 
   if (error) return { staff: [], error };
-  const staff = await Promise.all((data || []).map(async (s: any) => {
-    const { permissions } = await getStaffPermissions(s.user_id);
-    return { ...s, permissions };
+  const staff = await Promise.all(((data || []) as StaffProfileRow[]).map(async (profile) => {
+    const { permissions } = await getStaffPermissions(profile.user_id);
+    return { ...profile, permissions };
   }));
   return { staff, error: null };
 }
 
 export async function getStaffByPermission(
   permission: StaffPermission
-): Promise<{ staff: Array<{ user_id: string; email: string; username: string | null }>; error: any }> {
+): Promise<{ staff: StaffSummary[]; error: PostgrestError | null }> {
   const { data, error } = await supabase
     .from('staff_permissions')
     .select('staff_id')
@@ -94,6 +108,6 @@ export async function getStaffByPermission(
   const { data: profiles, error: profileError } = await supabase
     .from('profiles')
     .select('user_id, email, username')
-    .in('user_id', data.map((d: any) => d.staff_id));
-  return { staff: profiles || [], error: profileError };
+    .in('user_id', data.map((row) => row.staff_id));
+  return { staff: (profiles || []) as StaffSummary[], error: profileError };
 }
