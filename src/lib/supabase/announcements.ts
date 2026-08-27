@@ -1,5 +1,14 @@
 import { supabase } from './client';
-import type { Announcement,AnnouncementTargetType } from '@/types';
+import type { Announcement,AnnouncementRecipient,AnnouncementTargetType } from '@/types';
+
+type AnnouncementDispatchResult={id?:number;recipient_count?:number};
+type AnnouncementListRow=Announcement&{profiles?:{username:string|null}|null};
+type AnnouncementInboxRow=Pick<AnnouncementRecipient,'id'|'announcement_id'|'read_status'|'delivered_at'>&{announcements:Announcement[]};
+
+function sentAnnouncement(data:unknown,senderId:string,senderRole:string,title:string,content:string,targetType:AnnouncementTargetType):Announcement{
+  const result=(data&&typeof data==='object'?data:{}) as AnnouncementDispatchResult;
+  return{id:Number(result.id||0),title,content,sender_id:senderId,sender_role:senderRole,target_type:targetType,scope:null,recipient_count:Number(result.recipient_count||0),read_count:0,created_at:new Date().toISOString()};
+}
 
 export async function checkAnnouncementTables(){return{ok:true,issues:[] as string[]}}
 
@@ -26,7 +35,8 @@ export async function sendAnnouncement(
       p_target_roles:roles,
       p_recipient_ids:targetType==='specific_user'?(recipientIds||[]):null,
     });
-    return{error,announcement:error?null:({id:(data as any)?.id,title:cleanTitle,content:cleanMessage,sender_id:senderId,sender_role:senderRole,target_type:targetType,recipient_count:(data as any)?.recipient_count||0} as any),recipientCount:error?0:Number((data as any)?.recipient_count||0)};
+    const result=(data&&typeof data==='object'?data:{}) as AnnouncementDispatchResult;
+    return{error,announcement:error?null:sentAnnouncement(data,senderId,senderRole,cleanTitle,cleanMessage,targetType),recipientCount:error?0:Number(result.recipient_count||0)};
   }
 
   if(senderRole==='creator'){
@@ -38,7 +48,8 @@ export async function sendAnnouncement(
       p_scope_state:scopeState||null,
       p_scope_lga:scopeLga||null,
     });
-    return{error,announcement:error?null:({id:(data as any)?.id,title:cleanTitle,content:cleanMessage,sender_id:senderId,sender_role:senderRole,target_type:targetType,recipient_count:(data as any)?.recipient_count||0} as any),recipientCount:error?0:Number((data as any)?.recipient_count||0)};
+    const result=(data&&typeof data==='object'?data:{}) as AnnouncementDispatchResult;
+    return{error,announcement:error?null:sentAnnouncement(data,senderId,senderRole,cleanTitle,cleanMessage,targetType),recipientCount:error?0:Number(result.recipient_count||0)};
   }
 
   return{error:{message:'This role cannot send announcements'},announcement:null,recipientCount:0};
@@ -47,12 +58,13 @@ export async function sendAnnouncement(
 export async function getAnnouncementsForUser(userId:string){
   const{data,error}=await supabase.from('announcement_recipients').select('id,announcement_id,read_status,delivered_at,announcements(*)').eq('user_id',userId).order('delivered_at',{ascending:false});
   if(error)return{messages:[],error};
-  return{messages:(data||[]).map((r:any)=>({...r,message:r.announcements})),error:null};
+  const rows=(data||[]) as AnnouncementInboxRow[];
+  return{messages:rows.map((row)=>({...row,message:row.announcements[0]||null})),error:null};
 }
-export async function markAnnouncementRead(announcementId:number,_userId:string){const{error}=await supabase.rpc('mark_my_announcement_read',{p_announcement_id:announcementId});return{error}}
+export async function markAnnouncementRead(announcementId:number,userId:string){void userId;const{error}=await supabase.rpc('mark_my_announcement_read',{p_announcement_id:announcementId});return{error}}
 export async function deleteAnnouncement(announcementId:number){const{error}=await supabase.from('announcements').delete().eq('id',announcementId);return{error}}
-export async function getAnnouncementsSentBy(senderId:string){const{data,error}=await supabase.from('announcements').select('id,title,content,sender_id,sender_role,target_type,scope,recipient_count,read_count,created_at,profiles:sender_id (username)').eq('sender_id',senderId).order('created_at',{ascending:false});return{messages:data as any[]|null,error}}
-export async function getAllAnnouncements(){const{data,error}=await supabase.from('announcements').select('id,title,content,sender_id,sender_role,target_type,scope,recipient_count,read_count,created_at,profiles:sender_id (username)').order('created_at',{ascending:false});return{messages:data as any[]|null,error}}
+export async function getAnnouncementsSentBy(senderId:string){const{data,error}=await supabase.from('announcements').select('id,title,content,sender_id,sender_role,target_type,scope,recipient_count,read_count,created_at,profiles:sender_id (username)').eq('sender_id',senderId).order('created_at',{ascending:false});return{messages:data as AnnouncementListRow[]|null,error}}
+export async function getAllAnnouncements(){const{data,error}=await supabase.from('announcements').select('id,title,content,sender_id,sender_role,target_type,scope,recipient_count,read_count,created_at,profiles:sender_id (username)').order('created_at',{ascending:false});return{messages:data as AnnouncementListRow[]|null,error}}
 export async function getUnreadAnnouncementCount(userId:string){const{count,error}=await supabase.from('announcement_recipients').select('*',{count:'exact',head:true}).eq('user_id',userId).eq('read_status',false);return{count:count||0,error}}
 export async function getAnnouncementStats(announcementId:number){const{data,error}=await supabase.from('announcements').select('recipient_count,read_count').eq('id',announcementId).maybeSingle();return{stats:data||{recipient_count:0,read_count:0},error}}
 export const getOfficialMessagesForUser=getAnnouncementsForUser;
