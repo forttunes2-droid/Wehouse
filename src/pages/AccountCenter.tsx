@@ -25,9 +25,10 @@ type Legal = {
 };
 type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'communication' | 'official' | null;
+type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
 export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
-  const p = profile as any;
+  const p = profile as Profile & ProfilePreferences;
   const [panel, setPanel] = useState<Panel>(null);
   const [emailNotifs, setEmailNotifs] = useState(p.pref_email_notif !== false);
   const [pushNotifs, setPushNotifs] = useState(p.pref_push_notif !== false);
@@ -216,7 +217,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       <section className="grid gap-3 sm:grid-cols-3">
         <AccountInfo label="Email" value={profile.email_verified ? 'Verified' : 'Not verified'} />
         <AccountInfo label="Account ID" value={profile.user_id || 'Not set'} />
-        <AccountInfo label={isStaff || role === 'admin' ? 'Assigned branch' : role === 'creator' ? 'Access scope' : 'Member since'} value={isStaff || role === 'admin' ? [profile.assigned_lga,profile.assigned_state].filter(Boolean).join(', ') || 'Not assigned' : role === 'creator' ? 'Worldwide platform' : new Date(profile.created_at).toLocaleDateString()} />
+        <AccountInfo label={isStaff || role === 'admin' ? 'Assigned branch' : role === 'creator' ? 'Access scope' : 'Member since'} value={isStaff || role === 'admin' ? [profile.assigned_lga,profile.assigned_state].filter(Boolean).join(', ') || 'Not assigned' : role === 'creator' ? 'Worldwide platform' : memberSince(profile.created_at)} />
       </section>
 
       {isStaff && <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[10px] leading-relaxed text-amber-200/80">Staff role, branch and operational permissions are managed through authorized Admin/Creator workflows.</div>}
@@ -235,6 +236,7 @@ function Toggle({ label, detail, value, onChange }: { label: string; detail: str
 function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) { return <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5"><input type="checkbox" checked={value} onChange={(event) => set(event.target.checked)} className="h-4 w-4 accent-violet-500" /><span className="text-[10px] leading-relaxed text-[#B3B8C4]">{label}</span></label>; }
 function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} disabled={!published} className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"><p className="text-[11px] font-semibold">{title}</p><p className={`mt-2 text-[9px] ${accepted ? 'text-emerald-300' : 'text-[#6E7484]'}`}>{!published ? 'Not published' : accepted ? 'Accepted' : 'Review document'}</p></button>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] text-[#666D7E]">{text}</p></div>; }
+function memberSince(value:string){const date=new Date(value);return Number.isNaN(date.getTime())?'Not available':date.toLocaleDateString(undefined,{month:'long',year:'numeric'})}
 
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
 function HeartIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
