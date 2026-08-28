@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import SecureSupportAttachment from '@/components/SecureSupportAttachment';
-import { supabase } from '@/lib/supabase';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import SecureSupportAttachment from "@/components/SecureSupportAttachment";
+import { supabase } from "@/lib/supabase";
 import {
   deleteSupportAttachment,
   ensureSupportConversation,
@@ -12,7 +12,7 @@ import {
   uploadSupportAttachment,
   type SupportOpenContext,
   type SupportThread,
-} from '@/lib/supabase/support';
+} from "@/lib/supabase/support";
 
 interface ChatProfile {
   user_id: string;
@@ -25,37 +25,88 @@ interface Props {
   profile: ChatProfile | null;
 }
 
-
 export default function SupportChat({ profile }: Props) {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<SupportThread | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
-  const [pendingContext, setPendingContext] = useState<SupportOpenContext | null>(null);
+  const [pendingContext, setPendingContext] =
+    useState<SupportOpenContext | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachItems, setAttachItems] = useState<SupportOpenContext[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const activeContextType =
+    pendingContext?.contextType || thread?.context_type || "";
+  const isReservationDesk = [
+    "apartment_reservation",
+    "reservation",
+    "hotel_booking",
+  ].includes(activeContextType);
+  const deskName = isReservationDesk ? "Reservation Desk" : "WeHouse Support";
 
   async function openWeHouseItems() {
     setAttachOpen(true);
     const [jobs, stays] = await Promise.all([
-      supabase.from('worker_bookings').select('*').or(`user_id.eq.${profile?.user_id},worker_id.eq.${profile?.user_id}`).order('created_at', { ascending: false }).limit(8),
-      supabase.from('reservations').select('*').eq('user_id', profile?.user_id || '').order('created_at', { ascending: false }).limit(8),
+      supabase
+        .from("worker_bookings")
+        .select("*")
+        .or(`user_id.eq.${profile?.user_id},worker_id.eq.${profile?.user_id}`)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("reservations")
+        .select("*")
+        .eq("user_id", profile?.user_id || "")
+        .order("created_at", { ascending: false })
+        .limit(8),
     ]);
-    const jobItems = (jobs.data || []).map((row: any) => ({ category: 'worker_booking', subject: `Worker booking ${row.booking_code ? `#${row.booking_code}` : ''}`.trim(), contextType: 'worker_booking', contextId: row.id, contextSnapshot: { booking_code: row.booking_code, service_type: row.service_type, status: row.status, scheduled_date: row.scheduled_date, agreed_amount: row.negotiated_amount || row.agreed_amount } }));
-    const stayItems = (stays.data || []).map((row: any) => ({ category: 'reservation', subject: `Housing reservation ${row.booking_reference ? `#${row.booking_reference}` : ''}`.trim(), contextType: 'reservation', contextId: row.id, contextSnapshot: { reference: row.booking_reference, status: row.status, check_in: row.check_in || row.start_date, check_out: row.check_out || row.end_date, amount: row.total_amount || row.amount } }));
-    setAttachItems([...jobItems, ...stayItems].sort((a: any, b: any) => String(b.contextSnapshot?.created_at || '').localeCompare(String(a.contextSnapshot?.created_at || ''))));
+    const jobItems = (jobs.data || []).map((row: any) => ({
+      category: "worker_booking",
+      subject:
+        `Worker booking ${row.booking_code ? `#${row.booking_code}` : ""}`.trim(),
+      contextType: "worker_booking",
+      contextId: row.id,
+      contextSnapshot: {
+        booking_code: row.booking_code,
+        service_type: row.service_type,
+        status: row.status,
+        scheduled_date: row.scheduled_date,
+        agreed_amount: row.negotiated_amount || row.agreed_amount,
+      },
+    }));
+    const stayItems = (stays.data || []).map((row: any) => ({
+      category: "reservation",
+      subject:
+        `Housing reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
+      contextType: "reservation",
+      contextId: row.id,
+      contextSnapshot: {
+        reference: row.booking_reference,
+        status: row.status,
+        check_in: row.check_in || row.start_date,
+        check_out: row.check_out || row.end_date,
+        amount: row.total_amount || row.amount,
+      },
+    }));
+    setAttachItems(
+      [...jobItems, ...stayItems].sort((a: any, b: any) =>
+        String(b.contextSnapshot?.created_at || "").localeCompare(
+          String(a.contextSnapshot?.created_at || ""),
+        ),
+      ),
+    );
   }
 
   const loadMessages = useCallback(async (id: string, quiet = false) => {
     if (!quiet) setLoading(true);
     const { messages: data, error } = await getSupportMessages(id);
-    if (error && !quiet) toast.error(error.message || 'Unable to load support messages');
+    if (error && !quiet)
+      toast.error(error.message || "Unable to load support messages");
     if (!error) setMessages(data || []);
     await markSupportMessagesRead(id);
     if (!quiet) setLoading(false);
@@ -68,27 +119,32 @@ export default function SupportChat({ profile }: Props) {
     return current;
   }, []);
 
-  const openConversation = useCallback(async (context?: SupportOpenContext) => {
-    if (!profile) return;
-    setOpen(true);
-    setPendingContext(context && hasContext(context) ? context : null);
-    setLoading(true);
+  const openConversation = useCallback(
+    async (context?: SupportOpenContext) => {
+      if (!profile) return;
+      setOpen(true);
+      setPendingContext(context && hasContext(context) ? context : null);
+      setLoading(true);
 
-    const current = await refreshThread();
-    if (current?.conversation_id) await loadMessages(current.conversation_id, true);
-    else setMessages([]);
+      const current = await refreshThread();
+      if (current?.conversation_id)
+        await loadMessages(current.conversation_id, true);
+      else setMessages([]);
 
-    setLoading(false);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, [profile?.user_id, loadMessages, refreshThread]);
+      setLoading(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+    [profile?.user_id, loadMessages, refreshThread],
+  );
 
   useEffect(() => {
     const handler = (event: Event) => {
-      const detail = ((event as CustomEvent<SupportOpenContext>).detail || {});
+      const detail = (event as CustomEvent<SupportOpenContext>).detail || {};
       void openConversation(detail);
     };
-    window.addEventListener('openSupportChat', handler as EventListener);
-    return () => window.removeEventListener('openSupportChat', handler as EventListener);
+    window.addEventListener("openSupportChat", handler as EventListener);
+    return () =>
+      window.removeEventListener("openSupportChat", handler as EventListener);
   }, [openConversation]);
 
   useEffect(() => {
@@ -97,8 +153,13 @@ export default function SupportChat({ profile }: Props) {
     const channel = supabase
       .channel(`human-support:${id}`)
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'partner_support_messages', filter: `conversation_id=eq.${id}` },
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "partner_support_messages",
+          filter: `conversation_id=eq.${id}`,
+        },
         () => {
           void loadMessages(id, true);
           void refreshThread();
@@ -111,7 +172,7 @@ export default function SupportChat({ profile }: Props) {
   }, [thread?.conversation_id, open, loadMessages, refreshThread]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, open]);
 
   async function send() {
@@ -125,7 +186,9 @@ export default function SupportChat({ profile }: Props) {
       const created = await ensureSupportConversation(pendingContext || {});
       if (created.error || !created.conversationId) {
         setSending(false);
-        toast.error(created.error?.message || 'Unable to start WeHouse Support');
+        toast.error(
+          created.error?.message || "Unable to start WeHouse Support",
+        );
         return;
       }
       conversationId = created.conversationId;
@@ -144,18 +207,24 @@ export default function SupportChat({ profile }: Props) {
         return;
       }
       paths.push(uploaded.path);
-      types.push(file.type || 'application/octet-stream');
+      types.push(file.type || "application/octet-stream");
     }
 
-    const { error } = await sendSupportMessage(conversationId, input.trim(), paths, types, pendingContext);
+    const { error } = await sendSupportMessage(
+      conversationId,
+      input.trim(),
+      paths,
+      types,
+      pendingContext,
+    );
     if (error) {
       for (const path of paths) await deleteSupportAttachment(path);
       setSending(false);
-      toast.error(error.message || 'Message failed');
+      toast.error(error.message || "Message failed");
       return;
     }
 
-    setInput('');
+    setInput("");
     setFiles([]);
     setPendingContext(null);
     setSending(false);
@@ -188,13 +257,15 @@ export default function SupportChat({ profile }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[14px] font-semibold">WeHouse Support</p>
-              <span className="grid h-4 w-4 place-items-center rounded-full bg-blue-400 text-[9px] font-bold">✓</span>
+              <p className="truncate text-[14px] font-semibold">{deskName}</p>
+              <span className="grid h-4 w-4 place-items-center rounded-full bg-blue-400 text-[9px] font-bold">
+                ✓
+              </span>
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
               {thread?.assigned_staff_name
                 ? `Human support · ${thread.assigned_staff_name}`
-                : 'Human support · send a message to start a case'}
+                : "Human support · send a message to start a case"}
             </p>
           </div>
         </div>
@@ -210,7 +281,19 @@ export default function SupportChat({ profile }: Props) {
             <Welcome />
           ) : (
             <div className="space-y-2.5">
-              {messages.map((msg, index) => <div key={msg.id}>{(!messages[index - 1] || new Date(messages[index - 1].created_at).toDateString() !== new Date(msg.created_at).toDateString()) && <DaySeparator value={msg.created_at} />}<MessageBubble msg={msg} mine={msg.sender_id === profile.user_id} /></div>)}
+              {messages.map((msg, index) => (
+                <div key={msg.id}>
+                  {(!messages[index - 1] ||
+                    new Date(messages[index - 1].created_at).toDateString() !==
+                      new Date(msg.created_at).toDateString()) && (
+                    <DaySeparator value={msg.created_at} />
+                  )}
+                  <MessageBubble
+                    msg={msg}
+                    mine={msg.sender_id === profile.user_id}
+                  />
+                </div>
+              ))}
             </div>
           )}
           <div ref={bottomRef} />
@@ -220,15 +303,32 @@ export default function SupportChat({ profile }: Props) {
       <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         <div className="mx-auto max-w-4xl">
           {pendingContext && hasContext(pendingContext) && (
-            <PendingContext context={pendingContext} onRemove={() => setPendingContext(null)} />
+            <PendingContext
+              context={pendingContext}
+              onRemove={() => setPendingContext(null)}
+            />
           )}
 
           {files.length > 0 && (
             <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
               {files.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2">
-                  <p className="max-w-40 truncate text-[9px] text-violet-200">{file.name}</p>
-                  <button onClick={() => setFiles((current) => current.filter((_, i) => i !== index))} className="text-[#8D91A1]">×</button>
+                <div
+                  key={`${file.name}-${index}`}
+                  className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2"
+                >
+                  <p className="max-w-40 truncate text-[9px] text-violet-200">
+                    {file.name}
+                  </p>
+                  <button
+                    onClick={() =>
+                      setFiles((current) =>
+                        current.filter((_, i) => i !== index),
+                      )
+                    }
+                    className="text-[#8D91A1]"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
@@ -248,13 +348,13 @@ export default function SupportChat({ profile }: Props) {
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
+                  if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
                     void send();
                   }
                 }}
                 rows={1}
-                placeholder="Message WeHouse Support"
+                placeholder={`Message ${deskName}`}
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] leading-5 outline-none placeholder:text-[#62697A]"
               />
             </div>
@@ -264,7 +364,7 @@ export default function SupportChat({ profile }: Props) {
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 text-white disabled:bg-white/[.05] disabled:text-[#666C7D]"
               aria-label="Send"
             >
-              {sending ? '…' : '➤'}
+              {sending ? "…" : "➤"}
             </button>
           </div>
           <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
@@ -272,7 +372,69 @@ export default function SupportChat({ profile }: Props) {
           </p>
         </div>
       </footer>
-      {attachOpen && <div className="fixed inset-0 z-[110] flex items-end bg-black/70 backdrop-blur-sm" onClick={() => setAttachOpen(false)}><section className="max-h-[72dvh] w-full overflow-y-auto rounded-t-[30px] bg-[#11151D] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4" onClick={(event) => event.stopPropagation()}><div className="mx-auto mb-5 h-1 w-10 rounded-full bg-white/15"/><div className="flex items-center justify-between"><div><h2 className="text-base font-bold">Attach from WeHouse</h2><p className="mt-1 text-[9px] text-[#747B8B]">Choose a real booking or reservation. Support receives its current reference and status.</p></div><button onClick={() => setAttachOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-[#9298A8]">×</button></div><div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]">{attachItems.length ? attachItems.map((item) => <button key={`${item.contextType}:${item.contextId}`} onClick={() => { setPendingContext(item); setAttachOpen(false); requestAnimationFrame(() => inputRef.current?.focus()); }} className="flex w-full items-center gap-3 py-4 text-left"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/10 text-violet-300">{item.contextType === 'worker_booking' ? 'W' : 'H'}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{item.subject}</p><p className="mt-1 truncate text-[9px] text-[#707788]">{String(item.contextSnapshot?.status || 'Current WeHouse record').replace(/_/g, ' ')}</p></div><span className="text-[#707788]">›</span></button>) : <p className="py-10 text-center text-[10px] text-[#707788]">No recent reservations or Worker bookings were found.</p>}</div></section></div>}
+      {attachOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-end bg-black/70 backdrop-blur-sm"
+          onClick={() => setAttachOpen(false)}
+        >
+          <section
+            className="max-h-[72dvh] w-full overflow-y-auto rounded-t-[30px] bg-[#11151D] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-white/15" />
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold">Attach from WeHouse</h2>
+                <p className="mt-1 text-[9px] text-[#747B8B]">
+                  Choose a real booking or reservation. Support receives its
+                  current reference and status.
+                </p>
+              </div>
+              <button
+                onClick={() => setAttachOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-[#9298A8]"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]">
+              {attachItems.length ? (
+                attachItems.map((item) => (
+                  <button
+                    key={`${item.contextType}:${item.contextId}`}
+                    onClick={() => {
+                      setPendingContext(item);
+                      setAttachOpen(false);
+                      requestAnimationFrame(() => inputRef.current?.focus());
+                    }}
+                    className="flex w-full items-center gap-3 py-4 text-left"
+                  >
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/10 text-violet-300">
+                      {item.contextType === "worker_booking" ? "W" : "H"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-semibold">
+                        {item.subject}
+                      </p>
+                      <p className="mt-1 truncate text-[9px] text-[#707788]">
+                        {String(
+                          item.contextSnapshot?.status ||
+                            "Current WeHouse record",
+                        ).replace(/_/g, " ")}
+                      </p>
+                    </div>
+                    <span className="text-[#707788]">›</span>
+                  </button>
+                ))
+              ) : (
+                <p className="py-10 text-center text-[10px] text-[#707788]">
+                  No recent reservations or Worker bookings were found.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -280,16 +442,49 @@ export default function SupportChat({ profile }: Props) {
 function MessageBubble({ msg, mine }: { msg: any; mine: boolean }) {
   const meta = msg.action_metadata || {};
   return (
-    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${mine ? 'items-end' : 'items-start'}`}>
-        {meta && Object.keys(meta).length > 0 && <MessageContext meta={meta} type={msg.action_type} />}
-        <div className={`rounded-[19px] px-3.5 py-2.5 ${mine ? 'rounded-br-md bg-violet-500 text-white' : 'rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]'}`}>
-          {!mine && <p className="mb-1 text-[9px] font-semibold text-violet-300">{msg.sender_name || 'WeHouse Support'}</p>}
+    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${mine ? "items-end" : "items-start"}`}
+      >
+        {meta && Object.keys(meta).length > 0 && (
+          <MessageContext meta={meta} type={msg.action_type} />
+        )}
+        <div
+          className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]"}`}
+        >
+          {!mine && (
+            <p className="mb-1 text-[9px] font-semibold text-violet-300">
+              {msg.sender_name || "WeHouse Support"}
+            </p>
+          )}
           {(msg.attachments || []).map((path: string, i: number) => (
-            <SecureSupportAttachment key={`${msg.id}-${path}`} path={path} type={msg.attachment_types?.[i] || ''} />
+            <SecureSupportAttachment
+              key={`${msg.id}-${path}`}
+              path={path}
+              type={msg.attachment_types?.[i] || ""}
+            />
           ))}
-          {msg.content && <p className="whitespace-pre-wrap text-[12px] leading-5">{msg.content}</p>}
-          <p className={`mt-1 text-[8px] ${mine ? 'text-violet-100/65' : 'text-[#606677]'}`}>{formatTime(msg.created_at)}{mine && <span className={msg.is_read ? 'ml-1 font-bold text-cyan-200' : 'ml-1 text-violet-100/45'}>{msg.is_read ? '✓✓' : '✓'}</span>}</p>
+          {msg.content && (
+            <p className="whitespace-pre-wrap text-[12px] leading-5">
+              {msg.content}
+            </p>
+          )}
+          <p
+            className={`mt-1 text-[8px] ${mine ? "text-violet-100/65" : "text-[#606677]"}`}
+          >
+            {formatTime(msg.created_at)}
+            {mine && (
+              <span
+                className={
+                  msg.is_read
+                    ? "ml-1 font-bold text-cyan-200"
+                    : "ml-1 text-violet-100/45"
+                }
+              >
+                {msg.is_read ? "✓✓" : "✓"}
+              </span>
+            )}
+          </p>
         </div>
       </div>
     </div>
@@ -299,35 +494,67 @@ function MessageBubble({ msg, mine }: { msg: any; mine: boolean }) {
 function MessageContext({ meta, type }: { meta: any; type?: string }) {
   const snap = meta.context_snapshot || {};
   const ref = meta.context_id;
-  const label = String(meta.subject || type || meta.context_type || 'Linked WeHouse item').replace(/_/g, ' ');
+  const label = String(
+    meta.subject || type || meta.context_type || "Linked WeHouse item",
+  ).replace(/_/g, " ");
   return (
     <div className="mb-1.5 w-full max-w-sm rounded-2xl border border-blue-500/15 bg-blue-500/[.055] p-3 text-left">
       <div className="flex items-center justify-between gap-3">
-        <p className="truncate text-[10px] font-semibold capitalize text-blue-200">{label}</p>
-        {ref && <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-1 text-[8px] text-blue-300">Ref {String(ref).slice(0, 18)}</span>}
+        <p className="truncate text-[10px] font-semibold capitalize text-blue-200">
+          {label}
+        </p>
+        {ref && (
+          <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-1 text-[8px] text-blue-300">
+            Ref {String(ref).slice(0, 18)}
+          </span>
+        )}
       </div>
       {Object.keys(snap).length > 0 && (
         <div className="mt-2 grid gap-1 text-[9px] text-[#8FA0B9] sm:grid-cols-2">
-          {Object.entries(snap).slice(0, 6).map(([key, value]) => (
-            <p key={key} className="truncate">
-              <span className="capitalize text-[#66758C]">{key.replace(/_/g, ' ')}:</span> {String(value ?? '')}
-            </p>
-          ))}
+          {Object.entries(snap)
+            .slice(0, 6)
+            .map(([key, value]) => (
+              <p key={key} className="truncate">
+                <span className="capitalize text-[#66758C]">
+                  {key.replace(/_/g, " ")}:
+                </span>{" "}
+                {String(value ?? "")}
+              </p>
+            ))}
         </div>
       )}
     </div>
   );
 }
 
-function PendingContext({ context, onRemove }: { context: SupportOpenContext; onRemove: () => void }) {
+function PendingContext({
+  context,
+  onRemove,
+}: {
+  context: SupportOpenContext;
+  onRemove: () => void;
+}) {
   return (
     <div className="mb-2 flex items-start gap-3 rounded-2xl border border-blue-500/15 bg-blue-500/[.055] p-3">
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-300">↗</div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] font-semibold text-blue-200">{context.subject || String(context.contextType || 'Linked WeHouse item').replace(/_/g, ' ')}</p>
-        <p className="mt-1 truncate text-[9px] text-[#6F7F97]">This reference will be attached to your next message{context.contextId ? ` · ${context.contextId}` : ''}.</p>
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-300">
+        ↗
       </div>
-      <button onClick={onRemove} className="text-[#758096]">×</button>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[10px] font-semibold text-blue-200">
+          {context.subject ||
+            String(context.contextType || "Linked WeHouse item").replace(
+              /_/g,
+              " ",
+            )}
+        </p>
+        <p className="mt-1 truncate text-[9px] text-[#6F7F97]">
+          This reference will be attached to your next message
+          {context.contextId ? ` · ${context.contextId}` : ""}.
+        </p>
+      </div>
+      <button onClick={onRemove} className="text-[#758096]">
+        ×
+      </button>
     </div>
   );
 }
@@ -336,10 +563,16 @@ function Welcome() {
   return (
     <div className="grid min-h-[55vh] place-items-center px-5 text-center">
       <div>
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">S</div>
-        <h2 className="mt-4 text-base font-semibold">Message WeHouse Support</h2>
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">
+          S
+        </div>
+        <h2 className="mt-4 text-base font-semibold">
+          Message WeHouse Support
+        </h2>
         <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#747A8B]">
-          Send text, photos or documents to the human support team. A Support case begins only after you send the first message. Booking, inspection or payment context stays attached to that message.
+          Send text, photos or documents to the human support team. A Support
+          case begins only after you send the first message. Booking, inspection
+          or payment context stays attached to that message.
         </p>
       </div>
     </div>
@@ -349,18 +582,41 @@ function Welcome() {
 function hasContext(value: SupportOpenContext) {
   return Boolean(
     value.contextId ||
-    (value.contextType && value.contextType !== 'general') ||
+    (value.contextType && value.contextType !== "general") ||
     (value.contextSnapshot && Object.keys(value.contextSnapshot).length),
   );
 }
 
 function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function DaySeparator({ value }: { value: string }) {
-  const date = new Date(value), today = new Date(), yesterday = new Date();
+  const date = new Date(value),
+    today = new Date(),
+    yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
-  const label = date.toDateString() === today.toDateString() ? 'Today' : date.toDateString() === yesterday.toDateString() ? 'Yesterday' : date.toLocaleDateString([], { day: 'numeric', month: 'short', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
-  return <div className="flex items-center gap-3 py-3"><span className="h-px flex-1 bg-white/[.05]"/><span className="text-[8px] font-semibold text-[#697080]">{label}</span><span className="h-px flex-1 bg-white/[.05]"/></div>;
+  const label =
+    date.toDateString() === today.toDateString()
+      ? "Today"
+      : date.toDateString() === yesterday.toDateString()
+        ? "Yesterday"
+        : date.toLocaleDateString([], {
+            day: "numeric",
+            month: "short",
+            year:
+              date.getFullYear() === today.getFullYear()
+                ? undefined
+                : "numeric",
+          });
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <span className="h-px flex-1 bg-white/[.05]" />
+      <span className="text-[8px] font-semibold text-[#697080]">{label}</span>
+      <span className="h-px flex-1 bg-white/[.05]" />
+    </div>
+  );
 }

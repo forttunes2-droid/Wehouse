@@ -1,106 +1,1040 @@
-import { useState,useEffect,useCallback,useRef,useMemo,Suspense,lazy } from 'react';
-import { useAuth,canCreateListings,isCreator as checkCreator } from '@/hooks/useAuth';
-import { CreatorAuthProvider } from '@/hooks/useCreatorAuth';
-import { AdminAuthProvider } from '@/hooks/useAdminAuth';
-import { getSavedListings,saveListing,unsaveListing,supabase,getUnreadAnnouncementCount } from '@/lib/supabase';
-import CreatorAuthModal from '@/components/CreatorAuthModal';
-import AdminAuthModal from '@/components/AdminAuthModal';
-import SupportChat from '@/components/SupportChat';
-import DesktopLayout from '@/components/DesktopLayout';
-import PrivateCallCenter from '@/components/PrivateCallCenter';
-import { getNavForRole } from '@/lib/desktop-nav';
-import Login from '@/pages/Login';
-import Setup from '@/pages/Setup';
-import type { NavPage } from '@/types/nav';
-import { toast } from 'sonner';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  Suspense,
+  lazy,
+} from "react";
+import {
+  useAuth,
+  canCreateListings,
+  isCreator as checkCreator,
+} from "@/hooks/useAuth";
+import { CreatorAuthProvider } from "@/hooks/useCreatorAuth";
+import { AdminAuthProvider } from "@/hooks/useAdminAuth";
+import {
+  getSavedListings,
+  saveListing,
+  unsaveListing,
+  supabase,
+  getUnreadAnnouncementCount,
+} from "@/lib/supabase";
+import CreatorAuthModal from "@/components/CreatorAuthModal";
+import AdminAuthModal from "@/components/AdminAuthModal";
+import SupportChat from "@/components/SupportChat";
+import DesktopLayout from "@/components/DesktopLayout";
+import PrivateCallCenter from "@/components/PrivateCallCenter";
+import { getNavForRole } from "@/lib/desktop-nav";
+import Login from "@/pages/Login";
+import Setup from "@/pages/Setup";
+import type { NavPage } from "@/types/nav";
+import { toast } from "sonner";
 
-const Search=lazy(()=>import('@/pages/Search'));
-const Saved=lazy(()=>import('@/pages/Saved'));
-const ListingDetail=lazy(()=>import('@/pages/ListingDetail'));
-const CreatorDashboard=lazy(()=>import('@/pages/CreatorDashboard'));
-const AdminDashboard=lazy(()=>import('@/pages/AdminDashboard'));
-const Roommate=lazy(()=>import('@/pages/Roommate'));
-const Chat=lazy(()=>import('@/pages/Chat'));
-const ProfileEdit=lazy(()=>import('@/pages/ProfileEdit'));
-const AccountCenter=lazy(()=>import('@/pages/AccountCenter'));
-const PrivacySettings=lazy(()=>import('@/pages/PrivacySettings'));
-const SecuritySettings=lazy(()=>import('@/pages/SecuritySettings'));
-const CreateListing=lazy(()=>import('@/pages/CreateListing'));
-const WorkerSetup=lazy(()=>import('@/pages/WorkerSetup'));
-const WorkerVerification=lazy(()=>import('@/pages/WorkerVerification'));
-const WorkerDashboard=lazy(()=>import('@/pages/WorkerDashboard'));
-const WorkerDiscovery=lazy(()=>import('@/pages/WorkerDiscovery'));
-const Activity=lazy(()=>import('@/pages/Activity'));
-const StaffDashboard=lazy(()=>import('@/pages/StaffDashboard'));
-const HotelsHome=lazy(()=>import('@/pages/HotelsHome'));
-const HotelDetail=lazy(()=>import('@/pages/HotelDetail'));
-const HotelBooking=lazy(()=>import('@/pages/HotelBooking'));
-const HotelReservation=lazy(()=>import('@/pages/HotelReservation'));
-const PropertyPartnerDashboard=lazy(()=>import('@/pages/PropertyPartnerDashboard'));
-const MyBookings=lazy(()=>import('@/pages/MyBookings'));
-const MyReservations=lazy(()=>import('@/pages/MyReservations'));
-const PaymentReturn=lazy(()=>import('@/pages/PaymentReturn'));
-const PrivacyPolicyPage=lazy(()=>import('@/pages/PrivacyPolicyPage'));
-const TermsPage=lazy(()=>import('@/pages/TermsPage'));
+type ConversationUnreadRow = {
+  id: string;
+  participant_a: string;
+  unread_a: number | null;
+  unread_b: number | null;
+  last_message_at: string | null;
+};
+type IncomingMessageRow = {
+  sender_id?: string;
+  content?: string | null;
+  attachments?: unknown[] | null;
+};
+type AnnouncementRecipientRow = { announcement_id?: string };
 
-function PageSkeleton(){return <div className="min-h-screen space-y-4 bg-[#0A0A0F] p-5"><div className="h-12 rounded-xl shimmer"/><div className="h-40 rounded-2xl shimmer"/><div className="h-48 rounded-2xl shimmer"/></div>}
-function ErrorFallback({reset}:{reset:()=>void}){return <div className="flex min-h-screen items-center justify-center bg-[#0A0A0F] px-5 text-white"><div className="max-w-sm text-center"><h2 className="text-lg font-semibold">Something went wrong</h2><p className="mb-6 mt-2 text-sm text-[#5C5E72]">The app encountered an error. Please try again.</p><button onClick={reset} className="h-11 rounded-xl bg-blue-500 px-6 text-sm font-semibold">Reload App</button></div></div>}
+const Search = lazy(() => import("@/pages/Search"));
+const Saved = lazy(() => import("@/pages/Saved"));
+const ListingDetail = lazy(() => import("@/pages/ListingDetail"));
+const CreatorDashboard = lazy(() => import("@/pages/CreatorDashboard"));
+const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const Roommate = lazy(() => import("@/pages/Roommate"));
+const Chat = lazy(() => import("@/pages/Chat"));
+const ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));
+const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
+const PrivacySettings = lazy(() => import("@/pages/PrivacySettings"));
+const SecuritySettings = lazy(() => import("@/pages/SecuritySettings"));
+const CreateListing = lazy(() => import("@/pages/CreateListing"));
+const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
+const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
+const WorkerDashboard = lazy(() => import("@/pages/WorkerDashboard"));
+const WorkerDiscovery = lazy(() => import("@/pages/WorkerDiscovery"));
+const Activity = lazy(() => import("@/pages/Activity"));
+const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
+const HotelsHome = lazy(() => import("@/pages/HotelsHome"));
+const HotelDetail = lazy(() => import("@/pages/HotelDetail"));
+const HotelBooking = lazy(() => import("@/pages/HotelBooking"));
+const HotelReservation = lazy(() => import("@/pages/HotelReservation"));
+const PropertyPartnerDashboard = lazy(
+  () => import("@/pages/PropertyPartnerDashboard"),
+);
+const MyBookings = lazy(() => import("@/pages/MyBookings"));
+const MyReservations = lazy(() => import("@/pages/MyReservations"));
+const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
+const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
+const TermsPage = lazy(() => import("@/pages/TermsPage"));
 
-const NAV_STORAGE_KEY='wh_navpage';
-const RESTORABLE_PAGES:NavPage[]=['search','saved','roommate','activity','profile','account','privacy','security','creator','admin','staff_dashboard','worker_dashboard','worker_verification','worker_setup','worker_discovery','worker_categories','new_listing','hotels','property_partner','my_bookings','my_reservations','messages','chat','profile_edit','privacy_policy','terms_of_service'];
-const ACCOUNT_PAGES=new Set<NavPage>(['profile','account','privacy','security','profile_edit']);
-const USER_PAGES=new Set<NavPage>(['search','saved','roommate','activity','messages','chat','detail','hotels','hotel_detail','hotel_booking','hotel_reservation','worker_discovery','worker_categories','my_bookings','my_reservations']);
-function isRestorable(p:string):p is NavPage{return RESTORABLE_PAGES.includes(p as NavPage)}
-function roleRootFor(role:string):NavPage{return role==='creator'?'creator':role==='admin'?'admin':role==='staff'?'staff_dashboard':role==='worker'?'worker_dashboard':role==='property_partner'?'property_partner':'search'}
-function normalizePageForRole(role:string,page:NavPage):NavPage{
- if(page==='privacy_policy'||page==='terms_of_service'||page==='payment_return')return page;
- if(ACCOUNT_PAGES.has(page))return page;
- if(role==='creator')return page==='creator'||page==='new_listing'?page:'creator';
- if(role==='admin')return page==='admin'||page==='new_listing'?page:'admin';
- if(role==='staff')return page==='staff_dashboard'||page==='new_listing'?page:'staff_dashboard';
- if(role==='worker')return ['worker_dashboard','worker_setup','worker_verification'].includes(page)?page:'worker_dashboard';
- if(role==='property_partner')return page==='property_partner'?page:'property_partner';
- if(role==='user')return USER_PAGES.has(page)?page:'search';
- return 'search';
+function PageSkeleton() {
+  return (
+    <div className="min-h-screen space-y-4 bg-[#0A0A0F] p-5">
+      <div className="h-12 rounded-xl shimmer" />
+      <div className="h-40 rounded-2xl shimmer" />
+      <div className="h-48 rounded-2xl shimmer" />
+    </div>
+  );
+}
+function ErrorFallback({ reset }: { reset: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0F] px-5 text-white">
+      <div className="max-w-sm text-center">
+        <h2 className="text-lg font-semibold">Something went wrong</h2>
+        <p className="mb-6 mt-2 text-sm text-[#5C5E72]">
+          The app encountered an error. Please try again.
+        </p>
+        <button
+          onClick={reset}
+          className="h-11 rounded-xl bg-blue-500 px-6 text-sm font-semibold"
+        >
+          Reload App
+        </button>
+      </div>
+    </div>
+  );
 }
 
-export default function App(){
- const auth=useAuth();
- const[navPage,setNavPage]=useState<NavPage>('search'),[conversationOpen,setConversationOpen]=useState(false),[detailId,setDetailId]=useState<string|null>(null),[hotelId,setHotelId]=useState<number|null>(null),[hotelRoomId,setHotelRoomId]=useState<number|null>(null),[hotelCheckIn,setHotelCheckIn]=useState(''),[hotelCheckOut,setHotelCheckOut]=useState(''),[chatConvId,setChatConvId]=useState<string|null>(null),[workerCategory,setWorkerCategory]=useState<string|null>(null),[savedIds,setSavedIds]=useState<Set<string>>(new Set()),[unreadCount,setUnreadCount]=useState(0),[error,setError]=useState<Error|null>(null);
- const canList=canCreateListings(auth.profile?.role||''),isCreator=checkCreator(auth.profile?.role||''),profile=auth.profile,userRole=profile?.role||'',isStaffRole=userRole==='staff',isAdminRole=userRole==='admin',isPropertyPartner=userRole==='property_partner',isWorkerRole=userRole==='worker',isUserRole=userRole==='user',isCreatorRole=checkCreator(userRole);
- const tabs=useMemo(()=>isUserRole?[{id:'search' as NavPage,label:'Explore',icon:SearchSvg},{id:'my_reservations' as NavPage,label:'Reservations',icon:ReservationSvg},{id:'messages' as NavPage,label:'Messages',icon:MessagesSvg},{id:'profile' as NavPage,label:'Account',icon:ProfileSvg}]:[],[isUserRole]);
- const navHistoryRef=useRef<NavPage[]>(['search']),restoredRef=useRef(false),seenMessagesRef=useRef(new Map<string,string>());
- const roleRoot=useCallback(():NavPage=>roleRootFor(userRole),[userRole]);
+const NAV_STORAGE_KEY = "wh_navpage";
+const RESTORABLE_PAGES: NavPage[] = [
+  "search",
+  "saved",
+  "roommate",
+  "activity",
+  "profile",
+  "account",
+  "privacy",
+  "security",
+  "creator",
+  "admin",
+  "staff_dashboard",
+  "worker_dashboard",
+  "worker_verification",
+  "worker_setup",
+  "worker_discovery",
+  "worker_categories",
+  "new_listing",
+  "hotels",
+  "property_partner",
+  "my_bookings",
+  "my_reservations",
+  "messages",
+  "chat",
+  "profile_edit",
+  "privacy_policy",
+  "terms_of_service",
+];
+const ACCOUNT_PAGES = new Set<NavPage>([
+  "profile",
+  "account",
+  "privacy",
+  "security",
+  "profile_edit",
+]);
+const USER_PAGES = new Set<NavPage>([
+  "search",
+  "saved",
+  "roommate",
+  "activity",
+  "messages",
+  "chat",
+  "detail",
+  "hotels",
+  "hotel_detail",
+  "hotel_booking",
+  "hotel_reservation",
+  "worker_discovery",
+  "worker_categories",
+  "my_bookings",
+  "my_reservations",
+]);
+function isRestorable(p: string): p is NavPage {
+  return RESTORABLE_PAGES.includes(p as NavPage);
+}
+function roleRootFor(role: string): NavPage {
+  return role === "creator"
+    ? "creator"
+    : role === "admin"
+      ? "admin"
+      : role === "staff"
+        ? "staff_dashboard"
+        : role === "worker"
+          ? "worker_dashboard"
+          : role === "property_partner"
+            ? "property_partner"
+            : "search";
+}
+function normalizePageForRole(role: string, page: NavPage): NavPage {
+  if (
+    page === "privacy_policy" ||
+    page === "terms_of_service" ||
+    page === "payment_return"
+  )
+    return page;
+  if (ACCOUNT_PAGES.has(page)) return page;
+  if (role === "creator")
+    return page === "creator" || page === "new_listing" ? page : "creator";
+  if (role === "admin")
+    return page === "admin" || page === "new_listing" ? page : "admin";
+  if (role === "staff")
+    return page === "staff_dashboard" || page === "new_listing"
+      ? page
+      : "staff_dashboard";
+  if (role === "worker")
+    return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
+      page,
+    )
+      ? page
+      : "worker_dashboard";
+  if (role === "property_partner")
+    return page === "property_partner" ? page : "property_partner";
+  if (role === "user") return USER_PAGES.has(page) ? page : "search";
+  return "search";
+}
 
- useEffect(()=>{if(auth.isLoading||restoredRef.current)return;restoredRef.current=true;if(!auth.profile)return;const role=auth.profile.role;const hashRoute=(window.location.hash||'').replace(/^#/,'').split('?')[0];if(hashRoute==='payment-return'||hashRoute==='payment_return'){setNavPage('payment_return');navHistoryRef.current=['payment_return'];return}let saved:NavPage|null=null;try{const raw=localStorage.getItem(NAV_STORAGE_KEY);if(raw&&isRestorable(raw))saved=raw}catch{}const safe=normalizePageForRole(role,saved||roleRootFor(role));setNavPage(safe);navHistoryRef.current=[safe];try{localStorage.setItem(NAV_STORAGE_KEY,safe);window.history.replaceState({page:safe},'',`#${safe}`)}catch{}},[auth.isLoading,auth.profile]);
- const handleSetNavPage=useCallback((page:NavPage)=>{const safe=normalizePageForRole(userRole,page),current=navHistoryRef.current.at(-1);if(safe!==current){window.history.pushState({page:safe},'',`#${safe}`);navHistoryRef.current=[...navHistoryRef.current,safe]}setNavPage(safe);if(isRestorable(safe))localStorage.setItem(NAV_STORAGE_KEY,safe)},[userRole]);
- useEffect(()=>{const h=(e:PopStateEvent)=>{const s=e.state as{page?:NavPage}|null;if(!s?.page)return;const safe=normalizePageForRole(userRole,s.page);if(safe!==s.page)window.history.replaceState({page:safe},'',`#${safe}`);setNavPage(safe);navHistoryRef.current=navHistoryRef.current.length>1?[...navHistoryRef.current.slice(0,-1),safe]:[safe];if(isRestorable(safe))localStorage.setItem(NAV_STORAGE_KEY,safe)};window.addEventListener('popstate',h);return()=>window.removeEventListener('popstate',h)},[userRole]);
- useEffect(()=>{const h=(e:ErrorEvent)=>{setError(e.error);e.preventDefault()};window.addEventListener('error',h);return()=>window.removeEventListener('error',h)},[]);
- useEffect(()=>{const h=(event:Event)=>setConversationOpen(Boolean((event as CustomEvent<{open?:boolean}>).detail?.open));window.addEventListener('wehouse:conversation-open',h);return()=>window.removeEventListener('wehouse:conversation-open',h)},[]);
- useEffect(()=>{if(profile?.user_id)getSavedListings(profile.user_id).then(({saved})=>saved&&setSavedIds(new Set(saved.map(s=>s.listing_id)))).catch(()=>{})},[profile?.user_id]);
- useEffect(()=>{if(!profile?.user_id||!isUserRole){setUnreadCount(0);seenMessagesRef.current.clear();return}const uid=profile.user_id;async function count(){const[{data},{count:official}]=await Promise.all([supabase.from('conversations').select('id,participant_a,unread_a,unread_b,last_message_at').or(`participant_a.eq.${uid},participant_b.eq.${uid}`),getUnreadAnnouncementCount(uid)]);let roommate=0;(data||[]).forEach((c:any)=>{roommate+=Number(c.participant_a===uid?c.unread_a:c.unread_b)||0;if(!seenMessagesRef.current.has(c.id))seenMessagesRef.current.set(c.id,String(c.last_message_at||''))});setUnreadCount(roommate+Number(official||0))}void count();const openMessages=()=>handleSetNavPage('messages');const chatChannel=supabase.channel(`app-incoming-chat:${uid}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},payload=>{const message=payload.new as any;if(String(message.sender_id||'')===uid)return;void count();if((profile as any).pref_push_notif===false)return;toast('New message',{description:String(message.content||((message.attachments||[]).length?'New attachment':'Open Messages to read it.')).slice(0,110),action:{label:'View',onClick:openMessages},classNames:{toast:'!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl',title:'!text-[13px] !font-semibold',description:'!text-[10px] !text-[#9AA1B2]',actionButton:'!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white'}})}).subscribe();const officialChannel=supabase.channel(`app-unread-official:${uid}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'announcement_recipients',filter:`user_id=eq.${uid}`},async payload=>{void count();const announcementId=(payload.new as any).announcement_id;const{data}=await supabase.from('announcements').select('title,content').eq('id',announcementId).maybeSingle();(profile as any).pref_push_notif!==false&&toast(data?.title||'Official WeHouse update',{description:data?.content?String(data.content).slice(0,140):'Open Messages to read the official update.',action:{label:'Read',onClick:openMessages},classNames:{toast:'!rounded-2xl !border !border-blue-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl',title:'!text-[13px] !font-semibold',description:'!text-[10px] !text-[#9AA1B2]',actionButton:'!rounded-full !bg-blue-500 !px-3 !text-[9px] !font-semibold !text-white'}})}).subscribe();return()=>{supabase.removeChannel(chatChannel);supabase.removeChannel(officialChannel)}},[profile?.user_id,(profile as any)?.pref_push_notif,isUserRole,handleSetNavPage]);
+export default function App() {
+  const auth = useAuth();
+  const [navPage, setNavPage] = useState<NavPage>("search"),
+    [conversationOpen, setConversationOpen] = useState(false),
+    [detailId, setDetailId] = useState<string | null>(null),
+    [hotelId, setHotelId] = useState<number | null>(null),
+    [hotelRoomId, setHotelRoomId] = useState<number | null>(null),
+    [hotelCheckIn, setHotelCheckIn] = useState(""),
+    [hotelCheckOut, setHotelCheckOut] = useState(""),
+    [chatConvId, setChatConvId] = useState<string | null>(null),
+    [workerCategory, setWorkerCategory] = useState<string | null>(null),
+    [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
+    [unreadCount, setUnreadCount] = useState(0),
+    [error, setError] = useState<Error | null>(null);
+  const canList = canCreateListings(auth.profile?.role || ""),
+    isCreator = checkCreator(auth.profile?.role || ""),
+    profile = auth.profile,
+    userRole = profile?.role || "",
+    isStaffRole = userRole === "staff",
+    isAdminRole = userRole === "admin",
+    isPropertyPartner = userRole === "property_partner",
+    isWorkerRole = userRole === "worker",
+    isUserRole = userRole === "user",
+    isCreatorRole = checkCreator(userRole);
+  const tabs = useMemo(
+    () =>
+      isUserRole
+        ? [
+            { id: "search" as NavPage, label: "Explore", icon: SearchSvg },
+            {
+              id: "my_reservations" as NavPage,
+              label: "Reservations",
+              icon: ReservationSvg,
+            },
+            { id: "messages" as NavPage, label: "Messages", icon: MessagesSvg },
+            { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
+          ]
+        : [],
+    [isUserRole],
+  );
+  const navHistoryRef = useRef<NavPage[]>(["search"]),
+    restoredRef = useRef(false),
+    seenMessagesRef = useRef(new Map<string, string>());
+  const roleRoot = useCallback(
+    (): NavPage => roleRootFor(userRole),
+    [userRole],
+  );
 
- const toggle=useCallback(async(id:string)=>{if(!profile)return;const removing=savedIds.has(id);const result=removing?await unsaveListing(profile.user_id,id):await saveListing(profile.user_id,id);if(result.error)return toast.error(removing?'Could not remove saved property':'Could not save property');setSavedIds(current=>{const next=new Set(current);if(removing)next.delete(id);else next.add(id);return next});toast.success(removing?'Removed from Saved':'Property saved')},[profile,savedIds]);
- const goTo=useCallback((p:NavPage,c?:string)=>{if(c)setWorkerCategory(c);handleSetNavPage(p)},[handleSetNavPage]);
- const goToDetail=useCallback((id:string)=>{setDetailId(id);handleSetNavPage('detail')},[handleSetNavPage]);
- const goBack=useCallback(()=>{setDetailId(null);if(navHistoryRef.current.length>1)window.history.back();else handleSetNavPage('search')},[handleSetNavPage]);
- const goToChat=useCallback((id?:string)=>{if(!isUserRole){handleSetNavPage(roleRoot());return}setChatConvId(id||null);handleSetNavPage('chat')},[isUserRole,handleSetNavPage,roleRoot]);
- const goToProfileEdit=useCallback(()=>handleSetNavPage('profile_edit'),[handleSetNavPage]),goToPrivacy=useCallback(()=>handleSetNavPage('privacy'),[handleSetNavPage]),goToSecurity=useCallback(()=>handleSetNavPage('security'),[handleSetNavPage]);
- const accountBack=useCallback(()=>{const history=navHistoryRef.current,previous=history.length>1?history[history.length-2]:null;if(previous&&previous!=='profile'&&previous!=='account'){window.history.back();return}handleSetNavPage(roleRoot())},[handleSetNavPage,roleRoot]);
- const subpageBack=useCallback(()=>{if(navHistoryRef.current.length>1)window.history.back();else handleSetNavPage('profile')},[handleSetNavPage]);
+  useEffect(() => {
+    if (auth.isLoading || restoredRef.current) return;
+    restoredRef.current = true;
+    if (!auth.profile) return;
+    const role = auth.profile.role;
+    const hashRoute = (window.location.hash || "")
+      .replace(/^#/, "")
+      .split("?")[0];
+    if (hashRoute === "payment-return" || hashRoute === "payment_return") {
+      queueMicrotask(() => setNavPage("payment_return"));
+      navHistoryRef.current = ["payment_return"];
+      return;
+    }
+    let saved: NavPage | null = null;
+    try {
+      const raw = localStorage.getItem(NAV_STORAGE_KEY);
+      if (raw && isRestorable(raw)) saved = raw;
+    } catch {}
+    const safe = normalizePageForRole(role, saved || roleRootFor(role));
+    queueMicrotask(() => setNavPage(safe));
+    navHistoryRef.current = [safe];
+    try {
+      localStorage.setItem(NAV_STORAGE_KEY, safe);
+      window.history.replaceState({ page: safe }, "", `#${safe}`);
+    } catch {}
+  }, [auth.isLoading, auth.profile]);
+  const handleSetNavPage = useCallback(
+    (page: NavPage) => {
+      const safe = normalizePageForRole(userRole, page),
+        current = navHistoryRef.current.at(-1);
+      if (safe !== current) {
+        window.history.pushState({ page: safe }, "", `#${safe}`);
+        navHistoryRef.current = [...navHistoryRef.current, safe];
+      }
+      setNavPage(safe);
+      if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
+    },
+    [userRole],
+  );
+  useEffect(() => {
+    const h = (e: PopStateEvent) => {
+      const s = e.state as { page?: NavPage } | null;
+      if (!s?.page) return;
+      const safe = normalizePageForRole(userRole, s.page);
+      if (safe !== s.page)
+        window.history.replaceState({ page: safe }, "", `#${safe}`);
+      setNavPage(safe);
+      navHistoryRef.current =
+        navHistoryRef.current.length > 1
+          ? [...navHistoryRef.current.slice(0, -1), safe]
+          : [safe];
+      if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
+    };
+    window.addEventListener("popstate", h);
+    return () => window.removeEventListener("popstate", h);
+  }, [userRole]);
+  useEffect(() => {
+    const h = (e: ErrorEvent) => {
+      setError(e.error);
+      e.preventDefault();
+    };
+    window.addEventListener("error", h);
+    return () => window.removeEventListener("error", h);
+  }, []);
+  useEffect(() => {
+    const h = (event: Event) =>
+      setConversationOpen(
+        Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open),
+      );
+    window.addEventListener("wehouse:conversation-open", h);
+    return () => window.removeEventListener("wehouse:conversation-open", h);
+  }, []);
+  useEffect(() => {
+    if (profile?.user_id)
+      getSavedListings(profile.user_id)
+        .then(
+          ({ saved }) =>
+            saved && setSavedIds(new Set(saved.map((s) => s.listing_id))),
+        )
+        .catch(() => {});
+  }, [profile?.user_id]);
+  useEffect(() => {
+    if (!profile?.user_id || !isUserRole) {
+      queueMicrotask(() => setUnreadCount(0));
+      seenMessagesRef.current.clear();
+      return;
+    }
+    const uid = profile.user_id;
+    async function count() {
+      const [{ data }, { count: official }] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select("id,participant_a,unread_a,unread_b,last_message_at")
+          .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
+        getUnreadAnnouncementCount(uid),
+      ]);
+      let roommate = 0;
+      ((data || []) as ConversationUnreadRow[]).forEach((c) => {
+        roommate +=
+          Number(c.participant_a === uid ? c.unread_a : c.unread_b) || 0;
+        if (!seenMessagesRef.current.has(c.id))
+          seenMessagesRef.current.set(c.id, String(c.last_message_at || ""));
+      });
+      setUnreadCount(roommate + Number(official || 0));
+    }
+    void count();
+    const openMessages = () => handleSetNavPage("messages");
+    const chatChannel = supabase
+      .channel(`app-incoming-chat:${uid}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const message = payload.new as IncomingMessageRow;
+          if (String(message.sender_id || "") === uid) return;
+          void count();
+          if (profile.pref_push_notif === false) return;
+          toast("New message", {
+            description: String(
+              message.content ||
+                ((message.attachments || []).length
+                  ? "New attachment"
+                  : "Open Messages to read it."),
+            ).slice(0, 110),
+            action: { label: "View", onClick: openMessages },
+            classNames: {
+              toast:
+                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+              title: "!text-[13px] !font-semibold",
+              description: "!text-[10px] !text-[#9AA1B2]",
+              actionButton:
+                "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
+            },
+          });
+        },
+      )
+      .subscribe();
+    const officialChannel = supabase
+      .channel(`app-unread-official:${uid}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "announcement_recipients",
+          filter: `user_id=eq.${uid}`,
+        },
+        async (payload) => {
+          void count();
+          const announcementId = (payload.new as AnnouncementRecipientRow)
+            .announcement_id;
+          if (!announcementId) return;
+          const { data } = await supabase
+            .from("announcements")
+            .select("title,content")
+            .eq("id", announcementId)
+            .maybeSingle();
+          if (profile.pref_push_notif !== false)
+            toast(data?.title || "Official WeHouse update", {
+              description: data?.content
+                ? String(data.content).slice(0, 140)
+                : "Open Messages to read the official update.",
+              action: { label: "Read", onClick: openMessages },
+              classNames: {
+                toast:
+                  "!rounded-2xl !border !border-blue-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                title: "!text-[13px] !font-semibold",
+                description: "!text-[10px] !text-[#9AA1B2]",
+                actionButton:
+                  "!rounded-full !bg-blue-500 !px-3 !text-[9px] !font-semibold !text-white",
+              },
+            });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(chatChannel);
+      supabase.removeChannel(officialChannel);
+    };
+  }, [
+    profile?.user_id,
+    profile?.pref_push_notif,
+    isUserRole,
+    handleSetNavPage,
+  ]);
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    const uid = profile.user_id;
+    const channel = supabase
+      .channel(`app-notifications:${uid}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${uid}`,
+        },
+        (payload) => {
+          const notification = payload.new as {
+            title?: string;
+            message?: string;
+            type?: string;
+          };
+          if (
+            isUserRole &&
+            ["roommate_message", "customer_message", "worker_replied"].includes(
+              String(notification.type || ""),
+            )
+          )
+            return;
+          toast(notification.title || "WeHouse update", {
+            description:
+              notification.message || "Open WeHouse to view the update.",
+            classNames: {
+              toast:
+                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+              title: "!text-[13px] !font-semibold",
+              description: "!text-[10px] !text-[#9AA1B2]",
+            },
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profile?.user_id, isUserRole]);
 
- if(auth.isLoading)return <PageSkeleton/>;
- if(auth.page==='login')return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error} kickedOut={auth.kickedOut}/>;
- if(auth.page==='setup'&&profile)return <Setup profile={profile} onSetupComplete={auth.handleSetupComplete}/>;
- if(auth.page==='worker_setup'&&profile)return <WorkerSetup profile={profile} onComplete={()=>auth.handleSetupComplete(profile)}/>;
- if(error)return <ErrorFallback reset={()=>{setError(null);window.location.reload()}}/>;
+  const toggle = useCallback(
+    async (id: string) => {
+      if (!profile) return;
+      const removing = savedIds.has(id);
+      const result = removing
+        ? await unsaveListing(profile.user_id, id)
+        : await saveListing(profile.user_id, id);
+      if (result.error)
+        return toast.error(
+          removing
+            ? "Could not remove saved property"
+            : "Could not save property",
+        );
+      setSavedIds((current) => {
+        const next = new Set(current);
+        if (removing) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      toast.success(removing ? "Removed from Saved" : "Property saved");
+    },
+    [profile, savedIds],
+  );
+  const goTo = useCallback(
+    (p: NavPage, c?: string) => {
+      if (c) setWorkerCategory(c);
+      handleSetNavPage(p);
+    },
+    [handleSetNavPage],
+  );
+  const goToDetail = useCallback(
+    (id: string) => {
+      setDetailId(id);
+      handleSetNavPage("detail");
+    },
+    [handleSetNavPage],
+  );
+  const goBack = useCallback(() => {
+    setDetailId(null);
+    if (navHistoryRef.current.length > 1) window.history.back();
+    else handleSetNavPage("search");
+  }, [handleSetNavPage]);
+  const goToChat = useCallback(
+    (id?: string) => {
+      if (!isUserRole) {
+        handleSetNavPage(roleRoot());
+        return;
+      }
+      setChatConvId(id || null);
+      handleSetNavPage("chat");
+    },
+    [isUserRole, handleSetNavPage, roleRoot],
+  );
+  const goToProfileEdit = useCallback(
+      () => handleSetNavPage("profile_edit"),
+      [handleSetNavPage],
+    ),
+    goToPrivacy = useCallback(
+      () => handleSetNavPage("privacy"),
+      [handleSetNavPage],
+    ),
+    goToSecurity = useCallback(
+      () => handleSetNavPage("security"),
+      [handleSetNavPage],
+    );
+  const accountBack = useCallback(() => {
+    const history = navHistoryRef.current,
+      previous = history.length > 1 ? history[history.length - 2] : null;
+    if (previous && previous !== "profile" && previous !== "account") {
+      window.history.back();
+      return;
+    }
+    handleSetNavPage(roleRoot());
+  }, [handleSetNavPage, roleRoot]);
+  const subpageBack = useCallback(() => {
+    if (navHistoryRef.current.length > 1) window.history.back();
+    else handleSetNavPage("profile");
+  }, [handleSetNavPage]);
 
- const renderRoleRoot=()=>{if(!profile)return null;if(isCreatorRole)return <CreatorDashboard profile={profile} onLogout={auth.logout} onNavigate={p=>goTo(p as NavPage)} onGoToChat={goToChat}/>;if(isAdminRole)return <AdminDashboard profile={profile} onLogout={auth.logout} onNavigate={p=>goTo(p as NavPage)} onGoToChat={goToChat}/>;if(isStaffRole)return <StaffDashboard profile={profile} onLogout={auth.logout} onGoToChat={goToChat} onNavigate={p=>goTo(p as NavPage)}/>;if(isWorkerRole)return <WorkerDashboard profile={profile} onGoToSetup={()=>goTo('worker_setup')} onLogout={auth.logout} onNavigate={p=>goTo(p as NavPage)}/>;if(isPropertyPartner)return <PropertyPartnerDashboard profile={profile} onLogout={auth.logout} onNavigate={p=>goTo(p as NavPage)}/>;return null};
-const renderPage=()=>{if(navPage==='privacy_policy')return <PrivacyPolicyPage/>;if(navPage==='terms_of_service')return <TermsPage/>;if(!profile)return <Login onLoginSuccess={auth.handleLoginSuccess} serverError={auth.error}/>;const props={profile,savedIds,onToggleSave:toggle};switch(navPage){case'payment_return':return <PaymentReturn profile={profile} onNavigate={goTo}/>;case'search':return isUserRole?<Search onNavigate={(p:string,id?:string)=>id?goToDetail(id):goTo(p as NavPage)} savedIds={savedIds} onToggleSave={toggle}/>:renderRoleRoot();case'saved':return isUserRole?<Saved {...props} onBack={subpageBack} onNavigate={(p:string,id?:string)=>id?goToDetail(id):goTo(p as NavPage)}/>:renderRoleRoot();case'roommate':return isUserRole?<Roommate profile={profile} onGoToChat={goToChat} onEditProfile={goToProfileEdit}/>:renderRoleRoot();case'activity':return isUserRole?<Activity profile={profile} onNavigate={(p:string,id?:string)=>id?goToDetail(id):goTo(p as NavPage)} onGoToChat={goToChat}/>:renderRoleRoot();case'profile':case'account':return <AccountCenter profile={profile} onBack={accountBack} onGoToSaved={()=>goTo('saved')} onGoToPrivacy={goToPrivacy} onGoToSecurity={goToSecurity} onGoToProfileEdit={goToProfileEdit} onLogout={auth.logout}/>;case'privacy':return <PrivacySettings profile={profile} onUpdate={u=>auth.handleSetupComplete(u)} onBack={subpageBack}/>;case'security':return <SecuritySettings profile={profile} onBack={subpageBack}/>;case'profile_edit':return <ProfileEdit profile={profile} onUpdate={u=>auth.handleSetupComplete(u)} onBack={subpageBack}/>;case'creator':case'admin':case'staff_dashboard':case'worker_dashboard':case'property_partner':return renderRoleRoot();case'detail':return isUserRole&&detailId?<ListingDetail listingId={detailId} onNavigate={goBack} isSaved={savedIds.has(detailId)} onToggleSave={()=>toggle(detailId)} profile={profile} onGoToChat={goToChat}/>:renderRoleRoot();case'chat':case'messages':return isUserRole?<Chat profile={profile} onNavigate={(p:string)=>goTo(p as NavPage)} conversationId={chatConvId}/>:renderRoleRoot();case'worker_discovery':case'worker_categories':return isUserRole?<WorkerDiscovery userCity={profile.city} profile={profile} preSelectedCategory={workerCategory} onNavigate={p=>goTo(p as NavPage)}/>:renderRoleRoot();case'worker_setup':return isWorkerRole?<WorkerSetup profile={profile} onComplete={()=>goTo('worker_dashboard')}/>:renderRoleRoot();case'worker_verification':return isWorkerRole?<WorkerVerification profile={profile} onBack={subpageBack}/>:renderRoleRoot();case'new_listing':return canList?<CreateListing profile={profile} onBack={subpageBack} onSuccess={()=>handleSetNavPage(roleRoot())}/>:renderRoleRoot();case'hotels':return isUserRole?<HotelsHome onNavigate={(p:string,id?:string)=>{if(p==='hotel_detail'&&id){setHotelId(Number(id));goTo('hotel_detail')}else goTo(p as NavPage)}}/>:renderRoleRoot();case'hotel_detail':return isUserRole&&hotelId?<HotelDetail hotelId={hotelId} onBack={subpageBack} onBook={(h,r,ci,co)=>{setHotelId(h);setHotelRoomId(r);setHotelCheckIn(ci||'');setHotelCheckOut(co||'');goTo('hotel_booking')}} onReserve={(h,r)=>{setHotelId(h);setHotelRoomId(r);goTo('hotel_reservation')}} profile={profile}/>:renderRoleRoot();case'hotel_booking':return isUserRole&&hotelId&&hotelRoomId?<HotelBooking hotelId={hotelId} roomId={hotelRoomId} checkIn={hotelCheckIn} checkOut={hotelCheckOut} profile={profile} onBack={subpageBack} onComplete={()=>goTo('hotels')}/>:renderRoleRoot();case'hotel_reservation':return isUserRole&&hotelId&&hotelRoomId?<HotelReservation hotelId={hotelId} roomId={hotelRoomId} profile={profile} onBack={subpageBack} onProceedToBooking={(h,r)=>{setHotelId(h);setHotelRoomId(r);goTo('hotel_booking')}} onComplete={()=>goTo('hotels')}/>:renderRoleRoot();case'my_bookings':return isUserRole?<MyBookings profile={profile} onBack={subpageBack}/>:renderRoleRoot();case'my_reservations':return isUserRole?<MyReservations profile={profile} onBack={subpageBack}/>:renderRoleRoot();default:return renderRoleRoot()||<Search onNavigate={(p:string,id?:string)=>id?goToDetail(id):goTo(p as NavPage)} savedIds={savedIds} onToggleSave={toggle}/>}}
- const desktopNavItems=getNavForRole(userRole,unreadCount);const hide=['detail','chat','saved','profile_edit','account','privacy','security','new_listing','worker_setup','hotel_detail','hotel_booking','hotel_reservation','worker_verification','payment_return'] as NavPage[];const showBottomNav=isUserRole&&!conversationOpen&&!hide.includes(navPage),supportRole=['user','worker','property_partner'].includes(profile?.role||'');
- return <CreatorAuthProvider><AdminAuthProvider><Suspense fallback={<PageSkeleton/>}><PrivateCallCenter/><DesktopLayout navItems={desktopNavItems} activePage={navPage} onNavigate={goTo} userName={profile?.full_name||profile?.username||undefined} userRole={profile?.role||undefined} userAvatar={profile?.avatar_url||undefined} onLogout={auth.logout}><div className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content">{renderPage()}</div></DesktopLayout>{isCreator&&<CreatorAuthModal/>}{(isAdminRole||isStaffRole)&&<AdminAuthModal/>}{supportRole&&profile&&<SupportChat profile={{user_id:profile.user_id,username:profile.username,email:profile.email,role:profile.role}}/>}<div className="lg:hidden">{showBottomNav&&<nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50"><div className="mx-auto flex max-w-lg items-center justify-around py-1">{tabs.map(tab=>{const active=navPage===tab.id;return <button key={tab.id} aria-label={tab.label} onClick={()=>goTo(tab.id)} className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active?'text-blue-500':'text-[#5C5E72]'}`}><tab.icon size={22} active={active}/>{<span className="text-[9px] font-medium">{tab.label}</span>}{active&&<span className="h-1 w-1 rounded-full bg-blue-500"/>}{tab.id==='messages'&&unreadCount>0&&<span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">{unreadCount>9?'9+':unreadCount}</span>}</button>})}</div></nav>}</div></Suspense></AdminAuthProvider></CreatorAuthProvider>}
+  if (auth.isLoading) return <PageSkeleton />;
+  if (auth.page === "login")
+    return (
+      <Login
+        onLoginSuccess={auth.handleLoginSuccess}
+        serverError={auth.error}
+        kickedOut={auth.kickedOut}
+      />
+    );
+  if (auth.page === "setup" && profile)
+    return (
+      <Setup profile={profile} onSetupComplete={auth.handleSetupComplete} />
+    );
+  if (auth.page === "worker_setup" && profile)
+    return (
+      <WorkerSetup
+        profile={profile}
+        onComplete={() => auth.handleSetupComplete(profile)}
+      />
+    );
+  if (error)
+    return (
+      <ErrorFallback
+        reset={() => {
+          setError(null);
+          window.location.reload();
+        }}
+      />
+    );
 
-function SearchSvg({size,active}:{size:number;active:boolean}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active?'#3B82F6':'currentColor'} strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>}
-function ProfileSvg({size,active}:{size:number;active:boolean}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active?'#3B82F6':'currentColor'} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-function ReservationSvg({size,active}:{size:number;active:boolean}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active?'#3B82F6':'currentColor'} strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5"/></svg>}
-function MessagesSvg({size,active}:{size:number;active:boolean}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active?'#3B82F6':'currentColor'} strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
+  const renderRoleRoot = () => {
+    if (!profile) return null;
+    if (isCreatorRole)
+      return (
+        <CreatorDashboard
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p) => goTo(p as NavPage)}
+          onGoToChat={goToChat}
+        />
+      );
+    if (isAdminRole)
+      return (
+        <AdminDashboard
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p) => goTo(p as NavPage)}
+          onGoToChat={goToChat}
+        />
+      );
+    if (isStaffRole)
+      return (
+        <StaffDashboard
+          profile={profile}
+          onLogout={auth.logout}
+          onGoToChat={goToChat}
+          onNavigate={(p) => goTo(p as NavPage)}
+        />
+      );
+    if (isWorkerRole)
+      return (
+        <WorkerDashboard
+          profile={profile}
+          onGoToSetup={() => goTo("worker_setup")}
+          onLogout={auth.logout}
+          onNavigate={(p) => goTo(p as NavPage)}
+        />
+      );
+    if (isPropertyPartner)
+      return (
+        <PropertyPartnerDashboard
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p) => goTo(p as NavPage)}
+        />
+      );
+    return null;
+  };
+  const renderPage = () => {
+    if (navPage === "privacy_policy") return <PrivacyPolicyPage />;
+    if (navPage === "terms_of_service") return <TermsPage />;
+    if (!profile)
+      return (
+        <Login
+          onLoginSuccess={auth.handleLoginSuccess}
+          serverError={auth.error}
+        />
+      );
+    const props = { profile, savedIds, onToggleSave: toggle };
+    switch (navPage) {
+      case "payment_return":
+        return <PaymentReturn profile={profile} onNavigate={goTo} />;
+      case "search":
+        return isUserRole ? (
+          <Search
+            onNavigate={(p: string, id?: string) =>
+              id ? goToDetail(id) : goTo(p as NavPage)
+            }
+            savedIds={savedIds}
+            onToggleSave={toggle}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "saved":
+        return isUserRole ? (
+          <Saved
+            {...props}
+            onBack={subpageBack}
+            onNavigate={(p: string, id?: string) =>
+              id ? goToDetail(id) : goTo(p as NavPage)
+            }
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "roommate":
+        return isUserRole ? (
+          <Roommate
+            profile={profile}
+            onGoToChat={goToChat}
+            onEditProfile={goToProfileEdit}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "activity":
+        return isUserRole ? (
+          <Activity
+            profile={profile}
+            onNavigate={(p: string, id?: string) =>
+              id ? goToDetail(id) : goTo(p as NavPage)
+            }
+            onGoToChat={goToChat}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "profile":
+      case "account":
+        return (
+          <AccountCenter
+            profile={profile}
+            onBack={accountBack}
+            onGoToSaved={() => goTo("saved")}
+            onGoToPrivacy={goToPrivacy}
+            onGoToSecurity={goToSecurity}
+            onGoToProfileEdit={goToProfileEdit}
+            onLogout={auth.logout}
+          />
+        );
+      case "privacy":
+        return (
+          <PrivacySettings
+            profile={profile}
+            onUpdate={(u) => auth.handleSetupComplete(u)}
+            onBack={subpageBack}
+          />
+        );
+      case "security":
+        return <SecuritySettings profile={profile} onBack={subpageBack} />;
+      case "profile_edit":
+        return (
+          <ProfileEdit
+            profile={profile}
+            onUpdate={(u) => auth.handleSetupComplete(u)}
+            onBack={subpageBack}
+          />
+        );
+      case "creator":
+      case "admin":
+      case "staff_dashboard":
+      case "worker_dashboard":
+      case "property_partner":
+        return renderRoleRoot();
+      case "detail":
+        return isUserRole && detailId ? (
+          <ListingDetail
+            listingId={detailId}
+            onNavigate={goBack}
+            isSaved={savedIds.has(detailId)}
+            onToggleSave={() => toggle(detailId)}
+            profile={profile}
+            onGoToChat={goToChat}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "chat":
+      case "messages":
+        return isUserRole ? (
+          <Chat
+            profile={profile}
+            onNavigate={(p: string) => goTo(p as NavPage)}
+            conversationId={chatConvId}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "worker_discovery":
+      case "worker_categories":
+        return isUserRole ? (
+          <WorkerDiscovery
+            userCity={profile.city}
+            profile={profile}
+            preSelectedCategory={workerCategory}
+            onNavigate={(p) => goTo(p as NavPage)}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "worker_setup":
+        return isWorkerRole ? (
+          <WorkerSetup
+            profile={profile}
+            onComplete={() => goTo("worker_dashboard")}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "worker_verification":
+        return isWorkerRole ? (
+          <WorkerVerification profile={profile} onBack={subpageBack} />
+        ) : (
+          renderRoleRoot()
+        );
+      case "new_listing":
+        return canList ? (
+          <CreateListing
+            profile={profile}
+            onBack={subpageBack}
+            onSuccess={() => handleSetNavPage(roleRoot())}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "hotels":
+        return isUserRole ? (
+          <HotelsHome
+            onNavigate={(p: string, id?: string) => {
+              if (p === "hotel_detail" && id) {
+                setHotelId(Number(id));
+                goTo("hotel_detail");
+              } else goTo(p as NavPage);
+            }}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "hotel_detail":
+        return isUserRole && hotelId ? (
+          <HotelDetail
+            hotelId={hotelId}
+            onBack={subpageBack}
+            onBook={(h, r, ci, co) => {
+              setHotelId(h);
+              setHotelRoomId(r);
+              setHotelCheckIn(ci || "");
+              setHotelCheckOut(co || "");
+              goTo("hotel_booking");
+            }}
+            onReserve={(h, r) => {
+              setHotelId(h);
+              setHotelRoomId(r);
+              goTo("hotel_reservation");
+            }}
+            profile={profile}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "hotel_booking":
+        return isUserRole && hotelId && hotelRoomId ? (
+          <HotelBooking
+            hotelId={hotelId}
+            roomId={hotelRoomId}
+            checkIn={hotelCheckIn}
+            checkOut={hotelCheckOut}
+            profile={profile}
+            onBack={subpageBack}
+            onComplete={() => goTo("hotels")}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "hotel_reservation":
+        return isUserRole && hotelId && hotelRoomId ? (
+          <HotelReservation
+            hotelId={hotelId}
+            roomId={hotelRoomId}
+            profile={profile}
+            onBack={subpageBack}
+            onProceedToBooking={(h, r) => {
+              setHotelId(h);
+              setHotelRoomId(r);
+              goTo("hotel_booking");
+            }}
+            onComplete={() => goTo("hotels")}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "my_bookings":
+        return isUserRole ? (
+          <MyBookings profile={profile} onBack={subpageBack} />
+        ) : (
+          renderRoleRoot()
+        );
+      case "my_reservations":
+        return isUserRole ? (
+          <MyReservations profile={profile} onBack={subpageBack} />
+        ) : (
+          renderRoleRoot()
+        );
+      default:
+        return (
+          renderRoleRoot() || (
+            <Search
+              onNavigate={(p: string, id?: string) =>
+                id ? goToDetail(id) : goTo(p as NavPage)
+              }
+              savedIds={savedIds}
+              onToggleSave={toggle}
+            />
+          )
+        );
+    }
+  };
+  const desktopNavItems = getNavForRole(userRole, unreadCount);
+  const hide = [
+    "detail",
+    "chat",
+    "saved",
+    "profile",
+    "profile_edit",
+    "account",
+    "privacy",
+    "security",
+    "new_listing",
+    "worker_setup",
+    "hotel_detail",
+    "hotel_booking",
+    "hotel_reservation",
+    "worker_verification",
+    "payment_return",
+  ] as NavPage[];
+  const showBottomNav =
+      isUserRole && !conversationOpen && !hide.includes(navPage),
+    supportRole = ["user", "worker", "property_partner"].includes(
+      profile?.role || "",
+    );
+  return (
+    <CreatorAuthProvider>
+      <AdminAuthProvider>
+        <Suspense fallback={<PageSkeleton />}>
+          <PrivateCallCenter />
+          <DesktopLayout
+            navItems={desktopNavItems}
+            activePage={navPage}
+            onNavigate={goTo}
+            userName={profile?.full_name || profile?.username || undefined}
+            userRole={profile?.role || undefined}
+            userAvatar={profile?.avatar_url || undefined}
+            onLogout={auth.logout}
+          >
+            <div className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content">
+              {renderPage()}
+            </div>
+          </DesktopLayout>
+          {isCreator && <CreatorAuthModal />}
+          {(isAdminRole || isStaffRole) && <AdminAuthModal />}
+          {supportRole && profile && (
+            <SupportChat
+              profile={{
+                user_id: profile.user_id,
+                username: profile.username,
+                email: profile.email,
+                role: profile.role,
+              }}
+            />
+          )}
+          <div className="lg:hidden">
+            {showBottomNav && (
+              <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
+                <div className="mx-auto flex max-w-lg items-center justify-around py-1">
+                  {tabs.map((tab) => {
+                    const active = navPage === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        aria-label={tab.label}
+                        onClick={() => goTo(tab.id)}
+                        className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
+                      >
+                        <tab.icon size={22} active={active} />
+                        {
+                          <span className="text-[9px] font-medium">
+                            {tab.label}
+                          </span>
+                        }
+                        {active && (
+                          <span className="h-1 w-1 rounded-full bg-violet-400" />
+                        )}
+                        {tab.id === "messages" && unreadCount > 0 && (
+                          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+            )}
+          </div>
+        </Suspense>
+      </AdminAuthProvider>
+    </CreatorAuthProvider>
+  );
+}
+
+function SearchSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </svg>
+  );
+}
+function ProfileSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+function ReservationSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" />
+    </svg>
+  );
+}
+function MessagesSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}

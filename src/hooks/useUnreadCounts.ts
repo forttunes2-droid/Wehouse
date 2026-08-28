@@ -4,16 +4,16 @@
 // Everything updates automatically.
 // ═══════════════════════════════════════════════════════════
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "@/lib/supabase";
 
 export interface UnreadCounts {
-  messages: number;        // Unread conversation messages
-  notifications: number;   // Unread notifications
-  support: number;         // Unread support messages
-  bookings: number;        // New/pending bookings
-  inspections: number;     // New/pending inspections
-  total: number;           // Sum of all
+  messages: number; // Unread conversation messages
+  notifications: number; // Unread notifications
+  support: number; // Unread support messages
+  bookings: number; // New/pending bookings
+  inspections: number; // New/pending inspections
+  total: number; // Sum of all
 }
 
 /**
@@ -38,10 +38,10 @@ export function useUnreadCounts(userId: string, userRole: string) {
     try {
       // 1. Unread messages (conversation unread counts)
       const { data: convs } = await supabase
-        .from('conversations')
-        .select('unread_a, unread_b, participant_a, participant_b')
+        .from("conversations")
+        .select("unread_a, unread_b, participant_a, participant_b")
         .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
-        .eq('status', 'active');
+        .eq("status", "active");
 
       let unreadMessages = 0;
       (convs || []).forEach((c: any) => {
@@ -51,18 +51,22 @@ export function useUnreadCounts(userId: string, userRole: string) {
 
       // 2. Unread notifications
       const { count: unreadNotifications } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('is_read', false);
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("recipient_id", userId)
+        .eq("read", false);
 
       // 3. Support unread (for staff: new partner_support messages)
       let supportCount = 0;
-      if (userRole === 'staff' || userRole === 'admin' || userRole === 'creator') {
+      if (
+        userRole === "staff" ||
+        userRole === "admin" ||
+        userRole === "creator"
+      ) {
         const { data: supportConvs } = await supabase
-          .from('partner_support_conversations')
-          .select('unread_partner_count, unread_staff_count')
-          .eq('status', 'active');
+          .from("partner_support_conversations")
+          .select("unread_partner_count, unread_staff_count")
+          .eq("status", "active");
         (supportConvs || []).forEach((c: any) => {
           supportCount += c.unread_staff_count || 0;
         });
@@ -70,42 +74,42 @@ export function useUnreadCounts(userId: string, userRole: string) {
 
       // 4. New/pending bookings
       let bookingCount = 0;
-      if (userRole === 'worker') {
+      if (userRole === "worker") {
         const { count } = await supabase
-          .from('worker_bookings')
-          .select('*', { count: 'exact', head: true })
-          .eq('worker_id', userId)
-          .eq('status', 'pending');
+          .from("worker_bookings")
+          .select("*", { count: "exact", head: true })
+          .eq("worker_id", userId)
+          .eq("status", "pending");
         bookingCount = count || 0;
-      } else if (userRole === 'property_partner') {
+      } else if (userRole === "property_partner") {
         const { count } = await supabase
-          .from('bookings')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending');
+          .from("bookings")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending");
         bookingCount = count || 0;
       }
 
       // 5. Pending inspections
       let inspectionCount = 0;
-      if (userRole === 'staff' || userRole === 'field_officer') {
+      if (userRole === "staff" || userRole === "field_officer") {
         const { count } = await supabase
-          .from('user_inspection_requests')
-          .select('*', { count: 'exact', head: true })
-          .eq('field_officer_id', userId)
-          .in('status', ['pending', 'scheduled']);
+          .from("user_inspection_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("field_officer_id", userId)
+          .in("status", ["pending", "scheduled"]);
         inspectionCount = count || 0;
-      } else if (userRole === 'user') {
+      } else if (userRole === "user") {
         const { count } = await supabase
-          .from('user_inspection_requests')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .in('status', ['pending', 'scheduled', 'in_progress']);
+          .from("user_inspection_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .in("status", ["pending", "scheduled", "in_progress"]);
         inspectionCount = count || 0;
-      } else if (userRole === 'property_partner') {
+      } else if (userRole === "property_partner") {
         const { count } = await supabase
-          .from('user_inspection_requests')
-          .select('*', { count: 'exact', head: true })
-          .in('status', ['pending', 'scheduled']);
+          .from("user_inspection_requests")
+          .select("*", { count: "exact", head: true })
+          .in("status", ["pending", "scheduled"]);
         inspectionCount = count || 0;
       }
 
@@ -115,13 +119,18 @@ export function useUnreadCounts(userId: string, userRole: string) {
         support: supportCount,
         bookings: bookingCount,
         inspections: inspectionCount,
-        total: unreadMessages + (unreadNotifications || 0) + supportCount + bookingCount + inspectionCount,
+        total:
+          unreadMessages +
+          (unreadNotifications || 0) +
+          supportCount +
+          bookingCount +
+          inspectionCount,
       };
 
       setCounts(newCounts);
       setLoading(false);
     } catch (err) {
-      console.error('[useUnreadCounts] Error:', err);
+      console.error("[useUnreadCounts] Error:", err);
       setLoading(false);
     }
   }, [userId, userRole]);
@@ -138,14 +147,27 @@ export function useUnreadCounts(userId: string, userRole: string) {
     // Subscribe to conversation changes
     const convChannel = supabase
       .channel(`unread-convs:${userId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, fetchCounts)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversations" },
+        fetchCounts,
+      )
       .subscribe();
     channels.push(convChannel);
 
     // Subscribe to notification changes
     const notifChannel = supabase
       .channel(`unread-notifs:${userId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, fetchCounts)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${userId}`,
+        },
+        fetchCounts,
+      )
       .subscribe();
     channels.push(notifChannel);
 

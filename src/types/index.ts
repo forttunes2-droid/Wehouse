@@ -5,57 +5,72 @@
 // STAFF   = limited admin access
 // WORKER  = service provider (electrician, plumber, etc.)
 
-export type UserRole = 'user' | 'creator' | 'admin' | 'staff' | 'worker' | 'property_partner';
+export type UserRole =
+  "user" | "creator" | "admin" | "staff" | "worker" | "property_partner";
 
 // Constitution: Pending → Verification Paid → Profile Under Review → Verified (public)
 // Rejected and Suspended are terminal non-public states.
-export type WorkerStatus = 'pending' | 'verification_paid' | 'profile_under_review' | 'verified' | 'rejected' | 'suspended';
+export type WorkerStatus =
+  | "pending"
+  | "verification_paid"
+  | "profile_under_review"
+  | "verified"
+  | "rejected"
+  | "suspended";
 
 export const WORKER_OCCUPATIONS = [
-  'electrician', 'plumber', 'cleaner', 'carpenter',
-  'generator_repair', 'ac_technician', 'internet_installer',
-  'moving_service', 'security', 'water_supply', 'handyman',
+  "electrician",
+  "plumber",
+  "cleaner",
+  "carpenter",
+  "generator_repair",
+  "ac_technician",
+  "internet_installer",
+  "moving_service",
+  "security",
+  "water_supply",
+  "handyman",
 ] as const;
 
 export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
-  electrician: 'Electrician',
-  plumber: 'Plumber',
-  cleaner: 'Cleaner',
-  carpenter: 'Carpenter',
-  generator_repair: 'Generator Repair',
-  ac_technician: 'AC Technician',
-  internet_installer: 'Internet Installer',
-  moving_service: 'Moving Service',
-  security: 'Security',
-  water_supply: 'Water Supply',
-  handyman: 'Handyman',
+  electrician: "Electrician",
+  plumber: "Plumber",
+  cleaner: "Cleaner",
+  carpenter: "Carpenter",
+  generator_repair: "Generator Repair",
+  ac_technician: "AC Technician",
+  internet_installer: "Internet Installer",
+  moving_service: "Moving Service",
+  security: "Security",
+  water_supply: "Water Supply",
+  handyman: "Handyman",
 };
 
 // Worker status display labels.
 export const WORKER_STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',                    // Registered, hasn't started verification
-  verification_paid: 'Awaiting Review',  // Completed verification + Paystack, awaiting WeHouse review
-  profile_under_review: 'Under Review',   // WeHouse is reviewing verification documents
-  verified: 'Verified',                  // WeHouse approved, worker is PUBLIC
-  rejected: 'Rejected',                  // WeHouse declined, NOT public, can resubmit
-  suspended: 'Suspended',
+  pending: "Pending", // Registered, hasn't started verification
+  verification_paid: "Awaiting Review", // Completed verification + Paystack, awaiting WeHouse review
+  profile_under_review: "Under Review", // WeHouse is reviewing verification documents
+  verified: "Verified", // WeHouse approved, worker is PUBLIC
+  rejected: "Rejected", // WeHouse declined, NOT public, can resubmit
+  suspended: "Suspended",
   // Legacy — workers with old 'approved_for_verification' status should be migrated to 'verification_paid'
-  approved_for_verification: 'Awaiting Review (Legacy)',
-  approved: 'Pending (Legacy)',
-  declined: 'Rejected (Legacy)',
+  approved_for_verification: "Awaiting Review (Legacy)",
+  approved: "Pending (Legacy)",
+  declined: "Rejected (Legacy)",
 };
 
 export const WORKER_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  verification_paid: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  profile_under_review: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  verified: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  rejected: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  suspended: 'bg-red-500/10 text-red-400 border-red-500/20',
+  pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  verification_paid: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  profile_under_review: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  verified: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  rejected: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  suspended: "bg-red-500/10 text-red-400 border-red-500/20",
   // Legacy
-  approved_for_verification: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  approved: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  declined: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  approved_for_verification: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  approved: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  declined: "bg-orange-500/10 text-orange-400 border-orange-500/20",
 };
 
 export interface Profile {
@@ -76,10 +91,10 @@ export interface Profile {
   preferred_location: string | null;
   // ── LOCATION ──────────────────────────────────────
   country: string | null;
-  state: string | null;           // State (e.g., "Lagos")
-  city: string | null;             // LGA — stored here for historical reasons
+  state: string | null; // State (e.g., "Lagos")
+  city: string | null; // LGA — stored here for historical reasons
   local_government: string | null; // Canonical LGA field (preferred over city)
-  area: string | null;             // City/Area within LGA
+  area: string | null; // City/Area within LGA
   email_verified: boolean;
   phone_verified: boolean;
   id_verified: boolean;
@@ -89,19 +104,20 @@ export interface Profile {
   privacy_profile_visible: boolean;
   privacy_search_visible: boolean;
   privacy_activity_visible: boolean;
+  pref_push_notif: boolean;
   // ── WORKER FIELDS ─────────────────────────────────
-  worker_status: WorkerStatus | null;  // pending → verification_paid → profile_under_review → verified/rejected
-  worker_occupation: string | null;   // e.g. "electrician" (primary skill)
-  worker_skills: string[] | null;     // multiple skills e.g. ["plumbing", "electrical"]
-  worker_price: number | null;        // price worker charges (in NGN)
-  worker_verified: boolean;            // approved by platform (ONLY set by admin/creator)
-  available: boolean;                 // worker toggle: true = accepting new bookings
-  worker_bio: string | null;           // service description
-  worker_experience: string | null;    // years of experience
-  worker_gov_id_url: string | null;    // government ID document URL
-  worker_cert_url: string | null;      // additional certificates/docs URL
-  worker_video_url: string | null;     // 2-3 min skill demonstration video URL
-  full_name: string | null;            // worker's real name
+  worker_status: WorkerStatus | null; // pending → verification_paid → profile_under_review → verified/rejected
+  worker_occupation: string | null; // e.g. "electrician" (primary skill)
+  worker_skills: string[] | null; // multiple skills e.g. ["plumbing", "electrical"]
+  worker_price: number | null; // price worker charges (in NGN)
+  worker_verified: boolean; // approved by platform (ONLY set by admin/creator)
+  available: boolean; // worker toggle: true = accepting new bookings
+  worker_bio: string | null; // service description
+  worker_experience: string | null; // years of experience
+  worker_gov_id_url: string | null; // government ID document URL
+  worker_cert_url: string | null; // additional certificates/docs URL
+  worker_video_url: string | null; // 2-3 min skill demonstration video URL
+  full_name: string | null; // worker's real name
   // ─────────────────────────────────────────────────
   created_at: string;
   updated_at: string;
@@ -119,13 +135,13 @@ export interface Profile {
   banned_by: string | null;
   banned_reason: string | null;
   // ── ROLE + SCOPE ──────────────────────────────────
-  assigned_state: string | null;  // Admin/Staff: assigned state
-  assigned_lga: string | null;    // Admin/Staff: assigned LGA
-  scope: 'global' | 'local' | null;  // global=creator, local=admin/staff
-  created_by: string | null;      // Who created this account
-  updated_by: string | null;      // Who last updated
+  assigned_state: string | null; // Admin/Staff: assigned state
+  assigned_lga: string | null; // Admin/Staff: assigned LGA
+  scope: "global" | "local" | null; // global=creator, local=admin/staff
+  created_by: string | null; // Who created this account
+  updated_by: string | null; // Who last updated
   // ── MAINTENANCE ───────────────────────────────────
-  maintenance_exempt: boolean;     // Can login during maintenance mode (for testing)
+  maintenance_exempt: boolean; // Can login during maintenance mode (for testing)
   // ── PAYMENT / PAYOUT ──────────────────────────────
   bank_name: string | null;
   bank_code: string | null;
@@ -147,24 +163,35 @@ export interface RoleChangeHistory {
   created_at: string;
 }
 
-export type Page = 'loading' | 'login' | 'setup' | 'worker_setup' | 'dashboard' | 'worker_dashboard' | 'creator' | 'admin' | 'staff_dashboard' | 'property_partner';
+export type Page =
+  | "loading"
+  | "login"
+  | "setup"
+  | "worker_setup"
+  | "dashboard"
+  | "worker_dashboard"
+  | "creator"
+  | "admin"
+  | "staff_dashboard"
+  | "property_partner";
 
-export type ListingStatus = 'available' | 'reserved' | 'closed' | 'pending_approval' | 'rejected';
+export type ListingStatus =
+  "available" | "reserved" | "closed" | "pending_approval" | "rejected";
 
 export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
-  available: 'Available',
-  reserved: 'Reserved',
-  closed: 'Closed',
-  pending_approval: 'Pending Approval',
-  rejected: 'Rejected',
+  available: "Available",
+  reserved: "Reserved",
+  closed: "Closed",
+  pending_approval: "Pending Approval",
+  rejected: "Rejected",
 };
 
 export const LISTING_STATUS_COLORS: Record<ListingStatus, string> = {
-  available: 'bg-green-500/10 text-green-400 border-green-500/20',
-  reserved: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  closed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-  pending_approval: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+  available: "bg-green-500/10 text-green-400 border-green-500/20",
+  reserved: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  closed: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  pending_approval: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  rejected: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 export interface Listing {
@@ -179,14 +206,14 @@ export interface Listing {
   address: string | null;
   images: string[];
   videos: string[];
-  property_type: PropertyType | null;  // 'apartment' (short_let/long_stay) or 'hotel'
-  sub_type: ApartmentSubType | null;    // 'short_let' or 'long_stay' (for apartments only)
+  property_type: PropertyType | null; // 'apartment' (short_let/long_stay) or 'hotel'
+  sub_type: ApartmentSubType | null; // 'short_let' or 'long_stay' (for apartments only)
   bedrooms: number;
   bathrooms: number;
-  availability_status: 'available' | 'reserved' | 'closed';
+  availability_status: "available" | "reserved" | "closed";
   owner_id: string | null;
-  chat_agent_id: string | null;  // Staff/Admin who handles enquiries for this listing
-  partner_id: string | null;      // Property partner who owns this listing (for partner dashboard tracking)
+  chat_agent_id: string | null; // Staff/Admin who handles enquiries for this listing
+  partner_id: string | null; // Property partner who owns this listing (for partner dashboard tracking)
   created_at: string;
   updated_at: string;
   // ── RESERVATION FIELDS ────────────────────────────
@@ -205,8 +232,8 @@ export interface Listing {
   // null/0 means no security deposit required (e.g., long_stay)
   security_deposit_amount?: number | null;
   // ── CONTACT & AMENITIES ───────────────────────────
-  contact_phone?: string | null;  // Property owner's phone for inspection calls
-  amenities?: string[] | null;    // e.g. ['WiFi', 'Parking', 'Security Guard']
+  contact_phone?: string | null; // Property owner's phone for inspection calls
+  amenities?: string[] | null; // e.g. ['WiFi', 'Parking', 'Security Guard']
 }
 
 export interface Enquiry {
@@ -217,7 +244,7 @@ export interface Enquiry {
   message: string;
   reply: string | null;
   replied_at: string | null;
-  status: 'pending' | 'replied' | 'closed';
+  status: "pending" | "replied" | "closed";
   created_at: string;
 }
 
@@ -226,7 +253,7 @@ export interface Reservation {
   listing_id: string;
   user_id: string;
   staff_id: string | null;
-  status: 'pending' | 'confirmed' | 'expired' | 'cancelled';
+  status: "pending" | "confirmed" | "expired" | "cancelled";
   fee_paid: boolean;
   amount: number;
   currency: string;
@@ -246,15 +273,15 @@ export interface RoommatePreferences {
   id: string;
   user_id: string;
   auth_id: string;
-  gender: 'male' | 'female';
-  gender_preference: 'male' | 'female' | 'no_preference';
+  gender: "male" | "female";
+  gender_preference: "male" | "female" | "no_preference";
   budget_min: number;
   budget_max: number;
   study_level: string;
-  noise_level: 'quiet' | 'moderate' | 'loud';
-  cleanliness: 'neat' | 'moderate' | 'relaxed';
+  noise_level: "quiet" | "moderate" | "loud";
+  cleanliness: "neat" | "moderate" | "relaxed";
   sleep_time: string;
-  visitors: 'rarely' | 'sometimes' | 'often';
+  visitors: "rarely" | "sometimes" | "often";
   stay_duration: string;
   area_preference: string;
   // ── STRUCTURED LOCATION ───────────────────────────
@@ -273,7 +300,7 @@ export interface RoommatePreferences {
   school_match: boolean;
   campus_match: boolean;
   // ── BACKGROUND SEARCH FIELDS ──────────────────────
-  search_status: 'idle' | 'active' | 'expired' | 'stopped';
+  search_status: "idle" | "active" | "expired" | "stopped";
   search_started_at: string | null;
   search_expires_at: string | null;
   search_match_count: number;
@@ -286,18 +313,18 @@ export interface RoommateMatch {
   user_a_id: string;
   user_b_id: string;
   match_score: number;
-  match_level: 'low' | 'medium' | 'high';
-  status: 'pending' | 'accepted' | 'declined';
+  match_level: "low" | "medium" | "high";
+  status: "pending" | "accepted" | "declined";
   created_at: string;
 }
 
 // Saved match result from background search — persisted across sessions
 export interface SavedRoommateMatch {
   id: string;
-  searcher_id: string;      // the user who initiated the search
-  matched_user_id: string;  // the matched roommate
+  searcher_id: string; // the user who initiated the search
+  matched_user_id: string; // the matched roommate
   match_score: number;
-  status: 'new' | 'viewed' | 'accepted' | 'declined';
+  status: "new" | "viewed" | "accepted" | "declined";
   matched_profile?: {
     username: string | null;
     gender: string | null;
@@ -325,12 +352,12 @@ export const ROLE_RANK: Record<UserRole, number> = {
 
 // ─── ROLE DISPLAY LABELS ───────────────────────────
 export const ROLE_LABELS: Record<UserRole, string> = {
-  user: 'User',
-  worker: 'Worker',
-  staff: 'Staff',
-  admin: 'Admin',
-  creator: 'Creator',
-  property_partner: 'Property Partner',
+  user: "User",
+  worker: "Worker",
+  staff: "Staff",
+  admin: "Admin",
+  creator: "Creator",
+  property_partner: "Property Partner",
 };
 
 export function roleRank(role: string): number {
@@ -342,11 +369,11 @@ export interface UserSession {
   id: string;
   user_id: string;
   auth_id: string;
-  device: string;       // e.g. "iPhone 14"
-  browser: string;      // e.g. "Chrome 120"
-  os: string;           // e.g. "iOS 17"
+  device: string; // e.g. "iPhone 14"
+  browser: string; // e.g. "Chrome 120"
+  os: string; // e.g. "iOS 17"
   ip_address: string | null;
-  location: string | null;  // e.g. "Lagos, Nigeria"
+  location: string | null; // e.g. "Lagos, Nigeria"
   login_time: string;
   last_seen: string;
   logout_time: string | null;
@@ -359,7 +386,7 @@ export interface UserActivity {
   user_id: string;
   auth_id: string | null;
   action_type: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   created_at: string;
 }
 
@@ -368,7 +395,7 @@ export interface ListingReport {
   reporter_id: string;
   listing_id: string;
   reason: string;
-  status: 'pending' | 'resolved' | 'dismissed';
+  status: "pending" | "resolved" | "dismissed";
   resolved_by: string | null;
   created_at: string;
   resolved_at: string | null;
@@ -388,10 +415,16 @@ export interface AdminAuditLog {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'inspection_requested' | 'new_message' | 'booking_received' | 'property_booked' | 'inspection_assigned' | 'payment_received';
+  type:
+    | "inspection_requested"
+    | "new_message"
+    | "booking_received"
+    | "property_booked"
+    | "inspection_assigned"
+    | "payment_received";
   title: string;
   body: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
   read_at?: string | null;
@@ -409,15 +442,15 @@ export interface Conversation {
   id: string;
   participant_a: string;
   participant_b: string;
-  listing_id: string | null;  // Which listing this conversation is about
-  status: 'pending' | 'active' | 'closed';  // pending=initial enquiry, active=unlocked, closed=resolved
+  listing_id: string | null; // Which listing this conversation is about
+  status: "pending" | "active" | "closed"; // pending=initial enquiry, active=unlocked, closed=resolved
   last_message: string | null;
   last_message_at: string;
   unread_a: number;
   unread_b: number;
   created_at: string;
-  conversation_type?: string | null;  // 'direct', 'partner_support', 'enquiry'
-  subject?: string | null;  // e.g. 'Property Partner Support'
+  conversation_type?: string | null; // 'direct', 'partner_support', 'enquiry'
+  subject?: string | null; // e.g. 'Property Partner Support'
 }
 
 export interface Message {
@@ -447,7 +480,7 @@ export interface RoomInterest {
   id: string;
   sender_id: string;
   receiver_id: string;
-  status: 'pending' | 'accepted' | 'declined';
+  status: "pending" | "accepted" | "declined";
   message: string | null;
   created_at: string;
 }
@@ -456,7 +489,15 @@ export interface RoomInterest {
 
 // --- NEW ANNOUNCEMENT SYSTEM v2 ---
 
-export type AnnouncementTargetType = 'all_users' | 'all_workers' | 'verified_workers' | 'admins' | 'specific_user' | 'staff_only' | 'admin_only' | 'partners_only';
+export type AnnouncementTargetType =
+  | "all_users"
+  | "all_workers"
+  | "verified_workers"
+  | "admins"
+  | "specific_user"
+  | "staff_only"
+  | "admin_only"
+  | "partners_only";
 
 export interface Announcement {
   id: number;
@@ -485,7 +526,7 @@ export type OfficialMessageRecipient = AnnouncementRecipient;
 
 // ─── HOTEL TYPES ───────────────────────────────────
 
-export type HotelStatus = 'active' | 'inactive';
+export type HotelStatus = "active" | "inactive";
 
 export interface Hotel {
   hotel_id: number;
@@ -521,7 +562,8 @@ export interface HotelRoom {
   updated_at: string;
 }
 
-export type HotelBookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+export type HotelBookingStatus =
+  "pending" | "confirmed" | "cancelled" | "completed";
 
 export interface HotelBooking {
   booking_id: number;
@@ -552,17 +594,41 @@ export interface HotelReview {
 
 // Hotel amenity options
 export const HOTEL_AMENITIES = [
-  'WiFi', 'AC', 'Swimming Pool', 'Gym', 'Restaurant', 'Bar', 'Parking',
-  '24/7 Power', 'Security', 'Laundry', 'Room Service', 'Conference Room',
-  'Elevator', 'SPA', 'Airport Shuttle', 'Kitchenette',
+  "WiFi",
+  "AC",
+  "Swimming Pool",
+  "Gym",
+  "Restaurant",
+  "Bar",
+  "Parking",
+  "24/7 Power",
+  "Security",
+  "Laundry",
+  "Room Service",
+  "Conference Room",
+  "Elevator",
+  "SPA",
+  "Airport Shuttle",
+  "Kitchenette",
 ] as const;
 
 export const ROOM_TYPES = [
-  'Standard', 'Deluxe', 'Suite', 'Executive', 'Presidential', 'Single', 'Twin',
+  "Standard",
+  "Deluxe",
+  "Suite",
+  "Executive",
+  "Presidential",
+  "Single",
+  "Twin",
 ] as const;
 
 export const BED_TYPES = [
-  'King', 'Queen', 'Twin', 'Single', 'Double', 'Bunk',
+  "King",
+  "Queen",
+  "Twin",
+  "Single",
+  "Double",
+  "Bunk",
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -573,24 +639,32 @@ export const BED_TYPES = [
 // Permission groups that creator assigns to staff members.
 // These determine which modules appear on the unified Staff Dashboard.
 
-export type StaffPermission = 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'admin';
+export type StaffPermission =
+  | "operations"
+  | "finance"
+  | "support"
+  | "verification"
+  | "field_officer"
+  | "admin";
 
 export const STAFF_PERMISSION_LABELS: Record<StaffPermission, string> = {
-  operations: 'Operations',
-  finance: 'Finance',
-  support: 'Customer Support',
-  verification: 'Worker Verification',
-  field_officer: 'Field Officer',
-  admin: 'Admin',
+  operations: "Operations",
+  finance: "Finance",
+  support: "Customer Support",
+  verification: "Worker Verification",
+  field_officer: "Field Officer",
+  admin: "Admin",
 };
 
 export const STAFF_PERMISSION_ICONS: Record<StaffPermission, string> = {
-  operations: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
-  finance: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
-  support: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
-  verification: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.24-.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24A3.42 3.42 0 0 1 14.4 2.01 3.42 3.42 0 0 1 17 3.388a3.42 3.42 0 0 0 1.24.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24 3.42 3.42 0 0 1 3.388-3.388 3.42 3.42 0 0 1 2.568 1.932 3.42 3.42 0 0 0 2.604 2.604 3.42 3.42 0 0 0 1.24.12M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0',
-  field_officer: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0zM15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
-  admin: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  operations: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10",
+  finance: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+  support: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  verification:
+    "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.24-.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24A3.42 3.42 0 0 1 14.4 2.01 3.42 3.42 0 0 1 17 3.388a3.42 3.42 0 0 0 1.24.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24 3.42 3.42 0 0 1 3.388-3.388 3.42 3.42 0 0 1 2.568 1.932 3.42 3.42 0 0 0 2.604 2.604 3.42 3.42 0 0 0 1.24.12M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0",
+  field_officer:
+    "M17.657 16.657L13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0zM15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
+  admin: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
 };
 
 export interface StaffPermissionRecord {
@@ -610,22 +684,22 @@ export interface StaffPermissionRecord {
 
 // Property types: Apartment (Short Let or Long Let) or Hotel
 // Short Let = daily/weekly rental | Long Let = monthly/yearly rental
-export type PropertyType = 'apartment' | 'hotel';
-export type ApartmentSubType = 'short_let' | 'long_stay';
+export type PropertyType = "apartment" | "hotel";
+export type ApartmentSubType = "short_let" | "long_stay";
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
-  apartment: 'Apartment',
-  hotel: 'Hotel',
+  apartment: "Apartment",
+  hotel: "Hotel",
 };
 
 export const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  apartment: '🏢',
-  hotel: '🏨',
+  apartment: "🏢",
+  hotel: "🏨",
 };
 
 export const APARTMENT_SUB_LABELS: Record<ApartmentSubType, string> = {
-  short_let: 'Short Let',
-  long_stay: 'Long Let',
+  short_let: "Short Let",
+  long_stay: "Long Let",
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -634,24 +708,24 @@ export const APARTMENT_SUB_LABELS: Record<ApartmentSubType, string> = {
 
 export const WEHOUSE_FEES = {
   // Worker bookings: user pays a small booking fee, worker pays commission
-  WORKER_BOOKING_FEE_USER: 300,          // N300 per booking (user pays)
-  WORKER_COMMISSION_PERCENT: 12.5,        // 12.5% of job value (worker pays)
-  WORKER_MIN_JOB_AMOUNT: 1000,            // N1,000 minimum job value
+  WORKER_BOOKING_FEE_USER: 300, // N300 per booking (user pays)
+  WORKER_COMMISSION_PERCENT: 12.5, // 12.5% of job value (worker pays)
+  WORKER_MIN_JOB_AMOUNT: 1000, // N1,000 minimum job value
 
   // Long Let (monthly/yearly): Lower commission — tenant stays long-term, less management
-  LONG_STAY_COMMISSION_PERCENT: 10,       // 10% of annual rent (from landlord)
+  LONG_STAY_COMMISSION_PERCENT: 10, // 10% of annual rent (from landlord)
 
   // Short Let (daily/weekly): Higher commission — more management, cleaning, turnover
-  SHORT_STAY_COMMISSION_PERCENT: 20,      // 20% of booking value (from landlord)
+  SHORT_STAY_COMMISSION_PERCENT: 20, // 20% of booking value (from landlord)
 
   // Reservation fee for 72-hour property hold
-  RESERVATION_FEE: 5000,                  // N5,000 to reserve a property for 72hrs
+  RESERVATION_FEE: 5000, // N5,000 to reserve a property for 72hrs
 
   // Hotel bookings
-  HOTEL_BOOKING_COMMISSION_PERCENT: 15,   // 15% of booking value
+  HOTEL_BOOKING_COMMISSION_PERCENT: 15, // 15% of booking value
 
   // Late payment / penalty fees
-  LATE_PAYMENT_FEE_PERCENT: 5,            // 5% late fee on overdue installments
+  LATE_PAYMENT_FEE_PERCENT: 5, // 5% late fee on overdue installments
 
   // Security deposit: held in escrow, returned after stay if no damage
   // Amount is SET BY PROPERTY OWNER (default 10% of rent, min N10,000)
@@ -659,7 +733,7 @@ export const WEHOUSE_FEES = {
   SECURITY_DEPOSIT_MIN_NGN: 10000,
 
   // Blue Badge: only subscription on WeHouse — monthly worker verification
-  BLUE_BADGE_PRICE_NGN: 1000,             // N1,000 per month
+  BLUE_BADGE_PRICE_NGN: 1000, // N1,000 per month
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -678,21 +752,21 @@ export interface RentalPlan {
 export const RENTAL_PLANS: RentalPlan[] = [
   {
     durationYears: 1,
-    label: '1 Year',
-    description: 'Pay full year upfront',
-    paymentStructure: 'full_upfront',
+    label: "1 Year",
+    description: "Pay full year upfront",
+    paymentStructure: "full_upfront",
   },
   {
     durationYears: 2,
-    label: '2 Years',
-    description: 'Year 1 upfront, Year 2 split monthly',
-    paymentStructure: 'first_upfront_rest_monthly',
+    label: "2 Years",
+    description: "Year 1 upfront, Year 2 split monthly",
+    paymentStructure: "first_upfront_rest_monthly",
   },
   {
     durationYears: 3,
-    label: '3 Years',
-    description: 'Year 1 upfront, Years 2-3 split monthly',
-    paymentStructure: 'first_upfront_rest_monthly',
+    label: "3 Years",
+    description: "Year 1 upfront, Years 2-3 split monthly",
+    paymentStructure: "first_upfront_rest_monthly",
   },
 ];
 
@@ -702,19 +776,20 @@ export const RENTAL_PLANS: RentalPlan[] = [
 // with appliances that tenants might damage. Long stay tenants bring their own.
 // Each listing sets its own security_deposit_amount (varies by furnishing quality).
 export interface RentalFeeConfig {
-  commissionPercent?: number;   // default: 5% (from commission_rate_listing)
-  reservationFee?: number;      // default: 5000
+  commissionPercent?: number; // default: 5% (from commission_rate_listing)
+  reservationFee?: number; // default: 5000
 }
 
 export function calculateRentalPayments(
   annualRent: number,
   durationYears: RentalDuration,
-  subType: 'short_let' | 'long_stay' = 'long_stay',
+  subType: "short_let" | "long_stay" = "long_stay",
   listingSecurityDeposit?: number | null,
   feeConfig?: RentalFeeConfig,
 ) {
   const cfg = feeConfig || {};
-  const commissionRate = cfg.commissionPercent ?? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT;
+  const commissionRate =
+    cfg.commissionPercent ?? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT;
   const resFee = cfg.reservationFee ?? WEHOUSE_FEES.RESERVATION_FEE;
 
   const commissionPercent = commissionRate;
@@ -724,7 +799,11 @@ export function calculateRentalPayments(
   // Security deposit: use listing's set amount, or zero if not set
   // WeHouse does NOT enforce min/max — partner sets freely per listing
   let securityDeposit = 0;
-  if (subType === 'short_let' && listingSecurityDeposit != null && listingSecurityDeposit > 0) {
+  if (
+    subType === "short_let" &&
+    listingSecurityDeposit != null &&
+    listingSecurityDeposit > 0
+  ) {
     securityDeposit = listingSecurityDeposit;
   }
 
@@ -766,7 +845,16 @@ export function calculateRentalPayments(
 // WORKER ESCROW SYSTEM
 // ═══════════════════════════════════════════════════════════════
 
-export type WorkerBookingStatus = 'pending_payment' | 'paid_escrow' | 'worker_assigned' | 'in_progress' | 'completed_pending_approval' | 'approved_released' | 'disputed' | 'cancelled' | 'refunded';
+export type WorkerBookingStatus =
+  | "pending_payment"
+  | "paid_escrow"
+  | "worker_assigned"
+  | "in_progress"
+  | "completed_pending_approval"
+  | "approved_released"
+  | "disputed"
+  | "cancelled"
+  | "refunded";
 
 export interface WorkerBooking {
   id: string;
@@ -777,10 +865,10 @@ export interface WorkerBooking {
   description: string;
   address: string;
   scheduled_date: string | null;
-  agreed_amount: number;              // What user pays
-  wehouse_fee: number;                // N300 booking fee
-  worker_commission: number;          // 12.5% of job value
-  worker_receives: number;            // agreed_amount - worker_commission
+  agreed_amount: number; // What user pays
+  wehouse_fee: number; // N300 booking fee
+  worker_commission: number; // 12.5% of job value
+  worker_receives: number; // agreed_amount - worker_commission
   status: WorkerBookingStatus;
   paystack_reference: string | null;
   user_approved: boolean;
@@ -795,39 +883,52 @@ export interface WorkerBooking {
   updated_at: string;
 }
 
-export const WORKER_BOOKING_STATUS_LABELS: Record<WorkerBookingStatus, string> = {
-  pending_payment: 'Pending Payment',
-  paid_escrow: 'Paid — In Escrow',
-  worker_assigned: 'Worker Assigned',
-  in_progress: 'Work In Progress',
-  completed_pending_approval: 'Done — Awaiting Your Approval',
-  approved_released: 'Completed & Paid',
-  disputed: 'Under Dispute',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
-};
+export const WORKER_BOOKING_STATUS_LABELS: Record<WorkerBookingStatus, string> =
+  {
+    pending_payment: "Pending Payment",
+    paid_escrow: "Paid — In Escrow",
+    worker_assigned: "Worker Assigned",
+    in_progress: "Work In Progress",
+    completed_pending_approval: "Done — Awaiting Your Approval",
+    approved_released: "Completed & Paid",
+    disputed: "Under Dispute",
+    cancelled: "Cancelled",
+    refunded: "Refunded",
+  };
 
-export const WORKER_BOOKING_STATUS_COLORS: Record<WorkerBookingStatus, string> = {
-  pending_payment: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  paid_escrow: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  worker_assigned: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  in_progress: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-  completed_pending_approval: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  approved_released: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  disputed: 'bg-red-500/10 text-red-400 border-red-500/20',
-  cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-  refunded: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-};
+export const WORKER_BOOKING_STATUS_COLORS: Record<WorkerBookingStatus, string> =
+  {
+    pending_payment: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    paid_escrow: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    worker_assigned: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    in_progress: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+    completed_pending_approval:
+      "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    approved_released:
+      "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    disputed: "bg-red-500/10 text-red-400 border-red-500/20",
+    cancelled: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+    refunded: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  };
 
 // ═══════════════════════════════════════════════════════════════
 
-export type PropertyStatus = 'pending_inspection' | 'under_inspection' | 'pending_agreement' | 'pending_approval' | 'approved' | 'rejected' | 'active' | 'inactive' | 'suspended';
+export type PropertyStatus =
+  | "pending_inspection"
+  | "under_inspection"
+  | "pending_agreement"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "active"
+  | "inactive"
+  | "suspended";
 
 export interface PropertyPartner {
   id: string;
   profile_id: string;
   partner_code: string;
-  status: 'active' | 'suspended' | 'pending_verification';
+  status: "active" | "suspended" | "pending_verification";
   commission_rate: number;
   bank_name: string | null;
   bank_account_number: string | null;
@@ -890,7 +991,7 @@ export interface PropertyUnit {
   images: string[];
   amenities: string[];
   bed_types: string[];
-  status: 'active' | 'maintenance' | 'inactive';
+  status: "active" | "maintenance" | "inactive";
   maintenance_note: string | null;
   created_at: string;
   updated_at: string;
@@ -947,7 +1048,7 @@ export interface PropertyOwner {
   bank_account_name: string | null;
   tax_id: string | null;
   commission_rate: number;
-  status: 'active' | 'inactive' | 'suspended';
+  status: "active" | "inactive" | "suspended";
   notes: string | null;
   created_by: string;
   created_at: string;
@@ -967,8 +1068,8 @@ export interface OwnerProperty {
   created_at: string;
 }
 
-export type ContractType = 'rental' | 'management' | 'partnership';
-export type ContractStatus = 'draft' | 'active' | 'expired' | 'terminated';
+export type ContractType = "rental" | "management" | "partnership";
+export type ContractStatus = "draft" | "active" | "expired" | "terminated";
 
 export interface OwnerContract {
   id: string;
@@ -990,32 +1091,39 @@ export interface OwnerContract {
 
 // ─── SUPPORT TICKETS ────────────────────────────────────────
 
-export type TicketType = 'booking_issue' | 'refund_request' | 'complaint' | 'account_help' | 'payment_issue' | 'general';
-export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'escalated';
-export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TicketType =
+  | "booking_issue"
+  | "refund_request"
+  | "complaint"
+  | "account_help"
+  | "payment_issue"
+  | "general";
+export type TicketStatus =
+  "open" | "in_progress" | "resolved" | "closed" | "escalated";
+export type TicketPriority = "low" | "medium" | "high" | "urgent";
 
 export const TICKET_TYPE_LABELS: Record<TicketType, string> = {
-  booking_issue: 'Booking Issue',
-  refund_request: 'Refund Request',
-  complaint: 'Complaint',
-  account_help: 'Account Help',
-  payment_issue: 'Payment Issue',
-  general: 'General',
+  booking_issue: "Booking Issue",
+  refund_request: "Refund Request",
+  complaint: "Complaint",
+  account_help: "Account Help",
+  payment_issue: "Payment Issue",
+  general: "General",
 };
 
 export const TICKET_STATUS_COLORS: Record<TicketStatus, string> = {
-  open: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  in_progress: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  resolved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  closed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-  escalated: 'bg-red-500/10 text-red-400 border-red-500/20',
+  open: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  in_progress: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  resolved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  closed: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  escalated: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 export const TICKET_PRIORITY_COLORS: Record<TicketPriority, string> = {
-  low: 'text-gray-400',
-  medium: 'text-blue-400',
-  high: 'text-amber-400',
-  urgent: 'text-red-400',
+  low: "text-gray-400",
+  medium: "text-blue-400",
+  high: "text-amber-400",
+  urgent: "text-red-400",
 };
 
 export interface SupportTicket {
@@ -1041,9 +1149,14 @@ export interface SupportTicket {
 
 // ─── INSPECTIONS ────────────────────────────────────────────
 
-export type InspectionStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 're_inspection_required';
-export type ConditionRating = 'excellent' | 'good' | 'fair' | 'poor';
-export type SecurityLevel = 'high' | 'medium' | 'low';
+export type InspectionStatus =
+  | "scheduled"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "re_inspection_required";
+export type ConditionRating = "excellent" | "good" | "fair" | "poor";
+export type SecurityLevel = "high" | "medium" | "low";
 
 export interface Inspection {
   id: string;
@@ -1101,26 +1214,104 @@ export interface ServiceSubcategory {
 // Default subcategories seeded per category
 // These can be expanded from the Creator Dashboard
 export const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
-  'Home Services': ['Electrician', 'Plumber', 'Carpenter', 'Painter', 'Welder', 'POP Installer', 'Tiler', 'Roofer'],
-  'Cleaning': ['House Cleaning', 'Office Cleaning', 'Laundry Service', 'Deep Cleaning', 'Post-Construction Cleaning', 'Carpet Cleaning'],
-  'Beauty': ['Barber', 'Hair Stylist', 'Makeup Artist', 'Nail Technician', 'Spa Therapist', 'Tattoo Artist'],
-  'Events': ['Event Planner', 'Caterer', 'DJ', 'Photographer', 'Videographer', 'MC/Host', 'Decorator', 'Bouncer'],
-  'Moving & Delivery': ['Mover', 'Courier', 'Dispatch Rider', 'Truck Driver', 'Packaging Service'],
-  'Auto Services': ['Mechanic', 'Car Washer', 'Panel Beater', 'Auto Electrician', 'Tire Technician', 'Car Detailer'],
-  'Technology': ['Phone Repair', 'Laptop Repair', 'CCTV Installer', 'Software Developer', 'Graphic Designer', 'Network Technician'],
-  'Gardening': ['Gardener', 'Landscape Designer', 'Tree Trimmer', 'Irrigation Specialist'],
-  'Security': ['Security Guard', 'Bouncer', 'Bodyguard', 'CCTV Monitor'],
-  'Health & Care': ['Home Nurse', 'Caregiver', 'Physiotherapist', 'Midwife'],
-  'Education': ['Private Tutor', 'Music Teacher', 'Language Teacher', 'Coding Instructor'],
-  'Tailoring & Fashion': ['Tailor', 'Fashion Designer', 'Shoe Maker', 'Cap Maker'],
-  'Agriculture': ['Farm Worker', 'Poultry Expert', 'Fish Farmer', 'Crop Specialist'],
-  'Other Services': ['Errand Runner', 'Personal Assistant', 'Translator', 'Legal Assistant'],
+  "Home Services": [
+    "Electrician",
+    "Plumber",
+    "Carpenter",
+    "Painter",
+    "Welder",
+    "POP Installer",
+    "Tiler",
+    "Roofer",
+  ],
+  Cleaning: [
+    "House Cleaning",
+    "Office Cleaning",
+    "Laundry Service",
+    "Deep Cleaning",
+    "Post-Construction Cleaning",
+    "Carpet Cleaning",
+  ],
+  Beauty: [
+    "Barber",
+    "Hair Stylist",
+    "Makeup Artist",
+    "Nail Technician",
+    "Spa Therapist",
+    "Tattoo Artist",
+  ],
+  Events: [
+    "Event Planner",
+    "Caterer",
+    "DJ",
+    "Photographer",
+    "Videographer",
+    "MC/Host",
+    "Decorator",
+    "Bouncer",
+  ],
+  "Moving & Delivery": [
+    "Mover",
+    "Courier",
+    "Dispatch Rider",
+    "Truck Driver",
+    "Packaging Service",
+  ],
+  "Auto Services": [
+    "Mechanic",
+    "Car Washer",
+    "Panel Beater",
+    "Auto Electrician",
+    "Tire Technician",
+    "Car Detailer",
+  ],
+  Technology: [
+    "Phone Repair",
+    "Laptop Repair",
+    "CCTV Installer",
+    "Software Developer",
+    "Graphic Designer",
+    "Network Technician",
+  ],
+  Gardening: [
+    "Gardener",
+    "Landscape Designer",
+    "Tree Trimmer",
+    "Irrigation Specialist",
+  ],
+  Security: ["Security Guard", "Bouncer", "Bodyguard", "CCTV Monitor"],
+  "Health & Care": ["Home Nurse", "Caregiver", "Physiotherapist", "Midwife"],
+  Education: [
+    "Private Tutor",
+    "Music Teacher",
+    "Language Teacher",
+    "Coding Instructor",
+  ],
+  "Tailoring & Fashion": [
+    "Tailor",
+    "Fashion Designer",
+    "Shoe Maker",
+    "Cap Maker",
+  ],
+  Agriculture: [
+    "Farm Worker",
+    "Poultry Expert",
+    "Fish Farmer",
+    "Crop Specialist",
+  ],
+  "Other Services": [
+    "Errand Runner",
+    "Personal Assistant",
+    "Translator",
+    "Legal Assistant",
+  ],
 };
 
 // ─── WORKER VERIFICATION ────────────────────────────────────
 
-export type WorkerVerificationStatus = 'pending' | 'under_review' | 'approved' | 'rejected';
-export type GovIdType = 'nin' | 'drivers_license' | 'passport' | 'voters_card';
+export type WorkerVerificationStatus =
+  "pending" | "under_review" | "approved" | "rejected";
+export type GovIdType = "nin" | "drivers_license" | "passport" | "voters_card";
 
 export interface WorkerVerification {
   id: string;
@@ -1144,23 +1335,29 @@ export interface WorkerVerification {
   service_subcategory?: ServiceSubcategory | null;
 }
 
-export const WORKER_VERIFICATION_STATUS_LABELS: Record<WorkerVerificationStatus, string> = {
-  pending: 'Pending',
-  under_review: 'Under Review',
-  approved: 'Approved',
-  rejected: 'Rejected',
+export const WORKER_VERIFICATION_STATUS_LABELS: Record<
+  WorkerVerificationStatus,
+  string
+> = {
+  pending: "Pending",
+  under_review: "Under Review",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
-export const WORKER_VERIFICATION_STATUS_COLORS: Record<WorkerVerificationStatus, string> = {
-  pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  under_review: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+export const WORKER_VERIFICATION_STATUS_COLORS: Record<
+  WorkerVerificationStatus,
+  string
+> = {
+  pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  under_review: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  rejected: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 // ─── BLUE BADGE SUBSCRIPTION ────────────────────────────────
 
-export type BlueBadgeStatus = 'active' | 'inactive' | 'expired' | 'cancelled';
+export type BlueBadgeStatus = "active" | "inactive" | "expired" | "cancelled";
 
 export interface BlueBadgeSubscription {
   id: string;
@@ -1176,17 +1373,17 @@ export interface BlueBadgeSubscription {
 }
 
 export const BLUE_BADGE_STATUS_LABELS: Record<BlueBadgeStatus, string> = {
-  active: 'Active',
-  inactive: 'Inactive',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
+  active: "Active",
+  inactive: "Inactive",
+  expired: "Expired",
+  cancelled: "Cancelled",
 };
 
 export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
-  active: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  inactive: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-  expired: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
+  active: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  inactive: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  expired: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 // ─── WALLETS ────────────────────────────────────────────────
@@ -1194,7 +1391,7 @@ export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
 export interface Wallet {
   id: string;
   owner_id: string;
-  owner_type: 'worker' | 'property_partner';
+  owner_type: "worker" | "property_partner";
   available_balance: number;
   pending_balance: number;
   frozen_balance: number;
@@ -1211,7 +1408,15 @@ export interface Wallet {
   updated_at: string;
 }
 
-export type WalletTransactionType = 'credit' | 'debit' | 'escrow_release' | 'withdrawal' | 'refund' | 'commission' | 'freeze' | 'unfreeze';
+export type WalletTransactionType =
+  | "credit"
+  | "debit"
+  | "escrow_release"
+  | "withdrawal"
+  | "refund"
+  | "commission"
+  | "freeze"
+  | "unfreeze";
 
 export interface WalletTransaction {
   id: string;
@@ -1224,21 +1429,26 @@ export interface WalletTransaction {
   created_at: string;
 }
 
-export const WALLET_TRANSACTION_TYPE_LABELS: Record<WalletTransactionType, string> = {
-  credit: 'Credit',
-  debit: 'Debit',
-  escrow_release: 'Escrow Released',
-  withdrawal: 'Withdrawal',
-  refund: 'Refund',
-  commission: 'Commission',
-  freeze: 'Frozen',
-  unfreeze: 'Unfrozen',
+export const WALLET_TRANSACTION_TYPE_LABELS: Record<
+  WalletTransactionType,
+  string
+> = {
+  credit: "Credit",
+  debit: "Debit",
+  escrow_release: "Escrow Released",
+  withdrawal: "Withdrawal",
+  refund: "Refund",
+  commission: "Commission",
+  freeze: "Frozen",
+  unfreeze: "Unfrozen",
 };
 
 // ─── ESCROW TRANSACTIONS ────────────────────────────────────
 
-export type EscrowStatus = 'holding' | 'released' | 'refunded' | 'disputed' | 'partially_refunded';
-export type EscrowTransactionType = 'worker_booking' | 'property_rental' | 'hotel_booking' | 'reservation';
+export type EscrowStatus =
+  "holding" | "released" | "refunded" | "disputed" | "partially_refunded";
+export type EscrowTransactionType =
+  "worker_booking" | "property_rental" | "hotel_booking" | "reservation";
 
 export interface EscrowTransaction {
   id: string;
@@ -1262,16 +1472,17 @@ export interface EscrowTransaction {
 }
 
 export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
-  holding: 'Held',
-  released: 'Released',
-  refunded: 'Refunded',
-  disputed: 'Disputed',
-  partially_refunded: 'Partially Refunded',
+  holding: "Held",
+  released: "Released",
+  refunded: "Refunded",
+  disputed: "Disputed",
+  partially_refunded: "Partially Refunded",
 };
 
 // ─── USER INSPECTION REQUESTS ───────────────────────────────
 
-export type UserInspectionStatus = 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export type UserInspectionStatus =
+  "pending" | "scheduled" | "in_progress" | "completed" | "cancelled";
 
 export interface UserInspectionRequest {
   id: string;
@@ -1289,17 +1500,21 @@ export interface UserInspectionRequest {
   updated_at: string;
 }
 
-export const USER_INSPECTION_STATUS_LABELS: Record<UserInspectionStatus, string> = {
-  pending: 'Pending',
-  scheduled: 'Scheduled',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
+export const USER_INSPECTION_STATUS_LABELS: Record<
+  UserInspectionStatus,
+  string
+> = {
+  pending: "Pending",
+  scheduled: "Scheduled",
+  in_progress: "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
 };
 
 // ─── WITHDRAWALS ────────────────────────────────────────────
 
-export type WithdrawalStatus = 'pending' | 'processing' | 'successful' | 'failed' | 'reversed';
+export type WithdrawalStatus =
+  "pending" | "processing" | "successful" | "failed" | "reversed";
 
 export interface Withdrawal {
   id: string;
@@ -1319,44 +1534,44 @@ export interface Withdrawal {
 }
 
 export const WITHDRAWAL_STATUS_LABELS: Record<WithdrawalStatus, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  successful: 'Successful',
-  failed: 'Failed',
-  reversed: 'Reversed',
+  pending: "Pending",
+  processing: "Processing",
+  successful: "Successful",
+  failed: "Failed",
+  reversed: "Reversed",
 };
 
 export const WITHDRAWAL_STATUS_COLORS: Record<WithdrawalStatus, string> = {
-  pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  processing: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  successful: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  failed: 'bg-red-500/10 text-red-400 border-red-500/20',
-  reversed: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  processing: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  successful: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  reversed: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
 
 // ─── FINANCIAL AUDIT LOGS ───────────────────────────────────
 
 export type AuditEventType =
-  | 'customer_payment'
-  | 'escrow_created'
-  | 'escrow_released'
-  | 'escrow_refunded'
-  | 'withdrawal_requested'
-  | 'withdrawal_processing'
-  | 'withdrawal_successful'
-  | 'withdrawal_failed'
-  | 'withdrawal_reversed'
-  | 'wallet_frozen'
-  | 'wallet_unfrozen'
-  | 'commission_deducted'
-  | 'security_deposit_held'
-  | 'security_deposit_released'
-  | 'security_deposit_claimed'
-  | 'blue_badge_purchased'
-  | 'blue_badge_renewed'
-  | 'dispute_opened'
-  | 'dispute_resolved'
-  | 'manual_adjustment';
+  | "customer_payment"
+  | "escrow_created"
+  | "escrow_released"
+  | "escrow_refunded"
+  | "withdrawal_requested"
+  | "withdrawal_processing"
+  | "withdrawal_successful"
+  | "withdrawal_failed"
+  | "withdrawal_reversed"
+  | "wallet_frozen"
+  | "wallet_unfrozen"
+  | "commission_deducted"
+  | "security_deposit_held"
+  | "security_deposit_released"
+  | "security_deposit_claimed"
+  | "blue_badge_purchased"
+  | "blue_badge_renewed"
+  | "dispute_opened"
+  | "dispute_resolved"
+  | "manual_adjustment";
 
 export interface FinancialAuditLog {
   id: string;
@@ -1367,7 +1582,7 @@ export interface FinancialAuditLog {
   reference_id: string | null;
   reference_type: string | null;
   description: string | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;
@@ -1375,7 +1590,14 @@ export interface FinancialAuditLog {
 
 // ─── COMMISSION RULES ───────────────────────────────────────
 
-export type CommissionRuleType = 'reservation_fee' | 'listing_commission' | 'hotel_booking_fee' | 'worker_subscription' | 'owner_commission' | 'late_fee' | 'cancellation_fee';
+export type CommissionRuleType =
+  | "reservation_fee"
+  | "listing_commission"
+  | "hotel_booking_fee"
+  | "worker_subscription"
+  | "owner_commission"
+  | "late_fee"
+  | "cancellation_fee";
 
 export interface CommissionRule {
   id: string;
@@ -1387,7 +1609,7 @@ export interface CommissionRule {
   max_amount: number | null;
   currency: string;
   is_active: boolean;
-  applies_to: 'all' | 'new' | 'existing' | null;
+  applies_to: "all" | "new" | "existing" | null;
   description: string | null;
   created_by: string | null;
   created_at: string;
@@ -1396,7 +1618,12 @@ export interface CommissionRule {
 
 // ─── PAYOUTS ────────────────────────────────────────────────
 
-export type PayoutStatus = 'pending' | 'processing' | 'approved_for_verification' | 'failed' | 'cancelled';
+export type PayoutStatus =
+  | "pending"
+  | "processing"
+  | "approved_for_verification"
+  | "failed"
+  | "cancelled";
 
 export interface Payout {
   id: string;
@@ -1421,8 +1648,10 @@ export interface Payout {
 
 // ─── BOOKING PAYMENTS ───────────────────────────────────────
 
-export type BookingPaymentType = 'reservation' | 'hotel_booking' | 'worker_subscription';
-export type BookingPaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'partially_refunded';
+export type BookingPaymentType =
+  "reservation" | "hotel_booking" | "worker_subscription";
+export type BookingPaymentStatus =
+  "pending" | "completed" | "failed" | "refunded" | "partially_refunded";
 
 export interface BookingPayment {
   id: string;
@@ -1442,14 +1671,21 @@ export interface BookingPayment {
   refund_reason: string | null;
   refund_processed_at: string | null;
   refund_processed_by: string | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
 
 // ─── STAFF ACTIVITY LOG ─────────────────────────────────────
 
-export type StaffActivityModule = 'operations' | 'finance' | 'support' | 'verification' | 'field_officer' | 'admin' | 'general';
+export type StaffActivityModule =
+  | "operations"
+  | "finance"
+  | "support"
+  | "verification"
+  | "field_officer"
+  | "admin"
+  | "general";
 
 export interface StaffActivityLog {
   id: string;
@@ -1458,7 +1694,7 @@ export interface StaffActivityLog {
   module: StaffActivityModule;
   target_type: string | null;
   target_id: string | null;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   ip_address: string | null;
   created_at: string;
 }
