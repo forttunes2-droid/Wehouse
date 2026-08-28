@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   createInspectionRequest,
   createReservation,
@@ -14,6 +14,7 @@ import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing, Profile, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import PropertyMediaCarousel from '@/components/PropertyMediaCarousel';
 import { Toaster, toast } from 'sonner';
 
 type Props = {
@@ -41,14 +42,12 @@ const ACTIVE_RESERVATION_STATES = new Set(['payment_pending', 'reserved', 'inspe
 export default function ListingDetail({ listingId, onNavigate, profile, isSaved, onToggleSave }: Props) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [imageIndex, setImageIndex] = useState(0);
   const [reservation, setReservation] = useState<any>(null);
   const [inspection, setInspection] = useState<any>(null);
   const [showPlan, setShowPlan] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [moveInConfirm, setMoveInConfirm] = useState(false);
-  const touchStartX = useRef<number | null>(null);
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
 
@@ -216,15 +215,11 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
   return <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-12 text-white">
     <Toaster position="top-center" richColors />
     <div className="mx-auto max-w-6xl">
-      <section className="relative touch-pan-y overflow-hidden bg-[#11141C] sm:m-4 sm:rounded-3xl" onTouchStart={event=>{touchStartX.current=event.touches[0]?.clientX??null}} onTouchEnd={event=>{if(touchStartX.current==null||images.length<2)return;const delta=(event.changedTouches[0]?.clientX??touchStartX.current)-touchStartX.current;if(Math.abs(delta)>45)setImageIndex(current=>delta<0?(current+1)%images.length:(current-1+images.length)%images.length);touchStartX.current=null}}>
-        <img src={images[imageIndex]} alt={listing.title} className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
+      <PropertyMediaCarousel images={images} title={listing.title}>
         <button onClick={onNavigate} className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur">←</button>
         <button onClick={onToggleSave} aria-label={isSaved?'Remove from saved properties':'Save property'} aria-pressed={isSaved} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"><Heart filled={isSaved}/></button>
         <span className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase ${state.cls}`}>{state.label}</span>
-        {images.length > 1 && <div className="absolute bottom-4 right-4 flex gap-1.5">{images.map((_, index) => <button key={index} onClick={() => setImageIndex(index)} className={`h-2 rounded-full ${index === imageIndex ? 'w-5 bg-white' : 'w-2 bg-white/40'}`} />)}</div>}
-        {images.length > 1 && <><button type="button" aria-label="Previous photo" onClick={()=>setImageIndex(current=>(current-1+images.length)%images.length)} className="absolute left-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur">‹</button><button type="button" aria-label="Next photo" onClick={()=>setImageIndex(current=>(current+1)%images.length)} className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur">›</button><span className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-[9px] backdrop-blur">{imageIndex+1} / {images.length}</span></>}
-      </section>
+      </PropertyMediaCarousel>
 
       <main className="px-4 py-5 sm:px-6 lg:px-8"><div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-5">
