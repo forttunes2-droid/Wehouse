@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import SecureSupportAttachment from '@/components/SecureSupportAttachment';
-import WeHouseGuide from '@/components/WeHouseGuide';
 import { supabase } from '@/lib/supabase';
 import {
   deleteSupportAttachment,
@@ -191,7 +190,7 @@ export default function SupportChat({ profile }: Props) {
   }
 
   if (!profile) return null;
-  if (!open) return <WeHouseGuide profile={profile} />;
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
