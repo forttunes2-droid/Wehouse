@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getRoomById, createReservation, getReservationForListing, supabase } from '@/lib/supabase';
+import { getRoomById, createReservation, supabase } from '@/lib/supabase';
 import { useHotelReservationSettings, calculateReservationFee } from '@/hooks/useHotelReservationSettings';
 import type { HotelRoom, Hotel } from '@/types';
 import { Toaster, toast } from 'sonner';
@@ -13,12 +13,12 @@ interface HotelReservationProps {
   onComplete: () => void;
 }
 
-export default function HotelReservation({ hotelId, roomId, profile, onBack, onProceedToBooking, onComplete }: HotelReservationProps) {
+export default function HotelReservation({ hotelId, roomId, profile, onBack, onProceedToBooking }: HotelReservationProps) {
   const [room, setRoom] = useState<(HotelRoom & { hotels: Hotel }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reservationComplete, setReservationComplete] = useState(false);
-  const [existingReservation, setExistingReservation] = useState<any>(null);
+  const [, setExistingReservation] = useState<unknown>(null);
 
   // Creator-controlled reservation settings
   const settings = useHotelReservationSettings();

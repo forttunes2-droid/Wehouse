@@ -25,8 +25,6 @@ interface Props {
   profile: ChatProfile | null;
 }
 
-const MAX_FILES = 6;
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 export default function SupportChat({ profile }: Props) {
   const [open, setOpen] = useState(false);
@@ -40,7 +38,6 @@ export default function SupportChat({ profile }: Props) {
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachItems, setAttachItems] = useState<SupportOpenContext[]>([]);
 
-  const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -116,28 +113,6 @@ export default function SupportChat({ profile }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length, open]);
-
-  function addFiles(list: FileList | null) {
-    if (!list) return;
-    const valid = Array.from(list).filter((file) => {
-      if (file.type.startsWith('audio/')) {
-        toast.error('Voice notes are available in Roommate and Worker chats, not Support');
-        return false;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name} is larger than 25MB`);
-        return false;
-      }
-      return true;
-    });
-
-    setFiles((current) => {
-      const next = [...current, ...valid].slice(0, MAX_FILES);
-      if (current.length + valid.length > MAX_FILES) toast.error('A maximum of 6 files can be sent at once');
-      return next;
-    });
-    if (fileRef.current) fileRef.current.value = '';
-  }
 
   async function send() {
     if (sending || (!input.trim() && !files.length)) return;

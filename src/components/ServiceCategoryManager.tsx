@@ -3,7 +3,8 @@ import { getServiceCategories,getServiceSubcategories,createServiceCategory,crea
 import type { Profile,ServiceCategory,ServiceSubcategory } from '@/types';
 import { toast } from 'sonner';
 
-export default function ServiceCategoryManager({profile:_profile}:{profile:Profile}){
+export default function ServiceCategoryManager({profile}:{profile:Profile}){
+ void profile;
  const[categories,setCategories]=useState<ServiceCategory[]>([]),[subcategories,setSubcategories]=useState<ServiceSubcategory[]>([]),[loading,setLoading]=useState(true),[newCategory,setNewCategory]=useState(''),[newService,setNewService]=useState(''),[selectedId,setSelectedId]=useState(''),[saving,setSaving]=useState(false),[deleteTarget,setDeleteTarget]=useState<{type:'category'|'service';id:string;name:string}|null>(null);
  async function load(preferred?:string){setLoading(true);const[{categories:cats},{subcategories:subs}]=await Promise.all([getServiceCategories(true),getServiceSubcategories(undefined,true)]);const nextCats=cats||[];setCategories(nextCats);setSubcategories(subs||[]);setSelectedId(current=>preferred&&nextCats.some(c=>c.id===preferred)?preferred:nextCats.some(c=>c.id===current)?current:(nextCats[0]?.id||''));setLoading(false)}
  useEffect(()=>{void load()},[]);

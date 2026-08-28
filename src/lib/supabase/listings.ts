@@ -160,7 +160,8 @@ export async function uploadListingVideo(file: File, listingId: string) {
   return { url: supabase.storage.from('listing-videos').getPublicUrl(path).data.publicUrl, error: null };
 }
 
-export async function deleteListing(listingId: string, _userId?: string) {
+export async function deleteListing(listingId: string, userId?: string) {
+  void userId;
   const { data, error } = await supabase.rpc('soft_delete_listing_internal', { p_listing_id: listingId });
   return { success: data === true, error };
 }
@@ -198,7 +199,8 @@ export function canApproveListing(userRole: string, posterRole: string) {
   return (ROLE_RANK[userRole as keyof typeof ROLE_RANK] || 0) >= getRequiredApproverRank(posterRole);
 }
 
-export async function getListingsPendingApproval(userRole: string, _userId: string, scopeState?: string, scopeLga?: string) {
+export async function getListingsPendingApproval(userRole: string, userId: string, scopeState?: string, scopeLga?: string) {
+  void userId;
   let query = supabase
     .from('listings')
     .select('*')
@@ -214,12 +216,14 @@ export async function getListingsPendingApproval(userRole: string, _userId: stri
   };
 }
 
-export async function approveListing(listingId: string, _approverId?: string) {
+export async function approveListing(listingId: string, approverId?: string) {
+  void approverId;
   const { data, error } = await supabase.rpc('approve_listing_internal', { p_listing_id: listingId });
   return { listing: data as Listing | null, error };
 }
 
-export async function rejectListing(listingId: string, _approverId: string | undefined, reason: string) {
+export async function rejectListing(listingId: string, approverId: string | undefined, reason: string) {
+  void approverId;
   const { data, error } = await supabase.rpc('reject_listing_internal', { p_listing_id: listingId, p_reason: reason });
   return { listing: data as Listing | null, error };
 }
@@ -235,7 +239,8 @@ export async function getMyPendingListings(userId: string) {
   return { listings: data as Listing[] | null, error };
 }
 
-export async function updateListingStatus(listingId: string, status: string, _updates?: Record<string, unknown>) {
+export async function updateListingStatus(listingId: string, status: string, updates?: Record<string, unknown>) {
+  void updates;
   const { data, error } = await supabase.rpc('set_listing_status_internal', { p_listing_id: listingId, p_status: status });
   return { listing: data as Listing | null, error };
 }

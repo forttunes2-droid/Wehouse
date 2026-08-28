@@ -7,7 +7,8 @@ type PropertyType={id:number;name:string;icon:string;sort_order:number;is_active
 const DEFAULT_TYPES:PropertyType[]=[{id:1,name:'Houses',icon:'house',sort_order:1,is_active:true},{id:2,name:'Apartments',icon:'apartment',sort_order:2,is_active:true},{id:3,name:'Hotels',icon:'hotel',sort_order:3,is_active:true}];
 const ICONS:Record<string,string>={house:'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',apartment:'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',hotel:'M18 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zM9 7h6M9 11h6M9 15h6'};
 
-export default function PropertyTypeManager({profile:_profile}:{profile:Profile}){
+export default function PropertyTypeManager({profile}:{profile:Profile}){
+ void profile;
  const[types,setTypes]=useState<PropertyType[]>([]),[original,setOriginal]=useState<PropertyType[]>([]),[deletedIds,setDeletedIds]=useState<number[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[newType,setNewType]=useState(''),[usingDefaults,setUsingDefaults]=useState(false);
  useEffect(()=>{void load()},[]);
  async function load(){setLoading(true);const{data,error}=await supabase.from('property_types').select('*').order('sort_order');if(error){toast.error(`Failed to load property types: ${error.message}`);setTypes([]);setOriginal([]);setUsingDefaults(false)}else{const next=data&&data.length?data as PropertyType[]:DEFAULT_TYPES.map(t=>({...t}));setTypes(next);setOriginal(next.map(t=>({...t})));setUsingDefaults(!(data&&data.length))}setDeletedIds([]);setLoading(false)}

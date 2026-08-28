@@ -34,23 +34,27 @@ export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences
   };
 }
 
-export async function getRoommatePreferences(_userId?: string) {
+export async function getRoommatePreferences(userId?: string) {
+  void userId;
   const { data, error } = await supabase.rpc('get_my_roommate_preferences');
   const row = Array.isArray(data) ? data[0] : data;
   return { prefs: (row || null) as RoommatePreferences | null, error };
 }
 
-export async function startRoommateSearch(_userId?: string) {
+export async function startRoommateSearch(userId?: string) {
+  void userId;
   const { data, error } = await supabase.rpc('start_my_roommate_search');
   return { prefs: (data || null) as RoommatePreferences | null, error };
 }
 
-export async function stopRoommateSearch(_userId?: string) {
+export async function stopRoommateSearch(userId?: string) {
+  void userId;
   const { data, error } = await supabase.rpc('stop_my_roommate_search');
   return { prefs: (data || null) as RoommatePreferences | null, error };
 }
 
-export async function refreshRoommateSearch(_userId?: string) {
+export async function refreshRoommateSearch(userId?: string) {
+  void userId;
   const { error } = await supabase.rpc('refresh_my_roommate_search');
   if (error) return { matches: [], hasMore: false, error };
   return getSavedMatchResults(DEFAULT_MATCH_PAGE, 0);
@@ -104,7 +108,8 @@ export async function updateMatchStatus(matchId: string, status: 'new' | 'viewed
   return { conversationId: data || null, error };
 }
 
-export async function checkSearchExpiry(_userId?: string): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {
+export async function checkSearchExpiry(userId?: string): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {
+  void userId;
   const { prefs } = await getRoommatePreferences();
   return { expired: prefs?.search_status === 'expired', prefs };
 }
