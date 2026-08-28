@@ -7,7 +7,6 @@ import CreatorWorkerOversight from '@/components/CreatorWorkerOversight';
 import CreatorAuditWorkspace from '@/components/CreatorAuditWorkspace';
 import ServiceBookingOversight from '@/components/ServiceBookingOversight';
 import UserProfileModal from '@/components/UserProfileModal';
-import DomainSettingsPanel from '@/components/DomainSettingsPanel';
 import ServiceCategoryManager from '@/components/ServiceCategoryManager';
 import PropertyTypeManager from '@/components/PropertyTypeManager';
 import WaitlistManagement from '@/components/WaitlistManagement';
@@ -35,10 +34,10 @@ const NAV = [
 
 const NOTES: Record<Tab, string> = {
   overview: 'Platform health and priority work.',
-  operations: 'People, Team, properties, Worker oversight, bookings and moderation.',
+  operations: 'People, Team, properties, Worker oversight, bookings and listing issues.',
   waitlist: 'Pre-launch demand, locations, budgets and contact progress.',
   communications: 'Human Support conversations and official announcements.',
-  finance: 'Payout requests, commission records and settlement policy.',
+  finance: 'Payout requests and commission records. Platform rules are changed only in Settings.',
   analytics: 'Trends, marketplace movement and lifecycle distribution.',
   audit: 'Safe operational history of important management changes.',
   settings: 'Global platform, Worker verification, trust and marketplace configuration.',
@@ -50,7 +49,7 @@ const OPS: Array<{ id: Operation; label: string; note: string }> = [
   { id: 'properties', label: 'Properties', note: 'Property request → inspection → preparation → publication.' },
   { id: 'workers', label: 'Workers', note: 'Worker lifecycle oversight. Verification Staff own routine approval.' },
   { id: 'bookings', label: 'Bookings', note: 'Worker-service, apartment and hotel booking records.' },
-  { id: 'reports', label: 'Reports', note: 'Listing reports and moderation decisions.' },
+  { id: 'reports', label: 'Listing Issues', note: 'Complaints users submitted about a listing; resolve or dismiss them after review.' },
 ];
 
 export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
@@ -171,15 +170,15 @@ function Reports() {
   async function load(){setLoading(true);const{data,error}=await supabase.rpc('admin_get_my_branch_reports');if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)}
   useEffect(()=>{void load()},[]);
   async function act(id:string,action:'resolved'|'dismissed'){const{error}=await supabase.rpc('admin_resolve_my_branch_report',{p_report_id:id,p_action:action});if(error)return toast.error(error.message);toast.success(action==='resolved'?'Report resolved':'Report dismissed');void load()}
-  return <Section title="Reports & moderation" note="Listing reports only. Human Support remains in Communications.">{loading?<Loading/>:rows.length===0?<Empty text="No listing reports are waiting for moderation."/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id}><Top title={row.reason||'Listing report'} sub={`${row.listing_id||'Listing'} · ${new Date(row.created_at).toLocaleString()}`} status={row.status||'pending'}/>{row.status==='pending'&&<div className="mt-3 flex gap-2"><Btn onClick={()=>void act(row.id,'resolved')}>Resolve</Btn><Btn muted onClick={()=>void act(row.id,'dismissed')}>Dismiss</Btn></div>}</Card>)}</div>}</Section>;
+  return <Section title="Listing issues" note="These are complaints people submitted about listings. Support conversations remain in Communications.">{loading?<Loading/>:rows.length===0?<Empty text="No listing complaints need review."/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id}><Top title={row.reason||'Listing complaint'} sub={`${row.listing_id||'Listing'} · ${new Date(row.created_at).toLocaleString()}`} status={row.status||'pending'}/>{row.status==='pending'&&<div className="mt-3 flex gap-2"><Btn onClick={()=>void act(row.id,'resolved')}>Mark resolved</Btn><Btn muted onClick={()=>void act(row.id,'dismissed')}>Dismiss</Btn></div>}</Card>)}</div>}</Section>;
 }
 
 function Finance() {
-  const [view,setView]=useState<'payouts'|'commissions'|'rules'>('payouts');
+  const [view,setView]=useState<'payouts'|'commissions'>('payouts');
   const [rows,setRows]=useState<any[]>([]);const [loading,setLoading]=useState(true);
   useEffect(()=>{void load()},[view]);
-  async function load(){if(view==='rules'){setRows([]);setLoading(false);return}setLoading(true);const result=view==='payouts'?await supabase.from('withdrawals').select('*').order('created_at',{ascending:false}).limit(100):await supabase.from('commission_ledger').select('*').order('created_at',{ascending:false}).limit(100);if(result.error)toast.error(result.error.message);setRows(result.data||[]);setLoading(false)}
-  return <Section title="Platform finance" note="Settlement oversight. There is no Creator personal withdrawal function."><div className="flex gap-1 overflow-x-auto scrollbar-hide"><Chip active={view==='payouts'} onClick={()=>setView('payouts')}>Payout requests</Chip><Chip active={view==='commissions'} onClick={()=>setView('commissions')}>Commission ledger</Chip><Chip active={view==='rules'} onClick={()=>setView('rules')}>Settlement rules</Chip></div>{view==='rules'?<DomainSettingsPanel title="Settlement rules" description="Commission and minimum payout rules used by Worker and Property Partner settlements." settings={[{key:'worker_commission_rate',label:'Worker commission (%)',description:'WeHouse commission from completed Worker jobs.',type:'number',defaultValue:'10'},{key:'commission_apartment',label:'Apartment Partner commission (%)',description:'WeHouse commission on eligible apartment rent.',type:'number',defaultValue:'10'},{key:'commission_hotel',label:'Hotel Partner commission (%)',description:'WeHouse commission on eligible hotel payments.',type:'number',defaultValue:'10'},{key:'wallet_minimum_withdrawal',label:'Worker minimum payout (₦)',description:'Minimum available Worker balance for payout.',type:'number',defaultValue:'1000'},{key:'min_withdrawal',label:'Property Partner minimum payout (₦)',description:'Minimum available Partner balance for payout.',type:'number',defaultValue:'5000'}]}/>:loading?<Loading/>:rows.length===0?<Empty text={view==='payouts'?'No payout requests.':'No commission records.'}/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id}><Top title={view==='payouts'?(row.snapshot_bank_account_name||'Payout request'):(row.booking_type||'Commission')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={view==='payouts'?row.amount:row.commission_amount}/></Card>)}</div>}</Section>;
+  async function load(){setLoading(true);const result=view==='payouts'?await supabase.from('withdrawals').select('*').order('created_at',{ascending:false}).limit(100):await supabase.from('commission_ledger').select('*').order('created_at',{ascending:false}).limit(100);if(result.error)toast.error(result.error.message);setRows(result.data||[]);setLoading(false)}
+  return <Section title="Platform finance" note="Read-only settlement records. Change commissions, fees and payout limits only from Creator Settings."><div className="flex gap-1 overflow-x-auto scrollbar-hide"><Chip active={view==='payouts'} onClick={()=>setView('payouts')}>Payout requests</Chip><Chip active={view==='commissions'} onClick={()=>setView('commissions')}>Commission ledger</Chip></div>{loading?<Loading/>:rows.length===0?<Empty text={view==='payouts'?'No payout requests.':'No commission records.'}/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id}><Top title={view==='payouts'?(row.snapshot_bank_account_name||'Payout request'):(row.booking_type||'Commission')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={view==='payouts'?row.amount:row.commission_amount}/></Card>)}</div>}</Section>;
 }
 
 function Settings({profile}:{profile:Profile}){return <div className="space-y-7"><CreatorSettingsTabV2 profile={profile}/><section className="space-y-4"><div><h2 className="text-base font-bold">Marketplace configuration</h2><p className="mt-1 text-[10px] text-[#686C7E]">Choices used by live Worker and property forms.</p></div><div className="grid gap-4 xl:grid-cols-2"><Card><h3 className="mb-3 text-sm font-semibold">Worker service categories</h3><ServiceCategoryManager profile={profile}/></Card><Card><h3 className="mb-3 text-sm font-semibold">Property types</h3><PropertyTypeManager profile={profile}/></Card></div></section></div>}
