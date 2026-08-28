@@ -11,6 +11,7 @@ type Props = { profile: Profile; onUpdate: (profile: Profile) => void; onBack: (
 
 export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatar, setAvatar] = useState(profile.avatar_url || '');
@@ -140,17 +141,33 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     if (error || !updated) return toast.error(error?.message || 'Could not save profile');
     onUpdate(updated);
     toast.success('Personal details updated');
+    setEditing(false);
   }
+
+  if (!editing) return (
+    <AccountShell profile={profile} title="Personal details" description="Your WeHouse profile and location." onBack={onBack}>
+      <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#11141C]">
+        <div className="flex items-center gap-4 p-5">
+          <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-2xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</div>
+          <div className="min-w-0 flex-1"><h2 className="truncate text-lg font-bold">{fullName || username || 'WeHouse member'}</h2><p className="mt-1 truncate text-[10px] text-[#737A8B]">@{username || 'username'}</p>{bio && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[#A1A6B3]">{bio}</p>}</div>
+        </div>
+        <div className="grid grid-cols-2 border-y border-white/[.06] sm:grid-cols-3"><ProfileFact label="Phone" value={phone || 'Not added'} /><ProfileFact label="Role" value={profile.role === 'worker' ? 'WeHouse Service Worker' : profile.role} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
+        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Location" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Area" value={area || 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
+        <div className="p-4"><button type="button" onClick={()=>setEditing(true)} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Edit profile</button></div>
+      </section>
+    </AccountShell>
+  );
 
   return (
     <AccountShell profile={profile} title="Personal details" description={isUser ? 'Your personal profile and location used by WeHouse.' : 'Private personal details for this account.'} onBack={onBack}>
       <Toaster position="top-center" richColors />
       <form onSubmit={save} className="space-y-4">
+        <button type="button" onClick={()=>setEditing(false)} className="text-[10px] font-semibold text-violet-300">Cancel editing</button>
         <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
           <div className="flex items-center gap-4">
             <button type="button" onClick={() => fileRef.current?.click()} className="grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</button>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={changePhoto} className="hidden" />
-            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Profile photo</p><p className="mt-1 text-[10px] text-[#6F7585]">{uploading ? 'Uploading…' : 'JPG, PNG or WebP'}</p><div className="mt-3 flex gap-2"><button type="button" onClick={() => fileRef.current?.click()} className="rounded-xl border border-white/[.08] bg-white/[.02] px-3 py-2 text-[10px] font-semibold">{avatar ? 'Change' : 'Add photo'}</button>{avatar && <button type="button" onClick={() => void deletePhoto()} className="rounded-xl border border-red-500/15 px-3 py-2 text-[10px] font-semibold text-red-300">Remove</button>}</div></div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Profile photo</p><p aria-live="polite" className="mt-1 text-[10px] text-[#6F7585]">{uploading ? 'Uploading photo securely…' : 'JPG, PNG or WebP'}</p>{uploading&&<div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full w-2/5 animate-pulse rounded-full bg-violet-400"/></div>}<div className="mt-3 flex gap-2"><button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="rounded-xl border border-white/[.08] bg-white/[.02] px-3 py-2 text-[10px] font-semibold disabled:opacity-40">{avatar ? 'Change' : 'Add photo'}</button>{avatar && <button type="button" disabled={uploading} onClick={() => void deletePhoto()} className="rounded-xl border border-red-500/15 px-3 py-2 text-[10px] font-semibold text-red-300 disabled:opacity-40">Remove</button>}</div></div>
           </div>
         </section>
 
@@ -192,3 +209,4 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181A23] px-3 text-xs outline-none focus:border-violet-500/40" /></label>; }
+function ProfileFact({label,value}:{label:string;value:string}){return <div className="min-w-0 border-r border-white/[.05] p-4 last:border-r-0"><p className="text-[8px] uppercase tracking-wide text-[#62697A]">{label}</p><p className="mt-1 truncate text-[10px] font-semibold capitalize text-[#A8ADBA]">{value}</p></div>}
