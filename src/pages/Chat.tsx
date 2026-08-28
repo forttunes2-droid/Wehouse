@@ -1036,6 +1036,23 @@ function VoiceNotePlayer({ url }: { url: string }) {
       setCurrent(value);
     }
   }
+  async function resolveDuration(mediaDuration: number) {
+    if (recordedSeconds) {
+      setTotal(recordedSeconds);
+      return;
+    }
+    try {
+      const response = await fetch(url);
+      const context = new AudioContext();
+      const decoded = await context.decodeAudioData(
+        await response.arrayBuffer(),
+      );
+      setTotal(decoded.duration || mediaDuration);
+      await context.close();
+    } catch {
+      setTotal(mediaDuration);
+    }
+  }
   return (
     <div className="mb-1 flex min-w-[210px] items-center gap-2.5 rounded-2xl bg-black/15 px-2.5 py-2">
       <audio
@@ -1046,7 +1063,7 @@ function VoiceNotePlayer({ url }: { url: string }) {
           const mediaDuration = Number.isFinite(event.currentTarget.duration)
             ? event.currentTarget.duration
             : 0;
-          setTotal(recordedSeconds || mediaDuration);
+          void resolveDuration(mediaDuration);
         }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
