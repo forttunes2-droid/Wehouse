@@ -30,7 +30,7 @@ export default class ErrorBoundary extends Component<Props, State> {
       setTimeout(function() { window.location.reload(); }, 2000);
       return (
         <div className="min-h-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-4 px-6">
-          <div className="w-10 h-10 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-[#5C5E72]">Loading fresh code...</p>
         </div>
       );
@@ -48,7 +48,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="h-11 px-6 rounded-xl bg-[#3B82F6] text-white text-sm font-semibold"
+            className="h-11 px-6 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold"
           >
             Refresh Page
           </button>

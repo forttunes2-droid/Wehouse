@@ -17,7 +17,7 @@ interface ConfirmDialogProps extends ConfirmOptions {
 const btnColors: Record<string, string> = {
   danger: 'bg-red-500 hover:bg-red-600',
   warning: 'bg-amber-500 hover:bg-amber-600',
-  info: 'bg-[#3B82F6] hover:bg-[#2563EB]',
+  info: 'bg-[#8B5CF6] hover:bg-[#7C3AED]',
 };
 
 export default function ConfirmDialog({

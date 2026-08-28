@@ -105,7 +105,7 @@ export function NotificationCenter({ profile }: { profile: Profile }) {
         {unreadCount > 0 && (
           <button
             onClick={markAllRead}
-            className="text-[10px] text-[#3B82F6] hover:text-white transition-colors"
+            className="text-[10px] text-[#8B5CF6] hover:text-white transition-colors"
           >
             Mark all read
           </button>
@@ -115,7 +115,7 @@ export function NotificationCenter({ profile }: { profile: Profile }) {
       {/* List */}
       {loading && (
         <div className="flex items-center gap-2 text-[10px] text-[#5C5E72] py-4">
-          <div className="w-3 h-3 border border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          <div className="w-3 h-3 border border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
           Loading...
         </div>
       )}
@@ -137,7 +137,7 @@ export function NotificationCenter({ profile }: { profile: Profile }) {
             className={`w-full text-left glass rounded-xl p-3 transition-all ${
               n.read
                 ? "opacity-50 border border-white/[0.02]"
-                : "border border-[#3B82F6]/10 bg-[#3B82F6]/[0.02]"
+                : "border border-[#8B5CF6]/10 bg-[#8B5CF6]/[0.02]"
             }`}
           >
             <div className="flex items-start gap-2.5">
@@ -164,7 +164,7 @@ export function NotificationCenter({ profile }: { profile: Profile }) {
                 </p>
               </div>
               {!n.read && (
-                <span className="w-2 h-2 rounded-full bg-[#3B82F6] flex-shrink-0 mt-1" />
+                <span className="w-2 h-2 rounded-full bg-[#8B5CF6] flex-shrink-0 mt-1" />
               )}
             </div>
           </button>

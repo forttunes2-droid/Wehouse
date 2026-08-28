@@ -61,7 +61,7 @@ type InboxItem =
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
-export default function Chat({ profile, onNavigate, conversationId }: Props) {
+export default function Chat({ profile, conversationId }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]),
     [bookingConversations, setBookingConversations] = useState<
       BookingConversation[]
@@ -87,7 +87,8 @@ export default function Chat({ profile, onNavigate, conversationId }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
     mediaRef = useRef<MediaRecorder | null>(null),
-    chunksRef = useRef<Blob[]>([]);
+    chunksRef = useRef<Blob[]>([]),
+    recordStartedRef = useRef(0);
   const otherId = useCallback(
     (conv: Conversation) =>
       conv.participant_a === profile.user_id
@@ -300,24 +301,31 @@ export default function Chat({ profile, onNavigate, conversationId }: Props) {
         mime ? { mimeType: mime } : undefined,
       );
       chunksRef.current = [];
+      recordStartedRef.current = Date.now();
       recorder.ondataavailable = (event) => {
         if (event.data.size) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
         const type = recorder.mimeType || "audio/webm",
           blob = new Blob(chunksRef.current, { type }),
-          ext = type.includes("mp4") ? "m4a" : "webm";
+          ext = type.includes("mp4") ? "m4a" : "webm",
+          elapsed = Math.max(
+            1,
+            Math.round((Date.now() - recordStartedRef.current) / 1000),
+          );
         setFiles((current) =>
           [
             ...current,
-            new File([blob], `voice-${Date.now()}.${ext}`, { type }),
+            new File([blob], `voice-${Date.now()}-${elapsed}s.${ext}`, {
+              type,
+            }),
           ].slice(0, MAX_FILES),
         );
         stream.getTracks().forEach((track) => track.stop());
         setRecording(false);
       };
       mediaRef.current = recorder;
-      recorder.start();
+      recorder.start(250);
       setRecording(true);
     } catch {
       toast.error("Microphone permission is required for voice notes");
@@ -345,9 +353,11 @@ export default function Chat({ profile, onNavigate, conversationId }: Props) {
       setFiles([]);
       await loadRoommateMessages(active.id);
       void loadInbox(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       for (const path of paths) await deleteRoommateChatAttachment(path);
-      toast.error(error?.message || "Message could not be sent");
+      toast.error(
+        error instanceof Error ? error.message : "Message could not be sent",
+      );
     } finally {
       setSending(false);
     }
@@ -874,7 +884,7 @@ function WorkerInboxRow({
           <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
             {row.other_person_name || "Worker chat"}
           </p>
-          <span className="shrink-0 rounded-full bg-blue-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-blue-300">
+          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-violet-300">
             WORKER
           </span>
         </div>
@@ -1009,6 +1019,7 @@ function PrivateAttachment({ url, type }: { url: string; type: string }) {
   return null;
 }
 function VoiceNotePlayer({ url }: { url: string }) {
+  const recordedSeconds = voiceDurationFromUrl(url);
   const ref = useRef<HTMLAudioElement>(null),
     [playing, setPlaying] = useState(false),
     [current, setCurrent] = useState(0),
@@ -1031,13 +1042,12 @@ function VoiceNotePlayer({ url }: { url: string }) {
         ref={ref}
         src={url}
         preload="metadata"
-        onLoadedMetadata={(event) =>
-          setTotal(
-            Number.isFinite(event.currentTarget.duration)
-              ? event.currentTarget.duration
-              : 0,
-          )
-        }
+        onLoadedMetadata={(event) => {
+          const mediaDuration = Number.isFinite(event.currentTarget.duration)
+            ? event.currentTarget.duration
+            : 0;
+          setTotal(recordedSeconds || mediaDuration);
+        }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
@@ -1383,6 +1393,10 @@ function formatListTime(value: string) {
 }
 function duration(value: number) {
   return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+function voiceDurationFromUrl(value: string) {
+  const match = decodeURIComponent(value).match(/voice-\d+-(\d+)s\./i);
+  return match ? Number(match[1]) : 0;
 }
 function PhotoIcon() {
   return (

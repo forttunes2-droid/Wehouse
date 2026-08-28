@@ -26,7 +26,7 @@ export default function BookingsTab() {
   if (loading) {
     return (
       <div className="flex justify-center py-10">
-        <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }

@@ -258,7 +258,7 @@ export default function SupportChat({ profile }: Props) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[14px] font-semibold">{deskName}</p>
-              <span className="grid h-4 w-4 place-items-center rounded-full bg-blue-400 text-[9px] font-bold">
+              <span className="grid h-4 w-4 place-items-center rounded-full bg-violet-400 text-[9px] font-bold">
                 ✓
               </span>
             </div>
@@ -498,13 +498,13 @@ function MessageContext({ meta, type }: { meta: any; type?: string }) {
     meta.subject || type || meta.context_type || "Linked WeHouse item",
   ).replace(/_/g, " ");
   return (
-    <div className="mb-1.5 w-full max-w-sm rounded-2xl border border-blue-500/15 bg-blue-500/[.055] p-3 text-left">
+    <div className="mb-1.5 w-full max-w-sm rounded-2xl border border-violet-500/15 bg-violet-500/[.055] p-3 text-left">
       <div className="flex items-center justify-between gap-3">
-        <p className="truncate text-[10px] font-semibold capitalize text-blue-200">
+        <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}
         </p>
         {ref && (
-          <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-1 text-[8px] text-blue-300">
+          <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-1 text-[8px] text-violet-300">
             Ref {String(ref).slice(0, 18)}
           </span>
         )}
@@ -535,12 +535,12 @@ function PendingContext({
   onRemove: () => void;
 }) {
   return (
-    <div className="mb-2 flex items-start gap-3 rounded-2xl border border-blue-500/15 bg-blue-500/[.055] p-3">
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-300">
+    <div className="mb-2 flex items-start gap-3 rounded-2xl border border-violet-500/15 bg-violet-500/[.055] p-3">
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">
         ↗
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] font-semibold text-blue-200">
+        <p className="truncate text-[10px] font-semibold text-violet-200">
           {context.subject ||
             String(context.contextType || "Linked WeHouse item").replace(
               /_/g,

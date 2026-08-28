@@ -400,7 +400,7 @@ export default function Login({
                   setWaitlistOpen(true);
                   clearMessages();
                 }}
-                className="h-13 w-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500 px-5 py-3.5 text-sm font-bold"
+                className="h-13 w-full rounded-full bg-gradient-to-r from-violet-500 to-violet-500 px-5 py-3.5 text-sm font-bold"
               >
                 Join the Waitlist
               </button>
@@ -491,7 +491,7 @@ export default function Login({
                 <button
                   type="submit"
                   disabled={working}
-                  className="h-12 w-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500 text-sm font-bold disabled:opacity-50"
+                  className="h-12 w-full rounded-full bg-gradient-to-r from-violet-500 to-violet-500 text-sm font-bold disabled:opacity-50"
                 >
                   {working ? "Joining…" : "Join WeHouse"}
                 </button>
@@ -666,7 +666,7 @@ export default function Login({
                   setMode("forgot");
                   clearMessages();
                 }}
-                className="w-full text-center text-xs text-blue-400"
+                className="w-full text-center text-xs text-violet-400"
               >
                 Forgot password?
               </button>
@@ -798,7 +798,7 @@ function RoleButton({
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-2xl border border-white/[.07] bg-[#141720] p-4 text-left transition hover:border-blue-500/25"
+      className="w-full rounded-2xl border border-white/[.07] bg-[#141720] p-4 text-left transition hover:border-violet-500/25"
     >
       <p className="text-sm font-semibold">{title}</p>
       <p className="mt-1 text-[10px] text-[#666B7C]">{detail}</p>
@@ -858,7 +858,7 @@ function Notice({
       ? "border-red-500/20 bg-red-500/10 text-red-300"
       : tone === "warning"
         ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
-        : "border-blue-500/20 bg-blue-500/10 text-blue-300";
+        : "border-violet-500/20 bg-violet-500/10 text-violet-300";
   return (
     <div
       className={`mb-4 rounded-xl border p-3 text-center text-xs leading-relaxed ${cls}`}

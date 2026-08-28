@@ -114,7 +114,7 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -123,7 +123,7 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
     return (
       <div className="min-h-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-3">
         <p className="text-sm text-[#5C5E72]">Room not found</p>
-        <button onClick={onBack} className="text-xs text-[#3B82F6]">Go back</button>
+        <button onClick={onBack} className="text-xs text-[#8B5CF6]">Go back</button>
       </div>
     );
   }
@@ -160,10 +160,10 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
         {!reservationComplete ? (
           <>
             {/* Pay Reservation Fee */}
-            <div className="glass rounded-2xl p-4 border border-[#3B82F6]/20 bg-[#3B82F6]/5">
+            <div className="glass rounded-2xl p-4 border border-[#8B5CF6]/20 bg-[#8B5CF6]/5">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">Reservation Fee</p>
@@ -172,7 +172,7 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
               </div>
 
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-2xl font-bold text-[#3B82F6]">₦{fee.toLocaleString()}</span>
+                <span className="text-2xl font-bold text-[#8B5CF6]">₦{fee.toLocaleString()}</span>
                 <span className="text-[10px] text-[#5C5E72]">{settings.feeType === 'per_day' ? 'per day' : 'fixed'}</span>
               </div>
 
@@ -190,7 +190,7 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
               <button
                 onClick={handlePayReservation}
                 disabled={submitting}
-                className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-semibold shadow-lg shadow-violet-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing...</>
@@ -205,15 +205,15 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
               <p className="text-xs font-semibold text-white mb-2">What happens next?</p>
               <ol className="space-y-2">
                 <li className="flex items-start gap-2 text-[10px] text-[#8B8DA0]">
-                  <span className="w-4 h-4 rounded-full bg-[#3B82F6]/10 flex items-center justify-center text-[8px] text-[#3B82F6] font-bold flex-shrink-0 mt-0.5">1</span>
+                  <span className="w-4 h-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center text-[8px] text-[#8B5CF6] font-bold flex-shrink-0 mt-0.5">1</span>
                   Pay the reservation fee to reserve this room
                 </li>
                 <li className="flex items-start gap-2 text-[10px] text-[#8B8DA0]">
-                  <span className="w-4 h-4 rounded-full bg-[#3B82F6]/10 flex items-center justify-center text-[8px] text-[#3B82F6] font-bold flex-shrink-0 mt-0.5">2</span>
+                  <span className="w-4 h-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center text-[8px] text-[#8B5CF6] font-bold flex-shrink-0 mt-0.5">2</span>
                   Your reservation is confirmed
                 </li>
                 <li className="flex items-start gap-2 text-[10px] text-[#8B8DA0]">
-                  <span className="w-4 h-4 rounded-full bg-[#3B82F6]/10 flex items-center justify-center text-[8px] text-[#3B82F6] font-bold flex-shrink-0 mt-0.5">3</span>
+                  <span className="w-4 h-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center text-[8px] text-[#8B5CF6] font-bold flex-shrink-0 mt-0.5">3</span>
                   Proceed with booking — select dates and pay accommodation fee
                 </li>
               </ol>
@@ -250,7 +250,7 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
 
               <button
                 onClick={() => onProceedToBooking(hotelId, roomId)}
-                className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-semibold shadow-lg shadow-violet-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 Proceed with Booking

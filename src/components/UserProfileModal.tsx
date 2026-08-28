@@ -158,13 +158,13 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8B9C" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-xl font-bold">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-xl font-bold">
                 {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full rounded-2xl object-cover" alt="" /> : initials}
               </div>
               <div className="min-w-0"><h3 className="truncate text-lg font-bold text-white">{user.full_name||`@${user.username||'unknown'}`}</h3>
               <p className="mt-0.5 truncate text-xs text-[#6D7282]">@{user.username||'unknown'} · {user.email}</p>
               <div className="mt-2 flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{roleLabel}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20">{roleLabel}</span>
                 {user.worker_verified && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Verified</span>}
               </div></div>
             </div>
@@ -203,7 +203,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
               <>
                 {user.worker_occupation && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p><p className="text-xs text-white/80 font-medium">{user.worker_occupation}</p></div>}
                 {user.worker_bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{user.worker_bio}</p></div>}
-                {user.worker_skills && user.worker_skills.length > 0 && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Skills</p><div className="flex flex-wrap gap-1.5">{user.worker_skills.map((s: string, i: number) => <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">{s}</span>)}</div></div>}
+                {user.worker_skills && user.worker_skills.length > 0 && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Skills</p><div className="flex flex-wrap gap-1.5">{user.worker_skills.map((s: string, i: number) => <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20">{s}</span>)}</div></div>}
                 {user.worker_price && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Service Price</p><p className="text-xs text-white/80 font-medium">N{user.worker_price.toLocaleString()}</p></div>}
                 {user.worker_experience && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Experience</p><p className="text-xs text-white/80">{user.worker_experience}</p></div>}
               </>
@@ -212,7 +212,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
             {user.role === 'property_partner' && partnerProperties.length > 0 && (
               <div className="glass rounded-2xl p-4 space-y-3">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Properties ({partnerProperties.length})</p>
-                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.(`detail_${prop.id}`); onClose(); }} className="w-full text-left glass rounded-xl p-3 hover:bg-[#1A1A24] transition-colors"><p className="text-xs font-medium text-white truncate">{prop.title}</p><div className="flex items-center justify-between mt-1"><span className="text-[10px] text-[#5C5E72]">{prop.city}, {prop.state}</span><span className="text-[10px] text-[#3B82F6]">N{prop.price?.toLocaleString()}</span></div></button>)}
+                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.(`detail_${prop.id}`); onClose(); }} className="w-full text-left glass rounded-xl p-3 hover:bg-[#1A1A24] transition-colors"><p className="text-xs font-medium text-white truncate">{prop.title}</p><div className="flex items-center justify-between mt-1"><span className="text-[10px] text-[#5C5E72]">{prop.city}, {prop.state}</span><span className="text-[10px] text-[#8B5CF6]">N{prop.price?.toLocaleString()}</span></div></button>)}
               </div>
             )}
 
@@ -225,7 +225,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
             </div>
 
             {supportConvoId && (user.role === 'user' || user.role === 'worker' || user.role === 'property_partner') && (
-              <button onClick={() => {if (onGoToChat) {onGoToChat(supportConvoId);onClose();} else if (onNavigate) {onNavigate(`chat_${supportConvoId}`);onClose();}}} className="w-full h-10 rounded-xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 text-[#3B82F6] text-xs font-semibold hover:bg-[#3B82F6]/20 transition-colors flex items-center justify-center gap-2">
+              <button onClick={() => {if (onGoToChat) {onGoToChat(supportConvoId);onClose();} else if (onNavigate) {onNavigate(`chat_${supportConvoId}`);onClose();}}} className="w-full h-10 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 text-[#8B5CF6] text-xs font-semibold hover:bg-[#8B5CF6]/20 transition-colors flex items-center justify-center gap-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 Go to Support Conversation
               </button>

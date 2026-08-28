@@ -151,7 +151,7 @@ export default function ServiceCategoryManager({
   if (loading) return <Loading />;
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-blue-500/10 bg-blue-500/[.035] p-3">
+      <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[.035] p-3">
         <div className="flex items-start gap-3">
           <Step n="1" />
           <div>
@@ -170,12 +170,12 @@ export default function ServiceCategoryManager({
               if (e.key === "Enter") void addCategory();
             }}
             placeholder="Add a service group"
-            className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-blue-500/40"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-violet-500/40"
           />
           <button
             onClick={() => void addCategory()}
             disabled={saving || !newCategory.trim()}
-            className="h-10 rounded-xl bg-blue-500 px-4 text-[10px] font-semibold disabled:opacity-40"
+            className="h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40"
           >
             Add
           </button>
@@ -196,14 +196,14 @@ export default function ServiceCategoryManager({
                 <button
                   key={cat.id}
                   onClick={() => setSelectedId(cat.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${selectedId === cat.id ? "bg-blue-500/10" : "hover:bg-white/[.03]"}`}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${selectedId === cat.id ? "bg-violet-500/10" : "hover:bg-white/[.03]"}`}
                 >
                   <span
                     className={`h-2.5 w-2.5 shrink-0 rounded-full ${cat.is_active ? "bg-emerald-400" : "bg-[#444A5A]"}`}
                   />
                   <div className="min-w-0 flex-1">
                     <p
-                      className={`truncate text-xs font-medium ${selectedId === cat.id ? "text-blue-100" : "text-[#D5D7DF]"}`}
+                      className={`truncate text-xs font-medium ${selectedId === cat.id ? "text-violet-100" : "text-[#D5D7DF]"}`}
                     >
                       {cat.name}
                     </p>
@@ -242,7 +242,7 @@ export default function ServiceCategoryManager({
                           name: selected.name,
                         })
                       }
-                      className="rounded-xl bg-blue-500/10 px-3 py-2 text-[9px] font-semibold text-blue-200"
+                      className="rounded-xl bg-violet-500/10 px-3 py-2 text-[9px] font-semibold text-violet-200"
                     >
                       Edit name
                     </button>
@@ -287,12 +287,12 @@ export default function ServiceCategoryManager({
                       if (e.key === "Enter") void addService();
                     }}
                     placeholder={`Add a service inside ${selected.name}`}
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-blue-500/40"
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-violet-500/40"
                   />
                   <button
                     onClick={() => void addService()}
                     disabled={saving || !newService.trim()}
-                    className="h-10 rounded-xl bg-blue-500 px-4 text-[10px] font-semibold disabled:opacity-40"
+                    className="h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40"
                   >
                     Add
                   </button>
@@ -324,7 +324,7 @@ export default function ServiceCategoryManager({
                                 name: service.name,
                               })
                             }
-                            className="rounded-lg bg-blue-500/10 px-2.5 py-1.5 text-[8px] text-blue-200"
+                            className="rounded-lg bg-violet-500/10 px-2.5 py-1.5 text-[8px] text-violet-200"
                           >
                             Edit
                           </button>
@@ -414,7 +414,7 @@ function RenameEditor({
   saving: boolean;
 }) {
   return (
-    <div className="mt-2 flex gap-2 rounded-xl border border-blue-500/15 bg-blue-500/[.04] p-2">
+    <div className="mt-2 flex gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.04] p-2">
       <input
         autoFocus
         value={value}
@@ -427,7 +427,7 @@ function RenameEditor({
       <button
         onClick={onSave}
         disabled={saving || !value.trim()}
-        className="rounded-lg bg-blue-500 px-3 text-[9px] font-semibold disabled:opacity-40"
+        className="rounded-lg bg-violet-500 px-3 text-[9px] font-semibold disabled:opacity-40"
       >
         {saving ? "Saving…" : "Save"}
       </button>
@@ -436,7 +436,7 @@ function RenameEditor({
 }
 function Step({ n }: { n: string }) {
   return (
-    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-500/10 text-[9px] font-bold text-blue-300">
+    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-violet-500/10 text-[9px] font-bold text-violet-300">
       {n}
     </span>
   );
@@ -444,7 +444,7 @@ function Step({ n }: { n: string }) {
 function Loading() {
   return (
     <div className="grid min-h-32 place-items-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
     </div>
   );
 }

@@ -39,13 +39,13 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
     <div><h3 className="text-sm font-semibold text-white">Choose rental tenure</h3><p className="mt-1 text-[10px] leading-5 text-[#6E7484]">The reservation fee holds the property. Year 1 rent is paid only after the inspection gate passes.</p></div>
 
     <div className="space-y-2">
-      {HOUSING_RENTAL_PLANS.map(plan => <button key={plan.durationYears} type="button" onClick={() => select(plan.durationYears)} className={`w-full rounded-xl border p-4 text-left transition ${selectedDuration === plan.durationYears ? 'border-blue-500 bg-blue-500/10' : 'border-white/[.07] bg-[#151821]'}`}>
-        <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-semibold ${selectedDuration === plan.durationYears ? 'text-blue-300' : 'text-white'}`}>{plan.label}</p><p className="mt-1 text-[10px] leading-4 text-[#666C7D]">{plan.description}</p></div><p className="shrink-0 text-xs font-bold">₦{annualRent.toLocaleString()}<span className="text-[8px] font-normal text-[#666C7D]">/yr</span></p></div>
+      {HOUSING_RENTAL_PLANS.map(plan => <button key={plan.durationYears} type="button" onClick={() => select(plan.durationYears)} className={`w-full rounded-xl border p-4 text-left transition ${selectedDuration === plan.durationYears ? 'border-violet-500 bg-violet-500/10' : 'border-white/[.07] bg-[#151821]'}`}>
+        <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-semibold ${selectedDuration === plan.durationYears ? 'text-violet-300' : 'text-white'}`}>{plan.label}</p><p className="mt-1 text-[10px] leading-4 text-[#666C7D]">{plan.description}</p></div><p className="shrink-0 text-xs font-bold">₦{annualRent.toLocaleString()}<span className="text-[8px] font-normal text-[#666C7D]">/yr</span></p></div>
       </button>)}
     </div>
 
-    <section className="space-y-2 rounded-2xl border border-blue-500/10 bg-blue-500/[.035] p-4">
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-blue-300">Step 1 · Reserve</p>
+    <section className="space-y-2 rounded-2xl border border-violet-500/10 bg-violet-500/[.035] p-4">
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Step 1 · Reserve</p>
       <Line label="Reservation fee" value={`₦${reservationFee.toLocaleString()}`} strong />
       <p className="text-[9px] leading-4 text-[#6D7383]">A verified Paystack payment creates the property hold and unlocks the inspection workflow.</p>
     </section>

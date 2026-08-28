@@ -415,7 +415,7 @@ function HousingCard({
         <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
           <div className="min-w-0">
             <p
-              className={`text-[9px] font-semibold uppercase tracking-wide ${short ? "text-violet-300" : "text-blue-300"}`}
+              className={`text-[9px] font-semibold uppercase tracking-wide ${short ? "text-violet-300" : "text-violet-300"}`}
             >
               {short ? "Short Let" : "Long Let"}
             </p>
@@ -447,7 +447,7 @@ function HousingCard({
         </p>
       )}
       {row.status === "inspection_pending" && (
-        <p className="mt-3 rounded-xl bg-blue-500/[.04] p-3 text-[9px] text-blue-200">
+        <p className="mt-3 rounded-xl bg-violet-500/[.04] p-3 text-[9px] text-violet-200">
           Property inspection is in progress.
         </p>
       )}

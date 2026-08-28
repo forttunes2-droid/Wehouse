@@ -175,7 +175,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
   if (loading) {
     return (
       <div className="min-h-screen bg-transparent flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -184,7 +184,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
     return (
       <div className="min-h-screen bg-transparent flex flex-col items-center justify-center gap-3">
         <p className="text-sm text-[#5C5E72]">Room not found</p>
-        <button onClick={onBack} className="text-xs text-[#3B82F6]">Go back</button>
+        <button onClick={onBack} className="text-xs text-[#8B5CF6]">Go back</button>
       </div>
     );
   }
@@ -202,7 +202,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
                 </div>
                 <h2 className="text-lg font-bold text-white mb-1">Thank You!</h2>
                 <p className="text-xs text-[#5C5E72] mb-5">Your review helps others trust our staff.</p>
-                <button onClick={onComplete} className="w-full h-11 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold">Done</button>
+                <button onClick={onComplete} className="w-full h-11 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-semibold">Done</button>
               </>
             ) : (
               <>
@@ -221,7 +221,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
                     value={selectedStaff}
                     onChange={(e) => setSelectedStaff(e.target.value)}
                     onFocus={() => { if (staffList.length === 0) loadStaffList(); }}
-                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]"
+                    className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#8B5CF6]"
                     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
                   >
                     <option value="">Choose who helped you...</option>
@@ -239,7 +239,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
                     onChange={(e) => setReviewComment(e.target.value)}
                     placeholder="Share your experience..."
                     rows={3}
-                    className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#3B82F6] outline-none resize-none"
+                    className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] focus:border-[#8B5CF6] outline-none resize-none"
                   />
                 </div>
 
@@ -311,15 +311,15 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
             {/* Next steps */}
             <div className="space-y-2 mb-5 text-left">
               <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
-                <span className="text-xs font-bold text-[#3B82F6] flex-shrink-0">1</span>
+                <span className="text-xs font-bold text-[#8B5CF6] flex-shrink-0">1</span>
                 <p className="text-xs text-[#8A8B9C]">Hotel will confirm your booking within 24 hours</p>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
-                <span className="text-xs font-bold text-[#3B82F6] flex-shrink-0">2</span>
+                <span className="text-xs font-bold text-[#8B5CF6] flex-shrink-0">2</span>
                 <p className="text-xs text-[#8A8B9C]">Pay at the hotel during check-in (no online payment needed)</p>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
-                <span className="text-xs font-bold text-[#3B82F6] flex-shrink-0">3</span>
+                <span className="text-xs font-bold text-[#8B5CF6] flex-shrink-0">3</span>
                 <p className="text-xs text-[#8A8B9C]">Bring your ID and this booking confirmation</p>
               </div>
             </div>
@@ -366,14 +366,14 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
         <div className="glass rounded-2xl p-4 border border-[#2A2A3A]">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-xl bg-[#1A1A24] flex items-center justify-center flex-shrink-0">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="1.5">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
               </svg>
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">{room.room_type}</p>
               <p className="text-xs text-[#5C5E72]">{room.hotels.name}</p>
-              <p className="text-xs text-[#3B82F6] font-medium mt-0.5">N{room.price_per_night.toLocaleString()}/night</p>
+              <p className="text-xs text-[#8B5CF6] font-medium mt-0.5">N{room.price_per_night.toLocaleString()}/night</p>
             </div>
           </div>
         </div>
@@ -387,7 +387,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
               value={checkIn}
               onChange={(e) => setCheckIn(e.target.value)}
               min={tomorrowStr}
-              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6] [color-scheme:dark]"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#8B5CF6] [color-scheme:dark]"
             />
           </div>
           <div>
@@ -397,7 +397,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
               value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
               min={getMinCheckOut()}
-              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6] [color-scheme:dark]"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#8B5CF6] [color-scheme:dark]"
             />
           </div>
         </div>
@@ -408,7 +408,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
           <select
             value={guestCount}
             onChange={(e) => setGuestCount(Number(e.target.value))}
-            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#3B82F6]"
+            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#8B5CF6]"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
           >
             {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>)}
@@ -424,7 +424,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               placeholder="Your full name"
-              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#3B82F6]"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#8B5CF6]"
             />
           </div>
           <div>
@@ -434,7 +434,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
               value={guestPhone}
               onChange={(e) => setGuestPhone(e.target.value)}
               placeholder="e.g. 08012345678"
-              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#3B82F6]"
+              className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#8B5CF6]"
             />
           </div>
           <div>
@@ -444,7 +444,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
               onChange={(e) => setSpecialRequests(e.target.value)}
               placeholder="Any special requirements..."
               rows={3}
-              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] outline-none focus:border-[#3B82F6] resize-none"
+              className="w-full rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 py-3 placeholder-[#5C5E72] outline-none focus:border-[#8B5CF6] resize-none"
             />
           </div>
         </div>
@@ -467,7 +467,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
         <button
           onClick={handleBook}
           disabled={submitting || !totals}
-          className="w-full h-12 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#2563EB] text-white text-sm font-semibold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-semibold shadow-lg shadow-violet-500/20 hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
         >
           {submitting ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

@@ -368,6 +368,7 @@ export default function RoommateWorkspace({
           <ReceivedInterests
             rows={received}
             busyId={interestBusy}
+            showSchool={Boolean(prefs?.school_match)}
             onRespond={respond}
           />
         )}
@@ -445,6 +446,7 @@ export default function RoommateWorkspace({
                 hasMore={hasMore}
                 loadingMore={loadingMore}
                 busyId={interestBusy}
+                showSchool={Boolean(prefs.school_match)}
                 onLoadMore={loadMore}
                 onChat={onGoToChat}
                 onInterest={interest}
@@ -490,6 +492,7 @@ function Matches({
   hasMore,
   loadingMore,
   busyId,
+  showSchool,
   onLoadMore,
   onChat,
   onInterest,
@@ -498,10 +501,12 @@ function Matches({
   hasMore: boolean;
   loadingMore: boolean;
   busyId: string | null;
+  showSchool: boolean;
   onLoadMore: () => void;
   onChat?: (id: string) => void;
   onInterest: (row: RoommateMatchResult, status: "accepted" | "viewed") => void;
 }) {
+  const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   return (
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
@@ -548,7 +553,7 @@ function Matches({
                           <p className="mt-1 truncate text-[9px] text-[#737889]">
                             {[p.city, p.state].filter(Boolean).join(", ") ||
                               "Nigeria"}
-                            {p.school ? ` · ${p.school}` : ""}
+                            {showSchool && p.school ? ` · ${p.school}` : ""}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
@@ -565,8 +570,52 @@ function Matches({
                           {p.bio}
                         </p>
                       )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenProfileId((current) =>
+                            current === row.id ? null : row.id,
+                          )
+                        }
+                        className="mt-2 text-[9px] font-semibold text-violet-300"
+                      >
+                        {openProfileId === row.id
+                          ? "Hide profile"
+                          : "View profile"}
+                      </button>
                     </div>
                   </div>
+                  {openProfileId === row.id && (
+                    <div className="mt-3 border-y border-white/[.06] py-3">
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-[9px] sm:grid-cols-3">
+                        <ProfileFact
+                          label="Location"
+                          value={
+                            [p.city, p.state].filter(Boolean).join(", ") ||
+                            "Not provided"
+                          }
+                        />
+                        <ProfileFact
+                          label="Compatibility"
+                          value={`${score}% · ${matchLabel(score)}`}
+                        />
+                        <ProfileFact
+                          label="Preferred area"
+                          value={p.area_preference || "Flexible"}
+                        />
+                        {showSchool && (
+                          <ProfileFact
+                            label="School"
+                            value={p.school || "Not provided"}
+                          />
+                        )}
+                      </div>
+                      <p className="mt-3 text-[9px] leading-5 text-[#949AAA]">
+                        {p.bio ||
+                          "This person has not added an introduction yet."}
+                      </p>
+                    </div>
+                  )}
                   <details className="mt-3 border-y border-white/[.05] py-2">
                     <summary className="cursor-pointer list-none text-[9px] font-semibold text-[#A8ADBA]">
                       Why this score{" "}
@@ -662,10 +711,12 @@ function Matches({
 function ReceivedInterests({
   rows,
   busyId,
+  showSchool,
   onRespond,
 }: {
   rows: ReceivedRoommateInterest[];
   busyId: string | null;
+  showSchool: boolean;
   onRespond: (
     row: ReceivedRoommateInterest,
     response: "accepted" | "declined",
@@ -712,7 +763,7 @@ function ReceivedInterests({
               <p className="mt-1 truncate text-[9px] text-[#73798A]">
                 {row.match_score}% match ·{" "}
                 {[row.city, row.state].filter(Boolean).join(", ") || "Nigeria"}
-                {row.school ? ` · ${row.school}` : ""}
+                {showSchool && row.school ? ` · ${row.school}` : ""}
               </p>
             </div>
             <div className="flex shrink-0 gap-1.5">
@@ -735,5 +786,16 @@ function ReceivedInterests({
         ))}
       </div>
     </section>
+  );
+}
+
+function ProfileFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[8px] uppercase tracking-wide text-[#606778]">
+        {label}
+      </p>
+      <p className="mt-1 font-semibold text-[#B1B6C3]">{value}</p>
+    </div>
   );
 }

@@ -252,7 +252,7 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
           <div className="flex gap-3 overflow-x-auto pb-2">
             {stories.map((post) => (
               <button key={post.id} onClick={() => setViewer(post)} className="w-24 shrink-0 text-left">
-                <div className="rounded-3xl bg-gradient-to-br from-violet-400 via-blue-500 to-cyan-400 p-[2px]">
+                <div className="rounded-3xl bg-gradient-to-br from-violet-400 via-violet-500 to-cyan-400 p-[2px]">
                   <Media post={post} className="h-32 w-full rounded-[22px] bg-[#090C12] object-cover" />
                 </div>
                 <p className="mt-1 truncate text-[9px] text-[#858B9B]">{post.caption || 'Work Status'}</p>

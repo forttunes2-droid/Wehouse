@@ -143,7 +143,7 @@ export default function DesktopLayout({
 
       const sync = () => {
         const selected = buttons.find((button) =>
-          ['bg-violet-500', 'bg-indigo-500', 'bg-cyan-500', 'bg-blue-500'].some((cls) =>
+          ['bg-violet-500', 'bg-violet-500', 'bg-cyan-500', 'bg-violet-500'].some((cls) =>
             button.className.includes(cls),
           ),
         );
