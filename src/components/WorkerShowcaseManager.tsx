@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
@@ -31,7 +31,7 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState<Post | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const [{ data: rows }, { data: completed }] = await Promise.all([
       supabase
         .from('worker_showcase_posts')
@@ -49,7 +49,7 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
     ]);
 
     const enriched = await Promise.all(
-      (rows || []).map(async (row: any) => {
+      ((rows || []) as Post[]).map(async (row) => {
         const { data } = await supabase.storage.from('worker-showcase').createSignedUrl(row.storage_path, 3600);
         return { ...row, url: data?.signedUrl || '' } as Post;
       }),
@@ -57,11 +57,11 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
 
     setPosts(enriched);
     setJobs((completed || []) as Job[]);
-  }
+  }, [profile.user_id]);
 
   useEffect(() => {
     void load();
-  }, [profile.user_id]);
+  }, [load]);
 
   useEffect(
     () => () => {
@@ -121,9 +121,9 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
       toast.success(kind === 'story' ? 'Work Status posted for 24 hours' : 'Added to your Portfolio');
       clearComposer();
       await load();
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (path) await supabase.storage.from('worker-showcase').remove([path]).catch(() => {});
-      toast.error(error?.message || 'Could not publish work');
+      toast.error(error instanceof Error ? error.message : 'Could not publish work');
     } finally {
       setBusy(false);
     }
@@ -163,7 +163,7 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,.85fr)]">
+      <div>
         <section className="rounded-3xl border border-white/[.07] bg-[#10141D] p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-2">
             <Choice active={kind === 'story'} title="Work Status" detail="Photo/video · disappears after 24 hours" onClick={() => setKind('story')} />
@@ -230,14 +230,6 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/[.07] bg-[#10141D] p-4 sm:p-5">
-          <p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#646B7A]">HOW CUSTOMERS SEE IT</p>
-          <div className="mt-3 space-y-3">
-            <Info title="Work Status" text="Appears as a story-style update on your public professional profile for 24 hours." />
-            <Info title="Portfolio" text="Stays on your public profile until you remove it." />
-            <Info title="WEHOUSE JOB ✓" text="Shown only when you link media to a completed approved WeHouse booking." />
-          </div>
-        </section>
       </div>
 
       {stories.length > 0 && (
@@ -309,10 +301,6 @@ function Choice({ active, title, detail, onClick }: { active: boolean; title: st
       <p className="mt-1 text-[9px] text-[#697080]">{detail}</p>
     </button>
   );
-}
-
-function Info({ title, text }: { title: string; text: string }) {
-  return <div className="rounded-2xl border border-white/[.06] bg-black/10 p-4"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[10px] leading-relaxed text-[#717888]">{text}</p></div>;
 }
 
 function Media({ post, className, controls = false }: { post: Post; className: string; controls?: boolean }) {

@@ -250,15 +250,15 @@ export default function StaffWorkerReviewModern() {
             </section>
           </div>
           <section className="mt-4 rounded-2xl border border-white/[.06] bg-[#0D1118] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold">Final WeHouse review</p>
                 <p className="mt-1 text-[9px] text-[#73798A]">
                   Approval publishes the WeHouse Service Worker. Marketplace
                   trust can grow later from real jobs and reviews.
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex max-w-full flex-wrap gap-2 sm:shrink-0 sm:justify-end">
                 <Badge good={identityPassed}>Identity</Badge>
                 <Badge good={professionalReady}>Work evidence</Badge>
               </div>
@@ -276,18 +276,18 @@ export default function StaffWorkerReviewModern() {
               placeholder="Reason required only when rejecting"
               className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-black/20 px-3 text-xs outline-none focus:border-violet-500/40"
             />
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button
                 onClick={() => void act("verified")}
                 disabled={saving || !identityPassed || !professionalReady}
-                className="rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold disabled:opacity-35"
+                className="min-h-11 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold disabled:opacity-35"
               >
                 Approve & publish
               </button>
               <button
                 onClick={() => void act("rejected")}
                 disabled={saving}
-                className="rounded-xl bg-red-500/15 px-4 py-2.5 text-[10px] font-semibold text-red-300 disabled:opacity-35"
+                className="min-h-11 rounded-xl bg-red-500/15 px-4 py-2.5 text-[10px] font-semibold text-red-300 disabled:opacity-35"
               >
                 Reject with reason
               </button>

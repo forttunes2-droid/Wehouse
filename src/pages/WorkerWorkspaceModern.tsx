@@ -98,8 +98,8 @@ export default function WorkerWorkspaceModern({
 
 function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) => void }) {
   return (
-    <div className="space-y-5">
-      <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.10] via-[#12141C] to-[#0F1218] p-5 sm:p-6">
+    <div className="space-y-4">
+      <section className="border-b border-white/[.07] pb-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -110,7 +110,7 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
               <h2 className="truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
               <GoldTickBadge title="WeHouse professional badge" />
             </div>
-            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Keep jobs moving and keep your public work current.</p>
+            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Your jobs, availability and public work in one place.</p>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[9px] text-[#6F7787]">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -119,19 +119,10 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <button onClick={() => setTab('showcase')} className="rounded-3xl border border-violet-500/15 bg-violet-500/[.05] p-5 text-left transition hover:bg-violet-500/[.08]">
-          <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">SHOW YOUR WORK</p>
-          <h3 className="mt-2 text-base font-bold">Post a Work Status</h3>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#777E8E]">24-hour update or permanent Portfolio work.</p>
-          <p className="mt-3 text-[10px] font-semibold text-violet-300">Open Showcase →</p>
-        </button>
-        <button onClick={() => setTab('profile')} className="rounded-3xl border border-white/[.07] bg-[#10141C] p-5 text-left transition hover:bg-white/[.035]">
-          <p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#6E7484]">CUSTOMER VIEW</p>
-          <h3 className="mt-2 text-base font-bold">Professional Profile</h3>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#777E8E]">Preview and update what customers see.</p>
-          <p className="mt-3 text-[10px] font-semibold text-[#B3B8C4]">Open profile →</p>
-        </button>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        <button onClick={() => setTab('jobs')} className="min-h-11 shrink-0 rounded-full bg-violet-500 px-4 text-xs font-semibold">View jobs</button>
+        <button onClick={() => setTab('showcase')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">Add work</button>
+        <button onClick={() => setTab('profile')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">View profile</button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
