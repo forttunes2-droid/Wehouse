@@ -24,11 +24,14 @@ interface ChatProfile {
 interface Props {
   profile: ChatProfile | null;
 }
+type SupportMessage={id:string;sender_id:string;sender_name?:string|null;content?:string|null;attachments?:string[]|null;attachment_types?:string[]|null;action_type?:string|null;action_metadata?:Record<string,unknown>|null;is_read?:boolean|null;created_at:string};
+type BookingAttachmentRow={id:string;booking_code?:string|null;service_type?:string|null;status?:string|null;scheduled_date?:string|null;negotiated_amount?:number|null;agreed_amount?:number|null;created_at?:string|null};
+type ReservationAttachmentRow={id:string;booking_reference?:string|null;status?:string|null;check_in?:string|null;start_date?:string|null;check_out?:string|null;end_date?:string|null;total_amount?:number|null;amount?:number|null;created_at?:string|null};
 
 export default function SupportChat({ profile }: Props) {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<SupportThread | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -47,7 +50,7 @@ export default function SupportChat({ profile }: Props) {
     "reservation",
     "hotel_booking",
   ].includes(activeContextType);
-  const deskName = isReservationDesk ? "Reservation Desk" : "WeHouse Support";
+  const deskName = isReservationDesk ? "Reservation Help" : "WeHouse Help";
 
   async function openWeHouseItems() {
     setAttachOpen(true);
@@ -65,7 +68,7 @@ export default function SupportChat({ profile }: Props) {
         .order("created_at", { ascending: false })
         .limit(8),
     ]);
-    const jobItems = (jobs.data || []).map((row: any) => ({
+    const jobItems = ((jobs.data || []) as BookingAttachmentRow[]).map((row) => ({
       category: "worker_booking",
       subject:
         `Worker booking ${row.booking_code ? `#${row.booking_code}` : ""}`.trim(),
@@ -77,9 +80,10 @@ export default function SupportChat({ profile }: Props) {
         status: row.status,
         scheduled_date: row.scheduled_date,
         agreed_amount: row.negotiated_amount || row.agreed_amount,
+        created_at: row.created_at,
       },
     }));
-    const stayItems = (stays.data || []).map((row: any) => ({
+    const stayItems = ((stays.data || []) as ReservationAttachmentRow[]).map((row) => ({
       category: "reservation",
       subject:
         `Housing reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
@@ -91,10 +95,11 @@ export default function SupportChat({ profile }: Props) {
         check_in: row.check_in || row.start_date,
         check_out: row.check_out || row.end_date,
         amount: row.total_amount || row.amount,
+        created_at: row.created_at,
       },
     }));
     setAttachItems(
-      [...jobItems, ...stayItems].sort((a: any, b: any) =>
+      [...jobItems, ...stayItems].sort((a, b) =>
         String(b.contextSnapshot?.created_at || "").localeCompare(
           String(a.contextSnapshot?.created_at || ""),
         ),
@@ -112,9 +117,13 @@ export default function SupportChat({ profile }: Props) {
     if (!quiet) setLoading(false);
   }, []);
 
-  const refreshThread = useCallback(async () => {
+  const refreshThread = useCallback(async (context?: SupportOpenContext | null, preferredId?: string | null) => {
     const { conversations } = await getMySupportConversations();
-    const current = conversations?.[0] || null;
+    const current = preferredId
+      ? conversations?.find((item) => item.conversation_id === preferredId) || null
+      : context && hasContext(context)
+        ? conversations?.find((item) => item.context_type === context.contextType && item.context_id === context.contextId) || null
+        : conversations?.find((item) => item.context_type === 'general') || null;
     setThread(current);
     return current;
   }, []);
@@ -126,7 +135,7 @@ export default function SupportChat({ profile }: Props) {
       setPendingContext(context && hasContext(context) ? context : null);
       setLoading(true);
 
-      const current = await refreshThread();
+      const current = await refreshThread(context);
       if (current?.conversation_id)
         await loadMessages(current.conversation_id, true);
       else setMessages([]);
@@ -134,7 +143,7 @@ export default function SupportChat({ profile }: Props) {
       setLoading(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [profile?.user_id, loadMessages, refreshThread],
+    [profile, loadMessages, refreshThread],
   );
 
   useEffect(() => {
@@ -162,7 +171,7 @@ export default function SupportChat({ profile }: Props) {
         },
         () => {
           void loadMessages(id, true);
-          void refreshThread();
+          void refreshThread(null, id);
         },
       )
       .subscribe();
@@ -192,7 +201,7 @@ export default function SupportChat({ profile }: Props) {
         return;
       }
       conversationId = created.conversationId;
-      activeThread = await refreshThread();
+      activeThread = await refreshThread(pendingContext, conversationId);
     }
 
     const paths: string[] = [];
@@ -229,8 +238,8 @@ export default function SupportChat({ profile }: Props) {
     setPendingContext(null);
     setSending(false);
     await loadMessages(conversationId, true);
-    if (!activeThread) await refreshThread();
-    else void refreshThread();
+    if (!activeThread) await refreshThread(pendingContext, conversationId);
+    else void refreshThread(null, conversationId);
   }
 
   if (!profile) return null;
@@ -367,9 +376,7 @@ export default function SupportChat({ profile }: Props) {
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
-            Attach a reservation or Worker booking directly from WeHouse.
-          </p>
+          <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">Each reservation or job keeps its own WeHouse help case.</p>
         </div>
       </footer>
       {attachOpen && (
@@ -439,7 +446,7 @@ export default function SupportChat({ profile }: Props) {
   );
 }
 
-function MessageBubble({ msg, mine }: { msg: any; mine: boolean }) {
+function MessageBubble({ msg, mine }: { msg: SupportMessage; mine: boolean }) {
   const meta = msg.action_metadata || {};
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -491,8 +498,8 @@ function MessageBubble({ msg, mine }: { msg: any; mine: boolean }) {
   );
 }
 
-function MessageContext({ meta, type }: { meta: any; type?: string }) {
-  const snap = meta.context_snapshot || {};
+function MessageContext({ meta, type }: { meta: Record<string,unknown>; type?: string | null }) {
+  const snap = meta.context_snapshot && typeof meta.context_snapshot === 'object' ? meta.context_snapshot as Record<string,unknown> : {};
   const ref = meta.context_id;
   const label = String(
     meta.subject || type || meta.context_type || "Linked WeHouse item",
@@ -503,7 +510,7 @@ function MessageContext({ meta, type }: { meta: any; type?: string }) {
         <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}
         </p>
-        {ref && (
+        {Boolean(ref) && (
           <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-1 text-[8px] text-violet-300">
             Ref {String(ref).slice(0, 18)}
           </span>

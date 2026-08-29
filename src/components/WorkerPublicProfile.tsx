@@ -5,7 +5,7 @@ import { WORKER_OCCUPATION_LABELS } from '@/types';
 import type { Profile } from '@/types';
 
 type Post = { id:string;kind:'story'|'portfolio';media_type:'image'|'video';storage_path:string;caption:string|null;verified_job:boolean;expires_at:string|null;created_at:string;url?:string };
-type Trust = { reviewed?:boolean;trusted?:boolean;trusted_enabled?:boolean;face_check_passed?:boolean;completed_jobs?:number;rating?:number;review_count?:number;worker_cancel_rate?:number;open_disputes?:number;label?:string };
+type Trust = { reviewed?:boolean;trusted?:boolean;trusted_enabled?:boolean;completed_jobs?:number;rating?:number;review_count?:number;worker_cancel_rate?:number;open_disputes?:number;label?:string };
 type Props={worker:Profile;onBack:()=>void;onBook:()=>void;bookingActive?:boolean;onOpenBooking?:()=>void};
 
 export default function WorkerPublicProfileV2({worker,onBack,onBook,bookingActive=false,onOpenBooking}:Props){

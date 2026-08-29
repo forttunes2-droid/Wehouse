@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
@@ -22,14 +22,16 @@ type BankAccount = {
 };
 
 type Tab = 'overview' | 'withdraw' | 'activity';
+type TransactionRow={id:string;description?:string|null;transaction_type?:string|null;created_at:string;amount:number};
+type WithdrawalRow={id:string;amount:number;status:string;created_at:string;failed_reason?:string|null};
 
 const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
 
 export default function WorkerWallet({ profile }: { profile: Profile }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [wallet, setWallet] = useState<WalletRow | null>(null);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [selectedBankId, setSelectedBankId] = useState('');
   const [amount, setAmount] = useState('');
@@ -38,7 +40,7 @@ export default function WorkerWallet({ profile }: { profile: Profile }) {
 
   const selectedBank = useMemo(() => banks.find(bank => bank.id === selectedBankId) || banks.find(bank => bank.is_default) || banks[0], [banks, selectedBankId]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const [walletResult, transactionResult, withdrawalResult, bankResult] = await Promise.all([
       supabase.from('wallets').select('id,available_balance,pending_balance,frozen_balance,total_withdrawn,is_frozen,frozen_reason').eq('owner_id', profile.user_id).eq('owner_type', 'worker').maybeSingle(),
@@ -49,14 +51,14 @@ export default function WorkerWallet({ profile }: { profile: Profile }) {
 
     if (walletResult.error) toast.error('Unable to load worker wallet');
     setWallet((walletResult.data || null) as WalletRow | null);
-    setTransactions(transactionResult.data || []);
-    setWithdrawals(withdrawalResult.data || []);
+    setTransactions((transactionResult.data || []) as TransactionRow[]);
+    setWithdrawals((withdrawalResult.data || []) as WithdrawalRow[]);
     setBanks((bankResult.data || []) as BankAccount[]);
-    if (!selectedBankId && bankResult.data?.[0]?.id) setSelectedBankId(bankResult.data[0].id);
+    if (bankResult.data?.[0]?.id) setSelectedBankId(current => current || bankResult.data[0].id);
     setLoading(false);
-  }
+  }, [profile.user_id]);
 
-  useEffect(() => { void load(); }, [profile.user_id]);
+  useEffect(() => { queueMicrotask(() => void load()); }, [load]);
 
   async function withdraw() {
     if (!wallet) return;
@@ -82,7 +84,7 @@ export default function WorkerWallet({ profile }: { profile: Profile }) {
   }
 
   if (loading) return <div className="grid min-h-56 place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>;
-  if (!wallet) return <section className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-5 text-xs text-amber-300">Your worker wallet has not been created yet. Complete worker verification or contact WeHouse support.</section>;
+  if (!wallet) return <section className="border-y border-amber-500/15 py-8 text-center text-xs text-amber-300">Wallet setup is still completing. Refresh this page in a moment.</section>;
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: 'overview', label: 'Overview' },
@@ -90,7 +92,7 @@ export default function WorkerWallet({ profile }: { profile: Profile }) {
     { key: 'activity', label: 'Activity' },
   ];
 
-  return <div className="min-h-[100dvh] bg-[#09090D] px-4 py-5 pb-24 text-white lg:px-8 lg:py-8">
+  return <div className="text-white">
     <Toaster position="top-center" richColors />
     <div className="mx-auto max-w-6xl space-y-5">
       <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[0.12] via-[#151520] to-[#101018] p-5 lg:p-7">
@@ -104,7 +106,7 @@ export default function WorkerWallet({ profile }: { profile: Profile }) {
 
       {tab === 'withdraw' && <section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-5"><h2 className="text-sm font-semibold">Request withdrawal</h2><p className="mt-1 text-[10px] text-[#66687B]">Choose a saved bank account and enter an amount from your available balance.</p><div className="mt-5 space-y-3"><input type="number" min="0" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Amount" className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#181822] px-3 text-sm outline-none focus:border-violet-500" />{banks.length === 0 ? <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.05] p-4 text-[10px] text-amber-300">No bank account found. Add one from Account Settings before withdrawing.</div> : <div className="space-y-2">{banks.map(bank => <button key={bank.id} onClick={() => setSelectedBankId(bank.id)} className={`w-full rounded-xl border p-3 text-left ${selectedBank?.id === bank.id ? 'border-violet-500/35 bg-violet-500/[0.08]' : 'border-white/[0.06] bg-white/[0.025]'}`}><div className="flex items-center justify-between"><div><p className="text-xs font-medium">{bank.bank_name}</p><p className="mt-1 text-[9px] text-[#66687B]">{bank.account_number} · {bank.account_name}</p></div>{bank.is_default && <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] text-emerald-300">Default</span>}</div></button>)}</div>}<button onClick={() => void withdraw()} disabled={submitting || !amount || !selectedBank} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{submitting ? 'Submitting…' : 'Request withdrawal'}</button></div></section>}
 
-      {tab === 'activity' && <div className="grid gap-4 lg:grid-cols-2"><List title="Transactions" empty="No wallet transactions yet." rows={transactions.map(row => ({ id: row.id, title: row.description || row.transaction_type || 'Transaction', note: new Date(row.created_at).toLocaleDateString(), amount: Number(row.amount || 0), status: row.transaction_type }))} /><List title="Withdrawals" empty="No withdrawal requests yet." rows={withdrawals.map(row => ({ id: row.id, title: `Withdrawal · ${row.status}`, note: new Date(row.created_at).toLocaleDateString(), amount: -Number(row.amount || 0), status: row.status }))} /></div>}
+      {tab === 'activity' && <div className="grid gap-4 lg:grid-cols-2"><List title="Transactions" empty="No wallet transactions yet." rows={transactions.map(row => ({ id: row.id, title: row.description || row.transaction_type || 'Transaction', note: new Date(row.created_at).toLocaleDateString(), amount: Number(row.amount || 0), status: row.transaction_type || 'transaction' }))} /><List title="Withdrawals" empty="No withdrawal requests yet." rows={withdrawals.map(row => ({ id: row.id, title: `Withdrawal · ${row.status}`, note: new Date(row.created_at).toLocaleDateString(), amount: -Number(row.amount || 0), status: row.status }))} /></div>}
     </div>
   </div>;
 }

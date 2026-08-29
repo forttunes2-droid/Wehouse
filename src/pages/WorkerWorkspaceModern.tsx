@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
-import GoldTickBadge from '@/components/GoldTickBadge';
+import { supabase } from '@/lib/supabase';
+import { getCommunicationBookingConversations } from '@/lib/supabase/worker-bookings';
 import WorkerActivationHome from '@/components/WorkerActivationHome';
-import WorkerPriorityPanelV2 from '@/components/WorkerPriorityPanelV2';
-import WorkerNextJobPanelV2 from '@/components/WorkerNextJobPanelV2';
 import WorkerJobsPanelV2, { WorkerConversationsPanel } from '@/components/WorkerJobsPanelV2';
 import type { WorkerBookingConversation } from '@/components/WorkerJobsPanelV2';
 import WorkerProfilePanelV2 from '@/components/WorkerProfilePanelV2';
@@ -16,7 +15,7 @@ const LIVE_NAV = [
   { id: 'home', label: 'Home' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'conversations', label: 'Conversations' },
-  { id: 'work', label: 'My Work' },
+  { id: 'work', label: 'Portfolio' },
   { id: 'profile', label: 'Profile' },
 ];
 
@@ -49,7 +48,6 @@ export default function WorkerWorkspaceModern({
         profile={profile}
         onEdit={onGoToSetup}
         onVerification={() => onNavigate?.('worker_verification')}
-        onWork={live ? () => setTab('work') : undefined}
       />
     );
   } else if (live && safeTab === 'jobs') {
@@ -75,7 +73,7 @@ export default function WorkerWorkspaceModern({
       ? 'Preview and manage the professional profile customers see.'
       : 'Build the professional profile customers will see after approval.'
     : safeTab === 'work'
-      ? 'Share current work and keep your best work in Portfolio.'
+      ? 'Manage the work photos and short updates customers can see.'
       : safeTab === 'conversations'
         ? 'Customer requests and job updates stay in one continuous conversation.'
         : safeTab === 'jobs'
@@ -101,38 +99,15 @@ export default function WorkerWorkspaceModern({
 }
 
 function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) => void }) {
+  const [summary,setSummary]=useState<{next:string;detail:string;earnings:number}>({next:'No job needs action',detail:'New requests will appear in Conversations.',earnings:0});
+  useEffect(()=>{let active=true;void(async()=>{const[conversations,wallet]=await Promise.all([getCommunicationBookingConversations(profile.user_id),supabase.from('wallets').select('available_balance').eq('owner_id',profile.user_id).eq('owner_type','worker').maybeSingle()]);const rows=(conversations.conversations||[]) as WorkerBookingConversation[];const open=rows.find(row=>!['approved_released','cancelled','refunded'].includes(String(row.booking_status)));if(active)setSummary({next:open?String(open.service_type||'Service job'):'No job needs action',detail:open?`${open.other_person_name||'Customer'} · ${String(open.booking_status).replace(/_/g,' ')}`:'New requests will appear in Conversations.',earnings:Number(wallet.data?.available_balance||0)})})();return()=>{active=false}},[profile.user_id]);
   return (
-    <div className="space-y-4">
-      <section className="border-b border-white/[.07] pb-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">LIVE PROFESSIONAL</p>
-              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] font-semibold text-emerald-300">WEHOUSE REVIEWED</span>
-            </div>
-            <div className="mt-3 flex min-w-0 items-center gap-2">
-              <h2 className="truncate text-2xl font-bold">{profile.full_name || profile.username || 'Your work'}</h2>
-              <GoldTickBadge title="WeHouse professional badge" />
-            </div>
-            <p className="mt-2 max-w-xl text-xs leading-relaxed text-[#7B8292]">Your jobs, availability and public work in one place.</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 text-[9px] text-[#6F7787]">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            <span>Available to customers</span>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <section className="flex items-center justify-between gap-4 border-b border-white/[.07] pb-5"><div className="min-w-0"><p className="text-[9px] font-semibold text-emerald-300">● Available</p><h2 className="mt-2 truncate text-2xl font-bold">{profile.full_name || profile.username || 'Worker'}</h2></div></section>
+      <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <button onClick={()=>setTab('conversations')} className="flex w-full items-center gap-4 py-5 text-left"><div className="min-w-0 flex-1"><p className="text-[9px] uppercase tracking-wide text-[#62697A]">Next action</p><p className="mt-1 truncate text-sm font-semibold">{summary.next}</p><p className="mt-1 truncate text-[10px] text-[#747B8B]">{summary.detail}</p></div><span className="text-violet-300">›</span></button>
+        <button onClick={()=>setTab('jobs')} className="flex w-full items-center gap-4 py-5 text-left"><div className="min-w-0 flex-1"><p className="text-[9px] uppercase tracking-wide text-[#62697A]">Available earnings</p><p className="mt-1 text-lg font-bold">₦{summary.earnings.toLocaleString('en-NG')}</p></div><span className="text-violet-300">View jobs ›</span></button>
       </section>
-
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <button onClick={() => setTab('jobs')} className="min-h-11 shrink-0 rounded-full bg-violet-500 px-4 text-xs font-semibold">View jobs</button>
-        <button onClick={() => setTab('work')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">Add work</button>
-        <button onClick={() => setTab('profile')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">View profile</button>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
-        <WorkerPriorityPanelV2 profile={profile} onOpenJobs={() => setTab('jobs')} />
-        <WorkerNextJobPanelV2 profile={profile} onOpenJobs={() => setTab('jobs')} />
-      </div>
     </div>
   );
 }

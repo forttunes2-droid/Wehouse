@@ -213,7 +213,7 @@ export default function Chat({ profile, conversationId }: Props) {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [active?.id, loadRoommateMessages, loadInbox]);
+  }, [active, loadRoommateMessages, loadInbox]);
   useEffect(() => {
     if (active || activeBooking) return;
     const channel = supabase
@@ -234,7 +234,7 @@ export default function Chat({ profile, conversationId }: Props) {
       window.clearInterval(timer);
       void supabase.removeChannel(channel);
     };
-  }, [active?.id, activeBooking?.conversationId, profile.user_id, loadInbox]);
+  }, [active, activeBooking, profile.user_id, loadInbox]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
@@ -1178,9 +1178,6 @@ function PeerProfileSheet({
           {person?.occupation && (
             <ProfileDetail label="Occupation" value={person.occupation} />
           )}{" "}
-          {person?.school && (
-            <ProfileDetail label="Institution" value={person.school} />
-          )}
         </section>
         <button
           disabled={busy}

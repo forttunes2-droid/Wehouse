@@ -603,10 +603,10 @@ function Matches({
                           label="Preferred area"
                           value={p.area_preference || "Flexible"}
                         />
-                        {showSchool && (
+                        {showSchool && p.school && (
                           <ProfileFact
                             label="School"
-                            value={p.school || "Not provided"}
+                            value={p.school}
                           />
                         )}
                       </div>
