@@ -11,11 +11,12 @@ import PayoutAccountManager from '@/components/PayoutAccountManager';
 import WorkerWallet from './WorkerWallet';
 import type { Profile } from '@/types';
 
-type Tab = 'home' | 'jobs' | 'showcase' | 'earnings' | 'profile';
+type Tab = 'home' | 'jobs' | 'work' | 'earnings' | 'profile';
 
 const LIVE_NAV = [
   { id: 'home', label: 'Home' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'work', label: 'My Work' },
   { id: 'earnings', label: 'Earnings' },
   { id: 'profile', label: 'Profile' },
 ];
@@ -39,7 +40,7 @@ export default function WorkerWorkspaceModern({
   const live = profile.worker_status === 'verified' && profile.worker_verified === true;
   const nav = live ? LIVE_NAV : ACTIVATION_NAV;
   const [tab, setTab] = useState<Tab>('home');
-  const safeTab = !live && (tab === 'jobs' || tab === 'showcase' || tab === 'earnings') ? 'home' : tab;
+  const safeTab = !live && (tab === 'jobs' || tab === 'work' || tab === 'earnings') ? 'home' : tab;
 
   let content: React.ReactNode;
   if (safeTab === 'profile') {
@@ -48,12 +49,12 @@ export default function WorkerWorkspaceModern({
         profile={profile}
         onEdit={onGoToSetup}
         onVerification={() => onNavigate?.('worker_verification')}
-        onShowcase={live ? () => setTab('showcase') : undefined}
+        onShowcase={live ? () => setTab('work') : undefined}
       />
     );
   } else if (live && safeTab === 'jobs') {
     content = <WorkerJobsPanelV2 profile={profile} />;
-  } else if (live && safeTab === 'showcase') {
+  } else if (live && safeTab === 'work') {
     content = <WorkerShowcaseManager profile={profile} />;
   } else if (live && safeTab === 'earnings') {
     content = <div className="space-y-5"><PayoutAccountManager profile={profile}/><WorkerWallet profile={profile} /></div>;
@@ -69,12 +70,11 @@ export default function WorkerWorkspaceModern({
     );
   }
 
-  const workspaceTab = safeTab === 'showcase' ? 'profile' : safeTab;
-  const description = workspaceTab === 'profile'
+  const description = safeTab === 'profile'
     ? live
       ? 'Preview and manage the professional profile customers see.'
       : 'Build the professional profile customers will see after approval.'
-    : safeTab === 'showcase'
+    : safeTab === 'work'
       ? 'Share current work and keep your best work in Portfolio.'
       : live
         ? 'Manage your work from one place.'
@@ -83,10 +83,10 @@ export default function WorkerWorkspaceModern({
   return (
     <WorkspaceFrameV2
       label="WEHOUSE · WORKER"
-      title={nav.find((item) => item.id === workspaceTab)?.label || 'Worker'}
+      title={nav.find((item) => item.id === safeTab)?.label || 'Worker'}
       description={description}
       items={nav}
-      active={workspaceTab}
+      active={safeTab}
       setActive={(id) => setTab(id as Tab)}
       onAccount={onNavigate ? () => onNavigate('profile') : undefined}
       onLogout={onLogout}
@@ -121,7 +121,7 @@ function LiveHome({ profile, setTab }: { profile: Profile; setTab: (tab: Tab) =>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button onClick={() => setTab('jobs')} className="min-h-11 shrink-0 rounded-full bg-violet-500 px-4 text-xs font-semibold">View jobs</button>
-        <button onClick={() => setTab('showcase')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">Add work</button>
+        <button onClick={() => setTab('work')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">Add work</button>
         <button onClick={() => setTab('profile')} className="min-h-11 shrink-0 rounded-full border border-white/[.09] px-4 text-xs font-semibold text-[#C3C7D1]">View profile</button>
       </div>
 

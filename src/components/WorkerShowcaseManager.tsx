@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirm } from '@/hooks/useConfirm';
 import type { Profile } from '@/types';
 
 type Post = {
@@ -20,6 +22,7 @@ type Post = {
 type Job = { id: string; booking_code: string | null; service_type: string | null };
 
 export default function WorkerShowcaseManager({ profile }: { profile: Profile }) {
+  const { ask, dialogProps } = useConfirm();
   const input = useRef<HTMLInputElement>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -130,7 +133,7 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
   }
 
   async function remove(post: Post) {
-    if (!confirm('Remove this work post?')) return;
+    if (!await ask({ title: 'Remove this work?', description: 'It will no longer appear to customers.', confirmLabel: 'Remove', variant: 'danger' })) return;
     setBusy(true);
     const { data: path, error } = await supabase.rpc('delete_my_worker_showcase_post', { p_post_id: post.id });
     if (error) {
@@ -151,8 +154,8 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
     <section className="space-y-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">SHOWCASE</p>
-          <h2 className="mt-1 text-xl font-bold">Show customers your real work</h2>
+          <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">MY WORK</p>
+          <h2 className="mt-1 text-xl font-bold">Your professional work</h2>
           <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#6C7282]">
             Post a 24-hour Work Status like a story, or keep your best work permanently in Portfolio. Link completed WeHouse jobs when the media came from a booking.
           </p>
@@ -163,76 +166,44 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
         </div>
       </div>
 
-      <div>
-        <section className="rounded-3xl border border-white/[.07] bg-[#10141D] p-4 sm:p-5">
-          <div className="grid grid-cols-2 gap-2">
-            <Choice active={kind === 'story'} title="Work Status" detail="Photo/video · disappears after 24 hours" onClick={() => setKind('story')} />
-            <Choice active={kind === 'portfolio'} title="Portfolio" detail="Permanent professional work" onClick={() => setKind('portfolio')} />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => input.current?.click()}
-            className="mt-4 flex min-h-40 w-full items-center justify-center overflow-hidden rounded-3xl border border-dashed border-white/[.12] bg-black/15 text-center"
-          >
-            {preview ? (
-              previewIsVideo ? (
-                <video src={preview} muted playsInline className="max-h-72 w-full object-contain" />
-              ) : (
-                <img src={preview} alt="Work preview" className="max-h-72 w-full object-contain" />
-              )
-            ) : (
-              <div className="px-5 py-8">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/10 text-2xl text-violet-300">＋</div>
-                <p className="mt-3 text-xs font-semibold">Choose a work photo or video</p>
-                <p className="mt-1 text-[9px] text-[#666D7E]">Preview it here before publishing</p>
-              </div>
-            )}
-          </button>
-          <input
-            ref={input}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
-            className="hidden"
-            onChange={(event) => {
-              const selected = event.target.files?.[0];
-              if (selected) chooseFile(selected);
-            }}
-          />
-
-          <textarea
-            value={caption}
-            onChange={(event) => setCaption(event.target.value.slice(0, 300))}
-            rows={3}
-            placeholder={kind === 'story' ? 'What are you working on today?' : 'Describe this work'}
-            className="mt-3 w-full resize-none rounded-2xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none focus:border-violet-500/35"
-          />
-          <div className="mt-1 text-right text-[8px] text-[#555C6D]">{caption.length}/300</div>
-
-          <select value={bookingId} onChange={(event) => setBookingId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs">
-            <option value="">Not linked to a completed WeHouse job</option>
-            {jobs.map((job) => (
-              <option key={job.id} value={job.id}>{job.booking_code || 'Completed job'} · {job.service_type || 'Service'}</option>
-            ))}
-          </select>
-
-          <div className="mt-3 flex gap-2">
-            {file && (
-              <button type="button" onClick={clearComposer} disabled={busy} className="h-12 rounded-2xl border border-white/[.08] px-4 text-[10px] font-semibold text-[#A9AEBB] disabled:opacity-40">Clear</button>
-            )}
-            <button
-              onClick={() => void publish()}
-              disabled={busy || !file}
-              className="h-12 min-w-0 flex-1 rounded-2xl bg-violet-500 px-4 text-xs font-semibold text-white disabled:opacity-40"
-            >
-              {busy ? 'Publishing…' : kind === 'story' ? 'Post Work Status' : 'Add to Portfolio'}
-            </button>
-          </div>
-        </section>
-
+      <div className="flex gap-6 border-b border-white/[.07]">
+        <Mode active={kind === 'story'} title="Work Status" count={stories.length} onClick={() => setKind('story')} />
+        <Mode active={kind === 'portfolio'} title="Portfolio" count={portfolio.length} onClick={() => setKind('portfolio')} />
       </div>
 
-      {stories.length > 0 && (
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+        className="hidden"
+        onChange={(event) => {
+          const selected = event.target.files?.[0];
+          if (selected) chooseFile(selected);
+        }}
+      />
+
+      {file && (
+        <div className="fixed inset-0 z-[90] flex h-[100dvh] flex-col bg-[#08090D]">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[.08] px-3">
+            <button type="button" onClick={clearComposer} disabled={busy} className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#A8ADBA]" aria-label="Close preview">×</button>
+            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">New {kind === 'story' ? 'Work Status' : 'Portfolio post'}</p><p className="text-[9px] text-[#687080]">Preview before publishing</p></div>
+            <button onClick={() => void publish()} disabled={busy} className="rounded-full bg-violet-500 px-4 py-2 text-[10px] font-semibold disabled:opacity-50">{busy ? 'Publishing…' : 'Publish'}</button>
+          </header>
+          <main className="min-h-0 flex-1 overflow-y-auto">
+            <div className="grid min-h-[48dvh] place-items-center bg-black">
+              {previewIsVideo ? <video src={preview} controls playsInline className="max-h-[60dvh] w-full object-contain" /> : <img src={preview} alt="Selected work preview" className="max-h-[60dvh] w-full object-contain" />}
+            </div>
+            <div className="mx-auto max-w-xl space-y-4 px-4 py-5">
+              <div className="flex gap-2"><button type="button" onClick={() => input.current?.click()} disabled={busy} className="rounded-full border border-white/[.1] px-4 py-2 text-[10px] font-semibold">Replace media</button><span className="self-center truncate text-[9px] text-[#6D7484]">{file.name}</span></div>
+              <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, 300))} rows={3} placeholder={kind === 'story' ? 'What are you working on today?' : 'Describe this work'} className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500" />
+              <select value={bookingId} onChange={(event) => setBookingId(event.target.value)} className="h-12 w-full border-b border-white/[.1] bg-[#08090D] text-xs outline-none"><option value="">Not linked to a completed WeHouse job</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.booking_code || 'Completed job'} · {job.service_type || 'Service'}</option>)}</select>
+              {busy && <div className="h-1.5 overflow-hidden rounded-full bg-white/[.08]"><div className="h-full w-2/3 animate-pulse rounded-full bg-violet-500" /></div>}
+            </div>
+          </main>
+        </div>
+      )}
+
+      {kind === 'story' && stories.length > 0 && (
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
@@ -254,7 +225,9 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
         </div>
       )}
 
-      <div>
+      {kind === 'story' && stories.length === 0 && <EmptyWork title="No active Work Status" text="Share what you are working on today. It remains visible for 24 hours." />}
+
+      {kind === 'portfolio' && <div>
         <div className="mb-2">
           <h3 className="text-sm font-bold">Portfolio</h3>
           <p className="mt-1 text-[9px] text-[#666D7E]">Your permanent professional work</p>
@@ -272,7 +245,9 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
         ) : (
           <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center text-[10px] text-[#656B7B]">Your permanent Portfolio will appear here.</div>
         )}
-      </div>
+      </div>}
+
+      <button type="button" onClick={() => input.current?.click()} className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-violet-500 text-3xl font-light text-white shadow-2xl shadow-violet-950/60 sm:bottom-6 sm:right-8" aria-label={`Add ${kind === 'story' ? 'Work Status' : 'Portfolio work'}`}>＋</button>
 
       {viewer && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/90 p-4" onClick={() => setViewer(null)}>
@@ -290,18 +265,20 @@ export default function WorkerShowcaseManager({ profile }: { profile: Profile })
           </div>
         </div>
       )}
+      <ConfirmDialog {...dialogProps} />
     </section>
   );
 }
 
-function Choice({ active, title, detail, onClick }: { active: boolean; title: string; detail: string; onClick: () => void }) {
+function Mode({ active, title, count, onClick }: { active: boolean; title: string; count: number; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-violet-500/30 bg-violet-500/[.08]' : 'border-white/[.07] bg-black/10 hover:bg-white/[.025]'}`}>
-      <p className="text-xs font-semibold">{title}</p>
-      <p className="mt-1 text-[9px] text-[#697080]">{detail}</p>
+    <button type="button" onClick={onClick} className={`relative pb-3 text-left text-xs font-semibold transition ${active ? 'text-white' : 'text-[#686F80]'}`}>
+      <span>{title}</span><span className="ml-1.5 text-[9px]">{count}</span>{active && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-violet-500" />}
     </button>
   );
 }
+
+function EmptyWork({title,text}:{title:string;text:string}){return <div className="py-16 text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/10 text-2xl text-violet-300">＋</div><p className="mt-4 text-sm font-semibold">{title}</p><p className="mx-auto mt-1 max-w-xs text-[10px] leading-5 text-[#686F80]">{text}</p></div>}
 
 function Media({ post, className, controls = false }: { post: Post; className: string; controls?: boolean }) {
   if (post.media_type === 'video') return <video src={post.url} className={className} controls={controls} playsInline muted={!controls} />;
