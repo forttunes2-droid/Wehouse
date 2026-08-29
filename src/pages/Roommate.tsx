@@ -226,9 +226,7 @@ export default function RoommateWorkspace({
     setPrefs(p);
     setMatches([]);
     setHasMore(false);
-    toast.success(
-      "New discovery paused. Received interests and existing chats are still available.",
-    );
+    toast.success("Matching paused", { id: "roommate-matching" });
   }
   async function interest(
     match: RoommateMatchResult,
@@ -250,8 +248,16 @@ export default function RoommateWorkspace({
       return;
     }
     if (conversationId) {
-      toast.success("You both expressed interest — opening your chat");
-      onGoToChat?.(conversationId);
+      setMatches((current) =>
+        current.map((row) =>
+          row.id === match.id
+            ? { ...row, status: "accepted", conversation_id: conversationId }
+            : row,
+        ),
+      );
+      toast.success("It’s a match. Tap Message when you’re ready.", {
+        id: "roommate-match",
+      });
     } else {
       setMatches((current) =>
         current.map((row) =>
@@ -280,8 +286,10 @@ export default function RoommateWorkspace({
     );
     if (response === "declined")
       return toast.success("Passed privately. No conversation was created.");
-    toast.success("Interest accepted — opening your new roommate chat");
-    if (conversationId) onGoToChat?.(conversationId);
+    toast.success("Interest accepted. Open Messages when you’re ready.", {
+      id: "roommate-match",
+    });
+    if (conversationId) await refresh();
   }
   function navigate(page: string) {
     try {
@@ -307,7 +315,7 @@ export default function RoommateWorkspace({
       onNavigate={navigate}
     >
       <Toaster position="top-center" richColors />
-      <main className="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-4xl space-y-4 px-4 py-5 sm:px-6">
         <header className="border-b border-white/[.07] pb-5">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -604,10 +612,7 @@ function Matches({
                           value={p.area_preference || "Flexible"}
                         />
                         {showSchool && p.school && (
-                          <ProfileFact
-                            label="School"
-                            value={p.school}
-                          />
+                          <ProfileFact label="School" value={p.school} />
                         )}
                       </div>
                       <p className="mt-3 text-[9px] leading-5 text-[#949AAA]">
@@ -651,7 +656,7 @@ function Matches({
                         onClick={() => onChat?.(row.conversation_id!)}
                         className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
                       >
-                        Open chat
+                        Message
                       </button>
                     ) : sent ? (
                       <button
@@ -743,7 +748,7 @@ function ReceivedInterests({
         {rows.map((row) => (
           <article
             key={row.interest_id}
-            className="flex items-center gap-3 py-3"
+            className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 py-4 sm:grid-cols-[3rem_minmax(0,1fr)_auto]"
           >
             {row.avatar_url ? (
               <img
@@ -766,7 +771,7 @@ function ReceivedInterests({
                 {showSchool && row.school ? ` · ${row.school}` : ""}
               </p>
             </div>
-            <div className="flex shrink-0 gap-1.5">
+            <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:shrink-0">
               <button
                 disabled={busyId === row.interest_id}
                 onClick={() => void onRespond(row, "accepted")}

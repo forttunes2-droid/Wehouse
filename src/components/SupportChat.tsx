@@ -24,9 +24,40 @@ interface ChatProfile {
 interface Props {
   profile: ChatProfile | null;
 }
-type SupportMessage={id:string;sender_id:string;sender_name?:string|null;content?:string|null;attachments?:string[]|null;attachment_types?:string[]|null;action_type?:string|null;action_metadata?:Record<string,unknown>|null;is_read?:boolean|null;created_at:string};
-type BookingAttachmentRow={id:string;booking_code?:string|null;service_type?:string|null;status?:string|null;scheduled_date?:string|null;negotiated_amount?:number|null;agreed_amount?:number|null;created_at?:string|null};
-type ReservationAttachmentRow={id:string;booking_reference?:string|null;status?:string|null;check_in?:string|null;start_date?:string|null;check_out?:string|null;end_date?:string|null;total_amount?:number|null;amount?:number|null;created_at?:string|null};
+type SupportMessage = {
+  id: string;
+  sender_id: string;
+  sender_name?: string | null;
+  content?: string | null;
+  attachments?: string[] | null;
+  attachment_types?: string[] | null;
+  action_type?: string | null;
+  action_metadata?: Record<string, unknown> | null;
+  is_read?: boolean | null;
+  created_at: string;
+};
+type BookingAttachmentRow = {
+  id: string;
+  booking_code?: string | null;
+  service_type?: string | null;
+  status?: string | null;
+  scheduled_date?: string | null;
+  negotiated_amount?: number | null;
+  agreed_amount?: number | null;
+  created_at?: string | null;
+};
+type ReservationAttachmentRow = {
+  id: string;
+  booking_reference?: string | null;
+  status?: string | null;
+  check_in?: string | null;
+  start_date?: string | null;
+  check_out?: string | null;
+  end_date?: string | null;
+  total_amount?: number | null;
+  amount?: number | null;
+  created_at?: string | null;
+};
 
 export default function SupportChat({ profile }: Props) {
   const [open, setOpen] = useState(false);
@@ -68,36 +99,40 @@ export default function SupportChat({ profile }: Props) {
         .order("created_at", { ascending: false })
         .limit(8),
     ]);
-    const jobItems = ((jobs.data || []) as BookingAttachmentRow[]).map((row) => ({
-      category: "worker_booking",
-      subject:
-        `Worker booking ${row.booking_code ? `#${row.booking_code}` : ""}`.trim(),
-      contextType: "worker_booking",
-      contextId: row.id,
-      contextSnapshot: {
-        booking_code: row.booking_code,
-        service_type: row.service_type,
-        status: row.status,
-        scheduled_date: row.scheduled_date,
-        agreed_amount: row.negotiated_amount || row.agreed_amount,
-        created_at: row.created_at,
-      },
-    }));
-    const stayItems = ((stays.data || []) as ReservationAttachmentRow[]).map((row) => ({
-      category: "reservation",
-      subject:
-        `Housing reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
-      contextType: "reservation",
-      contextId: row.id,
-      contextSnapshot: {
-        reference: row.booking_reference,
-        status: row.status,
-        check_in: row.check_in || row.start_date,
-        check_out: row.check_out || row.end_date,
-        amount: row.total_amount || row.amount,
-        created_at: row.created_at,
-      },
-    }));
+    const jobItems = ((jobs.data || []) as BookingAttachmentRow[]).map(
+      (row) => ({
+        category: "worker_booking",
+        subject:
+          `Worker booking ${row.booking_code ? `#${row.booking_code}` : ""}`.trim(),
+        contextType: "worker_booking",
+        contextId: row.id,
+        contextSnapshot: {
+          booking_code: row.booking_code,
+          service_type: row.service_type,
+          status: row.status,
+          scheduled_date: row.scheduled_date,
+          agreed_amount: row.negotiated_amount || row.agreed_amount,
+          created_at: row.created_at,
+        },
+      }),
+    );
+    const stayItems = ((stays.data || []) as ReservationAttachmentRow[]).map(
+      (row) => ({
+        category: "reservation",
+        subject:
+          `Housing reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
+        contextType: "reservation",
+        contextId: row.id,
+        contextSnapshot: {
+          reference: row.booking_reference,
+          status: row.status,
+          check_in: row.check_in || row.start_date,
+          check_out: row.check_out || row.end_date,
+          amount: row.total_amount || row.amount,
+          created_at: row.created_at,
+        },
+      }),
+    );
     setAttachItems(
       [...jobItems, ...stayItems].sort((a, b) =>
         String(b.contextSnapshot?.created_at || "").localeCompare(
@@ -117,16 +152,28 @@ export default function SupportChat({ profile }: Props) {
     if (!quiet) setLoading(false);
   }, []);
 
-  const refreshThread = useCallback(async (context?: SupportOpenContext | null, preferredId?: string | null) => {
-    const { conversations } = await getMySupportConversations();
-    const current = preferredId
-      ? conversations?.find((item) => item.conversation_id === preferredId) || null
-      : context && hasContext(context)
-        ? conversations?.find((item) => item.context_type === context.contextType && item.context_id === context.contextId) || null
-        : conversations?.find((item) => item.context_type === 'general') || null;
-    setThread(current);
-    return current;
-  }, []);
+  const refreshThread = useCallback(
+    async (
+      context?: SupportOpenContext | null,
+      preferredId?: string | null,
+    ) => {
+      const { conversations } = await getMySupportConversations();
+      const current = preferredId
+        ? conversations?.find((item) => item.conversation_id === preferredId) ||
+          null
+        : context && hasContext(context)
+          ? conversations?.find(
+              (item) =>
+                item.context_type === context.contextType &&
+                item.context_id === context.contextId,
+            ) || null
+          : conversations?.find((item) => item.context_type === "general") ||
+            null;
+      setThread(current);
+      return current;
+    },
+    [],
+  );
 
   const openConversation = useCallback(
     async (context?: SupportOpenContext) => {
@@ -135,7 +182,10 @@ export default function SupportChat({ profile }: Props) {
       setPendingContext(context && hasContext(context) ? context : null);
       setLoading(true);
 
-      const current = await refreshThread(context);
+      const current = await refreshThread(
+        context,
+        context?.conversationId || null,
+      );
       if (current?.conversation_id)
         await loadMessages(current.conversation_id, true);
       else setMessages([]);
@@ -376,7 +426,9 @@ export default function SupportChat({ profile }: Props) {
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">Each reservation or job keeps its own WeHouse help case.</p>
+          <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
+            Each reservation or job keeps its own WeHouse help case.
+          </p>
         </div>
       </footer>
       {attachOpen && (
@@ -498,8 +550,17 @@ function MessageBubble({ msg, mine }: { msg: SupportMessage; mine: boolean }) {
   );
 }
 
-function MessageContext({ meta, type }: { meta: Record<string,unknown>; type?: string | null }) {
-  const snap = meta.context_snapshot && typeof meta.context_snapshot === 'object' ? meta.context_snapshot as Record<string,unknown> : {};
+function MessageContext({
+  meta,
+  type,
+}: {
+  meta: Record<string, unknown>;
+  type?: string | null;
+}) {
+  const snap =
+    meta.context_snapshot && typeof meta.context_snapshot === "object"
+      ? (meta.context_snapshot as Record<string, unknown>)
+      : {};
   const ref = meta.context_id;
   const label = String(
     meta.subject || type || meta.context_type || "Linked WeHouse item",
