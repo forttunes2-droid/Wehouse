@@ -4,20 +4,19 @@ import GoldTickBadge from '@/components/GoldTickBadge';
 import WorkerActivationHome from '@/components/WorkerActivationHome';
 import WorkerPriorityPanelV2 from '@/components/WorkerPriorityPanelV2';
 import WorkerNextJobPanelV2 from '@/components/WorkerNextJobPanelV2';
-import WorkerJobsPanelV2 from '@/components/WorkerJobsPanelV2';
+import WorkerJobsPanelV2, { WorkerConversationsPanel } from '@/components/WorkerJobsPanelV2';
+import type { WorkerBookingConversation } from '@/components/WorkerJobsPanelV2';
 import WorkerProfilePanelV2 from '@/components/WorkerProfilePanelV2';
 import WorkerShowcaseManager from '@/components/WorkerShowcaseManager';
-import PayoutAccountManager from '@/components/PayoutAccountManager';
-import WorkerWallet from './WorkerWallet';
 import type { Profile } from '@/types';
 
-type Tab = 'home' | 'jobs' | 'work' | 'earnings' | 'profile';
+type Tab = 'home' | 'jobs' | 'conversations' | 'work' | 'profile';
 
 const LIVE_NAV = [
   { id: 'home', label: 'Home' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'conversations', label: 'Conversations' },
   { id: 'work', label: 'My Work' },
-  { id: 'earnings', label: 'Earnings' },
   { id: 'profile', label: 'Profile' },
 ];
 
@@ -40,7 +39,8 @@ export default function WorkerWorkspaceModern({
   const live = profile.worker_status === 'verified' && profile.worker_verified === true;
   const nav = live ? LIVE_NAV : ACTIVATION_NAV;
   const [tab, setTab] = useState<Tab>('home');
-  const safeTab = !live && (tab === 'jobs' || tab === 'work' || tab === 'earnings') ? 'home' : tab;
+  const [conversation, setConversation] = useState<WorkerBookingConversation | null>(null);
+  const safeTab = !live && (tab === 'jobs' || tab === 'conversations' || tab === 'work') ? 'home' : tab;
 
   let content: React.ReactNode;
   if (safeTab === 'profile') {
@@ -49,15 +49,15 @@ export default function WorkerWorkspaceModern({
         profile={profile}
         onEdit={onGoToSetup}
         onVerification={() => onNavigate?.('worker_verification')}
-        onShowcase={live ? () => setTab('work') : undefined}
+        onWork={live ? () => setTab('work') : undefined}
       />
     );
   } else if (live && safeTab === 'jobs') {
-    content = <WorkerJobsPanelV2 profile={profile} />;
+    content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab('conversations'); }} />;
+  } else if (live && safeTab === 'conversations') {
+    content = <WorkerConversationsPanel profile={profile} initialConversation={conversation} onConversationClosed={() => setConversation(null)} />;
   } else if (live && safeTab === 'work') {
     content = <WorkerShowcaseManager profile={profile} />;
-  } else if (live && safeTab === 'earnings') {
-    content = <div className="space-y-5"><PayoutAccountManager profile={profile}/><WorkerWallet profile={profile} /></div>;
   } else if (live) {
     content = <LiveHome profile={profile} setTab={setTab} />;
   } else {
@@ -76,6 +76,10 @@ export default function WorkerWorkspaceModern({
       : 'Build the professional profile customers will see after approval.'
     : safeTab === 'work'
       ? 'Share current work and keep your best work in Portfolio.'
+      : safeTab === 'conversations'
+        ? 'Customer requests and job updates stay in one continuous conversation.'
+        : safeTab === 'jobs'
+          ? 'Track each job from request to completion, including its earnings.'
       : live
         ? 'Manage your work from one place.'
         : 'Finish verification before your services become public.';
