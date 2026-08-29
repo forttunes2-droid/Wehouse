@@ -189,25 +189,14 @@ export default function WorkerShowcaseManager({
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex items-end justify-between gap-4 border-b border-white/[.07] pb-4">
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-            MY WORK
-          </p>
-          <h2 className="mt-1 text-xl font-bold">Your work</h2>
-          <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#6C7282]">
-            Publish photos or videos of your work. Posts remain until you remove
-            them, and completed WeHouse jobs can be linked as verified work.
+          <p className="text-xs font-semibold">Published work</p>
+          <p className="mt-1 max-w-xl text-[9px] leading-relaxed text-[#6C7282]">
+            Permanent photos and videos customers can view. You control when a
+            post is removed.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[9px] text-[#6E7483]">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          <span>Public professional content</span>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between border-b border-white/[.07] pb-3">
-        <p className="text-xs font-semibold">Published work</p>
         <span className="text-[9px] text-[#686F80]">{portfolio.length}</span>
       </div>
 
@@ -313,7 +302,7 @@ export default function WorkerShowcaseManager({
 
       <div>
         <div className="mb-2">
-          <h3 className="text-sm font-bold">Work feed</h3>
+          <h3 className="text-sm font-bold">Portfolio</h3>
           <p className="mt-1 text-[9px] text-[#666D7E]">
             Your public professional posts
           </p>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import {
   checkSearchExpiry,
   getReceivedRoommateInterests,
@@ -314,8 +314,7 @@ export default function RoommateWorkspace({
       description="Set your preferences and find compatible people in your area."
       onNavigate={navigate}
     >
-      <Toaster position="top-center" richColors />
-      <main className="mx-auto max-w-4xl space-y-4 px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-3xl space-y-4 px-4 py-5 sm:px-6">
         <header className="border-b border-white/[.07] pb-5">
           <div className="flex items-end justify-between gap-4">
             <div>

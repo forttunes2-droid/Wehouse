@@ -10,12 +10,13 @@ import WorkerProfilePanelV2 from "@/components/WorkerProfilePanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
 import type { Profile } from "@/types";
 
-type Tab = "home" | "jobs" | "conversations" | "account";
+type Tab = "home" | "jobs" | "conversations" | "work" | "account";
 
 const LIVE_NAV = [
   { id: "home", label: "Home" },
   { id: "jobs", label: "Jobs" },
   { id: "conversations", label: "Conversations" },
+  { id: "work", label: "Portfolio" },
   { id: "account", label: "Account" },
 ];
 
@@ -42,19 +43,18 @@ export default function WorkerWorkspaceModern({
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
   const safeTab =
-    !live && (tab === "jobs" || tab === "conversations") ? "home" : tab;
+    !live && (tab === "jobs" || tab === "conversations" || tab === "work")
+      ? "home"
+      : tab;
 
   let content: React.ReactNode;
   if (safeTab === "account") {
     content = (
-      <div className="space-y-8">
-        <WorkerProfilePanelV2
-          profile={profile}
-          onEdit={onGoToSetup}
-          onVerification={() => onNavigate?.("worker_verification")}
-        />
-        {live ? <WorkerShowcaseManager profile={profile} /> : null}
-      </div>
+      <WorkerProfilePanelV2
+        profile={profile}
+        onEdit={onGoToSetup}
+        onVerification={() => onNavigate?.("worker_verification")}
+      />
     );
   } else if (live && safeTab === "jobs") {
     content = (
@@ -74,6 +74,8 @@ export default function WorkerWorkspaceModern({
         onConversationClosed={() => setConversation(null)}
       />
     );
+  } else if (live && safeTab === "work") {
+    content = <WorkerShowcaseManager profile={profile} />;
   } else if (live) {
     content = <LiveHome profile={profile} setTab={setTab} />;
   } else {
@@ -93,11 +95,13 @@ export default function WorkerWorkspaceModern({
         : "Build the professional profile customers will see after approval."
       : safeTab === "conversations"
         ? "Customer requests and job updates stay in one continuous conversation."
-        : safeTab === "jobs"
-          ? "Track each job from request to completion, including its earnings."
-          : live
-            ? "Manage your work from one place."
-            : "Finish verification before your services become public.";
+        : safeTab === "work"
+          ? "Publish permanent photos and videos that show customers your work."
+          : safeTab === "jobs"
+            ? "Track each job from request to completion, including its earnings."
+            : live
+              ? "Manage your work from one place."
+              : "Finish verification before your services become public.";
 
   return (
     <WorkspaceFrameV2
@@ -201,4 +205,3 @@ function LiveHome({
     </div>
   );
 }
-
