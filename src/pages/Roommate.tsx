@@ -523,28 +523,28 @@ function Matches({
       </div>
       {rows.length ? (
         <>
-          <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
+          <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2">
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
                 sent = row.status === "accepted";
               return (
-                <article key={row.id} className="py-4">
-                  <div className="flex items-start gap-3">
+                <article key={row.id} className="min-w-0">
+                  <div className="relative flex flex-col">
                     {p.avatar_url ? (
                       <img
                         src={p.avatar_url}
-                        alt=""
-                        className="h-16 w-16 shrink-0 rounded-2xl object-cover"
+                        alt={p.full_name || p.username || "Roommate match"}
+                        className="aspect-[4/3] w-full bg-[#11141C] object-cover sm:aspect-[5/4]"
                       />
                     ) : (
-                      <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-violet-500/15 text-lg font-bold text-violet-200">
+                      <div className="grid aspect-[4/3] w-full place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-6xl font-bold text-violet-100 sm:aspect-[5/4]">
                         {String(
                           p.full_name || p.username || "W",
                         )[0].toUpperCase()}
                       </div>
                     )}
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 pt-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold">
@@ -556,17 +556,17 @@ function Matches({
                             {showSchool && p.school ? ` · ${p.school}` : ""}
                           </p>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-xl font-bold text-violet-300">
+                        <div className="absolute right-3 top-3 shrink-0 rounded-full bg-black/70 px-3 py-2 text-right backdrop-blur-md">
+                          <p className="text-base font-bold text-white">
                             {score}%
                           </p>
-                          <p className="text-[8px] font-semibold text-[#777D8D]">
+                          <p className="text-[7px] font-semibold text-violet-200">
                             {matchLabel(score)} match
                           </p>
                         </div>
                       </div>
                       {p.bio && (
-                        <p className="mt-2 line-clamp-2 text-[9px] leading-relaxed text-[#8A90A0]">
+                        <p className="mt-3 line-clamp-2 text-[11px] leading-5 text-[#9EA3B2]">
                           {p.bio}
                         </p>
                       )}
@@ -577,7 +577,7 @@ function Matches({
                             current === row.id ? null : row.id,
                           )
                         }
-                        className="mt-2 text-[9px] font-semibold text-violet-300"
+                        className="mt-3 text-[10px] font-semibold text-violet-300"
                       >
                         {openProfileId === row.id
                           ? "Hide profile"
@@ -586,7 +586,7 @@ function Matches({
                     </div>
                   </div>
                   {openProfileId === row.id && (
-                    <div className="mt-3 border-y border-white/[.06] py-3">
+                    <div className="mt-4 border-y border-white/[.06] py-4">
                       <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-[9px] sm:grid-cols-3">
                         <ProfileFact
                           label="Location"
@@ -616,12 +616,12 @@ function Matches({
                       </p>
                     </div>
                   )}
-                  <details className="mt-3 border-y border-white/[.05] py-2">
+                  <details className="mt-3 border-b border-white/[.05] pb-3">
                     <summary className="cursor-pointer list-none text-[9px] font-semibold text-[#A8ADBA]">
                       Why this score{" "}
                       <span className="ml-1 text-violet-300">›</span>
                     </summary>
-                    <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2">
+                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
                       {SCORE_FACTORS.map(([name, weight]) => {
                         const key =
                           name === "Stay length" ? "stay" : name.toLowerCase();
@@ -645,7 +645,7 @@ function Matches({
                       same-school rules decide eligibility first.
                     </p>
                   </details>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-4 flex gap-2">
                     {row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
