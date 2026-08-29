@@ -56,7 +56,9 @@ export async function sendSupportMessage(
   attachmentTypes:string[]=[],
   context?:SupportOpenContext|null,
 ){
-  const actionType=context?.contextType||null;
+  // Context belongs in metadata. The message action remains a normal message;
+  // reservation and booking names are not workflow actions in the database.
+  const actionType=context?'message':null;
   const actionMetadata=context?{
     category:context.category||'general',
     context_type:context.contextType||'general',

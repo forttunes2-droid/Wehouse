@@ -16,14 +16,13 @@ type Tab = 'home' | 'jobs' | 'showcase' | 'earnings' | 'profile';
 const LIVE_NAV = [
   { id: 'home', label: 'Home' },
   { id: 'jobs', label: 'Jobs' },
-  { id: 'showcase', label: 'Showcase' },
   { id: 'earnings', label: 'Earnings' },
-  { id: 'profile', label: 'Professional Profile' },
+  { id: 'profile', label: 'Profile' },
 ];
 
 const ACTIVATION_NAV = [
   { id: 'home', label: 'Home' },
-  { id: 'profile', label: 'Professional Profile' },
+  { id: 'profile', label: 'Profile' },
 ];
 
 export default function WorkerWorkspaceModern({
@@ -70,7 +69,8 @@ export default function WorkerWorkspaceModern({
     );
   }
 
-  const description = safeTab === 'profile'
+  const workspaceTab = safeTab === 'showcase' ? 'profile' : safeTab;
+  const description = workspaceTab === 'profile'
     ? live
       ? 'Preview and manage the professional profile customers see.'
       : 'Build the professional profile customers will see after approval.'
@@ -83,10 +83,10 @@ export default function WorkerWorkspaceModern({
   return (
     <WorkspaceFrameV2
       label="WEHOUSE · WORKER"
-      title={nav.find((item) => item.id === safeTab)?.label || 'Worker'}
+      title={nav.find((item) => item.id === workspaceTab)?.label || 'Worker'}
       description={description}
       items={nav}
-      active={safeTab}
+      active={workspaceTab}
       setActive={(id) => setTab(id as Tab)}
       onAccount={onNavigate ? () => onNavigate('profile') : undefined}
       onLogout={onLogout}
