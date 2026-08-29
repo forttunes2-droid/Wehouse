@@ -542,7 +542,12 @@ export default function Login({
             />
             <button
               type="submit"
-              disabled={working || !recoveryReady}
+              disabled={
+                working ||
+                !recoveryReady ||
+                password.length < 8 ||
+                password !== confirmPassword
+              }
               className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40"
             >
               {working ? "Updating…" : "Update password"}
@@ -650,7 +655,12 @@ export default function Login({
             />
             <button
               type="submit"
-              disabled={working}
+              disabled={
+                working ||
+                !email.trim() ||
+                !email.includes("@") ||
+                password.length < 8
+              }
               className={`h-12 w-full rounded-xl text-sm font-semibold disabled:opacity-50 ${mode === "signup" ? "bg-violet-500" : "border border-white/[.08] bg-[#171A23]"}`}
             >
               {working
@@ -701,7 +711,7 @@ export default function Login({
             </Field>
             <button
               type="submit"
-              disabled={working}
+              disabled={working || !email.trim() || !email.includes("@")}
               className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-50"
             >
               {working ? "Sending…" : "Send reset link"}
