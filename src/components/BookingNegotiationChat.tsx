@@ -760,40 +760,6 @@ export default function BookingNegotiationChat({
       </header>
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
-          {booking && (
-            <section className="rounded-2xl border border-violet-500/10 bg-violet-500/[.035] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
-                  About this job
-                </p>
-                <button
-                  onClick={openSupport}
-                  className="text-[9px] font-semibold text-violet-300"
-                >
-                  Need WeHouse?
-                </button>
-              </div>
-              {isWorker && booking?.customer_username && (
-                <p className="mt-2 text-[10px] font-medium text-violet-300">
-                  Customer · @{booking.customer_username}
-                </p>
-              )}
-              <p className="mt-2 text-xs leading-relaxed">
-                {booking.description || "No description provided"}
-              </p>
-              {booking.address && (
-                <p className="mt-1 text-[10px] text-[#626678]">
-                  {booking.address}
-                </p>
-              )}
-              {booking.scheduled_date && (
-                <p className="mt-1 text-[10px] text-emerald-300">
-                  Scheduled ·{" "}
-                  {new Date(booking.scheduled_date).toLocaleDateString()}
-                </p>
-              )}
-            </section>
-          )}
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
               prev = messages[index - 1],
