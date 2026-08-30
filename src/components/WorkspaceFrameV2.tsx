@@ -185,7 +185,7 @@ function NavIcon({ id }: { id: string }) {
     strokeWidth: 1.8,
   };
 
-  if (id === 'home' || id === 'overview' || id === 'work') {
+  if (id === 'home' || id === 'overview') {
     return (
       <svg {...common}>
         <path d="M3 11.5 12 4l9 7.5" />
@@ -213,7 +213,7 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'communication' || id === 'communications' || id === 'inbox' || id === 'support') {
+  if (id === 'communication' || id === 'communications' || id === 'conversations' || id === 'messages' || id === 'inbox' || id === 'support') {
     return (
       <svg {...common}>
         <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 3V7a2 2 0 0 1 2-2Z" />
