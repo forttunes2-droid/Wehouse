@@ -12,13 +12,16 @@ import AccountShell from "@/components/AccountShell";
 import WorkerProfilePanelV3 from "@/components/WorkerProfilePanelV2";
 import type { Profile } from "@/types";
 import IdentityAccessGate from "@/components/IdentityAccessGate";
+import WorkerWallet from "@/pages/WorkerWallet";
+import PayoutAccountManager from "@/components/PayoutAccountManager";
 
-type Tab = "home" | "jobs" | "conversations" | "work" | "account";
+type Tab = "home" | "jobs" | "conversations" | "work" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
-  { id: "conversations", label: "Conversations" },
-  { id: "work", label: "My Work" },
+  { id: "conversations", label: "Messages" },
+  { id: "work", label: "Showcase" },
+  { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
 ];
 
@@ -46,7 +49,7 @@ export default function WorkerWorkspaceModern({
     useState<WorkerBookingConversation | null>(null);
   const [accountView, setAccountView] = useState<"account" | "profile">("account");
   const safeTab =
-    !live && (tab === "jobs" || tab === "conversations" || tab === "work")
+    !live && (tab === "jobs" || tab === "conversations" || tab === "work" || tab === "earnings")
       ? "home"
       : tab;
 
@@ -76,6 +79,8 @@ export default function WorkerWorkspaceModern({
     );
   } else if (live && safeTab === "work") {
     content = <WorkerShowcaseManager profile={profile} />;
+  } else if (live && safeTab === "earnings") {
+    content = <div className="space-y-5"><WorkerWallet profile={profile}/><PayoutAccountManager profile={profile}/></div>;
   } else if (live) {
     content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab("conversations"); }}/>
   } else {
@@ -91,6 +96,8 @@ export default function WorkerWorkspaceModern({
   const description =
     safeTab === "conversations"
         ? "Customer requests and job updates stay in one continuous conversation."
+        : safeTab === "earnings"
+          ? "See available earnings, withdrawals and your verified payout account."
         : safeTab === "work"
           ? "Publish photos and videos that show customers the work you do."
           : safeTab === "jobs"
