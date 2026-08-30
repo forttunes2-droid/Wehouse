@@ -232,7 +232,7 @@ export default function App() {
             { id: "search" as NavPage, label: "Explore", icon: SearchSvg },
             {
               id: "my_reservations" as NavPage,
-              label: "Reservations",
+              label: "Bookings",
               icon: ReservationSvg,
             },
             { id: "messages" as NavPage, label: "Messages", icon: MessagesSvg },
@@ -861,7 +861,7 @@ export default function App() {
         );
       case "my_reservations":
         return isUserRole ? (
-          <MyReservations profile={profile} onBack={subpageBack} />
+          <MyReservations profile={profile} onBack={subpageBack} onOpenServices={() => goTo("my_bookings")} />
         ) : (
           renderRoleRoot()
         );
