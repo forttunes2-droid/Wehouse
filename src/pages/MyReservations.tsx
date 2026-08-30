@@ -15,7 +15,7 @@ import type { Profile } from "@/types";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
-type Props = { profile: Profile; onBack: () => void };
+type Props = { profile: Profile; onBack: () => void; onOpenServices?: () => void };
 type View = "all" | "housing" | "hotels";
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
@@ -51,8 +51,7 @@ async function confirmMoveInFromReservation(row: any) {
   window.setTimeout(() => window.location.reload(), 700);
 }
 
-export default function MyReservations({ profile, onBack }: Props) {
-  void onBack;
+export default function MyReservations({ profile, onBack, onOpenServices }: Props) {
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
@@ -229,13 +228,14 @@ export default function MyReservations({ profile, onBack }: Props) {
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 sm:px-5 lg:px-8 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-start gap-3">
+          <button onClick={onBack} aria-label="Back" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[.08] bg-white/[.03] text-xl text-[#A8ADBA]">←</button>
           <div className="flex-1">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
               WEHOUSE
             </p>
-            <h1 className="mt-1 text-xl font-bold">My reservations</h1>
+            <h1 className="mt-1 text-xl font-bold">Bookings</h1>
             <p className="mt-1 text-[10px] text-[#74798B]">
-              Your homes, Short Lets and hotel bookings.
+              Properties, stays and home-service bookings in one place.
             </p>
           </div>
           <span className="rounded-full border border-white/[.07] px-2.5 py-1 text-[9px] text-[#7D8291]">
@@ -260,6 +260,7 @@ export default function MyReservations({ profile, onBack }: Props) {
               {label}
             </button>
           ))}
+          <button onClick={onOpenServices} className="relative flex-1 px-3 py-3 text-[10px] font-semibold text-[#74798A]">Services</button>
         </div>
         {loading ? (
           <Loading />
