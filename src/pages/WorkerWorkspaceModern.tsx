@@ -8,7 +8,10 @@ import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
 import GoldTickBadge from "@/components/GoldTickBadge";
 import AccountCenter from "@/pages/AccountCenter";
+import AccountShell from "@/components/AccountShell";
+import WorkerProfilePanelV3 from "@/components/WorkerProfilePanelV2";
 import type { Profile } from "@/types";
+import IdentityAccessGate from "@/components/IdentityAccessGate";
 
 type Tab = "home" | "jobs" | "conversations" | "work" | "account";
 
@@ -41,15 +44,19 @@ export default function WorkerWorkspaceModern({
   const [tab, setTab] = useState<Tab>(live ? "jobs" : "home");
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
+  const [accountView, setAccountView] = useState<"account" | "profile">("account");
   const safeTab =
     !live && (tab === "jobs" || tab === "conversations" || tab === "work")
       ? "home"
       : tab;
 
-  let content: React.ReactNode;
   if (safeTab === "account") {
-    content = <AccountCenter profile={profile} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={onGoToSetup} onLogout={onLogout}/>;
-  } else if (live && safeTab === "jobs") {
+    if (accountView === "profile") return <AccountShell profile={profile} title="Professional Profile" description="This is the professional profile customers see." onBack={() => setAccountView("account")}><WorkerProfilePanelV3 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/></AccountShell>;
+    return <AccountCenter profile={profile} onBack={() => setTab(live ? "jobs" : "home")} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={() => setAccountView("profile")} onLogout={onLogout}/>;
+  }
+
+  let content: React.ReactNode;
+  if (live && safeTab === "jobs") {
     content = (
       <WorkerJobsPanelV2
         profile={profile}
@@ -82,11 +89,7 @@ export default function WorkerWorkspaceModern({
   }
 
   const description =
-    safeTab === "account"
-      ? live
-        ? "Your identity, preferences, privacy, security and account tools."
-        : "Build the professional profile customers will see after approval."
-      : safeTab === "conversations"
+    safeTab === "conversations"
         ? "Customer requests and job updates stay in one continuous conversation."
         : safeTab === "work"
           ? "Publish photos and videos that show customers the work you do."
@@ -96,7 +99,7 @@ export default function WorkerWorkspaceModern({
               ? "Manage your work from one place."
               : "Finish verification before your services become public.";
 
-  return (
+  const workspace = (
     <WorkspaceFrameV2
       label="WEHOUSE · WORKER"
       labelBadge={live ? <GoldTickBadge size="sm"/> : null}
@@ -110,4 +113,5 @@ export default function WorkerWorkspaceModern({
       {content}
     </WorkspaceFrameV2>
   );
+  return live ? <IdentityAccessGate profile={profile}>{workspace}</IdentityAccessGate> : workspace;
 }

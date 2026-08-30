@@ -1,5 +1,6 @@
 import PropertyOwnerDashboard from '@/pages/PropertyOwnerDashboard';
 import type { Profile } from '@/types';
+import IdentityAccessGate from '@/components/IdentityAccessGate';
 
 type Props = {
   profile: Profile;
@@ -9,5 +10,5 @@ type Props = {
 };
 
 export default function PropertyPartnerDashboard(props: Props) {
-  return <PropertyOwnerDashboard {...props} />;
+  return <IdentityAccessGate profile={props.profile}><PropertyOwnerDashboard {...props} /></IdentityAccessGate>;
 }

@@ -33,12 +33,15 @@ const STEP_LABELS: Record<ChallengeStep, string> = {
 };
 
 export default function WorkerIdentityCheck({ profile, status, rejectionReason, onSaved }: Props) {
+  const identityLabel=profile.role==='property_partner'?'Property Partner':'Worker';
   const videoRef = useRef<HTMLVideoElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const humanRef = useRef<any>(null);
   const referenceEmbeddingRef = useRef<number[] | null>(null);
   const referencePhotoRef = useRef<Blob | null>(null);
+  const referencePathRef = useRef('');
+  const renewalRef = useRef(false);
   const photoUrlRef = useRef('');
   const cancelledRef = useRef(false);
 
@@ -138,6 +141,33 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       stopCamera();
       setStage('intro');
       toast.error(error?.name === 'NotAllowedError' ? 'Allow camera access to continue' : error?.message || 'Could not open the camera');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadStoredReference() {
+    if (!consent) return toast.error('Confirm the privacy notice first');
+    setBusy(true);
+    setStage('loading');
+    try {
+      await ensureHuman();
+      const { data, error } = await supabase.rpc('get_my_account_identity_reference');
+      if (error) throw error;
+      const reference = data as { has_reference?: boolean; anchor_photo_path?: string } | null;
+      if (!reference?.has_reference || !reference.anchor_photo_path) throw new Error('Your original private selfie could not be found');
+      const signed = await supabase.storage.from('worker-identity-private').createSignedUrl(reference.anchor_photo_path, 90);
+      if (signed.error || !signed.data?.signedUrl) throw signed.error || new Error('Private selfie could not be opened');
+      const response = await fetch(signed.data.signedUrl);
+      if (!response.ok) throw new Error('Private selfie could not be opened');
+      const blob = await response.blob();
+      const canvas = await canvasFromImageFile(new File([blob], 'identity-reference.jpg', { type: blob.type || 'image/jpeg' }));
+      await acceptReferenceSelfie(canvas);
+      referencePathRef.current = reference.anchor_photo_path;
+      renewalRef.current = true;
+    } catch (error: any) {
+      setStage('intro');
+      toast.error(error?.message || 'Stored identity reference could not be used');
     } finally {
       setBusy(false);
     }
@@ -318,12 +348,15 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     const photo = referencePhotoRef.current;
     if (!photo) throw new Error('Private selfie is missing');
 
-    const path = `${profile.user_id}/identity-selfie-${Date.now()}.jpg`;
-    const upload = await supabase.storage.from('worker-identity-private').upload(path, photo, {
-      contentType: 'image/jpeg',
-      upsert: false,
-    });
-    if (upload.error) throw upload.error;
+    const path = renewalRef.current ? referencePathRef.current : `${profile.user_id}/identity-selfie-${Date.now()}.jpg`;
+    if (!path) throw new Error('Private identity reference is missing');
+    if (!renewalRef.current) {
+      const upload = await supabase.storage.from('worker-identity-private').upload(path, photo, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      });
+      if (upload.error) throw upload.error;
+    }
 
     const challengeResult = {
       center_start: true,
@@ -332,9 +365,11 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       center_end: true,
       automatic: true,
       recorded_video: false,
+      anchor_similarity: faceMatchScore,
+      recent_similarity: faceMatchScore,
     };
 
-    const { error } = await supabase.rpc('complete_my_worker_identity_check', {
+    const { error } = await supabase.rpc('complete_my_account_identity_check', {
       p_photo_path: path,
       p_face_match_score: faceMatchScore,
       p_liveness_score: livenessScore,
@@ -344,7 +379,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     });
 
     if (error) {
-      await supabase.storage.from('worker-identity-private').remove([path]);
+      if (!renewalRef.current) await supabase.storage.from('worker-identity-private').remove([path]);
       throw error;
     }
 
@@ -357,6 +392,8 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     stopCamera();
     referenceEmbeddingRef.current = null;
     referencePhotoRef.current = null;
+    referencePathRef.current = '';
+    renewalRef.current = false;
     clearPreview();
     setPhotoUrl('');
     setPrompt('');
@@ -368,7 +405,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     return (
       <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-4">
         <p className="text-xs font-semibold text-emerald-300">Private face check complete</p>
-        <p className="mt-1 text-[9px] leading-relaxed text-[#747B8B]">Your reference selfie is stored privately with your Worker identity. The live camera check was not recorded or saved as a video.</p>
+        <p className="mt-1 text-[9px] leading-relaxed text-[#747B8B]">Your reference selfie is stored privately with your {identityLabel} identity. The live camera check was not recorded or saved as a video.</p>
       </section>
     );
   }
@@ -379,7 +416,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">PRIVATE FACE CHECK</p>
-            <h3 className="mt-1 text-lg font-bold">Confirm your Worker identity</h3>
+            <h3 className="mt-1 text-lg font-bold">Confirm your {identityLabel} identity</h3>
           </div>
           <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#858B99]">PRIVATE</span>
         </div>
@@ -390,22 +427,21 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
         <div className="space-y-4 p-4 sm:p-5">
           <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4">
             <p className="text-xs font-semibold text-white">Your private identity selfie</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">Choose one clear selfie. This is the only face image WeHouse keeps privately with your Worker identity after the check passes. It never appears on your public profile.</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">{status === 'due' ? 'WeHouse reuses your original private reference. Only the new live movement check is required; no new reference image is created.' : <>Choose one clear selfie. This is the only face image WeHouse keeps privately with your {identityLabel} identity after the check passes. It never appears on your public profile.</>}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <InfoStep n="1" title="Choose selfie" text="Take one now or upload one" active />
+            <InfoStep n="1" title={status === 'due' ? 'Stored reference' : 'Choose selfie'} text={status === 'due' ? 'Reuse your original private selfie' : 'Take one now or upload one'} active />
             <InfoStep n="2" title="Live check" text="Match face and follow movements" />
           </div>
 
           <label className="flex items-start gap-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
             <input type="checkbox" checked={consent} disabled={stage === 'loading'} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-violet-500" />
-            <span className="text-[9px] leading-relaxed text-[#808796]">I understand that my reference selfie is stored privately for Worker identity checks. The live camera check is analyzed in real time and is not recorded as a video.</span>
+            <span className="text-[9px] leading-relaxed text-[#808796]">I understand that my reference selfie is stored privately for {identityLabel} identity checks. The live camera check is analyzed in real time and is not recorded as a video.</span>
           </label>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <button onClick={() => void takeSelfie()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Preparing…' : 'Take selfie'}</button>
-            <button onClick={() => uploadInputRef.current?.click()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl border border-white/[.09] bg-white/[.03] text-xs font-semibold text-white disabled:opacity-40">Upload selfie</button>
+            {status === 'due' ? <button onClick={() => void loadStoredReference()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Opening securely…' : 'Continue with stored selfie'}</button> : <><button onClick={() => void takeSelfie()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Preparing…' : 'Take selfie'}</button><button onClick={() => uploadInputRef.current?.click()} disabled={!consent || busy || stage === 'loading'} className="h-12 rounded-2xl border border-white/[.09] bg-white/[.03] text-xs font-semibold text-white disabled:opacity-40">Upload selfie</button></>}
           </div>
           <input ref={uploadInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={chooseUpload} />
         </div>
