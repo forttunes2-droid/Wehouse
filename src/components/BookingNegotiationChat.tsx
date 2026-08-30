@@ -541,10 +541,11 @@ export default function BookingNegotiationChat({
           </button>
           <button
             onClick={() => void startAudioCall()}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#A9AEBB] hover:bg-white/[.05]"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-white/[.07] bg-white/[.035] px-3 text-[10px] font-semibold text-[#D5D8E0] hover:bg-white/[.06]"
             aria-label="Start audio call"
           >
             <Phone />
+            <span className="hidden min-[360px]:inline">Call</span>
           </button>
           <button
             onClick={() => setMenuOpen((value) => !value)}
@@ -1192,15 +1193,7 @@ function BookingAttachment({ url }: { url: string }) {
         onClick={() => window.open(url, "_blank")}
       />
     );
-  if (isAudio(url))
-    return (
-      <audio
-        controls
-        preload="metadata"
-        src={url}
-        className="mb-2 h-9 max-w-full"
-      />
-    );
+  if (isAudio(url)) return <BookingVoiceNote url={url}/>;
   if (isVideo(url))
     return (
       <video
@@ -1222,6 +1215,11 @@ function BookingAttachment({ url }: { url: string }) {
     </a>
   );
 }
+function BookingVoiceNote({url}:{url:string}) {
+  const ref=useRef<HTMLAudioElement>(null),[playing,setPlaying]=useState(false),[current,setCurrent]=useState(0),[total,setTotal]=useState(0);
+  return <div className="mb-2 flex min-w-[210px] items-center gap-2.5 rounded-2xl bg-black/15 px-2.5 py-2"><audio ref={ref} src={url} preload="metadata" onLoadedMetadata={e=>setTotal(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0)} onTimeUpdate={e=>setCurrent(e.currentTarget.currentTime)} onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onEnded={()=>{setPlaying(false);setCurrent(0)}}/><button type="button" onClick={()=>{const audio=ref.current;if(!audio)return;if(audio.paused)void audio.play();else audio.pause()}} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-[12px]" aria-label={playing?'Pause voice note':'Play voice note'}>{playing?'Ⅱ':'▶'}</button><div className="min-w-0 flex-1"><input aria-label="Voice note position" type="range" min={0} max={Math.max(total,.1)} step=".1" value={Math.min(current,total||0)} onChange={e=>{const value=Number(e.target.value);if(ref.current)ref.current.currentTime=value;setCurrent(value)}} className="h-1.5 w-full cursor-pointer accent-white"/><p className="mt-1 text-[8px] text-white/70">{formatVoiceTime(current)} / {formatVoiceTime(total)}</p></div></div>;
+}
+function formatVoiceTime(value:number){const seconds=Math.max(0,Math.round(value||0));return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`}
 function isImage(v: string) {
   return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(v);
 }

@@ -226,7 +226,7 @@ export default function RoommateWorkspace({
     setPrefs(p);
     setMatches([]);
     setHasMore(false);
-    toast.success("Matching paused", { id: "roommate-matching" });
+    toast.success("New roommate discovery is off. Existing matches and chats are unchanged.", { id: "roommate-matching" });
   }
   async function interest(
     match: RoommateMatchResult,
@@ -314,7 +314,7 @@ export default function RoommateWorkspace({
       description="Set your preferences and find compatible people in your area."
       onNavigate={navigate}
     >
-      <main className="mx-auto max-w-3xl space-y-4 px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 py-5 sm:px-5">
         <header className="border-b border-white/[.07] pb-5">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -433,7 +433,7 @@ export default function RoommateWorkspace({
                       onClick={() => void stop()}
                       className="col-span-2 min-h-11 rounded-xl border border-white/[.08] px-4 text-xs"
                     >
-                      Pause matching
+                      Stop new discovery
                     </button>
                   </>
                 ) : (
@@ -442,7 +442,7 @@ export default function RoommateWorkspace({
                     disabled={!canMatch || busy}
                     className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs disabled:opacity-40"
                   >
-                    {busy ? "Resuming…" : "Resume matching"}
+                    {busy ? "Starting…" : "Find new matches"}
                   </button>
                 )}
               </div>
@@ -530,22 +530,22 @@ function Matches({
       </div>
       {rows.length ? (
         <>
-          <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
                 sent = row.status === "accepted";
               return (
-                <article key={row.id} className="min-w-0">
+                <article key={row.id} className="min-w-0 overflow-hidden rounded-[24px] border border-white/[.07] bg-[#11141C] p-3 shadow-[0_14px_40px_rgba(0,0,0,.18)]">
                   <div className="relative flex flex-col">
                     {p.avatar_url ? (
                       <img
                         src={p.avatar_url}
                         alt={p.full_name || p.username || "Roommate match"}
-                        className="aspect-[4/3] w-full bg-[#11141C] object-cover sm:aspect-[5/4]"
+                        className="aspect-[16/10] w-full rounded-[18px] bg-[#11141C] object-cover"
                       />
                     ) : (
-                      <div className="grid aspect-[4/3] w-full place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-6xl font-bold text-violet-100 sm:aspect-[5/4]">
+                      <div className="grid aspect-[16/10] w-full place-items-center rounded-[18px] bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-5xl font-bold text-violet-100">
                         {String(
                           p.full_name || p.username || "W",
                         )[0].toUpperCase()}
@@ -653,9 +653,9 @@ function Matches({
                     {row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
-                        className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
+                        className="min-h-12 w-full rounded-2xl bg-violet-500 text-xs font-bold shadow-lg shadow-violet-950/30 active:scale-[.99]"
                       >
-                        Message
+                        Open private chat
                       </button>
                     ) : sent ? (
                       <button

@@ -7,8 +7,8 @@ export async function createBookingRequest(workerId:string,serviceType:string,de
 }
 
 export async function getMyBookingConversations(userId:string){
-  const{data,error}=await supabase.rpc('get_my_booking_conversations',{p_user_id:userId});
-  return{conversations:(data||[]).map((row:any)=>({conversation_id:row.conversation_id,booking_id:row.booking_id,booking_code:row.booking_code,booking_status:row.booking_status,service_type:row.service_type,negotiated_amount:row.negotiated_amount||0,other_person_id:row.other_person_id||null,other_person_name:row.other_person_name||'Unknown',other_person_username:'',updated_at:row.updated_at,unread_count:row.unread_count||0})),error};
+  const{data,error}=await supabase.rpc('get_my_booking_conversations_v2',{p_user_id:userId});
+  return{conversations:(data||[]).map((row:any)=>({...row,negotiated_amount:Number(row.negotiated_amount||0),unread_count:Number(row.unread_count||0)})),error};
 }
 
 export async function getCommunicationBookingConversations(userId:string){

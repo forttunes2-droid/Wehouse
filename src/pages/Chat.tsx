@@ -747,6 +747,7 @@ export default function Chat({ profile, conversationId }: Props) {
             <SupportEntryCard profile={profile} compact />
           </div>
         </section>
+        <p className="px-1 text-[9px] leading-4 text-[#565D6D]">Private roommate and Worker conversations are restricted to the two participants. Reservation Help is visible only to you and authorized WeHouse staff handling that case.</p>
         <section>
           <SectionTitle
             title="Conversations"
