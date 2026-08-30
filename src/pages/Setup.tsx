@@ -135,7 +135,7 @@ export default function Setup({ profile, onSetupComplete }: Props) {
               <button type="button" onClick={() => setOpenDoc(null)} className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.08]">×</button>
             </header>
             <article className="max-h-[68dvh] overflow-y-auto p-5 text-[12px] leading-7 text-[#A6A9B5] sm:p-6">{render(openDoc === 'privacy' ? privacy : terms)}</article>
-            <div className="border-t border-white/[.06] p-4"><button type="button" onClick={() => { openDoc === 'privacy' ? setPrivacyOk(true) : setTermsOk(true); setOpenDoc(null); }} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">I have read this document</button></div>
+            <div className="border-t border-white/[.06] p-4"><button type="button" onClick={() => { if (openDoc === 'privacy') setPrivacyOk(true); else setTermsOk(true); setOpenDoc(null); }} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">I have read this document</button></div>
           </div>
         </div>
       )}

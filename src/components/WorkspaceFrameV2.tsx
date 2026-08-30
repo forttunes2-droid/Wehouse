@@ -5,6 +5,7 @@ type Props = {
   label: string;
   title: string;
   description?: string;
+  labelBadge?: React.ReactNode;
   items: Item[];
   active: string;
   setActive: (id: string) => void;
@@ -17,6 +18,7 @@ export default function WorkspaceFrameV2({
   label,
   title,
   description,
+  labelBadge,
   items,
   active,
   setActive,
@@ -61,7 +63,10 @@ export default function WorkspaceFrameV2({
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 lg:px-8">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">{label}</p>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">{label}</p>
+                {labelBadge}
+              </div>
               <h1 className="mt-1 truncate text-xl font-bold">{title}</h1>
               {description ? (
                 <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p>

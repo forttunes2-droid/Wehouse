@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
-import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import WorkerActivationHome from "@/components/WorkerActivationHome";
 import WorkerJobsPanelV2, {
   WorkerConversationsPanel,
@@ -8,15 +7,16 @@ import WorkerJobsPanelV2, {
 import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
 import WorkerProfilePanelV2 from "@/components/WorkerProfilePanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
+import GoldTickBadge from "@/components/GoldTickBadge";
+import CommunicationInbox from "@/components/CommunicationInbox";
 import type { Profile } from "@/types";
 
 type Tab = "home" | "jobs" | "conversations" | "work" | "account";
 
 const LIVE_NAV = [
-  { id: "home", label: "Home" },
   { id: "jobs", label: "Jobs" },
   { id: "conversations", label: "Conversations" },
-  { id: "work", label: "Portfolio" },
+  { id: "work", label: "My Work" },
   { id: "account", label: "Account" },
 ];
 
@@ -39,7 +39,7 @@ export default function WorkerWorkspaceModern({
   const live =
     profile.worker_status === "verified" && profile.worker_verified === true;
   const nav = live ? LIVE_NAV : ACTIVATION_NAV;
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>(live ? "jobs" : "home");
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
   const safeTab =
@@ -49,13 +49,10 @@ export default function WorkerWorkspaceModern({
 
   let content: React.ReactNode;
   if (safeTab === "account") {
-    content = (
-      <WorkerProfilePanelV2
-        profile={profile}
-        onEdit={onGoToSetup}
-        onVerification={() => onNavigate?.("worker_verification")}
-      />
-    );
+    content = <div className="space-y-7">
+      <WorkerProfilePanelV2 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/>
+      {live ? <><section className="grid gap-2 border-t border-white/[.07] pt-6 sm:grid-cols-3"><AccountLink title="Edit account" detail="Personal details and contact information" onClick={() => onNavigate?.("profile_edit")}/><AccountLink title="Privacy" detail="Profile and discovery visibility" onClick={() => onNavigate?.("privacy")}/><AccountLink title="Security" detail="Password and active sessions" onClick={() => onNavigate?.("security")}/></section><section className="border-t border-white/[.07] pt-6"><CommunicationInbox profile={profile} title="Help & support" description="Open a private help case with WeHouse. Support is separate from customer job conversations."/></section></> : null}
+    </div>;
   } else if (live && safeTab === "jobs") {
     content = (
       <WorkerJobsPanelV2
@@ -77,7 +74,7 @@ export default function WorkerWorkspaceModern({
   } else if (live && safeTab === "work") {
     content = <WorkerShowcaseManager profile={profile} />;
   } else if (live) {
-    content = <LiveHome profile={profile} setTab={setTab} />;
+    content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab("conversations"); }}/>
   } else {
     content = (
       <WorkerActivationHome
@@ -91,12 +88,12 @@ export default function WorkerWorkspaceModern({
   const description =
     safeTab === "account"
       ? live
-        ? "Preview and manage the professional profile customers see."
+        ? "Your public profile, wallet, payout account and account tools."
         : "Build the professional profile customers will see after approval."
       : safeTab === "conversations"
         ? "Customer requests and job updates stay in one continuous conversation."
         : safeTab === "work"
-          ? "Publish permanent photos and videos that show customers your work."
+          ? "Publish photos and videos that show customers the work you do."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
             : live
@@ -106,6 +103,7 @@ export default function WorkerWorkspaceModern({
   return (
     <WorkspaceFrameV2
       label="WEHOUSE · WORKER"
+      labelBadge={live ? <GoldTickBadge size="sm"/> : null}
       title={nav.find((item) => item.id === safeTab)?.label || "Worker"}
       description={description}
       items={nav}
@@ -118,91 +116,6 @@ export default function WorkerWorkspaceModern({
   );
 }
 
-function LiveHome({
-  profile,
-  setTab,
-}: {
-  profile: Profile;
-  setTab: (tab: Tab) => void;
-}) {
-  const [summary, setSummary] = useState<{ next: string; detail: string }>({
-    next: "No job needs action",
-    detail: "New requests will appear in Conversations.",
-  });
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      const conversations = await getCommunicationBookingConversations(
-        profile.user_id,
-      );
-      const rows = (conversations.conversations ||
-        []) as WorkerBookingConversation[];
-      const open = rows.find(
-        (row) =>
-          !["approved_released", "cancelled", "refunded"].includes(
-            String(row.booking_status),
-          ),
-      );
-      if (active)
-        setSummary({
-          next: open
-            ? String(open.service_type || "Service job")
-            : "No job needs action",
-          detail: open
-            ? `${open.other_person_name || "Customer"} · ${String(open.booking_status).replace(/_/g, " ")}`
-            : "New requests will appear in Conversations.",
-        });
-    })();
-    return () => {
-      active = false;
-    };
-  }, [profile.user_id]);
-  return (
-    <div className="space-y-6">
-      <section className="flex items-center justify-between gap-4 border-b border-white/[.07] pb-5">
-        <div className="min-w-0">
-          <p className="text-[9px] font-semibold text-emerald-300">
-            ● Available
-          </p>
-          <h2 className="mt-2 truncate text-2xl font-bold">
-            {profile.full_name || profile.username || "Worker"}
-          </h2>
-        </div>
-      </section>
-      <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
-        <button
-          onClick={() => setTab("conversations")}
-          className="flex w-full items-center gap-4 py-5 text-left"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] uppercase tracking-wide text-[#62697A]">
-              Next action
-            </p>
-            <p className="mt-1 truncate text-sm font-semibold">
-              {summary.next}
-            </p>
-            <p className="mt-1 truncate text-[10px] text-[#747B8B]">
-              {summary.detail}
-            </p>
-          </div>
-          <span className="text-violet-300">›</span>
-        </button>
-        <button
-          onClick={() => setTab("jobs")}
-          className="flex w-full items-center gap-4 py-5 text-left"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] uppercase tracking-wide text-[#62697A]">
-              Jobs
-            </p>
-            <p className="mt-1 text-sm font-semibold">
-              Current work, history and earnings
-            </p>
-          </div>
-          <span className="text-violet-300">View jobs ›</span>
-        </button>
-      </section>
-    </div>
-  );
+function AccountLink({title,detail,onClick}:{title:string;detail:string;onClick:()=>void}) {
+  return <button onClick={onClick} className="flex min-h-20 items-center justify-between gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] p-4 text-left"><span><span className="block text-xs font-semibold">{title}</span><span className="mt-1 block text-[9px] leading-relaxed text-[#6E7484]">{detail}</span></span><span className="text-violet-300">›</span></button>;
 }
-

@@ -72,6 +72,7 @@ export default function BookingNegotiationChat({
   onClose,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]),
+    [messageError, setMessageError] = useState<string | null>(null),
     [booking, setBooking] = useState<Booking | null>(null),
     [input, setInput] = useState(""),
     [loading, setLoading] = useState(true),
@@ -110,8 +111,13 @@ export default function BookingNegotiationChat({
         getBookingMessages(conversationId),
         getBookingDetails(bookingId),
       ]);
-      if (!msgRes.error) setMessages((msgRes.messages || []) as ChatMessage[]);
-      else if (!quiet) toast.error("Conversation could not be loaded");
+      if (!msgRes.error) {
+        setMessages((msgRes.messages || []) as ChatMessage[]);
+        setMessageError(null);
+      } else if (!quiet) {
+        setMessageError(msgRes.error.message || "Conversation could not be loaded");
+        toast.error("Conversation could not be loaded");
+      }
       if (!bookingRes.error)
         setBooking((bookingRes.booking || null) as Booking | null);
       await markBookingMessagesRead(conversationId);
@@ -761,6 +767,8 @@ export default function BookingNegotiationChat({
       </header>
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
+          {messageError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center"><p className="text-xs font-semibold text-red-200">Messages could not be loaded</p><button onClick={() => void loadAll()} className="mt-2 text-[10px] font-semibold text-violet-300">Try again</button></div> : null}
+          {!messageError && messages.length === 0 ? <div className="grid min-h-44 place-items-center text-center"><div><p className="text-sm font-semibold">No messages yet</p><p className="mt-2 text-[10px] text-[#666C7D]">Start with the work details, schedule and price.</p></div></div> : null}
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
               prev = messages[index - 1],

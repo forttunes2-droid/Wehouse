@@ -52,6 +52,7 @@ async function confirmMoveInFromReservation(row: any) {
 }
 
 export default function MyReservations({ profile, onBack }: Props) {
+  void onBack;
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),

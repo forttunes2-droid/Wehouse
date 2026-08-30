@@ -46,7 +46,7 @@ function Prepare({ row, done }: {
     row: any;
     done: () => void;
 }) {
-    const [title, setTitle] = useState(row.property_type === 'hotel' ? '' : `${String(row.property_type || 'Property').replace(/_/g, ' ')} in ${row.property_city}`), [description, setDescription] = useState(row.description || ''), [price, setPrice] = useState(String(row.expected_rent || '')), [files, setFiles] = useState<File[]>([]), [excluded, setExcluded] = useState<Set<string>>(new Set()), [preview, setPreview] = useState(false), [saving, setSaving] = useState(false);
+    const [title, setTitle] = useState(row.property_type === 'hotel' ? '' : `${String(row.property_type || 'Property').replace(/_/g, ' ')} in ${row.property_city}`), [description, setDescription] = useState(row.description || ''), [price, setPrice] = useState(String(row.expected_rent || '')), [files, setFiles] = useState<File[]>([]), [excluded] = useState<Set<string>>(new Set()), [preview, setPreview] = useState(false), [saving, setSaving] = useState(false);
     async function images() { const prepared: string[] = []; for (const file of files) {
         const uploaded = await uploadListingImage(file, `inspection-${row.id}`);
         if (uploaded.error || !uploaded.url)
