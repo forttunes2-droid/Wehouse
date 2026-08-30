@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { BOOKING_STATUS_LABELS, getCommunicationBookingConversations } from '@/lib/supabase/worker-bookings';
 import BookingNegotiationChat from '@/components/BookingNegotiationChat';
-import PayoutAccountManager from '@/components/PayoutAccountManager';
-import WorkerWallet from '@/pages/WorkerWallet';
 import CommunicationInbox from '@/components/CommunicationInbox';
 import type { Profile } from '@/types';
 
@@ -15,7 +13,7 @@ export type WorkerBookingConversation = {
   last_message_time?: string | null; unread_count?: number | null; updated_at?: string | null;
 };
 
-type JobView = 'current' | 'completed' | 'earnings';
+type JobView = 'current' | 'completed';
 const COMPLETED = new Set(['approved_released', 'cancelled', 'refunded']);
 const ATTENTION = new Set(['booking_requested', 'disputed']);
 
@@ -44,9 +42,8 @@ export default function WorkerJobsPanelV2({profile, onOpenConversation}: {profil
     <nav className="flex gap-5 overflow-x-auto border-b border-white/[.06] scrollbar-hide" aria-label="Jobs sections">
       <JobTab active={view === 'current'} onClick={() => setView('current')}>Current jobs <span>{current.length}</span></JobTab>
       <JobTab active={view === 'completed'} onClick={() => setView('completed')}>History <span>{completed.length}</span></JobTab>
-      <JobTab active={view === 'earnings'} onClick={() => setView('earnings')}>Earnings</JobTab>
     </nav>
-    {view === 'earnings' ? <div className="space-y-5"><PayoutAccountManager profile={profile}/><WorkerWallet profile={profile}/></div> : <section><div className="mb-4"><h2 className="text-lg font-bold">{view === 'current' ? 'Current jobs' : 'Job history'}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Each job keeps one status and one connected conversation from request to completion.</p></div>{loading ? <Empty text="Loading jobs…"/> : shown.length === 0 ? <Empty text={view === 'current' ? 'New requests and active jobs will appear here.' : 'Completed and cancelled jobs will appear here.'}/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map((row) => <JobRow key={row.booking_id} row={row} onOpen={() => onOpenConversation(row)}/>)}</div>}</section>}
+    <section><div className="mb-4"><h2 className="text-lg font-bold">{view === 'current' ? 'Current jobs' : 'Job history'}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Each job keeps one status and one connected conversation from request to completion.</p></div>{loading ? <Empty text="Loading jobs…"/> : shown.length === 0 ? <Empty text={view === 'current' ? 'New requests and active jobs will appear here.' : 'Completed and cancelled jobs will appear here.'}/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map((row) => <JobRow key={row.booking_id} row={row} onOpen={() => onOpenConversation(row)}/>)}</div>}</section>
   </div>;
 }
 
