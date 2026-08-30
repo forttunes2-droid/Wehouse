@@ -163,7 +163,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       <Toaster position="top-center" richColors />
       <form onSubmit={save} className="space-y-4">
         <button type="button" onClick={()=>setEditing(false)} className="text-[10px] font-semibold text-violet-300">Cancel editing</button>
-        <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
+        <section className="border-y border-white/[.06] py-5">
           <div className="flex items-center gap-4">
             <button type="button" onClick={() => fileRef.current?.click()} className="grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</button>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={changePhoto} className="hidden" />
@@ -171,7 +171,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
+        <section className="border-y border-white/[.06] py-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" value={fullName} onChange={setFullName} />
             <div><Field label="Username" value={username} onChange={setUsername} /><p className={`mt-1 text-[9px] ${usernameState === 'available' ? 'text-emerald-300' : usernameState === 'taken' || usernameState === 'invalid' ? 'text-red-300' : 'text-[#62697A]'}`}>{usernameState === 'checking' ? 'Checking…' : usernameState === 'available' ? 'Username available' : usernameState === 'taken' ? 'Username already taken' : usernameState === 'invalid' ? 'Use 3–20 letters, numbers or underscores' : ''}</p></div>
@@ -181,7 +181,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
         </section>
 
         {isUser && <>
-          <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
+          <section className="border-y border-white/[.06] py-5">
             <h2 className="text-sm font-semibold">About you</h2>
             <div className="mt-4 space-y-4">
               <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
@@ -191,7 +191,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
+          <section className="border-y border-white/[.06] py-5">
             <h2 className="text-sm font-semibold">Location</h2>
             <p className="mt-1 text-[10px] text-[#6F7585]">Used for nearby homes, services and roommate matching.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">

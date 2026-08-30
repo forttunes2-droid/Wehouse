@@ -3,7 +3,7 @@ import type { Announcement,AnnouncementRecipient,AnnouncementTargetType } from '
 
 type AnnouncementDispatchResult={id?:number;recipient_count?:number};
 type AnnouncementListRow=Announcement&{profiles?:{username:string|null}|null};
-type AnnouncementInboxRow=Pick<AnnouncementRecipient,'id'|'announcement_id'|'read_status'|'delivered_at'>&{announcements:Announcement[]};
+type AnnouncementInboxRow=Pick<AnnouncementRecipient,'id'|'announcement_id'|'read_status'|'delivered_at'>&{announcement:Announcement|null};
 
 function sentAnnouncement(data:unknown,senderId:string,senderRole:string,title:string,content:string,targetType:AnnouncementTargetType):Announcement{
   const result=(data&&typeof data==='object'?data:{}) as AnnouncementDispatchResult;
@@ -56,10 +56,11 @@ export async function sendAnnouncement(
 }
 
 export async function getAnnouncementsForUser(userId:string){
-  const{data,error}=await supabase.from('announcement_recipients').select('id,announcement_id,read_status,delivered_at,announcements(*)').eq('user_id',userId).order('delivered_at',{ascending:false});
+  void userId;
+  const{data,error}=await supabase.rpc('get_my_announcement_inbox');
   if(error)return{messages:[],error};
   const rows=(data||[]) as AnnouncementInboxRow[];
-  return{messages:rows.map((row)=>({...row,message:row.announcements[0]||null})),error:null};
+  return{messages:rows.map((row)=>({...row,announcements:row.announcement?[row.announcement]:[],message:row.announcement||null})),error:null};
 }
 export async function markAnnouncementRead(announcementId:number,userId:string){void userId;const{error}=await supabase.rpc('mark_my_announcement_read',{p_announcement_id:announcementId});return{error}}
 export async function deleteAnnouncement(announcementId:number){const{error}=await supabase.from('announcements').delete().eq('id',announcementId);return{error}}

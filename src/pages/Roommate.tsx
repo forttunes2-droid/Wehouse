@@ -97,7 +97,12 @@ export default function RoommateWorkspace({
           error: null,
         }),
       );
-      rows = result.matches || [];
+      rows = (result.matches || []).filter((row) => {
+        if (!p.school_match) return true;
+        const wanted = String(p.school_name || profile.school || "").trim().toLocaleLowerCase();
+        const candidate = String(row.matched_profile?.school || "").trim().toLocaleLowerCase();
+        return Boolean(wanted) && candidate === wanted;
+      });
       more = Boolean(result.hasMore);
     }
     setPrefs(p);
@@ -148,8 +153,14 @@ export default function RoommateWorkspace({
   function applyResult(result: {
     matches?: RoommateMatchResult[];
     hasMore?: boolean;
-  }) {
-    setMatches(result.matches || []);
+  }, sourcePrefs = prefs) {
+    const rows = (result.matches || []).filter((row) => {
+      if (!sourcePrefs?.school_match) return true;
+      const wanted = String(sourcePrefs.school_name || profile.school || "").trim().toLocaleLowerCase();
+      const candidate = String(row.matched_profile?.school || "").trim().toLocaleLowerCase();
+      return Boolean(wanted) && candidate === wanted;
+    });
+    setMatches(rows);
     setHasMore(Boolean(result.hasMore));
   }
   async function save() {
@@ -175,11 +186,15 @@ export default function RoommateWorkspace({
       setBusy(false);
       return toast.error(error?.message || "Could not save preferences");
     }
+    if (Boolean(p.school_match) !== Boolean(form.school_match)) {
+      setBusy(false);
+      return toast.error("Same-school choice was not saved. Please try again before matching.");
+    }
     setPrefs(p);
     setEditing(false);
     if (p.search_status === "active") {
       const result = await refreshRoommateSearch();
-      if (!result.error) applyResult(result);
+      if (!result.error) applyResult(result, p);
     }
     setBusy(false);
   }

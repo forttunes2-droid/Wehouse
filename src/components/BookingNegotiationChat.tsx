@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getBookingMessages,
   sendBookingMessage,
@@ -15,7 +16,6 @@ import {
   markBookingMessagesRead,
   hideBookingConversation,
 } from "@/lib/supabase/worker-bookings";
-import { initializePaystackPopup } from "@/lib/supabase/paystack";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import { supabase } from "@/lib/supabase";
@@ -434,51 +434,24 @@ export default function BookingNegotiationChat({
       }
       const reference = bootstrap.reference as string,
         amount = bootstrap.amount as number;
-      const { data: pk } = await supabase.rpc("get_setting_v2", {
-        p_key: "paystack_public_key",
-      });
-      if (!pk) {
-        setPaying(false);
-        return toast.error("Paystack not configured");
+      const { data: initialized, error: initError } = await supabase.functions.invoke(
+        "payment-init",
+        { body: { reference } },
+      );
+      if (initError || !initialized?.success) {
+        throw new Error(initialized?.error || initError?.message || "Checkout could not start");
       }
-      initializePaystackPopup({
-        publicKey: pk,
-        email: profile.email,
-        amountKobo: Math.round(amount * 100),
-        reference,
-        metadata: {
-          payment_type: "worker_booking",
-          expected_amount: amount,
-          booking_id: bookingId,
-        },
-        onSuccess: async () => {
-          const { verifyPaymentWithRetry } =
-            await import("@/lib/supabase/payment-verify");
-          const result = await verifyPaymentWithRetry(reference, {
-            purpose: "worker_booking",
-            expected_amount: amount,
-          });
-          if (result.success)
-            toast.success(
-              "Payment successful. The Worker can now start the job.",
-            );
-          else if (result.requires_review)
-            toast.error(
-              "Payment was received but needs WeHouse review. Do not pay again.",
-            );
-          else toast.error(result.error || "Payment verification failed");
-          setPaying(false);
-          void loadAll(true);
-        },
-        onCancel: () => {
-          toast.info("Payment cancelled");
-          setPaying(false);
-        },
-        onError: (message) => {
-          toast.error(message);
-          setPaying(false);
-        },
-      });
+      if (initialized.already_paid) {
+        toast.success("Payment is already confirmed");
+        setPaying(false);
+        void loadAll(true);
+        return;
+      }
+      if (!initialized.authorization_url) throw new Error("Paystack checkout link is missing");
+      try {
+        localStorage.setItem("wh_worker_booking_payment", JSON.stringify({ reference, bookingId, amount }));
+      } catch { /* Checkout still works when storage is unavailable. */ }
+      window.location.assign(String(initialized.authorization_url));
     } catch (error: unknown) {
       setPaying(false);
       toast.error(error instanceof Error ? error.message : "Payment failed");
@@ -504,13 +477,13 @@ export default function BookingNegotiationChat({
       : booking?.worker_name || "Worker",
     peerAvatar = isWorker ? booking?.user_avatar : booking?.worker_avatar;
   if (loading)
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-50 grid place-items-center bg-[#0A0A0F]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      </div>, document.body
     );
-  return (
-    <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col bg-[#0A0A0F] text-white">
+  return createPortal(
+    <div className="fixed inset-0 z-[100020] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#0A0A0F] text-white">
       <header className="relative shrink-0 border-b border-white/[.06] bg-[#11131A]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-2.5">
           <BackButton onClick={onClose} />
@@ -966,7 +939,7 @@ export default function BookingNegotiationChat({
           onDelete={() => void deleteFromMessages()}
         />
       )}
-    </div>
+    </div>, document.body
   );
 }
 function ChatAvatar({ name, src }: { name: string; src?: string | null }) {

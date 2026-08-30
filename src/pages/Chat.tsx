@@ -731,13 +731,9 @@ export default function Chat({ profile, conversationId }: Props) {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-5 lg:px-8">
+      <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
         <section>
-          <SectionTitle
-            title="WeHouse channels"
-            text="Official updates and help from the WeHouse team."
-          />
-          <div className="mt-3 overflow-hidden rounded-3xl border border-white/[.06] bg-[#11141C]">
+          <div className="overflow-hidden border-y border-white/[.06] bg-[#11141C]">
             <OfficialEntryCard
               profile={profile}
               compact
@@ -747,11 +743,10 @@ export default function Chat({ profile, conversationId }: Props) {
             <SupportEntryCard profile={profile} compact />
           </div>
         </section>
-        <p className="px-1 text-[9px] leading-4 text-[#565D6D]">Private roommate and Worker conversations are restricted to the two participants. Reservation Help is visible only to you and authorized WeHouse staff handling that case.</p>
         <section>
           <SectionTitle
-            title="Conversations"
-            text="Long-press a chat to select one or several."
+            title="Your conversations"
+            text="Roommate and Worker chats are private. Long-press to select chats."
           />
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -768,7 +763,7 @@ export default function Chat({ profile, conversationId }: Props) {
               </p>
             </div>
           ) : (
-            <div className="mt-3 overflow-hidden rounded-3xl border border-white/[.06] bg-[#11141C]">
+            <div className="mt-3 overflow-hidden border-y border-white/[.06] bg-[#11141C]">
               {inboxItems.map((item, index) => (
                 <div key={item.id}>
                   {index > 0 && <Divider />}
