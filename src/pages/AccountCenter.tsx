@@ -38,6 +38,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const role = profile.role;
   const isUser = role === 'user';
@@ -97,9 +98,16 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   }
 
   async function logout() {
-    if (onLogout) return onLogout();
-    await supabase.auth.signOut({ scope: 'local' });
-    window.location.reload();
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      if (onLogout) await onLogout();
+      else await supabase.auth.signOut({ scope: 'local' });
+      window.location.replace('/');
+    } catch {
+      setSigningOut(false);
+      toast.error('Could not log out. Check your connection and try again.');
+    }
   }
 
   function openLegal(page: 'privacy_policy' | 'terms_of_service') {
@@ -156,7 +164,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const legalDone = anyPublished && (!published.privacy || legal.privacy_accepted) && (!published.terms || legal.terms_accepted);
 
   return (
-    <AccountShell profile={profile} title="Account" description="Private account controls. Work and operational settings stay inside your role workspace." onBack={onBack}>
+    <AccountShell profile={profile} title="Account" description="Your personal details, preferences and account protection." onBack={onBack}>
       <Toaster position="top-center" richColors />
 
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
@@ -201,15 +209,13 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
       <section className="grid gap-3 sm:grid-cols-3">
         <AccountInfo label="Email" value={profile.email_verified ? 'Verified' : 'Not verified'} />
-        <AccountInfo label="Account ID" value={profile.user_id || 'Not set'} />
+        <AccountInfo label="Username" value={profile.username ? `@${profile.username}` : 'Not set'} />
         <AccountInfo label={isStaff || role === 'admin' ? 'Assigned branch' : role === 'creator' ? 'Access scope' : 'Member since'} value={isStaff || role === 'admin' ? [profile.assigned_lga,profile.assigned_state].filter(Boolean).join(', ') || 'Not assigned' : role === 'creator' ? 'Worldwide platform' : memberSince(profile.created_at)} />
       </section>
 
-      {isStaff && <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[10px] leading-relaxed text-amber-200/80">Staff role, branch and operational permissions are managed through authorized Admin/Creator workflows.</div>}
-
-      <button onClick={() => void logout()} className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06]">
-        <p className="text-[12px] font-semibold text-red-300">Log out</p>
-        <p className="mt-1 text-[9px] text-red-300/60">Sign out of this device</p>
+      <button onClick={() => void logout()} disabled={signingOut} className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06] disabled:opacity-50">
+        <p className="text-[12px] font-semibold text-red-300">{signingOut ? 'Logging out…' : 'Log out'}</p>
+        <p className="mt-1 text-[9px] text-red-300/60">{signingOut ? 'Closing this session securely' : 'Sign out of this device'}</p>
       </button>
     </AccountShell>
   );
