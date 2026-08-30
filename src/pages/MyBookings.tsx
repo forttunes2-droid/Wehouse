@@ -106,9 +106,9 @@ export default function MyBookings({ profile, onBack }: Props) {
             ←
           </button>
           <div className="min-w-0">
-            <h1 className="text-base font-bold">Worker bookings</h1>
+            <h1 className="text-base font-bold">Service bookings</h1>
             <p className="mt-0.5 text-[10px] text-[#626879]">
-              Every service request stays here with its current status.
+              Track each home-service request, payment and completion status.
             </p>
           </div>
         </div>
