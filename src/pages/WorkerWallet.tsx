@@ -1,345 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
-type WalletRow = {
-  id: string;
-  available_balance: number;
-  pending_balance: number;
-  frozen_balance: number;
-  total_withdrawn: number;
-  is_frozen: boolean;
-  frozen_reason: string | null;
-};
+type Wallet={available_balance:number;pending_balance:number;frozen_balance:number;total_withdrawn:number;is_frozen:boolean;frozen_reason:string|null};
+type Bank={id:string;bank_name:string;account_number:string;account_name:string;is_default:boolean};
+type Movement={id:string;title:string;date:string;amount:number;status:string};
+type View="wallet"|"withdraw"|"activity";
+const money=(n:number)=>`₦${Number(n||0).toLocaleString("en-NG",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 
-type BankAccount = {
-  id: string;
-  bank_name: string;
-  account_number: string;
-  account_name: string;
-  is_default: boolean;
-};
-
-type Tab = "withdraw" | "activity";
-type TransactionRow = {
-  id: string;
-  description?: string | null;
-  transaction_type?: string | null;
-  created_at: string;
-  amount: number;
-};
-type WithdrawalRow = {
-  id: string;
-  amount: number;
-  status: string;
-  created_at: string;
-  failed_reason?: string | null;
-};
-
-const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
-
-export default function WorkerWallet({ profile }: { profile: Profile }) {
-  const [tab, setTab] = useState<Tab>("activity");
-  const [wallet, setWallet] = useState<WalletRow | null>(null);
-  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
-  const [banks, setBanks] = useState<BankAccount[]>([]);
-  const [selectedBankId, setSelectedBankId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  const selectedBank = useMemo(
-    () =>
-      banks.find((bank) => bank.id === selectedBankId) ||
-      banks.find((bank) => bank.is_default) ||
-      banks[0],
-    [banks, selectedBankId],
-  );
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [walletResult, transactionResult, withdrawalResult, bankResult] =
-      await Promise.all([
-        supabase
-          .from("wallets")
-          .select(
-            "id,available_balance,pending_balance,frozen_balance,total_withdrawn,is_frozen,frozen_reason",
-          )
-          .eq("owner_id", profile.user_id)
-          .eq("owner_type", "worker")
-          .maybeSingle(),
-        supabase
-          .from("wallet_transactions")
-          .select("*")
-          .eq("user_id", profile.user_id)
-          .order("created_at", { ascending: false })
-          .limit(30),
-        supabase
-          .from("withdrawals")
-          .select(
-            "id,amount,status,created_at,failed_reason,wallets!inner(owner_id)",
-          )
-          .eq("wallets.owner_id", profile.user_id)
-          .order("created_at", { ascending: false })
-          .limit(20),
-        supabase
-          .from("bank_accounts")
-          .select("id,bank_name,account_number,account_name,is_default")
-          .eq("user_id", profile.user_id)
-          .order("is_default", { ascending: false }),
-      ]);
-
-    if (walletResult.error) toast.error("Unable to load worker wallet");
-    setWallet((walletResult.data || null) as WalletRow | null);
-    setTransactions((transactionResult.data || []) as TransactionRow[]);
-    setWithdrawals((withdrawalResult.data || []) as WithdrawalRow[]);
-    setBanks((bankResult.data || []) as BankAccount[]);
-    if (bankResult.data?.[0]?.id)
-      setSelectedBankId((current) => current || bankResult.data[0].id);
-    setLoading(false);
-  }, [profile.user_id]);
-
-  useEffect(() => {
-    queueMicrotask(() => void load());
-  }, [load]);
-
-  async function withdraw() {
-    if (!wallet) return;
-    const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0)
-      return toast.error("Enter a valid amount");
-    if (numericAmount > Number(wallet.available_balance || 0))
-      return toast.error("Insufficient available balance");
-    if (!selectedBank)
-      return toast.error("Add a bank account before withdrawing");
-    if (wallet.is_frozen)
-      return toast.error(wallet.frozen_reason || "Your wallet is frozen");
-
-    setSubmitting(true);
-    const { data, error } = await supabase.rpc("request_worker_withdrawal", {
-      p_amount: numericAmount,
-      p_bank_account_id: selectedBank.id,
-    });
-    setSubmitting(false);
-
-    if (error)
-      return toast.error(
-        "We could not submit this withdrawal. Please try again.",
-      );
-    if (!data?.success)
-      return toast.error(data?.error || "Withdrawal request failed");
-    toast.success("Withdrawal request submitted");
-    setAmount("");
-    setTab("activity");
-    await load();
-  }
-
-  if (loading)
-    return (
-      <div className="grid min-h-56 place-items-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
-    );
-  if (!wallet)
-    return (
-      <section className="border-y border-amber-500/15 py-8 text-center text-xs text-amber-300">
-        Wallet setup is still completing. Refresh this page in a moment.
-      </section>
-    );
-
-  const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "withdraw", label: "Withdraw" },
-    { key: "activity", label: "History" },
-  ];
-
-  return (
-    <div className="text-white">
-      <Toaster position="top-center" richColors />
-      <div className="mx-auto max-w-6xl space-y-5">
-        <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[0.12] via-[#151520] to-[#101018] p-5 lg:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300">
-                Worker wallet
-              </p>
-              <p className="mt-2 text-3xl font-bold lg:text-4xl">
-                {money(wallet.available_balance)}
-              </p>
-              <p className="mt-2 text-[10px] text-[#85879A]">
-                Available earnings that can be withdrawn.
-              </p>
-            </div>
-            {wallet.is_frozen && (
-              <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-[10px] font-semibold text-red-300">
-                Wallet frozen
-              </span>
-            )}
-          </div>
-          <div className="mt-6 grid grid-cols-3 gap-2">
-            <Small label="Pending" value={money(wallet.pending_balance)} />
-            <Small label="Held" value={money(wallet.frozen_balance)} />
-            <Small label="Withdrawn" value={money(wallet.total_withdrawn)} />
-          </div>
-        </section>
-
-        <div className="flex gap-1 rounded-xl border border-white/[0.05] bg-[#111119] p-1">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className={`flex-1 rounded-lg px-3 py-2.5 text-[11px] font-semibold transition ${tab === item.key ? "bg-violet-500 text-white" : "text-[#77798B] hover:text-white"}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "withdraw" && (
-          <section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-5">
-            <h2 className="text-sm font-semibold">Request withdrawal</h2>
-            <p className="mt-1 text-[10px] text-[#66687B]">
-              Choose a saved bank account and enter an amount from your
-              available balance.
-            </p>
-            <div className="mt-5 space-y-3">
-              <input
-                type="number"
-                min="0"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="Amount"
-                className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#181822] px-3 text-sm outline-none focus:border-violet-500"
-              />
-              {banks.length === 0 ? (
-                <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.05] p-4 text-[10px] text-amber-300">
-                  No bank account found. Add one from Account Settings before
-                  withdrawing.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {banks.map((bank) => (
-                    <button
-                      key={bank.id}
-                      onClick={() => setSelectedBankId(bank.id)}
-                      className={`w-full rounded-xl border p-3 text-left ${selectedBank?.id === bank.id ? "border-violet-500/35 bg-violet-500/[0.08]" : "border-white/[0.06] bg-white/[0.025]"}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-medium">
-                            {bank.bank_name}
-                          </p>
-                          <p className="mt-1 text-[9px] text-[#66687B]">
-                            {bank.account_number} · {bank.account_name}
-                          </p>
-                        </div>
-                        {bank.is_default && (
-                          <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] text-emerald-300">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button
-                onClick={() => void withdraw()}
-                disabled={submitting || !amount || !selectedBank}
-                className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
-              >
-                {submitting ? "Submitting…" : "Request withdrawal"}
-              </button>
-            </div>
-          </section>
-        )}
-
-        {tab === "activity" && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <List
-              title="Transactions"
-              empty="No wallet transactions yet."
-              rows={transactions.map((row) => ({
-                id: row.id,
-                title: row.description || row.transaction_type || "Transaction",
-                note: new Date(row.created_at).toLocaleDateString(),
-                amount: Number(row.amount || 0),
-                status: row.transaction_type || "transaction",
-              }))}
-            />
-            <List
-              title="Withdrawals"
-              empty="No withdrawal requests yet."
-              rows={withdrawals.map((row) => ({
-                id: row.id,
-                title: `Withdrawal · ${row.status}`,
-                note: new Date(row.created_at).toLocaleDateString(),
-                amount: -Number(row.amount || 0),
-                status: row.status,
-              }))}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+export default function WorkerWallet({profile}:{profile:Profile}){
+ const[view,setView]=useState<View>("wallet"),[wallet,setWallet]=useState<Wallet|null>(null),[banks,setBanks]=useState<Bank[]>([]),[bankId,setBankId]=useState(""),[rows,setRows]=useState<Movement[]>([]),[amount,setAmount]=useState(""),[loading,setLoading]=useState(true),[submitting,setSubmitting]=useState(false),[show,setShow]=useState(true);
+ const bank=useMemo(()=>banks.find(x=>x.id===bankId)||banks.find(x=>x.is_default)||banks[0],[banks,bankId]);
+ const load=useCallback(async()=>{setLoading(true);const[w,t,d,b]=await Promise.all([
+  supabase.from("wallets").select("available_balance,pending_balance,frozen_balance,total_withdrawn,is_frozen,frozen_reason").eq("owner_id",profile.user_id).eq("owner_type","worker").maybeSingle(),
+  supabase.from("wallet_transactions").select("id,description,transaction_type,created_at,amount").eq("user_id",profile.user_id).order("created_at",{ascending:false}).limit(30),
+  supabase.from("withdrawals").select("id,amount,status,created_at,wallets!inner(owner_id)").eq("wallets.owner_id",profile.user_id).order("created_at",{ascending:false}).limit(20),
+  supabase.from("bank_accounts").select("id,bank_name,account_number,account_name,is_default").eq("user_id",profile.user_id).order("is_default",{ascending:false})]);
+  if(w.error)toast.error("Unable to load Worker wallet");setWallet((w.data||null) as Wallet|null);setBanks((b.data||[]) as Bank[]);if(b.data?.[0]?.id)setBankId(x=>x||b.data[0].id);
+  const movement:Movement[]=[...(t.data||[]).map((x:any)=>({id:`t-${x.id}`,title:x.description||friendly(x.transaction_type),date:x.created_at,amount:Number(x.amount||0),status:x.transaction_type||"transaction"})),...(d.data||[]).map((x:any)=>({id:`w-${x.id}`,title:"Withdrawal",date:x.created_at,amount:-Number(x.amount||0),status:x.status}))].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());setRows(movement);setLoading(false)},[profile.user_id]);
+ useEffect(()=>{void load()},[load]);
+ async function withdraw(){if(!wallet)return;const n=Number(amount);if(!n||n<=0)return toast.error("Enter a valid amount");if(n>Number(wallet.available_balance||0))return toast.error("Insufficient available balance");if(!bank)return toast.error("Connect a withdrawal account first");if(wallet.is_frozen)return toast.error(wallet.frozen_reason||"Wallet is unavailable");setSubmitting(true);const{data,error}=await supabase.rpc("request_worker_withdrawal",{p_amount:n,p_bank_account_id:bank.id});setSubmitting(false);if(error||!data?.success)return toast.error(data?.error||"Withdrawal request failed");toast.success("Withdrawal request submitted");setAmount("");setView("activity");await load()}
+ if(loading)return <Loading/>;if(!wallet)return <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-5 text-xs text-amber-300">Wallet setup is still completing.</div>;
+ const display=(n:number)=>show?money(n):"₦••••••";
+ if(view==="withdraw")return <div className="space-y-4"><Back title="Withdraw earnings" back={()=>setView("wallet")}/><section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.1] to-[#111119] p-5"><p className="text-[9px] uppercase tracking-[.16em] text-[#777B8B]">Available</p><p className="mt-2 text-3xl font-bold">{display(wallet.available_balance)}</p><label className="mt-5 block"><span className="mb-1 block text-[10px] text-[#777B8B]">Amount</span><input inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9]/g,""))} className="h-12 w-full rounded-xl border border-white/[.08] bg-[#181822] px-3 text-lg font-semibold outline-none" placeholder="0"/></label><div className="mt-4"><p className="mb-2 text-[10px] text-[#777B8B]">Send to</p>{banks.length?banks.map(x=><button key={x.id} onClick={()=>setBankId(x.id)} className={`mb-2 flex w-full items-center gap-3 rounded-xl border p-3 text-left ${bank?.id===x.id?"border-violet-500/35 bg-violet-500/[.08]":"border-white/[.06] bg-white/[.025]"}`}><BankLogo name={x.bank_name}/><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium">{x.bank_name}</span><span className="mt-1 block truncate text-[9px] text-[#666B7B]">•••• {x.account_number.slice(-4)} · {x.account_name}</span></span></button>):<p className="rounded-xl border border-dashed border-white/[.08] p-4 text-[10px] text-[#686D7D]">Add a verified payout account above before withdrawing.</p>}</div><button onClick={()=>void withdraw()} disabled={submitting||!amount||!bank} className="mt-3 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{submitting?"Submitting…":"Request withdrawal"}</button></section></div>;
+ if(view==="activity")return <div className="space-y-4"><Back title="Wallet activity" back={()=>setView("wallet")}/><Activity rows={rows} show={show}/></div>;
+ return <div className="space-y-4"><section className="overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-600/30 via-violet-500/10 to-[#101018] p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-200/70">Available balance</p><p className="mt-2 text-3xl font-bold">{display(wallet.available_balance)}</p><p className="mt-2 text-[9px] text-violet-100/55">Completed job earnings ready to withdraw</p></div><button onClick={()=>setShow(x=>!x)} aria-label={show?"Hide amounts":"Show amounts"} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/10">{show?"◉":"○"}</button></div>{wallet.is_frozen?<p className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-[10px] text-red-200">{wallet.frozen_reason||"Wallet temporarily unavailable"}</p>:null}<div className="mt-6 grid grid-cols-3 gap-2"><Mini label="Pending" value={display(wallet.pending_balance)}/><Mini label="Held" value={display(wallet.frozen_balance)}/><Mini label="Withdrawn" value={display(wallet.total_withdrawn)}/></div></section><section className="grid grid-cols-2 gap-3"><Action title="Withdraw" detail="Send available funds" icon="↓" onClick={()=>setView("withdraw")}/><Action title="Activity" detail="See every movement" icon="↗" onClick={()=>setView("activity")}/></section><section className="rounded-2xl border border-white/[.06] bg-[#111119] p-4"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold">Recent activity</p><p className="mt-1 text-[9px] text-[#666B7B]">Latest Worker earnings and withdrawals</p></div>{rows.length>3?<button onClick={()=>setView("activity")} className="text-[10px] text-violet-300">View all</button>:null}</div>{rows.length?<div className="mt-3 divide-y divide-white/[.05]">{rows.slice(0,3).map(x=><MovementRow key={x.id} row={x} show={show}/>)}</div>:<p className="py-8 text-center text-[10px] text-[#5E6373]">No wallet activity yet.</p>}</section></div>
 }
-
-function Small({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3">
-      <p className="text-[8px] uppercase tracking-wide text-[#6C6E80]">
-        {label}
-      </p>
-      <p className="mt-1 truncate text-xs font-semibold">{value}</p>
-    </div>
-  );
-}
-function List({
-  title,
-  empty,
-  rows,
-}: {
-  title: string;
-  empty: string;
-  rows: Array<{
-    id: string;
-    title: string;
-    note: string;
-    amount: number;
-    status: string;
-  }>;
-}) {
-  return (
-    <section className="rounded-2xl border border-white/[0.06] bg-[#111119] p-4">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="py-10 text-center text-[10px] text-[#5E6072]">{empty}</p>
-      ) : (
-        <div className="mt-3 divide-y divide-white/[0.05]">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className="flex items-center justify-between gap-3 py-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-[11px] font-medium">{row.title}</p>
-                <p className="mt-1 text-[9px] text-[#5E6072]">
-                  {row.note} · {row.status?.replace(/_/g, " ")}
-                </p>
-              </div>
-              <p
-                className={`text-xs font-semibold ${row.amount < 0 ? "text-red-300" : "text-emerald-300"}`}
-              >
-                {row.amount < 0 ? "-" : "+"}
-                {money(Math.abs(row.amount))}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
+function Back({title,back}:{title:string;back:()=>void}){return <div className="flex items-center gap-3"><button onClick={back} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07]">←</button><h2 className="text-sm font-semibold">{title}</h2></div>}
+function Mini({label,value}:{label:string;value:string}){return <div className="rounded-xl border border-white/[.07] bg-black/10 p-3"><p className="text-[8px] uppercase text-violet-100/50">{label}</p><p className="mt-1 truncate text-[11px] font-semibold">{value}</p></div>}
+function Action({title,detail,icon,onClick}:{title:string;detail:string;icon:string;onClick:()=>void}){return <button onClick={onClick} className="flex min-h-20 items-center gap-3 rounded-2xl border border-white/[.06] bg-[#111119] p-4 text-left"><span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/10 text-violet-300">{icon}</span><span><span className="block text-xs font-semibold">{title}</span><span className="mt-1 block text-[9px] text-[#626777]">{detail}</span></span></button>}
+function Activity({rows,show}:{rows:Movement[];show:boolean}){return <section className="rounded-2xl border border-white/[.06] bg-[#111119] p-4">{rows.length?<div className="divide-y divide-white/[.05]">{rows.map(x=><MovementRow key={x.id} row={x} show={show}/>)}</div>:<p className="py-10 text-center text-[10px] text-[#5E6373]">No wallet activity yet.</p>}</section>}
+function MovementRow({row,show}:{row:Movement;show:boolean}){const n=Number(row.amount||0);return <div className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-[11px] font-medium">{row.title}</p><p className="mt-1 text-[9px] capitalize text-[#5E6373]">{new Date(row.date).toLocaleDateString()} · {friendly(row.status)}</p></div><p className={`shrink-0 text-xs font-semibold ${n<0?"text-red-300":"text-emerald-300"}`}>{show?`${n<0?"-":"+"}${money(Math.abs(n))}`:"••••"}</p></div>}
+function BankLogo({name}:{name:string}){return <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/10 text-xs font-bold text-violet-200">{name.slice(0,2).toUpperCase()}</span>}
+function Loading(){return <div className="grid min-h-52 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
+function friendly(v:string){return String(v||"").replace(/_/g," ")}

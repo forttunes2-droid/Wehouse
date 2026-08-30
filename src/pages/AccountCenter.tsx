@@ -5,6 +5,8 @@ import CommunicationInbox from '@/components/CommunicationInbox';
 import OfficialChannel from '@/components/OfficialChannel';
 import AccountShell, { AccountInfo, AccountRow, AccountSection } from '@/components/AccountShell';
 import type { Profile } from '@/types';
+import PrivacySettings from '@/pages/PrivacySettings';
+import SecuritySettings from '@/pages/SecuritySettings';
 
 type Props = {
   profile: Profile;
@@ -24,10 +26,12 @@ type Legal = {
   legal_version?: string | null;
 };
 type Published = { privacy: boolean; terms: boolean };
-type Panel = 'notifications' | 'legal' | 'communication' | 'official' | null;
+type Panel = 'notifications' | 'legal' | 'communication' | 'official' | 'privacy' | 'security' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
 export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
+  void onGoToPrivacy;
+  void onGoToSecurity;
   const p = profile as Profile & ProfilePreferences;
   const [panel, setPanel] = useState<Panel>(null);
   const [emailNotifs, setEmailNotifs] = useState(p.pref_email_notif !== false);
@@ -105,6 +109,9 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
     window.history.pushState({ page }, '', `#${page}`);
     window.dispatchEvent(new PopStateEvent('popstate', { state: { page } }));
   }
+
+  if (panel === 'privacy') return <PrivacySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;
+  if (panel === 'security') return <SecuritySettings profile={profile} onBack={() => setPanel(null)} />;
 
   if (panel === 'official') {
     return (
@@ -190,14 +197,16 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       </section>
 
       <AccountSection title="Account">
+        {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {isUser && <AccountRow title="Saved properties" detail="Homes you kept in your private shortlist" onClick={onGoToSaved} icon={<HeartIcon />} />}
-        {isUser && <AccountRow title="Privacy" detail="Roommate discovery and personal visibility" onClick={onGoToPrivacy} icon={<PrivacyIcon />} />}
+        {isUser && <AccountRow title="Privacy" detail="Roommate discovery and personal visibility" onClick={() => setPanel('privacy')} icon={<PrivacyIcon />} />}
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
         <AccountRow title="Notifications" detail="Email and in-app alert preferences" onClick={() => setPanel('notifications')} icon={<BellIcon />} />
-        <AccountRow title="Security" detail="Password, devices and account protection" onClick={onGoToSecurity} icon={<ShieldIcon />} />
+        <AccountRow title="Privacy & permissions" detail="Personal visibility and role privacy rules" onClick={() => setPanel('privacy')} icon={<PrivacyIcon />} />
+        <AccountRow title="Security" detail="Password, devices and account protection" onClick={() => setPanel('security')} icon={<ShieldIcon />} />
       </AccountSection>
 
       {(isWorker || isStaff) && (

@@ -5,10 +5,9 @@ import WorkerJobsPanelV2, {
   WorkerConversationsPanel,
 } from "@/components/WorkerJobsPanelV2";
 import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
-import WorkerProfilePanelV2 from "@/components/WorkerProfilePanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
 import GoldTickBadge from "@/components/GoldTickBadge";
-import CommunicationInbox from "@/components/CommunicationInbox";
+import AccountCenter from "@/pages/AccountCenter";
 import type { Profile } from "@/types";
 
 type Tab = "home" | "jobs" | "conversations" | "work" | "account";
@@ -49,10 +48,7 @@ export default function WorkerWorkspaceModern({
 
   let content: React.ReactNode;
   if (safeTab === "account") {
-    content = <div className="space-y-7">
-      <WorkerProfilePanelV2 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/>
-      {live ? <><section className="grid gap-2 border-t border-white/[.07] pt-6 sm:grid-cols-3"><AccountLink title="Edit account" detail="Personal details and contact information" onClick={() => onNavigate?.("profile_edit")}/><AccountLink title="Privacy" detail="Profile and discovery visibility" onClick={() => onNavigate?.("privacy")}/><AccountLink title="Security" detail="Password and active sessions" onClick={() => onNavigate?.("security")}/></section><section className="border-t border-white/[.07] pt-6"><CommunicationInbox profile={profile} title="Help & support" description="Open a private help case with WeHouse. Support is separate from customer job conversations."/></section></> : null}
-    </div>;
+    content = <AccountCenter profile={profile} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={onGoToSetup} onLogout={onLogout}/>;
   } else if (live && safeTab === "jobs") {
     content = (
       <WorkerJobsPanelV2
@@ -114,8 +110,4 @@ export default function WorkerWorkspaceModern({
       {content}
     </WorkspaceFrameV2>
   );
-}
-
-function AccountLink({title,detail,onClick}:{title:string;detail:string;onClick:()=>void}) {
-  return <button onClick={onClick} className="flex min-h-20 items-center justify-between gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] p-4 text-left"><span><span className="block text-xs font-semibold">{title}</span><span className="mt-1 block text-[9px] leading-relaxed text-[#6E7484]">{detail}</span></span><span className="text-violet-300">›</span></button>;
 }
