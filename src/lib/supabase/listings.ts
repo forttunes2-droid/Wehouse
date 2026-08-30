@@ -139,9 +139,12 @@ export async function uploadListingImage(file: File, listingId: string) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image file' } as any };
   if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
   try {
-    const compressed = await compressImageFile(file, 1600, 0.86);
-    const path = `listings/${listingId}/${crypto.randomUUID()}.jpg`;
-    const { error } = await supabase.storage.from('listing-images').upload(path, compressed, { contentType: 'image/jpeg' });
+    const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024;
+    const body = preserveOriginal ? file : await compressImageFile(file, 3840, 0.92, 4.5 * 1024 * 1024);
+    const extension = preserveOriginal ? ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type] || 'jpg') : 'jpg';
+    const contentType = preserveOriginal ? file.type : 'image/jpeg';
+    const path = `listings/${listingId}/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from('listing-images').upload(path, body, { contentType });
     if (error) return { url: null, error };
     return { url: supabase.storage.from('listing-images').getPublicUrl(path).data.publicUrl, error: null };
   } catch (error: any) {

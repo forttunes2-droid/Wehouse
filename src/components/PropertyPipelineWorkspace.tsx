@@ -35,13 +35,43 @@ function WorkflowProgress({row}:{row:any}) {
     const steps = ['Submitted','Inspection','Visit reviewed','Listing prepared','Public'];
     return <section className="rounded-2xl border border-white/[.07] bg-white/[.02] p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">Publication journey</p><p className="mt-1 text-[9px] text-[#747A8B]">One controlled path. No stage can silently make this property public.</p></div><span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${current < 0 ? 'bg-red-500/10 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{current < 0 ? 'Stopped' : `${Math.min(current + 1, 5)} of 5`}</span></div><ol className="mt-4 grid grid-cols-5 gap-1">{steps.map((step,index)=><li key={step} className="min-w-0"><div className={`h-1 rounded-full ${current >= index ? (current === 4 ? 'bg-emerald-400' : 'bg-violet-400') : 'bg-white/[.08]'}`}/><p className={`mt-2 break-words text-[7px] leading-tight sm:text-[9px] ${current >= index ? 'text-[#D7D9E2]' : 'text-[#565C6D]'}`}>{step}</p></li>)}</ol></section>;
 }
-function Assign({ row, done }: {
-    row: any;
-    done: () => void;
-}) { const [officers, setOfficers] = useState<any[]>([]), [pick, setPick] = useState(''), [date, setDate] = useState(''), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false); useEffect(() => { void (async () => { const { data, error } = await supabase.rpc('admin_get_field_officers_for_inspection', { p_inspection_id: row.id }); if (error)
-    toast.error(error.message); setOfficers(Array.isArray(data) ? data : []); setLoading(false); })(); }, [row.id]); async function assign() { if (!pick)
-    return toast.error('Choose a Field Officer'); setSaving(true); const { error } = await supabase.rpc('admin_assign_field_officer', { p_inspection_id: row.id, p_field_officer_id: pick, p_scheduled_date: date || null }); setSaving(false); if (error)
-    return toast.error(error.message); toast.success('Field Officer assigned'); done(); } return <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4"><h3 className="text-sm font-semibold">Assign Field Officer</h3><p className="mt-1 text-[10px] text-[#727789]">Only Field Officers assigned to {row.property_city}, {row.property_state} are eligible. Distance and workload rank officers inside that LGA only.</p>{loading ? <Loading /> : officers.length === 0 ? <Empty text="No Field Officer is currently assigned to this LGA. Admin cannot cross branches; escalate staffing to Creator."/> : <div className="mt-4 space-y-2">{officers.map(o => <button key={o.user_id} onClick={() => setPick(o.user_id)} className={`w-full rounded-xl border p-3 text-left ${pick === o.user_id ? 'border-violet-500 bg-violet-500/10' : 'border-white/[0.06] bg-[#11151E]'}`}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{o.name}</p><p className="mt-1 text-[9px] text-[#686D7F]">{o.assigned_lga}, {o.assigned_state} · {o.active_inspections} active</p></div><p className="text-[9px] font-semibold text-violet-300">{o.distance_km != null ? `${o.distance_km} km` : 'Distance unavailable'}</p></div></button>)}<input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/><button disabled={saving} onClick={() => void assign()} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50">{saving ? 'Assigning…' : 'Assign inspection'}</button></div>}</div>; }
+function Assign({ row, done }: { row: any; done: () => void }) {
+    const [officers, setOfficers] = useState<any[]>([]), [pick, setPick] = useState(''), [date, setDate] = useState(''), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [accessUrl, setAccessUrl] = useState<string | null>(null);
+    useEffect(() => { void (async () => {
+        const [{ data, error }, review] = await Promise.all([
+            supabase.rpc('admin_get_field_officers_for_inspection', { p_inspection_id: row.id }),
+            supabase.rpc('get_property_access_review_details', { p_request_id: row.id }),
+        ]);
+        if (error) toast.error(error.message);
+        setOfficers(Array.isArray(data) ? data : []);
+        if (review.error) toast.error(review.error.message);
+        const path = review.data?.video_path as string | undefined;
+        if (path) {
+            const signed = await supabase.storage.from('property-access-private').createSignedUrl(path, 900);
+            if (signed.error) toast.error('Private access recording could not be opened');
+            setAccessUrl(signed.data?.signedUrl || null);
+        }
+        setLoading(false);
+    })(); }, [row.id]);
+    async function assign() {
+        if (!pick) return toast.error('Choose a Field Officer');
+        if (row.access_evidence_status !== 'verified') {
+            if (!accessUrl) return toast.error('Review the private access recording first');
+            if (!window.confirm('Accept this continuous entrance-to-interior recording and assign the selected Field Officer?')) return;
+        }
+        setSaving(true);
+        if (row.access_evidence_status !== 'verified') {
+            const reviewed = await supabase.rpc('review_property_access_evidence', { p_request_id: row.id, p_decision: 'accept', p_note: 'Accepted during field assignment review' });
+            if (reviewed.error) { setSaving(false); return toast.error(reviewed.error.message); }
+        }
+        const { error } = await supabase.rpc('admin_assign_field_officer', { p_inspection_id: row.id, p_field_officer_id: pick, p_scheduled_date: date || null });
+        setSaving(false);
+        if (error) return toast.error(error.message);
+        toast.success('Access recording accepted and Field Officer assigned');
+        done();
+    }
+    return <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4"><h3 className="text-sm font-semibold">Review access and assign inspection</h3><p className="mt-1 text-[10px] text-[#727789]">Confirm that the one-use code appears at the entrance and the uninterrupted recording continues inside. Then choose a Field Officer in this property area.</p>{accessUrl ? <video src={accessUrl} controls playsInline preload="metadata" className="mt-4 aspect-video w-full rounded-xl bg-black object-contain"/> : <p className="mt-4 rounded-xl border border-amber-500/15 bg-amber-500/[.04] p-3 text-[10px] text-amber-200">No reviewable private access recording is attached.</p>}{loading ? <Loading /> : officers.length === 0 ? <Empty text="No Field Officer is currently assigned to this LGA. Admin cannot cross branches; escalate staffing to Creator."/> : <div className="mt-4 space-y-2">{officers.map(o => <button key={o.user_id} onClick={() => setPick(o.user_id)} className={`w-full rounded-xl border p-3 text-left ${pick === o.user_id ? 'border-violet-500 bg-violet-500/10' : 'border-white/[0.06] bg-[#11151E]'}`}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{o.name}</p><p className="mt-1 text-[9px] text-[#686D7F]">{o.assigned_lga}, {o.assigned_state} · {o.active_inspections} active</p></div><p className="text-[9px] font-semibold text-violet-300">{o.distance_km != null ? `${o.distance_km} km` : 'Distance unavailable'}</p></div></button>)}<input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/><button disabled={saving || !accessUrl} onClick={() => void assign()} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving review…' : row.access_evidence_status === 'verified' ? 'Assign inspection' : 'Accept evidence & assign inspection'}</button></div>}</div>;
+}
 function Prepare({ row, done }: {
     row: any;
     done: () => void;
