@@ -1,14 +1,243 @@
-import { useCallback,useEffect,useState } from 'react';
-import { getAnnouncementsForUser,markAnnouncementRead,supabase } from '@/lib/supabase';
-import VerifiedBadge from './VerifiedBadge';
-import type { Announcement,Profile } from '@/types';
+import { useCallback, useEffect, useState } from "react";
+import {
+  getAnnouncementsForUser,
+  markAnnouncementRead,
+  supabase,
+} from "@/lib/supabase";
+import VerifiedBadge from "./VerifiedBadge";
+import type { Announcement, Profile } from "@/types";
 
-type Item={id:number;announcement_id:number;read_status:boolean;delivered_at:string;announcement:Announcement};
-type Props={profile:Profile;onBack?:()=>void;embedded?:boolean};
+type Item = {
+  id: number;
+  announcement_id: number;
+  read_status: boolean;
+  delivered_at: string;
+  announcement: Announcement;
+};
+type Props = { profile: Profile; onBack?: () => void; embedded?: boolean };
 
-export default function OfficialChannel({profile,onBack,embedded=false}:Props){const[items,setItems]=useState<Item[]>([]),[loading,setLoading]=useState(true),[selected,setSelected]=useState<Announcement|null>(null);const load=useCallback(async()=>{setLoading(true);const{messages}=await getAnnouncementsForUser(profile.user_id);setItems(((messages||[]).map((m:any)=>({...m,announcement:m.announcements||m.announcement||{}}))) as Item[]);setLoading(false)},[profile.user_id]);useEffect(()=>{void load()},[load]);useEffect(()=>{const ch=supabase.channel(`official:${profile.user_id}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'announcement_recipients',filter:`user_id=eq.${profile.user_id}`},()=>void load()).subscribe();return()=>{supabase.removeChannel(ch)}},[profile.user_id,load]);async function open(a:Announcement){setSelected(a);const row=items.find(i=>i.announcement_id===a.id);if(row&&!row.read_status){await markAnnouncementRead(a.id,profile.user_id);setItems(prev=>prev.map(i=>i.announcement_id===a.id?{...i,read_status:true}:i))}}const unread=items.filter(i=>!i.read_status).length;const shell=embedded?'overflow-hidden rounded-2xl border border-white/[.06] bg-[#0D1017]':'min-h-[100dvh] bg-[#090A0F]';if(selected)return <div className={`${shell} text-white`}><Header onBack={()=>setSelected(null)} unread={0}/><article className="mx-auto max-w-3xl px-4 py-5 sm:px-5"><div className="rounded-3xl border border-white/[.07] bg-gradient-to-br from-violet-500/[.07] via-[#12151E] to-[#10121A] p-5 sm:p-6"><div className="flex items-center gap-3"><Logo/><div className="min-w-0"><div className="flex items-center gap-1.5"><p className="text-sm font-bold">WeHouse Official</p><VerifiedBadge size={13}/></div><p className="mt-0.5 text-[9px] text-[#6D7182]">{dateLabel(selected.created_at,true)}</p></div></div><h1 className="mt-5 break-words text-xl font-bold leading-tight sm:text-2xl">{selected.title}</h1><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#C3C6D0]">{selected.content}</p></div><p className="mt-3 text-center text-[9px] text-[#5F6374]">Official WeHouse announcement · replies are not enabled</p></article></div>;
-return <div className={`${shell} text-white`}><Header onBack={onBack} unread={unread}/><main className="mx-auto max-w-3xl px-4 py-4 sm:px-5"><div className="mb-4 flex items-end justify-between gap-3"><div><h2 className="text-base font-bold">Announcements</h2><p className="mt-1 text-[10px] leading-relaxed text-[#6D7182]">Important platform, account and service updates from WeHouse.</p></div>{unread>0&&<span className="shrink-0 rounded-full bg-violet-500/10 px-2.5 py-1 text-[9px] font-semibold text-violet-300">{unread} new</span>}</div>{loading?<div className="space-y-2">{[1,2,3].map(i=><div key={i} className="h-24 animate-pulse rounded-2xl bg-[#12151D]"/>)}</div>:items.length===0?<div className="rounded-2xl border border-dashed border-white/[.08] px-6 py-12 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/10 text-violet-300">W</div><p className="mt-3 text-sm font-semibold">No announcements yet</p><p className="mt-1 text-[10px] text-[#666A7A]">Official WeHouse updates will appear here.</p></div>:<div className="space-y-2">{items.map(item=>{const a=item.announcement;if(!a?.id)return null;return <button key={item.id} onClick={()=>void open(a)} className={`w-full rounded-2xl border p-4 text-left transition ${item.read_status?'border-white/[.05] bg-[#11141C]':'border-violet-500/20 bg-violet-500/[.04]'}`}><div className="flex items-start gap-3"><Logo small/><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><div className="flex min-w-0 items-center gap-1"><span className="truncate text-[10px] font-bold text-violet-300">WeHouse Official</span><VerifiedBadge size={10}/></div><span className="ml-auto shrink-0 text-[8px] text-[#606475]">{dateLabel(a.created_at)}</span></div><div className="mt-1 flex items-start gap-2"><h3 className={`min-w-0 flex-1 break-words text-sm font-semibold leading-snug ${item.read_status?'text-[#D5D7DE]':'text-white'}`}>{a.title}</h3>{!item.read_status&&<span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-violet-400"/>}</div><p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-[#747889]">{a.content}</p></div></div></button>})}</div>}</main></div>}
+export default function OfficialChannel({
+  profile,
+  onBack,
+  embedded = false,
+}: Props) {
+  const [items, setItems] = useState<Item[]>([]),
+    [loading, setLoading] = useState(true),
+    [selected, setSelected] = useState<Announcement | null>(null);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { messages } = await getAnnouncementsForUser(profile.user_id);
+    setItems(
+      (messages || []).map((m: any) => ({
+        ...m,
+        announcement: Array.isArray(m.announcements)
+          ? m.announcements[0] || m.announcement || {}
+          : m.announcements || m.announcement || {},
+      })) as Item[],
+    );
+    setLoading(false);
+  }, [profile.user_id]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    const ch = supabase
+      .channel(`official:${profile.user_id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "announcement_recipients",
+          filter: `user_id=eq.${profile.user_id}`,
+        },
+        () => void load(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [profile.user_id, load]);
+  async function open(a: Announcement) {
+    setSelected(a);
+    const row = items.find((i) => i.announcement_id === a.id);
+    if (row && !row.read_status) {
+      await markAnnouncementRead(a.id, profile.user_id);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.announcement_id === a.id ? { ...i, read_status: true } : i,
+        ),
+      );
+    }
+  }
+  const unread = items.filter((i) => !i.read_status).length;
+  const shell = embedded
+    ? "overflow-hidden rounded-2xl border border-white/[.06] bg-[#0D1017]"
+    : "min-h-[100dvh] bg-[#090A0F]";
+  if (selected)
+    return (
+      <div className={`${shell} text-white`}>
+        <Header onBack={() => setSelected(null)} unread={0} />
+        <article className="mx-auto max-w-3xl px-4 py-6 sm:px-5">
+          <div className="border-b border-white/[.07] pb-6">
+            <div className="flex items-center gap-3">
+              <Logo />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-bold">WeHouse Official</p>
+                  <VerifiedBadge size={13} />
+                </div>
+                <p className="mt-0.5 text-[9px] text-[#6D7182]">
+                  {dateLabel(selected.created_at, true)}
+                </p>
+              </div>
+            </div>
+            <h1 className="mt-5 break-words text-xl font-bold leading-tight sm:text-2xl">
+              {selected.title}
+            </h1>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#C3C6D0]">
+              {selected.content}
+            </p>
+          </div>
+          <p className="mt-3 text-center text-[9px] text-[#5F6374]">
+            Official WeHouse announcement · replies are not enabled
+          </p>
+        </article>
+      </div>
+    );
+  return (
+    <div className={`${shell} text-white`}>
+      <Header onBack={onBack} unread={unread} />
+      <main className="mx-auto max-w-3xl px-4 py-4 sm:px-5">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold">Announcements</h2>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#6D7182]">
+              Important platform, account and service updates from WeHouse.
+            </p>
+          </div>
+          {unread > 0 && (
+            <span className="shrink-0 rounded-full bg-violet-500/10 px-2.5 py-1 text-[9px] font-semibold text-violet-300">
+              {unread} new
+            </span>
+          )}
+        </div>
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-24 animate-pulse rounded-2xl bg-[#12151D]"
+              />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/[.08] px-6 py-12 text-center">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/10 text-violet-300">
+              W
+            </div>
+            <p className="mt-3 text-sm font-semibold">No announcements yet</p>
+            <p className="mt-1 text-[10px] text-[#666A7A]">
+              Official WeHouse updates will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {items.map((item) => {
+              const a = item.announcement;
+              if (!a?.id) return null;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => void open(a)}
+                  className={`w-full rounded-2xl border p-4 text-left transition ${item.read_status ? "border-white/[.05] bg-[#11141C]" : "border-violet-500/20 bg-violet-500/[.04]"}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Logo small />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="truncate text-[10px] font-bold text-violet-300">
+                            WeHouse Official
+                          </span>
+                          <VerifiedBadge size={10} />
+                        </div>
+                        <span className="ml-auto shrink-0 text-[8px] text-[#606475]">
+                          {dateLabel(a.created_at)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-start gap-2">
+                        <h3
+                          className={`min-w-0 flex-1 break-words text-sm font-semibold leading-snug ${item.read_status ? "text-[#D5D7DE]" : "text-white"}`}
+                        >
+                          {a.title}
+                        </h3>
+                        {!item.read_status && (
+                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-violet-400" />
+                        )}
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-[#747889]">
+                        {a.content}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
 
-function Header({onBack,unread}:{onBack?:()=>void;unread:number}){return <header className="border-b border-white/[.06] bg-[#0E1118]/95 px-4 py-3 backdrop-blur-xl sm:px-5"><div className="mx-auto flex max-w-3xl items-center gap-3">{onBack&&<button onClick={onBack} aria-label="Back" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.06] bg-white/[.03] text-[#9296A6]">←</button>}<Logo/><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><p className="truncate text-sm font-bold">WeHouse Official</p><VerifiedBadge size={12}/></div><p className="text-[9px] text-[#666A7A]">Official announcements</p></div>{unread>0&&<span className="grid h-6 min-w-6 place-items-center rounded-full bg-violet-500 px-1.5 text-[9px] font-bold">{unread>99?'99+':unread}</span>}</div></header>}
-function Logo({small=false}:{small?:boolean}){return <div className={`${small?'h-9 w-9 rounded-xl':'h-10 w-10 rounded-2xl'} grid shrink-0 place-items-center bg-gradient-to-br from-violet-500 to-violet-600 font-bold text-white shadow-lg shadow-violet-500/10`}>W</div>}
-function dateLabel(value:string,full=false){const d=new Date(value);if(full)return d.toLocaleString();const diff=Date.now()-d.getTime(),days=Math.floor(diff/86400000);if(days===0)return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});if(days===1)return'Yesterday';if(days<7)return d.toLocaleDateString([],{weekday:'short'});return d.toLocaleDateString([],{month:'short',day:'numeric'})}
+function Header({ onBack, unread }: { onBack?: () => void; unread: number }) {
+  return (
+    <header className="border-b border-white/[.06] bg-[#0E1118]/95 px-4 py-3 backdrop-blur-xl sm:px-5">
+      <div className="mx-auto flex max-w-3xl items-center gap-3">
+        {onBack && (
+          <button
+            onClick={onBack}
+            aria-label="Back"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.06] bg-white/[.03] text-[#9296A6]"
+          >
+            ←
+          </button>
+        )}
+        <Logo />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-bold">WeHouse Official</p>
+            <VerifiedBadge size={12} />
+          </div>
+          <p className="text-[9px] text-[#666A7A]">Official announcements</p>
+        </div>
+        {unread > 0 && (
+          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-violet-500 px-1.5 text-[9px] font-bold">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </div>
+    </header>
+  );
+}
+function Logo({ small = false }: { small?: boolean }) {
+  return (
+    <div
+      className={`${small ? "h-9 w-9 rounded-xl" : "h-10 w-10 rounded-2xl"} grid shrink-0 place-items-center bg-gradient-to-br from-violet-500 to-violet-600 font-bold text-white shadow-lg shadow-violet-500/10`}
+    >
+      W
+    </div>
+  );
+}
+function dateLabel(value: string, full = false) {
+  const d = new Date(value);
+  if (full) return d.toLocaleString();
+  const diff = Date.now() - d.getTime(),
+    days = Math.floor(diff / 86400000);
+  if (days === 0)
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (days === 1) return "Yesterday";
+  if (days < 7) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}

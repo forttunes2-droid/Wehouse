@@ -766,13 +766,14 @@ export default function App() {
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onBack={subpageBack}
           />
         ) : (
           renderRoleRoot()
         );
       case "worker_verification":
         return isWorkerRole ? (
-          <WorkerVerification profile={profile} onBack={subpageBack} />
+          <WorkerVerification profile={profile} onBack={subpageBack} onEditProfile={() => goTo("worker_setup")} />
         ) : (
           renderRoleRoot()
         );

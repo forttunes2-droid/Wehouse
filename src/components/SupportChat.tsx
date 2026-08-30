@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
 import { supabase } from "@/lib/supabase";
@@ -295,8 +296,8 @@ export default function SupportChat({ profile }: Props) {
   if (!profile) return null;
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
+  return createPortal(
+    <div className="fixed inset-0 z-[100030] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
       <header className="shrink-0 border-b border-white/[.06] bg-[#10141B]/95 px-3 py-2.5 backdrop-blur-xl sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <button
@@ -494,7 +495,8 @@ export default function SupportChat({ profile }: Props) {
           </section>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

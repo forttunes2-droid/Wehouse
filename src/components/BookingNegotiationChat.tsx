@@ -571,6 +571,24 @@ export default function BookingNegotiationChat({
             <p className="mt-1 text-[9px] leading-relaxed text-[#686C7D]">
               {statusInfo?.description}
             </p>
+            {!isWorker && ["confirmed", "in_progress", "completed_pending_approval"].includes(booking.status) && (
+              <div className="mt-3 border-y border-emerald-500/15 py-3">
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 text-emerald-300">✓</span>
+                  <div>
+                    <p className="text-[10px] font-semibold text-emerald-300">Payment secured for this job</p>
+                    <p className="mt-1 text-[9px] leading-relaxed text-[#808696]">
+                      The Worker is paid only after the work is completed and you confirm it. If something goes wrong, raise a dispute before confirming completion.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {isWorker && ["confirmed", "in_progress", "completed_pending_approval"].includes(booking.status) && (
+              <p className="mt-3 border-y border-emerald-500/15 py-3 text-[9px] leading-relaxed text-[#808696]">
+                Customer payment is secured. Your earnings become available after completed work is confirmed.
+              </p>
+            )}
             {paymentReview && (
               <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/[.06] px-3 py-2">
                 <p className="text-[9px] font-semibold text-amber-300">
@@ -875,9 +893,8 @@ export default function BookingNegotiationChat({
                 Recording voice… tap the microphone again to stop
               </p>
             )}
-            <p className="mt-2 text-center text-[8px] text-[#505565]">
-              Private job conversation · photos and voice notes supported ·
-              WeHouse Support is separate
+            <p className="mt-2 text-center text-[8px] leading-relaxed text-[#505565]">
+              Private to you and the Worker · securely stored for job safety and disputes · photos and voice notes supported
             </p>
           </div>
         ) : (

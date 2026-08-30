@@ -8,13 +8,15 @@ import {
 } from "@/lib/supabase";
 import LocationSelector from "@/legacy/LocationSelector";
 import SearchableSelect from "@/components/SearchableSelect";
+import BackButton from "@/components/BackButton";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 
-type Props = { profile: Profile; onComplete: () => void };
+type Props = { profile: Profile; onComplete: () => void; onBack?: () => void };
 
 export default function WorkerSetupProfessional({
   profile,
   onComplete,
+  onBack,
 }: Props) {
   const photoRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -175,19 +177,22 @@ export default function WorkerSetupProfessional({
     <div className="min-h-[100dvh] bg-[#090B11] pb-8 text-white">
       <Toaster position="top-center" richColors theme="dark" />
       <main className="mx-auto max-w-2xl px-4 py-5 sm:px-5">
-        <header className="mb-4">
-          <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">
-            PROFESSIONAL PROFILE
-          </p>
-          <div className="mt-1 flex items-end justify-between gap-3">
-            <h1 className="text-xl font-bold">
-              {profile.profile_complete
-                ? "Edit profile"
-                : "Set up your work profile"}
-            </h1>
-            <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.03] px-2.5 py-1 text-[8px] font-semibold text-[#777E8E]">
-              PUBLIC AFTER APPROVAL
-            </span>
+        <header className="mb-5 flex items-start gap-3 border-b border-white/[.06] pb-4">
+          {onBack && <BackButton onClick={onBack} />}
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">
+              WEHOUSE · WORKER
+            </p>
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <h1 className="truncate text-xl font-bold">
+                {profile.profile_complete
+                  ? "Edit profile"
+                  : "Set up your work profile"}
+              </h1>
+              <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide text-[#777E8E]">
+                Public after approval
+              </span>
+            </div>
           </div>
         </header>
 
