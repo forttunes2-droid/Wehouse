@@ -4,6 +4,7 @@ import { BOOKING_STATUS_LABELS, getCommunicationBookingConversations } from '@/l
 import BookingNegotiationChat from '@/components/BookingNegotiationChat';
 import PayoutAccountManager from '@/components/PayoutAccountManager';
 import WorkerWallet from '@/pages/WorkerWallet';
+import CommunicationInbox from '@/components/CommunicationInbox';
 import type { Profile } from '@/types';
 
 export type WorkerBookingConversation = {
@@ -61,7 +62,7 @@ export function WorkerConversationsPanel({profile, initialConversation, onConver
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (initialConversation) setSelected(initialConversation); }, [initialConversation]);
   if (selected) return <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); }}/>;
-  return <section><div className="mb-4"><h2 className="text-lg font-bold">Job conversations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Your recent customer chats stay here from request through completion. Help cases are under Account.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section>;
+  return <div className="space-y-7"><section><div className="mb-4"><h2 className="text-lg font-bold">Job conversations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Every customer chat stays connected to its job from request through completion.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section><CommunicationInbox profile={profile} title="WeHouse communication" description="Official announcements and your context-linked Human Support cases stay in Conversations."/></div>;
 }
 
 function JobTab({active, onClick, children}: {active: boolean; onClick: () => void; children: React.ReactNode}) { return <button onClick={onClick} className={`relative shrink-0 pb-3 text-[11px] font-semibold ${active ? 'text-white' : 'text-[#6F7585]'}`}>{children}{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-violet-400"/> : null}</button>; }

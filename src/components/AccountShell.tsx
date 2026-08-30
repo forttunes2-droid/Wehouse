@@ -1,4 +1,5 @@
 import type { Profile } from '@/types';
+import BackButton from '@/components/BackButton';
 
 type Props = {
   profile: Profile;
@@ -19,18 +20,7 @@ export default function AccountShell({ profile, title, description, onBack, chil
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 backdrop-blur-xl">
         <div className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
           <div className="flex items-start gap-3">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                aria-label="Back"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[.08] bg-white/[.03] text-[#9DA3B2] transition hover:bg-white/[.05] hover:text-white"
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-            )}
+            {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
               <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
               <h1 className="mt-1 truncate text-xl font-bold">{title}</h1>

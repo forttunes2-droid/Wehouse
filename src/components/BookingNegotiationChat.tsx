@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { toast } from "sonner";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
+import BackButton from "@/components/BackButton";
 
 type Props = {
   conversationId: string;
@@ -512,13 +513,7 @@ export default function BookingNegotiationChat({
     <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col bg-[#0A0A0F] text-white">
       <header className="relative shrink-0 border-b border-white/[.06] bg-[#11131A]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-2.5">
-          <button
-            onClick={onClose}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#8E93A3] hover:bg-white/[.05]"
-            aria-label="Back"
-          >
-            ←
-          </button>
+          <BackButton onClick={onClose} />
           <button
             onClick={() => void openPeerProfile()}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left active:bg-white/[.04]"

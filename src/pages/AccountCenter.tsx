@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import CommunicationInbox from '@/components/CommunicationInbox';
-import OfficialChannel from '@/components/OfficialChannel';
 import AccountShell, { AccountInfo, AccountRow, AccountSection } from '@/components/AccountShell';
 import type { Profile } from '@/types';
-import PrivacySettings from '@/pages/PrivacySettings';
-import SecuritySettings from '@/pages/SecuritySettings';
+import PrivacySecuritySettings from '@/pages/PrivacySecuritySettings';
 
 type Props = {
   profile: Profile;
@@ -26,7 +23,7 @@ type Legal = {
   legal_version?: string | null;
 };
 type Published = { privacy: boolean; terms: boolean };
-type Panel = 'notifications' | 'legal' | 'communication' | 'official' | 'privacy' | 'security' | null;
+type Panel = 'notifications' | 'legal' | 'privacy_security' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
 export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
@@ -110,24 +107,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
     window.dispatchEvent(new PopStateEvent('popstate', { state: { page } }));
   }
 
-  if (panel === 'privacy') return <PrivacySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;
-  if (panel === 'security') return <SecuritySettings profile={profile} onBack={() => setPanel(null)} />;
-
-  if (panel === 'official') {
-    return (
-      <AccountShell profile={profile} title="Official updates" description="Platform and branch announcements from WeHouse." onBack={() => setPanel(null)}>
-        <OfficialChannel profile={profile} embedded />
-      </AccountShell>
-    );
-  }
-
-  if (panel === 'communication') {
-    return (
-      <AccountShell profile={profile} title="Support & updates" description="Private communication with WeHouse." onBack={() => setPanel(null)}>
-        <CommunicationInbox profile={profile} title="Messages" description="WeHouse Official updates and your human-support conversation." />
-      </AccountShell>
-    );
-  }
+  if (panel === 'privacy_security') return <PrivacySecuritySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;
 
   if (panel === 'notifications') {
     return (
@@ -200,19 +180,15 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {isUser && <AccountRow title="Saved properties" detail="Homes you kept in your private shortlist" onClick={onGoToSaved} icon={<HeartIcon />} />}
-        {isUser && <AccountRow title="Privacy" detail="Roommate discovery and personal visibility" onClick={() => setPanel('privacy')} icon={<PrivacyIcon />} />}
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
         <AccountRow title="Notifications" detail="Email and in-app alert preferences" onClick={() => setPanel('notifications')} icon={<BellIcon />} />
-        <AccountRow title="Privacy & permissions" detail="Personal visibility and role privacy rules" onClick={() => setPanel('privacy')} icon={<PrivacyIcon />} />
-        <AccountRow title="Security" detail="Password, devices and account protection" onClick={() => setPanel('security')} icon={<ShieldIcon />} />
+        <AccountRow title="Privacy & Security" detail="Visibility, password, devices and account protection" onClick={() => setPanel('privacy_security')} icon={<ShieldIcon />} />
       </AccountSection>
 
       {(isWorker || isStaff) && (
-        <AccountSection title="Support & information">
-          {isWorker && <AccountRow title="Support & updates" detail="WeHouse Official updates and human support" onClick={() => setPanel('communication')} icon={<MessageIcon />} />}
-          {isStaff && <AccountRow title="Official updates" detail="Platform and branch announcements" onClick={() => setPanel('official')} icon={<MessageIcon />} />}
+        <AccountSection title="Legal">
           <AccountRow title="Legal & consent" detail={!anyPublished ? 'No documents published yet' : legalDone ? 'Current documents accepted' : 'Review current published documents'} onClick={() => setPanel('legal')} icon={<DocumentIcon />} />
         </AccountSection>
       )}
@@ -250,8 +226,6 @@ function memberSince(value:string){const date=new Date(value);return Number.isNa
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
 function HeartIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
 function PersonIcon(){return <svg {...iconProps}><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/></svg>}
-function PrivacyIcon(){return <svg {...iconProps}><path d="M12 3 4.5 6v5c0 4.8 3 8.2 7.5 10 4.5-1.8 7.5-5.2 7.5-10V6L12 3Z"/><path d="M9.5 12 11 13.5 14.5 10"/></svg>}
 function BellIcon(){return <svg {...iconProps}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 19h4"/></svg>}
 function ShieldIcon(){return <svg {...iconProps}><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3Z"/><path d="M9 12.5 11 14l4-4"/></svg>}
-function MessageIcon(){return <svg {...iconProps}><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 3V7a2 2 0 0 1 2-2Z"/></svg>}
 function DocumentIcon(){return <svg {...iconProps}><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg>}

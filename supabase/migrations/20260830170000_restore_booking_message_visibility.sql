@@ -8,7 +8,7 @@ declare v_actor public.profiles; v_conv public.booking_conversations;
 begin
   v_actor:=public._current_comm_actor();
   if v_actor is null then raise exception 'Authentication required'; end if;
-  select * into v_conv from public.booking_conversations where id=p_conversation_id;
+  select bc.* into v_conv from public.booking_conversations bc where bc.id=p_conversation_id;
   if v_conv is null or v_actor.user_id not in(v_conv.user_id,v_conv.worker_id) then raise exception 'Not authorized for this booking conversation'; end if;
   return query
   select bm.id,bm.sender_id,p.full_name,p.role,bm.content,bm.attachments,bm.is_read,bm.created_at

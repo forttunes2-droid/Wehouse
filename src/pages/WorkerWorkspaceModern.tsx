@@ -84,7 +84,7 @@ export default function WorkerWorkspaceModern({
   const description =
     safeTab === "account"
       ? live
-        ? "Your public profile, wallet, payout account and account tools."
+        ? "Your identity, preferences, privacy, security and account tools."
         : "Build the professional profile customers will see after approval."
       : safeTab === "conversations"
         ? "Customer requests and job updates stay in one continuous conversation."

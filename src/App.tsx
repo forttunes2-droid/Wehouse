@@ -55,8 +55,7 @@ const Roommate = lazy(() => import("@/pages/Roommate"));
 const Chat = lazy(() => import("@/pages/Chat"));
 const ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));
 const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
-const PrivacySettings = lazy(() => import("@/pages/PrivacySettings"));
-const SecuritySettings = lazy(() => import("@/pages/SecuritySettings"));
+const PrivacySecuritySettings = lazy(() => import("@/pages/PrivacySecuritySettings"));
 const CreateListing = lazy(() => import("@/pages/CreateListing"));
 const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
 const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
@@ -710,15 +709,8 @@ export default function App() {
           />
         );
       case "privacy":
-        return (
-          <PrivacySettings
-            profile={profile}
-            onUpdate={(u) => auth.handleSetupComplete(u)}
-            onBack={subpageBack}
-          />
-        );
       case "security":
-        return <SecuritySettings profile={profile} onBack={subpageBack} />;
+        return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} />;
       case "profile_edit":
         return (
           <ProfileEdit
