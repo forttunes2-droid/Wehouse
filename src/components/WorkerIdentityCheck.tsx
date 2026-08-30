@@ -338,7 +338,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       await savePassedCheck(minimum('similarity'), minimum('live'), minimum('real'));
     } catch (error: any) {
       stopCamera();
-      setFailure(error?.message || 'Live face check failed. Try again');
+      setFailure(identityFailureMessage(error));
       setPrompt('');
       setStage('failed');
     }
@@ -459,11 +459,11 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       {stage === 'reference' && (
         <div className="space-y-4 p-4 sm:p-5">
           <div className="mx-auto w-full max-w-xs overflow-hidden rounded-[28px] border border-white/[.08] bg-black">
-            <img src={photoUrl} alt="Private Worker identity selfie" className="aspect-square w-full object-cover" />
+            <img src={photoUrl} alt={`Private ${identityLabel} identity selfie`} className="aspect-square w-full scale-x-[-1] object-cover" />
           </div>
           <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-3">
             <p className="text-xs font-semibold text-emerald-300">Reference selfie ready</p>
-            <p className="mt-1 text-[9px] leading-relaxed text-[#818897]">The live check will compare the camera face with this picture. If it passes, this picture is attached privately to your Worker identity.</p>
+            <p className="mt-1 text-[9px] leading-relaxed text-[#818897]">The live check compares the camera face with this picture. If it passes, the picture remains private and is used only to confirm your {identityLabel} identity.</p>
           </div>
           <button onClick={() => void startLiveCheck()} disabled={busy} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{busy ? 'Opening camera…' : 'Start live face check'}</button>
           <button onClick={changeSelfie} disabled={busy} className="h-10 w-full text-[10px] font-semibold text-[#9298A6]">Choose a different selfie</button>
@@ -504,6 +504,13 @@ function CameraFrame({ videoRef, prompt }: { videoRef: React.RefObject<HTMLVideo
       <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-black/70 px-4 py-3 text-center text-xs font-semibold text-white backdrop-blur">{prompt}</div>
     </div>
   );
+}
+
+function identityFailureMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String((error as any)?.message || '');
+  if (/permission denied|row-level security|violates.*policy|function .*conversation/i.test(message)) return 'We could not securely save this check. Please try again. If it continues, contact WeHouse Support.';
+  if (/network|fetch|load failed/i.test(message)) return 'The connection was interrupted. Check your connection and try again.';
+  return message || 'Live face check failed. Try again.';
 }
 
 function InfoStep({ n, title, text, active = false }: { n: string; title: string; text: string; active?: boolean }) {
