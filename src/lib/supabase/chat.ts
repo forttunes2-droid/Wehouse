@@ -1,6 +1,7 @@
 import { supabase } from './client';
 import { compressImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
+import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, type EncryptedAttachment } from '@/lib/e2ee';
 
 export type RoommatePeer={user_id:string;name:string;avatar:string|null;bio:string;city:string;state:string;school:string;occupation:string;isStudent:boolean;isBlocked:boolean};
 
@@ -19,38 +20,41 @@ export async function getRoommateConversationPeople(){
   return{people,error};
 }
 
-async function signChatPath(path:string){
-  if(!path||path.startsWith('http'))return path;
-  const{data}=await supabase.storage.from('chat-files').createSignedUrl(path,3600);
-  return data?.signedUrl||path;
-}
-
-export async function getMessages(conversationId:string){
-  const{data,error}=await supabase.rpc('get_roommate_messages_v2',{p_conversation_id:conversationId});
+export async function getMessages(conversationId:string,peerUserId?:string|null){
+  const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'roommate',p_conversation_id:conversationId});
   if(error||!data)return{messages:(data||[]) as Message[],error};
   const messages=await Promise.all((data as any[]).map(async row=>{
-    const attachments=await Promise.all(((row.attachments||[]) as string[]).map(signChatPath));
-    const legacy=row.file_url?[await signChatPath(String(row.file_url))]:[];
-    return{...row,is_read:Boolean(row.is_read??row.seen),attachments:attachments.length?attachments:legacy,attachment_types:attachments.length?(row.attachment_types||[]):legacy.length?[row.file_type||'']:[]} as Message;
+    let content=String(row.legacy_content||'');
+    if(row.ciphertext&&row.encryption_iv&&peerUserId){
+      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your Recovery PIN'}
+    }
+    const attachments:string[]=[];const attachmentTypes:string[]=[];
+    if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
+    return{...row,content,conversation_id:conversationId,seen:false,attachments,attachment_types:attachmentTypes} as Message;
   }));
   return{messages,error};
 }
 
-export async function sendMessage(conversationId:string,content:string,attachments:string[]=[],attachmentTypes:string[]=[]){
-  const{data,error}=await supabase.rpc('send_my_roommate_message_v2',{p_conversation_id:conversationId,p_content:content,p_attachments:attachments,p_attachment_types:attachmentTypes});
-  return{message:(data||null) as Message|null,error};
+export async function sendMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],attachmentTypes:string[]=[]){
+  void attachmentTypes;
+  try{
+    const encrypted=await encryptPrivateMessage('roommate',conversationId,peerUserId,content);
+    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments});
+    return{message:error?null:{id:data,conversation_id:conversationId,sender_id:'',content,seen:false,created_at:new Date().toISOString()} as Message,error};
+  }catch(error:any){return{message:null,error:{message:error?.message||'Encrypted message could not be sent'} as any}}
 }
 
-export async function uploadRoommateChatAttachment(file:File,conversationId:string){
+export async function uploadRoommateChatAttachment(file:File,conversationId:string,peerUserId:string){
   try{
     if(!file.type.startsWith('image/')&&!file.type.startsWith('audio/'))return{path:null,error:{message:'Roommate chat supports photos and voice notes only'} as any};
     if(file.size>25*1024*1024)return{path:null,error:{message:'Attachment must be 25MB or smaller'} as any};
     let upload:Blob|File=file,contentType=file.type||'application/octet-stream',extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
     if(file.type.startsWith('image/')){upload=await compressImageFile(file,1920,.85);contentType='image/jpeg';extension='jpg'}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'attachment';
-    const path=`${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeBase}.${extension}`;
-    const{error}=await supabase.storage.from('chat-files').upload(path,upload,{contentType,upsert:false});
-    return{path:error?null:path,type:contentType,error};
+    const encrypted=await encryptPrivateAttachment('roommate',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
+    const path=`e2ee/roommate/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;
+    const{error}=await supabase.storage.from('chat-files').upload(path,encrypted.blob,{contentType:'application/octet-stream',upsert:false});
+    return{path:error?null:path,attachment:error?null:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv},type:contentType,error};
   }catch(error:any){return{path:null,type:null,error:{message:error?.message||'Upload failed'} as any}}
 }
 

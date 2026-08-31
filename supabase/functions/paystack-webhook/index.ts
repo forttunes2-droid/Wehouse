@@ -51,6 +51,11 @@ Deno.serve(async (req) => {
       }
       return new Response('OK', { status: 200 });
     }
+    if (payment.purpose === 'shared_housing_share') {
+      const { error } = await db.rpc('confirm_shared_housing_payment', { p_reference: reference, p_transaction_id: transactionId, p_verified_amount: amount });
+      if (error) return new Response('Shared-home processing error', { status: 500 });
+      return new Response('OK', { status: 200 });
+    }
     const { error } = await db.rpc('confirm_booking_payment', { p_reference: reference, p_transaction_id: transactionId, p_verified_amount: amount, p_verification_source: 'webhook', p_purpose: payment.purpose });
     if (error) return new Response('Processing error', { status: 500 });
     return new Response('OK', { status: 200 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import AccountShell, { AccountInfo, AccountRow, AccountSection } from '@/components/AccountShell';
+import AccountShell, { AccountRow, AccountSection } from '@/components/AccountShell';
 import type { Profile } from '@/types';
 import PrivacySecuritySettings from '@/pages/PrivacySecuritySettings';
 
@@ -23,7 +23,7 @@ type Legal = {
   legal_version?: string | null;
 };
 type Published = { privacy: boolean; terms: boolean };
-type Panel = 'notifications' | 'legal' | 'privacy_security' | null;
+type Panel = 'notifications' | 'legal' | 'privacy_security' | 'saved_searches' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
 export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
@@ -39,6 +39,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [savedSearches,setSavedSearches]=useState<any[]>([]);
 
   const role = profile.role;
   const isUser = role === 'user';
@@ -115,7 +116,13 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
     window.dispatchEvent(new PopStateEvent('popstate', { state: { page } }));
   }
 
+  async function openSavedSearches(){const{data,error}=await supabase.from('saved_searches').select('id,name,search_kind,criteria,notifications_enabled,created_at').order('updated_at',{ascending:false});if(error)return toast.error(error.message);setSavedSearches(data||[]);setPanel('saved_searches')}
+  async function toggleSavedSearch(id:string,enabled:boolean){const{error}=await supabase.from('saved_searches').update({notifications_enabled:enabled,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast.error(error.message);setSavedSearches(rows=>rows.map(row=>row.id===id?{...row,notifications_enabled:enabled}:row))}
+  async function deleteSavedSearch(id:string){const{error}=await supabase.from('saved_searches').delete().eq('id',id);if(error)return toast.error(error.message);setSavedSearches(rows=>rows.filter(row=>row.id!==id));toast.success('Followed search removed')}
+
   if (panel === 'privacy_security') return <PrivacySecuritySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;
+
+  if(panel==='saved_searches')return <AccountShell profile={profile} title="Followed searches" description="Control which property searches can send relevant new-listing alerts." onBack={()=>setPanel(null)}><Toaster position="top-center" richColors/>{savedSearches.length?<div className="divide-y divide-white/[.06] border-y border-white/[.07]">{savedSearches.map(row=><div key={row.id} className="flex items-center gap-3 py-4"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.name}</p><p className="mt-1 truncate text-[9px] text-[#6F7585]">{searchDescription(row.criteria)}</p></div><button onClick={()=>void toggleSavedSearch(row.id,!row.notifications_enabled)} className={`rounded-full px-3 py-2 text-[9px] font-semibold ${row.notifications_enabled?'bg-violet-500/12 text-violet-300':'bg-white/[.04] text-[#777D8D]'}`}>{row.notifications_enabled?'Alerts on':'Paused'}</button><button aria-label="Remove followed search" onClick={()=>void deleteSavedSearch(row.id)} className="grid h-9 w-9 place-items-center rounded-full text-red-300">×</button></div>)}</div>:<Empty title="No followed searches" text="Set useful filters in Explore and choose Follow search. Only matching new properties will alert you."/>}</AccountShell>;
 
   if (panel === 'notifications') {
     return (
@@ -188,6 +195,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {isUser && <AccountRow title="Saved properties" detail="Homes you kept in your private shortlist" onClick={onGoToSaved} icon={<HeartIcon />} />}
+        {isUser && <AccountRow title="Followed searches" detail="Property criteria allowed to send matching alerts" onClick={()=>void openSavedSearches()} icon={<SearchIcon />} />}
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
@@ -207,12 +215,6 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         </AccountSection>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <AccountInfo label="Email" value={profile.email_verified ? 'Verified' : 'Not verified'} />
-        <AccountInfo label="Username" value={profile.username ? `@${profile.username}` : 'Not set'} />
-        <AccountInfo label={isStaff || role === 'admin' ? 'Assigned branch' : role === 'creator' ? 'Access scope' : 'Member since'} value={isStaff || role === 'admin' ? [profile.assigned_lga,profile.assigned_state].filter(Boolean).join(', ') || 'Not assigned' : role === 'creator' ? 'Worldwide platform' : memberSince(profile.created_at)} />
-      </section>
-
       <button onClick={() => void logout()} disabled={signingOut} className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06] disabled:opacity-50">
         <p className="text-[12px] font-semibold text-red-300">{signingOut ? 'Logging out…' : 'Log out'}</p>
         <p className="mt-1 text-[9px] text-red-300/60">{signingOut ? 'Closing this session securely' : 'Sign out of this device'}</p>
@@ -227,10 +229,11 @@ function Toggle({ label, detail, value, onChange }: { label: string; detail: str
 function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) { return <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5"><input type="checkbox" checked={value} onChange={(event) => set(event.target.checked)} className="h-4 w-4 accent-violet-500" /><span className="text-[10px] leading-relaxed text-[#B3B8C4]">{label}</span></label>; }
 function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} disabled={!published} className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"><p className="text-[11px] font-semibold">{title}</p><p className={`mt-2 text-[9px] ${accepted ? 'text-emerald-300' : 'text-[#6E7484]'}`}>{!published ? 'Not published' : accepted ? 'Accepted' : 'Review document'}</p></button>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] text-[#666D7E]">{text}</p></div>; }
-function memberSince(value:string){const date=new Date(value);return Number.isNaN(date.getTime())?'Not available':date.toLocaleDateString(undefined,{month:'long',year:'numeric'})}
+function searchDescription(criteria:any){return [criteria?.sub_type==='short_let'?'Short Let':'Long Let',criteria?.city,criteria?.state,criteria?.max_price?`Up to ₦${Number(criteria.max_price).toLocaleString()}`:null].filter(Boolean).join(' · ')}
 
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
 function HeartIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
+function SearchIcon(){return <svg {...iconProps}><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>}
 function PersonIcon(){return <svg {...iconProps}><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/></svg>}
 function BellIcon(){return <svg {...iconProps}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 19h4"/></svg>}
 function ShieldIcon(){return <svg {...iconProps}><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3Z"/><path d="M9 12.5 11 14l4-4"/></svg>}

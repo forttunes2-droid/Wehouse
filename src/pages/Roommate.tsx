@@ -19,12 +19,14 @@ import { supabase } from "@/lib/supabase";
 import RoommatePreferencesPanel from "@/components/RoommatePreferencesPanel";
 import type { RoommatePreferenceForm } from "@/components/RoommatePreferencesPanel";
 import DiscoveryShell from "@/components/DiscoveryShell";
+import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
 import type { Profile, RoommatePreferences } from "@/types";
 
 type Props = {
   profile: Profile;
   onGoToChat?: (id: string) => void;
   onEditProfile?: () => void;
+  onOpenListing?: (id: string) => void;
 };
 type Form = RoommatePreferenceForm;
 const EMPTY: Form = {
@@ -45,6 +47,7 @@ export default function RoommateWorkspace({
   profile,
   onGoToChat,
   onEditProfile,
+  onOpenListing,
 }: Props) {
   const [prefs, setPrefs] = useState<RoommatePreferences | null>(null),
     [matches, setMatches] = useState<RoommateMatchResult[]>([]),
@@ -388,6 +391,11 @@ export default function RoommateWorkspace({
             onRespond={respond}
           />
         )}
+        <SharedHomeLifecyclePanel
+          profileId={profile.user_id}
+          onOpenConversation={onGoToChat}
+          onOpenListing={onOpenListing}
+        />
 
         {!prefs || editing ? (
           <RoommatePreferencesPanel
@@ -657,9 +665,9 @@ function Matches({
                     {row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
-                        className="min-h-12 w-full rounded-2xl bg-violet-500 text-xs font-bold shadow-lg shadow-violet-950/30 active:scale-[.99]"
+                        className="min-h-10 rounded-xl bg-violet-500 px-5 text-[10px] font-semibold shadow-lg shadow-violet-950/30 active:scale-[.99]"
                       >
-                        Open private chat
+                        Message
                       </button>
                     ) : sent ? (
                       <button

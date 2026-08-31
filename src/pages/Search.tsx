@@ -8,6 +8,8 @@ import DiscoveryShell, { DiscoveryEmpty, DiscoveryFilterSheet, DiscoveryToolbar 
 import { getDiscoverableHomes, type HomeStayType } from '@/lib/housing-discovery';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing } from '@/types';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 type SearchProps = { onNavigate:(page:string,listingId?:string)=>void; savedIds:Set<string>; onToggleSave:(listingId:string)=>void };
 type UserLocation = { lat:number; lng:number };
@@ -27,7 +29,7 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
  const[stayType,setStayType]=useState<HomeStayType>('long_stay');
  const[priceMin,setPriceMin]=useState<number|''>(''),[priceMax,setPriceMax]=useState<number|''>(''),[bedrooms,setBedrooms]=useState<number|''>('');
  const[filterState,setFilterState]=useState(''),[filterCity,setFilterCity]=useState(''),[showFilters,setShowFilters]=useState(false);
- const[userLocation,setUserLocation]=useState<UserLocation|null>(null),[locating,setLocating]=useState(false),[locationError,setLocationError]=useState(''),[radius,setRadius]=useState<number|''>(''),[view,setView]=useState<View>('list');
+ const[userLocation,setUserLocation]=useState<UserLocation|null>(null),[locating,setLocating]=useState(false),[locationError,setLocationError]=useState(''),[radius,setRadius]=useState<number|''>(''),[view,setView]=useState<View>('list'),[savingSearch,setSavingSearch]=useState(false);
 
  useEffect(()=>{const saved=sessionStorage.getItem('search_property_type');if(saved==='short_let'||saved==='long_stay')setStayType(saved);sessionStorage.removeItem('search_property_type')},[]);
  useEffect(()=>{let active=true;void(async()=>{const{homes}=await getDiscoverableHomes();if(active){setListings(homes||[]);setLoading(false)}})();return()=>{active=false}},[]);
@@ -56,6 +58,7 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
  function chooseStay(next:HomeStayType){if(next===stayType)return;setStayType(next);setPriceMin('');setPriceMax('');setView('list')}
  function chooseState(value:string){setFilterState(value);setFilterCity('')}
  function useLocation(){if(!navigator.geolocation){setLocationError('Current location is not available on this device.');return}setLocating(true);setLocationError('');navigator.geolocation.getCurrentPosition(position=>{setUserLocation({lat:position.coords.latitude,lng:position.coords.longitude});setLocating(false)},()=>{setLocating(false);setLocationError('Allow location access to use distance filtering.')},{enableHighAccuracy:true,timeout:15000,maximumAge:60000})}
+ async function followSearch(){setSavingSearch(true);const name=`${stayType==='short_let'?'Short Let':'Long Let'}${filterCity?` · ${filterCity}`:filterState?` · ${filterState}`:''}`;const{error}=await supabase.rpc('save_my_property_search',{p_name:name,p_search_kind:'homes',p_criteria:{sub_type:stayType,state:filterState,city:filterCity,min_price:priceMin===''?null:priceMin,max_price:priceMax===''?null:priceMax,bedrooms:bedrooms===''?null:bedrooms}});setSavingSearch(false);if(error)return toast.error(error.message||'Search could not be followed');toast.success('Search followed. Matching new homes will appear in Notifications.')}
  const modeLabel=stayType==='short_let'?'Short Let':'Long Let';
  const locationSummary=filterCity?`${filterCity}, ${filterState}`:filterState?filterState:`${modeLabel} homes`;
  const emptyTitle=priceActive?`No ${modeLabel} homes match this ${stayType==='short_let'?'nightly':'annual'} price range`:`No ${modeLabel} homes match these filters`;
@@ -65,7 +68,7 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
    <DiscoveryToolbar showSearch={false} toolbarLabel={locationSummary} onFilters={()=>setShowFilters(true)} filterCount={filterCount}>
     {mappedCount>0&&<div className="ml-auto flex rounded-xl border border-white/[.07] bg-[#171B24] p-1"><button type="button" onClick={()=>setView('list')} className={`rounded-lg px-3 py-1.5 text-[9px] font-semibold ${view==='list'?'bg-violet-500 text-white':'text-[#73798A]'}`}>List</button><button type="button" onClick={()=>setView('map')} className={`rounded-lg px-3 py-1.5 text-[9px] font-semibold ${view==='map'?'bg-violet-500 text-white':'text-[#73798A]'}`}>Map</button></div>}
    </DiscoveryToolbar>
-   <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold">{loading?'Loading homes…':`${filtered.length} ${filtered.length===1?'home':'homes'}`}</p><p className="mt-1 text-[9px] text-[#666D7E]">{modeLabel}</p></div>{hasFilters&&<button type="button" onClick={clearFilters} className="text-[9px] font-semibold text-violet-300">Clear</button>}</div>
+   <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold">{loading?'Loading homes…':`${filtered.length} ${filtered.length===1?'home':'homes'}`}</p><p className="mt-1 text-[9px] text-[#666D7E]">{modeLabel}</p></div><div className="flex items-center gap-3">{hasFilters&&<button type="button" disabled={savingSearch} onClick={()=>void followSearch()} className="rounded-full border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-40">{savingSearch?'Saving…':'Follow search'}</button>}{hasFilters&&<button type="button" onClick={clearFilters} className="text-[9px] font-semibold text-[#858A99]">Clear</button>}</div></div>
    {loading?<div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>:filtered.length===0?<DiscoveryEmpty title={emptyTitle} text="Change the selected filters to see other homes."/>:view==='map'?<PropertyMapExplorer items={filtered} userLocation={userLocation} radius={radius} onOpen={listing=>onNavigate('detail',listing.id)}/>:<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(({listing,distance})=><ListingCard key={listing.id} listing={listing} distanceKm={distance} onClick={()=>onNavigate('detail',listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event=>{event.stopPropagation();onToggleSave(listing.id)}}/>)}</div>}
   </main>
 

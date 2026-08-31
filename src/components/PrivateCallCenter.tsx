@@ -136,7 +136,7 @@ export default function PrivateCallCenter() {
           <h2 className="mt-4 text-xl font-bold">
             {call.peer_name || "WeHouse member"}
           </h2>
-          <p className="mt-1 text-[10px] text-[#818899]">Incoming audio call</p>
+          <p className="mt-1 text-[10px] text-[#818899]">Incoming {call.call_type} call</p>
           <div className="mt-7 grid grid-cols-2 gap-3">
             <button
               onClick={() => void answer(false)}
@@ -175,14 +175,17 @@ function RtcCall({
   userId: string;
   onHangup: () => void;
 }) {
-  const remoteAudio = useRef<HTMLAudioElement>(null),
+  const remoteMedia = useRef<HTMLVideoElement>(null),
+    localVideo = useRef<HTMLVideoElement>(null),
     pc = useRef<RTCPeerConnection | null>(null),
     stream = useRef<MediaStream | null>(null),
     seen = useRef(new Set<string>()),
     pending = useRef<RTCIceCandidateInit[]>([]);
   const [connected, setConnected] = useState(false),
     [muted, setMuted] = useState(false),
+    [cameraOff, setCameraOff] = useState(false),
     [error, setError] = useState("");
+  const isVideo = call.call_type === "video";
   useEffect(() => {
     let live = true;
     void setup();
@@ -195,10 +198,13 @@ function RtcCall({
       try {
         const media = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true },
-          video: false,
+          video: isVideo
+            ? { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+            : false,
         });
         if (!live) return;
         stream.current = media;
+        if (isVideo && localVideo.current) localVideo.current.srcObject = media;
         const peer = new RTCPeerConnection({
           iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
         });
@@ -215,7 +221,7 @@ function RtcCall({
         };
         peer.ontrack = (event) => {
           const incoming = event.streams[0] || new MediaStream([event.track]);
-          if (remoteAudio.current) remoteAudio.current.srcObject = incoming;
+          if (remoteMedia.current) remoteMedia.current.srcObject = incoming;
         };
         peer.onconnectionstatechange = () =>
           setConnected(peer.connectionState === "connected");
@@ -267,12 +273,12 @@ function RtcCall({
       } catch (reason: any) {
         setError(
           reason?.name === "NotAllowedError"
-            ? "Allow microphone access to make audio calls."
+            ? `Allow ${isVideo ? "camera and microphone" : "microphone"} access to make this call.`
             : reason?.message || "Call media could not start",
         );
       }
     }
-  }, [call.id, call.caller_id, userId]);
+  }, [call.id, call.caller_id, isVideo, userId]);
   function toggleMute() {
     const next = !muted;
     stream.current
@@ -280,10 +286,16 @@ function RtcCall({
       .forEach((track) => (track.enabled = !next));
     setMuted(next);
   }
+  function toggleCamera() {
+    const next = !cameraOff;
+    stream.current?.getVideoTracks().forEach((track) => (track.enabled = !next));
+    setCameraOff(next);
+  }
   return (
     <div className="fixed inset-0 z-[190] flex h-[100dvh] flex-col bg-black text-white">
       <main className="relative min-h-0 flex-1">
-        <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_center,rgba(124,58,237,.25),transparent_40%),#090A0F]">
+        <div className="grid h-full place-items-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(124,58,237,.25),transparent_40%),#090A0F]">
+          {isVideo && <video ref={remoteMedia} autoPlay playsInline className="absolute inset-0 h-full w-full bg-black object-cover" />}
           <div className="text-center">
             <CallAvatar call={call} />
             <h2 className="mt-5 text-2xl font-bold">
@@ -293,8 +305,9 @@ function RtcCall({
               {connected ? "Connected" : "Connecting…"}
             </p>
           </div>
+          {isVideo && <video ref={localVideo} autoPlay muted playsInline className="absolute right-4 top-4 h-40 w-28 rounded-2xl border border-white/20 bg-[#11151D] object-cover shadow-2xl sm:h-52 sm:w-36" />}
         </div>
-        <audio ref={remoteAudio} autoPlay />
+        {!isVideo && <video ref={remoteMedia} autoPlay playsInline className="hidden" />}
         {error && (
           <p className="absolute inset-x-4 top-20 rounded-2xl bg-red-500/15 p-3 text-center text-[10px] text-red-100">
             {error}
@@ -308,6 +321,7 @@ function RtcCall({
         >
           {muted ? "Unmute" : "Mute"}
         </button>
+        {isVideo && <button onClick={toggleCamera} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">{cameraOff ? "Start camera" : "Stop camera"}</button>}
         <button
           onClick={onHangup}
           className="h-12 rounded-full bg-red-500 px-6 text-[10px] font-semibold"

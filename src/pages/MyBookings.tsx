@@ -7,8 +7,8 @@ import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import type { Profile } from "@/types";
 import { Toaster, toast } from "sonner";
 
-type Props = { profile: Profile; onBack: () => void };
-type View = "all" | "attention" | "active" | "history";
+export type BookingStage = "all" | "needs_action" | "active" | "upcoming" | "completed";
+type Props = { profile: Profile; onBack: () => void; embedded?: boolean; stage?:BookingStage; showFilters?:boolean };
 const HISTORY = new Set(["approved_released", "cancelled", "refunded"]);
 const ATTENTION = new Set([
   "waiting_payment",
@@ -18,18 +18,18 @@ const ATTENTION = new Set([
 const ACTIVE = new Set([
   "booking_requested",
   "negotiating",
-  "confirmed",
   "in_progress",
 ]);
+const UPCOMING = new Set(["confirmed"]);
 
-export default function MyBookings({ profile, onBack }: Props) {
+export default function MyBookings({ profile, onBack, embedded = false, stage, showFilters = true }: Props) {
   const [rows, setRows] = useState<any[]>([]),
     [loading, setLoading] = useState(true),
     [active, setActive] = useState<{
       conversationId: string;
       bookingId: string;
     } | null>(null),
-    [view, setView] = useState<View>("all"),
+    [localStage, setLocalStage] = useState<BookingStage>("all"),
     [search, setSearch] = useState("");
   async function load() {
     setLoading(true);
@@ -43,12 +43,14 @@ export default function MyBookings({ profile, onBack }: Props) {
   useEffect(() => {
     void load();
   }, [profile.user_id]);
+  const view=stage||localStage;
   const counts = useMemo(
     () => ({
       all: rows.length,
-      attention: rows.filter((row) => ATTENTION.has(row.booking_status)).length,
+      needs_action: rows.filter((row) => ATTENTION.has(row.booking_status)).length,
       active: rows.filter((row) => ACTIVE.has(row.booking_status)).length,
-      history: rows.filter((row) => HISTORY.has(row.booking_status)).length,
+      upcoming: rows.filter((row) => UPCOMING.has(row.booking_status)).length,
+      completed: rows.filter((row) => HISTORY.has(row.booking_status)).length,
     }),
     [rows],
   );
@@ -58,9 +60,10 @@ export default function MyBookings({ profile, onBack }: Props) {
       .filter((row) => {
         const matchesView =
           view === "all" ||
-          (view === "attention" && ATTENTION.has(row.booking_status)) ||
+          (view === "needs_action" && ATTENTION.has(row.booking_status)) ||
           (view === "active" && ACTIVE.has(row.booking_status)) ||
-          (view === "history" && HISTORY.has(row.booking_status));
+          (view === "upcoming" && UPCOMING.has(row.booking_status)) ||
+          (view === "completed" && HISTORY.has(row.booking_status));
         if (!matchesView) return false;
         if (!q) return true;
         return [
@@ -94,9 +97,9 @@ export default function MyBookings({ profile, onBack }: Props) {
       />
     );
   return (
-    <div className="fixed inset-0 z-[100020] min-h-[100dvh] overflow-y-auto bg-[#090A0F] pb-8 text-white">
-      <Toaster position="top-center" richColors />
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090A0F]/95 px-4 py-3 backdrop-blur-xl">
+    <div className={embedded ? "text-white" : "fixed inset-0 z-[100020] min-h-[100dvh] overflow-y-auto bg-[#090A0F] pb-8 text-white"}>
+      {!embedded && <Toaster position="top-center" richColors />}
+      {!embedded && <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090A0F]/95 px-4 py-3 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <button
             onClick={onBack}
@@ -112,20 +115,21 @@ export default function MyBookings({ profile, onBack }: Props) {
             </p>
           </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-3xl space-y-4 px-4 py-4">
-        <div className="grid grid-cols-4 gap-1 rounded-2xl border border-white/[.06] bg-[#0D1017] p-1">
+      </header>}
+      <main className={embedded ? "space-y-4" : "mx-auto max-w-3xl space-y-4 px-4 py-4"}>
+        {showFilters && <div className="grid grid-cols-5 gap-1 rounded-2xl border border-white/[.06] bg-[#0D1017] p-1">
           {(
             [
               ["all", "All"],
-              ["attention", "Attention"],
+              ["needs_action", "Needs action"],
               ["active", "Active"],
-              ["history", "History"],
+              ["upcoming", "Upcoming"],
+              ["completed", "Completed"],
             ] as const
           ).map(([id, label]) => (
             <button
               key={id}
-              onClick={() => setView(id)}
+              onClick={() => setLocalStage(id)}
               className={`min-h-11 rounded-xl px-1 text-[9px] font-semibold ${view === id ? "bg-violet-500 text-white" : "text-[#73798A]"}`}
             >
               {label}
@@ -136,7 +140,7 @@ export default function MyBookings({ profile, onBack }: Props) {
               </span>
             </button>
           ))}
-        </div>
+        </div>}
         <div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5E6575]">
             ⌕

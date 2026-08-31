@@ -10,6 +10,8 @@ import {
   updateReservationPlan,
 } from '@/lib/supabase';
 import { initializeApartmentRentPayment } from '@/lib/supabase/housing-payments';
+import { createSharedHousingGroup, getMySharedHousingGroups, initializeSharedHousingPayment, respondToSharedHousingInvite } from '@/lib/supabase/shared-housing';
+import { getConversations } from '@/lib/supabase/chat';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing, Profile, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
@@ -48,6 +50,9 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [moveInConfirm, setMoveInConfirm] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [roommateChats, setRoommateChats] = useState<any[]>([]);
+  const [sharedGroup, setSharedGroup] = useState<any>(null);
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber('reservation_fee', 5000);
 
@@ -67,6 +72,8 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
       } else {
         setInspection(null);
       }
+      const { groups } = await getMySharedHousingGroups();
+      setSharedGroup(groups.find((group:any)=>String(group.listing?.id)===String(property.id))||null);
     }
     setLoading(false);
   }
@@ -108,15 +115,15 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
     }));
   }
 
-  async function openCheckout() {
-    if (!listing || !plan) return toast.error('Choose a rental plan first');
+  async function openCheckout(useSelectedPlan=true) {
+    if (!listing) return;
+    if (useSelectedPlan && !plan) return toast.error('Choose a rental tenure or continue with the standard one-year option');
     setBusy(true);
     try {
       const { reservation: created, error: reserveError } = await createReservation(listingId, profile.user_id);
       if (reserveError || !created) throw new Error(reserveError?.message || 'Could not start this reservation');
-      const { reservation: planned, error: planError } = await updateReservationPlan(created.id, plan.durationYears);
-      if (planError) throw new Error(planError.message);
-      const next = planned || created;
+      let next=created;
+      if(useSelectedPlan&&plan){const { reservation: planned, error: planError } = await updateReservationPlan(created.id, plan.durationYears);if (planError) throw new Error(planError.message);next=planned||created;}
       setReservation(next);
       if (next.status !== 'payment_pending') {
         toast.success('Your reservation is already active');
@@ -141,6 +148,19 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
       setBusy(false);
     }
   }
+
+  async function openShare(){
+    setBusy(true);const{conversations,error}=await getConversations(profile.user_id);setBusy(false);
+    if(error)return toast.error(error.message);
+    const accepted=(conversations||[]).filter((chat:any)=>chat.status==='accepted');
+    setRoommateChats(accepted);setShareOpen(true);
+  }
+  async function shareWith(conversationId:string){
+    setBusy(true);const{group,error}=await createSharedHousingGroup(String(listing?.id||listingId),conversationId);setBusy(false);
+    if(error)return toast.error(error.message);setSharedGroup(group);setShareOpen(false);toast.success('Shared-home invitation sent in your roommate relationship');
+  }
+  async function answerShare(accept:boolean){if(!sharedGroup)return;setBusy(true);const{group,error}=await respondToSharedHousingInvite(sharedGroup.id,accept);setBusy(false);if(error)return toast.error(error.message);setSharedGroup(group);toast.success(accept?'Shared home accepted':'Shared home declined')}
+  async function payShare(){if(!sharedGroup)return;setBusy(true);const{result,error}=await initializeSharedHousingPayment(sharedGroup.id);if(error){setBusy(false);return toast.error(error.message)}if(result?.already_paid){setBusy(false);await load();return toast.success('Your share is already paid')}if(!result?.authorization_url){setBusy(false);return toast.error(result?.error||'Paystack checkout could not open')}window.location.assign(result.authorization_url)}
 
   async function resumeCheckout() {
     if (!reservation?.payment_reference) return toast.error('Payment reference is missing');
@@ -231,16 +251,23 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
         </div>
 
         <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
-          {hasOwnActiveReservation ? <ReservationPanel reservation={reservation} inspection={inspection} busy={busy} fee={reservationFee} onResume={() => void resumeCheckout()} onInspect={() => void requestInspection()} onRentPay={() => void payContractRent()} onMoveIn={() => setMoveInConfirm(true)} onSupport={() => support(reservation?.status === 'payment_pending' || reservation?.rent_payment_status === 'payment_pending' ? 'payment' : inspection ? 'inspection' : 'reservation')} /> : canStartReservation ? <section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Available</p><h2 className="mt-2 text-lg font-bold">Reserve this property</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Choose your tenure, then pay the reservation fee through Paystack. The database protects the checkout hold so another customer cannot reserve the same property at the same time.</p><div className="mt-3 flex items-center justify-between rounded-xl bg-white/[.035] p-3 text-xs"><span className="text-[#747889]">Reservation fee</span><span className="font-semibold">₦{reservationFee.toLocaleString()}</span></div><button onClick={() => setShowPlan(true)} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold">Choose tenure & reserve</button></section> : <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5"><h2 className="text-sm font-semibold">{state.label}</h2><p className="mt-2 text-[11px] text-[#8A8E9D]">This property is not open for a new reservation right now.</p></section>}
+          {sharedGroup ? <SharedHomeCard group={sharedGroup} profile={profile} busy={busy} onAccept={answerShare} onPay={payShare}/> : hasOwnActiveReservation ? <ReservationPanel reservation={reservation} inspection={inspection} busy={busy} fee={reservationFee} onResume={() => void resumeCheckout()} onInspect={() => void requestInspection()} onRentPay={() => void payContractRent()} onMoveIn={() => setMoveInConfirm(true)} onSupport={() => support(reservation?.status === 'payment_pending' || reservation?.rent_payment_status === 'payment_pending' ? 'payment' : inspection ? 'inspection' : 'reservation')} /> : canStartReservation ? <section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Available</p><h2 className="mt-2 text-lg font-bold">Reserve this property</h2><p className="mt-2 text-[11px] leading-relaxed text-[#777B8B]">Reserve with the standard one-year tenancy, customise the tenure, or split this home with an accepted roommate.</p><div className="mt-3 flex items-center justify-between rounded-xl bg-white/[.035] p-3 text-xs"><span className="text-[#747889]">Reservation fee</span><span className="font-semibold">₦{reservationFee.toLocaleString()}</span></div><button disabled={busy} onClick={() => void openCheckout(false)} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-50">Reserve now · one year</button><button onClick={() => setShowPlan(true)} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold">Customise rental tenure</button><button disabled={busy} onClick={() => void openShare()} className="mt-2 h-11 w-full text-xs font-semibold text-violet-300 disabled:opacity-50">Share and pay with a roommate</button></section> : <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5"><h2 className="text-sm font-semibold">{state.label}</h2><p className="mt-2 text-[11px] text-[#8A8E9D]">This property is not open for a new reservation right now.</p></section>}
         </aside>
       </div></main>
     </div>
 
-    {showPlan && <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 sm:items-center sm:p-4" onClick={() => !busy && setShowPlan(false)}><section className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 text-white sm:rounded-3xl" onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Housing reservation</p><h2 className="mt-1 text-lg font-bold">Choose your rental tenure</h2></div><button disabled={busy} onClick={() => setShowPlan(false)} className="text-[#777B8B]">×</button></div><div className="mt-5"><RentalPlanSelector annualRent={listing.price || 0} subType={listing.sub_type || 'long_stay'} securityDepositAmount={listing.security_deposit_amount} onSelectPlan={setPlan} /></div><button onClick={() => void openCheckout()} disabled={!plan || busy} className="mt-5 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Continue to Paystack · ₦${reservationFee.toLocaleString()}`}</button><p className="mt-3 text-center text-[9px] leading-4 text-[#656A79]">The reservation fee holds the property. Contract rent is verified separately after inspection and before move-in.</p></section></div>}
+    {showPlan && <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 sm:items-center sm:p-4" onClick={() => !busy && setShowPlan(false)}><section className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 text-white sm:rounded-3xl" onClick={event => event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Optional tenure choice</p><h2 className="mt-1 text-lg font-bold">Customise your rental tenure</h2></div><button disabled={busy} onClick={() => setShowPlan(false)} className="text-[#777B8B]">×</button></div><div className="mt-5"><RentalPlanSelector annualRent={listing.price || 0} subType={listing.sub_type || 'long_stay'} securityDepositAmount={listing.security_deposit_amount} onSelectPlan={setPlan} /></div><button onClick={() => void openCheckout(true)} disabled={!plan || busy} className="mt-5 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Continue to Paystack · ₦${reservationFee.toLocaleString()}`}</button><button onClick={()=>void openCheckout(false)} disabled={busy} className="mt-2 h-11 w-full text-xs text-violet-300">Continue with standard one year</button><p className="mt-3 text-center text-[9px] leading-4 text-[#656A79]">The reservation fee holds the property. Contract rent is verified separately after inspection and before move-in.</p></section></div>}
+    {shareOpen&&<div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/75 sm:items-center sm:p-4" onClick={()=>setShareOpen(false)}><section className="max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 sm:rounded-3xl" onClick={event=>event.stopPropagation()}><div className="flex justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-violet-300">Shared home</p><h2 className="mt-1 text-lg font-bold">Choose your roommate</h2><p className="mt-1 text-[10px] text-[#74798A]">Only people with an accepted roommate conversation appear here.</p></div><button onClick={()=>setShareOpen(false)}>×</button></div><div className="mt-4 divide-y divide-white/[.06]">{roommateChats.length?roommateChats.map((chat:any)=>{const peer=chat.participant_a===profile.user_id?chat.participant_b:chat.participant_a;return <button key={chat.id} disabled={busy} onClick={()=>void shareWith(chat.id)} className="flex min-h-14 w-full items-center justify-between py-3 text-left"><span><span className="block text-sm font-semibold">{chat.other_user?.full_name||chat.other_user?.username||'Roommate'}</span><span className="mt-1 block text-[9px] text-[#6D7283]">Invite to split this property equally</span></span><span className="text-violet-300">›</span><span className="sr-only">{peer}</span></button>}):<p className="py-8 text-center text-[10px] text-[#74798A]">Connect with a roommate first, then return here to share a property.</p>}</div></section></div>}
     <ConfirmDialog isOpen={moveInConfirm} title="Confirm your move-in" description="Only confirm after you have received access and physically moved into the home. Your tenancy begins today." confirmLabel="Confirm move-in" variant="info" onCancel={()=>setMoveInConfirm(false)} onConfirm={()=>{setMoveInConfirm(false);void confirmMoveIn()}}/>
   </div>;
 }
 function Heart({filled}:{filled:boolean}){return <svg width="18" height="18" viewBox="0 0 24 24" fill={filled?'#A78BFA':'none'} stroke={filled?'#A78BFA':'white'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
+
+function SharedHomeCard({group,profile,busy,onAccept,onPay}:{group:any;profile:Profile;busy:boolean;onAccept:(accept:boolean)=>Promise<unknown>;onPay:()=>Promise<unknown>}){
+  const members=Array.isArray(group.members)?group.members:[],mine=members.find((member:any)=>member.user_id===profile.user_id),peer=members.find((member:any)=>member.user_id!==profile.user_id);
+  const invited=mine?.invitation_status==='invited',ready=['ready','payment_pending'].includes(group.status),allPaid=members.length>0&&members.every((member:any)=>member.payment_status==='paid');
+  return <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5"><p className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Shared home · equal split</p><h2 className="mt-2 text-lg font-bold">You and {peer?.name||'your roommate'}</h2><p className="mt-2 text-[10px] leading-5 text-[#777C8D]">Both people accept and pay their own verified share. One person cannot complete the other person’s payment.</p><div className="mt-4 divide-y divide-white/[.06] rounded-2xl bg-white/[.025] px-3">{members.map((member:any)=><div key={member.user_id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{member.user_id===profile.user_id?'You':member.name}</p><p className="mt-1 text-[9px] capitalize text-[#686E7F]">{member.invitation_status} · {String(member.payment_status).replace(/_/g,' ')}</p></div><p className="text-xs font-semibold text-violet-300">₦{Number(member.share_amount||0).toLocaleString()}</p></div>)}</div>{invited&&<div className="mt-4 grid grid-cols-2 gap-2"><button disabled={busy} onClick={()=>void onAccept(false)} className="h-11 rounded-xl border border-white/[.08] text-xs">Decline</button><button disabled={busy} onClick={()=>void onAccept(true)} className="h-11 rounded-xl bg-violet-500 text-xs font-semibold">Accept</button></div>}{mine?.invitation_status==='accepted'&&mine.payment_status!=='paid'&&ready&&<button disabled={busy} onClick={()=>void onPay()} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-50">{busy?'Opening secure checkout…':`Pay my share · ₦${Number(mine.share_amount||0).toLocaleString()}`}</button>}{mine?.payment_status==='paid'&&!allPaid&&<p className="mt-4 rounded-xl bg-emerald-500/[.06] p-3 text-[10px] text-emerald-300">Your share is confirmed. Waiting for {peer?.name||'your roommate'}.</p>}{allPaid&&<p className="mt-4 rounded-xl bg-emerald-500/[.06] p-3 text-[10px] text-emerald-300">Both shares are confirmed. This property is held for your shared reservation.</p>}</section>;
+}
 
 function ReservationPanel({ reservation, inspection, busy, fee, onResume, onInspect, onRentPay, onMoveIn, onSupport }: { reservation: any; inspection: any; busy: boolean; fee: number; onResume: () => void; onInspect: () => void; onRentPay: () => void; onMoveIn: () => void; onSupport: () => void }) {
   const status = String(reservation?.status || 'payment_pending');

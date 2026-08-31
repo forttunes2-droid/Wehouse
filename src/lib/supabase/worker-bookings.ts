@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { compressImageFile } from './utils';
+import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, type EncryptedAttachment } from '@/lib/e2ee';
 
 export async function createBookingRequest(workerId:string,serviceType:string,description:string,address:string,scheduledDate:string,customerMessage?:string){
   const{data,error}=await supabase.rpc('create_booking_request',{p_worker_id:workerId,p_service_type:serviceType,p_description:description,p_address:address,p_scheduled_date:scheduledDate,p_customer_message:customerMessage||null});
@@ -34,46 +35,42 @@ export async function getUserActiveBookings(userId:string){
   return{bookings,error:null};
 }
 
-async function signChatPath(path:string){
-  if(!path||path.startsWith('http'))return path;
-  const{data}=await supabase.storage.from('chat-files').createSignedUrl(path,3600);
-  return data?.signedUrl||path;
-}
-
-export async function getBookingMessages(conversationId:string){
-  const{data,error}=await supabase.rpc('get_booking_messages',{p_conversation_id:conversationId});
+export async function getBookingMessages(conversationId:string,peerUserId?:string|null){
+  const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'worker',p_conversation_id:conversationId});
   if(error||!data)return{messages:data||[],error};
   const messages=await Promise.all((data as any[]).map(async msg=>{
-    const raw=String(msg.content||'');
-    const legacyFile=/\.(jpg|jpeg|png|gif|webp|pdf|mp3|wav|webm|m4a|mp4)(\?.*)?$/i.test(raw)&&!raw.startsWith('http')?await signChatPath(raw):raw;
-    const attachments=await Promise.all(((msg.attachments||[]) as string[]).map(signChatPath));
-    return{...msg,content:legacyFile,attachments};
+    let content=String(msg.legacy_content||'');
+    if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
+      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your Recovery PIN'}
+    }
+    const attachments:string[]=[];
+    if(peerUserId)for(const item of Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url)}catch{/* Message content remains available if a file cannot be opened. */}}
+    return{...msg,content,attachments,is_read:false};
   }));
   return{messages,error};
 }
 
-export async function sendBookingMessage(conversationId:string,content:string,attachments:string[]=[]){
-  const{data,error}=await supabase.rpc('send_booking_message_v2',{p_conversation_id:conversationId,p_content:content,p_attachments:attachments});
-  return{messageId:data,error};
+export async function sendBookingMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[]){
+  try{
+    const encrypted=await encryptPrivateMessage('worker',conversationId,peerUserId,content);
+    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'worker',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments});
+    return{messageId:data,error};
+  }catch(error:any){return{messageId:null,error:{message:error?.message||'Encrypted message could not be sent'} as any}}
 }
 
-export async function uploadBookingChatAttachment(file:File,conversationId:string){
+export async function uploadBookingChatAttachment(file:File,conversationId:string,peerUserId:string){
   try{
     let upload:Blob|File=file;
     let contentType=file.type||'application/octet-stream';
     let extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
     if(file.type.startsWith('image/')){upload=await compressImageFile(file,1920,.85);contentType='image/jpeg';extension='jpg'}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'file';
-    const path=`${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeBase}.${extension}`;
-    const{error}=await supabase.storage.from('chat-files').upload(path,upload,{contentType,upsert:false});
-    if(error)return{path:null,signedUrl:null,error};
-    const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(path,3600);
-    return{path,signedUrl:signed?.signedUrl||null,error:signedError};
+    const encrypted=await encryptPrivateAttachment('worker',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
+    const path=`e2ee/worker/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;
+    const{error}=await supabase.storage.from('chat-files').upload(path,encrypted.blob,{contentType:'application/octet-stream',upsert:false});
+    return{path:error?null:path,attachment:error?null:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv},signedUrl:null,error};
   }catch(e:any){return{path:null,signedUrl:null,error:{message:e?.message||'Upload failed'} as any}}
 }
-
-export async function uploadBookingChatImage(file:File,conversationId:string){return uploadBookingChatAttachment(file,conversationId)}
-export async function sendBookingImageMessage(conversationId:string,imagePath:string){return sendBookingMessage(conversationId,'',[imagePath])}
 
 export async function workerAcceptBooking(bookingId:string,negotiatedAmount:number,scheduledDate?:string){const{data,error}=await supabase.rpc('worker_accept_booking',{p_booking_id:bookingId,p_negotiated_amount:negotiatedAmount,p_scheduled_date:scheduledDate||null});return{success:data,error}}
 export async function createWorkerBookingPayment(bookingId:string){const{data,error}=await supabase.rpc('create_worker_booking_payment',{p_booking_id:bookingId});return{result:data,error}}

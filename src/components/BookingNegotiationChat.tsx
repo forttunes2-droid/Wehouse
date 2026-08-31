@@ -108,10 +108,10 @@ export default function BookingNegotiationChat({
   const loadAll = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const [msgRes, bookingRes] = await Promise.all([
-        getBookingMessages(conversationId),
-        getBookingDetails(bookingId),
-      ]);
+      const bookingRes = await getBookingDetails(bookingId);
+      const loadedBooking = (bookingRes.booking || null) as Booking | null;
+      const loadedPeerId = loadedBooking ? (isWorker ? loadedBooking.user_id : loadedBooking.worker_id) : null;
+      const msgRes = await getBookingMessages(conversationId, loadedPeerId);
       if (!msgRes.error) {
         setMessages((msgRes.messages || []) as ChatMessage[]);
         setMessageError(null);
@@ -120,11 +120,11 @@ export default function BookingNegotiationChat({
         toast.error("Conversation could not be loaded");
       }
       if (!bookingRes.error)
-        setBooking((bookingRes.booking || null) as Booking | null);
+        setBooking(loadedBooking);
       await markBookingMessagesRead(conversationId);
       if (!quiet) setLoading(false);
     },
-    [conversationId, bookingId],
+    [conversationId, bookingId, isWorker],
   );
   useEffect(() => {
     void loadAll();
@@ -244,21 +244,24 @@ export default function BookingNegotiationChat({
           created_at: new Date().toISOString(),
         },
       ]);
-    const paths: string[] = [];
+    const paths: string[] = [], attachments: Array<{path:string;file_iv:string;metadata_ciphertext:string;metadata_iv:string}> = [];
     try {
       for (const file of queuedFiles) {
-        const { path, error } = await uploadBookingChatAttachment(
+        const uploaded = await uploadBookingChatAttachment(
           file,
           conversationId,
+          peerId || "",
         );
-        if (error || !path)
-          throw new Error(error?.message || `Could not upload ${file.name}`);
-        paths.push(path);
+        if (uploaded.error || !uploaded.path || !uploaded.attachment)
+          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
+        paths.push(uploaded.path);
+        attachments.push(uploaded.attachment);
       }
       const { error } = await sendBookingMessage(
         conversationId,
+        peerId || "",
         content,
-        paths,
+        attachments,
       );
       if (error) throw error;
       await loadAll(true);
@@ -352,16 +355,16 @@ export default function BookingNegotiationChat({
     setMessageMenu(null);
     await loadAll(true);
   }
-  async function startAudioCall() {
+  async function startCall(callType: "audio" | "video") {
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
-      bookingId,
+      conversationId,
     );
     if (error || !capabilities)
-      return toast.error(error?.message || "Audio call is not available");
-    if (!capabilities.allow_audio_calls)
-      return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("worker_booking", bookingId, "audio");
+      return toast.error(error?.message || `${callType === "video" ? "Video" : "Audio"} call is not available`);
+    const allowed = callType === "audio" ? capabilities.allow_audio_calls : capabilities.allow_video_calls;
+    if (!allowed) return toast.error(`This person is not accepting ${callType} calls`);
+    launchPrivateCall("worker_booking", conversationId, callType);
   }
   async function handleWorkerAccept() {
     const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
@@ -514,12 +517,15 @@ export default function BookingNegotiationChat({
             </div>
           </button>
           <button
-            onClick={() => void startAudioCall()}
+            onClick={() => void startCall("audio")}
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-white/[.07] bg-white/[.035] px-3 text-[10px] font-semibold text-[#D5D8E0] hover:bg-white/[.06]"
             aria-label="Start audio call"
           >
             <Phone />
             <span className="hidden min-[360px]:inline">Call</span>
+          </button>
+          <button onClick={() => void startCall("video")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]" aria-label="Start video call">
+            <VideoCallIcon />
           </button>
           <button
             onClick={() => setMenuOpen((value) => !value)}
@@ -1250,6 +1256,9 @@ function Phone() {
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92z" />
     </svg>
   );
+}
+function VideoCallIcon() {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="14" height="14" rx="3" /><path d="m17 10 4-2v8l-4-2" /></svg>;
 }
 function getProgressWidth(status: string) {
   const progress: Record<string, string> = {

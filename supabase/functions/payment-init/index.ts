@@ -8,7 +8,7 @@ const cors={
  'Content-Type':'application/json',
 };
 const PAYMENT_RETURN_URL='https://www.wehouse.com.ng/#payment-return';
-const SUPPORTED_PURPOSES=new Set(['apartment_reservation','apartment_rent','rent_plan_contribution','hotel_booking','worker_booking']);
+const SUPPORTED_PURPOSES=new Set(['apartment_reservation','apartment_rent','rent_plan_contribution','hotel_booking','worker_booking','shared_housing_share']);
 function json(body:Record<string,unknown>,status=200){return new Response(JSON.stringify(body),{status,headers:cors})}
 function sameMoney(a:unknown,b:unknown){const left=Number(a??0),right=Number(b??0);return Number.isFinite(left)&&Number.isFinite(right)&&Math.round(left*100)===Math.round(right*100)}
 
@@ -72,6 +72,16 @@ serve(async(req)=>{
    const{data:reservation,error:reservationError}=await db.from('reservations').select('id,user_id,status').eq('id',contribution.reservation_id||plan.reservation_id).maybeSingle();if(reservationError)return json({success:false,error:reservationError.message},500);if(!reservation||reservation.user_id!==profile.user_id||reservation.status!=='occupied')return json({success:false,error:'Active tenancy is required for this rent contribution'},409);
   }
 
+  if(payment.purpose==='shared_housing_share'){
+   const groupId=String(meta.shared_group_id||'').trim(),memberId=String(meta.shared_member_id||'').trim();
+   if(!groupId||!memberId)return json({success:false,error:'Shared-home payment link is incomplete'},409);
+   const{data:member,error:memberError}=await db.from('shared_housing_members').select('id,group_id,user_id,share_amount,payment_status,payment_reference').eq('id',memberId).maybeSingle();
+   if(memberError)return json({success:false,error:memberError.message},500);
+   if(!member||member.group_id!==groupId||member.user_id!==profile.user_id)return json({success:false,error:'Shared-home payment does not belong to this account'},403);
+   if(member.payment_status!=='pending'||member.payment_reference!==reference)return json({success:false,error:'This roommate share is no longer awaiting payment'},409);
+   if(!sameMoney(member.share_amount,amount))return json({success:false,error:'Roommate share amount mismatch'},409);
+  }
+
   if(payment.purpose==='hotel_booking'){
    const hotelBookingId=Number(payment.hotel_booking_id??meta.hotel_booking_id??0);if(!Number.isInteger(hotelBookingId)||hotelBookingId<=0)return json({success:false,error:'Hotel booking link is missing'},409);
    const{data:booking,error:bookingError}=await db.from('hotel_bookings').select('booking_id,user_id,status,payment_status,payment_reference,payment_expires_at,total_price,booking_code').eq('booking_id',hotelBookingId).maybeSingle();
@@ -87,7 +97,7 @@ serve(async(req)=>{
   }
 
   const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';if(existingUrl&&existingCode)return json({success:true,reference,purpose:payment.purpose,authorization_url:existingUrl,access_code:existingCode,existing:true});
-  const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({email:user.email,amount:String(Math.round(amount*100)),currency:'NGN',reference,callback_url:PAYMENT_RETURN_URL,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
+  const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({email:user.email,amount:String(Math.round(amount*100)),currency:'NGN',reference,callback_url:PAYMENT_RETURN_URL,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
   let initialized:any=null;try{initialized=await response.json()}catch{initialized=null}if(!response.ok||!initialized?.status||!initialized?.data?.authorization_url||!initialized?.data?.access_code){const upstreamMessage=String(initialized?.message||'Paystack could not initialize this payment');console.error('[payment-init] Paystack initialization rejected',{reference,purpose:payment.purpose,status:response.status,message:upstreamMessage});return json({success:false,error:upstreamMessage,retryable:response.status>=500},response.status>=500?502:400)}
   const authorizationUrl=String(initialized.data.authorization_url),accessCode=String(initialized.data.access_code);const nextMeta={...meta,return_page:returnPage,paystack_access_code:accessCode,paystack_authorization_url:authorizationUrl,paystack_initialized_at:new Date().toISOString()};const{error:updateError}=await db.from('booking_payments').update({metadata:nextMeta,updated_at:new Date().toISOString()}).eq('id',payment.id).eq('status','pending');if(updateError)return json({success:false,error:'Could not persist payment session'},500);
   return json({success:true,reference,purpose:payment.purpose,authorization_url:authorizationUrl,access_code:accessCode,existing:false});

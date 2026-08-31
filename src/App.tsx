@@ -19,7 +19,6 @@ import {
   saveListing,
   unsaveListing,
   supabase,
-  getUnreadAnnouncementCount,
 } from "@/lib/supabase";
 import CreatorAuthModal from "@/components/CreatorAuthModal";
 import AdminAuthModal from "@/components/AdminAuthModal";
@@ -72,6 +71,7 @@ const PropertyPartnerDashboard = lazy(
 );
 const MyBookings = lazy(() => import("@/pages/MyBookings"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
@@ -128,6 +128,7 @@ const RESTORABLE_PAGES: NavPage[] = [
   "my_bookings",
   "my_reservations",
   "messages",
+  "notifications",
   "chat",
   "profile_edit",
   "privacy_policy",
@@ -146,6 +147,7 @@ const USER_PAGES = new Set<NavPage>([
   "roommate",
   "activity",
   "messages",
+  "notifications",
   "chat",
   "detail",
   "hotels",
@@ -214,6 +216,7 @@ export default function App() {
     [workerCategory, setWorkerCategory] = useState<string | null>(null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
+    [notificationCount, setNotificationCount] = useState(0),
     [error, setError] = useState<Error | null>(null);
   const canList = canCreateListings(auth.profile?.role || ""),
     isCreator = checkCreator(auth.profile?.role || ""),
@@ -235,7 +238,8 @@ export default function App() {
               label: "Bookings",
               icon: ReservationSvg,
             },
-            { id: "messages" as NavPage, label: "Messages", icon: MessagesSvg },
+            { id: "messages" as NavPage, label: "Conversation", icon: MessagesSvg },
+            { id: "notifications" as NavPage, label: "Notifications", icon: BellSvg },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
         : [],
@@ -338,12 +342,12 @@ export default function App() {
     }
     const uid = profile.user_id;
     async function count() {
-      const [{ data }, { count: official }] = await Promise.all([
+      const [{ data }, { count: activity }] = await Promise.all([
         supabase
           .from("conversations")
           .select("id,participant_a,unread_a,unread_b,last_message_at")
           .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
-        getUnreadAnnouncementCount(uid),
+        supabase.from('notifications').select('id',{count:'exact',head:true}).eq('recipient_id',uid).eq('read',false),
       ]);
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
@@ -352,10 +356,12 @@ export default function App() {
         if (!seenMessagesRef.current.has(c.id))
           seenMessagesRef.current.set(c.id, String(c.last_message_at || ""));
       });
-      setUnreadCount(roommate + Number(official || 0));
+      setUnreadCount(roommate);
+      setNotificationCount(Number(activity||0));
     }
     void count();
     const openMessages = () => handleSetNavPage("messages");
+    const openNotifications = () => handleSetNavPage("notifications");
     const chatChannel = supabase
       .channel(`app-incoming-chat:${uid}`)
       .on(
@@ -411,7 +417,7 @@ export default function App() {
               description: data?.content
                 ? String(data.content).slice(0, 140)
                 : "Open Messages to read the official update.",
-              action: { label: "Read", onClick: openMessages },
+              action: { label: "Read", onClick: openNotifications },
               classNames: {
                 toast:
                   "!rounded-2xl !border !border-blue-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
@@ -679,6 +685,7 @@ export default function App() {
             profile={profile}
             onGoToChat={goToChat}
             onEditProfile={goToProfileEdit}
+            onOpenListing={goToDetail}
           />
         ) : (
           renderRoleRoot()
@@ -695,6 +702,8 @@ export default function App() {
         ) : (
           renderRoleRoot()
         );
+      case "notifications":
+        return isUserRole ? <Notifications profile={profile} onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&page==='messages')return goToChat(id);goTo(page as NavPage)}}/> : renderRoleRoot();
       case "profile":
       case "account":
         return (
@@ -861,7 +870,7 @@ export default function App() {
         );
       case "my_reservations":
         return isUserRole ? (
-          <MyReservations profile={profile} onOpenServices={() => goTo("my_bookings")} />
+          <MyReservations profile={profile} onOpenConversation={goToChat} onOpenListing={goToDetail} />
         ) : (
           renderRoleRoot()
         );
@@ -959,6 +968,9 @@ export default function App() {
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </span>
                         )}
+                        {tab.id === "notifications" && notificationCount > 0 && (
+                          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{notificationCount > 9 ? "9+" : notificationCount}</span>
+                        )}
                       </button>
                     );
                   })}
@@ -1030,4 +1042,7 @@ function MessagesSvg({ size, active }: { size: number; active: boolean }) {
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
+}
+function BellSvg({ size, active }: { size: number; active: boolean }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? "#A78BFA" : "currentColor"} strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>;
 }

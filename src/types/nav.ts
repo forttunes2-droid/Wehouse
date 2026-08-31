@@ -3,6 +3,7 @@ export type NavPage =
   | 'search'
   | 'saved'
   | 'messages'
+  | 'notifications'
   | 'profile'
   // ── Internal customer routes ──
   | 'roommate'

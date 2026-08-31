@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  supabase,
-  getConversations,
-  getMessages,
-  sendMessage,
-  markMessagesSeen,
-} from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import {
   deleteRoommateChatAttachment,
+  getConversations,
+  getMessages,
   getRoommateConversationPeople,
   hideRoommateConversation,
+  markMessagesSeen,
+  sendMessage,
   setRoommateBlock,
   uploadRoommateChatAttachment,
 } from "@/lib/supabase/chat";
@@ -23,8 +21,6 @@ import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import OfficialChannel from "@/components/OfficialChannel";
-import OfficialEntryCard from "@/components/OfficialEntryCard";
 import SupportEntryCard from "@/components/SupportEntryCard";
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
@@ -58,7 +54,7 @@ type ActiveBooking = { conversationId: string; bookingId: string } | null;
 type InboxItem =
   | { kind: "roommate"; id: string; time: string; roommate: Conversation }
   | { kind: "worker"; id: string; time: string; booking: BookingConversation };
-type InboxView = "all" | "private" | "wehouse";
+type InboxView = "all" | "bookings" | "roommates" | "support";
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -75,7 +71,7 @@ export default function Chat({ profile, conversationId }: Props) {
     [loading, setLoading] = useState(true),
     [loadingMessages, setLoadingMessages] = useState(false),
     [sending, setSending] = useState(false),
-    [officialOpen, setOfficialOpen] = useState(false),
+    [supportAvailable, setSupportAvailable] = useState(false),
     [files, setFiles] = useState<File[]>([]),
     [recording, setRecording] = useState(false),
     [recordSeconds, setRecordSeconds] = useState(0),
@@ -142,7 +138,9 @@ export default function Chat({ profile, conversationId }: Props) {
   const loadRoommateMessages = useCallback(
     async (id: string, quiet = false) => {
       if (!quiet) setLoadingMessages(true);
-      const result = await getMessages(id);
+      const conversation = conversations.find((row) => row.id === id) || active;
+      const peer = conversation ? otherId(conversation) : null;
+      const result = await getMessages(id, peer);
       if (result.error) {
         if (!quiet)
           toast.error(result.error.message || "Unable to open conversation");
@@ -160,7 +158,7 @@ export default function Chat({ profile, conversationId }: Props) {
       ]);
       setLoadingMessages(false);
     },
-    [profile.user_id],
+    [profile.user_id, conversations, active, otherId],
   );
 
   useEffect(() => {
@@ -174,9 +172,13 @@ export default function Chat({ profile, conversationId }: Props) {
       if (found) {
         setActive(found);
         void loadRoommateMessages(found.id);
+        return;
       }
+      const bookingResult=await getCommunicationBookingConversations(profile.user_id);
+      const booking=((bookingResult.conversations||[]) as BookingConversation[]).find((row)=>row.conversation_id===conversationId);
+      if(booking)setActiveBooking({conversationId:booking.conversation_id,bookingId:booking.booking_id});
     })();
-  }, [conversationId, loadInbox, loadRoommateMessages]);
+  }, [conversationId, loadInbox, loadRoommateMessages, profile.user_id]);
   useEffect(() => {
     if (!active) {
       setMessages([]);
@@ -336,19 +338,20 @@ export default function Chat({ profile, conversationId }: Props) {
   async function submit() {
     if (!active || sending || (!input.trim() && !files.length)) return;
     setSending(true);
-    const paths: string[] = [],
+    const paths: string[] = [], attachments: Array<{path:string;file_iv:string;metadata_ciphertext:string;metadata_iv:string}> = [],
       types: string[] = [];
     try {
       for (const file of files) {
-        const uploaded = await uploadRoommateChatAttachment(file, active.id);
-        if (uploaded.error || !uploaded.path)
+        const uploaded = await uploadRoommateChatAttachment(file, active.id, otherId(active));
+        if (uploaded.error || !uploaded.path || !uploaded.attachment)
           throw new Error(
             uploaded.error?.message || `Could not upload ${file.name}`,
           );
         paths.push(uploaded.path);
+        attachments.push(uploaded.attachment);
         types.push(uploaded.type || file.type);
       }
-      const result = await sendMessage(active.id, input.trim(), paths, types);
+      const result = await sendMessage(active.id, otherId(active), input.trim(), attachments, types);
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
       setInput("");
@@ -393,7 +396,7 @@ export default function Chat({ profile, conversationId }: Props) {
       nextBlocked ? "Messages blocked from this person" : "Messages unblocked",
     );
   }
-  async function startCall() {
+  async function startCall(callType: "audio" | "video") {
     if (!active) return;
     const { capabilities, error } = await getCallCapabilities(
       "roommate",
@@ -401,9 +404,9 @@ export default function Chat({ profile, conversationId }: Props) {
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (!capabilities.allow_audio_calls)
-      return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("roommate", active.id, "audio");
+    const allowed = callType === "audio" ? capabilities.allow_audio_calls : capabilities.allow_video_calls;
+    if (!allowed) return toast.error(`This person is not accepting ${callType} calls`);
+    launchPrivateCall("roommate", active.id, callType);
   }
   function toggleSelected(id: string) {
     setSelected((current) => {
@@ -463,13 +466,6 @@ export default function Chat({ profile, conversationId }: Props) {
       0,
     );
 
-  if (officialOpen)
-    return (
-      <OfficialChannel
-        profile={profile}
-        onBack={() => setOfficialOpen(false)}
-      />
-    );
   if (activeBooking)
     return (
       <BookingNegotiationChat
@@ -514,8 +510,11 @@ export default function Chat({ profile, conversationId }: Props) {
                 </span>
               </span>
             </button>
-            <HeaderAction label="Audio call" onClick={() => void startCall()}>
+            <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
               <PhoneIcon />
+            </HeaderAction>
+            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
+              <VideoIcon />
             </HeaderAction>
             <button
               onClick={() => setMenuOpen((value) => !value)}
@@ -680,7 +679,7 @@ export default function Chat({ profile, conversationId }: Props) {
             onToggleBlock={() => void toggleBlock()}
             onCall={() => {
               setProfileOpen(false);
-              void startCall();
+              void startCall("audio");
             }}
             busy={blockBusy}
           />
@@ -713,7 +712,7 @@ export default function Chat({ profile, conversationId }: Props) {
             <p className="mt-1 text-[10px] text-[#74798B]">
               {selected.size
                 ? "Tap another conversation to add it."
-                : "Private chats, contextual help and official updates."}
+                : "Conversations connected to your bookings, roommates and real help cases."}
             </p>
           </div>
           {selected.size ? (
@@ -735,8 +734,8 @@ export default function Chat({ profile, conversationId }: Props) {
       </header>
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-5 lg:px-8">
         {!selected.size && (
-          <nav aria-label="Message filters" className="grid grid-cols-3 rounded-2xl bg-[#11141C] p-1">
-            {(["all", "private", "wehouse"] as InboxView[]).map((view) => (
+          <nav aria-label="Conversation filters" className="grid grid-cols-4 rounded-2xl bg-[#11141C] p-1">
+            {(["all", "bookings", "roommates", "support"] as InboxView[]).map((view) => (
               <button
                 key={view}
                 type="button"
@@ -744,15 +743,15 @@ export default function Chat({ profile, conversationId }: Props) {
                 aria-pressed={inboxView === view}
                 className={`min-h-10 rounded-xl text-[10px] font-semibold capitalize transition ${inboxView === view ? "bg-violet-500 text-white shadow-lg shadow-violet-950/30" : "text-[#858A99]"}`}
               >
-                {view === "wehouse" ? "WeHouse" : view}
+                {view}
               </button>
             ))}
           </nav>
         )}
-        {(inboxView === "all" || inboxView === "private") && <section>
+        {(inboxView === "all" || inboxView === "bookings" || inboxView === "roommates") && <section>
           <SectionTitle
-            title="Private conversations"
-            text="Your roommate and Worker chats. Open a row to read it; long-press to manage it."
+            title={inboxView === "bookings" ? "Booking conversations" : inboxView === "roommates" ? "Roommate conversations" : "Your conversations"}
+            text="Each conversation stays attached to the relationship or booking that created it."
           />
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -770,7 +769,7 @@ export default function Chat({ profile, conversationId }: Props) {
             </div>
           ) : (
             <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-              {inboxItems.map((item, index) => (
+              {inboxItems.filter((item)=>inboxView === "all" || (inboxView === "bookings" ? item.kind === "worker" : item.kind === "roommate")).map((item, index) => (
                 <div key={item.id}>
                   {index > 0 && <Divider />}
                   {item.kind === "roommate" ? (
@@ -802,23 +801,18 @@ export default function Chat({ profile, conversationId }: Props) {
             </div>
           )}
         </section>}
-        {(inboxView === "all" || inboxView === "wehouse") && (
-          <section>
+        <div className={inboxView !== "all" && inboxView !== "support" ? "hidden" : ""}>
+          {supportAvailable && <section>
             <SectionTitle
-              title="WeHouse"
-              text="Help cases are visible to the authorized team assigned to them. Official updates are read-only."
+              title="Help cases"
+              text="Only cases created by a real support interaction appear here."
             />
             <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-              <SupportEntryCard profile={profile} compact />
-              <Divider />
-              <OfficialEntryCard
-                profile={profile}
-                compact
-                onOpen={() => setOfficialOpen(true)}
-              />
+              <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />
             </div>
-          </section>
-        )}
+          </section>}
+          {!supportAvailable && <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />}
+        </div>
       </main>
     </div>
   );
@@ -1274,6 +1268,9 @@ function PhoneIcon() {
       <path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.9Z" />
     </svg>
   );
+}
+function VideoIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="14" height="14" rx="3" /><path d="m17 10 4-2v8l-4-2" /></svg>;
 }
 function PendingMedia({
   file,

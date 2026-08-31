@@ -100,6 +100,16 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
     }
 
+    if (payment.purpose === 'shared_housing_share') {
+      const { data, error } = await admin.rpc('confirm_shared_housing_payment', {
+        p_reference: reference,
+        p_transaction_id: transactionId,
+        p_verified_amount: verifiedAmount,
+      });
+      if (error) return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: cors });
+      return new Response(JSON.stringify({ success: true, verified: true, recorded: true, amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
+    }
+
     const { data, error } = await admin.rpc('confirm_booking_payment', {
       p_reference: reference,
       p_transaction_id: transactionId,
