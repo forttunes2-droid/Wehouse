@@ -711,7 +711,7 @@ export default function Chat({ profile, conversationId }: Props) {
             <p className="mt-1 text-[10px] text-[#74798B]">
               {selected.size
                 ? "Tap another conversation to add it."
-                : "Updates, support and private conversations."}
+                : "Private chats, contextual help and official updates."}
             </p>
           </div>
           {selected.size ? (
@@ -733,6 +733,7 @@ export default function Chat({ profile, conversationId }: Props) {
       </header>
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
         <section>
+          <SectionTitle title="WeHouse" text="Official updates and your separate help cases. Support conversations are visible to the authorized team handling each case." />
           <div className="overflow-hidden border-y border-white/[.06] bg-[#11141C]">
             <OfficialEntryCard
               profile={profile}
@@ -746,7 +747,7 @@ export default function Chat({ profile, conversationId }: Props) {
         <section>
           <SectionTitle
             title="Your conversations"
-            text="Roommate and Worker chats are private. Long-press to select chats."
+            text="Roommate and Worker conversations stay separate from WeHouse help. Long-press to select chats."
           />
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">

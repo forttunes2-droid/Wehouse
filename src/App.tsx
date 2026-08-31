@@ -861,7 +861,7 @@ export default function App() {
         );
       case "my_reservations":
         return isUserRole ? (
-          <MyReservations profile={profile} onBack={subpageBack} onOpenServices={() => goTo("my_bookings")} />
+          <MyReservations profile={profile} onOpenServices={() => goTo("my_bookings")} />
         ) : (
           renderRoleRoot()
         );

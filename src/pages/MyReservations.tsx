@@ -15,7 +15,7 @@ import type { Profile } from "@/types";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
-type Props = { profile: Profile; onBack: () => void; onOpenServices?: () => void };
+type Props = { profile: Profile; onOpenServices?: () => void };
 type View = "all" | "housing" | "hotels";
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
@@ -51,7 +51,7 @@ async function confirmMoveInFromReservation(row: any) {
   window.setTimeout(() => window.location.reload(), 700);
 }
 
-export default function MyReservations({ profile, onBack, onOpenServices }: Props) {
+export default function MyReservations({ profile, onOpenServices }: Props) {
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
@@ -228,7 +228,6 @@ export default function MyReservations({ profile, onBack, onOpenServices }: Prop
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 sm:px-5 lg:px-8 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-start gap-3">
-          <button onClick={onBack} aria-label="Back" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[.08] bg-white/[.03] text-xl text-[#A8ADBA]">←</button>
           <div className="flex-1">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
               WEHOUSE
@@ -260,8 +259,8 @@ export default function MyReservations({ profile, onBack, onOpenServices }: Prop
               {label}
             </button>
           ))}
-          <button onClick={onOpenServices} className="relative flex-1 px-3 py-3 text-[10px] font-semibold text-[#74798A]">Services</button>
         </div>
+        <button type="button" onClick={onOpenServices} className="flex w-full items-center justify-between rounded-2xl border border-white/[.06] bg-[#11141C] p-4 text-left"><span><span className="block text-xs font-semibold">Home-service bookings</span><span className="mt-1 block text-[9px] text-[#707687]">Worker requests, agreed prices, escrow and completed jobs</span></span><span className="text-violet-300">Open →</span></button>
         {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
