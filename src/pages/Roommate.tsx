@@ -329,16 +329,14 @@ export default function RoommateWorkspace({
       description="Set your preferences and find compatible people in your area."
       onNavigate={navigate}
     >
-      <main className="mx-auto max-w-3xl space-y-4 px-3 py-5 sm:px-5">
-        <header className="border-b border-white/[.07] pb-5">
+      <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-6">
+        <header className="flex items-center justify-between gap-4 border-b border-white/[.07] pb-4">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-                ROOMMATE DISCOVERY
+              <p className="text-sm font-semibold">Your roommate search</p>
+              <p className="mt-1 text-[10px] text-[#73798A]">
+                {location || "Set your location"} · {prefs ? "Preferences saved" : "Preferences required"}
               </p>
-              <h1 className="mt-2 text-2xl font-bold">
-                Find someone compatible
-              </h1>
             </div>
             <span
               className={`shrink-0 text-[10px] font-semibold ${matchingActive ? "text-emerald-300" : "text-[#777D8D]"}`}
@@ -346,10 +344,6 @@ export default function RoommateWorkspace({
               {matchingLabel}
             </span>
           </div>
-          <p className="mt-2 text-[10px] text-[#73798A]">
-            {location || "Set your location"} ·{" "}
-            {prefs ? "Preferences saved" : "Preferences required"}
-          </p>
         </header>
 
         {!profileReady && (
@@ -406,7 +400,7 @@ export default function RoommateWorkspace({
           />
         ) : (
           <>
-            <section className="border-b border-white/[.07] pb-5">
+            <section className="rounded-2xl border border-white/[.07] bg-[#11141C] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[#6F7585]">
@@ -428,10 +422,10 @@ export default function RoommateWorkspace({
                   {matchingActive ? "MATCHING ON" : "PAUSED"}
                 </span>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   onClick={() => setEditing(true)}
-                  className="min-h-11 rounded-xl border border-white/[.08] px-4 text-xs"
+                  className="min-h-10 rounded-xl border border-white/[.08] px-4 text-[10px]"
                 >
                   Edit preferences
                 </button>
@@ -440,13 +434,13 @@ export default function RoommateWorkspace({
                     <button
                       onClick={() => void refresh()}
                       disabled={busy}
-                      className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs disabled:opacity-40"
+                      className="min-h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40"
                     >
                       {busy ? "Refreshing…" : "Refresh matches"}
                     </button>
                     <button
                       onClick={() => void stop()}
-                      className="col-span-2 min-h-11 rounded-xl border border-white/[.08] px-4 text-xs"
+                      className="min-h-10 rounded-xl border border-white/[.08] px-4 text-[10px]"
                     >
                       Stop new discovery
                     </button>
@@ -455,7 +449,7 @@ export default function RoommateWorkspace({
                   <button
                     onClick={() => void start()}
                     disabled={!canMatch || busy}
-                    className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs disabled:opacity-40"
+                    className="min-h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40"
                   >
                     {busy ? "Starting…" : "Find new matches"}
                   </button>
@@ -545,28 +539,28 @@ function Matches({
       </div>
       {rows.length ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#11141C] divide-y divide-white/[.06]">
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
                 sent = row.status === "accepted";
               return (
-                <article key={row.id} className="min-w-0 overflow-hidden rounded-[24px] border border-white/[.07] bg-[#11141C] p-3 shadow-[0_14px_40px_rgba(0,0,0,.18)]">
-                  <div className="relative flex flex-col">
+                <article key={row.id} className="min-w-0 p-4">
+                  <div className="flex items-start gap-3">
                     {p.avatar_url ? (
                       <img
                         src={p.avatar_url}
                         alt={p.full_name || p.username || "Roommate match"}
-                        className="aspect-[16/10] w-full rounded-[18px] bg-[#11141C] object-cover"
+                        className="h-20 w-20 shrink-0 rounded-2xl bg-[#11141C] object-cover sm:h-24 sm:w-24"
                       />
                     ) : (
-                      <div className="grid aspect-[16/10] w-full place-items-center rounded-[18px] bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-5xl font-bold text-violet-100">
+                      <div className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-2xl font-bold text-violet-100 sm:h-24 sm:w-24">
                         {String(
                           p.full_name || p.username || "W",
                         )[0].toUpperCase()}
                       </div>
                     )}
-                    <div className="min-w-0 flex-1 pt-4">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold">
@@ -578,13 +572,8 @@ function Matches({
                             {showSchool && p.school ? ` · ${p.school}` : ""}
                           </p>
                         </div>
-                        <div className="absolute right-3 top-3 shrink-0 rounded-full bg-black/70 px-3 py-2 text-right backdrop-blur-md">
-                          <p className="text-base font-bold text-white">
-                            {score}%
-                          </p>
-                          <p className="text-[7px] font-semibold text-violet-200">
-                            {matchLabel(score)} match
-                          </p>
+                        <div className="shrink-0 rounded-full bg-violet-500/10 px-2.5 py-1 text-right">
+                          <p className="text-[10px] font-bold text-violet-200">{score}% {matchLabel(score)}</p>
                         </div>
                       </div>
                       {p.bio && (

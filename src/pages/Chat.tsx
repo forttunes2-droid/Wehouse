@@ -58,6 +58,7 @@ type ActiveBooking = { conversationId: string; bookingId: string } | null;
 type InboxItem =
   | { kind: "roommate"; id: string; time: string; roommate: Conversation }
   | { kind: "worker"; id: string; time: string; booking: BookingConversation };
+type InboxView = "all" | "private" | "wehouse";
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -83,7 +84,8 @@ export default function Chat({ profile, conversationId }: Props) {
     [profileOpen, setProfileOpen] = useState(false),
     [blockBusy, setBlockBusy] = useState(false),
     [selected, setSelected] = useState<Set<string>>(new Set()),
-    [bulkDelete, setBulkDelete] = useState(false);
+    [bulkDelete, setBulkDelete] = useState(false),
+    [inboxView, setInboxView] = useState<InboxView>("all");
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
     mediaRef = useRef<MediaRecorder | null>(null),
@@ -731,23 +733,26 @@ export default function Chat({ profile, conversationId }: Props) {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
-        <section>
-          <SectionTitle title="WeHouse" text="Official updates and your separate help cases. Support conversations are visible to the authorized team handling each case." />
-          <div className="overflow-hidden border-y border-white/[.06] bg-[#11141C]">
-            <OfficialEntryCard
-              profile={profile}
-              compact
-              onOpen={() => setOfficialOpen(true)}
-            />
-            <Divider />
-            <SupportEntryCard profile={profile} compact />
-          </div>
-        </section>
-        <section>
+      <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-5 lg:px-8">
+        {!selected.size && (
+          <nav aria-label="Message filters" className="grid grid-cols-3 rounded-2xl bg-[#11141C] p-1">
+            {(["all", "private", "wehouse"] as InboxView[]).map((view) => (
+              <button
+                key={view}
+                type="button"
+                onClick={() => setInboxView(view)}
+                aria-pressed={inboxView === view}
+                className={`min-h-10 rounded-xl text-[10px] font-semibold capitalize transition ${inboxView === view ? "bg-violet-500 text-white shadow-lg shadow-violet-950/30" : "text-[#858A99]"}`}
+              >
+                {view === "wehouse" ? "WeHouse" : view}
+              </button>
+            ))}
+          </nav>
+        )}
+        {(inboxView === "all" || inboxView === "private") && <section>
           <SectionTitle
-            title="Your conversations"
-            text="Roommate and Worker conversations stay separate from WeHouse help. Long-press to select chats."
+            title="Private conversations"
+            text="Your roommate and Worker chats. Open a row to read it; long-press to manage it."
           />
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -764,7 +769,7 @@ export default function Chat({ profile, conversationId }: Props) {
               </p>
             </div>
           ) : (
-            <div className="mt-3 overflow-hidden border-y border-white/[.06] bg-[#11141C]">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
               {inboxItems.map((item, index) => (
                 <div key={item.id}>
                   {index > 0 && <Divider />}
@@ -796,7 +801,24 @@ export default function Chat({ profile, conversationId }: Props) {
               ))}
             </div>
           )}
-        </section>
+        </section>}
+        {(inboxView === "all" || inboxView === "wehouse") && (
+          <section>
+            <SectionTitle
+              title="WeHouse"
+              text="Help cases are visible to the authorized team assigned to them. Official updates are read-only."
+            />
+            <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
+              <SupportEntryCard profile={profile} compact />
+              <Divider />
+              <OfficialEntryCard
+                profile={profile}
+                compact
+                onOpen={() => setOfficialOpen(true)}
+              />
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );
