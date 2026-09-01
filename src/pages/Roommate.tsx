@@ -553,16 +553,16 @@ function Matches({
                 score = Number(row.match_score || 0),
                 sent = row.status === "accepted";
               return (
-                <article key={row.id} className="min-w-0 p-4">
+                <article key={row.id} className="min-w-0 p-3.5">
                   <div className="flex items-start gap-3">
                     {p.avatar_url ? (
                       <img
                         src={p.avatar_url}
                         alt={p.full_name || p.username || "Roommate match"}
-                        className="h-20 w-20 shrink-0 rounded-2xl bg-[#11141C] object-cover sm:h-24 sm:w-24"
+                        className="h-16 w-16 shrink-0 rounded-2xl bg-[#11141C] object-cover sm:h-20 sm:w-20"
                       />
                     ) : (
-                      <div className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-2xl font-bold text-violet-100 sm:h-24 sm:w-24">
+                      <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-xl font-bold text-violet-100 sm:h-20 sm:w-20">
                         {String(
                           p.full_name || p.username || "W",
                         )[0].toUpperCase()}
@@ -584,11 +584,6 @@ function Matches({
                           <p className="text-[10px] font-bold text-violet-200">{score}% {matchLabel(score)}</p>
                         </div>
                       </div>
-                      {p.bio && (
-                        <p className="mt-3 line-clamp-2 text-[11px] leading-5 text-[#9EA3B2]">
-                          {p.bio}
-                        </p>
-                      )}
                       <button
                         type="button"
                         onClick={() =>
@@ -596,7 +591,7 @@ function Matches({
                             current === row.id ? null : row.id,
                           )
                         }
-                        className="mt-3 text-[10px] font-semibold text-violet-300"
+                        className="mt-2.5 text-[10px] font-semibold text-violet-300"
                       >
                         {openProfileId === row.id
                           ? "Hide profile"
@@ -632,7 +627,7 @@ function Matches({
                       </p>
                     </div>
                   )}
-                  <details className="mt-3 border-b border-white/[.05] pb-3">
+                  <details className="mt-2.5 border-b border-white/[.05] pb-2.5">
                     <summary className="cursor-pointer list-none text-[9px] font-semibold text-[#A8ADBA]">
                       Why this score{" "}
                       <span className="ml-1 text-violet-300">›</span>
@@ -661,7 +656,7 @@ function Matches({
                       same-school rules decide eligibility first.
                     </p>
                   </details>
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-3 flex gap-2">
                     {row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
@@ -674,7 +669,7 @@ function Matches({
                         disabled
                         className="min-h-11 w-full rounded-xl bg-violet-500/10 text-xs font-semibold text-violet-300"
                       >
-                        Interest sent · awaiting response
+                        Request pending
                       </button>
                     ) : (
                       <>
@@ -683,7 +678,7 @@ function Matches({
                           onClick={() => void onInterest(row, "accepted")}
                           className="min-h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
                         >
-                          {busyId === row.id ? "Sending…" : "I’m interested"}
+                          {busyId === row.id ? "Sending…" : "Connect"}
                         </button>
                         <button
                           disabled={busyId === row.id}

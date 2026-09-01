@@ -188,11 +188,31 @@ async function conversationKey(kind: PrivateConversationKind, conversationId: st
     wrapFor(key, { user_id: mine.identity.user_id, key_version: mine.identity.key_version, public_key_jwk: mine.identity.public_key_jwk }),
     wrapFor(key, peer),
   ]);
-  const { error: insertError } = await supabase.from("conversation_key_envelopes").insert(
-    envelopes.map((row) => ({ ...row, conversation_kind: kind, conversation_id: conversationId })),
-  );
+  const { data: established, error: insertError } = await supabase.rpc("establish_private_conversation_key", {
+    p_conversation_kind: kind,
+    p_conversation_id: conversationId,
+    p_envelopes: envelopes,
+  });
   if (insertError) throw insertError;
-  return key;
+  if (established) return key;
+
+  // The peer won a simultaneous setup race. Discard our candidate key and
+  // unwrap the single canonical key that transaction established.
+  const { data: winner, error: winnerError } = await supabase
+    .from("conversation_key_envelopes")
+    .select("*")
+    .eq("conversation_kind", kind)
+    .eq("conversation_id", conversationId)
+    .eq("recipient_user_id", profileId)
+    .order("recipient_key_version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (winnerError) throw winnerError;
+  if (!winner) throw new Error("Secure conversation setup did not complete");
+  const envelope = winner as EnvelopeRow;
+  const wrapKey = await wrappingKey(await unlockedPrivateKey(), await importPublicKey(envelope.sender_ephemeral_public_key_jwk));
+  const raw = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(envelope.wrap_iv) }, wrapKey, base64ToBytes(envelope.wrapped_key));
+  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
 export async function encryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, content: string) {

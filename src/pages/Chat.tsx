@@ -21,7 +21,7 @@ import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import { getMySupportConversations, type SupportThread } from "@/lib/supabase/support";
+import { conversationPresentation, getMySupportConversations, type SupportThread } from "@/lib/supabase/support";
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
 
@@ -714,7 +714,7 @@ export default function Chat({ profile, conversationId }: Props) {
               WEHOUSE
             </p>
             <h1 className="mt-1 text-xl font-bold">
-              {selected.size ? `${selected.size} selected` : "Messages"}
+              {selected.size ? `${selected.size} selected` : "Conversation"}
             </h1>
             <p className="mt-1 text-[10px] text-[#74798B]">
               {selected.size
@@ -752,11 +752,11 @@ export default function Chat({ profile, conversationId }: Props) {
           ) : inboxItems.length === 0 ? (
             <div className="mt-3 rounded-3xl border border-dashed border-white/[.08] px-5 py-10 text-center">
               <p className="text-sm font-semibold">
-                No private conversations yet
+                No conversations yet
               </p>
               <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
                 A conversation appears after a mutual roommate match, a service
-                request, a reservation interaction or a help case you actually send.
+                request, a reservation, or a help case you actually create.
               </p>
             </div>
           ) : (
@@ -905,13 +905,10 @@ function WorkerInboxRow({
   );
 }
 function SupportInboxRow({thread,onOpen}:{thread:SupportThread;onOpen:()=>void}){
-  const snapshot=thread.context_snapshot||{};
-  const propertyName=String(snapshot.listing_title||snapshot.property_title||"").trim();
-  const title=propertyName||String(thread.subject||"").trim()||supportContextTitle(thread.context_type);
-  const desk=["apartment_reservation","reservation","hotel_booking"].includes(thread.context_type)?"Reservation Desk":"WeHouse Help";
-  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{title}</p><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">HELP CASE</span></div><p className={`mt-1 truncate text-[11px] ${thread.unread_count?"font-medium text-[#E3E5EB]":"text-[#777C8D]"}`}>{thread.last_message||desk}</p><p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{desk}{snapshot.booking_code?` · ${String(snapshot.booking_code)}`:""} · {formatListTime(thread.last_message_time||thread.created_at)}</p></div>{thread.unread_count>0&&<Unread value={thread.unread_count}/>}</button>
+  const p=conversationPresentation(thread);
+  const badge=p.kind==='reservation'?'RESERVATION':p.kind==='property_operations'?'OPERATIONS':'HELP CASE';
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{p.title}</p><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">{badge}</span></div><p className={`mt-1 truncate text-[11px] ${thread.unread_count?"font-medium text-[#E3E5EB]":"text-[#777C8D]"}`}>{thread.last_message||p.operator}</p><p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{[p.operator,p.meta,formatListTime(thread.last_message_time||thread.created_at)].filter(Boolean).join(' · ')}</p></div>{thread.unread_count>0&&<Unread value={thread.unread_count}/>}</button>
 }
-function supportContextTitle(value:string){const labels:Record<string,string>={apartment_reservation:"Property reservation",reservation:"Property reservation",hotel_booking:"Hotel booking",worker_booking:"Service booking",property_inspection:"Property inspection"};return labels[value]||"WeHouse Help"}
 function SelectableRow({
   onOpen,
   onSelect,

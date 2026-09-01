@@ -2,7 +2,8 @@ export type NavPage =
   // ── Primary customer navigation ──
   | 'search'
   | 'saved'
-  | 'messages'
+  | 'conversation'
+  | 'messages' // legacy route alias; App normalizes this to Conversation
   | 'notifications'
   | 'profile'
   // ── Internal customer routes ──

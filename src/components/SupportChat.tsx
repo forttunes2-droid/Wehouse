@@ -11,9 +11,12 @@ import {
   markSupportMessagesRead,
   sendSupportMessage,
   uploadSupportAttachment,
+  conversationPresentation,
   type SupportOpenContext,
   type SupportThread,
 } from "@/lib/supabase/support";
+
+const messageCache = new Map<string, SupportMessage[]>();
 
 interface ChatProfile {
   user_id: string;
@@ -72,17 +75,11 @@ export default function SupportChat({ profile }: Props) {
     useState<SupportOpenContext | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachItems, setAttachItems] = useState<SupportOpenContext[]>([]);
+  const [loadError, setLoadError] = useState("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const activeContextType =
-    pendingContext?.contextType || thread?.context_type || "";
-  const isReservationDesk = [
-    "apartment_reservation",
-    "reservation",
-    "hotel_booking",
-  ].includes(activeContextType);
-  const deskName = isReservationDesk ? "Reservation Help" : "WeHouse Help";
+  const presentation = conversationPresentation(thread || pendingContext || {});
 
   async function openWeHouseItems() {
     setAttachOpen(true);
@@ -102,12 +99,13 @@ export default function SupportChat({ profile }: Props) {
     ]);
     const jobItems = ((jobs.data || []) as BookingAttachmentRow[]).map(
       (row) => ({
-        category: "worker_booking",
-        subject:
-          `Worker booking ${row.booking_code ? `#${row.booking_code}` : ""}`.trim(),
-        contextType: "worker_booking",
+        category: "service_booking_help",
+        subject: `${row.service_type || "Service booking"} help`,
+        contextType: "support_case",
         contextId: row.id,
         contextSnapshot: {
+          source_type: "worker_booking",
+          source_id: row.id,
           booking_code: row.booking_code,
           service_type: row.service_type,
           status: row.status,
@@ -119,12 +117,13 @@ export default function SupportChat({ profile }: Props) {
     );
     const stayItems = ((stays.data || []) as ReservationAttachmentRow[]).map(
       (row) => ({
-        category: "reservation",
-        subject:
-          `Housing reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
-        contextType: "reservation",
+        category: "reservation_support",
+        subject: `Help with reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
+        contextType: "support_case",
         contextId: row.id,
         contextSnapshot: {
+          source_type: "reservation",
+          source_id: row.id,
           reference: row.booking_reference,
           status: row.status,
           check_in: row.check_in || row.start_date,
@@ -145,12 +144,19 @@ export default function SupportChat({ profile }: Props) {
 
   const loadMessages = useCallback(async (id: string, quiet = false) => {
     if (!quiet) setLoading(true);
+    setLoadError("");
     const { messages: data, error } = await getSupportMessages(id);
-    if (error && !quiet)
-      toast.error(error.message || "Unable to load support messages");
-    if (!error) setMessages(data || []);
-    await markSupportMessagesRead(id);
+    if (error) {
+      setLoadError(error.message || "The conversation could not be loaded");
+      if (!quiet) toast.error(error.message || "Unable to load this conversation");
+    } else {
+      const next = (data || []) as SupportMessage[];
+      messageCache.set(id, next);
+      setMessages(next);
+      await markSupportMessagesRead(id);
+    }
     if (!quiet) setLoading(false);
+    return !error;
   }, []);
 
   const refreshThread = useCallback(
@@ -180,15 +186,18 @@ export default function SupportChat({ profile }: Props) {
     async (context?: SupportOpenContext) => {
       if (!profile) return;
       setOpen(true);
-      setPendingContext(context && hasContext(context) ? context : null);
-      setLoading(true);
+      setLoadError("");
+      const cached = context?.conversationId ? messageCache.get(context.conversationId) : undefined;
+      setMessages(cached || []);
+      setLoading(!cached);
 
       const current = await refreshThread(
         context,
         context?.conversationId || null,
       );
+      setPendingContext(current ? null : context && hasContext(context) ? context : null);
       if (current?.conversation_id)
-        await loadMessages(current.conversation_id, true);
+        await loadMessages(current.conversation_id, Boolean(cached));
       else setMessages([]);
 
       setLoading(false);
@@ -317,15 +326,13 @@ export default function SupportChat({ profile }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[14px] font-semibold">{deskName}</p>
+              <p className="truncate text-[14px] font-semibold">{presentation.title}</p>
               <span className="grid h-4 w-4 place-items-center rounded-full bg-violet-400 text-[9px] font-bold">
                 ✓
               </span>
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
-              {thread?.assigned_staff_name
-                ? `Human support · ${thread.assigned_staff_name}`
-                : "Human support · send a message to start a case"}
+              {[presentation.operator, presentation.meta, thread?.assigned_staff_name].filter(Boolean).join(" · ")}
             </p>
           </div>
         </div>
@@ -334,11 +341,11 @@ export default function SupportChat({ profile }: Props) {
       <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.05),transparent_34%)] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-4xl">
           {loading ? (
-            <div className="grid min-h-[55vh] place-items-center">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-            </div>
+            <ConversationSkeleton />
+          ) : loadError ? (
+            <ConversationLoadError text={loadError} retry={() => thread?.conversation_id && void loadMessages(thread.conversation_id)} />
           ) : messages.length === 0 ? (
-            <Welcome />
+            <Welcome presentation={presentation} />
           ) : (
             <div className="space-y-2.5">
               {messages.map((msg, index) => (
@@ -397,6 +404,7 @@ export default function SupportChat({ profile }: Props) {
           <div className="flex items-end gap-2">
             <button
               onClick={() => void openWeHouseItems()}
+              hidden={presentation.operational}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
               aria-label="Attach a WeHouse item"
             >
@@ -414,7 +422,7 @@ export default function SupportChat({ profile }: Props) {
                   }
                 }}
                 rows={1}
-                placeholder={`Message ${deskName}`}
+                placeholder={`Message ${presentation.operator}`}
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] leading-5 outline-none placeholder:text-[#62697A]"
               />
             </div>
@@ -428,7 +436,9 @@ export default function SupportChat({ profile }: Props) {
             </button>
           </div>
           <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
-            Each reservation or job keeps its own WeHouse help case.
+            {presentation.operational
+              ? "Operational conversation · visible to you and authorized WeHouse staff"
+              : "Support case · visible to you and the authorized WeHouse team handling it"}
           </p>
         </div>
       </footer>
@@ -629,7 +639,7 @@ function PendingContext({
   );
 }
 
-function Welcome() {
+function Welcome({presentation}:{presentation:ReturnType<typeof conversationPresentation>}) {
   return (
     <div className="grid min-h-[55vh] place-items-center px-5 text-center">
       <div>
@@ -637,17 +647,20 @@ function Welcome() {
           S
         </div>
         <h2 className="mt-4 text-base font-semibold">
-          Message WeHouse Support
+          {presentation.operational ? `Start this ${presentation.operator} conversation` : "Message WeHouse Support"}
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#747A8B]">
-          Send text, photos or documents to the human support team. A Support
-          case begins only after you send the first message. Booking, inspection
-          or payment context stays attached to that message.
+          {presentation.operational
+            ? "This thread belongs to the reservation shown above. Its complete history stays with that reservation."
+            : "Send a message to create a genuine help case. Visiting Help alone does not create a conversation."}
         </p>
       </div>
     </div>
   );
 }
+
+function ConversationSkeleton(){return <div className="space-y-4 py-5" aria-label="Loading conversation"><div className="h-14 w-2/3 animate-pulse rounded-2xl bg-white/[.035]"/><div className="ml-auto h-12 w-1/2 animate-pulse rounded-2xl bg-violet-500/[.08]"/><div className="h-20 w-3/4 animate-pulse rounded-2xl bg-white/[.035]"/></div>}
+function ConversationLoadError({text,retry}:{text:string;retry:()=>void}){return <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-red-500/15 bg-red-500/[.04] p-5 text-center"><p className="text-xs font-semibold">Conversation could not be loaded</p><p className="mt-2 text-[9px] leading-4 text-[#858A98]">{text}</p><button type="button" onClick={retry} className="mt-4 text-[10px] font-semibold text-violet-300">Try again</button></div>}
 
 function hasContext(value: SupportOpenContext) {
   return Boolean(

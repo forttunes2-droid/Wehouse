@@ -127,6 +127,7 @@ const RESTORABLE_PAGES: NavPage[] = [
   "property_partner",
   "my_bookings",
   "my_reservations",
+  "conversation",
   "messages",
   "notifications",
   "chat",
@@ -146,7 +147,7 @@ const USER_PAGES = new Set<NavPage>([
   "saved",
   "roommate",
   "activity",
-  "messages",
+  "conversation",
   "notifications",
   "chat",
   "detail",
@@ -176,6 +177,7 @@ function roleRootFor(role: string): NavPage {
             : "search";
 }
 function normalizePageForRole(role: string, page: NavPage): NavPage {
+  if (page === "messages") page = "conversation";
   if (
     page === "privacy_policy" ||
     page === "terms_of_service" ||
@@ -238,7 +240,7 @@ export default function App() {
               label: "Bookings",
               icon: ReservationSvg,
             },
-            { id: "messages" as NavPage, label: "Conversation", icon: MessagesSvg },
+            { id: "conversation" as NavPage, label: "Conversation", icon: MessagesSvg },
             { id: "notifications" as NavPage, label: "Notifications", icon: BellSvg },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
@@ -360,7 +362,7 @@ export default function App() {
       setNotificationCount(Number(activity||0));
     }
     void count();
-    const openMessages = () => handleSetNavPage("messages");
+    const openMessages = () => handleSetNavPage("conversation");
     const openNotifications = () => handleSetNavPage("notifications");
     const chatChannel = supabase
       .channel(`app-incoming-chat:${uid}`)
@@ -549,15 +551,6 @@ export default function App() {
       () => handleSetNavPage("security"),
       [handleSetNavPage],
     );
-  const accountBack = useCallback(() => {
-    const history = navHistoryRef.current,
-      previous = history.length > 1 ? history[history.length - 2] : null;
-    if (previous && previous !== "profile" && previous !== "account") {
-      window.history.back();
-      return;
-    }
-    handleSetNavPage(roleRoot());
-  }, [handleSetNavPage, roleRoot]);
   const subpageBack = useCallback(() => {
     if (navHistoryRef.current.length > 1) window.history.back();
     else handleSetNavPage("profile");
@@ -703,13 +696,12 @@ export default function App() {
           renderRoleRoot()
         );
       case "notifications":
-        return isUserRole ? <Notifications profile={profile} onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&page==='messages')return goToChat(id);goTo(page as NavPage)}}/> : renderRoleRoot();
+        return isUserRole ? <Notifications profile={profile} onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
       case "profile":
       case "account":
         return (
           <AccountCenter
             profile={profile}
-            onBack={accountBack}
             onGoToSaved={() => goTo("saved")}
             onGoToPrivacy={goToPrivacy}
             onGoToSecurity={goToSecurity}
@@ -748,6 +740,7 @@ export default function App() {
           renderRoleRoot()
         );
       case "chat":
+      case "conversation":
       case "messages":
         return isUserRole ? (
           <Chat
@@ -893,9 +886,7 @@ export default function App() {
     "detail",
     "chat",
     "saved",
-    "profile",
     "profile_edit",
-    "account",
     "privacy",
     "security",
     "new_listing",
@@ -963,7 +954,7 @@ export default function App() {
                         {active && (
                           <span className="h-1 w-1 rounded-full bg-violet-400" />
                         )}
-                        {tab.id === "messages" && unreadCount > 0 && (
+                        {tab.id === "conversation" && unreadCount > 0 && (
                           <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </span>

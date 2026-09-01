@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getHotels } from '@/lib/supabase';
+import { getHotels, supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import { HOTEL_AMENITIES } from '@/types';
 import type { Hotel } from '@/types';
@@ -19,7 +20,7 @@ function distanceKm(a:UserLocation,b:{lat:number;lng:number}){const R=6371,dLat=
 function coords(h:HotelRow){const lat=Number(h.gps_latitude),lng=Number(h.gps_longitude);return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng}:null}
 
 export default function HotelsHome({onNavigate}:Props){
- const[hotels,setHotels]=useState<HotelRow[]>([]),[loading,setLoading]=useState(true),[query,setQuery]=useState(''),[state,setState]=useState(''),[city,setCity]=useState(''),[amenities,setAmenities]=useState<string[]>([]),[minPrice,setMinPrice]=useState<number|''>(''),[maxPrice,setMaxPrice]=useState<number|''>(''),[filtersOpen,setFiltersOpen]=useState(false),[userLocation,setUserLocation]=useState<UserLocation|null>(null),[locating,setLocating]=useState(false),[locationError,setLocationError]=useState(''),[radius,setRadius]=useState<number|''>('');
+ const[hotels,setHotels]=useState<HotelRow[]>([]),[loading,setLoading]=useState(true),[query,setQuery]=useState(''),[state,setState]=useState(''),[city,setCity]=useState(''),[amenities,setAmenities]=useState<string[]>([]),[minPrice,setMinPrice]=useState<number|''>(''),[maxPrice,setMaxPrice]=useState<number|''>(''),[filtersOpen,setFiltersOpen]=useState(false),[userLocation,setUserLocation]=useState<UserLocation|null>(null),[locating,setLocating]=useState(false),[locationError,setLocationError]=useState(''),[radius,setRadius]=useState<number|''>(''),[savingSearch,setSavingSearch]=useState(false);
  useEffect(()=>{let live=true;void(async()=>{const{hotels:rows}=await getHotels();if(live){setHotels((rows||[]) as HotelRow[]);setLoading(false)}})();return()=>{live=false}},[]);
  const cities=useMemo(()=>getCitiesForState(state),[state]);
  const stateOptions=useMemo(()=>NIGERIA_STATES.map(item=>({value:item.state,label:item.state})),[]);
@@ -33,11 +34,12 @@ export default function HotelsHome({onNavigate}:Props){
  function clearStructuredFilters(){setState('');setCity('');setAmenities([]);setMinPrice('');setMaxPrice('');setRadius('');setUserLocation(null);setLocationError('')}
  function chooseState(value:string){setState(value);setCity('')}
  function useLocation(){if(!navigator.geolocation){setLocationError('Current location is not available on this device.');return}setLocating(true);setLocationError('');navigator.geolocation.getCurrentPosition(position=>{setUserLocation({lat:position.coords.latitude,lng:position.coords.longitude});setLocating(false)},()=>{setLocating(false);setLocationError('Allow location access to use distance filtering.')},{enableHighAccuracy:true,timeout:15000,maximumAge:60000})}
+ async function followSearch(){setSavingSearch(true);const name=`Hotels${city?` · ${city}`:state?` · ${state}`:''}`;const{error}=await supabase.rpc('save_my_property_search',{p_name:name,p_search_kind:'hotels',p_criteria:{state,city,min_price:minPrice===''?null:minPrice,max_price:maxPrice===''?null:maxPrice,amenities}});setSavingSearch(false);if(error)return toast.error(error.message||'Search could not be followed');toast.success('Search followed. Matching available hotels will appear in Notifications.')}
  function toggleAmenity(item:string){setAmenities(current=>current.includes(item)?current.filter(value=>value!==item):[...current,item])}
  return <DiscoveryShell active="hotels" title="Hotels" description="Search by hotel name, location and nightly price." onNavigate={onNavigate}>
   <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
    <DiscoveryToolbar value={query} onChange={setQuery} placeholder="Search hotel name" onFilters={()=>setFiltersOpen(true)} filterCount={filterCount}/>
-   <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold">{loading?'Loading hotels…':`${filtered.length} ${filtered.length===1?'hotel':'hotels'}`}</p><p className="mt-1 text-[9px] text-[#666D7E]">{city?`${city}, ${state}`:state||'All locations'}</p></div>{(query||filterCount||userLocation)&&<button type="button" onClick={clearFilters} className="text-[9px] font-semibold text-violet-300">Clear</button>}</div>
+   <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold">{loading?'Loading hotels…':`${filtered.length} ${filtered.length===1?'hotel':'hotels'}`}</p><p className="mt-1 text-[9px] text-[#666D7E]">{city?`${city}, ${state}`:state||'All locations'}</p></div><div className="flex items-center gap-3">{Boolean(filterCount)&&<button type="button" disabled={savingSearch} onClick={()=>void followSearch()} className="rounded-full border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-40">{savingSearch?'Saving…':'Follow search'}</button>}{(query||filterCount||userLocation)&&<button type="button" onClick={clearFilters} className="text-[9px] font-semibold text-violet-300">Clear</button>}</div></div>
    {loading?<div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>:filtered.length===0?<DiscoveryEmpty title={priceActive?'No hotels match this nightly price range':'No hotels match these filters'} text="Change the selected filters to see other hotels."/>:<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(({hotel,distance})=><HotelCard key={hotel.hotel_id} hotel={hotel} distance={distance} onOpen={()=>onNavigate('hotel_detail',String(hotel.hotel_id))}/>)}</div>}
   </main>
   {filtersOpen&&<DiscoveryFilterSheet title="Find a hotel" onClose={()=>setFiltersOpen(false)} onClear={clearStructuredFilters}>

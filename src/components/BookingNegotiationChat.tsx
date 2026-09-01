@@ -187,11 +187,13 @@ export default function BookingNegotiationChat({
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
         detail: {
-          category: "worker_booking",
-          subject: `Worker booking ${booking?.booking_code || ""}`.trim(),
-          contextType: "worker_booking",
+          category: "service_booking_help",
+          subject: `${booking?.service_type || "Service booking"} help`,
+          contextType: "support_case",
           contextId: bookingId,
           contextSnapshot: {
+            source_type: "worker_booking",
+            source_id: bookingId,
             booking_code: booking?.booking_code || null,
             service_type: booking?.service_type || null,
             status: booking?.status || null,

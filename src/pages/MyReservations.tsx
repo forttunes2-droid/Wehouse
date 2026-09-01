@@ -261,9 +261,6 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
               Properties, stays and home-service bookings in one place.
             </p>
           </div>
-          <span className="rounded-full border border-white/[.07] px-2.5 py-1 text-[9px] text-[#7D8291]">
-            {housing.length + hotels.length + services.length}
-          </span>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Booking status filters">
           {([['all','All'],['needs_action','Needs action'],['active','Active'],['upcoming','Upcoming'],['completed','Completed']] as const).map(([id,label])=><button key={id} onClick={()=>setStage(id)} className={`min-h-9 shrink-0 rounded-full px-3 text-[9px] font-semibold ${stage===id?'bg-violet-500 text-white':'border border-white/[.08] text-[#858A99]'}`}>{label}</button>)}
@@ -298,7 +295,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
         {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
-          <Empty />
+          <Empty view={view} stage={stage} />
         ) : (
           <div className="space-y-3">
             {rows.map((item) =>
@@ -442,6 +439,28 @@ function HousingCard({
     reservationPaid &&
     !rentPaid &&
     ["reserved", "ready_for_move_in"].includes(row.status);
+  const visibleStatus =
+    row.status === "occupied"
+      ? short
+        ? "Checked in"
+        : "Tenancy active"
+      : HOUSING_STATUS[row.status] || String(row.status).replace(/_/g, " ");
+  const nextSummary =
+    row.status === "occupied"
+      ? short
+        ? `Checkout ${date(row.check_out_date)}`
+        : `Ends ${date(row.tenancy_end_date)}`
+      : row.status === "payment_pending"
+        ? "Reservation fee required"
+        : row.status === "inspection_pending"
+          ? "Reservation Desk is reviewing the property"
+          : row.status === "ready_for_move_in" && rentPaid
+            ? "Confirm after you move in"
+            : row.status === "ready_for_move_in"
+              ? short
+                ? "Stay payment required"
+                : "Rent payment required"
+              : null;
   return (
     <article className="border-b border-white/[.065] py-4">
       <div className="flex items-start gap-3">
@@ -481,20 +500,15 @@ function HousingCard({
             </p>
           </div>
           <span className="shrink-0 rounded-full border border-white/[.08] px-2 py-1 text-[8px] text-[#A2A6B3]">
-            {HOUSING_STATUS[row.status] ||
-              String(row.status).replace(/_/g, " ")}
+            {visibleStatus}
           </span>
         </div>
       </div>
-      {row.booking_code && (
-        <div className="mt-3 border-y border-white/[.055] py-2">
-          <p className="text-[8px] uppercase text-[#687083]">Booking code</p>
-          <p className="mt-1 text-sm font-black tracking-[.12em] text-violet-300">
-            {row.booking_code}
-          </p>
-        </div>
+      {nextSummary && (
+        <p className="mt-3 text-[11px] font-medium text-[#C5C8D2]">
+          {nextSummary}
+        </p>
       )}
-      {short ? <ShortFacts row={row} /> : <LongFacts row={row} />}{" "}
       {row.status === "payment_pending" && (
         <p className="mt-3 rounded-xl bg-amber-500/[.04] p-3 text-[9px] text-amber-200">
           Finish the reservation-fee checkout to secure this booking.
@@ -514,8 +528,8 @@ function HousingCard({
       {row.status === "occupied" && (
         <p className="mt-3 rounded-xl bg-violet-500/[.04] p-3 text-[9px] text-violet-200">
           {short
-            ? `Checked in · deposit ${String(row.security_deposit_status || "held").replace(/_/g, " ")}`
-            : `Tenancy active · ends ${date(row.tenancy_end_date)}`}
+            ? `Deposit ${String(row.security_deposit_status || "held").replace(/_/g, " ")}`
+            : "Your tenancy is active."}
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -565,6 +579,17 @@ function HousingCard({
           Reservation Desk
         </button>
       </div>
+      <details className="mt-3 border-t border-white/[.055] pt-3 text-[9px] text-[#777C8C]">
+        <summary className="cursor-pointer list-none font-semibold text-[#A8ACB8]">
+          Booking details <span aria-hidden="true">⌄</span>
+        </summary>
+        {row.booking_code && (
+          <p className="mt-3">
+            Booking code <span className="font-semibold tracking-wide text-violet-300">{row.booking_code}</span>
+          </p>
+        )}
+        {short ? <ShortFacts row={row} /> : <LongFacts row={row} />}
+      </details>
     </article>
   );
 }
@@ -803,12 +828,14 @@ function Loading() {
     </div>
   );
 }
-function Empty() {
+function Empty({view,stage}:{view:View;stage:BookingStage}) {
+  const type=view==='housing'?'home':view==='hotels'?'hotel':view==='services'?'service':'booking';
+  const title=stage==='all'?`No ${type}${view==='all'?'s':' bookings'} yet`:stage==='needs_action'?`No ${type}${view==='all'?'s':''} need${view==='all'?'':'s'} action`:`No ${stage} ${type}${view==='all'?'s':' bookings'}`;
   return (
     <div className="border-y border-white/[.07] px-5 py-14 text-center">
-      <p className="text-sm font-semibold">No reservations yet</p>
+      <p className="text-sm font-semibold">{title}</p>
       <p className="mt-2 text-[10px] text-[#707788]">
-        Homes and hotel stays you reserve will appear here.
+        {stage==='needs_action'?`Nothing in ${view==='all'?'your bookings':view} needs you right now.`:`Your ${view==='all'?'housing, hotel and service':view} activity will appear here when it reaches this stage.`}
       </p>
     </div>
   );
