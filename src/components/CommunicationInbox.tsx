@@ -1,13 +1,25 @@
-import { useState } from 'react';
-import OfficialChannel from '@/components/OfficialChannel';
-import OfficialEntryCard from '@/components/OfficialEntryCard';
-import SupportEntryCard from '@/components/SupportEntryCard';
-import type { Profile } from '@/types';
+import { useState } from "react";
+import SupportEntryCard from "@/components/SupportEntryCard";
+import Notifications from "@/pages/Notifications";
+import type { Profile } from "@/types";
 
-type Props={profile:Profile;title?:string;description?:string};
+type Props = {
+  profile: Profile;
+  title?: string;
+  description?: string;
+  onNavigate?: (page: string, id?: string) => void;
+};
 
-export default function CommunicationInbox({profile,title='Messages',description='Official updates and human support in one place.'}:Props){
- const[officialOpen,setOfficialOpen]=useState(false);
- if(officialOpen)return <OfficialChannel profile={profile} onBack={()=>setOfficialOpen(false)}/>;
- return <div className="space-y-4"><div><h2 className="text-base font-bold text-white">{title}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#696E7F]">{description}</p></div><section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]"><OfficialEntryCard profile={profile} compact onOpen={()=>setOfficialOpen(true)}/><div className="ml-[4.5rem] h-px bg-white/[.05]"/><SupportEntryCard profile={profile} compact/></section><p className="px-1 text-[9px] leading-relaxed text-[#555A69]">WeHouse Official is read-only. WeHouse Support connects you to a real team member for account-specific help.</p></div>
+export default function CommunicationInbox({ profile, title = "Inbox", description = "Conversations and meaningful activity in one organized place.", onNavigate = () => {} }: Props) {
+  const [view, setView] = useState<"chats" | "activity">("chats");
+  return <div className="space-y-4">
+    <div><h2 className="text-base font-bold text-white">{title}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#696E7F]">{description}</p></div>
+    <div className="flex border-b border-white/[.07]" aria-label="Inbox views">
+      {([['chats', 'Chats'], ['activity', 'Activity']] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view === id ? 'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400' : 'text-[#74798A]'}`}>{label}</button>)}
+    </div>
+    {view === "activity" ? <Notifications profile={profile} embedded onNavigate={onNavigate} /> : <div className="space-y-3">
+      <section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]"><SupportEntryCard profile={profile} compact /></section>
+      <p className="px-1 text-[9px] leading-relaxed text-[#555A69]">Only genuine Human Support cases appear in Chats. Official announcements are one-way updates in Activity.</p>
+    </div>}
+  </div>;
 }

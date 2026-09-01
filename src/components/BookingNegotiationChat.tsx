@@ -51,12 +51,17 @@ type Booking = {
   agreed_amount?: number | null;
   address?: string | null;
   description?: string | null;
+  customer_message?: string | null;
+  request_attachments?: string[] | null;
   customer_username?: string | null;
   user_name?: string | null;
   worker_name?: string | null;
   user_avatar?: string | null;
   worker_avatar?: string | null;
   payment_review_required?: boolean | null;
+  payment_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 type ConversationProfile = Partial<Profile> & {
   lga?: string | null;
@@ -93,6 +98,7 @@ export default function BookingNegotiationChat({
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileInputRef = useRef<HTMLInputElement>(null),
     mediaRef = useRef<MediaRecorder | null>(null),
@@ -560,6 +566,11 @@ export default function BookingNegotiationChat({
         )}
         {booking && (
           <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-white/[.06] bg-white/[.025] p-3">
+            <button type="button" onClick={()=>setDetailsOpen(value=>!value)} className="mb-3 flex w-full items-center justify-between gap-3 border-b border-white/[.055] pb-3 text-left">
+              <span><span className="block text-[10px] font-semibold">Original service request</span><span className="mt-1 block text-[8px] text-[#686E7E]">The same request is shared by customer and Worker · #{booking.booking_code||'—'}</span></span>
+              <span className="shrink-0 text-[10px] font-semibold text-violet-300">{detailsOpen?'Hide':'View details'}</span>
+            </button>
+            {detailsOpen&&<JobRequestDetails booking={booking}/>}
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-[#656A7A]">
                 Job progress
@@ -1261,6 +1272,22 @@ function Phone() {
 }
 function VideoCallIcon() {
   return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="14" height="14" rx="3" /><path d="m17 10 4-2v8l-4-2" /></svg>;
+}
+function JobRequestDetails({booking}:{booking:Booking}) {
+  const amount=Number(booking.negotiated_amount||booking.agreed_amount||0);
+  const facts=[
+    ['Service',booking.service_type||'Service request'],
+    ['Location',booking.address||'Not supplied'],
+    ['Requested',booking.created_at?new Date(booking.created_at).toLocaleString():'Not available'],
+    ['Schedule',booking.scheduled_date?new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString():'To be agreed'],
+    ['Price',amount>0?`₦${amount.toLocaleString('en-NG')}`:'Worker has not supplied a price'],
+    ['Payment',booking.payment_status&&booking.payment_status!=='not_started'?booking.payment_status.replace(/_/g,' '):booking.status==='waiting_payment'?'Action needed':(['confirmed','in_progress','completed_pending_approval','approved_released'].includes(booking.status)?'Secured':'Not started')],
+  ];
+  return <div className="mb-3 space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
+    <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{facts.map(([label,value])=><div key={label}><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">{label}</p><p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">{value}</p></div>)}</div>
+    <div className="border-t border-white/[.055] pt-3"><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">Original description</p><p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">{booking.description||booking.customer_message||'No written description was supplied with this request.'}</p></div>
+    {booking.request_attachments?.length?<div className="flex flex-wrap gap-2 border-t border-white/[.055] pt-3">{booking.request_attachments.map((url,index)=><a key={`${url}-${index}`} href={url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/[.07] px-2.5 py-2 text-[9px] font-semibold text-violet-300">Open request attachment {index+1}</a>)}</div>:null}
+  </div>;
 }
 function getProgressWidth(status: string) {
   const progress: Record<string, string> = {

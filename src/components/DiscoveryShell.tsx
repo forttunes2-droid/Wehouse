@@ -22,7 +22,7 @@ type ToolbarProps = {
 };
 
 const categories: { id: DiscoveryKey; label: string; route: string; icon: ReactNode }[] = [
-  { id: 'homes', label: 'Homes', route: 'search', icon: <HomeIcon /> },
+  { id: 'homes', label: 'Property', route: 'search', icon: <HomeIcon /> },
   { id: 'roommates', label: 'Roommates', route: 'roommate', icon: <PeopleIcon /> },
   { id: 'hotels', label: 'Hotels', route: 'hotels', icon: <HotelIcon /> },
   { id: 'services', label: 'Services', route: 'worker_discovery', icon: <ToolsIcon /> },

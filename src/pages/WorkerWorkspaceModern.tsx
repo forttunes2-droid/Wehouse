@@ -75,6 +75,7 @@ export default function WorkerWorkspaceModern({
         profile={profile}
         initialConversation={conversation}
         onConversationClosed={() => setConversation(null)}
+        onNavigate={onNavigate}
       />
     );
   } else if (live && safeTab === "work") {

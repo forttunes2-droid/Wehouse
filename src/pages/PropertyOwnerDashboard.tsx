@@ -46,7 +46,7 @@ const money = (value: number) =>
   `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const hidden = "₦••••••";
 
-export default function PropertyOwnerDashboard({ profile, onLogout }: Props) {
+export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
   void onLogout;
@@ -86,8 +86,9 @@ export default function PropertyOwnerDashboard({ profile, onLogout }: Props) {
         {tab === "communication" && (
           <CommunicationInbox
             profile={profile}
-            title="Communication"
-            description="Read WeHouse updates or talk to Human Support when you need help with your account or a property."
+            title="Inbox"
+            description="Property support conversations and meaningful account or lifecycle activity."
+            onNavigate={onNavigate}
           />
         )}{" "}
         {tab === "finance" && <FinanceTab profile={profile} />}

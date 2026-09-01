@@ -188,7 +188,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
             {(
             [
               ["all", "All"],
-              ["housing", "Homes"],
+              ["housing", "Property"],
               ["hotels", "Hotels"],
               ["services", "Services"],
             ] as const

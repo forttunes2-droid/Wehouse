@@ -36,7 +36,7 @@ const NOTES: Record<Tab, string> = {
   overview: 'Platform health and priority work.',
   operations: 'People, Team, properties, Worker oversight, bookings and listing issues.',
   waitlist: 'Pre-launch demand, locations, budgets and contact progress.',
-  communications: 'Human Support conversations and official announcements.',
+  communications: 'Human Support conversations and one-way official Activity publishing.',
   finance: 'Payout requests and commission records. Platform rules are changed only in Settings.',
   analytics: 'Trends, marketplace movement and lifecycle distribution.',
   audit: 'Safe operational history of important management changes.',

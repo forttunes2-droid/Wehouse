@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { BOOKING_STATUS_LABELS, getCommunicationBookingConversations } from '@/lib/supabase/worker-bookings';
 import BookingNegotiationChat from '@/components/BookingNegotiationChat';
-import CommunicationInbox from '@/components/CommunicationInbox';
+import Notifications from '@/pages/Notifications';
 import type { Profile } from '@/types';
 
 export type WorkerBookingConversation = {
@@ -47,10 +47,11 @@ export default function WorkerJobsPanelV2({profile, onOpenConversation}: {profil
   </div>;
 }
 
-export function WorkerConversationsPanel({profile, initialConversation, onConversationClosed}: {profile: Profile; initialConversation?: WorkerBookingConversation | null; onConversationClosed?: () => void}) {
+export function WorkerConversationsPanel({profile, initialConversation, onConversationClosed, onNavigate = () => {}}: {profile: Profile; initialConversation?: WorkerBookingConversation | null; onConversationClosed?: () => void; onNavigate?: (page:string,id?:string)=>void}) {
   const [rows, setRows] = useState<WorkerBookingConversation[]>([]);
   const [selected, setSelected] = useState<WorkerBookingConversation | null>(initialConversation || null);
   const [loading, setLoading] = useState(true);
+  const [view,setView]=useState<'chats'|'activity'>('chats');
   const load = useCallback(async () => {
     try { setRows(await loadWorkerConversations(profile.user_id)); }
     catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Conversations could not be loaded'); }
@@ -59,7 +60,7 @@ export function WorkerConversationsPanel({profile, initialConversation, onConver
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (initialConversation) setSelected(initialConversation); }, [initialConversation]);
   if (selected) return <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); }}/>;
-  return <div className="space-y-7"><CommunicationInbox profile={profile} title="Conversations" description="Official announcements, Human Support and customer work conversations in one place."/><section><div className="mb-4"><h2 className="text-lg font-bold">Job conversations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Every customer chat stays connected to its job from request through completion.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section></div>;
+  return <div className="space-y-5"><div className="flex border-b border-white/[.07]" aria-label="Inbox views">{([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={onNavigate}/>:<section><div className="mb-4"><h2 className="text-lg font-bold">Job conversations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Every customer chat stays attached to the same job request from request through completion. Official announcements stay in Activity.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section>}</div>;
 }
 
 function JobTab({active, onClick, children}: {active: boolean; onClick: () => void; children: React.ReactNode}) { return <button onClick={onClick} className={`relative shrink-0 pb-3 text-[11px] font-semibold ${active ? 'text-white' : 'text-[#6F7585]'}`}>{children}{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-violet-400"/> : null}</button>; }
