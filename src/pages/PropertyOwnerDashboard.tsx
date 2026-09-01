@@ -100,26 +100,12 @@ function PropertiesWorkspace({ profile }: { profile: Profile }) {
   const [view, setView] = useState<PropertyView>("submitted");
   return (
     <div className="space-y-5">
-      <div className="border-b border-white/[.06]">
-        <div className="flex min-w-0 gap-5">
-          {(
-            [
-              { key: "submitted", label: "Submitted requests" },
-              { key: "published", label: "Published properties" },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setView(item.key)}
-              className={`relative pb-3 text-[11px] font-semibold transition ${view === item.key ? "text-white" : "text-[#686B7D] hover:text-[#B9BBC6]"}`}
-            >
-              {item.label}
-              {view === item.key && (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-violet-400" />
-              )}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+        <div><h2 className="text-sm font-semibold">Your properties</h2><p className="mt-1 text-[9px] text-[#686B7D]">The selection filters one property workspace; lifecycle states stay on each property.</p></div>
+        <select value={view} onChange={(event) => setView(event.target.value as PropertyView)} aria-label="Filter property records" className="h-9 rounded-full border border-white/[.08] bg-[#111119] px-3 text-[9px] font-semibold text-[#B3B7C3] outline-none">
+          <option value="submitted">All submissions</option>
+          <option value="published">Public listings</option>
+        </select>
       </div>
       {view === "submitted" ? (
         <PartnerSubmittedRequests profile={profile} />

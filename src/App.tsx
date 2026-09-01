@@ -70,7 +70,6 @@ const HotelReservation = lazy(() => import("@/pages/HotelReservation"));
 const PropertyPartnerDashboard = lazy(
   () => import("@/pages/PropertyPartnerDashboard"),
 );
-const MyBookings = lazy(() => import("@/pages/MyBookings"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
@@ -178,6 +177,8 @@ function roleRootFor(role: string): NavPage {
 }
 function normalizePageForRole(role: string, page: NavPage): NavPage {
   if (page === "messages") page = "conversation";
+  // Preserve old deep links without keeping a second booking destination.
+  if (page === "my_bookings") page = "my_reservations";
   if (
     page === "privacy_policy" ||
     page === "terms_of_service" ||
@@ -902,12 +903,6 @@ export default function App() {
             }}
             onComplete={() => goTo("hotels")}
           />
-        ) : (
-          renderRoleRoot()
-        );
-      case "my_bookings":
-        return isUserRole ? (
-          <MyBookings profile={profile} onBack={subpageBack} />
         ) : (
           renderRoleRoot()
         );

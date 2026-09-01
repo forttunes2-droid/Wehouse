@@ -322,7 +322,7 @@ export default function WorkerDiscovery({
           worker={viewWorker}
           onBack={() => setViewWorker(null)}
           bookingActive={active.has(viewWorker.user_id)}
-          onOpenBooking={() => onNavigate("my_bookings")}
+          onOpenBooking={() => onNavigate("my_reservations")}
           onBook={() =>
             profile
               ? setBookingWorker(viewWorker)
@@ -441,7 +441,7 @@ export default function WorkerDiscovery({
                     ? setBookingWorker(worker)
                     : toast.info("Please sign in to request a professional")
                 }
-                onOpen={() => onNavigate("my_bookings")}
+                onOpen={() => onNavigate("my_reservations")}
               />
             ))}
           </div>

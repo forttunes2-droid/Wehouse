@@ -39,10 +39,13 @@ export default function WorkerJobsPanelV2({profile, onOpenConversation}: {profil
   const completed = useMemo(() => rows.filter((row) => COMPLETED.has(row.booking_status)), [rows]);
   const shown = view === 'completed' ? completed : current;
   return <div className="space-y-5">
-    <nav className="flex gap-5 overflow-x-auto border-b border-white/[.06] scrollbar-hide" aria-label="Jobs sections">
-      <JobTab active={view === 'current'} onClick={() => setView('current')}>Current jobs <span>{current.length}</span></JobTab>
-      <JobTab active={view === 'completed'} onClick={() => setView('completed')}>History <span>{completed.length}</span></JobTab>
-    </nav>
+    <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Filter jobs</p>
+      <select value={view} onChange={(event) => setView(event.target.value as JobView)} aria-label="Filter jobs" className="h-9 rounded-full border border-white/[.08] bg-[#11151D] px-3 text-[9px] font-semibold text-[#B3B7C3] outline-none">
+        <option value="current">Current ({current.length})</option>
+        <option value="completed">History ({completed.length})</option>
+      </select>
+    </div>
     <section><div className="mb-4"><h2 className="text-lg font-bold">{view === 'current' ? 'Current jobs' : 'Job history'}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Each job keeps one status and one connected conversation from request to completion.</p></div>{loading ? <Empty text="Loading jobs…"/> : shown.length === 0 ? <Empty text={view === 'current' ? 'New requests and active jobs will appear here.' : 'Completed and cancelled jobs will appear here.'}/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map((row) => <JobRow key={row.booking_id} row={row} onOpen={() => onOpenConversation(row)}/>)}</div>}</section>
   </div>;
 }
@@ -62,8 +65,6 @@ export function WorkerConversationsPanel({profile, initialConversation, onConver
   if (selected) return <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); }}/>;
   return <div className="space-y-5"><div className="flex border-b border-white/[.07]" aria-label="Inbox views">{([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={onNavigate}/>:<section><div className="mb-4"><h2 className="text-lg font-bold">Job conversations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Every customer chat stays attached to the same job request from request through completion. Official announcements stay in Activity.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section>}</div>;
 }
-
-function JobTab({active, onClick, children}: {active: boolean; onClick: () => void; children: React.ReactNode}) { return <button onClick={onClick} className={`relative shrink-0 pb-3 text-[11px] font-semibold ${active ? 'text-white' : 'text-[#6F7585]'}`}>{children}{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-violet-400"/> : null}</button>; }
 
 function JobRow({row, onOpen}: {row: WorkerBookingConversation; onOpen: () => void}) {
   const status = BOOKING_STATUS_LABELS[row.booking_status], amount = Number(row.negotiated_amount || 0);

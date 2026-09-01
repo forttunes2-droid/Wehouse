@@ -28,8 +28,8 @@ function paymentReferenceFromLocation() {
 
 function destinationForPurpose(purpose: string | undefined, role: string): NavPage {
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
-  if (purpose === 'worker_booking') return role === 'user' ? 'my_bookings' : role === 'worker' ? 'worker_dashboard' : 'search';
-  if (purpose === 'hotel_booking') return role === 'user' ? 'my_bookings' : 'search';
+  if (purpose === 'worker_booking') return role === 'user' ? 'my_reservations' : role === 'worker' ? 'worker_dashboard' : 'search';
+  if (purpose === 'hotel_booking') return role === 'user' ? 'my_reservations' : 'search';
   if (['apartment_reservation','apartment_rent','housing_reservation','reservation_fee'].includes(purpose || '')) {
     return role === 'user' ? 'my_reservations' : 'search';
   }
