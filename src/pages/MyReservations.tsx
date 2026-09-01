@@ -15,6 +15,7 @@ import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase
 import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
 
 type Props = { profile: Profile; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
+type View = "all" | "housing" | "hotels" | "services";
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
 const HOUSING_STATUS: Record<string, string> = {
@@ -29,11 +30,23 @@ const HOUSING_STATUS: Record<string, string> = {
   refunded: "Refunded",
   payment_conflict: "Payment review",
 };
+const HOTEL_STATUS: Record<string, string> = {
+  pending: "Awaiting payment",
+  confirmed: "Stay confirmed",
+  checked_in: "Checked in",
+  checked_out: "Checked out",
+  completed: "Stay completed",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+  expired: "Expired",
+  payment_conflict: "Payment review",
+};
 
 export default function MyReservations({ profile, onOpenConversation, onOpenListing }: Props) {
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
+    [view, setView] = useState<View>("all"),
     [loading, setLoading] = useState(true),
     [activeService, setActiveService] = useState<{conversationId:string;bookingId:string}|null>(null),
     [busyId, setBusyId] = useState<string | null>(null),
@@ -90,10 +103,10 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
           row,
           date: row.updated_at || "",
         })),
-      ].sort(
+      ].filter((item) => view === "all" || (view === "housing" ? item.kind === "housing" : view === "hotels" ? item.kind === "hotel" : item.kind === "service")).sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
-    [housing, hotels, services],
+    [housing, hotels, services, view],
   );
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -168,11 +181,16 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
-        <SharedHomeLifecyclePanel
+        <div className="border-b border-white/[.07]" role="group" aria-label="Filter by booking type">
+          <div className="grid grid-cols-4">
+            {([['all','All'],['housing','Property'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
+          </div>
+        </div>
+        {(view === "all" || view === "housing") && <SharedHomeLifecyclePanel
           profileId={profile.user_id}
           onOpenConversation={onOpenConversation}
           onOpenListing={onOpenListing}
-        />
+        />}
         {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
@@ -224,7 +242,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
 function ServiceCard({row,onOpen}:{row:any;onOpen:()=>void}){
   const status=BOOKING_STATUS_LABELS[row.booking_status];
   const amount=Number(row.negotiated_amount||0);
-  return <article className="border-b border-white/[.065] py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse service worker"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||String(row.booking_status||"requested").replace(/_/g," ")}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3">{!["approved_released","cancelled","refunded"].includes(row.booking_status)&&<p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p>}<span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
+  return <article className="border-b border-white/[.065] py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse service worker"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||"Status unavailable"}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3">{!["approved_released","cancelled","refunded"].includes(row.booking_status)&&<p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p>}<span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
 }
 function serviceNextAction(status:string){const labels:Record<string,string>={booking_requested:"Waiting for the professional to respond",negotiating:"Agree the work, date and price",waiting_payment:"Approve and pay the agreed price",confirmed:"Payment secured · waiting to start",in_progress:"Work is in progress",completed_pending_approval:"Review the completed work",approved_released:"Completed",disputed:"WeHouse review in progress",cancelled:"Cancelled",refunded:"Refunded"};return labels[status]||"Open for the next action"}
 
@@ -250,7 +268,7 @@ function HousingCard({
       ? short
         ? "Checked in"
         : "Tenancy active"
-      : HOUSING_STATUS[row.status] || String(row.status).replace(/_/g, " ");
+      : HOUSING_STATUS[row.status] || "Status unavailable";
   const nextSummary =
     row.status === "occupied"
       ? short
@@ -407,6 +425,7 @@ function HotelCard({
   onCancel: () => void;
   onSupport:()=>void;
 }) {
+  const visibleStatus = HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
   return (
     <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4">
       <div className="flex justify-between gap-3">
@@ -421,8 +440,8 @@ function HotelCard({
               "Hotel reservation"}
           </h2>
         </div>
-        <span className="text-[8px] capitalize text-[#9297A5]">
-          {String(row.status || "pending").replace(/_/g, " ")}
+        <span className="rounded-full border border-white/[.08] px-2 py-1 text-[8px] text-[#A2A6B3]">
+          {visibleStatus}
         </span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
