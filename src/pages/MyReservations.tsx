@@ -3,16 +3,12 @@ import { toast, Toaster } from "sonner";
 import {
   cancelReservation,
   getReservationsForUser,
-  initializeReservationPayment,
 } from "@/lib/supabase/reservations";
-import { initializeApartmentRentPayment } from "@/lib/supabase/housing-payments";
-import { initializeShortStayPayment } from "@/lib/short-stay";
 import {
   getHotelBookingsForUser,
   updateBookingStatus,
 } from "@/lib/supabase/hotels";
 import type { Profile } from "@/types";
-import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase/worker-bookings";
@@ -36,46 +32,17 @@ const HOUSING_STATUS: Record<string, string> = {
   payment_conflict: "Payment review",
 };
 
-async function confirmMoveInFromReservation(row: any) {
-  if (
-    !window.confirm(
-      "Confirm that you have physically moved into this home? This starts your tenancy today.",
-    )
-  )
-    return;
-  const { data, error } = await supabase.rpc("confirm_my_move_in", {
-    p_reservation_id: row.id,
-  });
-  if (error) return toast.error(error.message);
-  toast.success(
-    data?.already_confirmed
-      ? "Move-in was already confirmed"
-      : "Move-in confirmed. Your tenancy is now active.",
-  );
-  window.setTimeout(() => window.location.reload(), 700);
-}
-
 export default function MyReservations({ profile, onOpenConversation, onOpenListing }: Props) {
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
     [stage, setStage] = useState<BookingStage>("all"),
-    [gallery, setGallery] = useState<{
-      images: string[];
-      videos: string[];
-      active: number;
-      title: string;
-      location: string;
-      status: string;
-      bedrooms?: number;
-      bathrooms?: number;
-    } | null>(null),
     [loading, setLoading] = useState(true),
     [activeService, setActiveService] = useState<{conversationId:string;bookingId:string}|null>(null),
     [busyId, setBusyId] = useState<string | null>(null),
     [pending, setPending] = useState<{
-      kind: "move_in" | "cancel_housing" | "cancel_hotel";
+      kind: "cancel_housing" | "cancel_hotel";
       row: any;
     } | null>(null);
   async function load(quiet = false) {
@@ -143,52 +110,6 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
         ),
     [housing, hotels, services, view, stage],
   );
-  async function fee(row: any) {
-    const reference = String(row.payment_reference || "");
-    if (!reference) return toast.error("Payment reference is missing");
-    setBusyId(row.id);
-    try {
-      const { result, error } = await initializeReservationPayment(reference);
-      if (error) throw error;
-      if (result?.already_paid) {
-        await load();
-        setBusyId(null);
-        return;
-      }
-      if (!result?.success || !result.authorization_url)
-        throw new Error(result?.error || "Could not open Paystack");
-      window.location.assign(result.authorization_url);
-    } catch (error: any) {
-      toast.error(error?.message || "Could not continue payment");
-      setBusyId(null);
-    }
-  }
-  async function rent(row: any) {
-    setBusyId(row.id);
-    try {
-      const short = row.stay_type === "short_let";
-      const { result, error } = short
-        ? await initializeShortStayPayment(row.id)
-        : await initializeApartmentRentPayment(row.id);
-      if (error) throw error;
-      if (result?.already_paid) {
-        toast.success(
-          short
-            ? "Short Let payment is already confirmed"
-            : "Year 1 rent is already confirmed",
-        );
-        await load();
-        setBusyId(null);
-        return;
-      }
-      if (!result?.success || !result.authorization_url)
-        throw new Error(result?.error || "Could not open Paystack");
-      window.location.assign(result.authorization_url);
-    } catch (error: any) {
-      toast.error(error?.message || "Could not start payment");
-      setBusyId(null);
-    }
-  }
   async function cancelHousing(row: any) {
     setBusyId(row.id);
     const { error } = await cancelReservation(row.id);
@@ -210,8 +131,6 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
     const action = pending;
     setPending(null);
     if (!action) return;
-    if (action.kind === "move_in")
-      return confirmMoveInFromReservation(action.row);
     if (action.kind === "cancel_housing") return cancelHousing(action.row);
     return cancelHotel(action.row);
   }
@@ -262,20 +181,18 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
             </p>
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Booking status filters">
-          {([['all','All'],['needs_action','Needs action'],['active','Active'],['upcoming','Upcoming'],['completed','Completed']] as const).map(([id,label])=><button key={id} onClick={()=>setStage(id)} className={`min-h-9 shrink-0 rounded-full px-3 text-[9px] font-semibold ${stage===id?'bg-violet-500 text-white':'border border-white/[.08] text-[#858A99]'}`}>{label}</button>)}
-        </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
-        <div className="flex border-b border-white/[.07]">
-          {(
+        <div className="flex items-end gap-3 border-b border-white/[.07]">
+          <div className="flex min-w-0 flex-1">
+            {(
             [
               ["all", "All"],
               ["housing", "Homes"],
               ["hotels", "Hotels"],
               ["services", "Services"],
             ] as const
-          ).map(([id, label]) => (
+            ).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setView(id)}
@@ -283,7 +200,18 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
             >
               {label}
             </button>
-          ))}
+            ))}
+          </div>
+          <label className="mb-2 shrink-0">
+            <span className="sr-only">Filter bookings by status</span>
+            <select value={stage} onChange={(event)=>setStage(event.target.value as BookingStage)} className="h-9 rounded-full border border-white/[.08] bg-[#11141C] px-3 text-[9px] font-semibold text-[#A7ABB8] outline-none">
+              <option value="all">All statuses</option>
+              <option value="needs_action">Needs action</option>
+              <option value="active">Active</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="completed">Completed</option>
+            </select>
+          </label>
         </div>
         {(view === "all" || view === "housing") && (
           <SharedHomeLifecyclePanel
@@ -303,33 +231,8 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
                 <HousingCard
                   key={item.row.id}
                   row={item.row}
-                  onGallery={() =>
-                    setGallery({
-                      images: item.row.listing_images || [],
-                      videos: item.row.listing_videos || [],
-                      active: 0,
-                      title:
-                        item.row.listing_title ||
-                        `${item.row.stay_type === "short_let" ? "Short Let" : "Long Let"} in ${item.row.listing_city || item.row.city || "your area"}`,
-                      location: [
-                        item.row.listing_address,
-                        item.row.listing_city,
-                        item.row.listing_state,
-                      ]
-                        .filter(Boolean)
-                        .join(", "),
-                      status:
-                        HOUSING_STATUS[item.row.status] || item.row.status,
-                      bedrooms: item.row.listing_bedrooms,
-                      bathrooms: item.row.listing_bathrooms,
-                    })
-                  }
+                  onOpen={() => item.row.listing_id && onOpenListing?.(item.row.listing_id)}
                   busy={busyId === item.row.id}
-                  onFee={() => void fee(item.row)}
-                  onRent={() => void rent(item.row)}
-                  onMoveIn={() =>
-                    setPending({ kind: "move_in", row: item.row })
-                  }
                   onCancel={() =>
                     setPending({ kind: "cancel_housing", row: item.row })
                   }
@@ -352,40 +255,12 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
           </div>
         )}
       </main>
-      {gallery && (
-        <MediaGallery
-          images={gallery.images}
-          videos={gallery.videos}
-          active={gallery.active}
-          title={gallery.title}
-          location={gallery.location}
-          status={gallery.status}
-          bedrooms={gallery.bedrooms}
-          bathrooms={gallery.bathrooms}
-          setActive={(active) =>
-            setGallery((current) =>
-              current ? { ...current, active } : current,
-            )
-          }
-          close={() => setGallery(null)}
-        />
-      )}
       <ConfirmDialog
         isOpen={Boolean(pending)}
-        title={
-          pending?.kind === "move_in"
-            ? "Confirm your move-in"
-            : "Cancel this reservation?"
-        }
-        description={
-          pending?.kind === "move_in"
-            ? "Only confirm after you have received access and physically moved into the home. Your tenancy begins today."
-            : "This releases the reservation and cannot be undone."
-        }
-        confirmLabel={
-          pending?.kind === "move_in" ? "Confirm move-in" : "Cancel reservation"
-        }
-        variant={pending?.kind === "move_in" ? "info" : "danger"}
+        title="Cancel this reservation?"
+        description="This releases the reservation and cannot be undone."
+        confirmLabel="Cancel reservation"
+        variant="danger"
         onCancel={() => setPending(null)}
         onConfirm={() => void runPending()}
       />
@@ -405,40 +280,27 @@ function lifecycleStage(kind:"housing"|"hotel"|"service",row:any):BookingStage{
 function ServiceCard({row,onOpen}:{row:any;onOpen:()=>void}){
   const status=BOOKING_STATUS_LABELS[row.booking_status];
   const amount=Number(row.negotiated_amount||0);
-  return <article className="border-b border-white/[.065] py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse professional"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||String(row.booking_status||"requested").replace(/_/g," ")}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3"><p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p><span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
+  return <article className="border-b border-white/[.065] py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse service worker"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||String(row.booking_status||"requested").replace(/_/g," ")}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3">{!["approved_released","cancelled","refunded"].includes(row.booking_status)&&<p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p>}<span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
 }
 function serviceNextAction(status:string){const labels:Record<string,string>={booking_requested:"Waiting for the professional to respond",negotiating:"Agree the work, date and price",waiting_payment:"Approve and pay the agreed price",confirmed:"Payment secured · waiting to start",in_progress:"Work is in progress",completed_pending_approval:"Review the completed work",approved_released:"Completed",disputed:"WeHouse review in progress",cancelled:"Cancelled",refunded:"Refunded"};return labels[status]||"Open for the next action"}
 
 function HousingCard({
   row,
   busy,
-  onGallery,
-  onFee,
-  onRent,
-  onMoveIn,
+  onOpen,
   onCancel,
   onSupport,
 }: {
   row: any;
   busy: boolean;
-  onGallery: () => void;
-  onFee: () => void;
-  onRent: () => void;
-  onMoveIn: () => void;
+  onOpen: () => void;
   onCancel: () => void;
   onSupport: () => void;
 }) {
   const short = row.stay_type === "short_let";
-  const reservationPaid = ["paid", "completed"].includes(
-    String(row.manual_payment_status || ""),
-  );
   const rentPaid = ["paid", "upfront_paid"].includes(
     String(row.rent_payment_status || ""),
   );
-  const canRent =
-    reservationPaid &&
-    !rentPaid &&
-    ["reserved", "ready_for_move_in"].includes(row.status);
   const visibleStatus =
     row.status === "occupied"
       ? short
@@ -467,18 +329,15 @@ function HousingCard({
         {row.listing_image ? (
           <button
             type="button"
-            onClick={onGallery}
+            onClick={onOpen}
             className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl"
-            aria-label="Preview reservation property photos"
+            aria-label="View reservation property"
           >
             <img
               src={row.listing_image}
               alt=""
               className="h-full w-full object-cover"
             />
-            <span className="absolute inset-x-1 bottom-1 rounded-full bg-black/70 py-0.5 text-center text-[7px]">
-              View {row.listing_images?.length || 1}
-            </span>
           </button>
         ) : (
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">
@@ -514,34 +373,8 @@ function HousingCard({
           Finish the reservation-fee checkout to secure this booking.
         </p>
       )}
-      {row.status === "inspection_pending" && (
-        <p className="mt-3 rounded-xl bg-violet-500/[.04] p-3 text-[9px] text-violet-200">
-          Property inspection is in progress.
-        </p>
-      )}
-      {short && rentPaid && row.status === "ready_for_move_in" && (
-        <p className="mt-3 rounded-xl bg-emerald-500/[.04] p-3 text-[9px] text-emerald-200">
-          Stay payment and refundable deposit are verified. WeHouse can confirm
-          check-in on the reserved date.
-        </p>
-      )}
-      {row.status === "occupied" && (
-        <p className="mt-3 rounded-xl bg-violet-500/[.04] p-3 text-[9px] text-violet-200">
-          {short
-            ? `Deposit ${String(row.security_deposit_status || "held").replace(/_/g, " ")}`
-            : "Your tenancy is active."}
-        </p>
-      )}
       <div className="mt-4 flex flex-wrap gap-2">
-        {row.status === "payment_pending" && (
-          <button
-            disabled={busy}
-            onClick={onFee}
-            className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-40"
-          >
-            {busy ? "Opening…" : "Pay reservation fee"}
-          </button>
-        )}
+        <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "View home" : "View booking"}</button>
         {row.status === "payment_pending" && (
           <button
             disabled={busy}
@@ -549,27 +382,6 @@ function HousingCard({
             className="h-10 rounded-xl border border-red-500/15 px-3 text-[10px] font-semibold text-red-300"
           >
             Cancel
-          </button>
-        )}
-        {canRent && (
-          <button
-            disabled={busy}
-            onClick={onRent}
-            className="h-10 flex-1 rounded-xl bg-emerald-500 px-3 text-[10px] font-semibold text-[#03100B] disabled:opacity-40"
-          >
-            {busy
-              ? "Opening…"
-              : short
-                ? "Pay stay + deposit"
-                : "Pay Year 1 rent"}
-          </button>
-        )}
-        {row.status === "ready_for_move_in" && rentPaid && (
-          <button
-            onClick={onMoveIn}
-            className="h-10 flex-1 rounded-xl bg-emerald-500 px-3 text-[10px] font-semibold text-[#03100B]"
-          >
-            I have moved in
           </button>
         )}
         <button
@@ -591,125 +403,6 @@ function HousingCard({
         {short ? <ShortFacts row={row} /> : <LongFacts row={row} />}
       </details>
     </article>
-  );
-}
-function MediaGallery({
-  images,
-  videos,
-  active,
-  setActive,
-  close,
-  title,
-  location,
-  status,
-  bedrooms,
-  bathrooms,
-}: {
-  images: string[];
-  videos: string[];
-  active: number;
-  setActive: (value: number) => void;
-  close: () => void;
-  title: string;
-  location: string;
-  status: string;
-  bedrooms?: number;
-  bathrooms?: number;
-}) {
-  const items = [
-      ...images.map((url) => ({ url, video: false })),
-      ...videos.map((url) => ({ url, video: true })),
-    ],
-    selected = items[active] || items[0];
-  return (
-    <div
-      className="fixed inset-0 z-[100000] flex flex-col bg-[#050609] text-white"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Reservation property media"
-    >
-      <header className="absolute inset-x-0 top-0 z-20 flex min-h-16 items-center justify-between bg-gradient-to-b from-black/80 to-transparent px-4 pb-5 pt-[max(.75rem,env(safe-area-inset-top))]">
-        <button
-          type="button"
-          onClick={close}
-          className="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-xl backdrop-blur-md"
-          aria-label="Close property gallery"
-        >
-          ‹
-        </button>
-        <div className="rounded-full bg-black/55 px-3 py-1.5 text-[9px] font-semibold backdrop-blur-md">
-          {active + 1} / {items.length}
-        </div>
-      </header>
-      <div className="relative flex min-h-0 flex-1 items-center justify-center bg-black">
-        {selected?.video ? (
-          <video
-            src={selected.url}
-            controls
-            autoPlay
-            playsInline
-            className="max-h-full max-w-full"
-          />
-        ) : (
-          <img
-            src={selected?.url}
-            alt={title}
-            className="h-full w-full object-contain"
-          />
-        )}
-      </div>
-      <section className="shrink-0 border-t border-white/[.07] bg-[#090B10] px-4 pb-[max(.8rem,env(safe-area-inset-bottom))] pt-3">
-        {items.length > 1 && (
-          <div className="mb-3 flex gap-2 overflow-x-auto scrollbar-hide">
-            {items.map((item, index) => (
-              <button
-                key={item.url}
-                onClick={() => setActive(index)}
-                className={`relative h-14 w-20 shrink-0 overflow-hidden rounded-lg border ${active === index ? "border-violet-400" : "border-transparent opacity-65"}`}
-              >
-                {item.video ? (
-                  <video
-                    src={item.url}
-                    muted
-                    playsInline
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <img
-                    src={item.url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                )}
-                {item.video && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/25">
-                    ▶
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-base font-bold">{title}</p>
-              <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[8px] text-emerald-300">
-                {status}
-              </span>
-            </div>
-            <p className="mt-1 truncate text-[9px] text-[#737A8A]">
-              {location || "Reservation property"}
-            </p>
-          </div>
-          {(bedrooms || bathrooms) && (
-            <p className="shrink-0 text-[9px] text-[#A5AAB7]">
-              {bedrooms || 0} bed · {bathrooms || 0} bath
-            </p>
-          )}
-        </div>
-      </section>
-    </div>
   );
 }
 function ShortFacts({ row }: { row: any }) {

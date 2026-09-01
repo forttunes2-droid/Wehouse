@@ -72,7 +72,6 @@ const PropertyPartnerDashboard = lazy(
 );
 const MyBookings = lazy(() => import("@/pages/MyBookings"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
-const Notifications = lazy(() => import("@/pages/Notifications"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
@@ -273,8 +272,7 @@ export default function App() {
               label: "Bookings",
               icon: ReservationSvg,
             },
-            { id: "conversation" as NavPage, label: "Conversation", icon: MessagesSvg },
-            { id: "notifications" as NavPage, label: "Notifications", icon: BellSvg },
+            { id: "conversation" as NavPage, label: "Inbox", icon: MessagesSvg },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
         : [],
@@ -428,7 +426,7 @@ export default function App() {
               message.content ||
                 ((message.attachments || []).length
                   ? "New attachment"
-                  : "Open Messages to read it."),
+                  : "Open Inbox to read it."),
             ).slice(0, 110),
             action: { label: "View", onClick: openMessages },
             classNames: {
@@ -467,7 +465,7 @@ export default function App() {
             toast(data?.title || "Official WeHouse update", {
               description: data?.content
                 ? String(data.content).slice(0, 140)
-                : "Open Messages to read the official update.",
+                : "Open Inbox to read the official update.",
               action: { label: "Read", onClick: openNotifications },
               classNames: {
                 toast:
@@ -745,7 +743,7 @@ export default function App() {
           renderRoleRoot()
         );
       case "notifications":
-        return isUserRole ? <Notifications profile={profile} onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
+        return isUserRole ? <Chat profile={profile} initialMode="activity" onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
       case "profile":
       case "account":
         return (
@@ -797,7 +795,7 @@ export default function App() {
         return isUserRole ? (
           <Chat
             profile={profile}
-            onNavigate={(p: string) => goTo(p as NavPage)}
+            onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);goTo((page==='messages'?'conversation':page) as NavPage)}}
             conversationId={chatConvId}
           />
         ) : (
@@ -962,7 +960,7 @@ export default function App() {
           <PrivateCallCenter />
           <DesktopLayout
             navItems={desktopNavItems}
-            activePage={navPage}
+            activePage={navPage === "notifications" ? "conversation" : navPage}
             onNavigate={goTo}
             userName={profile?.full_name || profile?.username || undefined}
             userRole={profile?.role || undefined}
@@ -991,7 +989,7 @@ export default function App() {
               <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
                 <div className="mx-auto flex max-w-lg items-center justify-around py-1">
                   {tabs.map((tab) => {
-                    const active = navPage === tab.id;
+                    const active = navPage === tab.id || (navPage === "notifications" && tab.id === "conversation");
                     return (
                       <button
                         key={tab.id}
@@ -1008,13 +1006,10 @@ export default function App() {
                         {active && (
                           <span className="h-1 w-1 rounded-full bg-violet-400" />
                         )}
-                        {tab.id === "conversation" && unreadCount > 0 && (
+                        {tab.id === "conversation" && unreadCount + notificationCount > 0 && (
                           <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
-                            {unreadCount > 9 ? "9+" : unreadCount}
+                            {unreadCount + notificationCount > 9 ? "9+" : unreadCount + notificationCount}
                           </span>
-                        )}
-                        {tab.id === "notifications" && notificationCount > 0 && (
-                          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{notificationCount > 9 ? "9+" : notificationCount}</span>
                         )}
                       </button>
                     );
@@ -1087,7 +1082,4 @@ function MessagesSvg({ size, active }: { size: number; active: boolean }) {
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
-}
-function BellSvg({ size, active }: { size: number; active: boolean }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? "#A78BFA" : "currentColor"} strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>;
 }

@@ -24,11 +24,13 @@ import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import { conversationPresentation, getMySupportConversations, type SupportThread } from "@/lib/supabase/support";
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
+import Notifications from "@/pages/Notifications";
 
 type Props = {
   profile: Profile;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, id?: string) => void;
   conversationId?: string | null;
+  initialMode?: "chats" | "activity";
 };
 type Person = Pick<RoommatePeer, "name" | "avatar"> & Partial<RoommatePeer>;
 type RoommateMessage = Message & {
@@ -62,7 +64,7 @@ function SearchIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
 }
 
-export default function Chat({ profile, conversationId }: Props) {
+export default function Chat({ profile, conversationId, onNavigate, initialMode="chats" }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]),
     [bookingConversations, setBookingConversations] = useState<
       BookingConversation[]
@@ -87,6 +89,7 @@ export default function Chat({ profile, conversationId }: Props) {
     [bulkDelete, setBulkDelete] = useState(false),
     [inboxFilter, setInboxFilter] = useState<"all" | "people" | "wehouse">("all"),
     [inboxQuery, setInboxQuery] = useState("");
+  const [inboxMode,setInboxMode]=useState<"chats"|"activity">(initialMode);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
     mediaRef = useRef<MediaRecorder | null>(null),
@@ -379,7 +382,7 @@ export default function Chat({ profile, conversationId }: Props) {
     const { hidden, error } = await hideRoommateConversation(active.id);
     if (error || !hidden)
       return toast.error(error?.message || "Could not remove conversation");
-    toast.success("Conversation removed from your Messages");
+    toast.success("Conversation removed from your Inbox");
     setConfirmDelete(false);
     setMenuOpen(false);
     setActive(null);
@@ -442,7 +445,7 @@ export default function Chat({ profile, conversationId }: Props) {
       toast.error(
         `${failed} conversation${failed === 1 ? "" : "s"} could not be removed`,
       );
-    else toast.success("Selected conversations removed from Messages");
+    else toast.success("Selected conversations removed from Inbox");
   }
 
   const inboxItems = useMemo<InboxItem[]>(
@@ -515,7 +518,7 @@ export default function Chat({ profile, conversationId }: Props) {
             <button
               onClick={() => setActive(null)}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9699A8] hover:bg-white/[.05]"
-              aria-label="Back to Messages"
+              aria-label="Back to Inbox"
             >
               ←
             </button>
@@ -581,7 +584,7 @@ export default function Chat({ profile, conversationId }: Props) {
                 className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
               >
                 <span>⌫</span>
-                <span>Delete from my Messages</span>
+                <span>Remove from my Inbox</span>
               </button>
             </div>
           )}
@@ -692,7 +695,7 @@ export default function Chat({ profile, conversationId }: Props) {
         </footer>
         {confirmDelete && (
           <DeleteSheet
-            title="Delete this conversation from your Messages?"
+            title="Remove this conversation from your Inbox?"
             text="This only removes it from your inbox. It does not erase the other person's copy. A new message can make it appear again."
             onCancel={() => setConfirmDelete(false)}
             onDelete={() => void deleteFromMessages()}
@@ -734,12 +737,12 @@ export default function Chat({ profile, conversationId }: Props) {
               WEHOUSE
             </p>
             <h1 className="mt-1 text-xl font-bold">
-              {selected.size ? `${selected.size} selected` : "Conversation"}
+              {selected.size ? `${selected.size} selected` : "Inbox"}
             </h1>
             <p className="mt-1 text-[10px] text-[#74798B]">
               {selected.size
                 ? "Tap another conversation to add it."
-                : "Conversations connected to your bookings, roommates and real help cases."}
+                : "Chats and activity connected to your WeHouse life."}
             </p>
           </div>
           {selected.size ? (
@@ -760,6 +763,10 @@ export default function Chat({ profile, conversationId }: Props) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
+        <div className="mb-4 flex border-b border-white/[.07]" aria-label="Inbox views">
+          {([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} type="button" onClick={()=>setInboxMode(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${inboxMode===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
+        </div>
+        {inboxMode==='activity'?<Notifications profile={profile} embedded onNavigate={onNavigate}/>:
         <section>
           <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
             <SearchIcon />
@@ -816,7 +823,7 @@ export default function Chat({ profile, conversationId }: Props) {
               ))}
             </div>
           )}
-        </section>
+        </section>}
       </main>
     </div>
   );
