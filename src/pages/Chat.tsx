@@ -21,7 +21,7 @@ import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import SupportEntryCard from "@/components/SupportEntryCard";
+import { getMySupportConversations, type SupportThread } from "@/lib/supabase/support";
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
 
@@ -53,8 +53,8 @@ type BookingConversation = {
 type ActiveBooking = { conversationId: string; bookingId: string } | null;
 type InboxItem =
   | { kind: "roommate"; id: string; time: string; roommate: Conversation }
-  | { kind: "worker"; id: string; time: string; booking: BookingConversation };
-type InboxView = "all" | "bookings" | "roommates" | "support";
+  | { kind: "worker"; id: string; time: string; booking: BookingConversation }
+  | { kind: "support"; id: string; time: string; support: SupportThread };
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -63,6 +63,7 @@ export default function Chat({ profile, conversationId }: Props) {
     [bookingConversations, setBookingConversations] = useState<
       BookingConversation[]
     >([]),
+    [supportThreads,setSupportThreads]=useState<SupportThread[]>([]),
     [active, setActive] = useState<Conversation | null>(null),
     [activeBooking, setActiveBooking] = useState<ActiveBooking>(null),
     [messages, setMessages] = useState<RoommateMessage[]>([]),
@@ -71,7 +72,6 @@ export default function Chat({ profile, conversationId }: Props) {
     [loading, setLoading] = useState(true),
     [loadingMessages, setLoadingMessages] = useState(false),
     [sending, setSending] = useState(false),
-    [supportAvailable, setSupportAvailable] = useState(false),
     [files, setFiles] = useState<File[]>([]),
     [recording, setRecording] = useState(false),
     [recordSeconds, setRecordSeconds] = useState(0),
@@ -80,8 +80,7 @@ export default function Chat({ profile, conversationId }: Props) {
     [profileOpen, setProfileOpen] = useState(false),
     [blockBusy, setBlockBusy] = useState(false),
     [selected, setSelected] = useState<Set<string>>(new Set()),
-    [bulkDelete, setBulkDelete] = useState(false),
-    [inboxView, setInboxView] = useState<InboxView>("all");
+    [bulkDelete, setBulkDelete] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
     mediaRef = useRef<MediaRecorder | null>(null),
@@ -108,10 +107,11 @@ export default function Chat({ profile, conversationId }: Props) {
   const loadInbox = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const [convResult, peerResult, bookingResult] = await Promise.all([
+      const [convResult, peerResult, bookingResult, supportResult] = await Promise.all([
         getConversations(profile.user_id),
         getRoommateConversationPeople(),
         getCommunicationBookingConversations(profile.user_id),
+        getMySupportConversations(),
       ]);
       if (convResult.error && !quiet)
         toast.error(
@@ -129,6 +129,7 @@ export default function Chat({ profile, conversationId }: Props) {
       setBookingConversations(
         (bookingResult.conversations || []) as BookingConversation[],
       );
+      setSupportThreads(supportResult.conversations || []);
       setLoading(false);
       return rows;
     },
@@ -453,18 +454,24 @@ export default function Chat({ profile, conversationId }: Props) {
           time: booking.last_message_time || booking.updated_at,
           booking,
         })),
+        ...supportThreads.map((support) => ({
+          kind: "support" as const,
+          id: `support:${support.conversation_id}`,
+          time: support.last_message_time || support.created_at,
+          support,
+        })),
       ].sort(
         (a, b) =>
           new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
       ),
-    [conversations, bookingConversations],
+    [conversations, bookingConversations, supportThreads],
   );
   const totalUnread =
     conversations.reduce((sum, row) => sum + unread(row), 0) +
     bookingConversations.reduce(
       (sum, row) => sum + Number(row.unread_count || 0),
       0,
-    );
+    ) + supportThreads.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
 
   if (activeBooking)
     return (
@@ -733,25 +740,10 @@ export default function Chat({ profile, conversationId }: Props) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-5 lg:px-8">
-        {!selected.size && (
-          <nav aria-label="Conversation filters" className="grid grid-cols-4 rounded-2xl bg-[#11141C] p-1">
-            {(["all", "bookings", "roommates", "support"] as InboxView[]).map((view) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => setInboxView(view)}
-                aria-pressed={inboxView === view}
-                className={`min-h-10 rounded-xl text-[10px] font-semibold capitalize transition ${inboxView === view ? "bg-violet-500 text-white shadow-lg shadow-violet-950/30" : "text-[#858A99]"}`}
-              >
-                {view}
-              </button>
-            ))}
-          </nav>
-        )}
-        {(inboxView === "all" || inboxView === "bookings" || inboxView === "roommates") && <section>
+        <section>
           <SectionTitle
-            title={inboxView === "bookings" ? "Booking conversations" : inboxView === "roommates" ? "Roommate conversations" : "Your conversations"}
-            text="Each conversation stays attached to the relationship or booking that created it."
+            title="Your conversations"
+            text="Every chat stays attached to the booking, roommate relationship or help case that created it."
           />
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -763,13 +755,13 @@ export default function Chat({ profile, conversationId }: Props) {
                 No private conversations yet
               </p>
               <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
-                Roommate chats appear after a mutual match. Worker chats appear
-                when you request or receive a booking.
+                A conversation appears after a mutual roommate match, a service
+                request, a reservation interaction or a help case you actually send.
               </p>
             </div>
           ) : (
             <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-              {inboxItems.filter((item)=>inboxView === "all" || (inboxView === "bookings" ? item.kind === "worker" : item.kind === "roommate")).map((item, index) => (
+              {inboxItems.map((item, index) => (
                 <div key={item.id}>
                   {index > 0 && <Divider />}
                   {item.kind === "roommate" ? (
@@ -782,7 +774,7 @@ export default function Chat({ profile, conversationId }: Props) {
                       onSelect={() => toggleSelected(item.id)}
                       onOpen={() => void openConversation(item.roommate)}
                     />
-                  ) : (
+                  ) : item.kind === "worker" ? (
                     <WorkerInboxRow
                       row={item.booking}
                       selected={selected.has(item.id)}
@@ -795,24 +787,14 @@ export default function Chat({ profile, conversationId }: Props) {
                         })
                       }
                     />
+                  ) : (
+                    <SupportInboxRow thread={item.support} onOpen={()=>window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{conversationId:item.support.conversation_id,contextType:item.support.context_type,contextId:item.support.context_id}}))}/>
                   )}
                 </div>
               ))}
             </div>
           )}
-        </section>}
-        <div className={inboxView !== "all" && inboxView !== "support" ? "hidden" : ""}>
-          {supportAvailable && <section>
-            <SectionTitle
-              title="Help cases"
-              text="Only cases created by a real support interaction appear here."
-            />
-            <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-              <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />
-            </div>
-          </section>}
-          {!supportAvailable && <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />}
-        </div>
+        </section>
       </main>
     </div>
   );
@@ -922,6 +904,14 @@ function WorkerInboxRow({
     </SelectableRow>
   );
 }
+function SupportInboxRow({thread,onOpen}:{thread:SupportThread;onOpen:()=>void}){
+  const snapshot=thread.context_snapshot||{};
+  const propertyName=String(snapshot.listing_title||snapshot.property_title||"").trim();
+  const title=propertyName||String(thread.subject||"").trim()||supportContextTitle(thread.context_type);
+  const desk=["apartment_reservation","reservation","hotel_booking"].includes(thread.context_type)?"Reservation Desk":"WeHouse Help";
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{title}</p><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">HELP CASE</span></div><p className={`mt-1 truncate text-[11px] ${thread.unread_count?"font-medium text-[#E3E5EB]":"text-[#777C8D]"}`}>{thread.last_message||desk}</p><p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{desk}{snapshot.booking_code?` · ${String(snapshot.booking_code)}`:""} · {formatListTime(thread.last_message_time||thread.created_at)}</p></div>{thread.unread_count>0&&<Unread value={thread.unread_count}/>}</button>
+}
+function supportContextTitle(value:string){const labels:Record<string,string>={apartment_reservation:"Property reservation",reservation:"Property reservation",hotel_booking:"Hotel booking",worker_booking:"Service booking",property_inspection:"Property inspection"};return labels[value]||"WeHouse Help"}
 function SelectableRow({
   onOpen,
   onSelect,

@@ -26,7 +26,14 @@ type EnvelopeRow = {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const SESSION_KEY = "wehouse:e2ee:private-key";
+const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
+
+async function currentProfileId(){
+  const {data,error}=await supabase.rpc("current_profile_user_id");
+  if(error||!data)throw error||new Error("Active WeHouse profile required");
+  return String(data);
+}
+async function sessionKey(){return `${SESSION_KEY_PREFIX}${await currentProfileId()}`}
 
 function bytesToBase64(value: ArrayBuffer | Uint8Array) {
   const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
@@ -86,10 +93,9 @@ export async function createEncryptionIdentity(pin: string) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await pinKey(pin, salt);
   const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(JSON.stringify(privateJwk)));
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error("Authentication required");
+  const profileId=await currentProfileId();
   const { error } = await supabase.from("user_encryption_identities").insert({
-    user_id: auth.user.id,
+    user_id: profileId,
     public_key_jwk: publicJwk,
     encrypted_private_key: bytesToBase64(encrypted),
     backup_iv: bytesToBase64(iv),
@@ -97,7 +103,7 @@ export async function createEncryptionIdentity(pin: string) {
     kdf_iterations: 600_000,
   });
   if (error) throw error;
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(privateJwk));
+  sessionStorage.setItem(await sessionKey(), JSON.stringify(privateJwk));
 }
 
 export async function unlockEncryptionIdentity(pin: string) {
@@ -112,7 +118,7 @@ export async function unlockEncryptionIdentity(pin: string) {
       base64ToBytes(identity.encrypted_private_key),
     );
     const jwk = JSON.parse(decoder.decode(clear)) as JsonWebKey;
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(jwk));
+    sessionStorage.setItem(await sessionKey(), JSON.stringify(jwk));
   } catch {
     throw new Error("Incorrect Recovery PIN");
   }
@@ -120,11 +126,12 @@ export async function unlockEncryptionIdentity(pin: string) {
 
 export async function encryptionIdentityStatus() {
   const { identity, error } = await myIdentity();
-  return { enabled: Boolean(identity), unlocked: Boolean(sessionStorage.getItem(SESSION_KEY)), error };
+  const unlocked=identity?Boolean(sessionStorage.getItem(await sessionKey())):false;
+  return { enabled: Boolean(identity), unlocked, error };
 }
 
 async function unlockedPrivateKey() {
-  const value = sessionStorage.getItem(SESSION_KEY);
+  const value = sessionStorage.getItem(await sessionKey());
   if (!value) throw new Error("Enter your Recovery PIN to unlock private messages");
   return importPrivateKey(JSON.parse(value) as JsonWebKey);
 }
@@ -154,14 +161,13 @@ async function wrapFor(key: CryptoKey, recipient: { user_id: string; key_version
   };
 }
 async function conversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error("Authentication required");
+  const profileId=await currentProfileId();
   const { data: existing, error } = await supabase
     .from("conversation_key_envelopes")
     .select("*")
     .eq("conversation_kind", kind)
     .eq("conversation_id", conversationId)
-    .eq("recipient_user_id", auth.user.id)
+    .eq("recipient_user_id", profileId)
     .order("recipient_key_version", { ascending: false })
     .limit(1)
     .maybeSingle();

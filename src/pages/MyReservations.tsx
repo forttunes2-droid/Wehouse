@@ -14,7 +14,9 @@ import {
 import type { Profile } from "@/types";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import MyBookings, { type BookingStage } from "@/pages/MyBookings";
+import BookingNegotiationChat from "@/components/BookingNegotiationChat";
+import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase/worker-bookings";
+import type { BookingStage } from "@/pages/MyBookings";
 import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
 
 type Props = { profile: Profile; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
@@ -56,6 +58,7 @@ async function confirmMoveInFromReservation(row: any) {
 export default function MyReservations({ profile, onOpenConversation, onOpenListing }: Props) {
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
+    [services, setServices] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
     [stage, setStage] = useState<BookingStage>("all"),
     [gallery, setGallery] = useState<{
@@ -69,6 +72,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
       bathrooms?: number;
     } | null>(null),
     [loading, setLoading] = useState(true),
+    [activeService, setActiveService] = useState<{conversationId:string;bookingId:string}|null>(null),
     [busyId, setBusyId] = useState<string | null>(null),
     [pending, setPending] = useState<{
       kind: "move_in" | "cancel_housing" | "cancel_hotel";
@@ -76,14 +80,17 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
     } | null>(null);
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
-    const [h, h2] = await Promise.all([
+    const [h, h2, serviceResult] = await Promise.all([
       getReservationsForUser(profile.user_id),
       getHotelBookingsForUser(profile.user_id),
+      getMyBookingConversations(profile.user_id),
     ]);
     if (h.error) toast.error(h.error.message);
     if (h2.error) toast.error(h2.error.message);
+    if (serviceResult.error) toast.error(serviceResult.error.message || "Unable to load service bookings");
     setHousing(h.reservations || []);
     setHotels(h2.bookings || []);
+    setServices(serviceResult.conversations || []);
     setBusyId(null);
     if (!quiet) setLoading(false);
   }
@@ -115,19 +122,26 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
           row,
           date: row.created_at || "",
         })),
+        ...services.map((row) => ({
+          kind: "service" as const,
+          row,
+          date: row.updated_at || "",
+        })),
       ]
         .filter(
           (item) =>
             (view === "all" ||
             (view === "housing"
               ? item.kind === "housing"
-              : item.kind === "hotel")) &&
+              : view === "hotels"
+                ? item.kind === "hotel"
+                : item.kind === "service")) &&
             (stage === "all" || lifecycleStage(item.kind,item.row) === stage),
         )
         .sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
-    [housing, hotels, view, stage],
+    [housing, hotels, services, view, stage],
   );
   async function fee(row: any) {
     const reference = String(row.payment_reference || "");
@@ -217,6 +231,8 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
             reservation_id: row.id,
             booking_code: row.booking_code,
             listing_id: row.listing_id,
+            listing_title: row.listing_title,
+            listing_location: row.listing_location || [row.listing_city,row.listing_state].filter(Boolean).join(", "),
             stay_type: row.stay_type,
             status: row.status,
             check_in: row.stay_check_in,
@@ -227,6 +243,10 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
       }),
     );
   }
+  function hotelSupport(row:any){
+    window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{category:"hotel_booking",subject:`${row.hotels?.name||row.hotel?.name||row.hotel_name||"Hotel stay"} · Reservation Desk`,contextType:"hotel_booking",contextId:String(row.booking_id),contextSnapshot:{booking_id:row.booking_id,booking_code:row.booking_code,hotel_id:row.hotel_id,hotel_name:row.hotels?.name||row.hotel?.name||row.hotel_name,room_id:row.room_id,room_name:row.hotel_rooms?.name||row.room_name,check_in:row.check_in_date||row.check_in,check_out:row.check_out_date||row.check_out,status:row.status,payment_status:row.payment_status}}}));
+  }
+  if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
       <Toaster position="top-center" richColors />
@@ -242,7 +262,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
             </p>
           </div>
           <span className="rounded-full border border-white/[.07] px-2.5 py-1 text-[9px] text-[#7D8291]">
-            {housing.length + hotels.length}
+            {housing.length + hotels.length + services.length}
           </span>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Booking status filters">
@@ -275,9 +295,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
             onOpenListing={onOpenListing}
           />
         )}
-        {view === "services" ? (
-          <MyBookings profile={profile} onBack={() => setView("all")} embedded stage={stage} showFilters={false} />
-        ) : loading ? (
+        {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
           <Empty />
@@ -320,7 +338,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
                   }
                   onSupport={() => support(item.row)}
                 />
-              ) : (
+              ) : item.kind === "hotel" ? (
                 <HotelCard
                   key={item.row.booking_id}
                   row={item.row}
@@ -328,21 +346,13 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
                   onCancel={() =>
                     setPending({ kind: "cancel_hotel", row: item.row })
                   }
+                  onSupport={()=>hotelSupport(item.row)}
                 />
+              ) : (
+                <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={()=>setActiveService({conversationId:item.row.conversation_id,bookingId:item.row.booking_id})}/>
               ),
             )}
           </div>
-        )}
-        {view === "all" && (
-          <section className="border-t border-white/[.07] pt-5">
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold">Service bookings</h2>
-              <p className="mt-1 text-[9px] text-[#707687]">
-                Worker requests, agreed prices, secured payments and job progress.
-              </p>
-            </div>
-            <MyBookings profile={profile} onBack={() => setView("all")} embedded stage={stage} showFilters={false} />
-          </section>
         )}
       </main>
       {gallery && (
@@ -386,13 +396,21 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
   );
 }
 
-function lifecycleStage(kind:"housing"|"hotel",row:any):BookingStage{
-  const status=String(kind==="housing"?(row.rent_payment_status==="payment_pending"?"payment_pending":row.status):row.status||row.payment_status||"");
+function lifecycleStage(kind:"housing"|"hotel"|"service",row:any):BookingStage{
+  const status=String(kind==="service"?row.booking_status:kind==="housing"?(row.rent_payment_status==="payment_pending"?"payment_pending":row.status):row.status||row.payment_status||"");
   if(["payment_pending","ready_for_move_in","action_required","payment_conflict"].includes(status))return"needs_action";
+  if(["waiting_payment","completed_pending_approval","disputed"].includes(status))return"needs_action";
   if(["confirmed","scheduled","ready","reserved"].includes(status))return"upcoming";
-  if(["completed","cancelled","expired","refunded","checked_out","occupied"].includes(status))return"completed";
+  if(["completed","cancelled","expired","refunded","checked_out","approved_released"].includes(status))return"completed";
   return"active";
 }
+
+function ServiceCard({row,onOpen}:{row:any;onOpen:()=>void}){
+  const status=BOOKING_STATUS_LABELS[row.booking_status];
+  const amount=Number(row.negotiated_amount||0);
+  return <article className="border-b border-white/[.065] py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse professional"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||String(row.booking_status||"requested").replace(/_/g," ")}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3"><p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p><span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
+}
+function serviceNextAction(status:string){const labels:Record<string,string>={booking_requested:"Waiting for the professional to respond",negotiating:"Agree the work, date and price",waiting_payment:"Approve and pay the agreed price",confirmed:"Payment secured · waiting to start",in_progress:"Work is in progress",completed_pending_approval:"Review the completed work",approved_released:"Completed",disputed:"WeHouse review in progress",cancelled:"Cancelled",refunded:"Refunded"};return labels[status]||"Open for the next action"}
 
 function HousingCard({
   row,
@@ -720,10 +738,12 @@ function HotelCard({
   row,
   busy,
   onCancel,
+  onSupport,
 }: {
   row: any;
   busy: boolean;
   onCancel: () => void;
+  onSupport:()=>void;
 }) {
   return (
     <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4">
@@ -762,6 +782,7 @@ function HotelCard({
           {busy ? "Cancelling…" : "Cancel"}
         </button>
       )}
+      <button type="button" onClick={onSupport} className="mt-3 h-10 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-[#B2B6C2]">Reservation Desk</button>
     </article>
   );
 }
