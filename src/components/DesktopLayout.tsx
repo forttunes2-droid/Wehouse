@@ -76,10 +76,11 @@ export default function DesktopLayout({
   const [workspaceTabs, setWorkspaceTabs] = useState<MirroredTab[]>([]);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [nestedScreen, setNestedScreen] = useState(false);
 
   const role = userRole || '';
   const initials = (userName || 'U').charAt(0).toUpperCase();
-  const showBack = !ROOT_PAGES.has(activePage);
+  const showBack = !ROOT_PAGES.has(activePage) && !nestedScreen;
   const showMobileBack = showBack && !OWN_MOBILE_BACK.has(activePage);
   const operational = OPERATIONAL_ROLES.has(role);
   const workspaceRoot = operational && isWorkspaceRoot(role, activePage);
@@ -103,7 +104,14 @@ export default function DesktopLayout({
 
   useEffect(() => {
     setMoreOpen(false);
+    setNestedScreen(false);
   }, [activePage]);
+
+  useEffect(() => {
+    const update = (event: Event) => setNestedScreen(Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open));
+    window.addEventListener('wehouse:nested-screen', update);
+    return () => window.removeEventListener('wehouse:nested-screen', update);
+  }, []);
 
   useEffect(() => {
     if (!workspaceRoot) {

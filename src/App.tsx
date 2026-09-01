@@ -220,10 +220,16 @@ export default function App() {
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
     [notificationCount, setNotificationCount] = useState(0),
+    [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null),
     [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess | null>(null),
     [activeWorkspace, setActiveWorkspace] = useState<WorkspaceChoice>('personal');
   const baseProfile = auth.profile;
+  useEffect(() => {
+    const update = (event: Event) => setNestedScreen(Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open));
+    window.addEventListener('wehouse:nested-screen', update);
+    return () => window.removeEventListener('wehouse:nested-screen', update);
+  }, []);
   useEffect(() => {
     if (!baseProfile?.user_id) return;
     let cancelled = false;
@@ -945,7 +951,7 @@ export default function App() {
     "payment_return",
   ] as NavPage[];
   const showBottomNav =
-      isUserRole && !conversationOpen && !hide.includes(navPage),
+      isUserRole && !conversationOpen && !nestedScreen && !hide.includes(navPage),
     supportRole = ["user", "worker", "property_partner"].includes(
       profile?.role || "",
     );
@@ -971,6 +977,7 @@ export default function App() {
           {(isAdminRole || isStaffRole) && <AdminAuthModal />}
           {supportRole && profile && (
             <SupportChat
+              onOpenListing={goToDetail}
               profile={{
                 user_id: profile.user_id,
                 username: profile.username,

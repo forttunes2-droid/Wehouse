@@ -46,6 +46,7 @@ export default function WorkerPublicProfileV2({
     [loading, setLoading] = useState(true),
     [trust, setTrust] = useState<Trust | null>(null);
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: true } }));
     let active = true;
     void (async () => {
       const [{ data: rows }, { data: trustData }] = await Promise.all([
@@ -77,12 +78,13 @@ export default function WorkerPublicProfileV2({
     })();
     return () => {
       active = false;
+      window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: false } }));
     };
   }, [worker.user_id]);
   const occupation =
       WORKER_OCCUPATION_LABELS[worker.worker_occupation || ""] ||
       worker.worker_occupation ||
-      "Service professional",
+      "Service worker",
     skills = (worker.worker_skills as string[]) || [],
     portfolio = posts.filter((post) => post.kind === "portfolio"),
     rating = Number(worker.rating || 0) || 0,
@@ -98,9 +100,9 @@ export default function WorkerPublicProfileV2({
             ←
           </button>
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE PROFESSIONAL <GoldTickBadge size="sm" title="WeHouse reviewed professional" /></p>
+            <p className="flex items-center gap-2 text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE SERVICE WORKER <GoldTickBadge size="sm" title="WeHouse reviewed service worker" /></p>
             <p className="truncate text-sm font-semibold">
-              {worker.full_name || worker.username || "Professional"}
+              {worker.full_name || worker.username || "Service worker"}
             </p>
           </div>
         </div>
@@ -124,7 +126,7 @@ export default function WorkerPublicProfileV2({
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-2">
                 <h1 className="truncate text-xl font-bold">
-                  {worker.full_name || worker.username || "Professional"}
+                  {worker.full_name || worker.username || "Service worker"}
                 </h1>
                 <GoldTickBadge title="Gold Tick · verification payment confirmed" />
               </div>
@@ -171,11 +173,11 @@ export default function WorkerPublicProfileV2({
           <div className="mb-3">
             <h2 className="text-sm font-bold">Portfolio</h2>
             <p className="mt-1 text-[9px] text-[#666D7E]">
-              Permanent examples of this professional’s work
+              Photos and videos of this worker’s services
             </p>
           </div>
           {loading ? (
-            <Empty text="Loading professional work…" />
+            <Empty text="Loading work portfolio…" />
           ) : portfolio.length === 0 ? (
             <Empty text="No Portfolio work has been published yet." />
           ) : (
@@ -196,7 +198,7 @@ export default function WorkerPublicProfileV2({
                     </span>
                   )}
                   <p className="line-clamp-2 p-2 text-[9px] text-[#A0A5B2]">
-                    {post.caption || "Professional work"}
+                    {post.caption || "Service work"}
                   </p>
                 </button>
               ))}
@@ -232,7 +234,7 @@ export default function WorkerPublicProfileV2({
           >
             {bookingActive
               ? "Open current booking"
-              : "Request this professional"}
+              : "Request service"}
           </button>
         </div>
       </div>

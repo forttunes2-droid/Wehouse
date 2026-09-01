@@ -58,6 +58,10 @@ type InboxItem =
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+function SearchIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
+}
+
 export default function Chat({ profile, conversationId }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]),
     [bookingConversations, setBookingConversations] = useState<
@@ -80,7 +84,9 @@ export default function Chat({ profile, conversationId }: Props) {
     [profileOpen, setProfileOpen] = useState(false),
     [blockBusy, setBlockBusy] = useState(false),
     [selected, setSelected] = useState<Set<string>>(new Set()),
-    [bulkDelete, setBulkDelete] = useState(false);
+    [bulkDelete, setBulkDelete] = useState(false),
+    [inboxFilter, setInboxFilter] = useState<"all" | "people" | "wehouse">("all"),
+    [inboxQuery, setInboxQuery] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null),
     mediaRef = useRef<MediaRecorder | null>(null),
@@ -472,8 +478,20 @@ export default function Chat({ profile, conversationId }: Props) {
       (sum, row) => sum + Number(row.unread_count || 0),
       0,
     ) + supportThreads.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
-  const personalItems = inboxItems.filter((item) => item.kind !== "support");
-  const weHouseItems = inboxItems.filter((item) => item.kind === "support");
+  const visibleInboxItems = useMemo(() => {
+    const query = inboxQuery.trim().toLowerCase();
+    return inboxItems.filter((item) => {
+      if (inboxFilter === "people" && item.kind === "support") return false;
+      if (inboxFilter === "wehouse" && item.kind !== "support") return false;
+      if (!query) return true;
+      const searchable = item.kind === "roommate"
+        ? [people[otherId(item.roommate)]?.name, item.roommate.last_message]
+        : item.kind === "worker"
+          ? [item.booking.other_person_name, item.booking.service_type, item.booking.last_message, item.booking.booking_code]
+          : (() => { const view = conversationPresentation(item.support); return [view.title, view.operator, view.meta, item.support.subject, item.support.last_message]; })();
+      return searchable.filter(Boolean).join(" ").toLowerCase().includes(query);
+    });
+  }, [inboxFilter, inboxItems, inboxQuery, otherId, people]);
 
   if (activeBooking)
     return (
@@ -741,29 +759,31 @@ export default function Chat({ profile, conversationId }: Props) {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-5 lg:px-8">
+      <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
         <section>
-          <SectionTitle
-            title="People"
-            text="Private conversations with roommates and service workers."
-          />
+          <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
+            <SearchIcon />
+            <input value={inboxQuery} onChange={(event) => setInboxQuery(event.target.value)} placeholder="Search conversations" className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]" />
+          </label>
+          <div className="mt-3 flex gap-1 rounded-2xl border border-white/[.06] bg-[#0E1118] p-1" aria-label="Conversation filters">
+            {([['all','All'],['people','People'],['wehouse','WeHouse']] as const).map(([id,label]) => <button key={id} type="button" onClick={() => setInboxFilter(id)} className={`min-h-9 flex-1 rounded-xl text-[10px] font-semibold ${inboxFilter===id?'bg-violet-500 text-white':'text-[#7A8090]'}`}>{label}</button>)}
+          </div>
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
               <Loading />
             </div>
-          ) : inboxItems.length === 0 ? (
+          ) : visibleInboxItems.length === 0 ? (
             <div className="mt-3 rounded-3xl border border-dashed border-white/[.08] px-5 py-10 text-center">
               <p className="text-sm font-semibold">
-                No conversations yet
+                {inboxQuery.trim() ? "No matching conversations" : inboxFilter === "wehouse" ? "No WeHouse conversations" : inboxFilter === "people" ? "No private conversations" : "No conversations yet"}
               </p>
               <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
-                A conversation appears after a mutual roommate match, a service
-                request, a reservation, or a help case you actually create.
+                {inboxQuery.trim() ? "Try a person, service, property or reservation name." : "Conversations appear after a mutual roommate match, service request, reservation, or a help case you create."}
               </p>
             </div>
-          ) : personalItems.length ? (
+          ) : (
             <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-              {personalItems.map((item, index) => (
+              {visibleInboxItems.map((item, index) => (
                 <div key={item.id}>
                   {index > 0 && <Divider />}
                   {item.kind === "roommate" ? (
@@ -789,13 +809,14 @@ export default function Chat({ profile, conversationId }: Props) {
                         })
                       }
                     />
+                  ) : item.kind === "support" ? (
+                    <SupportInboxRow thread={item.support} onOpen={()=>window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{conversationId:item.support.conversation_id,contextType:item.support.context_type,contextId:item.support.context_id}}))}/>
                   ) : null}
                 </div>
               ))}
             </div>
-          ) : <div className="mt-3 border-y border-white/[.06] py-6 text-center text-[10px] text-[#656B7B]">No private conversations yet.</div>}
+          )}
         </section>
-        {!loading && weHouseItems.length > 0 ? <section><SectionTitle title="WeHouse" text="Reservation Desk and genuine help cases handled by authorized WeHouse staff."/><div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">{weHouseItems.map((item,index)=><div key={item.id}>{index>0?<Divider/>:null}{item.kind==='support'?<SupportInboxRow thread={item.support} onOpen={()=>window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{conversationId:item.support.conversation_id,contextType:item.support.context_type,contextId:item.support.context_id}}))}/>:null}</div>)}</div></section>:null}
       </main>
     </div>
   );
@@ -1317,14 +1338,6 @@ function DeleteSheet({
           </button>
         </div>
       </section>
-    </div>
-  );
-}
-function SectionTitle({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <h2 className="text-sm font-bold">{title}</h2>
-      <p className="mt-1 text-[9px] text-[#5F6575]">{text}</p>
     </div>
   );
 }

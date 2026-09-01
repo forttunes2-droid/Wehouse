@@ -40,9 +40,9 @@ export default function SecureMessagesPanel() {
     <section className="rounded-2xl border border-white/[.07] bg-[#11141C] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">End-to-end encrypted messages</p>
+          <p className="text-sm font-semibold">Private chat encryption</p>
           <p className="mt-1 text-[10px] leading-5 text-[#7B8191]">
-            Roommate and Worker chats are encrypted on your device. WeHouse help cases and official updates are not end-to-end encrypted.
+            Roommate and service-worker chats are end-to-end encrypted. Reservation Desk and Support remain operational conversations so authorized WeHouse staff can assist.
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[8px] font-semibold ${enabled ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#7D8292]"}`}>
@@ -65,7 +65,7 @@ export default function SecureMessagesPanel() {
         {busy ? "Securing…" : unlocked ? "Private messages unlocked" : enabled ? "Unlock private messages" : "Enable secure messages"}
       </button>
       <p className="mt-3 text-[9px] leading-4 text-[#626879]">
-        Your PIN never leaves this device. It decrypts a private-key backup that is stored only as ciphertext. If you forget it, old encrypted messages cannot be recovered.
+        The six-digit PIN unlocks an encrypted backup of your private messaging key on a new device. WeHouse stores only the encrypted backup, not the PIN or readable key. If you forget the PIN, old encrypted messages cannot be recovered.
       </p>
     </section>
   );

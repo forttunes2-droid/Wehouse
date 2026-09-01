@@ -77,16 +77,20 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
     })();
   }, []);
 
-  async function saveNotifications() {
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: panel !== null } }));
+    return () => { window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: false } })); };
+  }, [panel]);
+
+  async function saveNotificationPreference(key: 'pref_email_notif' | 'pref_push_notif', value: boolean) {
     setSaving(true);
     const { error } = await supabase
       .from('profiles')
-      .update({ pref_email_notif: emailNotifs, pref_push_notif: pushNotifs, updated_at: new Date().toISOString() })
+      .update({ [key]: value, updated_at: new Date().toISOString() })
       .eq('auth_id', profile.auth_id);
     setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success('Notifications updated');
-    setPanel(null);
+    if (error) return toast.error('This preference could not be saved');
+    toast.success('Preference saved');
   }
 
   async function acceptLegal() {
@@ -141,10 +145,10 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       <AccountShell profile={profile} title="Notifications" description="Choose how WeHouse should alert this account." onBack={() => setPanel(null)}>
         <Toaster position="top-center" richColors />
         <AccountSection>
-          <Toggle label="Email notifications" detail="Allow WeHouse to send important account and service emails." value={emailNotifs} onChange={setEmailNotifs} />
-          <Toggle label="In-app alerts" detail="Show new-message and announcement popups while WeHouse is open." value={pushNotifs} onChange={setPushNotifs} />
+          <Toggle label="Email notifications" detail="Allow WeHouse to send important account and service emails." value={emailNotifs} disabled={saving} onChange={(value)=>{setEmailNotifs(value);void saveNotificationPreference('pref_email_notif',value)}} />
+          <Toggle label="In-app alerts" detail="Show new-message and announcement popups while WeHouse is open." value={pushNotifs} disabled={saving} onChange={(value)=>{setPushNotifs(value);void saveNotificationPreference('pref_push_notif',value)}} />
         </AccountSection>
-        <button onClick={() => void saveNotifications()} disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save notification preferences'}</button>
+        <p className="px-1 text-[9px] text-[#656C7C]">Changes save automatically.</p>
       </AccountShell>
     );
   }
@@ -250,8 +254,8 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   );
 }
 
-function Toggle({ label, detail, value, onChange }: { label: string; detail: string; value: boolean; onChange: (value: boolean) => void }) {
-  return <div className="flex min-h-[4.5rem] items-center justify-between gap-4 border-b border-white/[.05] px-4 py-3.5 last:border-b-0 sm:px-5"><div><p className="text-[12px] font-semibold">{label}</p><p className="mt-0.5 text-[9px] leading-relaxed text-[#6F7585]">{detail}</p></div><button type="button" onClick={() => onChange(!value)} className={`relative h-6 w-11 shrink-0 rounded-full transition ${value ? 'bg-violet-500' : 'bg-[#292D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : ''}`} /></button></div>;
+function Toggle({ label, detail, value, onChange, disabled=false }: { label: string; detail: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+  return <div className="flex min-h-[4.5rem] items-center justify-between gap-4 border-b border-white/[.05] px-4 py-3.5 last:border-b-0 sm:px-5"><div><p className="text-[12px] font-semibold">{label}</p><p className="mt-0.5 text-[9px] leading-relaxed text-[#6F7585]">{detail}</p></div><button type="button" disabled={disabled} aria-pressed={value} onClick={() => onChange(!value)} className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50 ${value ? 'bg-violet-500' : 'bg-[#292D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : ''}`} /></button></div>;
 }
 function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) { return <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5"><input type="checkbox" checked={value} onChange={(event) => set(event.target.checked)} className="h-4 w-4 accent-violet-500" /><span className="text-[10px] leading-relaxed text-[#B3B8C4]">{label}</span></label>; }
 function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} disabled={!published} className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"><p className="text-[11px] font-semibold">{title}</p><p className={`mt-2 text-[9px] ${accepted ? 'text-emerald-300' : 'text-[#6E7484]'}`}>{!published ? 'Not published' : accepted ? 'Accepted' : 'Review document'}</p></button>; }

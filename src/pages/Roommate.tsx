@@ -252,8 +252,14 @@ export default function RoommateWorkspace({
   ) {
     if (interestBusy) return;
     setInterestBusy(match.id);
+    if (status === "accepted") {
+      setMatches((current) => current.map((row) => row.id === match.id ? { ...row, status: "accepted" } : row));
+    }
     const { conversationId, error } = await updateMatchStatus(match.id, status);
     if (error) {
+      if (status === "accepted") {
+        setMatches((current) => current.map((row) => row.id === match.id ? { ...row, status: match.status } : row));
+      }
       setInterestBusy(null);
       return toast.error(error.message);
     }
@@ -669,7 +675,7 @@ function Matches({
                         disabled
                         className="min-h-11 w-full rounded-xl bg-violet-500/10 text-xs font-semibold text-violet-300"
                       >
-                        Request pending
+                        Pending
                       </button>
                     ) : (
                       <>

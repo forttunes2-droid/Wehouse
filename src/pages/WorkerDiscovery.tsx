@@ -326,7 +326,7 @@ export default function WorkerDiscovery({
           onBook={() =>
             profile
               ? setBookingWorker(viewWorker)
-              : toast.info("Please sign in to request a professional")
+              : toast.info("Please sign in to request this service worker")
           }
         />
         {bookingWorker && profile && (

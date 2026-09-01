@@ -27,6 +27,7 @@ interface ChatProfile {
 
 interface Props {
   profile: ChatProfile | null;
+  onOpenListing?: (listingId: string) => void;
 }
 type SupportMessage = {
   id: string;
@@ -63,7 +64,7 @@ type ReservationAttachmentRow = {
   created_at?: string | null;
 };
 
-export default function SupportChat({ profile }: Props) {
+export default function SupportChat({ profile, onOpenListing }: Props) {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<SupportThread | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -358,6 +359,7 @@ export default function SupportChat({ profile }: Props) {
                   <MessageBubble
                     msg={msg}
                     mine={msg.sender_id === profile.user_id}
+                    onOpenListing={(listingId) => { setOpen(false); onOpenListing?.(listingId); }}
                   />
                 </div>
               ))}
@@ -510,7 +512,7 @@ export default function SupportChat({ profile }: Props) {
   );
 }
 
-function MessageBubble({ msg, mine }: { msg: SupportMessage; mine: boolean }) {
+function MessageBubble({ msg, mine, onOpenListing }: { msg: SupportMessage; mine: boolean; onOpenListing?: (listingId: string) => void }) {
   const meta = msg.action_metadata || {};
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -518,7 +520,7 @@ function MessageBubble({ msg, mine }: { msg: SupportMessage; mine: boolean }) {
         className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${mine ? "items-end" : "items-start"}`}
       >
         {meta && Object.keys(meta).length > 0 && (
-          <MessageContext meta={meta} type={msg.action_type} />
+          <MessageContext meta={meta} type={msg.action_type} onOpenListing={onOpenListing} />
         )}
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]"}`}
@@ -565,15 +567,17 @@ function MessageBubble({ msg, mine }: { msg: SupportMessage; mine: boolean }) {
 function MessageContext({
   meta,
   type,
+  onOpenListing,
 }: {
   meta: Record<string, unknown>;
   type?: string | null;
+  onOpenListing?: (listingId: string) => void;
 }) {
   const snap =
     meta.context_snapshot && typeof meta.context_snapshot === "object"
       ? (meta.context_snapshot as Record<string, unknown>)
       : {};
-  const ref = meta.context_id;
+  const listingId = String(snap.listing_id || meta.listing_id || "");
   const label = String(
     meta.subject || type || meta.context_type || "Linked WeHouse item",
   ).replace(/_/g, " ");
@@ -583,15 +587,11 @@ function MessageContext({
         <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}
         </p>
-        {Boolean(ref) && (
-          <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-1 text-[8px] text-violet-300">
-            Ref {String(ref).slice(0, 18)}
-          </span>
-        )}
+        {listingId && onOpenListing ? <button type="button" onClick={() => onOpenListing(listingId)} className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200">View property →</button> : null}
       </div>
       {Object.keys(snap).length > 0 && (
         <div className="mt-2 grid gap-1 text-[9px] text-[#8FA0B9] sm:grid-cols-2">
-          {Object.entries(snap)
+          {Object.entries(snap).filter(([key]) => !['id','listing_id','user_id','auth_id'].includes(key))
             .slice(0, 6)
             .map(([key, value]) => (
               <p key={key} className="truncate">
