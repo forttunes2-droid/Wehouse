@@ -929,6 +929,7 @@ export default function App() {
   };
   const desktopNavItems = getNavForRole(userRole, unreadCount);
   const hide = [
+    "profile",
     "detail",
     "chat",
     "saved",

@@ -472,6 +472,8 @@ export default function Chat({ profile, conversationId }: Props) {
       (sum, row) => sum + Number(row.unread_count || 0),
       0,
     ) + supportThreads.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
+  const personalItems = inboxItems.filter((item) => item.kind !== "support");
+  const weHouseItems = inboxItems.filter((item) => item.kind === "support");
 
   if (activeBooking)
     return (
@@ -742,8 +744,8 @@ export default function Chat({ profile, conversationId }: Props) {
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-5 lg:px-8">
         <section>
           <SectionTitle
-            title="Your conversations"
-            text="Every chat stays attached to the booking, roommate relationship or help case that created it."
+            title="People"
+            text="Private conversations with roommates and service workers."
           />
           {loading ? (
             <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -759,9 +761,9 @@ export default function Chat({ profile, conversationId }: Props) {
                 request, a reservation, or a help case you actually create.
               </p>
             </div>
-          ) : (
+          ) : personalItems.length ? (
             <div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
-              {inboxItems.map((item, index) => (
+              {personalItems.map((item, index) => (
                 <div key={item.id}>
                   {index > 0 && <Divider />}
                   {item.kind === "roommate" ? (
@@ -787,14 +789,13 @@ export default function Chat({ profile, conversationId }: Props) {
                         })
                       }
                     />
-                  ) : (
-                    <SupportInboxRow thread={item.support} onOpen={()=>window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{conversationId:item.support.conversation_id,contextType:item.support.context_type,contextId:item.support.context_id}}))}/>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>
-          )}
+          ) : <div className="mt-3 border-y border-white/[.06] py-6 text-center text-[10px] text-[#656B7B]">No private conversations yet.</div>}
         </section>
+        {!loading && weHouseItems.length > 0 ? <section><SectionTitle title="WeHouse" text="Reservation Desk and genuine help cases handled by authorized WeHouse staff."/><div className="mt-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">{weHouseItems.map((item,index)=><div key={item.id}>{index>0?<Divider/>:null}{item.kind==='support'?<SupportInboxRow thread={item.support} onOpen={()=>window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{conversationId:item.support.conversation_id,contextType:item.support.context_type,contextId:item.support.context_id}}))}/>:null}</div>)}</div></section>:null}
       </main>
     </div>
   );

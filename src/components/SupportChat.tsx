@@ -147,8 +147,8 @@ export default function SupportChat({ profile }: Props) {
     setLoadError("");
     const { messages: data, error } = await getSupportMessages(id);
     if (error) {
-      setLoadError(error.message || "The conversation could not be loaded");
-      if (!quiet) toast.error(error.message || "Unable to load this conversation");
+      setLoadError("We could not load this conversation. Please try again.");
+      if (!quiet) toast.error("Unable to load this conversation");
     } else {
       const next = (data || []) as SupportMessage[];
       messageCache.set(id, next);
