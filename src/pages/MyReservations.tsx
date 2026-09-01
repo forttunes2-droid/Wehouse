@@ -12,11 +12,9 @@ import type { Profile } from "@/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase/worker-bookings";
-import type { BookingStage } from "@/pages/MyBookings";
 import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
 
 type Props = { profile: Profile; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
-type View = "all" | "housing" | "hotels" | "services";
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
 const HOUSING_STATUS: Record<string, string> = {
@@ -36,8 +34,6 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
-    [view, setView] = useState<View>("all"),
-    [stage, setStage] = useState<BookingStage>("all"),
     [loading, setLoading] = useState(true),
     [activeService, setActiveService] = useState<{conversationId:string;bookingId:string}|null>(null),
     [busyId, setBusyId] = useState<string | null>(null),
@@ -94,21 +90,10 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
           row,
           date: row.updated_at || "",
         })),
-      ]
-        .filter(
-          (item) =>
-            (view === "all" ||
-            (view === "housing"
-              ? item.kind === "housing"
-              : view === "hotels"
-                ? item.kind === "hotel"
-                : item.kind === "service")) &&
-            (stage === "all" || lifecycleStage(item.kind,item.row) === stage),
-        )
-        .sort(
+      ].sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
-    [housing, hotels, services, view, stage],
+    [housing, hotels, services],
   );
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -183,47 +168,15 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
-        <div className="flex items-end gap-3 border-b border-white/[.07]">
-          <div className="flex min-w-0 flex-1">
-            {(
-            [
-              ["all", "All"],
-              ["housing", "Property"],
-              ["hotels", "Hotels"],
-              ["services", "Services"],
-            ] as const
-            ).map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setView(id)}
-              className={`relative flex-1 px-3 py-3 text-[10px] font-semibold ${view === id ? "text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:bg-violet-400" : "text-[#74798A]"}`}
-            >
-              {label}
-            </button>
-            ))}
-          </div>
-          <label className="mb-2 shrink-0">
-            <span className="sr-only">Filter bookings by status</span>
-            <select value={stage} onChange={(event)=>setStage(event.target.value as BookingStage)} className="h-9 rounded-full border border-white/[.08] bg-[#11141C] px-3 text-[9px] font-semibold text-[#A7ABB8] outline-none">
-              <option value="all">All statuses</option>
-              <option value="needs_action">Needs action</option>
-              <option value="active">Active</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="completed">Completed</option>
-            </select>
-          </label>
-        </div>
-        {(view === "all" || view === "housing") && (
-          <SharedHomeLifecyclePanel
-            profileId={profile.user_id}
-            onOpenConversation={onOpenConversation}
-            onOpenListing={onOpenListing}
-          />
-        )}
+        <SharedHomeLifecyclePanel
+          profileId={profile.user_id}
+          onOpenConversation={onOpenConversation}
+          onOpenListing={onOpenListing}
+        />
         {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
-          <Empty view={view} stage={stage} />
+          <Empty />
         ) : (
           <div className="space-y-3">
             {rows.map((item) =>
@@ -266,15 +219,6 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
       />
     </div>
   );
-}
-
-function lifecycleStage(kind:"housing"|"hotel"|"service",row:any):BookingStage{
-  const status=String(kind==="service"?row.booking_status:kind==="housing"?(row.rent_payment_status==="payment_pending"?"payment_pending":row.status):row.status||row.payment_status||"");
-  if(["payment_pending","ready_for_move_in","action_required","payment_conflict"].includes(status))return"needs_action";
-  if(["waiting_payment","completed_pending_approval","disputed"].includes(status))return"needs_action";
-  if(["confirmed","scheduled","ready","reserved"].includes(status))return"upcoming";
-  if(["completed","cancelled","expired","refunded","checked_out","approved_released"].includes(status))return"completed";
-  return"active";
 }
 
 function ServiceCard({row,onOpen}:{row:any;onOpen:()=>void}){
@@ -521,14 +465,12 @@ function Loading() {
     </div>
   );
 }
-function Empty({view,stage}:{view:View;stage:BookingStage}) {
-  const type=view==='housing'?'home':view==='hotels'?'hotel':view==='services'?'service':'booking';
-  const title=stage==='all'?`No ${type}${view==='all'?'s':' bookings'} yet`:stage==='needs_action'?`No ${type}${view==='all'?'s':''} need${view==='all'?'':'s'} action`:`No ${stage} ${type}${view==='all'?'s':' bookings'}`;
+function Empty() {
   return (
     <div className="border-y border-white/[.07] px-5 py-14 text-center">
-      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-sm font-semibold">No bookings yet</p>
       <p className="mt-2 text-[10px] text-[#707788]">
-        {stage==='needs_action'?`Nothing in ${view==='all'?'your bookings':view} needs you right now.`:`Your ${view==='all'?'housing, hotel and service':view} activity will appear here when it reaches this stage.`}
+        Property reservations, hotel stays and service jobs you start will appear here with their current status.
       </p>
     </div>
   );

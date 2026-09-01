@@ -13,7 +13,6 @@ export type WorkerBookingConversation = {
   last_message_time?: string | null; unread_count?: number | null; updated_at?: string | null;
 };
 
-type JobView = 'current' | 'completed';
 const COMPLETED = new Set(['approved_released', 'cancelled', 'refunded']);
 const ATTENTION = new Set(['booking_requested', 'disputed']);
 
@@ -26,7 +25,6 @@ async function loadWorkerConversations(userId: string) {
 export default function WorkerJobsPanelV2({profile, onOpenConversation}: {profile: Profile; onOpenConversation: (row: WorkerBookingConversation) => void}) {
   const [rows, setRows] = useState<WorkerBookingConversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<JobView>('current');
   useEffect(() => {
     let active = true;
     void loadWorkerConversations(profile.user_id)
@@ -35,18 +33,14 @@ export default function WorkerJobsPanelV2({profile, onOpenConversation}: {profil
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [profile.user_id]);
-  const current = useMemo(() => rows.filter((row) => !COMPLETED.has(row.booking_status)), [rows]);
-  const completed = useMemo(() => rows.filter((row) => COMPLETED.has(row.booking_status)), [rows]);
-  const shown = view === 'completed' ? completed : current;
+  const shown = useMemo(() => [...rows].sort((a, b) => {
+    const aDone = COMPLETED.has(a.booking_status) ? 1 : 0;
+    const bDone = COMPLETED.has(b.booking_status) ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
+  }), [rows]);
   return <div className="space-y-5">
-    <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Filter jobs</p>
-      <select value={view} onChange={(event) => setView(event.target.value as JobView)} aria-label="Filter jobs" className="h-9 rounded-full border border-white/[.08] bg-[#11151D] px-3 text-[9px] font-semibold text-[#B3B7C3] outline-none">
-        <option value="current">Current ({current.length})</option>
-        <option value="completed">History ({completed.length})</option>
-      </select>
-    </div>
-    <section><div className="mb-4"><h2 className="text-lg font-bold">{view === 'current' ? 'Current jobs' : 'Job history'}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Each job keeps one status and one connected conversation from request to completion.</p></div>{loading ? <Empty text="Loading jobs…"/> : shown.length === 0 ? <Empty text={view === 'current' ? 'New requests and active jobs will appear here.' : 'Completed and cancelled jobs will appear here.'}/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map((row) => <JobRow key={row.booking_id} row={row} onOpen={() => onOpenConversation(row)}/>)}</div>}</section>
+    <section><div className="mb-4"><h2 className="text-lg font-bold">Jobs</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Every job stays here and carries its own current status from request through completion.</p></div>{loading ? <Empty text="Loading jobs…"/> : shown.length === 0 ? <Empty text="New requests and completed work will appear in this one job list."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map((row) => <JobRow key={row.booking_id} row={row} onOpen={() => onOpenConversation(row)}/>)}</div>}</section>
   </div>;
 }
 
