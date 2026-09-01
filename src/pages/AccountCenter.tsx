@@ -13,6 +13,16 @@ type Props = {
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
   onLogout?: () => void;
+  workspaceAccess?: WorkspaceAccess | null;
+  activeWorkspace?: WorkspaceChoice;
+  onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
+};
+
+export type WorkspaceChoice = 'personal' | 'staff' | 'admin' | 'creator';
+export type WorkspaceAccess = {
+  identity?: { user_id?: string; account_kind?: string };
+  personal_workspace?: boolean;
+  privileged_workspaces?: Array<{ role: 'staff' | 'admin' | 'creator'; scope_type?: string; state?: string | null; lga?: string | null }>;
 };
 
 type Legal = {
@@ -26,7 +36,7 @@ type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'privacy_security' | 'saved_searches' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
-export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout }: Props) {
+export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace }: Props) {
   void onGoToPrivacy;
   void onGoToSecurity;
   const p = profile as Profile & ProfilePreferences;
@@ -48,6 +58,8 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const canEditGenericProfile = !isStaff && !isWorker;
   const roleLabel = role === 'property_partner' ? 'Property Partner' : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ');
   const initials = (profile.full_name || profile.username || profile.email || 'U')[0].toUpperCase();
+  const privilegedWorkspaces = workspaceAccess?.privileged_workspaces || [];
+  const canSwitchWorkspace = Boolean(onSwitchWorkspace && workspaceAccess?.personal_workspace && privilegedWorkspaces.length);
 
   useEffect(() => {
     void (async () => {
@@ -191,6 +203,21 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         </div>
       </section>
 
+      {canSwitchWorkspace && (
+        <AccountSection title="Workspaces">
+          <div className="px-4 py-4 sm:px-5">
+            <p className="text-[12px] font-semibold">Choose where you are working</p>
+            <p className="mt-1 text-[9px] leading-relaxed text-[#6F7585]">Your personal bookings and conversations remain separate from operational Staff or Admin activity.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <WorkspaceButton label="Personal" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
+              {privilegedWorkspaces.map((workspace) => (
+                <WorkspaceButton key={workspace.role} label={workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : 'Staff'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
+              ))}
+            </div>
+          </div>
+        </AccountSection>
+      )}
+
       <AccountSection title="Account">
         {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
@@ -229,6 +256,7 @@ function Toggle({ label, detail, value, onChange }: { label: string; detail: str
 function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) { return <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5"><input type="checkbox" checked={value} onChange={(event) => set(event.target.checked)} className="h-4 w-4 accent-violet-500" /><span className="text-[10px] leading-relaxed text-[#B3B8C4]">{label}</span></label>; }
 function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} disabled={!published} className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"><p className="text-[11px] font-semibold">{title}</p><p className={`mt-2 text-[9px] ${accepted ? 'text-emerald-300' : 'text-[#6E7484]'}`}>{!published ? 'Not published' : accepted ? 'Accepted' : 'Review document'}</p></button>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] text-[#666D7E]">{text}</p></div>; }
+function WorkspaceButton({ label, detail, active, onClick }: { label: string; detail?: string; active: boolean; onClick: () => void }) { return <button type="button" aria-pressed={active} onClick={onClick} className={`rounded-2xl border px-4 py-3 text-left transition ${active ? 'border-violet-500/35 bg-violet-500/[.12] text-violet-200' : 'border-white/[.07] bg-white/[.025] text-[#A1A6B5]'}`}><span className="block text-[11px] font-semibold">{label}</span>{detail ? <span className="mt-0.5 block text-[8px] opacity-65">{detail}</span> : null}</button>; }
 function searchDescription(criteria:any){return [criteria?.sub_type==='short_let'?'Short Let':'Long Let',criteria?.city,criteria?.state,criteria?.max_price?`Up to ₦${Number(criteria.max_price).toLocaleString()}`:null].filter(Boolean).join(' · ')}
 
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };

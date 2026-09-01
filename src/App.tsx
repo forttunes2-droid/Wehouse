@@ -30,6 +30,7 @@ import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
+import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 
 type ConversationUnreadRow = {
   id: string;
@@ -219,11 +220,37 @@ export default function App() {
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
     [notificationCount, setNotificationCount] = useState(0),
-    [error, setError] = useState<Error | null>(null);
-  const canList = canCreateListings(auth.profile?.role || ""),
-    isCreator = checkCreator(auth.profile?.role || ""),
-    profile = auth.profile,
-    userRole = profile?.role || "",
+    [error, setError] = useState<Error | null>(null),
+    [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess | null>(null),
+    [activeWorkspace, setActiveWorkspace] = useState<WorkspaceChoice>('personal');
+  const baseProfile = auth.profile;
+  useEffect(() => {
+    if (!baseProfile?.user_id) return;
+    let cancelled = false;
+    void supabase.rpc('get_my_workspace_access').then(({ data, error: accessError }) => {
+      if (cancelled || accessError || !data) return;
+      const access = data as WorkspaceAccess;
+      setWorkspaceAccess(access);
+      const allowed = new Set<WorkspaceChoice>([
+        ...(access.personal_workspace ? ['personal' as const] : []),
+        ...((access.privileged_workspaces || []).map((item) => item.role)),
+      ]);
+      let preferred: WorkspaceChoice | null = null;
+      try { preferred = localStorage.getItem(`wh_workspace_${baseProfile.user_id}`) as WorkspaceChoice | null; } catch {}
+      const legacy = ['staff', 'admin', 'creator'].includes(baseProfile.role) ? baseProfile.role as WorkspaceChoice : 'personal';
+      setActiveWorkspace(preferred && allowed.has(preferred) ? preferred : allowed.has(legacy) ? legacy : allowed.values().next().value || 'personal');
+    });
+    return () => { cancelled = true; };
+  }, [baseProfile?.user_id, baseProfile?.role]);
+  const effectiveRole = useMemo(() => {
+    if (!baseProfile) return '';
+    if (['worker', 'property_partner'].includes(baseProfile.role)) return baseProfile.role;
+    return activeWorkspace === 'personal' ? 'user' : activeWorkspace;
+  }, [baseProfile, activeWorkspace]);
+  const profile = useMemo(() => baseProfile ? { ...baseProfile, role: effectiveRole as typeof baseProfile.role } : null, [baseProfile, effectiveRole]);
+  const canList = canCreateListings(effectiveRole),
+    isCreator = checkCreator(effectiveRole),
+    userRole = effectiveRole,
     isStaffRole = userRole === "staff",
     isAdminRole = userRole === "admin",
     isPropertyPartner = userRole === "property_partner",
@@ -254,6 +281,22 @@ export default function App() {
     (): NavPage => roleRootFor(userRole),
     [userRole],
   );
+
+  const switchWorkspace = useCallback((workspace: WorkspaceChoice) => {
+    if (!baseProfile) return;
+    const allowed = workspace === 'personal'
+      ? Boolean(workspaceAccess?.personal_workspace)
+      : Boolean(workspaceAccess?.privileged_workspaces?.some((item) => item.role === workspace));
+    if (!allowed) return void toast.error('That workspace is not available for this account.');
+    setActiveWorkspace(workspace);
+    try { localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace); } catch {}
+    const destination = workspace === 'personal' ? 'search' : roleRootFor(workspace);
+    setNavPage(destination);
+    navHistoryRef.current = [destination];
+    window.history.replaceState({ page: destination }, '', `#${destination}`);
+    try { localStorage.setItem(NAV_STORAGE_KEY, destination); } catch {}
+    toast.success(workspace === 'personal' ? 'Personal WeHouse opened' : `${workspace[0].toUpperCase()}${workspace.slice(1)} workspace opened`);
+  }, [baseProfile, workspaceAccess]);
 
   useEffect(() => {
     if (auth.isLoading || restoredRef.current) return;
@@ -707,6 +750,9 @@ export default function App() {
             onGoToSecurity={goToSecurity}
             onGoToProfileEdit={goToProfileEdit}
             onLogout={auth.logout}
+            workspaceAccess={workspaceAccess}
+            activeWorkspace={activeWorkspace}
+            onSwitchWorkspace={switchWorkspace}
           />
         );
       case "privacy":
