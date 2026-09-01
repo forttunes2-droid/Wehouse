@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import {
   cancelReservation,
@@ -48,6 +48,8 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
     [services, setServices] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
     [loading, setLoading] = useState(true),
+    [activeHousing, setActiveHousing] = useState<any | null>(null),
+    [activeHotel, setActiveHotel] = useState<any | null>(null),
     [activeService, setActiveService] = useState<{conversationId:string;bookingId:string}|null>(null),
     [busyId, setBusyId] = useState<string | null>(null),
     [pending, setPending] = useState<{
@@ -164,6 +166,8 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
     window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{category:"hotel_booking",subject:`${row.hotels?.name||row.hotel?.name||row.hotel_name||"Hotel stay"} · Reservation Desk`,contextType:"hotel_booking",contextId:String(row.booking_id),contextSnapshot:{booking_id:row.booking_id,booking_code:row.booking_code,hotel_id:row.hotel_id,hotel_name:row.hotels?.name||row.hotel?.name||row.hotel_name,room_id:row.room_id,room_name:row.hotel_rooms?.name||row.room_name,check_in:row.check_in_date||row.check_in,check_out:row.check_out_date||row.check_out,status:row.status,payment_status:row.payment_status}}}));
   }
   if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
+  if(activeHousing)return <PropertyBookingDetail row={activeHousing} onBack={()=>setActiveHousing(null)} onProperty={()=>activeHousing.listing_id&&onOpenListing?.(activeHousing.listing_id)} onDesk={()=>support(activeHousing)}/>;
+  if(activeHotel)return <HotelBookingDetail row={activeHotel} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
       <Toaster position="top-center" richColors />
@@ -183,7 +187,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
         <div className="border-b border-white/[.07]" role="group" aria-label="Filter by booking type">
           <div className="grid grid-cols-4">
-            {([['all','All'],['housing','Property'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
+            {([['all','All'],['housing','Properties'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
           </div>
         </div>
         {(view === "all" || view === "housing") && <SharedHomeLifecyclePanel
@@ -202,7 +206,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
                 <HousingCard
                   key={item.row.id}
                   row={item.row}
-                  onOpen={() => item.row.listing_id && onOpenListing?.(item.row.listing_id)}
+                  onOpen={() => setActiveHousing(item.row)}
                   busy={busyId === item.row.id}
                   onCancel={() =>
                     setPending({ kind: "cancel_housing", row: item.row })
@@ -218,6 +222,7 @@ export default function MyReservations({ profile, onOpenConversation, onOpenList
                     setPending({ kind: "cancel_hotel", row: item.row })
                   }
                   onSupport={()=>hotelSupport(item.row)}
+                  onOpen={()=>setActiveHotel(item.row)}
                 />
               ) : (
                 <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={()=>setActiveService({conversationId:item.row.conversation_id,bookingId:item.row.booking_id})}/>
@@ -419,11 +424,13 @@ function HotelCard({
   busy,
   onCancel,
   onSupport,
+  onOpen,
 }: {
   row: any;
   busy: boolean;
   onCancel: () => void;
   onSupport:()=>void;
+  onOpen:()=>void;
 }) {
   const visibleStatus = HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
   return (
@@ -454,6 +461,7 @@ function HotelCard({
           value={date(row.check_out_date || row.check_out)}
         />
       </div>
+      <button type="button" onClick={onOpen} className="mt-3 h-10 w-full rounded-xl bg-violet-500 text-[10px] font-semibold">Open stay</button>
       {row.status === "pending" && (
         <button
           disabled={busy}
@@ -467,6 +475,19 @@ function HotelCard({
     </article>
   );
 }
+function PropertyBookingDetail({row,onBack,onProperty,onDesk}:{row:any;onBack:()=>void;onProperty:()=>void;onDesk:()=>void}) {
+  const short=row.stay_type==='short_let';
+  const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
+  return <BookingDetailShell title={short?'Property stay':'Property booking'} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5 grid gap-2 sm:grid-cols-2"><button type="button" onClick={onProperty} disabled={!row.listing_id} className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">View property</button><button type="button" onClick={onDesk} className="min-h-11 rounded-xl border border-white/[.09] text-xs font-semibold">Reservation Desk</button></div></div></section></BookingDetailShell>;
+}
+function HotelBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDesk:()=>void}) {
+  const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';
+  const status=HOTEL_STATUS[String(row.status||'')]||'Status unavailable';
+  const room=row.hotel_rooms?.room_type||row.hotel_rooms?.name||row.room_name||'Room details unavailable';
+  return <BookingDetailShell title="Hotel booking" onBack={onBack}><section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">Hotel stay</p><h1 className="mt-1 text-xl font-bold">{name}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{room}</p></div><span className="rounded-full border border-amber-500/20 bg-amber-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-amber-200">{status}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><Info label="Check-in" value={date(row.check_in_date||row.check_in)}/><Info label="Check-out" value={date(row.check_out_date||row.check_out)}/><Info label="Guests" value={String(row.guest_count||'—')}/><Info label="Payment" value={hotelPaymentLabel(row.payment_status)}/></div>{(row.total_price||row.total_amount||row.amount)!=null&&<p className="mt-4 text-base font-bold">{money(row.total_price||row.total_amount||row.amount)}</p>}<button type="button" onClick={onDesk} className="mt-5 min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Reservation Desk</button></section></BookingDetailShell>;
+}
+function BookingDetailShell({title,onBack,children}:{title:string;onBack:()=>void;children:ReactNode}){return <div className="min-h-[100dvh] bg-[#090B10] text-white"><header className="sticky top-0 z-40 flex min-h-16 items-center gap-3 border-b border-white/[.06] bg-[#090B10]/95 px-4 backdrop-blur-xl"><button type="button" onClick={onBack} aria-label="Back to bookings" className="grid h-11 w-11 place-items-center rounded-full text-xl text-[#A6ABB9]">‹</button><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">Bookings</p><h1 className="text-sm font-semibold">{title}</h1></div></header><main className="mx-auto max-w-3xl p-4 sm:p-6">{children}</main></div>}
+function hotelPaymentLabel(value:any){const labels:Record<string,string>={unpaid:'Not paid',payment_pending:'Payment pending',paid:'Paid',refunded:'Refunded',failed:'Payment failed',expired:'Payment expired'};return labels[String(value||'')]||'Not available'}
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-b border-white/[.05] py-2.5">

@@ -63,7 +63,7 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
  const locationSummary=filterCity?`${filterCity}, ${filterState}`:filterState?filterState:`${modeLabel} homes`;
  const emptyTitle=priceActive?`No ${modeLabel} homes match this ${stayType==='short_let'?'nightly':'annual'} price range`:`No ${modeLabel} homes match these filters`;
 
- return <DiscoveryShell active="homes" title="Find a place that fits" description="Property, hotels, compatible roommates and trusted WeHouse Services—together in one place." onNavigate={onNavigate}>
+ return <DiscoveryShell active="homes" title="Find a place that fits" description="Properties, hotels, compatible roommates and trusted WeHouse Services—together in one place." onNavigate={onNavigate}>
   <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
    <DiscoveryToolbar showSearch={false} toolbarLabel={locationSummary} onFilters={()=>setShowFilters(true)} filterCount={filterCount}>
     {mappedCount>0&&<div className="ml-auto flex rounded-xl border border-white/[.07] bg-[#171B24] p-1"><button type="button" onClick={()=>setView('list')} className={`rounded-lg px-3 py-1.5 text-[9px] font-semibold ${view==='list'?'bg-violet-500 text-white':'text-[#73798A]'}`}>List</button><button type="button" onClick={()=>setView('map')} className={`rounded-lg px-3 py-1.5 text-[9px] font-semibold ${view==='map'?'bg-violet-500 text-white':'text-[#73798A]'}`}>Map</button></div>}
