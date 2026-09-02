@@ -6,7 +6,7 @@ import type { Profile } from "@/types";
 
 type Post = {
   id: string;
-  kind: "story" | "portfolio";
+  kind: "work_post";
   media_type: "image" | "video";
   storage_path: string;
   caption: string | null;
@@ -90,7 +90,7 @@ export default function WorkerPublicProfileV2({
       WORKER_OCCUPATION_LABELS[worker.worker_occupation || ""] ||
       worker.worker_occupation ||
       "Service worker",
-    portfolio = posts.filter((post) => post.kind === "portfolio"),
+    workPosts = posts.filter((post) => post.kind === "work_post"),
     rating = Number(trust?.rating ?? worker.rating ?? 0) || 0,
     reviewCount = Number(trust?.review_count ?? worker.review_count ?? 0) || 0;
   return (
@@ -152,18 +152,18 @@ export default function WorkerPublicProfileV2({
         <section><h2 className="text-sm font-bold">About</h2><p className="mt-2 whitespace-pre-line text-xs leading-6 text-[#8E94A3]">{worker.worker_bio?cleanBio(worker.worker_bio):'This worker has not added an introduction yet.'}</p>{skills.length>0&&<div className="mt-4 flex flex-wrap gap-2">{skills.map(skill=><span key={skill} className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-[9px] text-[#A9AEBA]">{skill}</span>)}</div>}</section>
         <section>
           <div className="mb-3">
-            <h2 className="text-sm font-bold">Portfolio</h2>
+            <h2 className="text-sm font-bold">Work Posts</h2>
             <p className="mt-1 text-[9px] text-[#666D7E]">
-              Photos and videos of this worker’s services
+              Photos and videos published by this worker
             </p>
           </div>
           {loading ? (
-            <div className="min-h-24" role="status" aria-label="Loading portfolio" />
-          ) : portfolio.length === 0 ? (
-            <Empty text="This worker has not published work examples yet." />
+            <div className="min-h-24" role="status" aria-label="Loading work posts" />
+          ) : workPosts.length === 0 ? (
+            <Empty text="This worker has not published any work posts yet." />
           ) : (
             <div className="grid grid-cols-3 gap-1 sm:gap-2">
-              {portfolio.map((post) => (
+              {workPosts.map((post) => (
                 <button
                   key={post.id}
                   onClick={() => setViewer(post)}
@@ -211,7 +211,7 @@ export default function WorkerPublicProfileV2({
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold">
-                  {viewer.kind === "story" ? "Work Status" : "Portfolio work"}
+                  Work Post
                 </p>
                 {viewer.verified_job && (
                   <p className="mt-1 text-[9px] text-emerald-300">

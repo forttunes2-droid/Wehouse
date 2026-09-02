@@ -11,12 +11,14 @@ type Activity = {
   source_type?: string | null; source_id?: string | null; destination_route?: string | null;
   destination_params?: Record<string, unknown> | null;
 };
+type WorkPostConfirmation = { id:string; media_type:'image'|'video'; storage_path:string; caption:string|null; job_confirmation_status:string; url:string };
 const activityCache=new Map<string,Activity[]>();
 
 export default function Notifications({ profile, onNavigate, embedded = false }: Props) {
   const cached=activityCache.get(profile.user_id);
   const [rows, setRows] = useState<Activity[]>(cached||[]), [loading, setLoading] = useState(!cached), [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null), [confirmBusy,setConfirmBusy]=useState(false);
 
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
@@ -62,9 +64,25 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
       setRows((current) => current.map((item) => item.id === row.id ? { ...item, read: true } : item));
     }
     if (row.source === "announcement") { setExpanded((current) => current === row.id ? null : row.id); return; }
+    if(row.type==='work_post_confirmation_requested'){
+      const postId=String(row.destination_params?.work_post_id||row.source_id||'');
+      if(!postId)return toast.error('Work Post reference is missing');
+      const{data,error}=await supabase.from('worker_showcase_posts').select('id,media_type,storage_path,caption,job_confirmation_status').eq('id',postId).maybeSingle();
+      if(error||!data)return toast.error(error?.message||'Work Post could not be loaded');
+      const signed=await supabase.storage.from('worker-showcase').createSignedUrl(data.storage_path,900);
+      if(signed.error||!signed.data?.signedUrl)return toast.error(signed.error?.message||'Work Post media could not be opened');
+      setWorkPost({...data,url:signed.data.signedUrl} as WorkPostConfirmation);return;
+    }
     const route = row.destination_route || legacyRoute(row.type), params = row.destination_params || {};
     const id = String(params.listing_id || params.listingId || params.conversation_id || params.conversationId || params.contextId || params.booking_id || params.bookingId || params.sharedGroupId || row.source_id || "");
     if (route) onNavigate(route, id || undefined);
+  }
+
+  async function answerWorkPost(confirm:boolean){
+    if(!workPost)return;setConfirmBusy(true);
+    const{error}=await supabase.rpc('respond_to_worker_work_post_confirmation',{p_post_id:workPost.id,p_confirm:confirm});
+    setConfirmBusy(false);if(error)return toast.error(error.message);
+    toast.success(confirm?'Work confirmed':'Work not confirmed');setWorkPost(null);await load(true);
   }
 
   async function markAll() {
@@ -85,8 +103,9 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
       <span className="mt-1.5 block text-[8px] text-[#555C6D]">{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{row.source === "announcement" ? expanded === row.id ? " · Show less" : " · Read update" : row.destination_route || legacyRoute(row.type) ? " · Open details" : ""}</span></span>{!row.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-violet-400" />}
     </button>)}</div></section>)}
   </div>}</main>;
-  if (embedded) return <><Toaster position="top-center" richColors />{content}</>;
-  return <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white"><Toaster position="top-center" richColors /><header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl"><div className="mx-auto max-w-4xl"><p className="text-[9px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE</p><h1 className="mt-1 text-xl font-bold">Activity</h1><p className="mt-1 text-[10px] text-[#747A8B]">Lifecycle, payment, security and official updates linked to their source.</p></div></header>{content}</div>;
+  const confirmation=workPost&&<div className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white" role="dialog" aria-modal="true" aria-label="Confirm worker Work Post"><header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3"><button onClick={()=>setWorkPost(null)} disabled={confirmBusy} className="grid h-10 w-10 place-items-center text-xl" aria-label="Close">×</button><div><p className="text-sm font-semibold">Does this show the completed work?</p><p className="text-[9px] text-[#707687]">Confirm only the work from your linked WeHouse job</p></div></header><main className="min-h-0 flex-1 overflow-y-auto"><div className="grid min-h-[52dvh] place-items-center bg-black">{workPost.media_type==='video'?<video src={workPost.url} controls playsInline className="max-h-[68dvh] w-full object-contain"/>:<img src={workPost.url} alt="Worker's linked completed work" className="max-h-[68dvh] w-full object-contain"/>}</div><div className="mx-auto max-w-xl space-y-4 p-4">{workPost.caption&&<p className="text-xs leading-5 text-[#B4B8C3]">{workPost.caption}</p>}{workPost.job_confirmation_status==='pending'?<><p className="text-[10px] leading-5 text-[#7D8393]">Yes adds the “Completed through WeHouse” badge. No keeps this as an ordinary worker post without that badge.</p><div className="grid grid-cols-2 gap-3"><button onClick={()=>void answerWorkPost(false)} disabled={confirmBusy} className="h-12 rounded-2xl border border-white/[.1] text-xs font-semibold disabled:opacity-40">No, it does not</button><button onClick={()=>void answerWorkPost(true)} disabled={confirmBusy} className="h-12 rounded-2xl bg-emerald-500 text-xs font-semibold text-[#04110B] disabled:opacity-40">{confirmBusy?'Saving…':'Yes, confirm'}</button></div></>:<p className="rounded-2xl bg-white/[.04] p-4 text-xs text-[#A5AAB6]">This confirmation has already been answered.</p>}</div></main></div>;
+  if (embedded) return <><Toaster position="top-center" richColors />{content}{confirmation}</>;
+  return <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white"><Toaster position="top-center" richColors /><header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl"><div className="mx-auto max-w-4xl"><p className="text-[9px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE</p><h1 className="mt-1 text-xl font-bold">Activity</h1><p className="mt-1 text-[10px] text-[#747A8B]">Lifecycle, payment, security and official updates linked to their source.</p></div></header>{content}{confirmation}</div>;
 }
 
 function isOrdinaryMessageEvent(row: Pick<Activity,"type"|"source_type"|"destination_route">) {
@@ -97,7 +116,7 @@ function isOrdinaryMessageEvent(row: Pick<Activity,"type"|"source_type"|"destina
   if(/(^|_)(message|reply|replied|chat)(_|$)/.test(type))return true;
   return row.destination_route==="conversation"&&/conversation|message|chat/.test(String(row.source_type||"").toLowerCase());
 }
-function activitySection(row:Activity){if(row.source==='announcement')return'Official';return /(required|request|pending|failed|declined|cancel|security|dispute|price|action)/i.test(row.type)?'Needs attention':'Update'}
+function activitySection(row:Activity){if(row.source==='announcement')return'Official';return /(required|request|confirmation|pending|failed|declined|cancel|security|dispute|price|action)/i.test(row.type)?'Needs attention':'Update'}
 function legacyRoute(type: string) { if (type === "roommate_interest" || type === "shared_home_invite" || type === "shared_home_response") return "roommate"; if (type === "roommate_match" || type === "missed_call") return "conversation"; if (type.includes("booking") || type.includes("payment") || type.includes("inspection") || type.includes("reservation") || type.includes("shared_home")) return "my_reservations"; return ""; }
 function dayLabel(value: string) { const date = new Date(value), today = new Date(), yesterday = new Date(); yesterday.setDate(today.getDate() - 1); if (date.toDateString() === today.toDateString()) return "Today"; if (date.toDateString() === yesterday.toDateString()) return "Yesterday"; return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); }
 function icon(type: string) { if (type === "announcement") return "W"; if (type.includes("payment")) return "₦"; if (type.includes("roommate")) return "◉"; if (type.includes("security")) return "⌾"; if (type.includes("booking") || type.includes("reservation")) return "✓"; return "•"; }

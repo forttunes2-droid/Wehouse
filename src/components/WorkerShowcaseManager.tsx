@@ -4,16 +4,18 @@ import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
+import { compressImageFile } from "@/lib/supabase";
 
 type Post = {
   id: string;
   worker_id: string;
-  kind: "story" | "portfolio";
+  kind: "work_post";
   media_type: "image" | "video";
   storage_path: string;
   caption: string | null;
   booking_id: string | null;
   verified_job: boolean;
+  job_confirmation_status: "not_linked" | "pending" | "confirmed" | "declined";
   expires_at: string | null;
   created_at: string;
   url?: string;
@@ -34,12 +36,13 @@ export default function WorkerShowcaseManager({
   const input = useRef<HTMLInputElement>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const kind = "portfolio" as const;
+  const kind = "work_post" as const;
   const [caption, setCaption] = useState("");
   const [bookingId, setBookingId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
+  const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
   const [viewer, setViewer] = useState<Post | null>(null);
 
   const load = useCallback(async () => {
@@ -47,7 +50,7 @@ export default function WorkerShowcaseManager({
       supabase
         .from("worker_showcase_posts")
         .select(
-          "id,worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,expires_at,created_at",
+          "id,worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,job_confirmation_status,expires_at,created_at",
         )
         .eq("worker_id", profile.user_id)
         .is("deleted_at", null)
@@ -118,20 +121,23 @@ export default function WorkerShowcaseManager({
 
     const isVideo = file.type.startsWith("video/");
     setBusy(true);
+    setPublishStage("preparing");
     let path = "";
     try {
-      const ext = (
-        file.name.split(".").pop() || (isVideo ? "mp4" : "jpg")
-      ).toLowerCase();
+      const preserveOriginal = isVideo || (['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024);
+      const uploadBody = preserveOriginal ? file : await compressImageFile(file, 3840, 0.92, 4.5 * 1024 * 1024);
+      const ext = isVideo ? (file.name.split(".").pop() || "mp4").toLowerCase() : preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg';
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+      setPublishStage("uploading");
       const { error: uploadError } = await supabase.storage
         .from("worker-showcase")
-        .upload(path, file, {
-          contentType: file.type,
+        .upload(path, uploadBody, {
+          contentType: isVideo || preserveOriginal ? file.type : 'image/jpeg',
           upsert: false,
         });
       if (uploadError) throw uploadError;
 
+      setPublishStage("saving");
       const { error } = await supabase.rpc("create_my_worker_showcase_post", {
         p_kind: kind,
         p_media_type: isVideo ? "video" : "image",
@@ -141,7 +147,7 @@ export default function WorkerShowcaseManager({
       });
       if (error) throw error;
 
-      toast.success("Work published");
+      toast.success(bookingId ? "Work posted · customer confirmation requested" : "Work posted");
       clearComposer();
       await load();
     } catch (error: unknown) {
@@ -155,6 +161,7 @@ export default function WorkerShowcaseManager({
       );
     } finally {
       setBusy(false);
+      setPublishStage("idle");
     }
   }
 
@@ -184,7 +191,7 @@ export default function WorkerShowcaseManager({
     await load();
   }
 
-  const portfolio = posts.filter((post) => post.kind === "portfolio");
+  const workPosts = posts.filter((post) => post.kind === "work_post");
   const previewIsVideo = file?.type.startsWith("video/") || false;
 
   return (
@@ -193,11 +200,11 @@ export default function WorkerShowcaseManager({
         <div>
           <p className="text-xs font-semibold">Published work</p>
           <p className="mt-1 max-w-xl text-[9px] leading-relaxed text-[#6C7282]">
-            Permanent photos and videos customers can view. You control when a
-            post is removed.
+            Photos and videos customers can view until you remove them. Link a
+            completed WeHouse job only when the media shows that exact work.
           </p>
         </div>
-        <span className="text-[9px] text-[#686F80]">{portfolio.length}</span>
+        <span className="text-[9px] text-[#686F80]">{workPosts.length}</span>
       </div>
 
       <input
@@ -234,7 +241,7 @@ export default function WorkerShowcaseManager({
               disabled={busy}
               className="rounded-full bg-violet-500 px-4 py-2 text-[10px] font-semibold disabled:opacity-50"
             >
-              {busy ? "Publishing…" : "Publish"}
+              {busy ? publishStage === 'preparing' ? "Preparing…" : publishStage === 'uploading' ? "Uploading…" : "Saving…" : "Publish"}
             </button>
           </header>
           <main className="min-h-0 flex-1 overflow-y-auto">
@@ -290,6 +297,7 @@ export default function WorkerShowcaseManager({
                   </option>
                 ))}
               </select>
+              {bookingId && <p className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[9px] leading-4 text-amber-200">The customer from this job will receive the post in Activity. The “Completed through WeHouse” badge appears only after they confirm the media shows their completed work.</p>}
               {busy && (
                 <div className="h-1.5 overflow-hidden rounded-full bg-white/[.08]">
                   <div className="h-full w-2/3 animate-pulse rounded-full bg-violet-500" />
@@ -302,14 +310,14 @@ export default function WorkerShowcaseManager({
 
       <div>
         <div className="mb-2">
-          <h3 className="text-sm font-bold">Portfolio</h3>
+          <h3 className="text-sm font-bold">Work Posts</h3>
           <p className="mt-1 text-[9px] text-[#666D7E]">
             Your public professional posts
           </p>
         </div>
-        {portfolio.length > 0 ? (
+        {workPosts.length > 0 ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {portfolio.map((post) => (
+            {workPosts.map((post) => (
               <button
                 key={post.id}
                 onClick={() => setViewer(post)}
@@ -324,6 +332,7 @@ export default function WorkerShowcaseManager({
                     WEHOUSE JOB ✓
                   </span>
                 )}
+                {post.job_confirmation_status === 'pending' && <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-[7px] font-bold text-[#171000]">CUSTOMER CHECK</span>}
                 <div className="p-2">
                   <p className="line-clamp-2 text-[9px] text-[#A0A5B2]">
                     {post.caption || "Professional work"}
@@ -367,7 +376,7 @@ export default function WorkerShowcaseManager({
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold">
-                    {viewer.kind === "story" ? "Work Status" : "Portfolio work"}
+                    Work Post
                     {viewer.verified_job
                       ? " · Completed through WeHouse ✓"
                       : ""}
