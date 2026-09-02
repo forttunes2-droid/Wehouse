@@ -31,6 +31,7 @@ import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 
 type ConversationUnreadRow = {
   id: string;
@@ -45,6 +46,10 @@ type IncomingMessageRow = {
   attachments?: unknown[] | null;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
+
+function isOrdinaryChatNotification(type: string) {
+  return type !== "missed_call" && (type === "new_message" || type === "message" || type === "chat_message" || type.endsWith("_message"));
+}
 
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
@@ -216,6 +221,7 @@ export default function App() {
     [hotelCheckIn, setHotelCheckIn] = useState(""),
     [hotelCheckOut, setHotelCheckOut] = useState(""),
     [chatConvId, setChatConvId] = useState<string | null>(null),
+    [bookingContextId, setBookingContextId] = useState<string | null>(null),
     [workerCategory, setWorkerCategory] = useState<string | null>(null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
@@ -281,7 +287,9 @@ export default function App() {
   );
   const navHistoryRef = useRef<NavPage[]>(["search"]),
     restoredRef = useRef(false),
-    seenMessagesRef = useRef(new Map<string, string>());
+    seenMessagesRef = useRef(new Map<string, string>()),
+    pageScrollRef = useRef<HTMLDivElement>(null),
+    pageScrollPositionsRef = useRef(new Map<NavPage,number>());
   const roleRoot = useCallback(
     (): NavPage => roleRootFor(userRole),
     [userRole],
@@ -331,6 +339,7 @@ export default function App() {
   }, [auth.isLoading, auth.profile]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
+      pageScrollPositionsRef.current.set(navPage,pageScrollRef.current?.scrollTop||0);
       const safe = normalizePageForRole(userRole, page),
         current = navHistoryRef.current.at(-1);
       if (safe !== current) {
@@ -340,13 +349,14 @@ export default function App() {
       setNavPage(safe);
       if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
     },
-    [userRole],
+    [userRole,navPage],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
       const s = e.state as { page?: NavPage } | null;
       if (!s?.page) return;
       const safe = normalizePageForRole(userRole, s.page);
+      pageScrollPositionsRef.current.set(navPage,pageScrollRef.current?.scrollTop||0);
       if (safe !== s.page)
         window.history.replaceState({ page: safe }, "", `#${safe}`);
       setNavPage(safe);
@@ -358,7 +368,8 @@ export default function App() {
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [userRole]);
+  }, [userRole,navPage]);
+  useEffect(()=>{const frame=requestAnimationFrame(()=>{if(pageScrollRef.current)pageScrollRef.current.scrollTop=pageScrollPositionsRef.current.get(navPage)||0});return()=>cancelAnimationFrame(frame)},[navPage]);
   useEffect(() => {
     const h = (e: ErrorEvent) => {
       setError(e.error);
@@ -392,12 +403,14 @@ export default function App() {
     }
     const uid = profile.user_id;
     async function count() {
-      const [{ data }, { count: activity }] = await Promise.all([
+      const [{ data }, bookingResult, { data: activityRows }, { count: announcements }] = await Promise.all([
         supabase
           .from("conversations")
           .select("id,participant_a,unread_a,unread_b,last_message_at")
           .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
-        supabase.from('notifications').select('id',{count:'exact',head:true}).eq('recipient_id',uid).eq('read',false),
+        getCommunicationBookingConversations(uid),
+        supabase.from('notifications').select('type').eq('recipient_id',uid).eq('read',false),
+        supabase.from('announcement_recipients').select('id',{count:'exact',head:true}).eq('user_id',uid).eq('read_status',false),
       ]);
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
@@ -406,8 +419,10 @@ export default function App() {
         if (!seenMessagesRef.current.has(c.id))
           seenMessagesRef.current.set(c.id, String(c.last_message_at || ""));
       });
-      setUnreadCount(roommate);
-      setNotificationCount(Number(activity||0));
+      const worker = (bookingResult.conversations || []).reduce((sum: number, row: { unread_count?: number }) => sum + Number(row.unread_count || 0), 0);
+      const activity = (activityRows || []).filter((row) => !isOrdinaryChatNotification(String(row.type || ''))).length;
+      setUnreadCount(roommate + worker);
+      setNotificationCount(activity + Number(announcements || 0));
     }
     void count();
     const openMessages = () => handleSetNavPage("conversation");
@@ -744,7 +759,7 @@ export default function App() {
           renderRoleRoot()
         );
       case "notifications":
-        return isUserRole ? <Chat profile={profile} initialMode="activity" onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
+        return isUserRole ? <Chat profile={profile} initialMode="activity" onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);if(page==='my_reservations'||page==='my_bookings'){setBookingContextId(id||null);return goTo('my_reservations')}goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
       case "profile":
       case "account":
         return (
@@ -908,7 +923,7 @@ export default function App() {
         );
       case "my_reservations":
         return isUserRole ? (
-          <MyReservations profile={profile} onOpenConversation={goToChat} onOpenListing={goToDetail} />
+          <MyReservations profile={profile} initialBookingId={bookingContextId} onOpenConversation={goToChat} onOpenListing={goToDetail} />
         ) : (
           renderRoleRoot()
         );
@@ -962,7 +977,7 @@ export default function App() {
             userAvatar={profile?.avatar_url || undefined}
             onLogout={auth.logout}
           >
-            <div className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content">
+            <div ref={pageScrollRef} className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content">
               {renderPage()}
             </div>
           </DesktopLayout>

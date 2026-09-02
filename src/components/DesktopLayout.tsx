@@ -23,6 +23,8 @@ const ROOT_PAGES = new Set<NavPage>([
   'messages',
   'conversation',
   'notifications',
+  'profile',
+  'account',
   'creator',
   'admin',
   'staff_dashboard',

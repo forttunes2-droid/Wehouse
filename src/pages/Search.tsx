@@ -20,6 +20,8 @@ const LONG_CEILING=5000000;
 const SHORT_FLOOR=5000;
 const SHORT_CEILING=500000;
 let propertyCache:Listing[]|null=null;
+type PropertySearchState={stayType:HomeStayType;priceMin:number|'';priceMax:number|'';bedrooms:number|'';filterState:string;filterCity:string;userLocation:UserLocation|null;radius:number|'';view:View};
+let searchState:PropertySearchState={stayType:'long_stay',priceMin:'',priceMax:'',bedrooms:'',filterState:'',filterCity:'',userLocation:null,radius:'',view:'list'};
 function normalize(value:unknown){return String(value||'').trim().toLowerCase()}
 function coords(listing:Listing){const row=listing as Listing&{gps_latitude?:number|null;gps_longitude?:number|null};const lat=Number(row.gps_latitude),lng=Number(row.gps_longitude);return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng}:null}
 function distanceKm(a:UserLocation,b:{lat:number;lng:number}){const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,q=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
@@ -27,12 +29,13 @@ function distanceKm(a:UserLocation,b:{lat:number;lng:number}){const R=6371,dLat=
 export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
  const {getNumber}=usePlatformSettings();
  const[listings,setListings]=useState<Listing[]>(()=>propertyCache||[]),[loading,setLoading]=useState(()=>!propertyCache),[loadError,setLoadError]=useState('');
- const[stayType,setStayType]=useState<HomeStayType>('long_stay');
- const[priceMin,setPriceMin]=useState<number|''>(''),[priceMax,setPriceMax]=useState<number|''>(''),[bedrooms,setBedrooms]=useState<number|''>('');
- const[filterState,setFilterState]=useState(''),[filterCity,setFilterCity]=useState(''),[showFilters,setShowFilters]=useState(false);
- const[userLocation,setUserLocation]=useState<UserLocation|null>(null),[locating,setLocating]=useState(false),[locationError,setLocationError]=useState(''),[radius,setRadius]=useState<number|''>(''),[view,setView]=useState<View>('list'),[savingSearch,setSavingSearch]=useState(false);
+ const[stayType,setStayType]=useState<HomeStayType>(()=>searchState.stayType);
+ const[priceMin,setPriceMin]=useState<number|''>(()=>searchState.priceMin),[priceMax,setPriceMax]=useState<number|''>(()=>searchState.priceMax),[bedrooms,setBedrooms]=useState<number|''>(()=>searchState.bedrooms);
+ const[filterState,setFilterState]=useState(()=>searchState.filterState),[filterCity,setFilterCity]=useState(()=>searchState.filterCity),[showFilters,setShowFilters]=useState(false);
+ const[userLocation,setUserLocation]=useState<UserLocation|null>(()=>searchState.userLocation),[locating,setLocating]=useState(false),[locationError,setLocationError]=useState(''),[radius,setRadius]=useState<number|''>(()=>searchState.radius),[view,setView]=useState<View>(()=>searchState.view),[savingSearch,setSavingSearch]=useState(false);
 
  useEffect(()=>{const saved=sessionStorage.getItem('search_property_type');if(saved==='short_let'||saved==='long_stay')setStayType(saved);sessionStorage.removeItem('search_property_type')},[]);
+ useEffect(()=>{searchState={stayType,priceMin,priceMax,bedrooms,filterState,filterCity,userLocation,radius,view}},[stayType,priceMin,priceMax,bedrooms,filterState,filterCity,userLocation,radius,view]);
  const loadProperties=useCallback(async(quiet=false)=>{if(!quiet&&!propertyCache)setLoading(true);setLoadError('');const{homes,error}=await getDiscoverableHomes();if(error){setLoadError('Properties could not be loaded. Check your connection and try again.')}else{propertyCache=homes||[];setListings(propertyCache)}setLoading(false)},[]);
  useEffect(()=>{let live=true;void getDiscoverableHomes().then(({homes,error})=>{if(!live)return;if(error)setLoadError('Properties could not be loaded. Check your connection and try again.');else{propertyCache=homes||[];setListings(propertyCache)}setLoading(false)});return()=>{live=false}},[]);
 
