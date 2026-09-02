@@ -366,17 +366,6 @@ function HousingCard({
           Reservation Desk
         </button>
       </div>
-      {row.status !== "occupied" && <details className="mt-3 border-t border-white/[.055] pt-3 text-[9px] text-[#777C8C]">
-        <summary className="cursor-pointer list-none font-semibold text-[#A8ACB8]">
-          Booking details <span aria-hidden="true">⌄</span>
-        </summary>
-        {row.booking_code && (
-          <p className="mt-3">
-            Booking code <span className="font-semibold tracking-wide text-violet-300">{row.booking_code}</span>
-          </p>
-        )}
-        {short ? <ShortFacts row={row} /> : <LongFacts row={row} />}
-      </details>}
     </article>
   );
 }

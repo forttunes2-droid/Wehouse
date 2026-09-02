@@ -64,6 +64,14 @@ type InboxItem =
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+function hasStartedRoommateConversation(row: Conversation) {
+  const unreadCount = Number(row.unread_a || 0) + Number(row.unread_b || 0);
+  if (unreadCount > 0) return true;
+  const created = new Date(row.created_at || 0).getTime();
+  const lastMessage = new Date(row.last_message_at || 0).getTime();
+  return Number.isFinite(created) && Number.isFinite(lastMessage) && lastMessage > created + 1000;
+}
+
 function SearchIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
 }
@@ -130,17 +138,21 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         toast.error(
           bookingResult.error.message || "Unable to load Worker conversations",
         );
-      const rows = (convResult.conversations || []).filter(
+      const allRoommateRows = (convResult.conversations || []).filter(
         (row) => row.conversation_type === "roommate",
       );
-      setConversations(rows);
+      // Mutual acceptance establishes the relationship and may reserve a
+      // conversation id, but Inbox → Chats should not show an empty thread.
+      // A deep link can still open that accepted relationship so the first
+      // real message can be composed; it enters the Inbox after that message.
+      setConversations(allRoommateRows.filter(hasStartedRoommateConversation));
       setPeople(peerResult.people || {});
       setBookingConversations(
         (bookingResult.conversations || []) as BookingConversation[],
       );
       setSupportThreads(supportResult.conversations || []);
       setLoading(false);
-      return rows;
+      return allRoommateRows;
     },
     [profile.user_id],
   );

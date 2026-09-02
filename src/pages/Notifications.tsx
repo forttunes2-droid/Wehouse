@@ -28,7 +28,7 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
     if (failures.length === 2) setError(failures.join(" · "));
     else {
       const events = ((eventResult.data || []) as Omit<Activity, "source">[])
-        .filter((row) => !isOrdinaryMessageEvent(row.type))
+        .filter((row) => !isOrdinaryMessageEvent(row))
         .map((row) => ({ ...row, id: `event:${row.id}`, source: "event" as const }));
       const announcements = (announcementResult.messages || []).map((delivery: any) => {
         const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
@@ -89,7 +89,14 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
   return <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white"><Toaster position="top-center" richColors /><header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl"><div className="mx-auto max-w-4xl"><p className="text-[9px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE</p><h1 className="mt-1 text-xl font-bold">Activity</h1><p className="mt-1 text-[10px] text-[#747A8B]">Lifecycle, payment, security and official updates linked to their source.</p></div></header>{content}</div>;
 }
 
-function isOrdinaryMessageEvent(type: string) { return type !== "missed_call" && (type === "new_message" || type === "message" || type === "chat_message" || type.endsWith("_message")); }
+function isOrdinaryMessageEvent(row: Pick<Activity,"type"|"source_type"|"destination_route">) {
+  const type=String(row.type||"").toLowerCase();
+  if(type==="missed_call")return false;
+  const lifecycle=/price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/.test(type);
+  if(lifecycle)return false;
+  if(/(^|_)(message|reply|replied|chat)(_|$)/.test(type))return true;
+  return row.destination_route==="conversation"&&/conversation|message|chat/.test(String(row.source_type||"").toLowerCase());
+}
 function activitySection(row:Activity){if(row.source==='announcement')return'Official';return /(required|request|pending|failed|declined|cancel|security|dispute|price|action)/i.test(row.type)?'Needs attention':'Update'}
 function legacyRoute(type: string) { if (type === "roommate_interest" || type === "shared_home_invite" || type === "shared_home_response") return "roommate"; if (type === "roommate_match" || type === "missed_call") return "conversation"; if (type.includes("booking") || type.includes("payment") || type.includes("inspection") || type.includes("reservation") || type.includes("shared_home")) return "my_reservations"; return ""; }
 function dayLabel(value: string) { const date = new Date(value), today = new Date(), yesterday = new Date(); yesterday.setDate(today.getDate() - 1); if (date.toDateString() === today.toDateString()) return "Today"; if (date.toDateString() === yesterday.toDateString()) return "Yesterday"; return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); }
