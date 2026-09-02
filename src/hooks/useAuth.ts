@@ -216,6 +216,15 @@ export function useAuth() {
           const { data: userData } = await supabase.auth.getUser();
           const user = userData?.user;
           const email = user?.email || "";
+          if(user?.email&&!user.email_confirmed_at){
+            setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
+            return;
+          }
+          const expectedGoogleEmail=sessionStorage.getItem('wh_google_verify_email');
+          if(expectedGoogleEmail&&email.toLowerCase()!==expectedGoogleEmail){
+            setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
+            return;
+          }
           const { profile: existing, error } = await getProfileByAuthId(
             authId,
             email,
@@ -232,7 +241,7 @@ export function useAuth() {
           }
           let profile = existing;
           if (!profile) {
-            const role = publicRole(user?.user_metadata?.signup_role);
+            const role = publicRole(user?.user_metadata?.signup_role)||publicRole(sessionStorage.getItem('wh_google_verify_role'));
             if (role) {
               if (await maintenance())
                 throw new Error("WeHouse is currently under maintenance.");
@@ -242,6 +251,8 @@ export function useAuth() {
               if (created.error || !created.profile)
                 throw created.error || new Error("Could not create account");
               profile = created.profile;
+              sessionStorage.removeItem('wh_google_verify_email');
+              sessionStorage.removeItem('wh_google_verify_role');
               if (role === "property_partner")
                 await ensurePropertyPartnerRecord();
             } else {

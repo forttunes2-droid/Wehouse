@@ -16,6 +16,7 @@ type Post = {
   booking_id: string | null;
   verified_job: boolean;
   job_confirmation_status: "not_linked" | "pending" | "confirmed" | "declined";
+  hidden_at: string | null;
   expires_at: string | null;
   created_at: string;
   url?: string;
@@ -50,7 +51,7 @@ export default function WorkerShowcaseManager({
       supabase
         .from("worker_showcase_posts")
         .select(
-          "id,worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,job_confirmation_status,expires_at,created_at",
+          "id,worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,job_confirmation_status,hidden_at,expires_at,created_at",
         )
         .eq("worker_id", profile.user_id)
         .is("deleted_at", null)
@@ -168,9 +169,9 @@ export default function WorkerShowcaseManager({
   async function remove(post: Post) {
     if (
       !(await ask({
-        title: "Remove this work?",
-        description: "It will no longer appear to customers.",
-        confirmLabel: "Remove",
+        title: "Delete this Work Post permanently?",
+        description: "The post and its uploaded media cannot be restored.",
+        confirmLabel: "Delete post",
         variant: "danger",
       }))
     )
@@ -189,6 +190,14 @@ export default function WorkerShowcaseManager({
     setBusy(false);
     setViewer(null);
     await load();
+  }
+
+  async function setHidden(post:Post,hidden:boolean){
+    setBusy(true);
+    const{error}=await supabase.rpc('set_my_worker_work_post_hidden',{p_post_id:post.id,p_hidden:hidden});
+    setBusy(false);if(error)return toast.error(error.message);
+    toast.success(hidden?'Post hidden from your public profile':'Post visible on your public profile');
+    setViewer(null);await load();
   }
 
   const workPosts = posts.filter((post) => post.kind === "work_post");
@@ -333,6 +342,7 @@ export default function WorkerShowcaseManager({
                   </span>
                 )}
                 {post.job_confirmation_status === 'pending' && <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-[7px] font-bold text-[#171000]">CUSTOMER CHECK</span>}
+                {post.hidden_at && <span className="absolute right-2 top-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-bold text-white">HIDDEN</span>}
                 <div className="p-2">
                   <p className="line-clamp-2 text-[9px] text-[#A0A5B2]">
                     {post.caption || "Professional work"}
@@ -387,12 +397,7 @@ export default function WorkerShowcaseManager({
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => void remove(viewer)}
-                  className="text-[10px] font-semibold text-red-300"
-                >
-                  Remove
-                </button>
+                <div className="flex shrink-0 gap-3"><button onClick={()=>void setHidden(viewer,!viewer.hidden_at)} disabled={busy} className="text-[10px] font-semibold text-violet-300 disabled:opacity-40">{viewer.hidden_at?'Unhide':'Hide'}</button><button onClick={() => void remove(viewer)} disabled={busy} className="text-[10px] font-semibold text-red-300 disabled:opacity-40">Delete</button></div>
               </div>
             </div>
           </div>

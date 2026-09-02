@@ -27,7 +27,7 @@ export async function signInWithGoogle() {
   const redirectUrl = `${window.location.origin}/`;
   return supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: redirectUrl },
+    options: { redirectTo: redirectUrl, queryParams: { prompt: 'select_account' } },
   });
 }
 
