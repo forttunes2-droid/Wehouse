@@ -43,8 +43,8 @@ interface WorkerReviewSummary {
 }
 
 type CreatorTeamRole='admin'|'staff';
-type StaffModule='operations'|'finance'|'support'|'verification'|'field_officer';
-const STAFF_MODULES:Array<[StaffModule,string]>=[['operations','Operations'],['finance','Finance'],['support','Support'],['verification','Verification'],['field_officer','Field Officer']];
+type StaffModule='operations'|'finance'|'support'|'security'|'verification'|'field_officer';
+const STAFF_MODULES:Array<[StaffModule,string]>=[['operations','Operations'],['finance','Finance'],['support','Support'],['security','Security Operations'],['verification','Verification'],['field_officer','Field Officer']];
 
 export default function UserProfileModal({ user, adminProfile, onClose, onPromote, onNavigate, onGoToChat }: UserProfileModalProps) {
   if (!user) return null;

@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 
-const MODULES:Record<string,string>={operations:'Operations',finance:'Finance',support:'Support',verification:'Worker Verification',field_officer:'Field Operations'};
+const MODULES:Record<string,string>={operations:'Operations',finance:'Finance',support:'Support',security:'Security Operations',verification:'Worker Verification',field_officer:'Field Operations'};
 type RoleFilter='all'|'admin'|'staff';
 
 export default function StaffListTab({profile}:{profile:Profile}){
@@ -75,7 +75,7 @@ function Manage({person,creator,module,saving,close,saveModule,reassign}:{person
 <button disabled={saving||!s||!l} onClick={()=>void reassign(person,s,l)} className="mt-2 h-10 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Save branch</button>
 </section>}{person.role==='staff'&&<section className="rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
 <p className="text-xs font-semibold">Operational responsibility</p>
-<p className="mt-1 text-[9px] text-[#666D7E]">Assign exactly one module. Security monitoring belongs inside Operations.</p>
+<p className="mt-1 text-[9px] text-[#666D7E]">Assign exactly one module. Security observes and escalates; account sanctions stay with Admin and Creator.</p>
 <select value={module} disabled={saving} onChange={e=>void saveModule(person,e.target.value)} className="mt-3 h-11 w-full rounded-xl bg-[#171A23] px-3 text-[10px]">
 <option value="">No responsibility</option>{Object.entries(MODULES).map(([k,v])=>
 <option key={k} value={k}>{v}</option>)}</select>

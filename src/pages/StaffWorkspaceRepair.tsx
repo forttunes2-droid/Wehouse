@@ -9,18 +9,21 @@ import StaffWorkerReviewModern from '@/components/StaffWorkerReviewModern';
 import StaffInspectionWorkspaceV2 from '@/components/StaffInspectionWorkspaceV2';
 import StaffFinanceSummary from '@/components/StaffFinanceSummary';
 import StaffFinanceRecords from '@/components/StaffFinanceRecords';
+import StaffSecurityOverviewV2 from '@/components/StaffSecurityOverviewV2';
+import StaffActivityTrailV2 from '@/components/StaffActivityTrailV2';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
 import type { Profile } from '@/types';
 
-type Module = 'operations' | 'finance' | 'support' | 'verification' | 'field_officer';
+type Module = 'operations' | 'finance' | 'support' | 'security' | 'verification' | 'field_officer';
 type MainTab = 'home' | 'work' | 'conversations';
-type WorkView = 'pipeline' | 'housing' | 'overview' | 'payments' | 'payouts' | 'ledger';
+type WorkView = 'pipeline' | 'housing' | 'overview' | 'payments' | 'payouts' | 'ledger' | 'signals' | 'trail';
 type Props = { profile:Profile; onLogout:()=>void; onGoToChat?:(id?:string)=>void; onNavigate?:(page:string)=>void };
-const MODULES:Module[]=['operations','finance','support','verification','field_officer'];
+const MODULES:Module[]=['operations','finance','support','security','verification','field_officer'];
 const MODULE_COPY:Record<Module,{title:string;description:string;workLabel:string}>={
  operations:{title:'Property Operations',description:'Move assigned properties from request through inspection and publication.',workLabel:'Properties'},
  finance:{title:'Finance',description:'Review assigned payments, payouts and financial records.',workLabel:'Finance Work'},
  support:{title:'Support',description:'Handle conversations assigned to your branch support desk.',workLabel:'Conversations'},
+ security:{title:'Security Operations',description:'Review branch authentication and session signals, then escalate verified risks to Admin or Creator.',workLabel:'Security Signals'},
  verification:{title:'Worker Verification',description:'Review professional evidence and make the permitted verification decision.',workLabel:'Worker Reviews'},
  field_officer:{title:'Field Operations',description:'Complete property visits and submit inspection evidence.',workLabel:'Inspections'},
 };
@@ -41,7 +44,7 @@ function Workspace({module,profile,onLogout,onNavigate}:{module:Module;profile:P
   :module==='operations'
    ?[{id:'home',label:'Home'},{id:'work',label:copy.workLabel},{id:'conversations',label:'Reservation Desk'}]
    :[{id:'home',label:'Home'},{id:'work',label:copy.workLabel}];
- const[tab,setTab]=useState<MainTab>('home'),[workView,setWorkView]=useState<WorkView>(module==='finance'?'overview':'pipeline');
+ const[tab,setTab]=useState<MainTab>('home'),[workView,setWorkView]=useState<WorkView>(module==='finance'?'overview':module==='security'?'signals':'pipeline');
  const scope={state:profile.assigned_state||'',lga:profile.assigned_lga||''},branch=[scope.lga,scope.state].filter(Boolean).join(', ');
  let content:React.ReactNode;
  if(tab==='home')content=<StaffHome profile={profile} module={module} copy={copy} branch={branch} openWork={()=>setTab(directConversation?'conversations':'work')} onNavigate={onNavigate}/>;
@@ -54,6 +57,7 @@ function Workspace({module,profile,onLogout,onNavigate}:{module:Module;profile:P
 function ModuleWork({module,profile,view,setView}:{module:Module;profile:Profile;view:WorkView;setView:(view:WorkView)=>void}){
  if(module==='field_officer')return <StaffInspectionWorkspaceV2 profile={profile}/>;
  if(module==='verification')return <StaffWorkerReviewModern/>;
+ if(module==='security')return <div className="space-y-5"><LocalTabs items={[["signals","Signals"],["trail","Activity trail"]]} active={view} set={setView}/>{view==='trail'?<StaffActivityTrailV2/>:<StaffSecurityOverviewV2 onOpenCases={()=>setView('trail')}/>}</div>;
  if(module==='operations')return <div className="space-y-5"><LocalTabs items={[["pipeline","Property Pipeline"],["housing","Published Housing"]]} active={view} set={setView}/>{view==='housing'?<HousingOperationsWorkspace/>:<PropertyPipelineWorkspace profile={profile}/>}</div>;
  if(module==='finance')return <div className="space-y-5">{view==='overview'?<StaffFinanceSummary open={(id)=>setView(id)}/>:<><LocalTabs items={[["overview","Overview"],["payments","Payments"],["payouts","Payouts"],["ledger","Ledger"]]} active={view} set={setView}/><StaffFinanceRecords view={view as 'payments'|'payouts'|'ledger'}/></>}</div>;
  return null;
