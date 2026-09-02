@@ -26,6 +26,7 @@ type Trust = {
   open_disputes?: number;
   label?: string;
 };
+type PublicReview={id:string;rating:number;comment:string|null;created_at:string;reviewer_name:string;service_name:string};
 type Props = {
   worker: Profile;
   onBack: () => void;
@@ -44,12 +45,13 @@ export default function WorkerPublicProfileV2({
   const [posts, setPosts] = useState<Post[]>([]),
     [viewer, setViewer] = useState<Post | null>(null),
     [loading, setLoading] = useState(true),
-    [trust, setTrust] = useState<Trust | null>(null);
+    [trust, setTrust] = useState<Trust | null>(null),
+    [reviews,setReviews]=useState<PublicReview[]>([]);
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: true } }));
     let active = true;
     void (async () => {
-      const [{ data: rows }, { data: trustData }] = await Promise.all([
+      const [{ data: rows }, { data: trustData },{data:reviewRows}] = await Promise.all([
         supabase
           .from("worker_showcase_posts")
           .select(
@@ -61,6 +63,7 @@ export default function WorkerPublicProfileV2({
         supabase.rpc("get_worker_marketplace_trust", {
           p_worker_id: worker.user_id,
         }),
+        supabase.rpc("get_public_worker_reviews",{p_worker_id:worker.user_id,p_limit:20}),
       ]);
       const enriched = await Promise.all(
         ((rows || []) as Post[]).map(async (row) => {
@@ -73,6 +76,7 @@ export default function WorkerPublicProfileV2({
       if (active) {
         setPosts(enriched);
         setTrust((trustData || null) as Trust | null);
+        setReviews((reviewRows||[]) as PublicReview[]);
         setLoading(false);
       }
     })();
@@ -87,8 +91,8 @@ export default function WorkerPublicProfileV2({
       "Service worker",
     skills = (worker.worker_skills as string[]) || [],
     portfolio = posts.filter((post) => post.kind === "portfolio"),
-    rating = Number(worker.rating || 0) || 0,
-    reviewCount = Number(worker.review_count || 0) || 0;
+    rating = Number(trust?.rating ?? worker.rating ?? 0) || 0,
+    reviewCount = Number(trust?.review_count ?? worker.review_count ?? 0) || 0;
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl">
@@ -101,9 +105,7 @@ export default function WorkerPublicProfileV2({
           </button>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE SERVICE WORKER <GoldTickBadge size="sm" title="WeHouse reviewed service worker" /></p>
-            <p className="truncate text-sm font-semibold">
-              {worker.full_name || worker.username || "Service worker"}
-            </p>
+            <p className="truncate text-sm font-semibold">Professional profile</p>
           </div>
         </div>
       </header>
@@ -137,12 +139,8 @@ export default function WorkerPublicProfileV2({
                   .join(", ") || "Location not shown"}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {rating > 0 && (
-                  <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold text-amber-300">
-                    ★ {rating.toFixed(1)} · {reviewCount} review
-                    {reviewCount === 1 ? "" : "s"}
-                  </span>
-                )}
+                {rating > 0 && <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold text-amber-300">★ {rating.toFixed(1)} rating</span>}
+                <span className="rounded-full bg-white/[.04] px-2.5 py-1 text-[9px] font-semibold text-[#AAB0BD]">{reviewCount} written review{reviewCount===1?'':'s'}</span>
                 {worker.worker_price && (
                   <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">
                     From ₦{Number(worker.worker_price).toLocaleString()}
@@ -151,24 +149,9 @@ export default function WorkerPublicProfileV2({
               </div>
             </div>
           </div>
-          {worker.worker_bio && (
-            <p className="mt-4 line-clamp-5 whitespace-pre-line text-xs leading-relaxed text-[#858C9B]">
-              {cleanBio(worker.worker_bio)}
-            </p>
-          )}
-          {skills.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-full border border-white/[.07] px-2.5 py-1 text-[9px] text-[#A9AEBA]"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-          )}
         </section>
+        <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="Verification" value="WeHouse reviewed"/><ProfileFact label="Starting price" value={worker.worker_price?`₦${Number(worker.worker_price).toLocaleString()}`:'Discuss price'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
+        <section><h2 className="text-sm font-bold">About & services</h2><p className="mt-2 whitespace-pre-line text-xs leading-6 text-[#8E94A3]">{worker.worker_bio?cleanBio(worker.worker_bio):'This professional has not added an introduction yet.'}</p>{skills.length>0&&<div className="mt-4 flex flex-wrap gap-2">{skills.map(skill=><span key={skill} className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-[9px] text-[#A9AEBA]">{skill}</span>)}</div>}</section>
         <section>
           <div className="mb-3">
             <h2 className="text-sm font-bold">Portfolio</h2>
@@ -179,7 +162,7 @@ export default function WorkerPublicProfileV2({
           {loading ? (
             <Empty text="Loading work portfolio…" />
           ) : portfolio.length === 0 ? (
-            <Empty text="No Portfolio work has been published yet." />
+            <Empty text="This professional has not published work examples yet." />
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {portfolio.map((post) => (
@@ -205,16 +188,16 @@ export default function WorkerPublicProfileV2({
             </div>
           )}
         </section>
-        {(rating > 0 || Number(trust?.completed_jobs || 0) > 0) && (
-          <section className="flex items-center gap-6 border-y border-white/[.06] py-4">
+        <section className="grid grid-cols-3 border-y border-white/[.06] py-4">
             <div>
               <p className="text-lg font-bold">
                 {rating > 0 ? rating.toFixed(1) : "New"}
               </p>
               <p className="text-[9px] text-[#666D7E]">
-                Rating · {reviewCount} reviews
+                Average rating
               </p>
             </div>
+            <div><p className="text-lg font-bold">{reviewCount}</p><p className="text-[9px] text-[#666D7E]">Customer reviews</p></div>
             <div>
               <p className="text-lg font-bold">
                 {Number(trust?.completed_jobs || 0)}
@@ -223,8 +206,8 @@ export default function WorkerPublicProfileV2({
                 Completed WeHouse jobs
               </p>
             </div>
-          </section>
-        )}
+        </section>
+        <section><div className="mb-3"><h2 className="text-sm font-bold">Customer reviews</h2><p className="mt-1 text-[9px] text-[#666D7E]">Verified reviews from completed WeHouse jobs.</p></div>{reviews.length?<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{reviews.map(review=><article key={review.id} className="py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold">{review.reviewer_name}</p><p className="mt-1 text-[9px] text-[#686F80]">{review.service_name} · {new Date(review.created_at).toLocaleDateString()}</p></div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p></div>{review.comment&&<p className="mt-3 whitespace-pre-wrap text-[11px] leading-5 text-[#A5AAB7]">{review.comment}</p>}</article>)}</div>:<Empty text="No customer reviews yet. Reviews appear only after completed WeHouse jobs."/>}</section>
       </main>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
@@ -233,7 +216,7 @@ export default function WorkerPublicProfileV2({
             className={`h-12 w-full rounded-2xl text-xs font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}
           >
             {bookingActive
-              ? "Open current booking"
+              ? "Open service booking"
               : "Request service"}
           </button>
         </div>
@@ -309,6 +292,7 @@ function Empty({ text }: { text: string }) {
     </div>
   );
 }
+function ProfileFact({label,value}:{label:string;value:string}){return <div className="min-w-0 border-r border-white/[.06] px-3 py-4 text-center last:border-r-0"><p className="truncate text-[10px] font-semibold text-[#D5D8E0]">{value}</p><p className="mt-1 text-[8px] text-[#666D7E]">{label}</p></div>}
 function cleanBio(value: string) {
   return String(value || "")
     .split(/\n\s*Services\s+Offered\s*:/i)[0]

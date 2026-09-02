@@ -13,7 +13,7 @@ function NativeInit() {
   useEffect(() => {
     if (!isNative()) return;
     import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
-      StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {});
       StatusBar.setBackgroundColor({ color: '#0A0A0F' }).catch(() => {});
     });
     import('@capacitor/splash-screen').then(({ SplashScreen }) => {

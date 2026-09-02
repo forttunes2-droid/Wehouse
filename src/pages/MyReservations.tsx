@@ -176,7 +176,7 @@ export default function MyReservations({ profile, initialBookingId, onOpenConver
     window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{category:"hotel_booking",subject:`${row.hotels?.name||row.hotel?.name||row.hotel_name||"Hotel stay"} · Reservation Desk`,contextType:"hotel_booking",contextId:String(row.booking_id),contextSnapshot:{booking_id:row.booking_id,booking_code:row.booking_code,hotel_id:row.hotel_id,hotel_name:row.hotels?.name||row.hotel?.name||row.hotel_name,room_id:row.room_id,room_name:row.hotel_rooms?.name||row.room_name,check_in:row.check_in_date||row.check_in,check_out:row.check_out_date||row.check_out,status:row.status,payment_status:row.payment_status}}}));
   }
   if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
-  if(activeHousing)return <PropertyBookingDetail row={activeHousing} onBack={()=>setActiveHousing(null)} onProperty={()=>activeHousing.listing_id&&onOpenListing?.(activeHousing.listing_id)} onDesk={()=>support(activeHousing)}/>;
+  if(activeHousing)return <PropertyBookingDetail row={activeHousing} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)}/>;
   if(activeHotel)return <HotelBookingDetail row={activeHotel} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
@@ -351,7 +351,7 @@ function HousingCard({
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "View home" : "View booking"}</button>
+        <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "Open tenancy" : "Open booking"}</button>
         {row.status === "payment_pending" && (
           <button
             disabled={busy}
@@ -485,10 +485,11 @@ function HotelCard({
     </article>
   );
 }
-function PropertyBookingDetail({row,onBack,onProperty,onDesk}:{row:any;onBack:()=>void;onProperty:()=>void;onDesk:()=>void}) {
+function PropertyBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDesk:()=>void}) {
   const short=row.stay_type==='short_let';
   const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
-  return <BookingDetailShell title={short?'Property stay':'Property booking'} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5 grid gap-2 sm:grid-cols-2"><button type="button" onClick={onProperty} disabled={!row.listing_id} className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">View property</button><button type="button" onClick={onDesk} className="min-h-11 rounded-xl border border-white/[.09] text-xs font-semibold">Reservation Desk</button></div></div></section></BookingDetailShell>;
+  const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Property stay':'Property booking');
+  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Reservation Desk</button></div></div></section></BookingDetailShell>;
 }
 function HotelBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDesk:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';

@@ -15,6 +15,8 @@ import {
   BOOKING_STATUS_LABELS,
   markBookingMessagesRead,
   hideBookingConversation,
+  getMyWorkerBookingReview,
+  submitWorkerBookingReview,
 } from "@/lib/supabase/worker-bookings";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
@@ -101,6 +103,7 @@ export default function BookingNegotiationChat({
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false);
+  const [review,setReview]=useState<any>(null),[reviewRating,setReviewRating]=useState(0),[reviewComment,setReviewComment]=useState(''),[reviewSaving,setReviewSaving]=useState(false),[reviewOpen,setReviewOpen]=useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +131,7 @@ export default function BookingNegotiationChat({
       }
       if (!bookingRes.error)
         setBooking(loadedBooking);
+      if(loadedBooking?.status==='approved_released'&&!isWorker){const reviewResult=await getMyWorkerBookingReview(bookingId);if(!reviewResult.error&&reviewResult.review){setReview(reviewResult.review);setReviewRating(Number(reviewResult.review.rating||0));setReviewComment(String(reviewResult.review.comment||''));}}
       await markBookingMessagesRead(conversationId);
       if (!quiet) setLoading(false);
     },
@@ -332,6 +336,7 @@ export default function BookingNegotiationChat({
     if (!allowed) return toast.error(`This person is not accepting ${callType} calls`);
     launchPrivateCall("worker_booking", conversationId, callType);
   }
+  async function saveReview(){if(reviewRating<1)return toast.error('Choose a star rating');setReviewSaving(true);const{review:next,error}=await submitWorkerBookingReview(bookingId,reviewRating,reviewComment);setReviewSaving(false);if(error||!next)return toast.error(error?.message||'Review could not be saved');setReview(next);setReviewOpen(false);toast.success('Your review was saved')}
   async function handleWorkerAccept() {
     const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
@@ -482,17 +487,17 @@ export default function BookingNegotiationChat({
               </p>
             </div>
           </button>
-          <button
+          {openConversation && <button
             onClick={() => void startCall("audio")}
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-white/[.07] bg-white/[.035] px-3 text-[10px] font-semibold text-[#D5D8E0] hover:bg-white/[.06]"
             aria-label="Start audio call"
           >
             <Phone />
             <span className="hidden min-[360px]:inline">Call</span>
-          </button>
-          <button onClick={() => void startCall("video")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]" aria-label="Start video call">
+          </button>}
+          {openConversation && <button onClick={() => void startCall("video")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]" aria-label="Start video call">
             <VideoCallIcon />
-          </button>
+          </button>}
           <button
             onClick={() => setMenuOpen((value) => !value)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[#8E93A3] hover:bg-white/[.05]"
@@ -884,17 +889,7 @@ export default function BookingNegotiationChat({
             </p>
           </div>
         ) : (
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 py-2">
-            <p className="text-[10px] text-[#656A7A]">
-              This job conversation is closed.
-            </p>
-            <button
-              onClick={openSupport}
-              className="text-[10px] font-semibold text-violet-300"
-            >
-              Human Support
-            </button>
-          </div>
+          <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Human Support</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>
         )}
       </footer>
       {profileOpen && (

@@ -63,7 +63,6 @@ export default function RoommateWorkspace({
     [loadingMore, setLoadingMore] = useState(false),
     [interestBusy, setInterestBusy] = useState<string | null>(null);
   const profileReady =
-    profile.role === "user" &&
     Boolean(profile.profile_complete) &&
     Boolean(profile.gender) &&
     Boolean(profile.state);
@@ -675,7 +674,7 @@ function Matches({
                         disabled
                         className="min-h-11 w-full rounded-xl bg-violet-500/10 text-xs font-semibold text-violet-300"
                       >
-                        Pending
+                        Interest sent
                       </button>
                     ) : (
                       <>

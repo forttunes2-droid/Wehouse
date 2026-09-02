@@ -237,7 +237,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
     <div className="mx-auto max-w-6xl">
       <PropertyMediaCarousel images={images} title={listing.title}>
         <button onClick={onNavigate} className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur">←</button>
-        <button onClick={onToggleSave} aria-label={isSaved?'Remove from saved properties':'Save property'} aria-pressed={isSaved} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"><Heart filled={isSaved}/></button>
+        {!hasOwnActiveReservation && <button onClick={onToggleSave} aria-label={isSaved?'Remove from saved properties':'Save property'} aria-pressed={isSaved} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"><Heart filled={isSaved}/></button>}
         <span className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase ${state.cls}`}>{state.label}</span>
       </PropertyMediaCarousel>
 

@@ -77,6 +77,9 @@ export async function createWorkerBookingPayment(bookingId:string){const{data,er
 export async function workerStartJob(bookingId:string){const{data,error}=await supabase.rpc('worker_start_job',{p_booking_id:bookingId});return{success:data,error}}
 export async function workerMarkComplete(bookingId:string){const{data,error}=await supabase.rpc('worker_mark_complete',{p_booking_id:bookingId});return{success:data,error}}
 export async function customerConfirmCompletion(bookingId:string){const{data,error}=await supabase.rpc('customer_confirm_completion',{p_booking_id:bookingId});return{success:data,error}}
+export async function getMyWorkerBookingReview(bookingId:string){const{data,error}=await supabase.rpc('get_my_worker_booking_review',{p_booking_id:bookingId});return{review:data||null,error}}
+export async function submitWorkerBookingReview(bookingId:string,rating:number,comment:string){const{data,error}=await supabase.rpc('submit_my_worker_booking_review',{p_booking_id:bookingId,p_rating:rating,p_comment:comment||null});return{review:data||null,error}}
+export async function getPublicWorkerReviews(workerId:string){const{data,error}=await supabase.rpc('get_public_worker_reviews',{p_worker_id:workerId,p_limit:20});return{reviews:data||[],error}}
 export async function customerRaiseDispute(bookingId:string,reason:string){const{data,error}=await supabase.rpc('customer_raise_dispute',{p_booking_id:bookingId,p_reason:reason});return{success:data,error}}
 export async function cancelBooking(bookingId:string,reason:string){const{data,error}=await supabase.rpc('cancel_booking',{p_booking_id:bookingId,p_reason:reason});return{success:data,error}}
 

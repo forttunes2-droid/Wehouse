@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     // Use local server for dev, remove for production
     // url: 'http://192.168.1.100:3000',
-    cleartext: true,
+    cleartext: false,
   },
   android: {
     buildOptions: {
@@ -15,7 +15,7 @@ const config: CapacitorConfig = {
       keystoreAlias: undefined,
       keystorePassword: undefined,
       keystoreAliasPassword: undefined,
-      releaseType: 'APK',
+      releaseType: 'AAB',
     },
   },
   ios: {
@@ -29,7 +29,7 @@ const config: CapacitorConfig = {
       androidScaleType: 'CENTER_CROP',
     },
     StatusBar: {
-      style: 'DARK',
+      style: 'LIGHT',
       backgroundColor: '#0A0A0F',
     },
   },

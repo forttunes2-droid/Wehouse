@@ -28,6 +28,7 @@ interface ChatProfile {
 interface Props {
   profile: ChatProfile | null;
   onOpenListing?: (listingId: string) => void;
+  onOpenBooking?: (bookingId: string) => void;
 }
 type SupportMessage = {
   id: string;
@@ -64,7 +65,7 @@ type ReservationAttachmentRow = {
   created_at?: string | null;
 };
 
-export default function SupportChat({ profile, onOpenListing }: Props) {
+export default function SupportChat({ profile, onOpenListing, onOpenBooking }: Props) {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<SupportThread | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -341,6 +342,9 @@ export default function SupportChat({ profile, onOpenListing }: Props) {
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.05),transparent_34%)] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-4xl">
+          {presentation.operational && thread && (
+            <LinkedOperationalContext thread={thread} onOpenBooking={onOpenBooking} onOpenListing={onOpenListing} />
+          )}
           {loading ? (
             <ConversationSkeleton />
           ) : loadError ? (
@@ -359,6 +363,7 @@ export default function SupportChat({ profile, onOpenListing }: Props) {
                   <MessageBubble
                     msg={msg}
                     mine={msg.sender_id === profile.user_id}
+                    showContext={!presentation.operational}
                     onOpenListing={(listingId) => { setOpen(false); onOpenListing?.(listingId); }}
                   />
                 </div>
@@ -512,14 +517,14 @@ export default function SupportChat({ profile, onOpenListing }: Props) {
   );
 }
 
-function MessageBubble({ msg, mine, onOpenListing }: { msg: SupportMessage; mine: boolean; onOpenListing?: (listingId: string) => void }) {
+function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: SupportMessage; mine: boolean; showContext: boolean; onOpenListing?: (listingId: string) => void }) {
   const meta = msg.action_metadata || {};
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
         className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${mine ? "items-end" : "items-start"}`}
       >
-        {meta && Object.keys(meta).length > 0 && (
+        {showContext && meta && Object.keys(meta).length > 0 && (
           <MessageContext meta={meta} type={msg.action_type} onOpenListing={onOpenListing} />
         )}
         <div
@@ -562,6 +567,19 @@ function MessageBubble({ msg, mine, onOpenListing }: { msg: SupportMessage; mine
       </div>
     </div>
   );
+}
+
+function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:SupportThread;onOpenBooking?:(id:string)=>void;onOpenListing?:(id:string)=>void}){
+  const snapshot=thread.context_snapshot||{};
+  const bookingId=String(thread.context_id||snapshot.reservation_id||'');
+  const listingId=String(snapshot.listing_id||'');
+  const status=String(snapshot.status||thread.status||'').replace(/_/g,' ');
+  const code=String(snapshot.booking_code||snapshot.reference||'');
+  return <section className="mb-4 flex items-center gap-3 border-y border-white/[.06] bg-white/[.018] px-1 py-3">
+    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">⌂</div>
+    <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-semibold">Your reservation</p><p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">{[code,status].filter(Boolean).join(' · ')||'Linked booking context'}</p></div>
+    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">Open booking</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View property</button>:null}
+  </section>
 }
 
 function MessageContext({
@@ -628,8 +646,7 @@ function PendingContext({
             )}
         </p>
         <p className="mt-1 truncate text-[9px] text-[#6F7F97]">
-          This reference will be attached to your next message
-          {context.contextId ? ` · ${context.contextId}` : ""}.
+          This support case will stay linked to the selected WeHouse item.
         </p>
       </div>
       <button onClick={onRemove} className="text-[#758096]">

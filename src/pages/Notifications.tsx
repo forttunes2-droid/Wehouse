@@ -11,9 +11,11 @@ type Activity = {
   source_type?: string | null; source_id?: string | null; destination_route?: string | null;
   destination_params?: Record<string, unknown> | null;
 };
+const activityCache=new Map<string,Activity[]>();
 
 export default function Notifications({ profile, onNavigate, embedded = false }: Props) {
-  const [rows, setRows] = useState<Activity[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const cached=activityCache.get(profile.user_id);
+  const [rows, setRows] = useState<Activity[]>(cached||[]), [loading, setLoading] = useState(!cached), [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   async function load(quiet = false) {
@@ -32,14 +34,15 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
         const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
         return { id: `announcement:${delivery.announcement_id}`, sourceNumericId: Number(delivery.announcement_id), source: "announcement" as const, type: "announcement", title: announcement?.title || "WeHouse announcement", message: announcement?.content || null, read: Boolean(delivery.read_status), created_at: announcement?.created_at || delivery.delivered_at };
       });
-      setRows([...events, ...announcements].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+      const next=[...events, ...announcements].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      activityCache.set(profile.user_id,next);setRows(next);
       setError(failures[0] || "");
     }
     if (!quiet) setLoading(false);
   }
 
   useEffect(() => {
-    void load();
+    void load(Boolean(activityCache.get(profile.user_id)));
     const channel = supabase.channel(`activity-feed:${profile.user_id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${profile.user_id}` }, () => void load(true))
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "announcement_recipients", filter: `user_id=eq.${profile.user_id}` }, () => void load(true)).subscribe();
@@ -73,7 +76,7 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
   }
 
   const unread = rows.filter((row) => !row.read).length;
-  const content = <main className={embedded ? "py-4" : "mx-auto max-w-4xl px-4 py-5"}>{loading ? <Skeleton /> : error && rows.length === 0 ? <ErrorState text={error} retry={() => void load()} /> : rows.length === 0 ? <Empty /> : <div className="space-y-7">
+  const content = <main className={embedded ? "py-4" : "mx-auto max-w-4xl px-4 py-5"}>{loading ? <ActivityLoading /> : error && rows.length === 0 ? <ErrorState text={error} retry={() => void load()} /> : rows.length === 0 ? <Empty /> : <div className="space-y-7">
     {unread > 0 && <div className="flex justify-end"><button onClick={() => void markAll()} className="rounded-full border border-white/[.08] px-3 py-2 text-[9px] font-semibold text-violet-300">Mark all read</button></div>}
     {groups.map(([day, items]) => <section key={day}><h2 className="mb-2 text-[9px] font-bold uppercase tracking-[.15em] text-[#656B7C]">{day}</h2><div className="divide-y divide-white/[.055] border-y border-white/[.06]">{items.map((row) => <button key={row.id} onClick={() => void open(row)} className="flex min-h-20 w-full items-start gap-3 py-3 text-left">
       <span className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-white/[.035] text-[#73798A]" : "bg-violet-500/12 text-violet-300"}`}>{icon(row.type)}</span>
@@ -91,6 +94,6 @@ function activitySection(row:Activity){if(row.source==='announcement')return'Off
 function legacyRoute(type: string) { if (type === "roommate_interest" || type === "shared_home_invite" || type === "shared_home_response") return "roommate"; if (type === "roommate_match" || type === "missed_call") return "conversation"; if (type.includes("booking") || type.includes("payment") || type.includes("inspection") || type.includes("reservation") || type.includes("shared_home")) return "my_reservations"; return ""; }
 function dayLabel(value: string) { const date = new Date(value), today = new Date(), yesterday = new Date(); yesterday.setDate(today.getDate() - 1); if (date.toDateString() === today.toDateString()) return "Today"; if (date.toDateString() === yesterday.toDateString()) return "Yesterday"; return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); }
 function icon(type: string) { if (type === "announcement") return "W"; if (type.includes("payment")) return "₦"; if (type.includes("roommate")) return "◉"; if (type.includes("security")) return "⌾"; if (type.includes("booking") || type.includes("reservation")) return "✓"; return "•"; }
-function Skeleton() { return <div className="space-y-3">{[1, 2, 3, 4].map((i) => <div key={i} className="h-20 animate-pulse border-b border-white/[.06] bg-white/[.015]" />)}</div>; }
+function ActivityLoading(){return <div className="flex min-h-28 items-center justify-center gap-2 text-[10px] text-[#686E7E]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Loading meaningful activity…</div>}
 function Empty() { return <div className="grid min-h-[55dvh] place-items-center text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-violet-500/10 text-violet-300">✓</div><p className="mt-4 text-sm font-semibold">You’re up to date</p><p className="mt-2 max-w-xs text-[10px] leading-5 text-[#6C7282]">Meaningful booking, job, payment, roommate, security and official updates will appear here.</p></div></div>; }
 function ErrorState({ text, retry }: { text: string; retry: () => void }) { return <div className="rounded-2xl border border-red-500/15 p-5 text-center"><p className="text-xs font-semibold">Activity could not be loaded</p><p className="mt-1 text-[9px] text-[#757B8A]">{text}</p><button onClick={retry} className="mt-3 text-[10px] font-semibold text-violet-300">Try again</button></div>; }

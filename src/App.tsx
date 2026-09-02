@@ -765,6 +765,7 @@ export default function App() {
         return (
           <AccountCenter
             profile={profile}
+            onBack={subpageBack}
             onGoToSaved={() => goTo("saved")}
             onGoToPrivacy={goToPrivacy}
             onGoToSecurity={goToSecurity}
@@ -944,6 +945,7 @@ export default function App() {
   const desktopNavItems = getNavForRole(userRole, unreadCount);
   const hide = [
     "profile",
+    "account",
     "detail",
     "chat",
     "saved",
@@ -986,6 +988,7 @@ export default function App() {
           {supportRole && profile && (
             <SupportChat
               onOpenListing={goToDetail}
+              onOpenBooking={(id) => { setBookingContextId(id); goTo("my_reservations"); }}
               profile={{
                 user_id: profile.user_id,
                 username: profile.username,

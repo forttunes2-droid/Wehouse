@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getAllListings } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import ListingCard from '@/components/ListingCard';
 import type { Listing, Profile } from '@/types';
 
@@ -13,19 +14,17 @@ interface SavedProps {
 
 export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: SavedProps) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [alerts,setAlerts]=useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      if (savedIds.size === 0) {
-        if (active) { setListings([]); setLoading(false); }
-        return;
-      }
       setLoading(true);
-      const { listings: available } = await getAllListings();
+      const [{ listings: available },{data:searchAlerts}] = await Promise.all([savedIds.size?getAllListings():Promise.resolve({listings:[]}),supabase.from('saved_searches').select('id,name,criteria,notifications_enabled').order('updated_at',{ascending:false})]);
       if (!active) return;
       setListings((available || []).filter(listing => savedIds.has(listing.id)));
+      setAlerts(searchAlerts||[]);
       setLoading(false);
     }
     void load();
@@ -39,13 +38,15 @@ export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: Sa
           <button type="button" onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.08] text-[#A1A6B5]" aria-label="Back to Account">←</button>
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · ACCOUNT</p>
-            <h1 className="mt-1 text-xl font-bold">Saved properties</h1>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Your private shortlist of properties to compare or revisit later. Saving does not reserve a property or remove it from availability.</p>
+            <h1 className="mt-1 text-xl font-bold">Saved</h1>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Properties you kept and search alerts that can notify you about new matches.</p>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-5 sm:px-5 lg:px-8">
+        {alerts.length>0&&<section className="mb-6 border-y border-white/[.07] py-4"><div className="mb-3"><h2 className="text-sm font-semibold">Search alerts</h2><p className="mt-1 text-[9px] text-[#707687]">These are saved criteria, not another navigation tab. Matching new properties appear in Activity.</p></div><div className="divide-y divide-white/[.05]">{alerts.map(alert=><div key={alert.id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{alert.name||'Property search'}</p><p className="mt-1 truncate text-[9px] text-[#686F80]">{describeSearch(alert.criteria)}</p></div><button type="button" onClick={async()=>{const enabled=!alert.notifications_enabled;const{error}=await supabase.from('saved_searches').update({notifications_enabled:enabled,updated_at:new Date().toISOString()}).eq('id',alert.id);if(!error)setAlerts(rows=>rows.map(row=>row.id===alert.id?{...row,notifications_enabled:enabled}:row))}} className={`rounded-full px-3 py-2 text-[9px] font-semibold ${alert.notifications_enabled?'bg-violet-500/10 text-violet-300':'bg-white/[.04] text-[#777D8D]'}`}>{alert.notifications_enabled?'Alerts on':'Paused'}</button></div>)}</div></section>}
+        <div className="mb-3"><h2 className="text-sm font-semibold">Saved properties</h2><p className="mt-1 text-[9px] text-[#707687]">A private shortlist. Saving a property does not reserve it or create a booking.</p></div>
         {loading ? (
           <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
         ) : listings.length === 0 ? (
@@ -55,7 +56,7 @@ export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: Sa
             </div>
             <h2 className="mt-4 text-sm font-semibold">No saved properties yet</h2>
             <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Tap the heart on a property to keep it in this private shortlist. Reservations only contains bookings you actually started.</p>
-            <button onClick={() => onNavigate('search')} className="mt-5 rounded-full bg-violet-500 px-5 py-3 text-xs font-semibold">Browse homes</button>
+            <button onClick={() => onNavigate('search')} className="mt-5 rounded-full bg-violet-500 px-5 py-3 text-xs font-semibold">Browse properties</button>
           </section>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -68,3 +69,5 @@ export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: Sa
     </div>
   );
 }
+
+function describeSearch(criteria:any){return [criteria?.sub_type==='short_let'?'Short Let':'Long Let',criteria?.city,criteria?.state,criteria?.max_price?`Up to ₦${Number(criteria.max_price).toLocaleString()}`:null].filter(Boolean).join(' · ')||'Saved property criteria'}

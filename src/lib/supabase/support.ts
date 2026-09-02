@@ -44,7 +44,7 @@ export function conversationPresentation(
   const code = String(snapshot.booking_code || snapshot.reference || snapshot.request_code || "").trim();
   const reservation = ["apartment_reservation", "reservation", "hotel_booking"].includes(contextType);
   if (reservation) {
-    const stay = snapshot.stay_type === "short_let" ? "Short Let" : "Long Stay";
+    const stay = snapshot.stay_type === "short_let" ? "Short Let" : "Long Let";
     const place = String(snapshot.listing_title || snapshot.hotel_name || "").trim();
     const safeSubject = /^(wehouse support|reservation help)$/i.test(rawSubject) ? "" : rawSubject.replace(/\s*·\s*Reservation Desk$/i, "");
     return {

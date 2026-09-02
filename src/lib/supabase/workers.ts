@@ -196,9 +196,17 @@ export async function createServiceSubcategory(categoryId: string, name: string,
 
 // Creator: Update subcategory
 export async function updateServiceSubcategory(id: string, updates: Partial<ServiceSubcategory>) {
+  if (typeof updates.name === 'string') {
+    const { data, error } = await supabase.rpc('rename_service_subcategory', {
+      p_subcategory_id: id,
+      p_name: updates.name,
+    });
+    if (error || !data || Object.keys(updates).length === 1)
+      return { subcategory: data as ServiceSubcategory | null, error };
+  }
   const { data, error } = await supabase
     .from('service_subcategories')
-    .update(updates)
+    .update({ ...updates, name: undefined })
     .eq('id', id)
     .select()
     .single();

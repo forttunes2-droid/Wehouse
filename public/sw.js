@@ -1,28 +1,30 @@
-// WeHouse update controller. Keep this worker installed so an old cached app
-// cannot continue controlling normal Chrome sessions after a deployment.
-// Version: 20260818-housing-roommate-creator-4
+// WeHouse app shell. Live account data remains network-driven; versioned local
+// assets are cached so navigation does not reconstruct the whole interface.
+const CACHE='wehouse-shell-20260902-1';
+const SHELL=['/','/manifest.webmanifest','/icon-192.png','/icon-512.png'];
 self.addEventListener('install', function(e) {
-  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(function(cache){return cache.addAll(SHELL)}).then(function(){return self.skipWaiting()}));
 });
 
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(names) {
-      return Promise.all(names.map(function(n) { return caches.delete(n); }));
+      return Promise.all(names.filter(function(n){return n!==CACHE}).map(function(n) { return caches.delete(n); }));
     }).then(function() {
       return self.clients.claim();
-    }).then(function() {
-      return self.clients.matchAll({ type: 'window' });
-    }).then(function(clients) {
-      clients.forEach(function(client) { client.navigate(client.url); });
     })
   );
 });
 
-// WeHouse currently favours correctness over offline HTML. Navigation and
-// application assets always come from the deployed origin, never a stale
-// service-worker cache.
 self.addEventListener('fetch', function(e) {
   if (e.request.method !== 'GET') return;
-  e.respondWith(fetch(e.request, { cache: 'no-store' }));
+  var url=new URL(e.request.url);
+  if(url.origin!==self.location.origin)return;
+  if(e.request.mode==='navigate'){
+    e.respondWith(fetch(e.request).then(function(response){var copy=response.clone();caches.open(CACHE).then(function(cache){cache.put('/',copy)});return response}).catch(function(){return caches.match('/')}));
+    return;
+  }
+  if(url.pathname.startsWith('/assets/')||/\.(?:png|jpg|jpeg|webp|svg|woff2?)$/i.test(url.pathname)){
+    e.respondWith(caches.match(e.request).then(function(cached){if(cached)return cached;return fetch(e.request).then(function(response){if(response.ok){var copy=response.clone();caches.open(CACHE).then(function(cache){cache.put(e.request,copy)})}return response})}));
+  }
 });
