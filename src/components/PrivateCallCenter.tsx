@@ -39,10 +39,10 @@ export default function PrivateCallCenter() {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("user_id,role")
+        .select("user_id,role,account_kind")
         .eq("auth_id", user.id)
         .maybeSingle();
-      if (!live || !data || !["user", "worker"].includes(String(data.role)))
+      if (!live || !data || !(data.account_kind === "consumer" || data.role === "worker"))
         return;
       setUserId(data.user_id);
       const active = await getActiveCalls();
@@ -115,6 +115,14 @@ export default function PrivateCallCenter() {
     const timer = window.setTimeout(() => setCall(null), 1200);
     return () => window.clearTimeout(timer);
   }, [call?.status]);
+  useEffect(() => {
+    if (!call || call.status !== "ringing" || call.caller_id !== userId) return;
+    const timeout = window.setTimeout(async () => {
+      const result = await endPrivateCall(call.id);
+      if (result.call) setCall(result.call);
+    }, 45_000);
+    return () => window.clearTimeout(timeout);
+  }, [call?.id, call?.status, call?.caller_id, userId]);
   async function answer(accept: boolean) {
     if (!call) return;
     const result = await respondPrivateCall(call.id, accept);
@@ -182,8 +190,11 @@ function RtcCall({
     seen = useRef(new Set<string>()),
     pending = useRef<RTCIceCandidateInit[]>([]);
   const [connected, setConnected] = useState(false),
+    [connectionLabel, setConnectionLabel] = useState("Connecting…"),
     [muted, setMuted] = useState(false),
     [cameraOff, setCameraOff] = useState(false),
+    [facingMode, setFacingMode] = useState<"user" | "environment">("user"),
+    [speakerOn, setSpeakerOn] = useState(true),
     [error, setError] = useState("");
   const isVideo = call.call_type === "video";
   useEffect(() => {
@@ -223,8 +234,14 @@ function RtcCall({
           const incoming = event.streams[0] || new MediaStream([event.track]);
           if (remoteMedia.current) remoteMedia.current.srcObject = incoming;
         };
-        peer.onconnectionstatechange = () =>
-          setConnected(peer.connectionState === "connected");
+        peer.onconnectionstatechange = () => {
+          const state=peer.connectionState;
+          setConnected(state === "connected");
+          if(state === "connected") setConnectionLabel("Connected");
+          else if(state === "disconnected") setConnectionLabel("Reconnecting…");
+          else if(state === "failed") { setConnectionLabel("Connection failed"); setError("The call connection was lost. Check your network and try reconnecting."); }
+          else if(state === "connecting" || state === "new") setConnectionLabel("Connecting…");
+        };
         async function process(signal: CallSignal) {
           if (seen.current.has(signal.id) || signal.sender_id === userId)
             return;
@@ -291,6 +308,30 @@ function RtcCall({
     stream.current?.getVideoTracks().forEach((track) => (track.enabled = !next));
     setCameraOff(next);
   }
+  async function switchCamera(){
+    if(!isVideo)return;
+    try{
+      const next=facingMode==="user"?"environment":"user";
+      const replacement=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:next},width:{ideal:1280},height:{ideal:720}},audio:false});
+      const track=replacement.getVideoTracks()[0];
+      const sender=pc.current?.getSenders().find(item=>item.track?.kind==="video");
+      if(!track||!sender)throw new Error("Camera switching is not available on this device");
+      await sender.replaceTrack(track);
+      stream.current?.getVideoTracks().forEach(item=>{item.stop();stream.current?.removeTrack(item)});
+      stream.current?.addTrack(track);
+      if(localVideo.current)localVideo.current.srcObject=stream.current;
+      setFacingMode(next); setCameraOff(false);
+    }catch(reason){toast.error(reason instanceof Error?reason.message:"Camera could not switch")}
+  }
+  async function toggleSpeaker(){
+    const media=remoteMedia.current as (HTMLMediaElement & {setSinkId?:(id:string)=>Promise<void>})|null;
+    if(!media?.setSinkId)return toast.error("Audio output selection is not supported on this device");
+    try{const next=!speakerOn;await media.setSinkId(next?"default":"communications");setSpeakerOn(next)}catch{toast.error("Audio output could not be changed")}
+  }
+  function reconnect(){
+    setError("");setConnectionLabel("Reconnecting…");
+    try{pc.current?.restartIce()}catch{setError("Reconnect could not start. End the call and try again.")}
+  }
   return (
     <div className="fixed inset-0 z-[190] flex h-[100dvh] flex-col bg-black text-white">
       <main className="relative min-h-0 flex-1">
@@ -302,19 +343,17 @@ function RtcCall({
               {call.peer_name || "WeHouse member"}
             </h2>
             <p className="mt-2 text-[10px] text-[#8990A0]">
-              {connected ? "Connected" : "Connecting…"}
+              {connected ? "Connected" : connectionLabel}
             </p>
           </div>
           {isVideo && <video ref={localVideo} autoPlay muted playsInline className="absolute right-4 top-4 h-40 w-28 rounded-2xl border border-white/20 bg-[#11151D] object-cover shadow-2xl sm:h-52 sm:w-36" />}
         </div>
         {!isVideo && <video ref={remoteMedia} autoPlay playsInline className="hidden" />}
         {error && (
-          <p className="absolute inset-x-4 top-20 rounded-2xl bg-red-500/15 p-3 text-center text-[10px] text-red-100">
-            {error}
-          </p>
+          <div className="absolute inset-x-4 top-20 rounded-2xl bg-red-500/15 p-3 text-center text-[10px] text-red-100"><p>{error}</p><button onClick={reconnect} className="mt-2 rounded-lg bg-white/10 px-3 py-2 font-semibold">Try reconnecting</button></div>
         )}
       </main>
-      <footer className="flex justify-center gap-4 border-t border-white/10 bg-[#10131B] p-5">
+      <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 bg-[#10131B] p-4 sm:gap-4 sm:p-5">
         <button
           onClick={toggleMute}
           className="h-12 rounded-full bg-white/10 px-5 text-[10px]"
@@ -322,6 +361,8 @@ function RtcCall({
           {muted ? "Unmute" : "Mute"}
         </button>
         {isVideo && <button onClick={toggleCamera} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">{cameraOff ? "Start camera" : "Stop camera"}</button>}
+        {isVideo && <button onClick={()=>void switchCamera()} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">Switch camera</button>}
+        <button onClick={()=>void toggleSpeaker()} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">{speakerOn?"Speaker":"Earpiece"}</button>
         <button
           onClick={onHangup}
           className="h-12 rounded-full bg-red-500 px-6 text-[10px] font-semibold"

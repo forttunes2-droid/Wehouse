@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { toast } from "sonner";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
+import PrivateCallHistory from "@/components/PrivateCallHistory";
 import BackButton from "@/components/BackButton";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
@@ -731,6 +732,7 @@ export default function BookingNegotiationChat({
         <div className="mx-auto max-w-4xl space-y-3">
           {messageError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center"><p className="text-xs font-semibold text-red-200">Messages could not be loaded</p><button onClick={() => void loadAll()} className="mt-2 text-[10px] font-semibold text-violet-300">Try again</button></div> : null}
           {!messageError && messages.length === 0 ? <div className="grid min-h-44 place-items-center text-center"><div><p className="text-sm font-semibold">No messages yet</p><p className="mt-2 text-[10px] text-[#666C7D]">Start with the work details, schedule and price.</p></div></div> : null}
+          <PrivateCallHistory contextType="worker_booking" contextId={conversationId}/>
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
               prev = messages[index - 1],

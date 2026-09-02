@@ -21,8 +21,8 @@ const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
 const HOUSING_STATUS: Record<string, string> = {
   payment_pending: "Payment pending",
   reserved: "Reserved",
-  inspection_pending: "Inspection",
-  ready_for_move_in: "Ready",
+  inspection_pending: "Inspection in progress",
+  ready_for_move_in: "Ready for move-in",
   occupied: "Occupied",
   completed: "Completed",
   cancelled: "Cancelled",
@@ -189,7 +189,7 @@ export default function MyReservations({ profile, initialBookingId, onOpenConver
             </p>
             <h1 className="mt-1 text-xl font-bold">Bookings</h1>
             <p className="mt-1 text-[10px] text-[#74798B]">
-              Properties, stays and home-service bookings in one place.
+              Property tenancies, hotel stays and service jobs in one place.
             </p>
           </div>
         </div>

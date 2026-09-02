@@ -18,6 +18,7 @@ import {
   hideBookingConversation,
 } from "@/lib/supabase/worker-bookings";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
+import PrivateCallHistory from "@/components/PrivateCallHistory";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
@@ -536,6 +537,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-4 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
+            <PrivateCallHistory contextType="roommate" contextId={active.id}/>
             {loadingMessages && messages.length === 0 ? (
               <MessageSkeleton />
             ) : messages.length === 0 ? (

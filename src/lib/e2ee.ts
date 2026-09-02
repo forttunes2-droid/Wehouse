@@ -124,6 +124,56 @@ export async function unlockEncryptionIdentity(pin: string) {
   }
 }
 
+async function decryptBackedUpPrivateJwk(identity: IdentityRow, pin: string) {
+  try {
+    const key = await pinKey(pin, base64ToBytes(identity.backup_salt), identity.kdf_iterations);
+    const clear = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64ToBytes(identity.backup_iv) },
+      key,
+      base64ToBytes(identity.encrypted_private_key),
+    );
+    return JSON.parse(decoder.decode(clear)) as JsonWebKey;
+  } catch {
+    throw new Error("Incorrect current Recovery PIN");
+  }
+}
+
+export async function changeEncryptionRecoveryPin(currentPin: string, nextPin: string) {
+  if (!/^\d{6}$/.test(nextPin)) throw new Error("Use a 6-digit Recovery PIN");
+  if (currentPin === nextPin) throw new Error("Choose a different Recovery PIN");
+  const { identity, error } = await myIdentity();
+  if (error) throw error;
+  if (!identity) throw new Error("Secure messaging has not been set up");
+  const privateJwk = await decryptBackedUpPrivateJwk(identity, currentPin);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await pinKey(nextPin, salt);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoder.encode(JSON.stringify(privateJwk)),
+  );
+  const { error: updateError } = await supabase
+    .from("user_encryption_identities")
+    .update({
+      encrypted_private_key: bytesToBase64(encrypted),
+      backup_iv: bytesToBase64(iv),
+      backup_salt: bytesToBase64(salt),
+      kdf_iterations: 600_000,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", identity.user_id)
+    .eq("key_version", identity.key_version);
+  if (updateError) throw updateError;
+  // The identity key itself is unchanged, so existing conversation envelopes
+  // and old messages remain decryptable. Only its encrypted recovery backup changes.
+  sessionStorage.setItem(await sessionKey(), JSON.stringify(privateJwk));
+}
+
+export async function lockEncryptionIdentity() {
+  sessionStorage.removeItem(await sessionKey());
+}
+
 export async function encryptionIdentityStatus() {
   const { identity, error } = await myIdentity();
   const unlocked=identity?Boolean(sessionStorage.getItem(await sessionKey())):false;
