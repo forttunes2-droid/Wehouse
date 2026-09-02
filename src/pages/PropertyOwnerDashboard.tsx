@@ -6,6 +6,7 @@ import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePane
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
 import PartnerSubmittedRequests from "@/components/PartnerSubmittedRequests";
+import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import type { Profile } from "@/types";
 
 type PartnerTab = "properties" | "finance" | "communication";
@@ -284,26 +285,29 @@ export function RequestsTab({ profile }: { profile: Profile }) {
   );
 }
 function PropertiesTab({ profile }: { profile: Profile }) {
-  const [properties, setProperties] = useState<any[]>([]),
+  const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data, error } = await supabase
-        .from("listings")
-        .select("*")
-        .or(`owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`)
-        .order("created_at", { ascending: false });
+      const [propertyResult,hotelResult]=await Promise.all([
+        supabase.from("listings").select("*").or(`owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`).order("created_at",{ascending:false}),
+        supabase.from("hotels").select("*").eq("owner_id",profile.user_id).order("created_at",{ascending:false}),
+      ]);
       if (!active) return;
-      if (error) toast.error("Unable to load your properties");
-      setProperties(data || []);
+      if (propertyResult.error||hotelResult.error) toast.error("Unable to load all of your properties and hotels");
+      setAssets([
+        ...(propertyResult.data||[]).map(row=>({...row,_assetKind:"property"})),
+        ...(hotelResult.data||[]).map(row=>({...row,_assetKind:"hotel",id:`hotel:${row.hotel_id}`,title:row.name})),
+      ].sort((a,b)=>new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime()));
       setLoading(false);
     })();
     return () => {
       active = false;
     };
   }, [profile.user_id]);
+  if (selected?._assetKind==="hotel") return <PartnerHotelOperations hotel={selected} onBack={()=>setSelected(null)}/>;
   if (selected)
     return (
       <PropertyDetails property={selected} onBack={() => setSelected(null)} />
@@ -312,25 +316,25 @@ function PropertiesTab({ profile }: { profile: Profile }) {
     <section>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Published properties</h2>
+          <h2 className="text-sm font-semibold">Published properties and hotels</h2>
           <p className="mt-1 text-[10px] text-[#66687B]">
-            Properties currently connected to your Partner account.
+            Open an asset to manage it at the depth it needs.
           </p>
         </div>
         <span className="rounded-full bg-white/[.04] px-3 py-1 text-[10px] text-[#888A9B]">
-          {properties.length}
+          {assets.length}
         </span>
       </div>
       {loading ? (
         <Loading />
-      ) : properties.length === 0 ? (
+      ) : assets.length === 0 ? (
         <Empty
           title="Nothing published yet"
           text="A property appears here after it is ready and published by WeHouse."
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {properties.map((property) => (
+          {assets.map((property) => (
             <button
               key={property.id}
               onClick={() => setSelected(property)}
@@ -361,17 +365,9 @@ function PropertiesTab({ profile }: { profile: Profile }) {
                         .join(", ")}
                     </p>
                   </div>
-                  <Status
-                    value={
-                      property.availability_status ||
-                      property.status ||
-                      "pending"
-                    }
-                  />
+                  <Status value={property.status || property.availability_status || "pending"}/>
                 </div>
-                <p className="mt-3 text-xs font-bold">
-                  {money(Number(property.price || 0))}
-                </p>
+                <p className="mt-3 text-xs font-bold">{property._assetKind==="hotel"?"Hotel operation":money(Number(property.price||0))}</p>
               </div>
             </button>
           ))}
