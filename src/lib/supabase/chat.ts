@@ -30,7 +30,7 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
     }
     const attachments:string[]=[];const attachmentTypes:string[]=[];
     if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
-    return{...row,content,conversation_id:conversationId,seen:false,attachments,attachment_types:attachmentTypes} as Message;
+    return{...row,content,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes} as Message;
   }));
   return{messages,error};
 }

@@ -45,7 +45,7 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
     }
     const attachments:string[]=[];
     if(peerUserId)for(const item of Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url)}catch{/* Message content remains available if a file cannot be opened. */}}
-    return{...msg,content,attachments,is_read:false};
+    return{...msg,content,attachments,is_read:Boolean(msg.is_read)};
   }));
   return{messages,error};
 }
