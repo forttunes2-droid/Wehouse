@@ -181,7 +181,6 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       const found = rows.find((row) => row.id === conversationId);
       if (found) {
         setActive(found);
-        void loadRoommateMessages(found.id);
         return;
       }
       const bookingResult=await getCommunicationBookingConversations(profile.user_id);
@@ -258,7 +257,6 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     setInput("");
     setFiles([]);
     setMenuOpen(false);
-    await loadRoommateMessages(conv.id);
   }
   function choosePhotos(list: FileList | null) {
     if (!list) return;
@@ -342,14 +340,14 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     const { error } = await setRoommateBlock(peerId, nextBlocked);
     setBlockBusy(false);
     if (error)
-      return toast.error(error.message || "Could not update message blocking");
+      return toast.error(error.message || "Could not update this block");
     setPeople((current) => ({
       ...current,
       [peerId]: { ...current[peerId], isBlocked: nextBlocked },
     }));
     setMenuOpen(false);
     toast.success(
-      nextBlocked ? "Messages blocked from this person" : "Messages unblocked",
+      nextBlocked ? "This person is blocked from matching, messaging and calling" : "Person unblocked",
     );
   }
   async function startCall(callType: "audio" | "video") {
@@ -519,7 +517,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
               >
                 <span>⊘</span>
                 <span>
-                  {person?.isBlocked ? "Unblock messages" : "Block messages"}
+                  {person?.isBlocked ? "Unblock person" : "Block person"}
                 </span>
               </button>
               <button
@@ -564,7 +562,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         </main>
         <footer className="shrink-0 border-t border-white/[.06] bg-[#10131B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
           <div className="mx-auto max-w-3xl">
-            {files.length > 0 && (
+            {person?.isBlocked ? <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4"><p className="text-[10px] text-amber-100">This person is blocked. Matching, messages and calls are off.</p><button type="button" onClick={()=>void toggleBlock()} className="shrink-0 text-[10px] font-semibold text-violet-300">Unblock</button></div> : <>{files.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
                 {files.map((file, index) => (
                   <PendingMedia
@@ -640,7 +638,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
               >
                 {sending ? "…" : "➤"}
               </button>
-            </div>
+            </div></>}
           </div>
         </footer>
         {confirmDelete && (
@@ -657,10 +655,11 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
             presenceText={presenceText || ""}
             onClose={() => setProfileOpen(false)}
             onToggleBlock={() => void toggleBlock()}
-            onCall={() => {
+            onAudioCall={() => {
               setProfileOpen(false);
               void startCall("audio");
             }}
+            onVideoCall={() => { setProfileOpen(false); void startCall("video"); }}
             busy={blockBusy}
           />
         )}
@@ -1013,14 +1012,16 @@ function PeerProfileSheet({
   presenceText,
   onClose,
   onToggleBlock,
-  onCall,
+  onAudioCall,
+  onVideoCall,
   busy,
 }: {
   person?: Person;
   presenceText: string;
   onClose: () => void;
   onToggleBlock: () => void;
-  onCall: () => void;
+  onAudioCall: () => void;
+  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1056,10 +1057,11 @@ function PeerProfileSheet({
         <p className="mt-1 text-center text-[10px] text-emerald-300">
           {presenceText || "Roommate connection"}
         </p>
-        <div className="mx-auto mt-7 max-w-xs">
-          <ProfileAction label="Audio call" onClick={onCall}>
+        <div className="mx-auto mt-7 flex max-w-xs justify-center gap-12">
+          <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
           </ProfileAction>
+          <ProfileAction label="Video" onClick={onVideoCall}><VideoIcon /></ProfileAction>
         </div>
         {person?.bio && (
           <section className="mt-8 border-y border-white/[.06] py-5">
@@ -1082,7 +1084,7 @@ function PeerProfileSheet({
           onClick={onToggleBlock}
           className="mt-8 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200"
         >
-          {person?.isBlocked ? "Unblock messages" : "Block messages"}
+          {person?.isBlocked ? "Unblock person" : "Block person"}
         </button>
       </main>
     </div>

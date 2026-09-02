@@ -162,25 +162,24 @@ export default function WorkerPublicProfileV2({
           ) : portfolio.length === 0 ? (
             <Empty text="This worker has not published work examples yet." />
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
               {portfolio.map((post) => (
                 <button
                   key={post.id}
                   onClick={() => setViewer(post)}
-                  className="relative overflow-hidden rounded-2xl border border-white/[.06] bg-[#0D1118] text-left"
+                  className="group relative overflow-hidden rounded-xl bg-[#0D1118] text-left"
                 >
                   <Media
                     post={post}
-                    className="aspect-[4/3] w-full object-cover"
+                    className="aspect-[3/4] w-full object-cover transition duration-300 group-active:scale-[.98]"
                   />
                   {post.verified_job && (
                     <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">
                       WEHOUSE JOB ✓
                     </span>
                   )}
-                  <p className="line-clamp-2 p-2 text-[9px] text-[#A0A5B2]">
-                    {post.caption || "Service work"}
-                  </p>
+                  {post.media_type==='video'&&<span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-[10px]">▶</span>}
+                  {post.caption&&<span className="absolute inset-x-0 bottom-0 line-clamp-2 bg-gradient-to-t from-black/90 to-transparent px-2 pb-2 pt-7 text-[8px] text-white">{post.caption}</span>}
                 </button>
               ))}
             </div>

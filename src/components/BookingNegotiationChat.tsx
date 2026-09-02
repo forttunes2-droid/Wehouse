@@ -29,6 +29,7 @@ import BackButton from "@/components/BackButton";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
+import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 
 type Props = {
   conversationId: string;
@@ -892,7 +893,15 @@ export default function BookingNegotiationChat({
           <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Human Support</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>
         )}
       </footer>
-      {profileOpen && (
+      {profileOpen && !isWorker && peerProfile ? (
+        <WorkerPublicProfile
+          worker={peerProfile as Profile}
+          bookingActive
+          onBack={() => setProfileOpen(false)}
+          onOpenBooking={() => setProfileOpen(false)}
+          onBook={() => setProfileOpen(false)}
+        />
+      ) : profileOpen ? (
         <ConversationIdentitySheet
           profile={peerProfile}
           booking={booking}
@@ -902,7 +911,7 @@ export default function BookingNegotiationChat({
           presence={presenceText || ""}
           onClose={() => setProfileOpen(false)}
         />
-      )}
+      ) : null}
       {messageMenu && (
         <div
           className="fixed inset-0 z-[90] flex items-end bg-black/55 backdrop-blur-sm"

@@ -550,14 +550,14 @@ function Matches({
       </div>
       {rows.length ? (
         <>
-          <div className="divide-y divide-white/[.06] border-y border-white/[.07]">
+          <div className="grid gap-3 sm:grid-cols-2">
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
                 sent = row.status === "accepted",
                 matched = sent && row.mutual_accepted;
               return (
-                <article key={row.id} className="min-w-0 py-4">
+                <article key={row.id} className="min-w-0 overflow-hidden rounded-3xl border border-white/[.07] bg-gradient-to-br from-[#151826] to-[#0E1118] p-4">
                   <div className="flex items-start gap-3">
                     {p.avatar_url ? (
                       <img
@@ -601,6 +601,7 @@ function Matches({
                           ? "Hide profile"
                           : "View profile"}
                       </button>
+                      <p className={`mt-2 text-[8px] font-semibold ${matched?'text-emerald-300':sent?'text-violet-300':'text-[#666D7E]'}`}>{matched?'Connected':sent?'Interest pending':'Available to connect'}</p>
                     </div>
                   </div>
                   {openProfileId === row.id && (
@@ -631,7 +632,7 @@ function Matches({
                       </p>
                     </div>
                   )}
-                  <details className="mt-2.5 border-b border-white/[.05] pb-2.5">
+                  <details className="mt-3 border-t border-white/[.06] pt-3">
                     <summary className="cursor-pointer list-none text-[9px] font-semibold text-[#A8ADBA]">
                       Why this score{" "}
                       <span className="ml-1 text-violet-300">›</span>
@@ -660,29 +661,29 @@ function Matches({
                       same-school rules decide eligibility first.
                     </p>
                   </details>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-4 flex items-center gap-2 border-t border-white/[.06] pt-3">
                     {matched && row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
-                        className="min-h-11 w-full rounded-xl bg-violet-500 px-5 text-xs font-semibold shadow-lg shadow-violet-950/30 active:scale-[.99]"
+                        className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold shadow-lg shadow-violet-950/30 active:scale-[.99]"
                       >
                         Message
                       </button>
                     ) : sent ? (
-                      <div className="flex min-h-11 w-full items-center justify-between rounded-xl bg-violet-500/[.07] px-4"><span className="text-xs font-semibold text-violet-300">{matched ? "You matched" : "Interest sent"}</span><span className="text-[9px] text-[#777D8D]">{matched ? "Message when ready" : "Waiting for their response"}</span></div>
+                      <div className="flex min-h-10 w-full items-center justify-between rounded-xl bg-violet-500/[.07] px-3"><span className="text-[10px] font-semibold text-violet-300">Interest sent</span><span className="text-[8px] text-[#777D8D]">Waiting for a response</span></div>
                     ) : (
                       <>
                         <button
                           disabled={busyId === row.id}
                           onClick={() => void onInterest(row, "accepted")}
-                          className="min-h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
+                          className="min-h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40"
                         >
                           {busyId === row.id ? "Sending…" : "Connect"}
                         </button>
                         <button
                           disabled={busyId === row.id}
                           onClick={() => void onInterest(row, "viewed")}
-                          className="min-h-11 rounded-xl border border-white/[.08] px-4 text-[10px] font-semibold disabled:opacity-40"
+                          className="min-h-10 rounded-xl border border-white/[.08] px-3 text-[9px] font-semibold disabled:opacity-40"
                         >
                           Not now
                         </button>
