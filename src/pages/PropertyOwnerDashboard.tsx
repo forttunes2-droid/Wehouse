@@ -307,7 +307,7 @@ function PropertiesTab({ profile }: { profile: Profile }) {
       active = false;
     };
   }, [profile.user_id]);
-  if (selected?._assetKind==="hotel") return <PartnerHotelOperations hotel={selected} onBack={()=>setSelected(null)}/>;
+  if (selected?._assetKind==="hotel") return <PartnerHotelOperations hotel={selected} accessRole="owner" onBack={()=>setSelected(null)}/>;
   if (selected)
     return (
       <PropertyDetails property={selected} onBack={() => setSelected(null)} />

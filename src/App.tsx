@@ -75,6 +75,7 @@ const HotelReservation = lazy(() => import("@/pages/HotelReservation"));
 const PropertyPartnerDashboard = lazy(
   () => import("@/pages/PropertyPartnerDashboard"),
 );
+const HotelTeamDashboard = lazy(() => import("@/pages/HotelTeamDashboard"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
@@ -123,6 +124,7 @@ const RESTORABLE_PAGES: NavPage[] = [
   "new_listing",
   "hotels",
   "property_partner",
+  "hotel_operations",
   "my_bookings",
   "my_reservations",
   "conversation",
@@ -172,6 +174,8 @@ function roleRootFor(role: string): NavPage {
           ? "worker_dashboard"
           : role === "property_partner"
             ? "property_partner"
+            : role === "hotel_staff"
+              ? "hotel_operations"
             : "search";
 }
 function normalizePageForRole(role: string, page: NavPage): NavPage {
@@ -201,6 +205,7 @@ function normalizePageForRole(role: string, page: NavPage): NavPage {
       : "worker_dashboard";
   if (role === "property_partner")
     return page === "property_partner" ? page : "property_partner";
+  if (role === "hotel_staff") return page === "hotel_operations" ? page : "hotel_operations";
   if (role === "user") return USER_PAGES.has(page) ? page : "search";
   return "search";
 }
@@ -251,7 +256,7 @@ export default function App() {
   const effectiveRole = useMemo(() => {
     if (!baseProfile) return '';
     if (['worker', 'property_partner'].includes(baseProfile.role)) return baseProfile.role;
-    return activeWorkspace === 'personal' ? 'user' : activeWorkspace;
+    return activeWorkspace === 'personal' ? 'user' : activeWorkspace === 'hotel' ? 'hotel_staff' : activeWorkspace;
   }, [baseProfile, activeWorkspace]);
   const profile = useMemo(() => baseProfile ? { ...baseProfile, role: effectiveRole as typeof baseProfile.role } : null, [baseProfile, effectiveRole]);
   const canList = canCreateListings(effectiveRole),
@@ -260,6 +265,7 @@ export default function App() {
     isStaffRole = userRole === "staff",
     isAdminRole = userRole === "admin",
     isPropertyPartner = userRole === "property_partner",
+    isHotelTeamRole = userRole === "hotel_staff",
     isWorkerRole = userRole === "worker",
     isUserRole = userRole === "user",
     isCreatorRole = checkCreator(userRole);
@@ -689,6 +695,8 @@ export default function App() {
           onNavigate={(p) => goTo(p as NavPage)}
         />
       );
+    if (isHotelTeamRole)
+      return <HotelTeamDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
     return null;
   };
   const renderPage = () => {
@@ -786,6 +794,7 @@ export default function App() {
       case "staff_dashboard":
       case "worker_dashboard":
       case "property_partner":
+      case "hotel_operations":
         return renderRoleRoot();
       case "detail":
         return isUserRole && detailId ? (

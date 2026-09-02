@@ -28,6 +28,7 @@ export function getAdminNav(): DesktopNavItem[] { return [{ id: 'admin', label: 
 export function getWorkerNav(): DesktopNavItem[] { return [{ id: 'worker_dashboard', label: 'Worker', icon: DASHBOARD }]; }
 export function getStaffNav(): DesktopNavItem[] { return [{ id: 'staff_dashboard', label: 'Staff Workspace', icon: DASHBOARD }]; }
 export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }, account()]; }
+export function getHotelTeamNav(): DesktopNavItem[] { return [{ id: 'hotel_operations', label: 'Hotel Operations', icon: DASHBOARD }, account()]; }
 
 export function getUserNav(unreadCount = 0): DesktopNavItem[] {
   return [
@@ -45,6 +46,7 @@ export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
     case 'staff': return getStaffNav();
     case 'worker': return getWorkerNav();
     case 'property_partner': return getPartnerNav();
+    case 'hotel_staff': return getHotelTeamNav();
     default: return getUserNav(unreadCount);
   }
 }

@@ -18,11 +18,11 @@ type Props = {
   onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 };
 
-export type WorkspaceChoice = 'personal' | 'staff' | 'admin' | 'creator';
+export type WorkspaceChoice = 'personal' | 'staff' | 'admin' | 'creator' | 'hotel';
 export type WorkspaceAccess = {
   identity?: { user_id?: string; account_kind?: string };
   personal_workspace?: boolean;
-  privileged_workspaces?: Array<{ role: 'staff' | 'admin' | 'creator'; scope_type?: string; state?: string | null; lga?: string | null }>;
+  privileged_workspaces?: Array<{ role: 'staff' | 'admin' | 'creator' | 'hotel'; scope_type?: string; state?: string | null; lga?: string | null }>;
 };
 
 type Legal = {
@@ -208,7 +208,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
             <div className="mt-3 flex flex-wrap gap-2">
               <WorkspaceButton label="Personal" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
               {privilegedWorkspaces.map((workspace) => (
-                <WorkspaceButton key={workspace.role} label={workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : 'Staff'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
+                <WorkspaceButton key={workspace.role} label={workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Staff'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
               ))}
             </div>
           </div>
