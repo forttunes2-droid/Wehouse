@@ -274,7 +274,7 @@ export default function RoommateWorkspace({
       setMatches((current) =>
         current.map((row) =>
           row.id === match.id
-            ? { ...row, status: "accepted", conversation_id: conversationId }
+            ? { ...row, status: "accepted", mutual_accepted: true, conversation_id: conversationId }
             : row,
         ),
       );

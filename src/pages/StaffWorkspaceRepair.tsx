@@ -36,12 +36,16 @@ export default function StaffWorkspaceRepair({profile,onLogout,onNavigate}:Props
 
 function Workspace({module,profile,onLogout,onNavigate}:{module:Module;profile:Profile;onLogout:()=>void;onNavigate?:(page:string)=>void}){
  const copy=MODULE_COPY[module],directConversation=module==='support';
- const items=directConversation?[{id:'home',label:'Home'},{id:'conversations',label:'Inbox'}]:[{id:'home',label:'Home'},{id:'work',label:copy.workLabel}];
+ const items=directConversation
+  ?[{id:'home',label:'Home'},{id:'conversations',label:'Inbox'}]
+  :module==='operations'
+   ?[{id:'home',label:'Home'},{id:'work',label:copy.workLabel},{id:'conversations',label:'Reservation Desk'}]
+   :[{id:'home',label:'Home'},{id:'work',label:copy.workLabel}];
  const[tab,setTab]=useState<MainTab>('home'),[workView,setWorkView]=useState<WorkView>(module==='finance'?'overview':'pipeline');
  const scope={state:profile.assigned_state||'',lga:profile.assigned_lga||''},branch=[scope.lga,scope.state].filter(Boolean).join(', ');
  let content:React.ReactNode;
  if(tab==='home')content=<StaffHome profile={profile} module={module} copy={copy} branch={branch} openWork={()=>setTab(directConversation?'conversations':'work')} onNavigate={onNavigate}/>;
- else if(tab==='conversations'&&directConversation)content=<CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs/>;
+ else if(tab==='conversations'&&(directConversation||module==='operations'))content=<CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue={module==='operations'?'reservation_operations':'support'}/>;
  else content=<ModuleWork module={module} profile={profile} view={workView} setView={setWorkView}/>;
  const activeLabel=items.find(item=>item.id===tab)?.label||copy.title;
  return <><Toaster position="top-center" richColors/><WorkspaceFrameV2 label={`WEHOUSE · STAFF · ${copy.title}`} title={activeLabel} description={`${copy.description} · ${branch}`} items={items} active={tab} setActive={(id)=>setTab(id as MainTab)} onAccount={onNavigate?()=>onNavigate('profile'):undefined} onLogout={onLogout}>{content}</WorkspaceFrameV2></>;

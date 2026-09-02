@@ -125,6 +125,13 @@ export async function getSupportMessages(conversationId: string) {
   return { messages: data || [], error };
 }
 
+export async function claimCommunicationCase(conversationId: string) {
+  const { error } = await supabase.rpc("claim_my_communication_case", {
+    p_conversation_id: conversationId,
+  });
+  return { error };
+}
+
 export async function sendSupportMessage(
   conversationId: string,
   content: string,
@@ -162,8 +169,10 @@ export async function markSupportMessagesRead(conversationId: string) {
   return { error };
 }
 
-export async function getSupportInbox() {
-  const { data, error } = await supabase.rpc("support_inbox");
+export async function getSupportInbox(
+  queue: "support" | "reservation_operations" = "support",
+) {
+  const { data, error } = await supabase.rpc("support_inbox", { p_queue: queue });
   return { conversations: data || [], error };
 }
 
