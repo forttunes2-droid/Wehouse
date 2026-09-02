@@ -17,7 +17,7 @@ import {
   getCommunicationBookingConversations,
   hideBookingConversation,
 } from "@/lib/supabase/worker-bookings";
-import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
+import { getCallCapabilities, launchPrivateCall, type PrivateCall } from "@/lib/private-calls";
 import PrivateCallHistory from "@/components/PrivateCallHistory";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
@@ -99,6 +99,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     [bulkDelete, setBulkDelete] = useState(false),
     [inboxFilter, setInboxFilter] = useState<"all" | "people" | "wehouse">("all"),
     [inboxQuery, setInboxQuery] = useState("");
+  const [recentRoommateCalls,setRecentRoommateCalls]=useState<Record<string,PrivateCall>>({});
   const [inboxMode,setInboxMode]=useState<"chats"|"activity">(initialMode);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
@@ -124,11 +125,12 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   const loadInbox = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const [convResult, peerResult, bookingResult, supportResult] = await Promise.all([
+      const [convResult, peerResult, bookingResult, supportResult, callResult] = await Promise.all([
         getConversations(profile.user_id),
         getRoommateConversationPeople(),
         getCommunicationBookingConversations(profile.user_id),
         getMySupportConversations(),
+        supabase.from("private_calls").select("*").eq("context_type","roommate").or(`caller_id.eq.${profile.user_id},callee_id.eq.${profile.user_id}`).order("created_at",{ascending:false}).limit(50),
       ]);
       if (convResult.error && !quiet)
         toast.error(
@@ -145,7 +147,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       // conversation id, but Inbox → Chats should not show an empty thread.
       // A deep link can still open that accepted relationship so the first
       // real message can be composed; it enters the Inbox after that message.
-      setConversations(allRoommateRows.filter(hasStartedRoommateConversation));
+      const calls:Record<string,PrivateCall>={};for(const row of callResult.data||[])if(!calls[row.context_id])calls[row.context_id]=row as PrivateCall;
+      setRecentRoommateCalls(calls);
+      setConversations(allRoommateRows.filter(row=>hasStartedRoommateConversation(row)||Boolean(calls[row.id])));
       setPeople(peerResult.people || {});
       setBookingConversations(
         (bookingResult.conversations || []) as BookingConversation[],
@@ -410,7 +414,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         ...conversations.map((conv) => ({
           kind: "roommate" as const,
           id: `roommate:${conv.id}`,
-          time: conv.last_message_at || conv.created_at,
+          time: recentRoommateCalls[conv.id]?.created_at || conv.last_message_at || conv.created_at,
           roommate: conv,
         })),
         ...bookingConversations.map((booking) => ({
@@ -429,7 +433,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         (a, b) =>
           new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
       ),
-    [conversations, bookingConversations, supportThreads],
+    [conversations, bookingConversations, supportThreads, recentRoommateCalls],
   );
   const totalUnread =
     conversations.reduce((sum, row) => sum + unread(row), 0) +
@@ -759,6 +763,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                       conv={item.roommate}
                       person={people[otherId(item.roommate)]}
                       count={unread(item.roommate)}
+                      recentCall={recentRoommateCalls[item.roommate.id]}
                       selected={selected.has(item.id)}
                       selectionMode={selected.size > 0}
                       onSelect={() => toggleSelected(item.id)}
@@ -794,6 +799,7 @@ function RoommateInboxRow({
   conv,
   person,
   count,
+  recentCall,
   onOpen,
   onSelect,
   selected,
@@ -802,6 +808,7 @@ function RoommateInboxRow({
   conv: Conversation;
   person?: Person;
   count: number;
+  recentCall?: PrivateCall;
   onOpen: () => void;
   onSelect: () => void;
   selected: boolean;
@@ -827,10 +834,10 @@ function RoommateInboxRow({
         <p
           className={`mt-1 truncate text-[11px] ${count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
         >
-          {conv.last_message || "Start the conversation"}
+          {conv.last_message || (recentCall ? `${recentCall.status === "missed" ? "Missed" : "Recent"} ${recentCall.call_type} call` : "Start the conversation")}
         </p>
         <p className="mt-0.5 text-[9px] text-[#5F6474]">
-          {formatListTime(conv.last_message_at || conv.created_at)}
+          {formatListTime(recentCall?.created_at || conv.last_message_at || conv.created_at)}
         </p>
       </div>
       {count > 0 && <Unread value={count} />}

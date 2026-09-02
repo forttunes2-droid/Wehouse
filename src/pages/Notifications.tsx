@@ -110,7 +110,7 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
 
 function isOrdinaryMessageEvent(row: Pick<Activity,"type"|"source_type"|"destination_route">) {
   const type=String(row.type||"").toLowerCase();
-  if(type==="missed_call")return false;
+  if(type==="missed_call")return true;
   const lifecycle=/price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/.test(type);
   if(lifecycle)return false;
   if(/(^|_)(message|reply|replied|chat)(_|$)/.test(type))return true;

@@ -296,6 +296,7 @@ function RtcCall({
       }
     }
   }, [call.id, call.caller_id, isVideo, userId]);
+  useEffect(()=>{if(connected||error)return;const timer=window.setTimeout(()=>{setConnectionLabel("Could not connect");setError("The peer-to-peer call could not cross this network. End the call and try again on a different connection.")},15000);return()=>window.clearTimeout(timer)},[call.id,connected,error]);
   function toggleMute() {
     const next = !muted;
     stream.current
