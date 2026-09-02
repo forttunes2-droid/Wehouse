@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import {
   getServiceCategories,
   getServiceSubcategories,
   updateProfile,
-  uploadAvatar,
 } from "@/lib/supabase";
 import LocationSelector from "@/legacy/LocationSelector";
 import SearchableSelect from "@/components/SearchableSelect";
 import BackButton from "@/components/BackButton";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
+import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
 
 type Props = { profile: Profile; onComplete: () => void; onBack?: () => void };
 
@@ -18,7 +18,6 @@ export default function WorkerSetupProfessional({
   onComplete,
   onBack,
 }: Props) {
-  const photoRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [subs, setSubs] = useState<ServiceSubcategory[]>([]);
   const [category, setCategory] = useState("");
@@ -100,17 +99,6 @@ export default function WorkerSetupProfessional({
     profile,
     specialty,
   ]);
-
-  async function photo(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    const { url, error } = await uploadAvatar(file, profile.user_id);
-    setBusy(false);
-    if (error || !url)
-      return toast.error(error?.message || "Photo upload failed");
-    setAvatar(url);
-  }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -198,33 +186,8 @@ export default function WorkerSetupProfessional({
 
         <form onSubmit={save} className="space-y-3">
           <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => photoRef.current?.click()}
-                className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-violet-500/20 bg-violet-500/15 text-lg font-bold text-violet-200"
-              >
-                {avatar ? (
-                  <img
-                    src={avatar}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  (name || "W")[0].toUpperCase()
-                )}
-              </button>
-              <input
-                ref={photoRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={photo}
-              />
-              <div className="min-w-0 flex-1">
-                <Field label="Full name" value={name} set={setName} />
-              </div>
-            </div>
+            <ProfilePhotoEditor avatar={avatar} name={name} disabled={busy} onUploaded={url=>setAvatar(url)}/>
+            <div className="mt-4"><Field label="Full name" value={name} set={setName} /></div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field label="Phone" value={phone} set={setPhone} />
               <Field

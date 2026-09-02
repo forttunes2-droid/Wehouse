@@ -1,19 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { checkUsernameAvailable, removeAvatar, updateProfile, uploadAvatar, validateUsername } from '@/lib/supabase';
+import { useEffect, useMemo, useState } from 'react';
+import { checkUsernameAvailable, removeAvatar, updateProfile, validateUsername } from '@/lib/supabase';
 import { getRegisteredInstitutions, type RegisteredInstitution } from '@/lib/supabase/institutions';
 import SearchableSelect from '@/components/SearchableSelect';
 import AccountShell from '@/components/AccountShell';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
+import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
 
 type Props = { profile: Profile; onUpdate: (profile: Profile) => void; onBack: () => void };
 
 export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [avatar, setAvatar] = useState(profile.avatar_url || '');
   const [username, setUsername] = useState(profile.username || '');
   const [usernameState, setUsernameState] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
@@ -92,20 +91,11 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     return () => { cancelled = true; };
   }, [isUser, isStudent, state]);
 
-  async function changePhoto(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return toast.error('Choose a JPG, PNG or WebP image');
-    if (file.size > 35 * 1024 * 1024) return toast.error('Image must be under 35MB');
-    setUploading(true);
-    const { url, error } = await uploadAvatar(file, profile.user_id);
-    setUploading(false);
-    if (error || !url) return toast.error(error?.message || 'Photo upload failed');
+  async function savePhoto(url:string) {
     const { profile: updated, error: updateError } = await updateProfile(profile.user_id, { avatar_url: url });
-    if (updateError || !updated) return toast.error(updateError?.message || 'Could not save photo');
+    if (updateError || !updated) throw new Error(updateError?.message || 'Could not save photo');
     setAvatar(url);
     onUpdate(updated);
-    toast.success('Profile photo updated');
   }
 
   async function deletePhoto() {
@@ -164,11 +154,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       <form onSubmit={save} className="space-y-4">
         <button type="button" onClick={()=>setEditing(false)} className="text-[10px] font-semibold text-violet-300">Cancel editing</button>
         <section className="border-y border-white/[.06] py-5">
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => fileRef.current?.click()} className="grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</button>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={changePhoto} className="hidden" />
-            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Profile photo</p><p aria-live="polite" className="mt-1 text-[10px] text-[#6F7585]">{uploading ? 'Uploading photo securely…' : 'JPG, PNG or WebP'}</p>{uploading&&<div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full w-2/5 animate-pulse rounded-full bg-violet-400"/></div>}<div className="mt-3 flex gap-2"><button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="rounded-xl border border-white/[.08] bg-white/[.02] px-3 py-2 text-[10px] font-semibold disabled:opacity-40">{avatar ? 'Change' : 'Add photo'}</button>{avatar && <button type="button" disabled={uploading} onClick={() => void deletePhoto()} className="rounded-xl border border-red-500/15 px-3 py-2 text-[10px] font-semibold text-red-300 disabled:opacity-40">Remove</button>}</div></div>
-          </div>
+          <ProfilePhotoEditor avatar={avatar} name={fullName||username} onUploaded={savePhoto} onRemove={async()=>{await deletePhoto();}}/>
         </section>
 
         <section className="border-y border-white/[.06] py-5">
