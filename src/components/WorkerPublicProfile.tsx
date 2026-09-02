@@ -139,8 +139,6 @@ export default function WorkerPublicProfileV2({
                   .join(", ") || "Location not shown"}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {rating > 0 && <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold text-amber-300">★ {rating.toFixed(1)} rating</span>}
-                <span className="rounded-full bg-white/[.04] px-2.5 py-1 text-[9px] font-semibold text-[#AAB0BD]">{reviewCount} written review{reviewCount===1?'':'s'}</span>
                 {worker.worker_price && (
                   <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">
                     From ₦{Number(worker.worker_price).toLocaleString()}
@@ -150,7 +148,7 @@ export default function WorkerPublicProfileV2({
             </div>
           </div>
         </section>
-        <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="Verification" value="WeHouse reviewed"/><ProfileFact label="Starting price" value={worker.worker_price?`₦${Number(worker.worker_price).toLocaleString()}`:'Discuss price'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
+        <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="Verification" value="WeHouse reviewed"/><ProfileFact label="Rating" value={rating>0?`${rating.toFixed(1)} · ${reviewCount}`:'New'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
         <section><h2 className="text-sm font-bold">About</h2><p className="mt-2 whitespace-pre-line text-xs leading-6 text-[#8E94A3]">{worker.worker_bio?cleanBio(worker.worker_bio):'This worker has not added an introduction yet.'}</p>{skills.length>0&&<div className="mt-4 flex flex-wrap gap-2">{skills.map(skill=><span key={skill} className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-[9px] text-[#A9AEBA]">{skill}</span>)}</div>}</section>
         <section>
           <div className="mb-3">
@@ -160,7 +158,7 @@ export default function WorkerPublicProfileV2({
             </p>
           </div>
           {loading ? (
-            <Empty text="Loading work portfolio…" />
+            <div className="min-h-24" role="status" aria-label="Loading portfolio" />
           ) : portfolio.length === 0 ? (
             <Empty text="This worker has not published work examples yet." />
           ) : (
@@ -188,26 +186,7 @@ export default function WorkerPublicProfileV2({
             </div>
           )}
         </section>
-        <section className="grid grid-cols-3 border-y border-white/[.06] py-4">
-            <div>
-              <p className="text-lg font-bold">
-                {rating > 0 ? rating.toFixed(1) : "New"}
-              </p>
-              <p className="text-[9px] text-[#666D7E]">
-                Average rating
-              </p>
-            </div>
-            <div><p className="text-lg font-bold">{reviewCount}</p><p className="text-[9px] text-[#666D7E]">Customer reviews</p></div>
-            <div>
-              <p className="text-lg font-bold">
-                {Number(trust?.completed_jobs || 0)}
-              </p>
-              <p className="text-[9px] text-[#666D7E]">
-                Completed WeHouse jobs
-              </p>
-            </div>
-        </section>
-        <section><div className="mb-3"><h2 className="text-sm font-bold">Customer reviews</h2><p className="mt-1 text-[9px] text-[#666D7E]">Verified reviews from completed WeHouse jobs.</p></div>{reviews.length?<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{reviews.map(review=><article key={review.id} className="py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold">{review.reviewer_name}</p><p className="mt-1 text-[9px] text-[#686F80]">{review.service_name} · {new Date(review.created_at).toLocaleDateString()}</p></div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p></div>{review.comment&&<p className="mt-3 whitespace-pre-wrap text-[11px] leading-5 text-[#A5AAB7]">{review.comment}</p>}</article>)}</div>:<Empty text="No customer reviews yet. Reviews appear only after completed WeHouse jobs."/>}</section>
+        <section><div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="text-sm font-bold">Customer reviews</h2><p className="mt-1 text-[9px] text-[#666D7E]">Verified reviews from completed WeHouse jobs.</p></div>{reviewCount>0&&<p className="text-xs font-semibold text-amber-300">★ {rating.toFixed(1)} · {reviewCount}</p>}</div>{reviews.length?<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{reviews.map(review=><article key={review.id} className="py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold">{review.reviewer_name}</p><p className="mt-1 text-[9px] text-[#686F80]">{review.service_name} · {new Date(review.created_at).toLocaleDateString()}</p></div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p></div>{review.comment&&<p className="mt-3 whitespace-pre-wrap text-[11px] leading-5 text-[#A5AAB7]">{review.comment}</p>}</article>)}</div>:<Empty text="No customer reviews yet. Reviews appear only after completed WeHouse jobs."/>}</section>
       </main>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">

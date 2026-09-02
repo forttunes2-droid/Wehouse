@@ -325,9 +325,7 @@ export default function RoommateWorkspace({
   }
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] text-xs text-[#777B8D]">
-        Loading roommates…
-      </div>
+      <div className="min-h-[70dvh] bg-[#0A0A0F]" role="status" aria-label="Loading roommate matches" />
     );
 
   return (
@@ -552,13 +550,14 @@ function Matches({
       </div>
       {rows.length ? (
         <>
-          <div className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#11141C] divide-y divide-white/[.06]">
+          <div className="divide-y divide-white/[.06] border-y border-white/[.07]">
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
-                sent = row.status === "accepted";
+                sent = row.status === "accepted",
+                matched = sent && row.mutual_accepted;
               return (
-                <article key={row.id} className="min-w-0 p-3.5">
+                <article key={row.id} className="min-w-0 py-4">
                   <div className="flex items-start gap-3">
                     {p.avatar_url ? (
                       <img
@@ -662,20 +661,15 @@ function Matches({
                     </p>
                   </details>
                   <div className="mt-3 flex gap-2">
-                    {row.conversation_id ? (
+                    {matched && row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
-                        className="min-h-10 rounded-xl bg-violet-500 px-5 text-[10px] font-semibold shadow-lg shadow-violet-950/30 active:scale-[.99]"
+                        className="min-h-11 w-full rounded-xl bg-violet-500 px-5 text-xs font-semibold shadow-lg shadow-violet-950/30 active:scale-[.99]"
                       >
                         Message
                       </button>
                     ) : sent ? (
-                      <button
-                        disabled
-                        className="min-h-11 w-full rounded-xl bg-violet-500/10 text-xs font-semibold text-violet-300"
-                      >
-                        Interest sent
-                      </button>
+                      <div className="flex min-h-11 w-full items-center justify-between rounded-xl bg-violet-500/[.07] px-4"><span className="text-xs font-semibold text-violet-300">{matched ? "You matched" : "Interest sent"}</span><span className="text-[9px] text-[#777D8D]">{matched ? "Message when ready" : "Waiting for their response"}</span></div>
                     ) : (
                       <>
                         <button

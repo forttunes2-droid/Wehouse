@@ -366,7 +366,7 @@ function HousingCard({
           Reservation Desk
         </button>
       </div>
-      <details className="mt-3 border-t border-white/[.055] pt-3 text-[9px] text-[#777C8C]">
+      {row.status !== "occupied" && <details className="mt-3 border-t border-white/[.055] pt-3 text-[9px] text-[#777C8C]">
         <summary className="cursor-pointer list-none font-semibold text-[#A8ACB8]">
           Booking details <span aria-hidden="true">⌄</span>
         </summary>
@@ -376,7 +376,7 @@ function HousingCard({
           </p>
         )}
         {short ? <ShortFacts row={row} /> : <LongFacts row={row} />}
-      </details>
+      </details>}
     </article>
   );
 }
