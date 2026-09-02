@@ -34,6 +34,7 @@ type SupportMessage = {
   id: string;
   sender_id: string;
   sender_name?: string | null;
+  sender_role?: string | null;
   content?: string | null;
   attachments?: string[] | null;
   attachment_types?: string[] | null;
@@ -82,6 +83,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const presentation = conversationPresentation(thread || pendingContext || {});
+  const visibleMessages = messages.filter(message => message.sender_role !== "system");
 
   async function openWeHouseItems() {
     setAttachOpen(true);
@@ -349,14 +351,14 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
             <ConversationSkeleton />
           ) : loadError ? (
             <ConversationLoadError text={loadError} retry={() => thread?.conversation_id && void loadMessages(thread.conversation_id)} />
-          ) : messages.length === 0 ? (
+          ) : visibleMessages.length === 0 ? (
             <Welcome presentation={presentation} />
           ) : (
             <div className="space-y-2.5">
-              {messages.map((msg, index) => (
+              {visibleMessages.map((msg, index) => (
                 <div key={msg.id}>
-                  {(!messages[index - 1] ||
-                    new Date(messages[index - 1].created_at).toDateString() !==
+                  {(!visibleMessages[index - 1] ||
+                    new Date(visibleMessages[index - 1].created_at).toDateString() !==
                       new Date(msg.created_at).toDateString()) && (
                     <DaySeparator value={msg.created_at} />
                   )}
@@ -575,10 +577,14 @@ function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:S
   const listingId=String(snapshot.listing_id||'');
   const status=String(snapshot.status||thread.status||'').replace(/_/g,' ');
   const code=String(snapshot.booking_code||snapshot.reference||'');
-  return <section className="mb-4 flex items-center gap-3 border-y border-white/[.06] bg-white/[.018] px-1 py-3">
-    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">⌂</div>
-    <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-semibold">Your reservation</p><p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">{[code,status].filter(Boolean).join(' · ')||'Linked booking context'}</p></div>
-    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">Open booking</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View property</button>:null}
+  const title=String(snapshot.listing_title||snapshot.hotel_name||thread.subject||'Reservation').replace(/\s*·\s*Reservation Desk$/i,'');
+  const location=String(snapshot.listing_location||snapshot.room_name||'');
+  const checkIn=String(snapshot.check_in||'');
+  const checkOut=String(snapshot.check_out||'');
+  return <section className="mb-4 border-y border-white/[.06] bg-white/[.018] py-3">
+    <div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">⌂</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{title}</p>{location&&<p className="mt-1 truncate text-[9px] text-[#747B8C]">{location}</p>}<p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">{[status,code].filter(Boolean).join(' · ')}</p></div>
+    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">Open booking</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View property</button>:null}</div>
+    {(checkIn||checkOut)&&<div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[.05] pt-3 text-[9px] text-[#747B8C]">{checkIn&&<p><span className="text-[#555C6D]">Check-in</span><br/>{new Date(checkIn).toLocaleDateString()}</p>}{checkOut&&<p><span className="text-[#555C6D]">Check-out</span><br/>{new Date(checkOut).toLocaleDateString()}</p>}</div>}
   </section>
 }
 
@@ -676,7 +682,7 @@ function Welcome({presentation}:{presentation:ReturnType<typeof conversationPres
   );
 }
 
-function ConversationSkeleton(){return <div className="space-y-4 py-5" aria-label="Loading conversation"><div className="h-14 w-2/3 animate-pulse rounded-2xl bg-white/[.035]"/><div className="ml-auto h-12 w-1/2 animate-pulse rounded-2xl bg-violet-500/[.08]"/><div className="h-20 w-3/4 animate-pulse rounded-2xl bg-white/[.035]"/></div>}
+function ConversationSkeleton(){return <div className="min-h-24" role="status" aria-label="Loading conversation"/>}
 function ConversationLoadError({text,retry}:{text:string;retry:()=>void}){return <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-red-500/15 bg-red-500/[.04] p-5 text-center"><p className="text-xs font-semibold">Conversation could not be loaded</p><p className="mt-2 text-[9px] leading-4 text-[#858A98]">{text}</p><button type="button" onClick={retry} className="mt-4 text-[10px] font-semibold text-violet-300">Try again</button></div>}
 
 function hasContext(value: SupportOpenContext) {

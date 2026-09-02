@@ -12,7 +12,6 @@ import type { Profile } from "@/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase/worker-bookings";
-import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
 
 type Props = { profile: Profile; initialBookingId?:string|null; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
 type View = "all" | "housing" | "hotels" | "services";
@@ -42,7 +41,7 @@ const HOTEL_STATUS: Record<string, string> = {
   payment_conflict: "Payment review",
 };
 
-export default function MyReservations({ profile, initialBookingId, onOpenConversation, onOpenListing }: Props) {
+export default function MyReservations({ profile, initialBookingId }: Props) {
   const openedInitialRef=useRef<string|null>(null);
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
@@ -59,19 +58,23 @@ export default function MyReservations({ profile, initialBookingId, onOpenConver
     } | null>(null);
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
-    const [h, h2, serviceResult] = await Promise.all([
-      getReservationsForUser(profile.user_id),
-      getHotelBookingsForUser(profile.user_id),
-      getMyBookingConversations(profile.user_id),
-    ]);
-    if (h.error) toast.error(h.error.message);
-    if (h2.error) toast.error(h2.error.message);
-    if (serviceResult.error) toast.error(serviceResult.error.message || "Unable to load service bookings");
-    setHousing(h.reservations || []);
-    setHotels(h2.bookings || []);
-    setServices(serviceResult.conversations || []);
-    setBusyId(null);
-    if (!quiet) setLoading(false);
+    try {
+      const [housingResult, hotelResult, serviceResult] = await Promise.allSettled([
+        getReservationsForUser(profile.user_id),
+        getHotelBookingsForUser(profile.user_id),
+        getMyBookingConversations(profile.user_id),
+      ]);
+      if (housingResult.status === "fulfilled" && !housingResult.value.error) setHousing(housingResult.value.reservations || []);
+      if (hotelResult.status === "fulfilled" && !hotelResult.value.error) setHotels(hotelResult.value.bookings || []);
+      if (serviceResult.status === "fulfilled" && !serviceResult.value.error) setServices(serviceResult.value.conversations || []);
+      const failed = housingResult.status === "rejected" || Boolean(housingResult.value?.error) ||
+        hotelResult.status === "rejected" || Boolean(hotelResult.value?.error) ||
+        serviceResult.status === "rejected" || Boolean(serviceResult.value?.error);
+      if (failed && !quiet) toast.error("Some bookings could not be refreshed. Please try again.");
+    } finally {
+      setBusyId(null);
+      if (!quiet) setLoading(false);
+    }
   }
   useEffect(() => {
     void load();
@@ -161,7 +164,7 @@ export default function MyReservations({ profile, initialBookingId, onOpenConver
             booking_code: row.booking_code,
             listing_id: row.listing_id,
             listing_title: row.listing_title,
-            listing_location: row.listing_location || [row.listing_city,row.listing_state].filter(Boolean).join(", "),
+            listing_location: row.listing_location || row.listing_address || [row.listing_city,row.listing_state].filter(Boolean).join(", "),
             stay_type: row.stay_type,
             status: row.status,
             check_in: row.stay_check_in,
@@ -200,11 +203,6 @@ export default function MyReservations({ profile, initialBookingId, onOpenConver
             {([['all','All'],['housing','Properties'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
           </div>
         </div>
-        {(view === "all" || view === "housing") && <SharedHomeLifecyclePanel
-          profileId={profile.user_id}
-          onOpenConversation={onOpenConversation}
-          onOpenListing={onOpenListing}
-        />}
         {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
@@ -417,6 +415,9 @@ function LongFacts({ row }: { row: any }) {
             row.listing_price,
         )}
       />
+      {row.tenancy_start_date && <Info label="Tenancy started" value={date(row.tenancy_start_date)} />}
+      {row.tenancy_end_date && <Info label="Tenancy ends" value={date(row.tenancy_end_date)} />}
+      <Info label="Rent" value={String(row.rent_payment_status || "Not recorded").replace(/_/g, " ")} />
       {years > 1 && (
         <>
           <Info label="Future balance" value={money(row.installment_balance)} />
@@ -489,7 +490,7 @@ function PropertyBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDe
   const short=row.stay_type==='short_let';
   const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
   const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Property stay':'Property booking');
-  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Reservation Desk</button></div></div></section></BookingDetailShell>;
+  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Reservation Desk</button></div></div></section></BookingDetailShell>;
 }
 function HotelBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDesk:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';

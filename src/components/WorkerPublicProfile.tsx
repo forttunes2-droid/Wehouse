@@ -85,11 +85,11 @@ export default function WorkerPublicProfileV2({
       window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: false } }));
     };
   }, [worker.user_id]);
-  const occupation =
+  const skills = (worker.worker_skills as string[]) || [],
+    occupation = skills[0] ||
       WORKER_OCCUPATION_LABELS[worker.worker_occupation || ""] ||
       worker.worker_occupation ||
       "Service worker",
-    skills = (worker.worker_skills as string[]) || [],
     portfolio = posts.filter((post) => post.kind === "portfolio"),
     rating = Number(trust?.rating ?? worker.rating ?? 0) || 0,
     reviewCount = Number(trust?.review_count ?? worker.review_count ?? 0) || 0;
@@ -105,7 +105,7 @@ export default function WorkerPublicProfileV2({
           </button>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE SERVICE WORKER <GoldTickBadge size="sm" title="WeHouse reviewed service worker" /></p>
-            <p className="truncate text-sm font-semibold">Professional profile</p>
+            <p className="truncate text-sm font-semibold">Worker profile</p>
           </div>
         </div>
       </header>
@@ -151,7 +151,7 @@ export default function WorkerPublicProfileV2({
           </div>
         </section>
         <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="Verification" value="WeHouse reviewed"/><ProfileFact label="Starting price" value={worker.worker_price?`₦${Number(worker.worker_price).toLocaleString()}`:'Discuss price'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
-        <section><h2 className="text-sm font-bold">About & services</h2><p className="mt-2 whitespace-pre-line text-xs leading-6 text-[#8E94A3]">{worker.worker_bio?cleanBio(worker.worker_bio):'This professional has not added an introduction yet.'}</p>{skills.length>0&&<div className="mt-4 flex flex-wrap gap-2">{skills.map(skill=><span key={skill} className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-[9px] text-[#A9AEBA]">{skill}</span>)}</div>}</section>
+        <section><h2 className="text-sm font-bold">About</h2><p className="mt-2 whitespace-pre-line text-xs leading-6 text-[#8E94A3]">{worker.worker_bio?cleanBio(worker.worker_bio):'This worker has not added an introduction yet.'}</p>{skills.length>0&&<div className="mt-4 flex flex-wrap gap-2">{skills.map(skill=><span key={skill} className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-[9px] text-[#A9AEBA]">{skill}</span>)}</div>}</section>
         <section>
           <div className="mb-3">
             <h2 className="text-sm font-bold">Portfolio</h2>
@@ -162,7 +162,7 @@ export default function WorkerPublicProfileV2({
           {loading ? (
             <Empty text="Loading work portfolio…" />
           ) : portfolio.length === 0 ? (
-            <Empty text="This professional has not published work examples yet." />
+            <Empty text="This worker has not published work examples yet." />
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {portfolio.map((post) => (

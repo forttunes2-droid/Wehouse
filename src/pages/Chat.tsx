@@ -1250,13 +1250,7 @@ function Loading() {
   );
 }
 function MessageSkeleton() {
-  return (
-    <div aria-label="Loading messages" className="space-y-3 py-4">
-      <div className="h-14 w-3/5 animate-pulse rounded-2xl rounded-bl-md bg-white/[.05]" />
-      <div className="ml-auto h-20 w-4/5 animate-pulse rounded-2xl rounded-br-md bg-violet-500/[.08]" />
-      <div className="h-12 w-2/5 animate-pulse rounded-2xl rounded-bl-md bg-white/[.05]" />
-    </div>
-  );
+  return <div className="min-h-24" role="status" aria-label="Loading messages" />;
 }
 function Empty({ title, text }: { title: string; text: string }) {
   return (

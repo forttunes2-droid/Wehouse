@@ -81,13 +81,7 @@ const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
 
 function PageSkeleton() {
-  return (
-    <div className="min-h-screen space-y-4 bg-[#0A0A0F] p-5">
-      <div className="h-12 rounded-xl shimmer" />
-      <div className="h-40 rounded-2xl shimmer" />
-      <div className="h-48 rounded-2xl shimmer" />
-    </div>
-  );
+  return <div className="min-h-screen bg-[#0A0A0F]" role="status" aria-label="Loading WeHouse" />;
 }
 function ErrorFallback({ reset }: { reset: () => void }) {
   return (
