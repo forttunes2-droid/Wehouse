@@ -23,6 +23,9 @@ import type { Profile } from "@/types";
 import { toast } from "sonner";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import BackButton from "@/components/BackButton";
+import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
+import useVoiceRecorder from "@/hooks/useVoiceRecorder";
+import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 
 type Props = {
   conversationId: string;
@@ -92,7 +95,6 @@ export default function BookingNegotiationChat({
     [paying, setPaying] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
-    [recording, setRecording] = useState(false),
     [menuOpen, setMenuOpen] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
@@ -100,10 +102,8 @@ export default function BookingNegotiationChat({
     [confirmDelete, setConfirmDelete] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null),
-    fileInputRef = useRef<HTMLInputElement>(null),
-    mediaRef = useRef<MediaRecorder | null>(null),
-    chunksRef = useRef<Blob[]>([]),
-    recordStartedRef = useRef(0);
+    fileInputRef = useRef<HTMLInputElement>(null);
+  const voice = useVoiceRecorder();
   const peerId = booking
     ? isWorker
       ? booking.user_id
@@ -138,12 +138,6 @@ export default function BookingNegotiationChat({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
-  useEffect(
-    () => () => {
-      if (mediaRef.current?.state === "recording") mediaRef.current.stop();
-    },
-    [],
-  );
   useEffect(() => {
     document.body.classList.add("wehouse-conversation-open");
     window.dispatchEvent(
@@ -288,50 +282,13 @@ export default function BookingNegotiationChat({
     }
   }
   async function toggleVoice() {
-    if (recording) {
-      mediaRef.current?.stop();
-      return;
-    }
+    if (voice.recording) return voice.finish();
     if (files.length >= MAX_FILES)
       return toast.error("Remove a file before recording a voice note");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find(
-        (t) => MediaRecorder.isTypeSupported(t),
-      );
-      const recorder = new MediaRecorder(
-        stream,
-        mime ? { mimeType: mime } : undefined,
-      );
-      chunksRef.current = [];
-      recordStartedRef.current = Date.now();
-      recorder.ondataavailable = (e) => {
-        if (e.data.size) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const type = recorder.mimeType || "audio/webm",
-          blob = new Blob(chunksRef.current, { type }),
-          ext = type.includes("mp4") ? "m4a" : "webm",
-          elapsed = Math.max(
-            1,
-            Math.round((Date.now() - recordStartedRef.current) / 1000),
-          );
-        setFiles((current) =>
-          [
-            ...current,
-            new File([blob], `voice-${Date.now()}-${elapsed}s.${ext}`, {
-              type,
-            }),
-          ].slice(0, MAX_FILES),
-        );
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-      };
-      mediaRef.current = recorder;
-      recorder.start(250);
-      setRecording(true);
-    } catch {
-      toast.error("Microphone permission is required for voice messages");
+      await voice.start();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Microphone permission is required for voice messages");
     }
   }
   async function openPeerProfile() {
@@ -860,6 +817,19 @@ export default function BookingNegotiationChat({
                 ))}
               </div>
             )}
+            <VoiceRecorderPanel
+              recording={voice.recording}
+              seconds={voice.seconds}
+              level={voice.level}
+              draft={voice.draft}
+              onCancel={voice.cancel}
+              onFinish={voice.finish}
+              onDiscard={voice.discard}
+              onUse={(file) => {
+                setFiles((current) => [...current, file].slice(0, MAX_FILES));
+                voice.discard();
+              }}
+            />
             <div className="flex items-end gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -878,9 +848,9 @@ export default function BookingNegotiationChat({
               <button
                 onClick={() => void toggleVoice()}
                 aria-label={
-                  recording ? "Stop voice recording" : "Record voice message"
+                  voice.recording ? "Finish voice recording" : "Record voice message"
                 }
-                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${recording ? "bg-red-500 text-white" : "border border-white/[.07] bg-white/[.035] text-[#858A9B]"}`}
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-white/[.07] bg-white/[.035] text-[#858A9B]"}`}
               >
                 <Mic />
               </button>
@@ -907,11 +877,6 @@ export default function BookingNegotiationChat({
                 {sending ? "…" : "➤"}
               </button>
             </div>
-            {recording && (
-              <p className="mt-2 text-center text-[9px] text-red-300">
-                Recording voice… tap the microphone again to stop
-              </p>
-            )}
             <p className="mt-2 text-center text-[8px] leading-relaxed text-[#505565]">
               Private to you and the Worker · securely stored for job safety and disputes · photos and voice notes supported
             </p>
@@ -1205,7 +1170,7 @@ function BookingAttachment({ url }: { url: string }) {
         onClick={() => window.open(url, "_blank")}
       />
     );
-  if (isAudio(url)) return <BookingVoiceNote url={url}/>;
+  if (isAudio(url)) return <VoiceNotePlayer url={url}/>;
   if (isVideo(url))
     return (
       <video
@@ -1227,11 +1192,6 @@ function BookingAttachment({ url }: { url: string }) {
     </a>
   );
 }
-function BookingVoiceNote({url}:{url:string}) {
-  const ref=useRef<HTMLAudioElement>(null),[playing,setPlaying]=useState(false),[current,setCurrent]=useState(0),[total,setTotal]=useState(0);
-  return <div className="mb-2 flex min-w-[210px] items-center gap-2.5 rounded-2xl bg-black/15 px-2.5 py-2"><audio ref={ref} src={url} preload="metadata" onLoadedMetadata={e=>setTotal(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0)} onTimeUpdate={e=>setCurrent(e.currentTarget.currentTime)} onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onEnded={()=>{setPlaying(false);setCurrent(0)}}/><button type="button" onClick={()=>{const audio=ref.current;if(!audio)return;if(audio.paused)void audio.play();else audio.pause()}} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-[12px]" aria-label={playing?'Pause voice note':'Play voice note'}>{playing?'Ⅱ':'▶'}</button><div className="min-w-0 flex-1"><input aria-label="Voice note position" type="range" min={0} max={Math.max(total,.1)} step=".1" value={Math.min(current,total||0)} onChange={e=>{const value=Number(e.target.value);if(ref.current)ref.current.currentTime=value;setCurrent(value)}} className="h-1.5 w-full cursor-pointer accent-white"/><p className="mt-1 text-[8px] text-white/70">{formatVoiceTime(current)} / {formatVoiceTime(total)}</p></div></div>;
-}
-function formatVoiceTime(value:number){const seconds=Math.max(0,Math.round(value||0));return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`}
 function isImage(v: string) {
   return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(v);
 }

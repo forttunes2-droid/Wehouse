@@ -25,6 +25,9 @@ import { conversationPresentation, getMySupportConversations, type SupportThread
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
+import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
+import useVoiceRecorder from "@/hooks/useVoiceRecorder";
+import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 
 type Props = {
   profile: Profile;
@@ -79,8 +82,6 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     [loadingMessages, setLoadingMessages] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
-    [recording, setRecording] = useState(false),
-    [recordSeconds, setRecordSeconds] = useState(0),
     [menuOpen, setMenuOpen] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
@@ -91,10 +92,8 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     [inboxQuery, setInboxQuery] = useState("");
   const [inboxMode,setInboxMode]=useState<"chats"|"activity">(initialMode);
   const bottomRef = useRef<HTMLDivElement>(null),
-    fileRef = useRef<HTMLInputElement>(null),
-    mediaRef = useRef<MediaRecorder | null>(null),
-    chunksRef = useRef<Blob[]>([]),
-    recordStartedRef = useRef(0);
+    fileRef = useRef<HTMLInputElement>(null);
+  const voice = useVoiceRecorder();
   const otherId = useCallback(
     (conv: Conversation) =>
       conv.participant_a === profile.user_id
@@ -252,23 +251,6 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
-  useEffect(() => {
-    if (!recording) {
-      setRecordSeconds(0);
-      return;
-    }
-    const timer = window.setInterval(
-      () => setRecordSeconds((v) => v + 1),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [recording]);
-  useEffect(
-    () => () => {
-      if (mediaRef.current?.state === "recording") mediaRef.current.stop();
-    },
-    [],
-  );
 
   async function openConversation(conv: Conversation) {
     setActive(conv);
@@ -299,50 +281,13 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     if (fileRef.current) fileRef.current.value = "";
   }
   async function toggleVoice() {
-    if (recording) {
-      mediaRef.current?.stop();
-      return;
-    }
+    if (voice.recording) return voice.finish();
     if (files.length >= MAX_FILES)
       return toast.error("Remove an attachment before recording a voice note");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find(
-        (type) => MediaRecorder.isTypeSupported(type),
-      );
-      const recorder = new MediaRecorder(
-        stream,
-        mime ? { mimeType: mime } : undefined,
-      );
-      chunksRef.current = [];
-      recordStartedRef.current = Date.now();
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        const type = recorder.mimeType || "audio/webm",
-          blob = new Blob(chunksRef.current, { type }),
-          ext = type.includes("mp4") ? "m4a" : "webm",
-          elapsed = Math.max(
-            1,
-            Math.round((Date.now() - recordStartedRef.current) / 1000),
-          );
-        setFiles((current) =>
-          [
-            ...current,
-            new File([blob], `voice-${Date.now()}-${elapsed}s.${ext}`, {
-              type,
-            }),
-          ].slice(0, MAX_FILES),
-        );
-        stream.getTracks().forEach((track) => track.stop());
-        setRecording(false);
-      };
-      mediaRef.current = recorder;
-      recorder.start(250);
-      setRecording(true);
-    } catch {
-      toast.error("Microphone permission is required for voice notes");
+      await voice.start();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Microphone permission is required for voice notes");
     }
   }
   async function submit() {
@@ -632,16 +577,19 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                 ))}
               </div>
             )}
-            {recording && (
-              <div className="mb-2 flex items-center gap-2 rounded-xl bg-red-500/[.08] px-3 py-2 text-[10px] text-red-200">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-                Recording voice note{" "}
-                <span className="font-mono">{duration(recordSeconds)}</span>
-                <span className="ml-auto text-[9px] text-red-300/70">
-                  Tap mic to finish
-                </span>
-              </div>
-            )}
+            <VoiceRecorderPanel
+              recording={voice.recording}
+              seconds={voice.seconds}
+              level={voice.level}
+              draft={voice.draft}
+              onCancel={voice.cancel}
+              onFinish={voice.finish}
+              onDiscard={voice.discard}
+              onUse={(file) => {
+                setFiles((current) => [...current, file].slice(0, MAX_FILES));
+                voice.discard();
+              }}
+            />
             <div className="flex items-end gap-2">
               <button
                 onClick={() => fileRef.current?.click()}
@@ -660,9 +608,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
               />
               <button
                 onClick={() => void toggleVoice()}
-                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${recording ? "bg-red-500" : "border border-white/[.07] bg-white/[.035]"} text-white`}
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500" : "border border-white/[.07] bg-white/[.035]"} text-white`}
                 aria-label={
-                  recording ? "Stop voice recording" : "Record voice note"
+                  voice.recording ? "Finish voice recording" : "Record voice note"
                 }
               >
                 <MicIcon />
@@ -1047,87 +995,6 @@ function PrivateAttachment({ url, type }: { url: string; type: string }) {
     return <VoiceNotePlayer url={url} />;
   return null;
 }
-function VoiceNotePlayer({ url }: { url: string }) {
-  const recordedSeconds = voiceDurationFromUrl(url);
-  const ref = useRef<HTMLAudioElement>(null),
-    [playing, setPlaying] = useState(false),
-    [current, setCurrent] = useState(0),
-    [total, setTotal] = useState(0);
-  function toggle() {
-    const audio = ref.current;
-    if (!audio) return;
-    if (audio.paused) void audio.play();
-    else audio.pause();
-  }
-  function seek(value: number) {
-    if (ref.current) {
-      ref.current.currentTime = value;
-      setCurrent(value);
-    }
-  }
-  async function resolveDuration(mediaDuration: number) {
-    if (recordedSeconds) {
-      setTotal(recordedSeconds);
-      return;
-    }
-    try {
-      const response = await fetch(url);
-      const context = new AudioContext();
-      const decoded = await context.decodeAudioData(
-        await response.arrayBuffer(),
-      );
-      setTotal(decoded.duration || mediaDuration);
-      await context.close();
-    } catch {
-      setTotal(mediaDuration);
-    }
-  }
-  return (
-    <div className="mb-1 flex min-w-[210px] items-center gap-2.5 rounded-2xl bg-black/15 px-2.5 py-2">
-      <audio
-        ref={ref}
-        src={url}
-        preload="metadata"
-        onLoadedMetadata={(event) => {
-          const mediaDuration = Number.isFinite(event.currentTarget.duration)
-            ? event.currentTarget.duration
-            : 0;
-          void resolveDuration(mediaDuration);
-        }}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
-        onEnded={() => {
-          setPlaying(false);
-          setCurrent(0);
-        }}
-      />
-      <button
-        type="button"
-        onClick={toggle}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-[12px]"
-        aria-label={playing ? "Pause voice note" : "Play voice note"}
-      >
-        {playing ? "Ⅱ" : "▶"}
-      </button>
-      <div className="min-w-0 flex-1">
-        <input
-          aria-label="Voice note position"
-          type="range"
-          min={0}
-          max={Math.max(total, 0.1)}
-          step="0.1"
-          value={Math.min(current, total || 0)}
-          onChange={(event) => seek(Number(event.target.value))}
-          className="h-1.5 w-full cursor-pointer accent-white"
-        />
-        <p className="mt-1 text-[8px] text-white/70">
-          {duration(Math.floor(current))} / {duration(Math.round(total))}
-        </p>
-      </div>
-    </div>
-  );
-}
 function DateDivider({ value }: { value: string }) {
   return (
     <div className="my-4 flex items-center gap-3">
@@ -1428,13 +1295,6 @@ function formatListTime(value: string) {
   yesterday.setDate(now.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-function duration(value: number) {
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
-}
-function voiceDurationFromUrl(value: string) {
-  const match = decodeURIComponent(value).match(/voice-\d+-(\d+)s\./i);
-  return match ? Number(match[1]) : 0;
 }
 function PhotoIcon() {
   return (
