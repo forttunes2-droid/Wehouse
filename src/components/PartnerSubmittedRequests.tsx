@@ -48,6 +48,7 @@ export default function PartnerSubmittedRequests({ profile, filter = 'all', onDe
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [selected, setSelected] = useState<RequestRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating,setCreating]=useState(false);
 
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
@@ -108,14 +109,14 @@ export default function PartnerSubmittedRequests({ profile, filter = 'all', onDe
   if (selected) return <RequestDetail profile={profile} request={selected} onBack={() => setSelected(null)} onContact={() => contact(selected)} onCorrected={() => { setSelected(null); void refresh(); }} />;
 
   return <div className="space-y-6">
-    <PropertyInspectionRequestPanel profile={profile} />
-    <section>
+    <PropertyInspectionRequestPanel profile={profile} onOpenChange={setCreating} />
+    {!creating&&<section>
       <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Your submitted properties</h2><p className="mt-1 text-[10px] text-[#66687B]">Open a property to see its details, photos, inspection stage and updates.</p></div><button type="button" onClick={() => void refresh()} className="rounded-lg border border-white/[.07] px-3 py-2 text-[9px] text-[#888A9B]">Refresh</button></div>
       {loading ? <Loader /> : visibleRequests.length === 0 ? <Empty filter={filter} /> : <div className="space-y-3">{visibleRequests.map(request => <button key={request.id} type="button" onClick={() => setSelected(request)} className="flex w-full items-center gap-3 rounded-2xl border border-white/[.06] bg-[#111119] p-3 text-left transition active:scale-[.99] sm:p-4">
         <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#191A24]">{request.photo_urls?.[0] ? <img src={request.photo_urls[0]} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-[9px] text-[#595C6D]">No photo</div>}</div>
         <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-xs font-semibold">{request.property_address || request.property_type || 'Property'}</p><Status request={request} /></div><p className="mt-1 truncate text-[9px] text-[#696C7D]">{[request.property_city, request.property_state].filter(Boolean).join(', ')}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[8px] text-[#777A8B]"><span>{request.request_code || 'Request sent'}</span>{request.submission_batch_id && Number(batchCounts.get(request.submission_batch_id) || 0) > 1 && <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-300">Batch {request.submission_batch_position}/{batchCounts.get(request.submission_batch_id)}</span>}<span className="ml-auto text-violet-300">View details →</span></div></div>
       </button>)}</div>}
-    </section>
+    </section>}
   </div>;
 }
 
@@ -167,7 +168,7 @@ function AccessEvidenceCorrection({profile, request, onCorrected}:{profile:Profi
     if(result.error){await supabase.storage.from('property-access-private').remove([path]);setBusy(false);return toast.error(result.error.message)}
     setBusy(false);toast.success('Replacement evidence sent to WeHouse');onCorrected();
   }
-  if(!challenge)return <section className="rounded-2xl border border-amber-500/20 bg-amber-500/[.05] p-4"><p className="text-xs font-semibold text-amber-200">Correct this submission</p><p className="mt-1 text-[9px] leading-5 text-[#85899A]">Record replacement access evidence here. It stays attached to this property and returns to Operations review without creating a duplicate.</p><button type="button" disabled={busy} onClick={()=>void prepare()} className="mt-3 h-11 w-full rounded-xl bg-amber-400 text-[10px] font-semibold text-black disabled:opacity-40">{busy?'Preparing…':'Record replacement evidence'}</button></section>;
+  if(!challenge)return <section className="rounded-2xl border border-amber-500/20 bg-amber-500/[.05] p-4"><p className="text-xs font-semibold text-amber-200">Correct this submission</p><p className="mt-1 text-[9px] leading-5 text-[#85899A]">Record replacement access evidence here. It stays attached to this property and returns to Property Operations review without creating a duplicate.</p><button type="button" disabled={busy} onClick={()=>void prepare()} className="mt-3 h-11 w-full rounded-xl bg-amber-400 text-[10px] font-semibold text-black disabled:opacity-40">{busy?'Preparing…':'Record replacement evidence'}</button></section>;
   return <div className="space-y-3"><PropertyAccessRecorder code={challenge.code} expiresAt={challenge.expires_at} recordedFile={recording} onRecorded={setRecording}/>{recording&&<button type="button" disabled={busy} onClick={()=>void submit()} className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy?'Sending replacement…':'Send replacement to WeHouse'}</button>}</div>;
 }
 
@@ -182,7 +183,7 @@ function AccessEvidenceSummary({status}:{status:string|null}) {
 
 function journeyNext(stage:string) {
   if(stage==='access_required')return 'Next: resolve the missing access evidence with WeHouse. A Field Officer cannot be assigned yet.';
-  if(stage==='access_review')return 'Next: Operations reviews the private access recording.';
+  if(stage==='access_review')return 'Next: Property Operations reviews the private access recording.';
   if(stage==='inspection_ready')return 'Next: WeHouse assigns a Field Officer for an independent visit.';
   if(stage==='inspection')return 'Next: the Field Officer submits independent visit evidence.';
   if(stage==='visit_reviewed')return 'Next: WeHouse prepares the non-public listing or hotel programme.';
