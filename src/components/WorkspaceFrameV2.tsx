@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-type Item = { id: string; label: string };
+type Item = { id: string; label: string; badge?: number };
 type Props = {
   label: string;
   title: string;
@@ -95,7 +95,10 @@ export default function WorkspaceFrameV2({
                     : 'text-[#747A8B] hover:bg-white/[.04] hover:text-white'
                 }`}
               >
-                {item.label}
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{item.label}</span>
+                  {Boolean(item.badge) && <CountBadge count={item.badge || 0} />}
+                </span>
               </button>
             ))}
           </div>
@@ -142,6 +145,7 @@ export default function WorkspaceFrameV2({
               key={item.id}
               id={item.id}
               label={item.label}
+              badge={item.badge}
               active={active === item.id}
               onClick={() => go(item.id)}
             />
@@ -158,7 +162,7 @@ export default function WorkspaceFrameV2({
   );
 }
 
-function BottomTab({ id, label, active, onClick }: { id: string; label: string; active: boolean; onClick: () => void }) {
+function BottomTab({ id, label, badge = 0, active, onClick }: { id: string; label: string; badge?: number; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -168,11 +172,16 @@ function BottomTab({ id, label, active, onClick }: { id: string; label: string; 
     >
       <span className={`grid h-7 w-7 place-items-center rounded-xl ${active ? 'bg-violet-500/12 text-violet-300' : ''}`}>
         <NavIcon id={id} />
+        {badge > 0 && <span className="absolute right-[calc(50%-1.2rem)] top-1"><CountBadge count={badge} /></span>}
       </span>
       <span className="max-w-full truncate">{label}</span>
       {active && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-violet-400" />}
     </button>
   );
+}
+
+function CountBadge({ count }: { count: number }) {
+  return <span className="grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[7px] font-bold leading-none text-white">{count > 99 ? '99+' : count}</span>;
 }
 
 function NavIcon({ id }: { id: string }) {

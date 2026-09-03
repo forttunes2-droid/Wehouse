@@ -12,11 +12,13 @@ import StaffFinanceRecords from '@/components/StaffFinanceRecords';
 import StaffSecurityOverviewV2 from '@/components/StaffSecurityOverviewV2';
 import StaffActivityTrailV2 from '@/components/StaffActivityTrailV2';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
+import { useOperationsInboxSummary } from '@/hooks/useOperationsInboxSummary';
 import type { Profile } from '@/types';
 
 type Module = 'operations' | 'finance' | 'support' | 'security' | 'verification' | 'field_officer';
 type MainTab = 'home' | 'work' | 'conversations';
 type WorkView = 'pipeline' | 'overview' | 'payments' | 'payouts' | 'ledger' | 'signals' | 'trail';
+type InboxView = 'inbox' | 'booking' | 'activity';
 type Props = { profile:Profile; onLogout:()=>void; onGoToChat?:(id?:string)=>void; onNavigate?:(page:string)=>void };
 const MODULES:Module[]=['operations','finance','support','security','verification','field_officer'];
 const MODULE_COPY:Record<Module,{title:string;description:string;workLabel:string}>={
@@ -39,16 +41,17 @@ export default function StaffWorkspaceRepair({profile,onLogout,onNavigate}:Props
 
 function Workspace({module,profile,onLogout,onNavigate}:{module:Module;profile:Profile;onLogout:()=>void;onNavigate?:(page:string)=>void}){
  const copy=MODULE_COPY[module],directConversation=module==='support';
+ const inboxSummary=useOperationsInboxSummary(module==='operations'?profile.user_id:'');
  const items=directConversation
   ?[{id:'home',label:'Home'},{id:'conversations',label:'Inbox'}]
   :module==='operations'
-   ?[{id:'home',label:'Home'},{id:'work',label:copy.workLabel},{id:'conversations',label:'Inbox'}]
+   ?[{id:'home',label:'Home'},{id:'work',label:copy.workLabel},{id:'conversations',label:'Inbox',badge:inboxSummary.totalUnread}]
    :[{id:'home',label:'Home'},{id:'work',label:copy.workLabel}];
  const[tab,setTab]=useState<MainTab>('home'),[workView,setWorkView]=useState<WorkView>(module==='finance'?'overview':module==='security'?'signals':'pipeline');
  const scope={state:profile.assigned_state||'',lga:profile.assigned_lga||''},branch=[scope.lga,scope.state].filter(Boolean).join(', ');
  let content:React.ReactNode;
  if(tab==='home')content=<StaffHome profile={profile} module={module} copy={copy} branch={branch} openWork={()=>setTab(directConversation?'conversations':'work')} onNavigate={onNavigate}/>;
- else if(tab==='conversations'&&module==='operations')content=<OperationsInbox profile={profile} scope={scope} onNavigate={onNavigate}/>;
+ else if(tab==='conversations'&&module==='operations')content=<OperationsInbox profile={profile} scope={scope} summary={inboxSummary} openProperties={()=>setTab('work')} onNavigate={onNavigate}/>;
  else if(tab==='conversations'&&directConversation)content=<CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue="support"/>;
  else content=<ModuleWork module={module} profile={profile} view={workView} setView={setWorkView}/>;
  const activeLabel=items.find(item=>item.id===tab)?.label||copy.title;
@@ -64,7 +67,29 @@ function ModuleWork({module,profile,view,setView}:{module:Module;profile:Profile
  return null;
 }
 
-function OperationsInbox({profile,scope,onNavigate}:{profile:Profile;scope:{state:string;lga:string};onNavigate?:(page:string)=>void}){const[view,setView]=useState<'desk'|'activity'>('desk');return <div className="space-y-5"><LocalTabs items={[["pipeline","Reservation Desk"],["trail","Activity"]]} active={view==='desk'?'pipeline':'trail'} set={next=>setView(next==='pipeline'?'desk':'activity')}/>{view==='activity'?<Notifications profile={profile} embedded onNavigate={page=>onNavigate?.(page)}/>:<><HousingOperationsWorkspace/><section className="border-t border-white/[.07] pt-5"><div className="mb-4"><h3 className="text-base font-bold">Reservation conversations</h3><p className="mt-1 text-[10px] text-[#707687]">Messages connected to arrivals, tenancy and property access.</p></div><CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue="reservation_operations"/></section></>}</div>}
+function OperationsInbox({profile,scope,summary,openProperties,onNavigate}:{profile:Profile;scope:{state:string;lga:string};summary:ReturnType<typeof useOperationsInboxSummary>;openProperties:()=>void;onNavigate?:(page:string)=>void}){
+ const[view,setView]=useState<InboxView>('inbox');
+ function navigate(page:string){if(page==='operations_properties')return openProperties();if(page==='operations_inbox')return setView('booking');onNavigate?.(page)}
+ if(view==='booking')return <InboxDetail title="Booking and arrival lookup" back={()=>setView('inbox')}><HousingOperationsWorkspace/></InboxDetail>;
+ if(view==='activity')return <InboxDetail title="Activity" badge={summary.activityUnread} back={()=>setView('inbox')}><Notifications profile={profile} embedded onUnreadChange={summary.refresh} onNavigate={page=>navigate(page)}/></InboxDetail>;
+ return <div className="space-y-6">
+  <section className="overflow-hidden rounded-2xl border border-white/[.065] bg-[#11141C]">
+   <button type="button" onClick={()=>setView('activity')} className="flex min-h-20 w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[.025]">
+    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/12 text-lg text-violet-300">♢</span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Activity</span><span className="mt-1 block truncate text-[10px] text-[#707687]">{summary.latestActivity?.title||'Recent property and reservation updates appear here'}</span></span>
+    {summary.activityUnread>0&&<span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-[8px] font-bold">{summary.activityUnread>99?'99+':summary.activityUnread}</span>}
+    <span className="text-[#656B7C]">›</span>
+   </button>
+   <div className="ml-[4.5rem] h-px bg-white/[.055]"/>
+   <button type="button" onClick={()=>setView('booking')} className="flex min-h-20 w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[.025]">
+    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-sm text-emerald-300">⌕</span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Find a booking or arrival</span><span className="mt-1 block text-[10px] text-[#707687]">Search a real booking, then verify its WeHouse booking code</span></span><span className="text-[#656B7C]">›</span>
+   </button>
+  </section>
+  <CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue="reservation_operations" onUnreadChange={summary.refresh}/>
+ </div>
+}
+function InboxDetail({title,badge=0,back,children}:{title:string;badge?:number;back:()=>void;children:React.ReactNode}){return <div className="space-y-4"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button type="button" onClick={back} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Inbox">‹</button><div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Inbox</p><h2 className="mt-0.5 text-base font-bold">{title}</h2></div>{badge>0&&<span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-[8px] font-bold">{badge>99?'99+':badge}</span>}</header>{children}</div>}
 function StaffHome({module,copy,branch,openWork}:{profile:Profile;module:Module;copy:{title:string;description:string;workLabel:string};branch:string;openWork:()=>void;onNavigate?:(page:string)=>void}){return <div className="space-y-6"><section className="border-b border-white/[.07] pb-6"><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">YOUR STAFF ASSIGNMENT</p><h2 className="mt-3 text-2xl font-bold">{copy.title}</h2><p className="mt-2 max-w-xl text-xs leading-6 text-[#858B9B]">{copy.description}</p><p className="mt-2 text-[10px] text-[#666D7E]">Branch · {branch}</p></section><div className="border-y border-white/[.06]"><button onClick={openWork} className="flex min-h-16 w-full items-center justify-between py-3 text-left"><span><strong className="block text-sm">{module==='support'?'Open conversations':copy.workLabel}</strong><span className="mt-1 block text-[10px] text-[#6E7484]">Continue work assigned to your responsibility</span></span><span className="text-violet-300">›</span></button></div></div>}
-function LocalTabs({items,active,set}:{items:Array<[WorkView,string]>;active:WorkView;set:(view:WorkView)=>void}){return <div className="flex gap-5 overflow-x-auto border-b border-white/[.07]">{items.map(([id,label])=><button key={id} onClick={()=>set(id)} className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active===id?'text-white':'text-[#6E7484]'}`}>{label}{active===id&&<span className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-500"/>}</button>)}</div>}
+function LocalTabs<T extends string>({items,active,set}:{items:Array<[T,string]>;active:T;set:(view:T)=>void}){return <div className="flex gap-5 overflow-x-auto border-b border-white/[.07]">{items.map(([id,label])=><button key={id} onClick={()=>set(id)} className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active===id?'text-white':'text-[#6E7484]'}`}>{label}{active===id&&<span className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-500"/>}</button>)}</div>}
 function State({title,text}:{title:string;text:string}){return <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white"><div className="w-full max-w-lg rounded-3xl border border-white/[.07] bg-[#10141C] p-6 text-center"><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">WEHOUSE STAFF</p><h1 className="mt-3 text-lg font-bold capitalize">{title}</h1><p className="mt-2 text-[11px] leading-relaxed text-[#747A8B]">{text}</p></div></div>}
