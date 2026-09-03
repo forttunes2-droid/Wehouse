@@ -100,7 +100,7 @@ export {
   processReservationRefund,
   calculateReservationRefund,
   completeInspectionResult,
-  activateApartmentTenancy,
+  confirmApartmentHandover,
   completeApartmentTenancy,
   expireOverdueReservations,
 } from "./reservations";

@@ -42,7 +42,7 @@ const NOTES: Record<Tab, string> = {
 
 const OPS: Array<{ id: Operation; label: string; note: string }> = [
   { id: 'people', label: 'People', note: 'Regular Users and Property Partners.' },
-  { id: 'team', label: 'Team', note: 'Admins, Staff capacity, branch placement and operational modules.' },
+  { id: 'team', label: 'Staff Operations', note: 'Assign Admins and Staff to branches, then give each Staff account one operation.' },
   { id: 'properties', label: 'Properties', note: 'Property request → inspection → preparation → publication.' },
   { id: 'workers', label: 'Workers', note: 'Worker lifecycle oversight. Verification Staff own routine approval.' },
   { id: 'bookings', label: 'Bookings', note: 'Worker-service, apartment and hotel booking records.' },
@@ -105,7 +105,7 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
   const cards: Array<[string, number, () => void, string]> = [
     ['Users', stats?.users || 0, () => openOperation('people'), 'Customer accounts'],
     ['Property Partners', stats?.partners || 0, () => openOperation('people'), 'Property owners'],
-    ['Team', stats?.team || 0, () => openOperation('team'), 'Admins and Staff'],
+    ['Staff Operations', stats?.team || 0, () => openOperation('team'), 'Admins, Staff and work assignments'],
     ['Workers', stats?.workers || 0, () => openOperation('workers'), `${stats?.pending_verifications || 0} under verification`],
     ['Published apartments', stats?.listings || 0, () => openOperation('properties'), 'Public apartment inventory'],
     ['Published hotels', stats?.hotels || 0, () => openOperation('properties'), 'Public hotel inventory'],

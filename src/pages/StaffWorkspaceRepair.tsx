@@ -24,16 +24,16 @@ const MODULE_COPY:Record<Module,{title:string;description:string;workLabel:strin
  finance:{title:'Finance',description:'Review assigned payments, payouts and financial records.',workLabel:'Finance Work'},
  support:{title:'Support',description:'Handle conversations assigned to your branch support desk.',workLabel:'Conversations'},
  security:{title:'Security Operations',description:'Review branch authentication and session signals, then escalate verified risks to Admin or Creator.',workLabel:'Security Signals'},
- verification:{title:'Worker Verification',description:'Review professional evidence and make the permitted verification decision.',workLabel:'Worker Reviews'},
+ verification:{title:'Worker Operations',description:'Review Worker onboarding, professional evidence and the permitted account decision.',workLabel:'Workers'},
  field_officer:{title:'Field Operations',description:'Complete property visits and submit inspection evidence.',workLabel:'Inspections'},
 };
 
 export default function StaffWorkspaceRepair({profile,onLogout,onNavigate}:Props){
  const{permissions,loading}=useStaffPermissions(profile.user_id);
  const assigned=useMemo(()=>permissions.filter((value):value is Module=>MODULES.includes(value as Module)),[permissions]);
- if(loading)return <State title="Loading staff workspace" text="Checking your branch and Staff module assignment…"/>;
+ if(loading)return <State title="Loading staff workspace" text="Checking your branch and assigned Staff operation…"/>;
  if(!profile.assigned_state||!profile.assigned_lga)return <State title="Branch assignment required" text="An Admin or Creator must assign this Staff account to a State and LGA before operational work can begin."/>;
- if(assigned.length!==1)return <State title="Staff assignment needs attention" text={assigned.length?'This Staff account has conflicting module assignments. Keep one active operational module.':'No Staff module is assigned to this account.'}/>;
+ if(assigned.length!==1)return <State title="Staff assignment needs attention" text={assigned.length?'This Staff account has conflicting assignments. Keep one active Staff operation.':'No Staff operation is assigned to this account.'}/>;
  return <Workspace module={assigned[0]} profile={profile} onLogout={onLogout} onNavigate={onNavigate}/>;
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { uploadListingImage, uploadListingVideo } from '@/lib/supabase/listings';
+import WeHouseSelect from '@/components/WeHouseSelect';
 import type { Profile } from '@/types';
 
 type InspectionRow = {
@@ -12,12 +13,22 @@ type InspectionRow = {
   video_urls?:string[]|null; notes?:string|null; completed_at?:string|null;
 };
 type Preview = { file:File; url:string };
+type InspectionFilter = 'active'|'scheduled'|'in_progress'|'completed'|'approved'|'all';
+const INSPECTION_FILTERS: Array<{value:InspectionFilter;label:string;description?:string}> = [
+  {value:'active',label:'Needs action',description:'Scheduled and in-progress visits'},
+  {value:'scheduled',label:'Scheduled'},
+  {value:'in_progress',label:'In progress'},
+  {value:'completed',label:'Submitted for review'},
+  {value:'approved',label:'Approved'},
+  {value:'all',label:'All inspections'},
+];
 
 export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile }) {
   const mediaInput = useRef<HTMLInputElement>(null);
   const [rows,setRows] = useState<InspectionRow[]>([]);
   const [selected,setSelected] = useState<InspectionRow|null>(null);
   const [search,setSearch] = useState('');
+  const [filter,setFilter] = useState<InspectionFilter>('active');
   const [report,setReport] = useState('');
   const [condition,setCondition] = useState('');
   const [media,setMedia] = useState<File[]>([]);
@@ -39,7 +50,16 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
   useEffect(()=>{ void load(); },[load]);
   const previews=useMemo<Preview[]>(()=>media.map(file=>({file,url:URL.createObjectURL(file)})),[media]);
   useEffect(()=>()=>previews.forEach(item=>URL.revokeObjectURL(item.url)),[previews]);
-  const shown=useMemo(()=>rows.filter(row=>!search.trim()||[row.property_address,row.property_city,row.property_state,row.owner_name,row.status].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())).sort((a,b)=>Number(done(a))-Number(done(b))),[rows,search]);
+  const shown=useMemo(()=>rows.filter(row=>{
+    const status=String(row.status||'pending');
+    const matchesStatus=filter==='all'
+      || (filter==='active'&&['pending','scheduled','in_progress'].includes(status))
+      || (filter==='scheduled'&&['pending','scheduled'].includes(status))
+      || status===filter;
+    const query=search.trim().toLowerCase();
+    const matchesSearch=!query||[row.property_address,row.property_city,row.property_state,row.owner_name,row.status].filter(Boolean).join(' ').toLowerCase().includes(query);
+    return matchesStatus&&matchesSearch;
+  }).sort((a,b)=>Number(done(a))-Number(done(b))),[rows,search,filter]);
 
   function open(row:InspectionRow){
     setSelected(row); setReport(''); setCondition(''); setMedia([]);
@@ -105,7 +125,7 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
   }
 
   const active=rows.filter(row=>!done(row)).length;
-  return <div className="space-y-4"><header><h2 className="text-lg font-bold">Inspections</h2><p className="mt-1 text-[10px] text-[#707687]">{active} active · {rows.length-active} completed</p></header><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search address, owner or status" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none"/>{loading?<Empty text="Loading inspections…"/>:shown.length===0?<Empty text="No inspections match this view."/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(row=><button key={`${row._source}-${row.id}`} onClick={()=>open(row)} className="w-full py-4 text-left"><Head row={row}/><p className="mt-2 text-[9px] text-[#73798B]">{row.scheduled_date?new Date(row.scheduled_date).toLocaleString():'Schedule pending'}</p></button>)}</div>}</div>;
+  return <div className="space-y-4"><header><h2 className="text-lg font-bold">Inspections</h2><p className="mt-1 text-[10px] text-[#707687]">{active} active · {rows.length-active} completed</p></header><div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Inspection status</span><WeHouseSelect value={filter} options={INSPECTION_FILTERS} onChange={setFilter} eyebrow="Field Operations" title="Choose inspection work" ariaLabel="Filter inspections by status" className="max-w-[13rem] rounded-full"/></div><input value={search} onChange={event=>setSearch(event.target.value)} aria-label="Search inspections" placeholder="Search address or Property Partner" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none"/>{loading?<Empty text="Loading inspections…"/>:shown.length===0?<Empty text="No inspections match this view."/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(row=><button key={`${row._source}-${row.id}`} onClick={()=>open(row)} className="w-full py-4 text-left"><Head row={row}/><p className="mt-2 text-[9px] text-[#73798B]">{row.scheduled_date?new Date(row.scheduled_date).toLocaleString():'Schedule pending'}</p></button>)}</div>}</div>;
 }
 
 function done(row:InspectionRow){return ['completed','approved'].includes(row.status)}

@@ -257,9 +257,9 @@ export async function completeInspectionResult(
   return { success: data, error };
 }
 
-export async function activateApartmentTenancy(reservationId: string, startDate?: string) {
-  const { data, error } = await supabase.rpc('activate_apartment_tenancy', {
-    p_reservation_id: reservationId,
+export async function confirmApartmentHandover(bookingCode: string, startDate?: string) {
+  const { data, error } = await supabase.rpc('confirm_apartment_handover', {
+    p_booking_code: bookingCode,
     p_start_date: startDate || new Date().toISOString().slice(0, 10),
   });
   return { reservation: data as ReservationRecord || null, error };

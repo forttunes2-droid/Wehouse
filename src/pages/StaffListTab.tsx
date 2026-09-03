@@ -6,7 +6,7 @@ import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
 
-const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance',support:'Human Support',security:'Security Operations',verification:'Worker Verification',field_officer:'Field Operations'};
+const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance',support:'Human Support',security:'Security Operations',verification:'Worker Operations',field_officer:'Field Operations'};
 type RoleFilter='all'|'admin'|'staff';
 
 export default function StaffListTab({profile}:{profile:Profile}){
@@ -24,8 +24,8 @@ export default function StaffListTab({profile}:{profile:Profile}){
 </div>;
  return <div className="space-y-4">
   <div>
-<h2 className="text-lg font-bold">{creator?'WeHouse team':'Branch Staff'}</h2>
-<p className="mt-1 text-[10px] text-[#707687]">Role, branch and one operational responsibility per Staff account. Worker Verification remains separate from Security Operations.</p>
+<h2 className="text-lg font-bold">{creator?'Staff Operations':'Branch Staff'}</h2>
+<p className="mt-1 text-[10px] text-[#707687]">Role, branch and one assigned operation per Staff account. Worker Operations remains separate from Security Operations.</p>
 </div>
   <div className="grid grid-cols-3 gap-2">
 <Metric label="Admins" value={team.filter(x=>x.role==='admin').length}/>
@@ -45,7 +45,7 @@ export default function StaffListTab({profile}:{profile:Profile}){
 </div>
 <div className="shrink-0 text-right">
 <p className="text-[9px] capitalize text-violet-300">{person.role}</p>
-<p className="mt-1 text-[8px] text-[#666D7E]">{person.role==='staff'?(MODULES[assigned[person.user_id]]||'No responsibility'):'Branch administration'}</p>
+<p className="mt-1 text-[8px] text-[#666D7E]">{person.role==='staff'?(MODULES[assigned[person.user_id]]||'No operation assigned'):'Branch administration'}</p>
 </div>
 </button>)}</div>}
   {selected&&<Manage person={selected} creator={creator} module={assigned[selected.user_id]||''} saving={saving===selected.user_id} close={()=>setSelected(null)} saveModule={moduleFor} reassign={reassign}/>}
@@ -71,9 +71,9 @@ function Manage({person,creator,module,saving,close,saveModule,reassign}:{person
 </div>
 <button disabled={saving||!s||!l} onClick={()=>void reassign(person,s,l)} className="mt-2 h-10 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Save branch</button>
 </section>}{person.role==='staff'&&<section className="rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
-<p className="text-xs font-semibold">Operational responsibility</p>
-<p className="mt-1 text-[9px] text-[#666D7E]">Assign exactly one module. Security observes and escalates; account sanctions stay with Admin and Creator.</p>
-<div className="mt-3"><WeHouseSelect value={module} disabled={saving} onChange={value=>void saveModule(person,value)} options={[{value:'',label:'No responsibility'},...Object.entries(MODULES).map(([value,label])=>({value,label}))]} title="Choose staff responsibility" ariaLabel="Choose staff responsibility" className="h-11 w-full"/></div>
+<p className="text-xs font-semibold">Assigned Staff operation</p>
+<p className="mt-1 text-[9px] text-[#666D7E]">Assign exactly one operation. Security observes and escalates; account sanctions stay with Admin and Creator.</p>
+<div className="mt-3"><WeHouseSelect value={module} disabled={saving} onChange={value=>void saveModule(person,value)} options={[{value:'',label:'No operation assigned'},...Object.entries(MODULES).map(([value,label])=>({value,label}))]} title="Choose Staff operation" ariaLabel="Choose Staff operation" className="h-11 w-full"/></div>
 </section>}</div>
 </aside>
 </div>}

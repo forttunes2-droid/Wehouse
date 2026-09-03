@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { activateApartmentTenancy, completeApartmentTenancy } from '@/lib/supabase/reservations';
+import { completeApartmentTenancy, confirmApartmentHandover } from '@/lib/supabase/reservations';
 import WeHouseSelect from '@/components/WeHouseSelect';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -23,6 +23,7 @@ export default function HousingOperationsWorkspace() {
   const [bookingCode, setBookingCode] = useState('');
   const [checkingCode, setCheckingCode] = useState(false);
   const [verifiedBooking, setVerifiedBooking] = useState<any | null>(null);
+  const [verifiedMoveInCode, setVerifiedMoveInCode] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -39,9 +40,10 @@ export default function HousingOperationsWorkspace() {
     setCheckingCode(true);
     const { data, error } = await supabase.rpc('verify_branch_booking_code', { p_code: code });
     setCheckingCode(false);
-    if (error) { setVerifiedBooking(null); return toast.error(error.message); }
-    if (!data) { setVerifiedBooking(null); return toast.error('No booking with that code was found'); }
+    if (error) { setVerifiedBooking(null); setVerifiedMoveInCode(null); return toast.error(error.message); }
+    if (!data) { setVerifiedBooking(null); setVerifiedMoveInCode(null); return toast.error('No booking with that code was found'); }
     setVerifiedBooking(data);
+    setVerifiedMoveInCode(null);
   }
 
   const filtered = useMemo(() => rows.filter(row => {
@@ -53,8 +55,12 @@ export default function HousingOperationsWorkspace() {
     }
     return row.listing_status === filter;
   }), [rows, filter]);
+  const verifiedHousingRow = useMemo(() => {
+    if (verifiedBooking?.kind !== 'housing') return null;
+    return rows.find(row => String(row.current_reservation_id) === String(verifiedBooking.reservation_id)) || null;
+  }, [rows, verifiedBooking]);
 
-  if (selected) return <HousingCase row={selected} back={() => { setSelected(null); void load(); }} />;
+  if (selected) return <HousingCase row={selected} bookingCode={verifiedMoveInCode} back={() => { setSelected(null); setVerifiedBooking(null); setVerifiedMoveInCode(null); setBookingCode(''); void load(); }} />;
 
   return <div className="space-y-5">
     <div><h3 className="text-base font-bold">Arrival and tenancy desk</h3><p className="mt-1 text-[10px] leading-5 text-[#707687]">After publication, this desk verifies arrivals and records real move-in or move-out events. It does not create property publication statuses.</p></div>
@@ -63,17 +69,17 @@ export default function HousingOperationsWorkspace() {
       <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">Verify arrival</p>
       <h4 className="mt-1 text-sm font-semibold">Check a WeHouse booking code</h4>
       <p className="mt-1 text-[9px] leading-5 text-[#747A8B]">Use the customer’s LGA code, for example LAFWH12345. The code identifies the booking; always match the displayed customer details before handing over a key or confirming access.</p>
-      <div className="mt-3 flex gap-2"><input value={bookingCode} onChange={e => setBookingCode(e.target.value.toUpperCase().replace(/\s/g,''))} placeholder="LAFWH12345" maxLength={10} className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#11151E] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"/><button disabled={checkingCode} onClick={() => void verifyCode()} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-50">{checkingCode ? 'Checking…' : 'Verify'}</button></div>
-      {verifiedBooking && <div className="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.04] p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold tracking-wide text-emerald-300">{verifiedBooking.code}</p><p className="mt-1 text-[10px] font-semibold">{verifiedBooking.property_name}</p></div><span className="rounded-full border border-emerald-500/20 px-2 py-1 text-[8px] capitalize text-emerald-300">{verifiedBooking.kind}</span></div><div className="mt-3 grid grid-cols-2 gap-2"><Info label="Customer" value={verifiedBooking.customer_name || '—'} /><Info label="Phone" value={verifiedBooking.customer_phone || '—'} /><Info label="Booking status" value={String(verifiedBooking.status || '—').replace(/_/g,' ')} /><Info label="Payment" value={String(verifiedBooking.payment_status || '—').replace(/_/g,' ')} /></div>{verifiedBooking.kind === 'hotel' && <p className="mt-3 text-[9px] text-[#8A909F]">Stay: {verifiedBooking.check_in ? new Date(verifiedBooking.check_in).toLocaleDateString() : '—'} → {verifiedBooking.check_out ? new Date(verifiedBooking.check_out).toLocaleDateString() : '—'} · {verifiedBooking.guest_count || 1} guest(s)</p>}</div>}
+      <div className="mt-3 flex gap-2"><input value={bookingCode} onChange={event => { setBookingCode(event.target.value.toUpperCase().replace(/\s/g,'')); setVerifiedBooking(null); setVerifiedMoveInCode(null); }} aria-label="WeHouse booking code" autoComplete="off" placeholder="LAFWH12345" maxLength={10} className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#11151E] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"/><button disabled={checkingCode} onClick={() => void verifyCode()} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-50">{checkingCode ? 'Checking…' : 'Verify'}</button></div>
+      {verifiedBooking && <div className="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.04] p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold tracking-wide text-emerald-300">{verifiedBooking.code}</p><p className="mt-1 text-[10px] font-semibold">{verifiedBooking.property_name}</p></div><span className="rounded-full border border-emerald-500/20 px-2 py-1 text-[8px] capitalize text-emerald-300">{verifiedBooking.kind}</span></div><div className="mt-3 grid grid-cols-2 gap-2"><Info label="Customer" value={verifiedBooking.customer_name || '—'} /><Info label="Phone" value={verifiedBooking.customer_phone || '—'} /><Info label="Booking status" value={String(verifiedBooking.status || '—').replace(/_/g,' ')} /><Info label="Payment" value={String(verifiedBooking.payment_status || '—').replace(/_/g,' ')} /></div>{verifiedBooking.kind === 'housing' && verifiedHousingRow && <button type="button" onClick={() => { setVerifiedMoveInCode(String(verifiedBooking.code)); setSelected(verifiedHousingRow); }} className="mt-3 h-11 w-full rounded-xl bg-emerald-500 text-[10px] font-semibold text-[#03100B]">Continue to verified property handover</button>}{verifiedBooking.kind === 'housing' && !verifiedHousingRow && <p className="mt-3 rounded-xl bg-amber-500/[.06] p-3 text-[9px] leading-5 text-amber-200">This booking is valid, but its property is not in the current operations list. Refresh the desk before confirming handover.</p>}{verifiedBooking.kind === 'hotel' && <p className="mt-3 text-[9px] text-[#8A909F]">Stay: {verifiedBooking.check_in ? new Date(verifiedBooking.check_in).toLocaleDateString() : '—'} → {verifiedBooking.check_out ? new Date(verifiedBooking.check_out).toLocaleDateString() : '—'} · {verifiedBooking.guest_count || 1} guest(s)</p>}</div>}
     </section>
 
     <div className="grid grid-cols-4 gap-2"><Metric label="Reserved" value={rows.filter(row => row.listing_status === 'reserved').length} /><Metric label="Occupied" value={rows.filter(row => row.listing_status === 'occupied').length} /><Metric label="Available" value={rows.filter(row => row.listing_status === 'available').length} /><Metric label="Maintenance" value={rows.filter(row => row.listing_status === 'maintenance').length} /></div>
     <div className="flex items-center justify-between gap-3 border-y border-white/[.06] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Tenancy filter</span><WeHouseSelect value={filter} options={[{value:'attention',label:'Needs attention'},{value:'reserved',label:'Reserved'},{value:'occupied',label:'Occupied'},{value:'available',label:'Available'},{value:'maintenance',label:'Maintenance'},{value:'all',label:'All tenancies'}]} onChange={setFilter} eyebrow="Reservation Desk" title="Choose what to show" ariaLabel="Filter tenancy operations" className="max-w-[13rem] rounded-full"/></div>
-    {loading ? <Loading /> : filtered.length === 0 ? <Empty /> : <div className="space-y-2">{filtered.map(row => <button key={row.listing_id} onClick={() => setSelected(row)} className="w-full rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/20"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{row.listing_title}</p><p className="mt-1 truncate text-[9px] text-[#686D7E]">{[row.address,row.lga,row.state].filter(Boolean).join(', ')}</p></div><Badge status={row.listing_status} /></div>{row.current_reservation_id && <div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3"><div><p className="text-[9px] text-[#626778]">{row.customer_name || 'Customer'}</p><p className="mt-0.5 text-[8px] capitalize text-violet-300">{String(row.reservation_status || '').replace(/_/g,' ')} · rent {String(row.rent_payment_status || 'not started').replace(/_/g,' ')}</p></div>{row.tenancy_end_date && <p className="text-[8px] text-[#777C8C]">Ends {new Date(row.tenancy_end_date).toLocaleDateString()}</p>}</div>}</button>)}</div>}
+    {loading ? <Loading /> : filtered.length === 0 ? <Empty /> : <div className="space-y-2">{filtered.map(row => <button key={row.listing_id} onClick={() => { setVerifiedMoveInCode(null); setSelected(row); }} className="w-full rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/20"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{row.listing_title}</p><p className="mt-1 truncate text-[9px] text-[#686D7E]">{[row.address,row.lga,row.state].filter(Boolean).join(', ')}</p></div><Badge status={row.listing_status} /></div>{row.current_reservation_id && <div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3"><div><p className="text-[9px] text-[#626778]">{row.customer_name || 'Customer'}</p><p className="mt-0.5 text-[8px] capitalize text-violet-300">{String(row.reservation_status || '').replace(/_/g,' ')} · rent {String(row.rent_payment_status || 'not started').replace(/_/g,' ')}</p></div>{row.tenancy_end_date && <p className="text-[8px] text-[#777C8C]">Ends {new Date(row.tenancy_end_date).toLocaleDateString()}</p>}</div>}</button>)}</div>}
   </div>;
 }
 
-function HousingCase({ row, back }: { row: any; back: () => void }) {
+function HousingCase({ row, bookingCode, back }: { row: any; bookingCode: string | null; back: () => void }) {
   const { ask, dialogProps } = useConfirm();
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [nextStatus, setNextStatus] = useState<'maintenance' | 'available' | 'closed'>('maintenance');
@@ -82,10 +88,10 @@ function HousingCase({ row, back }: { row: any; back: () => void }) {
   const canMoveIn = Boolean(row.current_reservation_id && row.reservation_status === 'ready_for_move_in' && row.reservation_fee_paid && rentReady);
 
   async function activate() {
-    if (!row.current_reservation_id) return;
-    if (!await ask({title:'Confirm move-in?',description:`Confirm ${row.customer_name || 'this customer'} has physically moved in. The property will become Occupied.`,confirmLabel:'Confirm move-in',variant:'info'})) return;
+    if (!bookingCode) return toast.error('Verify the customer booking code before confirming handover');
+    if (!await ask({title:'Confirm property handover?',description:`Booking code ${bookingCode} matches ${row.customer_name || 'this customer'} and this property. Confirm only after access has been handed over.`,confirmLabel:'Confirm handover',variant:'info'})) return;
     setBusy(true);
-    const { error } = await activateApartmentTenancy(row.current_reservation_id, startDate);
+    const { error } = await confirmApartmentHandover(bookingCode, startDate);
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success('Tenancy activated. Property is now Occupied.');
@@ -111,7 +117,8 @@ function HousingCase({ row, back }: { row: any; back: () => void }) {
 
     {row.reservation_status === 'ready_for_move_in' && !rentReady && <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4"><h4 className="text-sm font-semibold text-amber-300">Waiting for verified Year 1 rent</h4><p className="mt-1 text-[10px] leading-5 text-[#85808A]">The inspection passed, but Operations cannot activate occupancy until the full first-year rent is verified server-side.</p></section>}
 
-    {canMoveIn && <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.035] p-4"><h4 className="text-sm font-semibold text-emerald-300">Activate tenancy</h4><p className="mt-1 text-[10px] leading-5 text-[#788090]">Reservation fee, inspection and Year 1 rent gates are complete. Use this only when the real move-in is confirmed.</p><label className="mt-3 block"><span className="mb-1 block text-[9px] text-[#757B8C]">Move-in date</span><input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs" /></label><button disabled={busy} onClick={() => void activate()} className="mt-3 h-11 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">{busy ? 'Updating…' : 'Confirm move-in → Occupied'}</button></section>}
+    {canMoveIn && bookingCode && <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.035] p-4"><h4 className="text-sm font-semibold text-emerald-300">Confirm property handover</h4><p className="mt-1 text-[10px] leading-5 text-[#788090]">Booking code <span className="font-bold text-emerald-200">{bookingCode}</span> has been matched to this customer and property. Confirm only after the customer receives access.</p><label className="mt-3 block"><span className="mb-1 block text-[9px] text-[#757B8C]">Move-in date</span><input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs" /></label><button disabled={busy} onClick={() => void activate()} className="mt-3 h-11 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">{busy ? 'Updating…' : 'Confirm handover → Occupied'}</button></section>}
+    {canMoveIn && !bookingCode && <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4"><h4 className="text-sm font-semibold text-amber-300">Booking code required</h4><p className="mt-1 text-[10px] leading-5 text-[#85808A]">Return to the Reservation Desk and verify the code shown by the customer. A property cannot become Occupied from this record alone.</p></section>}
 
     {row.listing_status === 'occupied' && <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4"><h4 className="text-sm font-semibold text-violet-300">Complete tenancy</h4><p className="mt-1 text-[10px] leading-5 text-[#788090]">When the customer has moved out, close the tenancy and choose what happens to the property next.</p><div className="mt-3"><WeHouseSelect value={nextStatus} options={[{value:'maintenance',label:'Maintenance',description:'Inspect before returning it to the market'},{value:'available',label:'Available',description:'Return it to users immediately'},{value:'closed',label:'Closed',description:'Remove it from the market'}]} onChange={setNextStatus} eyebrow="Tenancy completion" title="What happens next?" ariaLabel="Choose property state after move-out"/></div><button disabled={busy} onClick={() => void complete()} className="mt-3 h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy ? 'Updating…' : 'Complete tenancy'}</button></section>}
 

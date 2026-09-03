@@ -673,8 +673,8 @@ export const STAFF_PERMISSION_LABELS: Record<StaffPermission, string> = {
   finance: "Finance",
   support: "Customer Support",
   security: "Security Operations",
-  verification: "Worker Verification",
-  field_officer: "Field Officer",
+  verification: "Worker Operations",
+  field_officer: "Field Operations",
   admin: "Admin",
 };
 

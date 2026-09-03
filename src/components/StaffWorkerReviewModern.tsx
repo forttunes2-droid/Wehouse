@@ -342,7 +342,7 @@ export default function StaffWorkerReviewModern() {
       {loading ? (
         <Empty text="Loading Worker reviews…" />
       ) : shown.length === 0 ? (
-        <Empty text="No Worker verification is waiting for review." />
+        <Empty text="No Worker review is waiting for action." />
       ) : (
         <div className="space-y-2">
           {shown.map((worker) => (
