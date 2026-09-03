@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
+import { workerOccupation } from '@/lib/workerTaxonomy';
 
 interface UserProfileModalProps {
   user: Profile | null;
@@ -201,7 +202,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
 
             {user.role === 'worker' && (
               <>
-                {user.worker_occupation && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p><p className="text-xs text-white/80 font-medium">{user.worker_occupation}</p></div>}
+                {user.worker_occupation && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p><p className="text-xs text-white/80 font-medium">{workerOccupation(user)}</p></div>}
                 {user.worker_bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{user.worker_bio}</p></div>}
                 {user.worker_skills && user.worker_skills.length > 0 && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Skills</p><div className="flex flex-wrap gap-1.5">{user.worker_skills.map((s: string, i: number) => <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20">{s}</span>)}</div></div>}
                 {user.worker_price && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Service Price</p><p className="text-xs text-white/80 font-medium">N{user.worker_price.toLocaleString()}</p></div>}

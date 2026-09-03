@@ -4,7 +4,7 @@ import {
   BOOKING_STATUS_LABELS,
 } from "@/lib/supabase/worker-bookings";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import WeHouseSelect from "@/components/WeHouseSelect";
+import InlineFilterChips from "@/components/InlineFilterChips";
 import { canonicalStatusOptions } from "@/lib/status";
 import type { Profile } from "@/types";
 import { Toaster, toast } from "sonner";
@@ -99,7 +99,7 @@ export default function MyBookings({ profile, onBack, embedded = false, stage, s
         </div>
       </header>}
       <main className={embedded ? "space-y-4" : "mx-auto max-w-3xl space-y-4 px-4 py-4"}>
-        {showFilters && <div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Status filter</span><WeHouseSelect value={view} options={statusOptions} onChange={setStatusFilter} eyebrow="Booking status" title="Filter by booking status" ariaLabel="Filter service bookings by status" className="max-w-[13rem] rounded-full"/></div>}
+        {showFilters && <InlineFilterChips value={view} options={statusOptions} onChange={setStatusFilter} ariaLabel="Show service bookings by lifecycle"/>}
         <div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5E6575]">
             ⌕

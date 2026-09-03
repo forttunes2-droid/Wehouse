@@ -987,7 +987,7 @@ function ConversationIdentitySheet({
               ? `${Number(profile.rating).toFixed(1)} ★ · ${Number(profile.review_count || 0)} reviews`
               : null,
           ],
-          ["Service", profile?.worker_occupation || booking?.service_type],
+          ["Service", booking?.service_type || "Service request"],
           ["Experience", profile?.worker_experience],
           [
             "Price",

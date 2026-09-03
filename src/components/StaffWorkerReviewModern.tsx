@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { workerOccupation } from "@/lib/workerTaxonomy";
 
 type Worker = {
   user_id: string;
@@ -165,7 +166,7 @@ export default function StaffWorkerReviewModern() {
                 {selected.full_name || selected.username || "Worker"}
               </h2>
               <p className="mt-1 text-[10px] text-[#747A8B]">
-                {selected.worker_occupation || "Service not set"} ·{" "}
+                {workerOccupation(selected)} ·{" "}
                 {[selected.local_government || selected.city, selected.state]
                   .filter(Boolean)
                   .join(", ")}
@@ -229,7 +230,7 @@ export default function StaffWorkerReviewModern() {
                 />
                 <Info
                   label="Service"
-                  value={selected.worker_occupation || "Not supplied"}
+                  value={workerOccupation(selected)}
                 />
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -356,7 +357,7 @@ export default function StaffWorkerReviewModern() {
                   {worker.full_name || worker.username || "Worker"}
                 </p>
                 <p className="mt-1 truncate text-[10px] text-[#666D7E]">
-                  {worker.worker_occupation || "Service not set"} ·{" "}
+                  {workerOccupation(worker)} ·{" "}
                   {[worker.local_government || worker.city, worker.state]
                     .filter(Boolean)
                     .join(", ")}

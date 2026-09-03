@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
-import { compressImageFile } from "@/lib/supabase";
+import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
 
 type Post = {
   id: string;
@@ -44,6 +44,7 @@ export default function WorkerShowcaseManager({
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [viewer, setViewer] = useState<Post | null>(null);
 
   const load = useCallback(async () => {
@@ -123,6 +124,7 @@ export default function WorkerShowcaseManager({
     const isVideo = file.type.startsWith("video/");
     setBusy(true);
     setPublishStage("preparing");
+    setUploadProgress(0);
     let path = "";
     try {
       const preserveOriginal = isVideo || (['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024);
@@ -130,13 +132,13 @@ export default function WorkerShowcaseManager({
       const ext = isVideo ? (file.name.split(".").pop() || "mp4").toLowerCase() : preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg';
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");
-      const { error: uploadError } = await supabase.storage
-        .from("worker-showcase")
-        .upload(path, uploadBody, {
-          contentType: isVideo || preserveOriginal ? file.type : 'image/jpeg',
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
+      await uploadStorageObjectWithProgress(
+        "worker-showcase",
+        path,
+        uploadBody,
+        isVideo || preserveOriginal ? file.type : "image/jpeg",
+        setUploadProgress,
+      );
 
       setPublishStage("saving");
       const { error } = await supabase.rpc("create_my_worker_showcase_post", {
@@ -163,6 +165,7 @@ export default function WorkerShowcaseManager({
     } finally {
       setBusy(false);
       setPublishStage("idle");
+      setUploadProgress(0);
     }
   }
 
@@ -207,7 +210,7 @@ export default function WorkerShowcaseManager({
     <section className="space-y-5">
       <div className="flex items-end justify-between gap-4 border-b border-white/[.07] pb-4">
         <div>
-          <p className="text-xs font-semibold">Published work</p>
+          <p className="text-xs font-semibold">Portfolio</p>
           <p className="mt-1 max-w-xl text-[9px] leading-relaxed text-[#6C7282]">
             Photos and videos customers can view until you remove them. Link a
             completed WeHouse job only when the media shows that exact work.
@@ -228,7 +231,7 @@ export default function WorkerShowcaseManager({
       />
 
       {file && (
-        <div className="fixed inset-0 z-[90] flex h-[100dvh] flex-col bg-[#08090D]">
+        <div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[#08090D]">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[.08] px-3">
             <button
               type="button"
@@ -250,7 +253,7 @@ export default function WorkerShowcaseManager({
               disabled={busy}
               className="rounded-full bg-violet-500 px-4 py-2 text-[10px] font-semibold disabled:opacity-50"
             >
-              {busy ? publishStage === 'preparing' ? "Preparing…" : publishStage === 'uploading' ? "Uploading…" : "Saving…" : "Publish"}
+              {busy ? publishStage === 'preparing' ? "Preparing…" : publishStage === 'uploading' ? `${uploadProgress}%` : "Saving…" : "Publish"}
             </button>
           </header>
           <main className="min-h-0 flex-1 overflow-y-auto">
@@ -286,17 +289,19 @@ export default function WorkerShowcaseManager({
               </div>
               <textarea
                 value={caption}
+                disabled={busy}
                 onChange={(event) =>
                   setCaption(event.target.value.slice(0, 300))
                 }
                 rows={3}
                 placeholder="Describe this work"
-                className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500"
+                className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
               />
               <select
                 value={bookingId}
+                disabled={busy}
                 onChange={(event) => setBookingId(event.target.value)}
-                className="h-12 w-full border-b border-white/[.1] bg-[#08090D] text-xs outline-none"
+                className="h-12 w-full border-b border-white/[.1] bg-[#08090D] text-xs outline-none disabled:opacity-50"
               >
                 <option value="">Not linked to a completed WeHouse job</option>
                 {jobs.map((job) => (
@@ -308,9 +313,25 @@ export default function WorkerShowcaseManager({
               </select>
               {bookingId && <p className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[9px] leading-4 text-amber-200">The customer from this job will receive the post in Activity. The “Completed through WeHouse” badge appears only after they confirm the media shows their completed work.</p>}
               {busy && (
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/[.08]">
-                  <div className="h-full w-2/3 animate-pulse rounded-full bg-violet-500" />
-                </div>
+                <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4" aria-live="polite">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold text-violet-200">
+                        {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading portfolio media" : "Creating your work post"}
+                      </p>
+                      <p className="mt-1 text-[8px] text-[#777E8E]">
+                        {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Almost done."}
+                      </p>
+                    </div>
+                    {publishStage === "uploading" && <span className="text-xs font-bold text-violet-200">{uploadProgress}%</span>}
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
+                    <div
+                      className={`h-full rounded-full bg-violet-500 transition-[width] ${publishStage === "uploading" ? "" : "w-1/3 animate-pulse"}`}
+                      style={publishStage === "uploading" ? { width: `${uploadProgress}%` } : undefined}
+                    />
+                  </div>
+                </section>
               )}
             </div>
           </main>
@@ -319,9 +340,9 @@ export default function WorkerShowcaseManager({
 
       <div>
         <div className="mb-2">
-          <h3 className="text-sm font-bold">Work Posts</h3>
+          <h3 className="text-sm font-bold">Portfolio</h3>
           <p className="mt-1 text-[9px] text-[#666D7E]">
-            Your public professional posts
+            Your published professional work
           </p>
         </div>
         {workPosts.length > 0 ? (

@@ -117,9 +117,12 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
     if (signingOut) return;
     setSigningOut(true);
     try {
-      if (onLogout) await onLogout();
-      else await supabase.auth.signOut({ scope: 'local' });
-      window.location.replace('/');
+      if (onLogout) {
+        await onLogout();
+        return;
+      }
+      await supabase.auth.signOut({ scope: 'local' });
+      window.location.replace(`${window.location.origin}/#login`);
     } catch {
       setSigningOut(false);
       toast.error('Could not log out. Check your connection and try again.');

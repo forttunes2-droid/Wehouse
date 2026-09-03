@@ -14,13 +14,14 @@ import type { Profile } from "@/types";
 import IdentityAccessGate from "@/components/IdentityAccessGate";
 import WorkerWallet from "@/pages/WorkerWallet";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
+import WorkerAvailabilityControl from "@/components/WorkerAvailabilityControl";
 
 type Tab = "home" | "jobs" | "conversations" | "work" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
   { id: "conversations", label: "Messages" },
-  { id: "work", label: "Showcase" },
+  { id: "work", label: "Portfolio" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
 ];
@@ -61,13 +62,16 @@ export default function WorkerWorkspaceModern({
   let content: React.ReactNode;
   if (live && safeTab === "jobs") {
     content = (
-      <WorkerJobsPanelV2
-        profile={profile}
-        onOpenConversation={(row) => {
-          setConversation(row);
-          setTab("conversations");
-        }}
-      />
+      <div className="space-y-4">
+        <WorkerAvailabilityControl profile={profile} />
+        <WorkerJobsPanelV2
+          profile={profile}
+          onOpenConversation={(row) => {
+            setConversation(row);
+            setTab("conversations");
+          }}
+        />
+      </div>
     );
   } else if (live && safeTab === "conversations") {
     content = (
@@ -100,7 +104,7 @@ export default function WorkerWorkspaceModern({
         : safeTab === "earnings"
           ? "See available earnings, withdrawals and your verified payout account."
         : safeTab === "work"
-          ? "Publish photos and videos that show customers the work you do."
+          ? "Publish and manage the professional work customers can view."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
             : live

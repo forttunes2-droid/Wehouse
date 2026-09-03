@@ -10,6 +10,7 @@ import SearchableSelect from "@/components/SearchableSelect";
 import BackButton from "@/components/BackButton";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
+import { occupationForService, workerOccupation } from '@/lib/workerTaxonomy';
 
 type Props = { profile: Profile; onComplete: () => void; onBack?: () => void };
 
@@ -21,9 +22,12 @@ export default function WorkerSetupProfessional({
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [subs, setSubs] = useState<ServiceSubcategory[]>([]);
   const [category, setCategory] = useState("");
+  const existingSkills = (profile.worker_skills as string[]) || [];
   const [specialty, setSpecialty] = useState(
-    ((profile.worker_skills as string[]) || [])[0] || "",
+    existingSkills.at(-1) || "",
   );
+  const initialOccupation = workerOccupation(profile);
+  const [occupation, setOccupation] = useState(initialOccupation === "Service professional" ? "" : initialOccupation);
   const [name, setName] = useState(profile.full_name || "");
   const [experience, setExperience] = useState(profile.worker_experience || "");
   const [bio, setBio] = useState(profile.worker_bio || "");
@@ -45,11 +49,16 @@ export default function WorkerSetupProfessional({
       const { categories: rows } = await getServiceCategories();
       setCategories(rows || []);
       const match = (rows || []).find(
-        (item) => item.name === profile.worker_occupation,
+        (item) => item.name === profile.worker_occupation || existingSkills.some((skill) => skill.toLowerCase() === item.name.toLowerCase()),
       );
-      if (match) setCategory(match.id);
+      if (match) {
+        setCategory(match.id);
+        const savedSpecialty = existingSkills.find((skill) => skill.toLowerCase() !== match.name.toLowerCase()) || "";
+        setSpecialty(savedSpecialty);
+        setOccupation((current) => current || occupationForService(match.name, savedSpecialty));
+      }
     })();
-  }, [profile.worker_occupation]);
+  }, [profile.worker_occupation, profile.worker_skills]);
 
   useEffect(() => {
     if (!category) {
@@ -72,12 +81,15 @@ export default function WorkerSetupProfessional({
   const hasChanges = useMemo(() => {
     if (!profile.profile_complete) return true;
     const service = categories.find((item) => item.id === category)?.name || "";
+    const storedService = existingSkills.find((skill) => categories.some((item) => item.name.toLowerCase() === skill.toLowerCase())) || (categories.some((item) => item.name === profile.worker_occupation) ? profile.worker_occupation || "" : "");
+    const storedSpecialty = existingSkills.find((skill) => skill.toLowerCase() !== storedService.toLowerCase()) || "";
     return (
       name.trim() !== (profile.full_name || "") ||
       avatar !== (profile.avatar_url || "") ||
       phone.trim() !== (profile.phone || "") ||
-      service !== (profile.worker_occupation || "") ||
-      specialty !== (((profile.worker_skills as string[]) || [])[0] || "") ||
+      service !== storedService ||
+      occupation.trim() !== workerOccupation(profile) ||
+      specialty !== storedSpecialty ||
       price !== (profile.worker_price ? String(profile.worker_price) : "") ||
       bio.trim() !== (profile.worker_bio || "") ||
       experience.trim() !== (profile.worker_experience || "") ||
@@ -94,6 +106,7 @@ export default function WorkerSetupProfessional({
     experience,
     location,
     name,
+    occupation,
     phone,
     price,
     profile,
@@ -106,6 +119,7 @@ export default function WorkerSetupProfessional({
     if (!name.trim()) return toast.error("Add your full name");
     if (!service || !specialty)
       return toast.error("Choose your service and specialty");
+    if (!occupation.trim()) return toast.error("Add your occupation");
     if (!experience.trim()) return toast.error("Add your work experience");
     if (!location.state || !location.city)
       return toast.error("Choose your State and LGA");
@@ -115,8 +129,8 @@ export default function WorkerSetupProfessional({
       full_name: name.trim(),
       avatar_url: avatar || null,
       phone: phone.trim() || null,
-      worker_occupation: service.name,
-      worker_skills: [specialty],
+      worker_occupation: occupation.trim(),
+      worker_skills: Array.from(new Set([service.name, specialty])),
       worker_price: price ? Number(price) : null,
       worker_bio: bio.trim() || null,
       worker_experience: experience.trim(),
@@ -203,7 +217,7 @@ export default function WorkerSetupProfessional({
             <div className="mb-3">
               <h2 className="text-sm font-semibold">What do you do?</h2>
               <p className="mt-1 text-[9px] text-[#697080]">
-                Choose your main service and specialty.
+                Service is what customers need. Occupation is who you are. Specialty is the exact work you perform.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -213,6 +227,8 @@ export default function WorkerSetupProfessional({
                 onChange={(value) => {
                   setCategory(value);
                   setSpecialty("");
+                  const serviceName = categories.find((item) => item.id === value)?.name || "";
+                  setOccupation(occupationForService(serviceName, ""));
                 }}
                 options={categoryOptions}
                 placeholder="Choose service"
@@ -221,7 +237,11 @@ export default function WorkerSetupProfessional({
               <SearchableSelect
                 label="Specialty"
                 value={specialty}
-                onChange={setSpecialty}
+                onChange={(value) => {
+                  setSpecialty(value);
+                  const serviceName = categories.find((item) => item.id === category)?.name || "";
+                  setOccupation(occupationForService(serviceName, value));
+                }}
                 options={specialtyOptions}
                 placeholder={
                   category ? "Choose specialty" : "Choose service first"
@@ -229,6 +249,10 @@ export default function WorkerSetupProfessional({
                 searchPlaceholder="Search specialty"
                 disabled={!category}
               />
+            </div>
+            <div className="mt-3">
+              <Field label="Occupation" value={occupation} set={setOccupation} />
+              <p className="mt-1.5 text-[8px] text-[#5F6676]">Example: Electrical Service → Electrician · Hairstyling Service → Hairstylist</p>
             </div>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">

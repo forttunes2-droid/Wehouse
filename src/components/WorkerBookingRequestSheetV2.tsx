@@ -4,7 +4,7 @@ import SearchableSelect from "@/components/SearchableSelect";
 import GoldTickBadge from "@/components/GoldTickBadge";
 import { createBookingRequest } from "@/lib/supabase/worker-bookings";
 import { supabase } from "@/lib/supabase";
-import { WORKER_OCCUPATION_LABELS } from "@/types";
+import { workerOccupation } from "@/lib/workerTaxonomy";
 import type { Profile } from "@/types";
 
 type Props = {
@@ -101,10 +101,7 @@ export default function WorkerBookingRequestSheetV2({
         seen.add(key);
         return true;
       });
-      const fallback =
-        WORKER_OCCUPATION_LABELS[worker.worker_occupation || ""] ||
-        worker.worker_occupation ||
-        "";
+      const fallback = workerOccupation(worker);
       const next = unique.length ? unique : fallback ? [fallback] : [];
       setServices(next);
       setService(next[0] || "");

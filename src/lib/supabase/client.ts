@@ -29,6 +29,65 @@ export const recoveryRequestClient = createClient(SUPABASE_URL, SUPABASE_ANON_KE
   },
 });
 
+export async function uploadStorageObjectWithProgress(
+  bucket: string,
+  path: string,
+  body: Blob,
+  contentType: string,
+  onProgress: (percent: number) => void,
+) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session?.access_token) {
+    throw error || new Error('Your session expired. Sign in and try the upload again.');
+  }
+
+  const safePath = path.split('/').map(encodeURIComponent).join('/');
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let settled = false;
+    let stallTimer = window.setTimeout(() => xhr.abort(), 60000);
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(stallTimer);
+      callback();
+    };
+    const resetStallTimer = () => {
+      window.clearTimeout(stallTimer);
+      stallTimer = window.setTimeout(() => xhr.abort(), 60000);
+    };
+
+    xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(bucket)}/${safePath}`);
+    xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+    xhr.setRequestHeader('authorization', `Bearer ${data.session.access_token}`);
+    xhr.setRequestHeader('content-type', contentType || 'application/octet-stream');
+    xhr.setRequestHeader('x-upsert', 'false');
+    xhr.setRequestHeader('cache-control', '3600');
+    xhr.upload.onprogress = (event) => {
+      resetStallTimer();
+      if (event.lengthComputable && event.total > 0) {
+        onProgress(Math.min(99, Math.max(1, Math.round((event.loaded / event.total) * 100))));
+      }
+    };
+    xhr.onload = () => finish(() => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+        return;
+      }
+      let message = 'The media could not be uploaded.';
+      try {
+        const payload = JSON.parse(xhr.responseText || '{}');
+        message = payload.message || payload.error || message;
+      } catch {}
+      reject(new Error(message));
+    });
+    xhr.onerror = () => finish(() => reject(new Error('Upload connection failed. Check your network and try again.')));
+    xhr.onabort = () => finish(() => reject(new Error('Upload stopped because no progress was received for 60 seconds. Try again on a stable connection.')));
+    xhr.send(body);
+  });
+}
+
 // ─── DIAGNOSTICS ───────────────────────────────────
 
 export interface DiagnosticsResult {
