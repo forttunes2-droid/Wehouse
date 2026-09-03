@@ -18,10 +18,10 @@ import { useCreatorInboxSummary } from '@/hooks/useCreatorInboxSummary';
 import type { Profile } from '@/types';
 
 type Tab = 'home' | 'operations' | 'inbox' | 'settings';
-type HomeView = 'overview' | 'finance' | 'analytics' | 'audit';
-type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'reports';
+type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'reports' | 'finance' | 'analytics' | 'audit';
 type PersonRole = 'user' | 'property_partner';
-type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string) => void; onGoToChat?: (id?: string) => void };
+type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string, id?: string) => void; onGoToChat?: (id?: string) => void };
+type OperationTarget = { operation: Operation; id?: string } | null;
 
 const NAV = [
   { id: 'home', label: 'Home' },
@@ -31,40 +31,68 @@ const NAV = [
 ];
 
 const NOTES: Record<Tab, string> = {
-  home: 'Platform health, finance, analytics and important changes.',
-  operations: 'People, Team, properties, Workers, bookings and listing issues.',
+  home: 'A single overview of live inventory, people and work needing attention.',
+  operations: 'Open the authoritative record for people, properties, bookings and platform control.',
   inbox: 'Support conversations and recent Activity.',
   settings: 'Platform rules, trust and marketplace configuration.',
 };
 
-const OPS: Array<{ id: Operation; label: string; note: string }> = [
-  { id: 'people', label: 'People', note: 'Regular Users and Property Partners.' },
-  { id: 'team', label: 'Team', note: 'Admins, Operations members, branches and work areas.' },
-  { id: 'properties', label: 'Properties', note: 'Review submissions, visits and publishing.' },
-  { id: 'workers', label: 'Workers', note: 'Worker onboarding and account decisions.' },
-  { id: 'bookings', label: 'Bookings', note: 'Worker services, apartments and hotel stays.' },
-  { id: 'reports', label: 'Listing issues', note: 'Review complaints about published listings.' },
+const OPS: Array<{ id: Operation; label: string; note: string; group: 'Accounts' | 'Marketplace' | 'Platform' }> = [
+  { id: 'people', label: 'People', note: 'Regular Users and Property Partners.', group: 'Accounts' },
+  { id: 'team', label: 'Team', note: 'Admins, Operations members, branches and work areas.', group: 'Accounts' },
+  { id: 'properties', label: 'Properties', note: 'Review submissions, visits and publishing.', group: 'Marketplace' },
+  { id: 'workers', label: 'Workers', note: 'Worker onboarding and account decisions.', group: 'Marketplace' },
+  { id: 'bookings', label: 'Bookings', note: 'Worker services, apartments and hotel stays.', group: 'Marketplace' },
+  { id: 'reports', label: 'Listing issues', note: 'Review complaints about published listings.', group: 'Marketplace' },
+  { id: 'finance', label: 'Finance', note: 'Payout requests and platform settlement records.', group: 'Platform' },
+  { id: 'analytics', label: 'Analytics', note: 'Platform trends and lifecycle movement.', group: 'Platform' },
+  { id: 'audit', label: 'Change history', note: 'Accountable changes to platform records.', group: 'Platform' },
 ];
+const OP_GROUPS = ['Accounts', 'Marketplace', 'Platform'] as const;
 
 export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
   const [tab, setTab] = useState<Tab>('home');
-  const [homeView, setHomeView] = useState<HomeView>('overview');
   const [operation, setOperation] = useState<Operation | null>(null);
+  const [operationTarget, setOperationTarget] = useState<OperationTarget>(null);
+  const [inboxTargetId, setInboxTargetId] = useState<string | undefined>();
   const [viewing, setViewing] = useState<Profile | null>(null);
   const inboxSummary = useCreatorInboxSummary(profile.user_id);
 
-  function openOperation(next: Operation) { setOperation(next); setTab('operations'); }
-  function openHome(next: HomeView) { setHomeView(next); setTab('home'); }
+  function openOperation(next: Operation, id?: string) {
+    setOperationTarget({ operation: next, id });
+    setOperation(next);
+    setTab('operations');
+  }
+
+  function openCreatorDestination(page: string, id?: string) {
+    const route = String(page || '').toLowerCase();
+    if (route === 'operations_properties' || route === 'listing_detail' || route === 'detail' || route.includes('propert')) {
+      openOperation('properties', id);
+      return;
+    }
+    if (route === 'operations_inbox' || route === 'my_reservations' || route === 'my_bookings' || route.includes('reservation') || route.includes('booking')) {
+      openOperation('bookings', id);
+      return;
+    }
+    if (route.includes('worker')) {
+      openOperation('workers', id);
+      return;
+    }
+    if (route === 'conversation' || route === 'messages' || route === 'chat') {
+      setInboxTargetId(id);
+      setTab('inbox');
+      return;
+    }
+    onNavigate?.(page, id);
+  }
 
   const nav = NAV.map((item) => item.id === 'inbox' ? { ...item, badge: inboxSummary.totalUnread } : item);
-  const homeTitle = homeView === 'overview' ? 'Home' : homeView === 'finance' ? 'Finance' : homeView === 'analytics' ? 'Analytics' : 'Change history';
-
   return (
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
         label="WEHOUSE · CREATOR"
-        title={tab === 'home' ? homeTitle : NAV.find((item) => item.id === tab)?.label || 'Creator'}
+        title={NAV.find((item) => item.id === tab)?.label || 'Creator'}
         description={NOTES[tab]}
         items={nav}
         active={tab}
@@ -72,20 +100,17 @@ export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoTo
         onAccount={onNavigate ? () => onNavigate('profile') : undefined}
         onLogout={onLogout}
       >
-        {tab === 'home' && homeView === 'overview' && <Overview openOperation={openOperation} openInbox={() => setTab('inbox')} openHome={openHome} />}
-        {tab === 'home' && homeView === 'finance' && <Nested title="Finance" back={() => setHomeView('overview')}><Finance /></Nested>}
-        {tab === 'home' && homeView === 'analytics' && <Nested title="Analytics" back={() => setHomeView('overview')}><CreatorAnalyticsV2 profile={profile} /></Nested>}
-        {tab === 'home' && homeView === 'audit' && <Nested title="Change history" back={() => setHomeView('overview')}><CreatorAuditWorkspace /></Nested>}
-        {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} />}
-        {tab === 'inbox' && <CreatorInbox profile={profile} onNavigate={onNavigate} onGoToChat={onGoToChat} summary={inboxSummary} />}
+        {tab === 'home' && <Overview openOperation={openOperation} openInbox={() => setTab('inbox')} />}
+        {tab === 'operations' && <Operations profile={profile} active={operation} target={operationTarget} setActive={(next) => { setOperation(next); if (!next) setOperationTarget(null); }} onView={setViewing} />}
+        {tab === 'inbox' && <CreatorInbox profile={profile} onNavigate={openCreatorDestination} onGoToChat={onGoToChat} initialConversationId={inboxTargetId} summary={inboxSummary} />}
         {tab === 'settings' && <Settings profile={profile} />}
       </WorkspaceFrameV2>
-      {viewing && <UserProfileModal user={viewing} adminProfile={profile} onClose={() => setViewing(null)} onNavigate={onNavigate} onGoToChat={onGoToChat} />}
+      {viewing && <UserProfileModal user={viewing} adminProfile={profile} onClose={() => setViewing(null)} onNavigate={openCreatorDestination} onGoToChat={onGoToChat} />}
     </>
   );
 }
 
-function Overview({ openOperation, openInbox, openHome }: { openOperation: (tab: Operation) => void; openInbox: () => void; openHome: (view: HomeView) => void }) {
+function Overview({ openOperation, openInbox }: { openOperation: (tab: Operation) => void; openInbox: () => void }) {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -113,22 +138,23 @@ function Overview({ openOperation, openInbox, openHome }: { openOperation: (tab:
     ['Published apartments', stats?.listings || 0, () => openOperation('properties'), 'Public apartment inventory'],
     ['Published hotels', stats?.hotels || 0, () => openOperation('properties'), 'Public hotel inventory'],
     ['Property inspections', stats?.pendingInspections || 0, () => openOperation('properties'), 'Pending or active field work'],
-    ['Payout requests', stats?.pendingPayouts || 0, () => openHome('finance'), 'Worker and Partner settlements'],
+    ['Payout requests', stats?.pendingPayouts || 0, () => openOperation('finance'), 'Worker and Partner settlements'],
   ];
 
-  return <div className="space-y-5"><section className="border-b border-white/[.07] pb-5"><h2 className="text-2xl font-bold sm:text-3xl">What needs your attention</h2><div className="mt-4 flex flex-wrap gap-2"><Quick label="Properties" onClick={() => openOperation('properties')} primary /><Quick label="Inbox" onClick={openInbox} /><Quick label="Finance" onClick={() => openHome('finance')} /><Quick label="Analytics" onClick={() => openHome('analytics')} /><Quick label="Change history" onClick={() => openHome('audit')} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
+  return <div className="space-y-5"><section className="border-b border-white/[.07] pb-5"><h2 className="text-2xl font-bold sm:text-3xl">What needs your attention</h2><p className="mt-2 max-w-xl text-[10px] leading-5 text-[#73798A]">Counts open the same authoritative records used by Operations. Nothing here creates a second dashboard or a duplicate status.</p><div className="mt-4 flex flex-wrap gap-2"><Quick label="Review properties" onClick={() => openOperation('properties')} primary /><Quick label="Open Inbox" onClick={openInbox} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
 }
 
-function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation | null; setActive: (value: Operation | null) => void; onView: (profile: Profile) => void }) {
-  if (!active) return <div className="space-y-4"><h2 className="text-lg font-bold">Operations</h2><div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">{OPS.map((item,index)=><div key={item.id}>{index>0&&<div className="ml-4 h-px bg-white/[.055]"/>}<button onClick={()=>setActive(item.id)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left"><span><strong className="block text-sm">{item.label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{item.note}</span></span><span className="text-[#697082]">›</span></button></div>)}</div></div>;
+function Operations({ profile, active, target, setActive, onView }: { profile: Profile; active: Operation | null; target: OperationTarget; setActive: (value: Operation | null) => void; onView: (profile: Profile) => void }) {
+  if (!active) return <div className="space-y-5"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose a work area. Each opens its canonical records inside this Operations workspace.</p>{OP_GROUPS.map(group=><section key={group}><h2 className="mb-2 text-[9px] font-bold uppercase tracking-[.16em] text-[#686F80]">{group}</h2><div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">{OPS.filter(item=>item.group===group).map((item,index)=><div key={item.id}>{index>0&&<div className="ml-4 h-px bg-white/[.055]"/>}<button onClick={()=>setActive(item.id)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left"><span><strong className="block text-sm">{item.label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{item.note}</span></span><span className="text-[#697082]">›</span></button></div>)}</div></section>)}</div>;
   const current=OPS.find(item=>item.id===active)!;
-  return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={()=>setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Operations">‹</button><div><h2 className="text-lg font-bold">{current.label}</h2><p className="mt-0.5 text-[9px] text-[#707687]">{current.note}</p></div></header>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings />}{active === 'reports' && <Reports />}</div>;
+  return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={()=>setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Operations">‹</button><div><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Operations</p><h2 className="mt-0.5 text-lg font-bold">{current.label}</h2><p className="mt-0.5 text-[9px] text-[#707687]">{current.note}</p></div></header>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} initialRecordId={target?.operation === 'properties' ? target.id : undefined} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings initialRecordId={target?.operation === 'bookings' ? target.id : undefined} />}{active === 'reports' && <Reports />}{active === 'finance' && <Finance />}{active === 'analytics' && <CreatorAnalyticsV2 profile={profile} />}{active === 'audit' && <CreatorAuditWorkspace />}</div>;
 }
 
-function CreatorInbox({profile,onNavigate,onGoToChat,summary}:{profile:Profile;onNavigate?:Props['onNavigate'];onGoToChat?:Props['onGoToChat'];summary:ReturnType<typeof useCreatorInboxSummary>}){
+function CreatorInbox({profile,onNavigate,onGoToChat,initialConversationId,summary}:{profile:Profile;onNavigate?:Props['onNavigate'];onGoToChat?:Props['onGoToChat'];initialConversationId?:string;summary:ReturnType<typeof useCreatorInboxSummary>}){
   const[view,setView]=useState<'chats'|'activity'|'compose'>('chats');
+  useEffect(()=>{if(initialConversationId)setView('chats')},[initialConversationId]);
   if(view==='compose')return <Nested title="New update" back={()=>setView('activity')}><CommunicationsWorkspace profile={profile} scope="all" forcedView="broadcast" hideViewTabs/></Nested>;
-  return <div className="space-y-4"><div className="grid grid-cols-2 border-b border-white/[.07]">{([['chats','Chats',summary.messageUnread],['activity','Activity',summary.activityUnread]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative min-h-12 text-xs font-semibold ${view===id?'text-white':'text-[#747A8B]'}`}>{label}{count>0?` · ${count>99?'99+':count}`:''}{view===id&&<span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</div>{view==='chats'?<CommunicationsWorkspace profile={profile} scope="all" forcedView="inbox" hideViewTabs onOpenConversation={onGoToChat} onUnreadChange={summary.setMessageUnread}/>:<><div className="flex justify-end"><button onClick={()=>setView('compose')} className="rounded-xl border border-violet-500/20 bg-violet-500/[.08] px-3 py-2 text-[10px] font-semibold text-violet-200">Post update</button></div><Notifications profile={profile} embedded onUnreadChange={summary.setActivityUnread} onNavigate={(page)=>onNavigate?.(page)}/></>}</div>;
+  return <div className="space-y-4"><div className="grid grid-cols-2 border-b border-white/[.07]">{([['chats','Chats',summary.messageUnread],['activity','Activity',summary.activityUnread]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative min-h-12 text-xs font-semibold ${view===id?'text-white':'text-[#747A8B]'}`}>{label}{count>0?` · ${count>99?'99+':count}`:''}{view===id&&<span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</div>{view==='chats'?<CommunicationsWorkspace profile={profile} scope="all" forcedView="inbox" hideViewTabs initialConversationId={initialConversationId} onOpenConversation={onGoToChat} onUnreadChange={summary.setMessageUnread}/>:<><div className="flex justify-end"><button onClick={()=>setView('compose')} className="rounded-xl border border-violet-500/20 bg-violet-500/[.08] px-3 py-2 text-[10px] font-semibold text-violet-200">Post update</button></div><Notifications profile={profile} embedded onUnreadChange={summary.setActivityUnread} onNavigate={(page,id)=>onNavigate?.(page,id)}/></>}</div>;
 }
 
 function Nested({title,back,children}:{title:string;back:()=>void;children:React.ReactNode}){return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={back} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back">‹</button><h2 className="text-lg font-bold">{title}</h2></header>{children}</div>}
@@ -144,11 +170,13 @@ function People({ onView }: { onView: (profile: Profile) => void }) {
   return <Section title="People" note="Regular Users and Property Partners. Team members and Workers have dedicated workspaces."><div className="flex gap-2"><Chip active={role==='user'} onClick={()=>setRole('user')}>Users</Chip><Chip active={role==='property_partner'} onClick={()=>setRole('property_partner')}>Property Partners</Chip></div><input value={search} onChange={(event)=>setSearch(event.target.value)} placeholder="Search accounts" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none focus:border-violet-500/40"/>{loading?<Loading/>:shown.length===0?<Empty text="No matching accounts."/>:<div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{shown.slice(0,120).map((person)=><button key={person.user_id} onClick={()=>onView(person)} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left"><p className="truncate text-sm font-semibold">{person.full_name||person.username||'WeHouse account'}</p><p className="mt-1 truncate text-[9px] text-[#666D7E]">{person.email}</p><p className="mt-2 text-[8px] capitalize text-[#565D6E]">{String(person.role||'user').replace(/_/g,' ')} · {[person.local_government||person.city,person.state].filter(Boolean).join(', ')||'Location not set'}</p></button>)}</div>}</Section>;
 }
 
-function Bookings() {
-  const [view,setView]=useState<'worker'|'apartments'|'hotels'>('worker');
+function Bookings({initialRecordId}:{initialRecordId?:string}) {
+  const [view,setView]=useState<'worker'|'apartments'|'hotels'>(initialRecordId?'apartments':'worker');
   const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(false);
   const [search,setSearch]=useState('');
-  useEffect(()=>{if(view!=='worker')void load()},[view]);
+  const [selected,setSelected]=useState<any|null>(null);
+  useEffect(()=>{if(initialRecordId)setView('apartments')},[initialRecordId]);
+  useEffect(()=>{if(view!=='worker')void load()},[view,initialRecordId]);
   async function load(){
     setLoading(true);let data:any[]=[];let error:any=null;
     if(view==='apartments'){
@@ -177,10 +205,27 @@ function Bookings() {
         else{const byId=new Map((profiles.data||[]).map((person:any)=>[person.user_id,person]));data=data.map((row:any)=>({...row,customer:byId.get(row.user_id)||null}))}
       }
     }
-    if(error)toast.error(error.message);setRows(data);setLoading(false);
+    if(error)toast.error(error.message);
+    setRows(data);
+    if(!error&&initialRecordId){
+      const target=data.find((row:any)=>[row.id,row.booking_id,row.reservation_id].filter(Boolean).some(value=>String(value)===String(initialRecordId)));
+      if(target)setSelected(target);
+      else if(view==='apartments')toast.error('The linked booking record is no longer available.');
+    }
+    setLoading(false);
   }
   const shown=useMemo(()=>{const q=search.trim().toLowerCase();return rows.filter((row)=>{const property=view==='hotels'?row.hotels?.name:(row.listing?.title||row.listing_title);const customer=row.guest_name||row.customer?.full_name||row.customer?.username||row.customer?.email||row.user_email;const code=row.booking_code;return !q||[property,customer,code,row.hotels?.city,row.hotels?.state,row.listing?.city,row.listing?.state,row.status].filter(Boolean).join(' ').toLowerCase().includes(q)})},[rows,search,view]);
-  return <div className="space-y-4"><div><h2 className="text-lg font-bold">Bookings</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Worker services, apartment reservations and hotel stays, organised by customer, property and booking code.</p></div><nav className="grid grid-cols-3 border-y border-white/[.07]" aria-label="Booking types">{([['worker','Worker services'],['apartments','Apartments'],['hotels','Hotels']] as const).map(([id,label])=><button key={id} onClick={()=>{setView(id);setSearch('')}} className={`relative min-h-12 px-1 text-[9px] font-semibold ${view===id?'text-violet-300':'text-[#73798A]'}`}>{label}{view===id&&<span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</nav>{view==='worker'?<ServiceBookingOversight title="Worker service bookings" note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."/>:<><input value={search} onChange={(event)=>setSearch(event.target.value)} aria-label={`Search ${view} bookings`} placeholder="Search customer, property or booking code" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none focus:border-violet-500/40"/>{loading?<Loading/>:shown.length===0?<Empty text={rows.length?'No bookings match your search.':'No bookings in this view.'}/>:<div className="divide-y divide-white/[.065] border-y border-white/[.065]">{shown.map((row)=>{const media=view==='hotels'?row.hotels?.images?.[0]:row.listing?.images?.[0];const title=view==='hotels'?(row.hotels?.name||'Hotel booking'):(row.listing?.title||row.listing_title||'Apartment reservation');const location=view==='hotels'?[row.hotels?.city,row.hotels?.state]:[row.listing?.city,row.listing?.state];const customer=row.guest_name||row.customer?.full_name||row.customer?.username||row.customer?.email||row.user_email||'Customer name unavailable';const code=row.booking_code||'Booking code unavailable';return <div key={row.id||row.booking_id} className="flex min-h-24 items-center gap-3 py-3">{media?<img src={media} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover"/>:<div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xs font-bold text-violet-300">WH</div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{customer}</p><p className="mt-1 truncate text-[10px] text-[#9BA0AF]">{title}</p><p className="mt-1 truncate text-[9px] text-[#686F7F]">{location.filter(Boolean).join(', ')||'Location unavailable'} · {new Date(row.created_at).toLocaleString()}</p><p className="mt-1 truncate text-[8px] font-semibold tracking-wide text-violet-300">{code}</p></div><div className="shrink-0 text-right">{(row.total_price||row.amount||row.reservation_fee_amount)!=null&&<p className="mb-1 text-xs font-bold">₦{Number(row.total_price||row.amount||row.reservation_fee_amount||0).toLocaleString('en-NG')}</p>}<span className="rounded-full bg-white/[.05] px-2 py-1 text-[8px] capitalize text-[#A2A7B5]">{String(row.status||'recorded').replace(/_/g,' ')}</span></div></div>})}</div>}</>}</div>;
+  if(selected)return <BookingRecord row={selected} kind={view==='hotels'?'hotel':'apartment'} onBack={()=>setSelected(null)}/>;
+  return <div className="space-y-4"><div><h2 className="text-lg font-bold">Booking records</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Worker services, apartment reservations and hotel stays, organised by customer, property and booking code.</p></div><nav className="grid grid-cols-3 border-y border-white/[.07]" aria-label="Booking types">{([['worker','Worker services'],['apartments','Apartments'],['hotels','Hotels']] as const).map(([id,label])=><button key={id} onClick={()=>{setView(id);setSearch('');setSelected(null)}} className={`relative min-h-12 px-1 text-[9px] font-semibold ${view===id?'text-violet-300':'text-[#73798A]'}`}>{label}{view===id&&<span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</nav>{view==='worker'?<ServiceBookingOversight title="Worker service bookings" note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."/>:<><input value={search} onChange={(event)=>setSearch(event.target.value)} aria-label={`Search ${view} bookings`} placeholder="Search customer, property or booking code" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none focus:border-violet-500/40"/>{loading?<Loading/>:shown.length===0?<Empty text={rows.length?'No bookings match your search.':'No bookings in this view.'}/>:<div className="divide-y divide-white/[.065] border-y border-white/[.065]">{shown.map((row)=>{const media=view==='hotels'?row.hotels?.images?.[0]:row.listing?.images?.[0];const title=view==='hotels'?(row.hotels?.name||'Hotel booking'):(row.listing?.title||row.listing_title||'Apartment reservation');const location=view==='hotels'?[row.hotels?.city,row.hotels?.state]:[row.listing?.city,row.listing?.state];const customer=row.guest_name||row.customer?.full_name||row.customer?.username||row.customer?.email||row.user_email||'Customer name unavailable';const code=row.booking_code||'Booking code unavailable';return <button key={row.id||row.booking_id} onClick={()=>setSelected(row)} className="flex min-h-24 w-full items-center gap-3 py-3 text-left">{media?<img src={media} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover"/>:<div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xs font-bold text-violet-300">WH</div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{customer}</p><p className="mt-1 truncate text-[10px] text-[#9BA0AF]">{title}</p><p className="mt-1 truncate text-[9px] text-[#686F7F]">{location.filter(Boolean).join(', ')||'Location unavailable'} · {new Date(row.created_at).toLocaleString()}</p><p className="mt-1 truncate text-[8px] font-semibold tracking-wide text-violet-300">{code}</p></div><div className="shrink-0 text-right">{(row.total_price||row.amount||row.reservation_fee_amount)!=null&&<p className="mb-1 text-xs font-bold">₦{Number(row.total_price||row.amount||row.reservation_fee_amount||0).toLocaleString('en-NG')}</p>}<span className="rounded-full bg-white/[.05] px-2 py-1 text-[8px] capitalize text-[#A2A7B5]">{String(row.status||'recorded').replace(/_/g,' ')}</span><span className="ml-2 text-[#686F7F]">›</span></div></button>})}</div>}</>}</div>;
+}
+
+function BookingRecord({row,kind,onBack}:{row:any;kind:'apartment'|'hotel';onBack:()=>void}){
+  const property=kind==='hotel'?(row.hotels?.name||'Hotel stay'):(row.listing?.title||row.listing_title||'Apartment reservation');
+  const location=kind==='hotel'?[row.hotels?.city,row.hotels?.state]:[row.listing?.city,row.listing?.state];
+  const customer=row.guest_name||row.customer?.full_name||row.customer?.username||row.customer?.email||row.user_email||'Customer name unavailable';
+  const amount=Number(row.total_price||row.amount||row.reservation_fee_amount||0);
+  const facts=[['Customer',customer],['Property',property],['Location',location.filter(Boolean).join(', ')||'Location unavailable'],['Booking code',row.booking_code||'Unavailable'],['Created',row.created_at?new Date(row.created_at).toLocaleString():'Unavailable'],['Amount',amount?`₦${amount.toLocaleString('en-NG')}`:'Not recorded']];
+  return <section className="space-y-5"><header className="flex items-start gap-3 border-b border-white/[.07] pb-4"><button onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to booking records">‹</button><div className="min-w-0 flex-1"><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">{kind==='hotel'?'Hotel booking':'Apartment reservation'}</p><h2 className="mt-1 truncate text-lg font-bold">{property}</h2><p className="mt-1 truncate text-[10px] text-[#707687]">{row.booking_code||String(row.id||row.booking_id||'')}</p></div><span className="shrink-0 rounded-full bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold capitalize text-violet-200">{String(row.status||'recorded').replace(/_/g,' ')}</span></header><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{facts.map(([label,value])=><div key={label} className="flex min-h-12 items-center justify-between gap-4 py-3 text-[10px]"><span className="text-[#6D7384]">{label}</span><span className="max-w-[68%] text-right font-semibold text-[#D8DAE2]">{value}</span></div>)}</div>{row.rent_payment_status&&<div className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4"><p className="text-[9px] uppercase tracking-wide text-[#686F80]">Payment state</p><p className="mt-2 text-sm font-semibold capitalize">{String(row.rent_payment_status).replace(/_/g,' ')}</p></div>}</section>;
 }
 
 function Reports() {

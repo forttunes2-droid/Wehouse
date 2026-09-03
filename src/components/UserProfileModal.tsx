@@ -10,7 +10,7 @@ interface UserProfileModalProps {
   adminProfile?: Profile | null;
   onClose: () => void;
   onPromote?: () => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 }
 
@@ -212,7 +212,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
             {user.role === 'property_partner' && partnerProperties.length > 0 && (
               <div className="glass rounded-2xl p-4 space-y-3">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Properties ({partnerProperties.length})</p>
-                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.(`detail_${prop.id}`); onClose(); }} className="w-full text-left glass rounded-xl p-3 hover:bg-[#1A1A24] transition-colors"><p className="text-xs font-medium text-white truncate">{prop.title}</p><div className="flex items-center justify-between mt-1"><span className="text-[10px] text-[#5C5E72]">{prop.city}, {prop.state}</span><span className="text-[10px] text-[#8B5CF6]">N{prop.price?.toLocaleString()}</span></div></button>)}
+                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.('operations_properties', prop.id); onClose(); }} className="flex min-h-16 w-full items-center justify-between gap-3 border-b border-white/[.055] py-3 text-left last:border-b-0"><span className="min-w-0"><span className="block truncate text-xs font-medium text-white">{prop.title}</span><span className="mt-1 block truncate text-[9px] text-[#666C7D]">{prop.city}, {prop.state} · {String(prop.status||'recorded').replace(/_/g,' ')}</span></span><span className="shrink-0 text-right"><span className="block text-[10px] font-semibold text-violet-300">₦{prop.price?.toLocaleString()}</span><span className="mt-1 block text-[9px] text-[#666C7D]">Open record ›</span></span></button>)}
               </div>
             )}
 

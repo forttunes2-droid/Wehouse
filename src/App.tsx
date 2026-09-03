@@ -667,7 +667,11 @@ export default function App() {
         <CreatorDashboard
           profile={profile}
           onLogout={auth.logout}
-          onNavigate={(p) => goTo(p as NavPage)}
+          onNavigate={(p, id) => {
+            if (id && (p === 'detail' || p === 'listing_detail')) return goToDetail(id);
+            if (id && (p === 'conversation' || p === 'messages' || p === 'chat')) return goToChat(id);
+            goTo(p as NavPage);
+          }}
           onGoToChat={goToChat}
         />
       );
