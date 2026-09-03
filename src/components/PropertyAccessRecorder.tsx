@@ -1,102 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-type Props = {
-  code: string;
-  expiresAt: string;
-  recordedFile: File | null;
-  onRecorded: (file: File | null) => void;
-};
+type Props={code:string;expiresAt:string;recordedFile:File|null;onRecorded:(file:File|null)=>void};
 
-export default function PropertyAccessRecorder({ code, expiresAt, recordedFile, onRecorded }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<number | null>(null);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach(track => track.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setCameraReady(false);
-  }
-
-  useEffect(() => () => {
-    if (timerRef.current) window.clearInterval(timerRef.current);
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-    streamRef.current?.getTracks().forEach(track => track.stop());
-  }, []);
-
-  async function openCamera() {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      return toast.error('Live camera recording is not supported by this browser');
-    }
-    try {
-      stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: true,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraReady(true);
-    } catch (error) {
-      toast.error(error instanceof Error && error.name === 'NotAllowedError' ? 'Allow camera and microphone access to record at the property' : 'The live camera could not be opened');
-    }
-  }
-
-  function beginRecording() {
-    const stream = streamRef.current;
-    if (!stream) return;
-    const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-      .find(type => MediaRecorder.isTypeSupported(type));
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType, videoBitsPerSecond: 4_000_000 } : undefined);
-    chunksRef.current = [];
-    recorder.ondataavailable = event => { if (event.data.size) chunksRef.current.push(event.data); };
-    recorder.onstop = () => {
-      const type = recorder.mimeType || 'video/webm';
-      const blob = new Blob(chunksRef.current, { type });
-      if (blob.size) onRecorded(new File([blob], `property-access-${Date.now()}.webm`, { type }));
-      stopCamera();
-      setRecording(false);
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    };
-    recorderRef.current = recorder;
-    recorder.start(1000);
-    setSeconds(0);
-    setRecording(true);
-    timerRef.current = window.setInterval(() => setSeconds(value => {
-      if (value >= 119) recorderRef.current?.stop();
-      return value + 1;
-    }), 1000);
-  }
-
-  function stopRecording() {
-    if (seconds < 8) return toast.error('Continue from the entrance into the property before stopping');
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-  }
-
-  return <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.045] p-4 md:col-span-2">
-    <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Private property access recording *</p>
-    <h3 className="mt-2 text-sm font-semibold">Record from outside the entrance into the property</h3>
-    <p className="mt-2 text-[10px] leading-5 text-[#858A9A]">Write the code below on paper and show it clearly at the start. Continue in one recording through the entrance and into the property. This recording is private and is not used as listing media.</p>
-    <div className="mt-3 rounded-2xl border border-white/[.08] bg-black/20 p-4 text-center">
-      <p className="text-[8px] uppercase tracking-[.16em] text-[#6C7181]">One-use code</p>
-      <p className="mt-2 text-2xl font-black tracking-[.2em]">{code}</p>
-      <p className="mt-2 text-[8px] text-[#676C7C]">Expires {new Date(expiresAt).toLocaleString()}</p>
-    </div>
-    {!recordedFile && <>
-      <div className={`relative mt-3 overflow-hidden rounded-2xl bg-black ${cameraReady ? 'block' : 'hidden'}`}><video ref={videoRef} muted autoPlay playsInline className="aspect-video w-full object-cover"/>{recording && <span className="absolute left-3 top-3 rounded-full bg-red-500 px-2.5 py-1 text-[9px] font-bold">● LIVE · {seconds}s</span>}</div>
-      {!cameraReady ? <button type="button" onClick={() => void openCamera()} className="mt-3 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold">Open live camera</button> : !recording ? <button type="button" onClick={beginRecording} className="mt-3 h-12 w-full rounded-xl bg-red-500 text-xs font-semibold">Start continuous recording</button> : <button type="button" onClick={stopRecording} className="mt-3 h-12 w-full rounded-xl bg-white text-xs font-semibold text-black">Stop and use recording</button>}
-    </>}
-    {recordedFile && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.05] p-3"><div><p className="text-[10px] font-semibold text-emerald-300">Live access recording ready</p><p className="mt-1 text-[8px] text-[#747A89]">{(recordedFile.size / 1024 / 1024).toFixed(1)} MB · uploaded privately when you submit</p></div><button type="button" onClick={() => onRecorded(null)} className="rounded-lg border border-white/[.08] px-3 py-2 text-[9px]">Record again</button></div>}
-  </section>;
+export default function PropertyAccessRecorder({code,expiresAt,recordedFile,onRecorded}:Props){
+ const videoRef=useRef<HTMLVideoElement>(null),streamRef=useRef<MediaStream|null>(null),recorderRef=useRef<MediaRecorder|null>(null),chunksRef=useRef<Blob[]>([]),timerRef=useRef<number|null>(null);
+ const[open,setOpen]=useState(false),[ready,setReady]=useState(false),[recording,setRecording]=useState(false),[seconds,setSeconds]=useState(0),[preview,setPreview]=useState('');
+ function stopTracks(){streamRef.current?.getTracks().forEach(track=>track.stop());streamRef.current=null;if(videoRef.current)videoRef.current.srcObject=null;setReady(false)}
+ useEffect(()=>{document.body.style.overflow=open?'hidden':'';return()=>{document.body.style.overflow=''}},[open]);
+ useEffect(()=>{if(!recordedFile){setPreview('');return}const url=URL.createObjectURL(recordedFile);setPreview(url);return()=>URL.revokeObjectURL(url)},[recordedFile]);
+ useEffect(()=>()=>{if(timerRef.current)window.clearInterval(timerRef.current);streamRef.current?.getTracks().forEach(track=>track.stop())},[]);
+ async function launch(){if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined')return toast.error('Live recording is not supported by this browser');setOpen(true);try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:true});streamRef.current=stream;if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play()}setReady(true)}catch(error){setOpen(false);toast.error(error instanceof Error&&error.name==='NotAllowedError'?'Allow camera and microphone access':'The live camera could not be opened')}}
+ function close(){if(recording)return toast.error('Stop the recording before closing');stopTracks();setOpen(false)}
+ function start(){const stream=streamRef.current;if(!stream)return;const mimeType=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(type=>MediaRecorder.isTypeSupported(type));const recorder=new MediaRecorder(stream,mimeType?{mimeType,videoBitsPerSecond:4_000_000}:undefined);chunksRef.current=[];recorder.ondataavailable=e=>{if(e.data.size)chunksRef.current.push(e.data)};recorder.onstop=()=>{const type=recorder.mimeType||'video/webm',blob=new Blob(chunksRef.current,{type});if(blob.size)onRecorded(new File([blob],`property-access-${Date.now()}.webm`,{type}));stopTracks();setRecording(false);setOpen(false);if(timerRef.current)window.clearInterval(timerRef.current);timerRef.current=null};recorderRef.current=recorder;recorder.start(1000);setSeconds(0);setRecording(true);timerRef.current=window.setInterval(()=>setSeconds(value=>{if(value>=119)recorderRef.current?.stop();return value+1}),1000)}
+ function stop(){if(seconds<8)return toast.error('Continue from the entrance into the property before stopping');if(recorderRef.current?.state==='recording')recorderRef.current.stop()}
+ return <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.045] p-4 md:col-span-2"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Private property access recording *</p><h3 className="mt-2 text-sm font-semibold">One continuous entrance-to-interior walkthrough</h3><p className="mt-2 text-[10px] leading-5 text-[#858A9A]">Write the code on paper. Start outside, show it clearly, open the entrance and walk through the property without stopping. The video stays private for WeHouse review.</p><div className="mt-3 rounded-2xl border border-white/[.08] bg-black/20 p-4 text-center"><p className="text-[8px] uppercase tracking-[.16em] text-[#6C7181]">One-use code</p><p className="mt-2 text-2xl font-black tracking-[.2em]">{code}</p><p className="mt-2 text-[8px] text-[#676C7C]">Expires {new Date(expiresAt).toLocaleString()}</p></div>{!recordedFile?<button type="button" onClick={()=>void launch()} className="mt-3 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold">Start guided recording</button>:<div className="mt-3 overflow-hidden rounded-2xl border border-emerald-500/15 bg-emerald-500/[.05]"><video src={preview} controls playsInline className="aspect-video w-full bg-black object-contain"/><div className="flex items-center justify-between gap-3 p-3"><div><p className="text-[10px] font-semibold text-emerald-300">Access walkthrough ready</p><p className="mt-1 text-[8px] text-[#747A89]">{(recordedFile.size/1048576).toFixed(1)} MB · private evidence</p></div><button type="button" onClick={()=>onRecorded(null)} className="rounded-lg border border-white/[.08] px-3 py-2 text-[9px]">Retake</button></div></div>}{open&&<div className="fixed inset-0 z-[150] overflow-hidden bg-black" role="dialog" aria-modal="true" aria-label="Guided property access recording"><video ref={videoRef} muted autoPlay playsInline className="absolute inset-0 h-full w-full object-cover"/><div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/90 to-transparent px-4 pb-20 pt-[max(1rem,env(safe-area-inset-top))]"><div className="flex justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-200">Private access evidence</p><p className="mt-1 text-xs font-semibold">{recording?'Keep recording as you enter':'Stand outside the entrance'}</p></div>{!recording&&<button type="button" onClick={close} className="grid h-10 w-10 place-items-center rounded-full bg-black/55 text-xl" aria-label="Close camera">×</button>}</div><div className="mt-3 inline-flex rounded-xl bg-black/65 px-3 py-2 text-sm"><span className="text-white/65">Show code&nbsp;</span><strong className="tracking-[.18em]">{code}</strong></div></div><div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/85 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-24 text-center"><p className="mx-auto max-w-sm text-[10px] leading-5 text-white/80">1. Show code at entrance · 2. Open and enter · 3. Walk through continuously</p>{recording&&<p className="mt-2 text-xs font-bold text-red-300">● REC · {Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</p>}<button type="button" disabled={!ready} onClick={recording?stop:start} aria-label={recording?'Stop and use recording':'Start recording'} className={`mx-auto mt-4 grid h-20 w-20 place-items-center rounded-full border-4 border-white disabled:opacity-40 ${recording?'bg-white':'bg-red-500'}`}><span className={recording?'h-7 w-7 rounded-md bg-red-500':'h-14 w-14 rounded-full border-2 border-black/15'}/></button><p className="mt-3 text-[9px] text-white/60">{!ready?'Opening camera…':recording&&seconds<8?'Record at least 8 seconds':'Tap once—do not pause during the walkthrough'}</p></div></div>}</section>
 }

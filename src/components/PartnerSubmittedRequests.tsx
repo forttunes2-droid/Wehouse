@@ -191,9 +191,9 @@ function Info({ label, value }: { label: string; value: string | number }) { ret
 function Status({ request }: { request: RequestRow }) { const state=partnerState(request); return <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${state.tone}`}>{state.label}</span>; }
 function partnerState(request:RequestRow){
   const stage=request.lifecycle_stage||'access_required';
-  const labels:Record<string,string>={access_required:'Needs attention',access_review:'With WeHouse',inspection_ready:'Visit being arranged',inspection:'Visit in progress',visit_reviewed:'Being prepared',listing_prepared:'Final review',live:'Published',changes_requested:'Needs attention',rejected:'Stopped'};
+  const labels:Record<string,string>={access_required:'Access required',access_review:'Access review',inspection_ready:'Inspection ready',inspection:'Inspection',visit_reviewed:'Visit reviewed',listing_prepared:'Listing prepared',live:'Live',changes_requested:'Changes requested',rejected:'Rejected'};
   const tone=stage==='live'?'bg-emerald-500/10 text-emerald-300':stage==='rejected'?'bg-red-500/10 text-red-300':['access_required','changes_requested'].includes(stage)?'bg-amber-500/10 text-amber-300':'bg-violet-500/10 text-violet-300';
-  return{label:labels[stage]||'Under review',tone};
+  return{label:labels[stage]||friendly(stage),tone};
 }
 function Loader() { return <div className="grid min-h-40 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>; }
 function Empty({filter}:{filter:SubmissionFilter}) { const copy=filter==='public'?['No public listings yet','Published properties and hotels will appear here.']:filter==='rejected'?['No rejected submissions','Properties needing correction or stopped by WeHouse will appear here.']:filter==='submitted'?['No submissions in review','New and in-progress submissions will appear here.']:['No properties submitted yet','Use Add properties above to send your first property.'];return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center"><p className="text-sm font-semibold">{copy[0]}</p><p className="mt-2 text-[10px] text-[#66697A]">{copy[1]}</p></div>; }

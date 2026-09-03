@@ -7,6 +7,7 @@ import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
 import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
+import PreciseLocationPicker, { type PreciseLocation } from '@/components/PreciseLocationPicker';
 
 type Props = { profile: Profile; onUpdate: (profile: Profile) => void; onBack: () => void };
 
@@ -25,6 +26,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [state, setState] = useState(profile.state || '');
   const [lga, setLga] = useState(profile.local_government || profile.city || '');
   const [area, setArea] = useState(profile.area || '');
+  const [preciseLocation,setPreciseLocation]=useState<PreciseLocation|null>(()=>profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null);
   const [institutions, setInstitutions] = useState<RegisteredInstitution[]>([]);
   const [institutionsLoading, setInstitutionsLoading] = useState(false);
   const [institutionsError, setInstitutionsError] = useState<string | null>(null);
@@ -57,12 +59,13 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     const original: Record<string, unknown> = {
       full_name: (profile.full_name || '').trim(), username: (profile.username || '').trim().toLowerCase(), phone: (profile.phone || '').trim(),
     };
+    Object.assign(current,{state,lga,preciseLocation});Object.assign(original,{state:profile.state||'',lga:profile.local_government||profile.city||'',preciseLocation:profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null});
     if (isUser) {
       Object.assign(current, { bio: bio.trim(), gender, is_student: isStudent, school: isStudent ? school.trim() : '', state, lga, area: area.trim() });
       Object.assign(original, { bio: (profile.bio || '').trim(), gender: profile.gender || '', is_student: Boolean(profile.is_student), school: profile.is_student ? (profile.school || '').trim() : '', state: profile.state || '', lga: profile.local_government || profile.city || '', area: (profile.area || '').trim() });
     }
     return JSON.stringify(current) !== JSON.stringify(original);
-  }, [fullName, username, phone, bio, gender, isStudent, school, state, lga, area, isUser, profile]);
+  }, [fullName, username, phone, bio, gender, isStudent, school, state, lga, area, preciseLocation, isUser, profile]);
 
   useEffect(() => {
     const value = username.trim().toLowerCase();
@@ -115,6 +118,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     if (isUser && (!state || !lga)) return toast.error('State and Local Government are required');
     setSaving(true);
     const updates: any = { full_name: fullName.trim() || null, username: username.trim().toLowerCase(), phone: phone.trim() || null };
+    updates.state=state;updates.local_government=lga;updates.city=lga;updates.precise_latitude=preciseLocation?.latitude??null;updates.precise_longitude=preciseLocation?.longitude??null;updates.precise_address=preciseLocation?.address.trim()||null;updates.precise_location_accuracy_m=preciseLocation?.accuracy??null;
     if (isUser) {
       updates.bio = bio.trim() || null;
       updates.gender = gender;
@@ -177,16 +181,17 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
             </div>
           </section>
 
+          </>}
           <section className="border-y border-white/[.06] py-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[#6F7585]">Used for nearby homes, services and roommate matching.</p>
+            <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government remain your WeHouse region. A precise address is optional and private.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
               <SearchableSelect label="Local Government" value={lga} onChange={setLga} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
-              <div className="sm:col-span-2"><Field label="Area / neighbourhood (optional)" value={area} onChange={setArea} /></div>
+              {isUser&&<div className="sm:col-span-2"><Field label="Area / neighbourhood (optional)" value={area} onChange={setArea} /></div>}
             </div>
+            <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={setPreciseLocation}/></div>
           </section>
-        </>}
 
         {hasChanges && <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white transition disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>}
       </form>

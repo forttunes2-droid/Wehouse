@@ -101,10 +101,10 @@ function PropertiesWorkspace({ profile }: { profile: Profile }) {
       <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
         <div><h2 className="text-sm font-semibold">Your properties</h2><p className="mt-1 text-[9px] text-[#686B7D]">The selection filters one property workspace; lifecycle states stay on each property.</p></div>
         <select value={filter} onChange={(event) => setFilter(event.target.value as SubmissionFilter)} aria-label="Filter property records" className="h-10 min-w-36 rounded-xl border border-white/[.08] bg-[#111119] px-3 text-[10px] font-semibold text-[#B3B7C3] outline-none focus:border-violet-500/40">
-          <option value="all">All records</option>
-          <option value="submitted">Submitted / in review</option>
-          <option value="public">Public listings</option>
-          <option value="rejected">Needs action / rejected</option>
+          <option value="all">All submissions</option>
+          <option value="submitted">In progress</option>
+          <option value="public">Live</option>
+          <option value="rejected">Changes requested / rejected</option>
         </select>
       </div>
       {filter === "public" ? (

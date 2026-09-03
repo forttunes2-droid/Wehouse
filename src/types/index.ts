@@ -49,15 +49,15 @@ export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
 // Worker status display labels.
 export const WORKER_STATUS_LABELS: Record<string, string> = {
   pending: "Pending", // Registered, hasn't started verification
-  verification_paid: "Awaiting Review", // Completed verification + Paystack, awaiting WeHouse review
-  profile_under_review: "Under Review", // WeHouse is reviewing verification documents
+  verification_paid: "Verification Paid",
+  profile_under_review: "Profile Under Review",
   verified: "Verified", // WeHouse approved, worker is PUBLIC
   rejected: "Rejected", // WeHouse declined, NOT public, can resubmit
   suspended: "Suspended",
   // Legacy — workers with old 'approved_for_verification' status should be migrated to 'verification_paid'
-  approved_for_verification: "Awaiting Review (Legacy)",
-  approved: "Pending (Legacy)",
-  declined: "Rejected (Legacy)",
+  approved_for_verification: "Approved For Verification (Legacy)",
+  approved: "Approved (Legacy)",
+  declined: "Declined (Legacy)",
 };
 
 export const WORKER_STATUS_COLORS: Record<string, string> = {
@@ -95,6 +95,11 @@ export interface Profile {
   city: string | null; // LGA — stored here for historical reasons
   local_government: string | null; // Canonical LGA field (preferred over city)
   area: string | null; // City/Area within LGA
+  precise_latitude: number | null;
+  precise_longitude: number | null;
+  precise_address: string | null;
+  precise_location_accuracy_m: number | null;
+  precise_location_updated_at: string | null;
   email_verified: boolean;
   phone_verified: boolean;
   id_verified: boolean;
