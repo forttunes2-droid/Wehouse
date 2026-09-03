@@ -7,6 +7,7 @@ import {
   getRoommateConversationPeople,
   hideRoommateConversation,
   markMessagesSeen,
+  reactToMessage,
   sendMessage,
   setRoommateBlock,
   uploadRoommateChatAttachment,
@@ -18,7 +19,6 @@ import {
   hideBookingConversation,
 } from "@/lib/supabase/worker-bookings";
 import { getCallCapabilities, launchPrivateCall, type PrivateCall } from "@/lib/private-calls";
-import PrivateCallHistory from "@/components/PrivateCallHistory";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
@@ -40,6 +40,8 @@ type Person = Pick<RoommatePeer, "name" | "avatar"> & Partial<RoommatePeer>;
 type RoommateMessage = Message & {
   attachments?: string[];
   attachment_types?: string[];
+  reply_to_id?: string | null;
+  reactions?: Record<string,string>;
 };
 type BookingConversation = {
   conversation_id: string;
@@ -71,6 +73,9 @@ function hasStartedRoommateConversation(row: Conversation) {
   const lastMessage = new Date(row.last_message_at || 0).getTime();
   return Number.isFinite(created) && Number.isFinite(lastMessage) && lastMessage > created + 1000;
 }
+function latestTime(...values:(string|null|undefined)[]) {
+  return values.filter(Boolean).sort((a,b)=>new Date(b!).getTime()-new Date(a!).getTime())[0] || "";
+}
 
 function SearchIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
@@ -100,6 +105,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     [inboxFilter, setInboxFilter] = useState<"all" | "people" | "wehouse">("all"),
     [inboxQuery, setInboxQuery] = useState("");
   const [recentRoommateCalls,setRecentRoommateCalls]=useState<Record<string,PrivateCall>>({});
+  const [activeCalls,setActiveCalls]=useState<PrivateCall[]>([]);
+  const [replyingTo,setReplyingTo]=useState<RoommateMessage|null>(null);
+  const [messageActions,setMessageActions]=useState<string|null>(null);
   const [inboxMode,setInboxMode]=useState<"chats"|"activity">(initialMode);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
@@ -166,7 +174,10 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       if (!quiet) setLoadingMessages(true);
       const conversation = conversations.find((row) => row.id === id) || active;
       const peer = conversation ? otherId(conversation) : null;
-      const result = await getMessages(id, peer);
+      const [result,callResult] = await Promise.all([
+        getMessages(id, peer),
+        supabase.from("private_calls").select("*").eq("context_type","roommate").eq("context_id",id).order("created_at",{ascending:true}).limit(100),
+      ]);
       if (result.error) {
         if (!quiet)
           toast.error(result.error.message || "Unable to open conversation");
@@ -174,6 +185,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         return;
       }
       setMessages((result.messages || []) as RoommateMessage[]);
+      setActiveCalls((callResult.data||[]) as PrivateCall[]);
       await Promise.all([
         markMessagesSeen(id),
         supabase
@@ -210,6 +222,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       setFiles([]);
       setMenuOpen(false);
       setConfirmDelete(false);
+      setReplyingTo(null);
+      setMessageActions(null);
+      setActiveCalls([]);
       return;
     }
     void loadRoommateMessages(active.id);
@@ -321,11 +336,12 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         attachments.push(uploaded.attachment);
         types.push(uploaded.type || file.type);
       }
-      const result = await sendMessage(active.id, otherId(active), input.trim(), attachments, types);
+      const result = await sendMessage(active.id, otherId(active), input.trim(), attachments, types, replyingTo?.id||null);
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
       setInput("");
       setFiles([]);
+      setReplyingTo(null);
       await loadRoommateMessages(active.id);
       void loadInbox(true);
     } catch (error: unknown) {
@@ -414,7 +430,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         ...conversations.map((conv) => ({
           kind: "roommate" as const,
           id: `roommate:${conv.id}`,
-          time: recentRoommateCalls[conv.id]?.created_at || conv.last_message_at || conv.created_at,
+          time: latestTime(recentRoommateCalls[conv.id]?.created_at,conv.last_message_at,conv.created_at),
           roommate: conv,
         })),
         ...bookingConversations.map((booking) => ({
@@ -471,6 +487,10 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     );
   if (active) {
     const person = people[otherId(active)];
+    const timeline=[
+      ...messages.map(message=>({kind:"message" as const,time:message.created_at,id:`message:${message.id}`,message})),
+      ...activeCalls.map(call=>({kind:"call" as const,time:call.created_at,id:`call:${call.id}`,call})),
+    ].sort((a,b)=>new Date(a.time).getTime()-new Date(b.time).getTime()||a.id.localeCompare(b.id));
     return (
       <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#090A0F] text-white">
         <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
@@ -551,7 +571,6 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-4 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
-            <PrivateCallHistory contextType="roommate" contextId={active.id}/>
             {loadingMessages && messages.length === 0 ? (
               <MessageSkeleton />
             ) : messages.length === 0 ? (
@@ -560,17 +579,20 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                 text="You both accepted the roommate match. Share photos, voice notes or a message while you discuss living plans."
               />
             ) : null}
-            {messages.map((msg, index) => (
-              <div key={msg.id}>
-                {index === 0 ||
-                dayKey(messages[index - 1].created_at) !==
-                  dayKey(msg.created_at) ? (
-                  <DateDivider value={msg.created_at} />
+            {timeline.map((event, index) => (
+              <div key={event.id}>
+                {index === 0 || dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
+                  <DateDivider value={event.time} />
                 ) : null}
-                <RoommateBubble
-                  msg={msg}
-                  mine={msg.sender_id === profile.user_id}
-                />
+                {event.kind==="call"?<CallTimelineEvent call={event.call} me={profile.user_id}/>:<RoommateBubble
+                  msg={event.message}
+                  mine={event.message.sender_id === profile.user_id}
+                  quoted={event.message.reply_to_id?messages.find(row=>row.id===event.message.reply_to_id):undefined}
+                  actionsOpen={messageActions===event.message.id}
+                  onToggleActions={()=>setMessageActions(current=>current===event.message.id?null:event.message.id)}
+                  onReply={()=>{setReplyingTo(event.message);setMessageActions(null)}}
+                  onReact={async emoji=>{const current=event.message.reactions?.[profile.user_id];const result=await reactToMessage(active.id,event.message.id,current===emoji?null:emoji);if(result.error)return toast.error(result.error.message);setMessages(rows=>rows.map(row=>row.id===event.message.id?{...row,reactions:result.reactions}:row));setMessageActions(null)}}
+                />}
               </div>
             ))}
             <div ref={bottomRef} />
@@ -606,6 +628,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                 voice.discard();
               }}
             />
+            {replyingTo&&<div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-white/[.035] px-3 py-2"><div className="min-w-0 flex-1"><p className="text-[8px] font-semibold text-violet-300">Replying to {replyingTo.sender_id===profile.user_id?"yourself":person?.name||"message"}</p><p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">{replyingTo.content||((replyingTo.attachments||[]).length?"Attachment":"Message")}</p></div><button type="button" onClick={()=>setReplyingTo(null)} className="grid h-8 w-8 place-items-center text-[#818797]" aria-label="Cancel reply">×</button></div>}
             <div className="flex items-end gap-2">
               <button
                 onClick={() => fileRef.current?.click()}
@@ -971,15 +994,28 @@ function SelectableRow({
 function RoommateBubble({
   msg,
   mine,
+  quoted,
+  actionsOpen,
+  onToggleActions,
+  onReply,
+  onReact,
 }: {
   msg: RoommateMessage;
   mine: boolean;
+  quoted?: RoommateMessage;
+  actionsOpen:boolean;
+  onToggleActions:()=>void;
+  onReply:()=>void;
+  onReact:(emoji:string)=>void;
 }) {
+  const reactions=Object.values(msg.reactions||{}).reduce<Record<string,number>>((all,emoji)=>({...all,[emoji]:(all[emoji]||0)+1}),{});
   return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+    <div className={`group flex flex-col ${mine ? "items-end" : "items-start"}`}>
       <div
-        className={`max-w-[86%] overflow-hidden rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
+        onClick={onToggleActions}
+        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
       >
+        {quoted&&<div className={`mb-2 rounded-xl border-l-2 px-2.5 py-2 ${mine?"border-violet-100/70 bg-black/10":"border-violet-400 bg-white/[.035]"}`}><p className="text-[8px] font-semibold opacity-75">{quoted.sender_id===msg.sender_id?"Earlier message":"Reply"}</p><p className="mt-0.5 line-clamp-2 text-[10px] opacity-80">{quoted.content||((quoted.attachments||[]).length?"Attachment":"Message")}</p></div>}
         {(msg.attachments || []).map((url, index) => (
           <PrivateAttachment
             key={`${msg.id}-${index}`}
@@ -998,9 +1034,16 @@ function RoommateBubble({
           {time(msg.created_at)}
           {mine ? (msg.seen ? " · Seen" : " · Sent") : ""}
         </p>
+        {Object.keys(reactions).length>0&&<div className={`absolute -bottom-3 ${mine?"right-2":"left-2"} flex gap-1 rounded-full border border-white/[.08] bg-[#171A22] px-2 py-0.5 text-[10px] shadow-lg`}>{Object.entries(reactions).map(([emoji,count])=><span key={emoji}>{emoji}{count>1?<small className="ml-0.5 text-[7px] text-[#A6AAB6]">{count}</small>:null}</span>)}</div>}
       </div>
+      {actionsOpen&&<div className="mt-3 flex items-center gap-1 rounded-full border border-white/[.08] bg-[#171A22] p-1 shadow-xl"><button type="button" onClick={onReply} className="rounded-full px-3 py-1.5 text-[9px] font-semibold text-violet-300">Reply</button>{["👍","❤️","😂","😮","😢","🙏"].map(emoji=><button type="button" key={emoji} onClick={()=>onReact(emoji)} className="grid h-8 w-8 place-items-center rounded-full text-sm hover:bg-white/[.06]">{emoji}</button>)}</div>}
     </div>
   );
+}
+function CallTimelineEvent({call,me}:{call:PrivateCall;me:string}){
+  const outgoing=call.caller_id===me,ended=call.ended_at?new Date(call.ended_at).getTime():0,answered=call.answered_at?new Date(call.answered_at).getTime():0;
+  const duration=ended&&answered?Math.max(0,Math.round((ended-answered)/1000)):0;
+  return <div className="my-2 flex justify-center"><div className="flex max-w-[88%] items-center gap-2 rounded-full border border-white/[.06] bg-[#141720] px-3 py-2 text-[9px]"><span className={call.status==="missed"||call.status==="failed"?"text-red-300":"text-violet-300"}>{call.call_type==="video"?"▣":"☎"}</span><span className="font-medium text-[#B8BCC7]">{outgoing?"Outgoing":"Incoming"} {call.call_type} call</span><span className={call.status==="missed"||call.status==="failed"?"text-red-300":"text-[#747A8A]"}>{call.status}{duration?` · ${Math.floor(duration/60)?`${Math.floor(duration/60)}m `:""}${duration%60}s`:""} · {time(call.created_at)}</span></div></div>
 }
 function PrivateAttachment({ url, type }: { url: string; type: string }) {
   if (type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url))

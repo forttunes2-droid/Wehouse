@@ -30,18 +30,23 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
     }
     const attachments:string[]=[];const attachmentTypes:string[]=[];
     if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
-    return{...row,content,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes} as Message;
+    return{...row,content,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes,reply_to_id:row.reply_to_id||null,reactions:row.reactions||{}} as Message;
   }));
   return{messages,error};
 }
 
-export async function sendMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],attachmentTypes:string[]=[]){
+export async function sendMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],attachmentTypes:string[]=[],replyToId:string|null=null){
   void attachmentTypes;
   try{
     const encrypted=await encryptPrivateMessage('roommate',conversationId,peerUserId,content);
-    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments});
+    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId});
     return{message:error?null:{id:data,conversation_id:conversationId,sender_id:'',content,seen:false,created_at:new Date().toISOString()} as Message,error};
   }catch(error:any){return{message:null,error:{message:error?.message||'Encrypted message could not be sent'} as any}}
+}
+
+export async function reactToMessage(conversationId:string,messageId:string,emoji:string|null){
+  const{data,error}=await supabase.rpc('set_private_message_reaction',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_message_id:messageId,p_emoji:emoji});
+  return{reactions:(data||{}) as Record<string,string>,error};
 }
 
 export async function uploadRoommateChatAttachment(file:File,conversationId:string,peerUserId:string){
