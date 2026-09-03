@@ -14,7 +14,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack}:Props)
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
   const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='close'?'Account ownership':'Privacy & Security';
-  const description=section==='privacy'?'Control discovery and what other people can see.':section==='access'?'Password, devices and private-message protection in one place.':section==='close'?'Control closure of this account after active obligations are cleared.':'Three clear areas for privacy, access and account ownership.';
+  const description=section==='privacy'?'See what is private and who can contact you.':section==='access'?'Manage your password, devices and account access.':section==='close'?'Close this account after active obligations are cleared.':'Privacy, access and account ownership.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
     <Toaster position="top-center" richColors/>
     {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
@@ -22,10 +22,10 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack}:Props)
     section==='close'?<SecuritySettings profile={profile} embedded focus="close"/>:
     <>
       <AccountSection title="Privacy">
-        <AccountRow title="Privacy" detail={profile.role==='user'?'Roommate discovery and profile visibility':'Public information and authorized contact rules'} onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
+        <AccountRow title="Privacy" detail={profile.role==='user'?'Roommate discovery and profile visibility':'What people can see and who can contact you'} onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
       </AccountSection>
       <AccountSection title="Account access">
-        <AccountRow title="Access & security" detail="Password, devices, sessions and encrypted-message recovery" onClick={()=>setSection('access')} icon={<LockIcon/>}/>
+        <AccountRow title="Access & security" detail={privateMessaging?'Password, devices, sessions and message recovery':'Password, trusted devices and active sessions'} onClick={()=>setSection('access')} icon={<LockIcon/>}/>
       </AccountSection>
       {canClose&&<AccountSection title="Account ownership"><AccountRow title="Account ownership" detail="Close this account after bookings, balances and obligations are cleared" onClick={()=>setSection('close')} icon={<WarningIcon/>}/></AccountSection>}
     </>}

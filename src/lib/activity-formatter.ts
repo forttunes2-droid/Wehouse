@@ -71,7 +71,7 @@ const BOOLEAN_KEYS = [
 const ROLE_LABELS: Record<string, string> = {
   creator: 'Creator',
   admin: 'Admin',
-  staff: 'Staff',
+  staff: 'Team member',
   worker: 'Worker',
   property_partner: 'Property Partner',
   user: 'User',

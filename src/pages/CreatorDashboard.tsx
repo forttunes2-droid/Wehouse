@@ -12,69 +12,72 @@ import PropertyTypeManager from '@/components/PropertyTypeManager';
 import StaffListTab from './StaffListTab';
 import CreatorAnalyticsV2 from './CreatorAnalyticsV2';
 import CreatorSettingsTabV2 from './CreatorSettingsTabV2';
+import Notifications from './Notifications';
 import { supabase } from '@/lib/supabase';
+import { useCreatorInboxSummary } from '@/hooks/useCreatorInboxSummary';
 import type { Profile } from '@/types';
 
-type Tab = 'overview' | 'operations' | 'communications' | 'finance' | 'analytics' | 'audit' | 'settings';
+type Tab = 'home' | 'operations' | 'inbox' | 'settings';
+type HomeView = 'overview' | 'finance' | 'analytics' | 'audit';
 type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'reports';
 type PersonRole = 'user' | 'property_partner';
 type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string) => void; onGoToChat?: (id?: string) => void };
 
 const NAV = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'home', label: 'Home' },
   { id: 'operations', label: 'Operations' },
-  { id: 'communications', label: 'Inbox' },
-  { id: 'finance', label: 'Finance' },
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'audit', label: 'Change History' },
+  { id: 'inbox', label: 'Inbox' },
   { id: 'settings', label: 'Settings' },
 ];
 
 const NOTES: Record<Tab, string> = {
-  overview: 'Platform health and priority work.',
-  operations: 'People, Team, properties, Worker oversight, bookings and listing issues.',
-  communications: 'Human Support conversations and one-way official Activity publishing.',
-  finance: 'Payout requests and commission records. Platform rules are changed only in Settings.',
-  analytics: 'Trends, marketplace movement and lifecycle distribution.',
-  audit: 'Safe operational history of important management changes.',
-  settings: 'Global platform, Worker verification, trust and marketplace configuration.',
+  home: 'Platform health, finance, analytics and important changes.',
+  operations: 'People, Team, properties, Workers, bookings and listing issues.',
+  inbox: 'Support conversations and recent Activity.',
+  settings: 'Platform rules, trust and marketplace configuration.',
 };
 
 const OPS: Array<{ id: Operation; label: string; note: string }> = [
   { id: 'people', label: 'People', note: 'Regular Users and Property Partners.' },
-  { id: 'team', label: 'Staff Operations', note: 'Assign Admins and Staff to branches, then give each Staff account one operation.' },
-  { id: 'properties', label: 'Properties', note: 'Property request → inspection → preparation → publication.' },
-  { id: 'workers', label: 'Workers', note: 'Worker lifecycle oversight. Verification Staff own routine approval.' },
-  { id: 'bookings', label: 'Bookings', note: 'Worker-service, apartment and hotel booking records.' },
-  { id: 'reports', label: 'Listing Issues', note: 'Complaints users submitted about a listing; resolve or dismiss them after review.' },
+  { id: 'team', label: 'Team', note: 'Admins, Operations members, branches and work areas.' },
+  { id: 'properties', label: 'Properties', note: 'Review submissions, visits and publishing.' },
+  { id: 'workers', label: 'Workers', note: 'Worker onboarding and account decisions.' },
+  { id: 'bookings', label: 'Bookings', note: 'Worker services, apartments and hotel stays.' },
+  { id: 'reports', label: 'Listing issues', note: 'Review complaints about published listings.' },
 ];
 
 export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoToChat }: Props) {
-  const [tab, setTab] = useState<Tab>('overview');
-  const [operation, setOperation] = useState<Operation>('people');
+  const [tab, setTab] = useState<Tab>('home');
+  const [homeView, setHomeView] = useState<HomeView>('overview');
+  const [operation, setOperation] = useState<Operation | null>(null);
   const [viewing, setViewing] = useState<Profile | null>(null);
+  const inboxSummary = useCreatorInboxSummary(profile.user_id);
 
   function openOperation(next: Operation) { setOperation(next); setTab('operations'); }
+  function openHome(next: HomeView) { setHomeView(next); setTab('home'); }
+
+  const nav = NAV.map((item) => item.id === 'inbox' ? { ...item, badge: inboxSummary.totalUnread } : item);
+  const homeTitle = homeView === 'overview' ? 'Home' : homeView === 'finance' ? 'Finance' : homeView === 'analytics' ? 'Analytics' : 'Change history';
 
   return (
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
         label="WEHOUSE · CREATOR"
-        title={NAV.find((item) => item.id === tab)?.label || 'Creator'}
+        title={tab === 'home' ? homeTitle : NAV.find((item) => item.id === tab)?.label || 'Creator'}
         description={NOTES[tab]}
-        items={NAV}
+        items={nav}
         active={tab}
         setActive={(id) => setTab(id as Tab)}
         onAccount={onNavigate ? () => onNavigate('profile') : undefined}
         onLogout={onLogout}
       >
-        {tab === 'overview' && <Overview openOperation={openOperation} openCommunications={() => setTab('communications')} openFinance={() => setTab('finance')} openAnalytics={() => setTab('analytics')} openAudit={() => setTab('audit')} />}
+        {tab === 'home' && homeView === 'overview' && <Overview openOperation={openOperation} openInbox={() => setTab('inbox')} openHome={openHome} />}
+        {tab === 'home' && homeView === 'finance' && <Nested title="Finance" back={() => setHomeView('overview')}><Finance /></Nested>}
+        {tab === 'home' && homeView === 'analytics' && <Nested title="Analytics" back={() => setHomeView('overview')}><CreatorAnalyticsV2 profile={profile} /></Nested>}
+        {tab === 'home' && homeView === 'audit' && <Nested title="Change history" back={() => setHomeView('overview')}><CreatorAuditWorkspace /></Nested>}
         {tab === 'operations' && <Operations profile={profile} active={operation} setActive={setOperation} onView={setViewing} />}
-        {tab === 'communications' && <CommunicationsWorkspace profile={profile} scope="all" onOpenConversation={onGoToChat} />}
-        {tab === 'finance' && <Finance />}
-        {tab === 'analytics' && <CreatorAnalyticsV2 profile={profile} />}
-        {tab === 'audit' && <CreatorAuditWorkspace />}
+        {tab === 'inbox' && <CreatorInbox profile={profile} onNavigate={onNavigate} onGoToChat={onGoToChat} summary={inboxSummary} />}
         {tab === 'settings' && <Settings profile={profile} />}
       </WorkspaceFrameV2>
       {viewing && <UserProfileModal user={viewing} adminProfile={profile} onClose={() => setViewing(null)} onNavigate={onNavigate} onGoToChat={onGoToChat} />}
@@ -82,7 +85,7 @@ export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoTo
   );
 }
 
-function Overview({ openOperation, openCommunications, openFinance, openAnalytics, openAudit }: { openOperation: (tab: Operation) => void; openCommunications: () => void; openFinance: () => void; openAnalytics: () => void; openAudit: () => void }) {
+function Overview({ openOperation, openInbox, openHome }: { openOperation: (tab: Operation) => void; openInbox: () => void; openHome: (view: HomeView) => void }) {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -105,21 +108,30 @@ function Overview({ openOperation, openCommunications, openFinance, openAnalytic
   const cards: Array<[string, number, () => void, string]> = [
     ['Users', stats?.users || 0, () => openOperation('people'), 'Customer accounts'],
     ['Property Partners', stats?.partners || 0, () => openOperation('people'), 'Property owners'],
-    ['Staff Operations', stats?.team || 0, () => openOperation('team'), 'Admins, Staff and work assignments'],
+    ['Team', stats?.team || 0, () => openOperation('team'), 'Admins and Operations members'],
     ['Workers', stats?.workers || 0, () => openOperation('workers'), `${stats?.pending_verifications || 0} under verification`],
     ['Published apartments', stats?.listings || 0, () => openOperation('properties'), 'Public apartment inventory'],
     ['Published hotels', stats?.hotels || 0, () => openOperation('properties'), 'Public hotel inventory'],
     ['Property inspections', stats?.pendingInspections || 0, () => openOperation('properties'), 'Pending or active field work'],
-    ['Payout requests', stats?.pendingPayouts || 0, openFinance, 'Worker/Partner settlement requests'],
+    ['Payout requests', stats?.pendingPayouts || 0, () => openHome('finance'), 'Worker and Partner settlements'],
   ];
 
-  return <div className="space-y-5"><section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.12] via-[#14111F] to-[#0E1118] p-5 sm:p-6 lg:p-8"><p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-300">PLATFORM OVERVIEW</p><h2 className="mt-3 text-2xl font-bold sm:text-3xl">What needs your attention</h2><p className="mt-2 max-w-2xl text-[10px] leading-relaxed text-[#858B9B]">Overview summarizes. Each action opens the one workspace that owns the responsibility.</p><div className="mt-5 flex flex-wrap gap-2"><Quick label="Properties" onClick={() => openOperation('properties')} primary /><Quick label="Communications" onClick={openCommunications} /><Quick label="Finance" onClick={openFinance} /><Quick label="Analytics" onClick={openAnalytics} /><Quick label="Change History" onClick={openAudit} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
+  return <div className="space-y-5"><section className="border-b border-white/[.07] pb-5"><h2 className="text-2xl font-bold sm:text-3xl">What needs your attention</h2><div className="mt-4 flex flex-wrap gap-2"><Quick label="Properties" onClick={() => openOperation('properties')} primary /><Quick label="Inbox" onClick={openInbox} /><Quick label="Finance" onClick={() => openHome('finance')} /><Quick label="Analytics" onClick={() => openHome('analytics')} /><Quick label="Change history" onClick={() => openHome('audit')} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
 }
 
-function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation; setActive: (value: Operation) => void; onView: (profile: Profile) => void }) {
+function Operations({ profile, active, setActive, onView }: { profile: Profile; active: Operation | null; setActive: (value: Operation | null) => void; onView: (profile: Profile) => void }) {
+  if (!active) return <div className="space-y-4"><h2 className="text-lg font-bold">Operations</h2><div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">{OPS.map((item,index)=><div key={item.id}>{index>0&&<div className="ml-4 h-px bg-white/[.055]"/>}<button onClick={()=>setActive(item.id)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left"><span><strong className="block text-sm">{item.label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{item.note}</span></span><span className="text-[#697082]">›</span></button></div>)}</div></div>;
   const current=OPS.find(item=>item.id===active)!;
-  return <div className="space-y-5"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">PLATFORM OPERATIONS</p><h2 className="mt-2 text-xl font-bold">{current.label}</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">{current.note}</p></div><nav aria-label="Creator operation areas" className="-mx-4 overflow-x-auto border-y border-white/[.07] px-4 py-2 scrollbar-hide sm:mx-0 sm:px-0"><div className="flex min-w-max gap-1">{OPS.map((item) => <button key={item.id} onClick={() => setActive(item.id)} className={`min-h-9 rounded-full px-4 text-[10px] font-semibold transition ${active === item.id ? 'bg-violet-500 text-white' : 'text-[#73798A] hover:bg-white/[.04]'}`}>{item.label}</button>)}</div></nav>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings />}{active === 'reports' && <Reports />}</div>;
+  return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={()=>setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Operations">‹</button><div><h2 className="text-lg font-bold">{current.label}</h2><p className="mt-0.5 text-[9px] text-[#707687]">{current.note}</p></div></header>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings />}{active === 'reports' && <Reports />}</div>;
 }
+
+function CreatorInbox({profile,onNavigate,onGoToChat,summary}:{profile:Profile;onNavigate?:Props['onNavigate'];onGoToChat?:Props['onGoToChat'];summary:ReturnType<typeof useCreatorInboxSummary>}){
+  const[view,setView]=useState<'chats'|'activity'|'compose'>('chats');
+  if(view==='compose')return <Nested title="New update" back={()=>setView('activity')}><CommunicationsWorkspace profile={profile} scope="all" forcedView="broadcast" hideViewTabs/></Nested>;
+  return <div className="space-y-4"><div className="grid grid-cols-2 border-b border-white/[.07]">{([['chats','Chats',summary.messageUnread],['activity','Activity',summary.activityUnread]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative min-h-12 text-xs font-semibold ${view===id?'text-white':'text-[#747A8B]'}`}>{label}{count>0?` · ${count>99?'99+':count}`:''}{view===id&&<span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</div>{view==='chats'?<CommunicationsWorkspace profile={profile} scope="all" forcedView="inbox" hideViewTabs onOpenConversation={onGoToChat} onUnreadChange={summary.setMessageUnread}/>:<><div className="flex justify-end"><button onClick={()=>setView('compose')} className="rounded-xl border border-violet-500/20 bg-violet-500/[.08] px-3 py-2 text-[10px] font-semibold text-violet-200">Post update</button></div><Notifications profile={profile} embedded onUnreadChange={summary.setActivityUnread} onNavigate={(page)=>onNavigate?.(page)}/></>}</div>;
+}
+
+function Nested({title,back,children}:{title:string;back:()=>void;children:React.ReactNode}){return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={back} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back">‹</button><h2 className="text-lg font-bold">{title}</h2></header>{children}</div>}
 
 function People({ onView }: { onView: (profile: Profile) => void }) {
   const [role, setRole] = useState<PersonRole>('user');

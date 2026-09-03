@@ -104,7 +104,7 @@ export default function AdminAuthModal() {
             </div>
             <form onSubmit={handleSetup} className="px-6 pb-6 space-y-3">
               <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3">
-                <p className="text-[11px] text-amber-400/80 leading-relaxed">This password protects staff promotions, user management, and other critical admin actions. You will only enter it when performing these actions.</p>
+                <p className="text-[11px] text-amber-400/80 leading-relaxed">This password protects team appointments, user management, and other critical admin actions. You will only enter it when performing these actions.</p>
               </div>
               <input type="password" value={password} onChange={(e) => setPasswordInput(e.target.value)} placeholder="New password (min 6 characters)" autoFocus className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-violet-500/50 focus:outline-none transition-colors" />
               <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-violet-500/50 focus:outline-none transition-colors" />

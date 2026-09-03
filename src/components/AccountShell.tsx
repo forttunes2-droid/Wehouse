@@ -13,6 +13,8 @@ export default function AccountShell({ profile, title, description, onBack, chil
   const role = String(profile.role || 'user');
   const roleLabel = role === 'property_partner'
     ? 'PROPERTY PARTNER'
+    : role === 'staff'
+      ? 'TEAM'
     : role.replace(/_/g, ' ').toUpperCase();
 
   return (

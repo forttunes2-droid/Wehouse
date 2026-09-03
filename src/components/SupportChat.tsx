@@ -451,7 +451,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
           </div>
           <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
             {presentation.operational
-              ? "Operational conversation · visible to you and authorized WeHouse staff"
+              ? "Operational conversation · visible to you and authorized WeHouse team members"
               : "Support case · visible to you and the authorized WeHouse team handling it"}
           </p>
         </div>

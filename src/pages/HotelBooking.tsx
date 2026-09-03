@@ -165,7 +165,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
   }
 
   async function handleSubmitReview() {
-    if (!selectedStaff) { toast.error('Select a staff member'); return; }
+    if (!selectedStaff) { toast.error('Select a hotel team member'); return; }
     if (rating === 0) { toast.error('Select a star rating'); return; }
 
     setSubmittingReview(true);
@@ -209,13 +209,13 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                 </div>
                 <h2 className="text-lg font-bold text-white mb-1">Thank You!</h2>
-                <p className="text-xs text-[#5C5E72] mb-5">Your review helps others trust our staff.</p>
+                <p className="text-xs text-[#5C5E72] mb-5">Your review helps others trust our hotel team.</p>
                 <button onClick={onComplete} className="w-full h-11 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-semibold">Done</button>
               </>
             ) : (
               <>
                 <h2 className="text-lg font-bold text-white mb-1">Rate Your Experience</h2>
-                <p className="text-xs text-[#5C5E72] mb-5">How was the staff who handled your booking?</p>
+                <p className="text-xs text-[#5C5E72] mb-5">How was the hotel team member who handled your booking?</p>
 
                 {/* Star rating */}
                 <div className="flex justify-center mb-5">
@@ -224,7 +224,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
 
                 {/* Staff selection */}
                 <div className="text-left mb-4">
-                  <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Select Staff Member</label>
+                  <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Select hotel team member</label>
                   <select
                     value={selectedStaff}
                     onChange={(e) => setSelectedStaff(e.target.value)}

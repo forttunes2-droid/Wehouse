@@ -26,7 +26,7 @@ const account = (): DesktopNavItem => ({ id: 'profile', label: 'Account', icon: 
 export function getCreatorNav(): DesktopNavItem[] { return [{ id: 'creator', label: 'Creator', icon: DASHBOARD }]; }
 export function getAdminNav(): DesktopNavItem[] { return [{ id: 'admin', label: 'Admin', icon: DASHBOARD }]; }
 export function getWorkerNav(): DesktopNavItem[] { return [{ id: 'worker_dashboard', label: 'Worker', icon: DASHBOARD }]; }
-export function getStaffNav(): DesktopNavItem[] { return [{ id: 'staff_dashboard', label: 'Staff Workspace', icon: DASHBOARD }]; }
+export function getStaffNav(): DesktopNavItem[] { return [{ id: 'staff_dashboard', label: 'Team workspace', icon: DASHBOARD }]; }
 export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }, account()]; }
 export function getHotelTeamNav(): DesktopNavItem[] { return [{ id: 'hotel_operations', label: 'Hotel Operations', icon: DASHBOARD }, account()]; }
 

@@ -55,7 +55,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const isWorker = role === 'worker';
   const isStaff = role === 'staff';
   const canEditGenericProfile = !isStaff && !isWorker;
-  const roleLabel = role === 'property_partner' ? 'Property Partner' : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ');
+  const roleLabel = role === 'property_partner' ? 'Property Partner' : role === 'staff' ? 'Team member' : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ');
   const initials = (profile.full_name || profile.username || profile.email || 'U')[0].toUpperCase();
   const privilegedWorkspaces = workspaceAccess?.privileged_workspaces || [];
   const canSwitchWorkspace = Boolean(onSwitchWorkspace && workspaceAccess?.personal_workspace && privilegedWorkspaces.length);
@@ -204,11 +204,11 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         <AccountSection title="Workspaces">
           <div className="px-4 py-4 sm:px-5">
             <p className="text-[12px] font-semibold">Choose where you are working</p>
-            <p className="mt-1 text-[9px] leading-relaxed text-[#6F7585]">Your personal bookings and conversations remain separate from operational Staff or Admin activity.</p>
+            <p className="mt-1 text-[9px] leading-relaxed text-[#6F7585]">Your personal bookings and conversations remain separate from WeHouse team activity.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <WorkspaceButton label="Personal" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
               {privilegedWorkspaces.map((workspace) => (
-                <WorkspaceButton key={workspace.role} label={workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Staff'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
+                <WorkspaceButton key={workspace.role} label={workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Team'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
               ))}
             </div>
           </div>

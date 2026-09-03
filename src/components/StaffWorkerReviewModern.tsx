@@ -182,7 +182,7 @@ export default function StaffWorkerReviewModern() {
                   </p>
                   <p className="mt-1 text-[9px] leading-relaxed text-[#73798A]">
                     WeHouse verifies the Worker privately with liveness and face
-                    continuity. Staff never receive government ID.
+                    continuity. Worker Operations never receive government ID.
                   </p>
                 </div>
                 <Badge good={identityPassed}>
@@ -216,7 +216,7 @@ export default function StaffWorkerReviewModern() {
               <p className="text-xs font-semibold">Professional evidence</p>
               <p className="mt-1 text-[9px] leading-relaxed text-[#73798A]">
                 Review the Worker’s stated service, experience and real work
-                demonstration. There is no generic Staff-style quiz.
+                demonstration. There is no generic written quiz.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Info

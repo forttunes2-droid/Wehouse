@@ -11,7 +11,7 @@ export default function StaffSecurityOverviewV2({onOpenCases}:{onOpenCases:()=>v
   <section className="rounded-3xl border border-red-500/15 bg-gradient-to-br from-red-500/[.08] via-[#15131A] to-[#0D1118] p-5 sm:p-6 lg:p-8">
    <p className="text-[9px] font-bold uppercase tracking-[.18em] text-red-300">SECURITY OPERATIONS</p>
    <h2 className="mt-3 text-2xl font-bold">Review recorded branch security signals.</h2>
-   <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#8990A1]">This workspace shows recorded sign-in patterns, active sessions and restricted accounts in your assigned branch. Security reviews and escalates; it cannot ban users or change Staff access.</p>
+   <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#8990A1]">This workspace shows recorded sign-in patterns, active sessions and restricted accounts in your assigned branch. Security reviews and escalates; account access remains with Admin and Creator.</p>
    <button onClick={onOpenCases} className="mt-5 rounded-xl bg-red-500 px-4 py-3 text-xs font-semibold">Open security activity</button>
   </section>
   <section className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Metric label="Active sessions" value={stats.active_sessions||0}/><Metric label="Multiple-location sessions" value={stats.multi_ip_accounts||0}/><Metric label="Login bursts" value={stats.login_bursts||0}/><Metric label="Restricted accounts" value={stats.restricted_accounts||0}/></section>

@@ -134,7 +134,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
         {mode==='roles'?<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <RoleChoice label="Users" selected={roles.user} onChange={value=>setRoles(current=>({...current,user:value}))}/>
           <RoleChoice label="Workers" selected={roles.worker} onChange={value=>setRoles(current=>({...current,worker:value}))}/>
-          <RoleChoice label="Staff" selected={roles.staff} onChange={value=>setRoles(current=>({...current,staff:value}))}/>
+          <RoleChoice label="Operations team" selected={roles.staff} onChange={value=>setRoles(current=>({...current,staff:value}))}/>
           <RoleChoice label="Property Partners" selected={roles.property_partner} onChange={value=>setRoles(current=>({...current,property_partner:value}))}/>
           <div className="sm:col-span-2 lg:col-span-4 rounded-xl border border-violet-500/10 bg-violet-500/[.04] px-3 py-2 text-[10px] text-violet-300">{counting?'Counting recipients…':`${recipientCount} recipient${recipientCount===1?'':'s'} selected`}</div>
         </div>:<div className="space-y-2">

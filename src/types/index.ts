@@ -359,7 +359,7 @@ export const ROLE_RANK: Record<UserRole, number> = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   user: "User",
   worker: "Worker",
-  staff: "Staff",
+  staff: "Team member",
   admin: "Admin",
   creator: "Creator",
   property_partner: "Property Partner",

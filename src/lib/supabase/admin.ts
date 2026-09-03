@@ -100,20 +100,20 @@ export function canChangeRole(
 
   if (changerRole === 'admin') {
     if (!['user', 'staff'].includes(currentRole) || !['user', 'staff'].includes(newRole)) {
-      return { allowed: false, reason: 'Admin can manage only User and Staff roles in the assigned branch.' };
+      return { allowed: false, reason: 'Admin can manage only Users and Operations members in the assigned branch.' };
     }
     return { allowed: BASE_TRANSITIONS[currentRole]?.includes(newRole) || false, reason: BASE_TRANSITIONS[currentRole]?.includes(newRole) ? undefined : 'Invalid Admin role transition.' };
   }
 
   if (changerRole === 'creator') {
     if (!['user', 'staff', 'admin'].includes(currentRole) || !['user', 'staff', 'admin'].includes(newRole)) {
-      return { allowed: false, reason: 'Creator Team management supports User, Staff and Admin roles only.' };
+      return { allowed: false, reason: 'Creator Team management supports Users, Operations members and Admins only.' };
     }
     if (currentRole === newRole) return { allowed: false, reason: 'Account already has that role.' };
     return { allowed: true };
   }
 
-  return { allowed: false, reason: 'Staff cannot change account roles.' };
+  return { allowed: false, reason: 'Operations members cannot change account roles.' };
 }
 
 /**

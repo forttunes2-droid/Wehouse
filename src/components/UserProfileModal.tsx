@@ -130,24 +130,24 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
     const { data, error } = await supabase.rpc('admin_appoint_staff', { p_target_user_id: user.user_id, p_module: adminModule });
     setPromoting(false); setConfirmingPromote(false);
     if (error) { toast.error(`Failed: ${error.message}`); return; }
-    if (data) { toast.success(`${user.username || 'User'} appointed as ${STAFF_MODULES.find(([id])=>id===adminModule)?.[1]||'Staff'} Staff`); onPromote?.(); onClose(); }
+    if (data) { toast.success(`${user.username || 'User'} added to ${STAFF_MODULES.find(([id])=>id===adminModule)?.[1]||'the team'}`); onPromote?.(); onClose(); }
   }
 
   async function handleCreatorAssign(){
     if(!user)return;
-    if(!creatorRole)return toast.error('Choose Admin or Staff');
+    if(!creatorRole)return toast.error('Choose Admin or Operations member');
     if(!teamState||!teamLga)return toast.error('Choose the State and LGA for this team member');
-    if(creatorRole==='staff'&&!teamModule)return toast.error('Choose the Staff operation');
+    if(creatorRole==='staff'&&!teamModule)return toast.error('Choose the work area');
     setTeamSaving(true);
     const{data,error}=await supabase.rpc('creator_set_team_role',{p_target_user_id:user.user_id,p_new_role:creatorRole,p_state:teamState,p_lga:teamLga,p_module:creatorRole==='staff'?teamModule:null});
     setTeamSaving(false);
     if(error||data!==true)return toast.error(error?.message||'Could not assign team role');
-    toast.success(`${user.username||'User'} assigned as ${creatorRole==='admin'?'Admin':'Staff'} in ${teamLga}, ${teamState}`);
+    toast.success(`${user.username||'User'} assigned as ${creatorRole==='admin'?'Admin':'an Operations member'} in ${teamLga}, ${teamState}`);
     onPromote?.();
     onClose();
   }
 
-  const roleLabel = user.role === 'user' ? 'User' : user.role === 'worker' ? 'Worker' : user.role === 'property_partner' ? 'Partner' : user.role === 'staff' ? 'Staff' : user.role === 'admin' ? 'Admin' : user.role;
+  const roleLabel = user.role === 'user' ? 'User' : user.role === 'worker' ? 'Worker' : user.role === 'property_partner' ? 'Partner' : user.role === 'staff' ? 'Team member' : user.role === 'admin' ? 'Admin' : user.role;
 
   const content = (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" style={{ zIndex: 99999, touchAction: 'none' }} onClick={onClose}>
@@ -236,10 +236,10 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
                 <h4 className="text-xs font-semibold text-violet-300">Team assignment</h4>
                 <p className="mt-1 text-[10px] leading-relaxed text-[#686D7E]">This account is currently a User. No operational role or module is assigned until you deliberately choose and confirm one.</p>
                 {!assigningTeamRole?<button type="button" onClick={()=>setAssigningTeamRole(true)} className="mt-3 h-10 w-full rounded-xl border border-violet-500/25 text-xs font-semibold text-violet-200">Assign team role</button>:<><div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Role</span><select value={creatorRole} onChange={e=>{setCreatorRole(e.target.value as CreatorTeamRole|'');setTeamModule('')}} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Choose role</option><option value="admin">Admin</option><option value="staff">Staff</option></select></label>
+                  <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Role</span><select value={creatorRole} onChange={e=>{setCreatorRole(e.target.value as CreatorTeamRole|'');setTeamModule('')}} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Choose role</option><option value="admin">Admin</option><option value="staff">Operations member</option></select></label>
                   <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">State</span><select value={teamState} onChange={e=>{setTeamState(e.target.value);setTeamLga('')}} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Select State</option>{NIGERIA_STATES.map(item=><option key={item.state} value={item.state}>{item.state}</option>)}</select></label>
                   <label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">LGA</span><select value={teamLga} disabled={!teamState} onChange={e=>setTeamLga(e.target.value)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs disabled:opacity-40"><option value="">Select LGA</option>{(teamStateData?.cities||[]).map(lga=><option key={lga} value={lga}>{lga}</option>)}</select></label>
-                  {creatorRole==='staff'&&<label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Staff operation</span><select value={teamModule} onChange={e=>setTeamModule(e.target.value as StaffModule|'')} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Choose one operation</option>{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
+                  {creatorRole==='staff'&&<label className="block"><span className="mb-1 block text-[9px] uppercase text-[#5E6375]">Work area</span><select value={teamModule} onChange={e=>setTeamModule(e.target.value as StaffModule|'')} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"><option value="">Choose work area</option>{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={()=>{setAssigningTeamRole(false);setCreatorRole('');setTeamState('');setTeamLga('');setTeamModule('')}} className="h-10 rounded-xl border border-white/[.08] text-xs text-[#8C91A2]">Cancel</button><button onClick={()=>void handleCreatorAssign()} disabled={teamSaving||!creatorRole||!teamState||!teamLga||(creatorRole==='staff'&&!teamModule)} className="h-10 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{teamSaving?'Assigning…':'Confirm assignment'}</button></div></>}
               </div>
@@ -248,9 +248,9 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
             {canAppoint && (
               <div className="glass rounded-2xl p-4 border border-amber-500/10">
                 <h4 className="text-xs font-semibold text-amber-400">Management</h4>
-                <p className="mt-1 text-[10px] text-[#666B7B]">Appoint this branch User as Staff and choose the one operation they will work in.</p>
-                <label className="mt-3 block"><span className="mb-1 block text-[9px] uppercase tracking-wide text-[#5E6375]">Staff operation</span><select value={adminModule} disabled={promoting} onChange={e=>setAdminModule(e.target.value as StaffModule)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white disabled:opacity-50">{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
-                {!confirmingPromote ? <button onClick={() => setConfirmingPromote(true)} className="mt-3 w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors">Appoint as Staff</button> : <div className="mt-3 space-y-2"><p className="text-[10px] text-[#5C5E72]">Appoint <span className="text-white">@{user.username}</span> to <span className="text-white">{STAFF_MODULES.find(([id])=>id===adminModule)?.[1]}</span>?</p><div className="flex gap-2"><button onClick={() => setConfirmingPromote(false)} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold">Cancel</button><button onClick={handlePromote} disabled={promoting} className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50">{promoting ? 'Appointing...' : 'Confirm'}</button></div></div>}
+                <p className="mt-1 text-[10px] text-[#666B7B]">Add this branch User to the Operations team and choose their work area.</p>
+                <label className="mt-3 block"><span className="mb-1 block text-[9px] uppercase tracking-wide text-[#5E6375]">Work area</span><select value={adminModule} disabled={promoting} onChange={e=>setAdminModule(e.target.value as StaffModule)} className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white disabled:opacity-50">{STAFF_MODULES.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+                {!confirmingPromote ? <button onClick={() => setConfirmingPromote(true)} className="mt-3 w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors">Add to team</button> : <div className="mt-3 space-y-2"><p className="text-[10px] text-[#5C5E72]">Add <span className="text-white">@{user.username}</span> to <span className="text-white">{STAFF_MODULES.find(([id])=>id===adminModule)?.[1]}</span>?</p><div className="flex gap-2"><button onClick={() => setConfirmingPromote(false)} className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold">Cancel</button><button onClick={handlePromote} disabled={promoting} className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50">{promoting ? 'Adding...' : 'Confirm'}</button></div></div>}
               </div>
             )}
 

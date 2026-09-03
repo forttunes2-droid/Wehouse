@@ -25,7 +25,7 @@ export default function Setup({ profile, onSetupComplete }: Props) {
     user: { title: 'Complete your profile', subtitle: 'A few details and you are ready', info: 'Your location helps WeHouse show relevant homes, roommates and services.' },
     worker: { title: 'Worker account setup', subtitle: 'Set up your account first', info: 'Your personal location is separate from your professional service coverage.' },
     property_partner: { title: 'Property Partner setup', subtitle: 'Set up your account', info: 'Complete your account before managing properties.' },
-    staff: { title: 'Staff account setup', subtitle: 'Complete your account', info: 'Your personal location is separate from your work assignment.' },
+    staff: { title: 'Team account setup', subtitle: 'Complete your account', info: 'Your personal location is separate from your work assignment.' },
     admin: { title: 'Admin account setup', subtitle: 'Complete your account', info: 'Your personal location is separate from your branch assignment.' },
     creator: { title: 'Creator account setup', subtitle: 'Complete your account', info: 'Complete your account profile to continue.' },
   } as any)[role] || { title: 'Complete your profile', subtitle: 'A few details and you are ready', info: 'Your location helps WeHouse show relevant results.' };
