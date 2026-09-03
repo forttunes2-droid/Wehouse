@@ -636,6 +636,21 @@ export const BED_TYPES = [
   "Bunk",
 ] as const;
 
+// Room-level amenities are deliberately separate from hotel-wide facilities.
+// Submission and display code share this vocabulary so filters never depend on
+// arbitrary comma-separated spelling.
+export const ROOM_AMENITIES = [
+  "WiFi",
+  "AC",
+  "Private Bathroom",
+  "Television",
+  "Refrigerator",
+  "Workspace",
+  "Balcony",
+  "Kitchenette",
+  "Room Service",
+] as const;
+
 // ═══════════════════════════════════════════════════════════════
 // CTO MASTER SCHEMA — NEW TYPES
 // ═══════════════════════════════════════════════════════════════
