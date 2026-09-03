@@ -205,10 +205,7 @@ function normalizePageForRole(role: string, page: NavPage): NavPage {
     return page === "creator" || page === "new_listing" ? page : "creator";
   if (role === "admin")
     return page === "admin" || page === "new_listing" ? page : "admin";
-  if (role === "staff")
-    return page === "staff_dashboard" || page === "new_listing"
-      ? page
-      : "staff_dashboard";
+  if (role === "staff") return "staff_dashboard";
   if (role === "worker")
     return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
       page,

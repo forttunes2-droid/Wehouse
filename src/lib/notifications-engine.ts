@@ -100,7 +100,7 @@ export async function notifyUserInspectionScheduled(
     userId,
     "inspection_scheduled",
     "Inspection Scheduled",
-    `Your inspection request for "${listingTitle}" has been scheduled${date ? ` for ${date}` : ""}. Field Operations Staff will contact you.`,
+    `Your inspection request for "${listingTitle}" has been scheduled${date ? ` for ${date}` : ""}. A Field Operations team member will contact you.`,
     { listing_title: listingTitle, scheduled_date: date },
   );
 }

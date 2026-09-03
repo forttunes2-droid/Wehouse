@@ -147,8 +147,7 @@ async function ensurePropertyPartnerRecord() {
 const ADMIN_ROLES = new Set(["creator", "admin"]);
 export const hasAdminAccess = (r: string) => ADMIN_ROLES.has(r);
 export const isStaff = (r: string) => r === "staff";
-export const canCreateListings = (r: string) =>
-  ["staff", "admin", "creator"].includes(r);
+export const canCreateListings = (r: string) => hasAdminAccess(r);
 export const isAdmin = (r: string) => r === "admin";
 export const isCreator = (r: string) => r === "creator";
 export const canSendAnnouncements = (r: string) => isCreator(r) || isAdmin(r);
