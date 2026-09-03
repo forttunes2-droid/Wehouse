@@ -29,6 +29,14 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
       try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your Recovery PIN'}
     }
     const attachments:string[]=[];const attachmentTypes:string[]=[];
+    const legacyPaths=Array.isArray(row.legacy_attachments)?row.legacy_attachments.filter(Boolean):[];
+    for(let index=0;index<legacyPaths.length;index++){
+      const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(legacyPaths[index],300);
+      if(!signedError&&signed?.signedUrl){
+        attachments.push(signed.signedUrl);
+        attachmentTypes.push(row.legacy_attachment_types?.[index]||'');
+      }
+    }
     if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
     return{...row,content,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes,reply_to_id:row.reply_to_id||null,reactions:row.reactions||{}} as Message;
   }));
