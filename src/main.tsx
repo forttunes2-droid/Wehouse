@@ -6,7 +6,6 @@ import './worker-discovery-responsive.css'
 import './chat-mobile.css'
 import App from './App.tsx'
 import ErrorBoundary from '@/components/ErrorBoundary'
-import NativeSelectBridge from '@/components/NativeSelectBridge'
 import { isNative } from '@/lib/native'
 
 function NativeInit() {
@@ -27,7 +26,6 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <NativeInit />
-      <NativeSelectBridge />
       <App />
     </ErrorBoundary>
   </StrictMode>,
