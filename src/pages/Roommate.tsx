@@ -758,3 +758,54 @@ function ReceivedInterests({
             {row.avatar_url ? (
               <img
                 src={row.avatar_url}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-bold text-violet-200">
+                {String(row.full_name || row.username || "W")[0].toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">
+                {row.full_name || `@${row.username || "user"}`}
+              </p>
+              <p className="mt-1 truncate text-[9px] text-[#73798A]">
+                {row.match_score}% match ·{" "}
+                {[row.city, row.state].filter(Boolean).join(", ") || "Nigeria"}
+                {showSchool && row.school ? ` · ${row.school}` : ""}
+              </p>
+            </div>
+            <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:shrink-0">
+              <button
+                disabled={busyId === row.interest_id}
+                onClick={() => void onRespond(row, "accepted")}
+                className="min-h-10 rounded-xl bg-violet-500 px-3 text-[9px] font-semibold disabled:opacity-40"
+              >
+                Accept
+              </button>
+              <button
+                disabled={busyId === row.interest_id}
+                onClick={() => void onRespond(row, "declined")}
+                className="min-h-10 rounded-xl border border-white/[.08] px-3 text-[9px] font-semibold disabled:opacity-40"
+              >
+                Pass
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProfileFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[8px] uppercase tracking-wide text-[#606778]">
+        {label}
+      </p>
+      <p className="mt-1 font-semibold text-[#B1B6C3]">{value}</p>
+    </div>
+  );
+}
