@@ -17,6 +17,7 @@ import type { Listing, Profile, RentalDuration } from '@/types';
 import RentalPlanSelector from '@/components/RentalPlanSelector';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PropertyMediaCarousel from '@/components/PropertyMediaCarousel';
+import LocationMap from '@/components/LocationMap';
 import { Toaster, toast } from 'sonner';
 
 type Props = {
@@ -246,6 +247,7 @@ export default function ListingDetail({ listingId, onNavigate, profile, isSaved,
           <section><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><h1 className="break-words text-2xl font-bold">{listing.title}</h1><p className="mt-1 text-xs text-[#777B8B]">{[listing.address, listing.city, listing.state].filter(Boolean).join(', ')}</p></div><p className="shrink-0 text-xl font-bold text-violet-400">₦{Number(listing.price || 0).toLocaleString()}<span className="ml-1 text-[10px] font-normal text-[#686C7D]">/year</span></p></div></section>
           <section className="grid grid-cols-3 gap-2"><Fact label="Type" value={listing.sub_type ? listing.sub_type.replace(/_/g, ' ') : listing.property_type || 'Apartment'} /><Fact label="Bedrooms" value={listing.bedrooms || '—'} /><Fact label="Bathrooms" value={listing.bathrooms || '—'} /></section>
           {listing.description && <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5"><h2 className="text-sm font-semibold">About this property</h2><p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#9599A8]">{listing.description}</p></section>}
+          {Number.isFinite(Number((listing as any).gps_latitude))&&Number.isFinite(Number((listing as any).gps_longitude))&&<LocationMap latitude={Number((listing as any).gps_latitude)} longitude={Number((listing as any).gps_longitude)} label={hasOwnActiveReservation?'Property destination':'Approximate property area'} approximate={!hasOwnActiveReservation} showDirections/>}
           {listing.videos?.length > 0 && <section><h2 className="mb-3 text-sm font-semibold">Property videos</h2><div className="grid gap-3 sm:grid-cols-2">{listing.videos.map((url, index) => <video key={url} src={url} controls playsInline preload="metadata" className="aspect-video w-full rounded-2xl bg-black object-contain" aria-label={`Property video ${index + 1}`} />)}</div></section>}
           {!hasOwnActiveReservation && !sharedGroup && <section className="rounded-2xl border border-violet-500/12 bg-violet-500/[.035] p-4 sm:p-5"><h2 className="text-sm font-semibold">Ask about this property</h2><p className="mt-1 text-[11px] leading-relaxed text-[#7C8191]">Start a property enquiry before reserving. After reservation, communication continues in that reservation’s single Reservation Desk thread.</p><button onClick={() => support('property')} className="mt-4 h-11 w-full rounded-xl border border-violet-500/20 bg-violet-500/10 text-xs font-semibold text-violet-300">Ask WeHouse</button></section>}
         </div>

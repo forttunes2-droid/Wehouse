@@ -60,6 +60,7 @@ export default function PropertyInspectionRequestPanel({profile}:{profile:Profil
     if(accessUpload.error)throw new Error(`Property ${i+1}: ${accessUpload.error.message||'private access recording upload failed'}`);
     const registered=await supabase.rpc('submit_my_property_access_challenge',{p_challenge_id:d.accessChallenge.id,p_video_path:accessPath});
     if(registered.error){await supabase.storage.from('property-access-private').remove([accessPath]);throw new Error(`Property ${i+1}: ${registered.error.message}`)}
+    if(registered.data?.already_submitted)await supabase.storage.from('property-access-private').remove([accessPath]);
     for(const file of d.files){const r=await uploadListingImage(file,`batch-${profile.user_id}-${Date.now()}-${i+1}`);if(r.error||!r.url)throw new Error(`Property ${i+1}: ${r.error?.message||'image upload failed'}`);urls.push(r.url)}
     const hotelRooms:HotelProgramRoom[]=[];
     if(d.propertyType==='hotel')for(let roomIndex=0;roomIndex<d.hotelRooms.length;roomIndex++){const room=d.hotelRooms[roomIndex],media:string[]=[];for(const file of room.files){const r=await uploadListingImage(file,`hotel-${profile.user_id}-${Date.now()}-${i+1}-${roomIndex+1}`);if(r.error||!r.url)throw new Error(`Property ${i+1}, room ${roomIndex+1}: ${r.error?.message||'image upload failed'}`);media.push(r.url)}hotelRooms.push({name:room.name.trim(),nightly_rate:Number(room.rate),guest_capacity:Number(room.maxGuests)||1,inventory:Number(room.inventory)||1,bed_type:room.bedType.trim()||null,amenities:words(room.amenities),media})}
