@@ -82,9 +82,15 @@ export default function NativeSelectBridge() {
 
   function choose(value: string) {
     if (!active) return;
-    active.value = value;
+    // React tracks form values on the element instance. Using the native
+    // prototype setter ensures React receives the change instead of restoring
+    // the previous controlled value after this sheet closes.
+    const nativeSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+    if (nativeSetter) nativeSetter.call(active, value);
+    else active.value = value;
     active.dispatchEvent(new Event('input', { bubbles: true }));
     active.dispatchEvent(new Event('change', { bubbles: true }));
+    active.focus({ preventScroll: true });
     setActive(null);
     setSearch('');
   }
@@ -136,7 +142,7 @@ export default function NativeSelectBridge() {
         </div>
 
         <div className="border-t border-white/[0.06] px-4 py-3 pb-[max(.75rem,env(safe-area-inset-bottom))] text-[9px] text-[#626979] sm:px-5">
-          Search by typing any part of the option name.
+          Choose one option. Type above when the list is long.
         </div>
       </section>
     </div>,

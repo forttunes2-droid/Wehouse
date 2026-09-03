@@ -56,8 +56,8 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
   const [guestPhone, setGuestPhone] = useState(profile.phone || '');
   const [specialRequests, setSpecialRequests] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [bookingComplete, setBookingComplete] = useState(false);
-  const [bookingData, setBookingData] = useState<{ totalNights: number; totalPrice: number; checkIn: string; checkOut: string } | null>(null);
+  const [bookingComplete] = useState(false);
+  const [bookingData] = useState<{ totalNights: number; totalPrice: number; checkIn: string; checkOut: string } | null>(null);
 
   // Staff rating state
   const [showRating, setShowRating] = useState(false);
@@ -320,11 +320,11 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
             <div className="space-y-2 mb-5 text-left">
               <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
                 <span className="text-xs font-bold text-[#8B5CF6] flex-shrink-0">1</span>
-                <p className="text-xs text-[#8A8B9C]">Hotel will confirm your booking within 24 hours</p>
+                <p className="text-xs text-[#8A8B9C]">Complete secure payment to confirm the reservation</p>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
                 <span className="text-xs font-bold text-[#8B5CF6] flex-shrink-0">2</span>
-                <p className="text-xs text-[#8A8B9C]">Pay at the hotel during check-in (no online payment needed)</p>
+                <p className="text-xs text-[#8A8B9C]">The hotel checks you in when you arrive</p>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1A1A24]">
                 <span className="text-xs font-bold text-[#8B5CF6] flex-shrink-0">3</span>
