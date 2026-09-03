@@ -300,6 +300,7 @@ export function useAuth() {
   useEffect(() => {
     aliveRef.current = true;
     let alive = true;
+    let authEventTimer: number | undefined;
     async function restore() {
       setState((s) => ({ ...s, isLoading: true }));
       try {
@@ -357,17 +358,18 @@ export function useAuth() {
           });
           return;
         }
-        if (
-          [
-            "INITIAL_SESSION",
-            "SIGNED_IN",
-            "TOKEN_REFRESHED",
-            "USER_UPDATED",
-          ].includes(event) &&
-          session?.user
-        ) {
+        if (["SIGNED_IN", "USER_UPDATED"].includes(event) && session?.user) {
           if (handlingLoginRef.current && event === "SIGNED_IN") return;
-          void loadProfile(session.user.id, { preserveOnFailure: true, user: session.user });
+          // Supabase can deadlock when another client call starts inside this
+          // callback. Let the callback return before refreshing the profile.
+          if (authEventTimer !== undefined) window.clearTimeout(authEventTimer);
+          authEventTimer = window.setTimeout(() => {
+            if (!alive) return;
+            void loadProfile(session.user.id, {
+              preserveOnFailure: true,
+              user: session.user,
+            });
+          }, 0);
           return;
         }
         if (event === "SIGNED_OUT") {
@@ -411,6 +413,7 @@ export function useAuth() {
       alive = false;
       aliveRef.current = false;
       listener.subscription.unsubscribe();
+      if (authEventTimer !== undefined) window.clearTimeout(authEventTimer);
       window.removeEventListener("online", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
     };
