@@ -9,6 +9,7 @@ type Props = {
 
 export default function PropertyMediaCarousel({ images, title, children }: Props) {
   const railRef = useRef<HTMLDivElement>(null);
+  const fullscreenRailRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -27,6 +28,16 @@ export default function PropertyMediaCarousel({ images, title, children }: Props
     setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(rail.scrollLeft / rail.clientWidth))));
   }
 
+  function openFullscreen() {
+    setFullscreen(true);
+    window.requestAnimationFrame(() => fullscreenRailRef.current?.scrollTo({ left: activeIndex * (fullscreenRailRef.current.clientWidth || 1) }));
+  }
+
+  function moveFullscreenTo(index: number) {
+    fullscreenRailRef.current?.scrollTo({ left: index * (fullscreenRailRef.current.clientWidth || 1), behavior: 'smooth' });
+    setActiveIndex(index);
+  }
+
   return <>
     <section className="relative overflow-hidden bg-[#11141C] sm:m-4 sm:rounded-3xl">
       <div
@@ -38,7 +49,7 @@ export default function PropertyMediaCarousel({ images, title, children }: Props
         {images.map((image, index) => <button
           key={`${image}-${index}`}
           type="button"
-          onClick={() => setFullscreen(true)}
+          onClick={openFullscreen}
           className="min-w-full snap-center"
           aria-label={`View photo ${index + 1} of ${images.length} full screen`}
         >
@@ -54,10 +65,10 @@ export default function PropertyMediaCarousel({ images, title, children }: Props
         <div className="absolute bottom-4 right-4 flex gap-1.5">{images.map((_, index) => <button key={index} type="button" onClick={() => moveTo(index)} aria-label={`Go to photo ${index + 1}`} className={`h-2 rounded-full transition-all ${index === activeIndex ? 'w-5 bg-white' : 'w-2 bg-white/45'}`} />)}</div>
       </>}
     </section>
-    {fullscreen && <div className="fixed inset-0 z-[120] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Property photo viewer">
+    {fullscreen && <div className="fixed inset-0 z-[100200] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Property photo viewer">
       <header className="flex h-14 shrink-0 items-center justify-between px-4"><span className="text-xs text-white/70">{activeIndex + 1} of {images.length}</span><button type="button" onClick={() => setFullscreen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl" aria-label="Close photo viewer">×</button></header>
-      <div className="flex min-h-0 flex-1 items-center justify-center"><ListingMediaImage reference={images[activeIndex]} alt={`${title} · photo ${activeIndex + 1}`} className="max-h-full max-w-full object-contain" /></div>
-      {images.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto p-4 scrollbar-hide">{images.map((image, index) => <button key={`${image}-thumb-${index}`} type="button" onClick={() => setActiveIndex(index)} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-violet-400' : 'border-transparent opacity-60'}`}><ListingMediaImage reference={image} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+      <div ref={fullscreenRailRef} onScroll={(event) => { const rail=event.currentTarget; if(rail.clientWidth)setActiveIndex(Math.min(images.length-1,Math.max(0,Math.round(rail.scrollLeft/rail.clientWidth)))) }} className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain scrollbar-hide">{images.map((image,index)=><div key={`${image}-full-${index}`} className="flex min-w-full snap-center items-center justify-center"><ListingMediaImage reference={image} alt={`${title} · photo ${index + 1}`} className="max-h-full max-w-full object-contain" /></div>)}</div>
+      {images.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto p-4 scrollbar-hide">{images.map((image, index) => <button key={`${image}-thumb-${index}`} type="button" onClick={() => moveFullscreenTo(index)} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-violet-400' : 'border-transparent opacity-60'}`}><ListingMediaImage reference={image} alt="" className="h-full w-full object-cover" /></button>)}</div>}
     </div>}
   </>;
 }

@@ -17,7 +17,7 @@ import DiscoveryShell, {
   DiscoveryFilterSheet,
   DiscoveryToolbar,
 } from "@/components/DiscoveryShell";
-import { WORKER_OCCUPATION_LABELS } from "@/types";
+import { workerOccupation, workerServiceNames } from "@/lib/workerTaxonomy";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
@@ -598,11 +598,8 @@ function WorkerCard({
   onBook: () => void;
   onOpen: () => void;
 }) {
-  const occupation =
-      WORKER_OCCUPATION_LABELS[worker.worker_occupation || ""] ||
-      worker.worker_occupation ||
-      "Service professional",
-    skills = (worker.worker_skills as string[]) || [];
+  const occupation = workerOccupation(worker),
+    skills = workerServiceNames(worker);
   return (
     <article className="rounded-3xl border border-white/[.07] bg-[#11141C] p-4">
       <div className="flex items-start gap-3">

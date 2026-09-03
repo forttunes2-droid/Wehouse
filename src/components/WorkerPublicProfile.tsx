@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import GoldTickBadge from "@/components/GoldTickBadge";
 import { supabase } from "@/lib/supabase";
-import { WORKER_OCCUPATION_LABELS } from "@/types";
+import { workerOccupation, workerServiceNames } from "@/lib/workerTaxonomy";
 import type { Profile } from "@/types";
 
 type Post = {
@@ -85,11 +85,8 @@ export default function WorkerPublicProfileV2({
       window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: false } }));
     };
   }, [worker.user_id]);
-  const skills = (worker.worker_skills as string[]) || [],
-    occupation = skills[0] ||
-      WORKER_OCCUPATION_LABELS[worker.worker_occupation || ""] ||
-      worker.worker_occupation ||
-      "Service worker",
+  const skills = workerServiceNames(worker),
+    occupation = workerOccupation(worker),
     workPosts = posts.filter((post) => post.kind === "work_post"),
     rating = Number(trust?.rating ?? worker.rating ?? 0) || 0,
     reviewCount = Number(trust?.review_count ?? worker.review_count ?? 0) || 0;

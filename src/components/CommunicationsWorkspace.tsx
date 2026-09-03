@@ -8,16 +8,16 @@ import type { Profile } from '@/types';
 
 type View='inbox'|'broadcast';
 type Scope='all'|{state:string;lga:string};
-type Props={profile:Profile;scope:Scope;onOpenConversation?:(id?:string)=>void;forcedView?:View;hideViewTabs?:boolean;queue?:'support'|'reservation_operations';onUnreadChange?:(count:number)=>void};
+type Props={profile:Profile;scope:Scope;onOpenConversation?:(id?:string)=>void;forcedView?:View;hideViewTabs?:boolean;queue?:'support'|'reservation_operations';onUnreadChange?:(count:number)=>void;initialConversationId?:string};
 const MAX_FILES=6,MAX_FILE_SIZE=25*1024*1024;
 
-export default function CommunicationsWorkspace({profile,scope,forcedView,hideViewTabs=false,queue='support',onUnreadChange}:Props){
+export default function CommunicationsWorkspace({profile,scope,forcedView,hideViewTabs=false,queue='support',onUnreadChange,initialConversationId}:Props){
  const[view,setView]=useState<View>(forcedView||'inbox'),[rows,setRows]=useState<any[]>([]),[loadingList,setLoadingList]=useState(true),[loadingThread,setLoadingThread]=useState(false),[search,setSearch]=useState(''),[selected,setSelected]=useState<any|null>(null),[messages,setMessages]=useState<any[]>([]),[input,setInput]=useState(''),[sending,setSending]=useState(false),[files,setFiles]=useState<File[]>([]);
- const fileRef=useRef<HTMLInputElement>(null),bottomRef=useRef<HTMLDivElement>(null),inputRef=useRef<HTMLTextAreaElement>(null);
+ const fileRef=useRef<HTMLInputElement>(null),bottomRef=useRef<HTMLDivElement>(null),inputRef=useRef<HTMLTextAreaElement>(null),openedInitialRef=useRef<string|null>(null);
  useEffect(()=>{if(forcedView)setView(forcedView)},[forcedView]);
- async function load(quiet=false){if(!quiet)setLoadingList(true);const{conversations,error}=await getSupportInbox(queue);if(error&&!quiet)toast.error(error.message||`Unable to load ${queue==='reservation_operations'?'Reservation Desk':'support'} inbox`);if(!error)setRows(conversations||[]);if(!quiet)setLoadingList(false)}
+ async function load(quiet=false){if(!quiet)setLoadingList(true);const{conversations,error}=await getSupportInbox(queue);if(error&&!quiet)toast.error(error.message||`Unable to load ${queue==='reservation_operations'?'Reservation Desk':'support'} inbox`);if(!error){const next=conversations||[];setRows(next);if(initialConversationId&&openedInitialRef.current!==initialConversationId){const target=next.find((row:any)=>String(row.conversation_id)===String(initialConversationId));openedInitialRef.current=initialConversationId;if(target)void open(target);else if(!quiet)toast.error('The linked conversation is no longer available in this inbox.')}}if(!quiet)setLoadingList(false)}
  async function refreshMessages(id:string,quiet=false){if(!quiet)setLoadingThread(true);const{messages:data,error}=await getSupportMessages(id);if(error&&!quiet)toast.error(error.message||'Unable to open conversation');if(!error)setMessages(data||[]);await markSupportMessagesRead(id);if(!quiet)setLoadingThread(false)}
- useEffect(()=>{if(view==='inbox'&&!selected)void load()},[view,selected,profile.user_id,queue]);
+ useEffect(()=>{if(view==='inbox'&&!selected)void load()},[view,selected,profile.user_id,queue,initialConversationId]);
  useEffect(()=>{if(view!=='inbox')return;const channel=supabase.channel(`support-team-inbox:${profile.user_id}`).on('postgres_changes',{event:'*',schema:'public',table:'partner_support_messages'},()=>{void load(true);if(selected?.conversation_id)void refreshMessages(selected.conversation_id,true)}).subscribe();const timer=window.setInterval(()=>void load(true),60000);return()=>{window.clearInterval(timer);void supabase.removeChannel(channel)}},[view,selected?.conversation_id,profile.user_id]);
  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages.length,selected?.conversation_id]);
  async function open(row:any){const claimed=await claimCommunicationCase(row.conversation_id);if(claimed.error)return toast.error(claimed.error.message||'This case could not be assigned');setSelected({...row,assigned_staff_id:profile.user_id});setFiles([]);setInput('');await refreshMessages(row.conversation_id);void load(true);requestAnimationFrame(()=>inputRef.current?.focus())}

@@ -570,6 +570,7 @@ export function useAuth() {
       error: "",
       kickedOut: false,
     });
+    window.history.replaceState({ page: "login" }, "", "#login");
     const remoteCleanup: Promise<unknown>[] = [];
     if (sid) remoteCleanup.push(deactivateUserSession(sid).catch(() => {}));
     if (userId && authId)
@@ -580,7 +581,6 @@ export function useAuth() {
       new Promise<void>((resolve) => window.setTimeout(resolve, 1500)),
     ]);
     await wipeOnLogout();
-    window.location.replace(`${window.location.origin}/#login`);
   }, [state.profile]);
   useEffect(() => {
     if (!state.profile) return;

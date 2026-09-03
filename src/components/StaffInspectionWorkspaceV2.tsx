@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { uploadListingCandidateImage, uploadListingCandidateVideo } from '@/lib/supabase/listings';
 import { ListingMediaImage, ListingMediaVideo, useListingMediaUrl } from './ListingCandidateMedia';
-import WeHouseSelect from '@/components/WeHouseSelect';
+import InlineFilterChips from '@/components/InlineFilterChips';
 import type { Profile } from '@/types';
 
 type InspectionRow = {
@@ -129,7 +129,7 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
   }
 
   const active=rows.filter(row=>!done(row)).length;
-  return <div className="space-y-4"><header><h2 className="text-lg font-bold">Inspections</h2><p className="mt-1 text-[10px] text-[#707687]">{active} active · {rows.length-active} completed</p></header><div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Status filter</span><WeHouseSelect value={filter} options={INSPECTION_FILTERS} onChange={setFilter} eyebrow="Inspection status" title="Filter by inspection status" ariaLabel="Filter inspections by status" className="max-w-[13rem] rounded-full"/></div><input value={search} onChange={event=>setSearch(event.target.value)} aria-label="Search inspections" placeholder="Search address or Property Partner" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none"/>{loading?<Empty text="Loading inspections…"/>:shown.length===0?<Empty text="No inspections match this status."/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(row=><button key={`${row._source}-${row.id}`} onClick={()=>open(row)} className="w-full py-4 text-left"><Head row={row}/><p className="mt-2 text-[9px] text-[#73798B]">{row.scheduled_date?new Date(row.scheduled_date).toLocaleString():'Schedule pending'}</p></button>)}</div>}</div>;
+  return <div className="space-y-4"><header><h2 className="text-lg font-bold">Inspections</h2><p className="mt-1 text-[10px] text-[#707687]">{active} active · {rows.length-active} completed</p></header><InlineFilterChips value={filter} options={INSPECTION_FILTERS} onChange={(value)=>setFilter(value as InspectionFilter)} ariaLabel="Show inspections by lifecycle"/><input value={search} onChange={event=>setSearch(event.target.value)} aria-label="Search inspections" placeholder="Search address or Property Partner" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none"/>{loading?<Empty text="Loading inspections…"/>:shown.length===0?<Empty text="No inspections match this view."/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(row=><button key={`${row._source}-${row.id}`} onClick={()=>open(row)} className="w-full py-4 text-left"><Head row={row}/><p className="mt-2 text-[9px] text-[#73798B]">{row.scheduled_date?new Date(row.scheduled_date).toLocaleString():'Schedule pending'}</p></button>)}</div>}</div>;
 }
 
 function done(row:InspectionRow){return ['completed','approved'].includes(row.status)}

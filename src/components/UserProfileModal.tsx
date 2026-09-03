@@ -4,13 +4,14 @@ import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
+import { workerOccupation } from '@/lib/workerTaxonomy';
 
 interface UserProfileModalProps {
   user: Profile | null;
   adminProfile?: Profile | null;
   onClose: () => void;
   onPromote?: () => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 }
 
@@ -201,7 +202,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
 
             {user.role === 'worker' && (
               <>
-                {user.worker_occupation && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p><p className="text-xs text-white/80 font-medium">{user.worker_occupation}</p></div>}
+                {user.worker_occupation && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Occupation</p><p className="text-xs text-white/80 font-medium">{workerOccupation(user)}</p></div>}
                 {user.worker_bio && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">About</p><p className="text-xs text-white/80 leading-relaxed">{user.worker_bio}</p></div>}
                 {user.worker_skills && user.worker_skills.length > 0 && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Skills</p><div className="flex flex-wrap gap-1.5">{user.worker_skills.map((s: string, i: number) => <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20">{s}</span>)}</div></div>}
                 {user.worker_price && <div className="glass rounded-2xl p-4"><p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">Service Price</p><p className="text-xs text-white/80 font-medium">N{user.worker_price.toLocaleString()}</p></div>}
@@ -212,7 +213,7 @@ function UserProfileContent({ user, adminProfile, onClose, onPromote, onNavigate
             {user.role === 'property_partner' && partnerProperties.length > 0 && (
               <div className="glass rounded-2xl p-4 space-y-3">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">Properties ({partnerProperties.length})</p>
-                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.(`detail_${prop.id}`); onClose(); }} className="w-full text-left glass rounded-xl p-3 hover:bg-[#1A1A24] transition-colors"><p className="text-xs font-medium text-white truncate">{prop.title}</p><div className="flex items-center justify-between mt-1"><span className="text-[10px] text-[#5C5E72]">{prop.city}, {prop.state}</span><span className="text-[10px] text-[#8B5CF6]">N{prop.price?.toLocaleString()}</span></div></button>)}
+                {partnerProperties.slice(0, 5).map(prop => <button key={prop.id} onClick={() => { onNavigate?.('operations_properties', prop.id); onClose(); }} className="flex min-h-16 w-full items-center justify-between gap-3 border-b border-white/[.055] py-3 text-left last:border-b-0"><span className="min-w-0"><span className="block truncate text-xs font-medium text-white">{prop.title}</span><span className="mt-1 block truncate text-[9px] text-[#666C7D]">{prop.city}, {prop.state} · {String(prop.status||'recorded').replace(/_/g,' ')}</span></span><span className="shrink-0 text-right"><span className="block text-[10px] font-semibold text-violet-300">₦{prop.price?.toLocaleString()}</span><span className="mt-1 block text-[9px] text-[#666C7D]">Open record ›</span></span></button>)}
               </div>
             )}
 

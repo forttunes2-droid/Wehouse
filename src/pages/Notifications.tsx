@@ -83,7 +83,7 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
       setDeviceLogin({sessionId,device:String(row.destination_params?.device||'Device'),os:String(row.destination_params?.os||'Unknown'),browser:String(row.destination_params?.browser||'Unknown'),loginTime:String(row.destination_params?.login_time||row.created_at),currentDevice:getStoredSessionId()===sessionId});return;
     }
     const route = row.destination_route || legacyRoute(row.type), params = row.destination_params || {};
-    const id = String(params.listing_id || params.listingId || params.conversation_id || params.conversationId || params.contextId || params.booking_id || params.bookingId || params.sharedGroupId || row.source_id || "");
+    const id = String(params.inspection_id || params.inspectionId || params.listing_id || params.listingId || params.reservation_id || params.reservationId || params.conversation_id || params.conversationId || params.contextId || params.booking_id || params.bookingId || params.worker_id || params.workerId || params.hotel_id || params.hotelId || params.sharedGroupId || row.source_id || "");
     if (route) onNavigate(route, id || undefined);
   }
 
@@ -117,7 +117,7 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
       <span className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-white/[.035] text-[#73798A]" : "bg-violet-500/12 text-violet-300"}`}>{icon(row.type)}</span>
       <span className="min-w-0 flex-1"><span className={`block text-xs ${row.read ? "font-medium text-[#A3A7B3]" : "font-semibold text-white"}`}>{row.title}</span>
       {row.message && <span className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[#717788]`}>{row.message}</span>}
-      <span className="mt-1.5 block text-[8px] text-[#555C6D]">{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{row.source === "announcement" ? expanded === row.id ? " · Show less" : " · Read update" : row.destination_route || legacyRoute(row.type) ? " · Open details" : ""}</span></span>{!row.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-violet-400" />}
+      <span className="mt-1.5 block text-[8px] text-[#555C6D]">{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{` · ${activityAction(row, expanded === row.id)}`}</span></span>{!row.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-violet-400" />}
     </button>)}</div></section>)}
   </div>}</main>;
   const confirmation=workPost&&<div className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white" role="dialog" aria-modal="true" aria-label="Confirm worker Work Post"><header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3"><button onClick={()=>setWorkPost(null)} disabled={confirmBusy} className="grid h-10 w-10 place-items-center text-xl" aria-label="Close">×</button><div><p className="text-sm font-semibold">Does this show the completed work?</p><p className="text-[9px] text-[#707687]">Confirm only the work from your linked WeHouse job</p></div></header><main className="min-h-0 flex-1 overflow-y-auto"><div className="grid min-h-[52dvh] place-items-center bg-black">{workPost.media_type==='video'?<video src={workPost.url} controls playsInline className="max-h-[68dvh] w-full object-contain"/>:<img src={workPost.url} alt="Worker's linked completed work" className="max-h-[68dvh] w-full object-contain"/>}</div><div className="mx-auto max-w-xl space-y-4 p-4">{workPost.caption&&<p className="text-xs leading-5 text-[#B4B8C3]">{workPost.caption}</p>}{workPost.job_confirmation_status==='pending'?<><p className="text-[10px] leading-5 text-[#7D8393]">Yes adds the “Completed through WeHouse” badge. No keeps this as an ordinary worker post without that badge.</p><div className="grid grid-cols-2 gap-3"><button onClick={()=>void answerWorkPost(false)} disabled={confirmBusy} className="h-12 rounded-2xl border border-white/[.1] text-xs font-semibold disabled:opacity-40">No, it does not</button><button onClick={()=>void answerWorkPost(true)} disabled={confirmBusy} className="h-12 rounded-2xl bg-emerald-500 text-xs font-semibold text-[#04110B] disabled:opacity-40">{confirmBusy?'Saving…':'Yes, confirm'}</button></div></>:<p className="rounded-2xl bg-white/[.04] p-4 text-xs text-[#A5AAB6]">This confirmation has already been answered.</p>}</div></main></div>;
@@ -127,6 +127,18 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
 }
 
 function legacyRoute(type: string) { if (type === "roommate_interest" || type === "shared_home_invite" || type === "shared_home_response") return "roommate"; if (type === "roommate_match" || type === "missed_call") return "conversation"; if (type.includes("booking") || type.includes("payment") || type.includes("inspection") || type.includes("reservation") || type.includes("shared_home")) return "my_reservations"; return ""; }
+function activityAction(row: Activity, expanded: boolean) {
+  if (row.source === 'announcement') return expanded ? 'Show less' : 'Read update';
+  if (row.type === 'new_device_login') return 'Review sign-in';
+  if (row.type === 'work_post_confirmation_requested') return 'Review completed work';
+  const route = String(row.destination_route || legacyRoute(row.type) || '').toLowerCase();
+  if (route.includes('propert') || route === 'detail' || route === 'listing_detail') return 'Open property record';
+  if (route.includes('reservation') || route.includes('booking') || route === 'operations_inbox') return 'Open booking record';
+  if (route.includes('conversation') || route.includes('message') || route === 'chat') return 'Open conversation';
+  if (route.includes('worker')) return 'Open worker record';
+  if (route.includes('roommate')) return 'Open roommate record';
+  return 'Mark as read';
+}
 function dayLabel(value: string) { const date = new Date(value), today = new Date(), yesterday = new Date(); yesterday.setDate(today.getDate() - 1); if (date.toDateString() === today.toDateString()) return "Today"; if (date.toDateString() === yesterday.toDateString()) return "Yesterday"; return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); }
 function icon(type: string) { if (type === "announcement") return "W"; if (type.includes("payment")) return "₦"; if (type.includes("roommate")) return "◉"; if (type.includes("security")) return "⌾"; if (type.includes("booking") || type.includes("reservation")) return "✓"; return "•"; }
 function ActivityLoading(){return <div className="grid min-h-40 place-items-center" role="status" aria-label="Loading activity"><div className="text-center"><div className="mx-auto grid h-10 w-10 animate-pulse place-items-center rounded-2xl bg-violet-500 text-sm font-black">WH</div><p className="mt-3 text-[9px] text-[#686F80]">Loading recent activity…</p></div></div>}

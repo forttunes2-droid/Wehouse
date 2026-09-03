@@ -2,7 +2,7 @@ import { useEffect,useMemo,useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { BOOKING_STATUS_LABELS } from '@/lib/supabase/worker-bookings';
-import WeHouseSelect from '@/components/WeHouseSelect';
+import InlineFilterChips from '@/components/InlineFilterChips';
 import { canonicalStatusOptions } from '@/lib/status';
 
 type BookingRow={
@@ -30,7 +30,7 @@ export default function ServiceBookingOversight({title='Worker service bookings'
  const shown=useMemo(()=>{const q=search.trim().toLowerCase();return rows.filter(row=>{if(statusFilter!=='all'&&row.status!==statusFilter)return false;if(!q)return true;return[row.booking_code,row.service_type,row.worker_name,row.customer_name,row.status].filter(Boolean).join(' ').toLowerCase().includes(q)})},[rows,search,statusFilter]);
  return <div className="space-y-4">
   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#707687]">{note}</p></div><button onClick={()=>void load()} className="h-10 w-fit rounded-xl border border-white/[.07] bg-white/[.025] px-4 text-[9px] font-semibold text-[#A4A9B6]">Refresh</button></div>
-  <div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Status filter</span><WeHouseSelect value={statusFilter} options={statusOptions} onChange={setStatusFilter} eyebrow="Booking status" title="Filter by booking status" ariaLabel="Filter service bookings by status" className="max-w-[13rem] rounded-full"/></div>
+  <InlineFilterChips value={statusFilter} options={statusOptions} onChange={setStatusFilter} ariaLabel="Show service bookings by lifecycle"/>
   <div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#606677]">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search booking, service, Worker or customer" className="h-11 w-full rounded-2xl border border-white/[.07] bg-[#12161E] pl-9 pr-3 text-xs outline-none focus:border-violet-500/35"/></div>
   {loading?<Loading/>:shown.length===0?<Empty hasAny={rows.length>0}/>:<div className="space-y-2.5">{shown.map(row=><BookingCard key={`${row.booking_code}-${row.updated_at}`} row={row}/>)}</div>}
  </div>

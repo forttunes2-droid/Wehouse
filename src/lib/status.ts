@@ -9,7 +9,7 @@ export function canonicalStatusOptions(values: Array<string | null | undefined>)
   ).sort((left, right) => formatCanonicalStatus(left).localeCompare(formatCanonicalStatus(right)));
 
   return [
-    { value: "all", label: "All statuses" },
+    { value: "all", label: "All" },
     ...statuses.map((value) => ({ value, label: formatCanonicalStatus(value) })),
   ];
 }
