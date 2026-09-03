@@ -111,7 +111,7 @@ function PropertiesWorkspace({ profile }: { profile: Profile }) {
         <WeHouseSelect value={filter} options={filters} onChange={setFilter} eyebrow="Properties" title="Choose what to show" ariaLabel="Filter property submissions" />
       </div>}
       {filter === "public" ? (
-        <PropertiesTab profile={profile} />
+        <PropertiesTab profile={profile} onDetailChange={setViewingDetail} />
       ) : (
         <PartnerSubmittedRequests profile={profile} filter={filter} onDetailChange={setViewingDetail} />
       )}
@@ -286,7 +286,7 @@ export function RequestsTab({ profile }: { profile: Profile }) {
     </div>
   );
 }
-function PropertiesTab({ profile }: { profile: Profile }) {
+function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetailChange?: (open:boolean)=>void }) {
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
@@ -309,6 +309,7 @@ function PropertiesTab({ profile }: { profile: Profile }) {
       active = false;
     };
   }, [profile.user_id]);
+  useEffect(()=>{onDetailChange?.(Boolean(selected));return()=>onDetailChange?.(false)},[selected,onDetailChange]);
   if (selected?._assetKind==="hotel") return <PartnerHotelOperations hotel={selected} accessRole="owner" onBack={()=>setSelected(null)}/>;
   if (selected)
     return (
