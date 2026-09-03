@@ -25,7 +25,7 @@ const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'operations', label: 'Operations' },
   { id: 'waitlist', label: 'Waitlist' },
-  { id: 'communications', label: 'Communications' },
+  { id: 'communications', label: 'Inbox' },
   { id: 'finance', label: 'Finance' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'audit', label: 'Change History' },

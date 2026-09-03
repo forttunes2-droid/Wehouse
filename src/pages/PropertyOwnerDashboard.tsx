@@ -34,7 +34,7 @@ const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   },
   {
     key: "communication",
-    label: "Communication",
+    label: "Inbox",
     description: "Official updates and Human Support",
   },
   {

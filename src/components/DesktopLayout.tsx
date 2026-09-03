@@ -185,15 +185,15 @@ export default function DesktopLayout({
     let extra: MirroredTab[] = [];
 
     if (role === 'creator') {
-      direct = ['Overview', 'Operations', 'Communications', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
+      direct = ['Overview', 'Operations', 'Inbox', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
       extra = ['Analytics', 'Settings'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'admin') {
-      direct = ['Overview', 'Operations', 'Communications', 'Issues'].map(by).filter(Boolean) as MirroredTab[];
+      direct = ['Overview', 'Operations', 'Inbox', 'Issues'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'worker') {
       direct = ['Overview', 'Jobs', 'Schedule', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
       extra = ['Professional Profile'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'property_partner') {
-      direct = ['Properties', 'Communication', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
+      direct = ['Properties', 'Inbox', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'staff') {
       direct = workspaceTabs.slice(0, 4);
       extra = workspaceTabs.slice(4);

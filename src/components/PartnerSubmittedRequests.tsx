@@ -36,9 +36,10 @@ type RequestRow = {
   submission_batch_position: number | null;
   authority_relationship: string | null;
   access_evidence_status: string | null;
+  lifecycle_stage: string | null;
 };
 
-const fields = 'id,request_code,property_address,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status';
+const fields = 'id,request_code,property_address,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage';
 
 export default function PartnerSubmittedRequests({ profile }: { profile: Profile }) {
   const [requests, setRequests] = useState<RequestRow[]>([]);
@@ -105,8 +106,9 @@ export default function PartnerSubmittedRequests({ profile }: { profile: Profile
 
 function RequestDetail({request, onBack, onContact }: { request: RequestRow; onBack: () => void; onContact: () => void }) {
   const images = request.photo_urls || [];
-  const stopped = request.status === 'rejected';
-  const progress = stopped ? 0 : request.published_at ? 5 : (request.draft_listing_id || request.draft_hotel_id) ? 4 : request.completed_at || ['completed','approved'].includes(request.status || '') ? 3 : request.scheduled_date || ['scheduled','in_progress'].includes(request.status || '') ? 2 : 1;
+  const stage = request.lifecycle_stage || 'access_required';
+  const stopped = ['changes_requested','rejected'].includes(stage);
+  const progress = stage === 'live' ? 5 : stage === 'listing_prepared' ? 4 : stage === 'visit_reviewed' ? 3 : stage === 'inspection' ? 2 : 1;
   const steps = ['Received', 'Inspection', 'Visit reviewed', 'Listing prepared', 'Public'];
   return <div className="space-y-5">
     <div className="flex items-center gap-3"><BackButton onClick={onBack}/><span className="text-xs text-[#A1A3B1]">Submitted properties</span></div>
@@ -119,7 +121,7 @@ function RequestDetail({request, onBack, onContact }: { request: RequestRow; onB
       </div>
     </section>
     <AccessEvidenceSummary status={request.access_evidence_status} />
-    <section className="rounded-3xl border border-white/[.06] bg-[#111119] p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Journey to publication</h3><p className="mt-1 text-[9px] text-[#696D7D]">Access evidence and the independent WeHouse visit must both pass before publication.</p></div><span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${stopped ? 'bg-red-500/10 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{stopped ? 'Stopped' : `${progress} of 5`}</span></div><div className="mt-5 grid grid-cols-5 gap-1">{steps.map((label, index) => <div key={label} className="min-w-0 text-center"><div className={`mx-auto grid h-8 w-8 place-items-center rounded-full text-[9px] font-bold ${progress > index ? (progress === 5 ? 'bg-emerald-500 text-white' : 'bg-violet-500 text-white') : 'bg-white/[.05] text-[#5F6272]'}`}>{progress > index ? '✓' : index + 1}</div><p className={`mt-2 break-words text-[7px] leading-tight sm:text-[8px] ${progress > index ? 'text-[#CFD0D9]' : 'text-[#5F6272]'}`}>{label}</p></div>)}</div>{request.scheduled_date && <p className="mt-4 rounded-xl bg-violet-500/[.06] p-3 text-[10px] text-violet-200">Inspection visit: {new Date(request.scheduled_date).toLocaleString()}</p>}{!stopped && progress < 5 && <p className="mt-3 text-[9px] leading-5 text-[#777C8D]">{progress === 1 ? 'Next: complete access evidence, then WeHouse assigns a Field Officer.' : progress === 2 ? 'Next: the Field Officer submits independent visit evidence.' : progress === 3 ? 'Next: WeHouse prepares the public listing details.' : 'Next: an Admin or Creator performs the final check and publishes it.'}</p>}{progress === 5 && <p className="mt-3 text-[9px] font-semibold text-emerald-300">This property is now public on WeHouse.</p>}</section>
+    <section className="rounded-3xl border border-white/[.06] bg-[#111119] p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Journey to publication</h3><p className="mt-1 text-[9px] text-[#696D7D]">Access evidence and the independent WeHouse visit must both pass before publication.</p></div><span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${stopped ? 'bg-red-500/10 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{stopped ? 'Action needed' : `${progress} of 5`}</span></div><div className="mt-5 grid grid-cols-5 gap-1">{steps.map((label, index) => <div key={label} className="min-w-0 text-center"><div className={`mx-auto grid h-8 w-8 place-items-center rounded-full text-[9px] font-bold ${progress > index ? (progress === 5 ? 'bg-emerald-500 text-white' : 'bg-violet-500 text-white') : 'bg-white/[.05] text-[#5F6272]'}`}>{progress > index ? '✓' : index + 1}</div><p className={`mt-2 break-words text-[7px] leading-tight sm:text-[8px] ${progress > index ? 'text-[#CFD0D9]' : 'text-[#5F6272]'}`}>{label}</p></div>)}</div>{stage === 'inspection' && request.scheduled_date && <p className="mt-4 rounded-xl bg-violet-500/[.06] p-3 text-[10px] text-violet-200">Inspection visit: {new Date(request.scheduled_date).toLocaleString()}</p>}<p className="mt-3 text-[9px] leading-5 text-[#777C8D]">{journeyNext(stage)}</p></section>
     {(request.notes || request.rejection_reason) && <section className="rounded-2xl border border-white/[.06] bg-[#111119] p-4"><p className="text-[9px] uppercase tracking-wide text-[#66697A]">Latest WeHouse update</p><p className="mt-2 text-xs leading-6 text-[#A5A7B3]">{request.rejection_reason || request.notes}</p></section>}
     {(request.gps_latitude != null && request.gps_longitude != null) && <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4"><p className="text-xs font-semibold">Property coordinates supplied</p><p className="mt-1 text-[10px] text-[#777E90]">{request.gps_latitude.toFixed(6)}, {request.gps_longitude.toFixed(6)}{request.location_accuracy_m ? ` · ±${Math.round(request.location_accuracy_m)}m` : ''}</p></section>}
     <button type="button" onClick={onContact} className="h-12 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.08] text-xs font-semibold text-violet-200">Ask Support about this property</button>
@@ -129,23 +131,31 @@ function RequestDetail({request, onBack, onContact }: { request: RequestRow; onB
 function AccessEvidenceSummary({status}:{status:string|null}) {
   const verified=status==='verified';
   const rejected=status==='rejected';
+  const submitted=status==='submitted';
   return <section className={`rounded-2xl border p-4 ${verified?'border-emerald-500/15 bg-emerald-500/[.04]':rejected?'border-amber-500/15 bg-amber-500/[.04]':'border-white/[.06] bg-[#111119]'}`}>
-    <div className="flex items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${verified?'bg-emerald-500/15 text-emerald-300':rejected?'bg-amber-500/15 text-amber-300':'bg-violet-500/10 text-violet-300'}`}>{verified?'✓':rejected?'!':'•'}</span><div><p className="text-xs font-semibold">{verified?'Property access confirmed':rejected?'New access evidence required':'Private access recording received'}</p><p className="mt-1 text-[9px] leading-4 text-[#74798A]">The temporary recording code was consumed during submission and is no longer displayed. {verified?'WeHouse accepted the private evidence.':rejected?'Open a correction request from the WeHouse update when instructed.':'WeHouse will review it before assigning the field visit.'}</p></div></div>
+    <div className="flex items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${verified?'bg-emerald-500/15 text-emerald-300':rejected?'bg-amber-500/15 text-amber-300':'bg-violet-500/10 text-violet-300'}`}>{verified?'✓':rejected?'!':'•'}</span><div><p className="text-xs font-semibold">{verified?'Property access confirmed':rejected?'WeHouse requested new evidence':submitted?'Private access recording received':'Access evidence unavailable'}</p><p className="mt-1 text-[9px] leading-4 text-[#74798A]">{verified?'An Operations Admin accepted the private evidence. The Creator retains oversight.':rejected?'Read the latest WeHouse update for the correction required.':submitted?'The temporary code was consumed and is no longer displayed. An Operations Admin will review the private recording before a Field Officer is assigned.':'This earlier submission has no accepted access recording. It cannot advance until WeHouse resolves the evidence requirement.'}</p></div></div>
   </section>;
+}
+
+function journeyNext(stage:string) {
+  if(stage==='access_required')return 'Next: resolve the missing access evidence with WeHouse. A Field Officer cannot be assigned yet.';
+  if(stage==='access_review')return 'Next: an Operations Admin reviews the private access recording.';
+  if(stage==='inspection_ready')return 'Next: WeHouse assigns a Field Officer for an independent visit.';
+  if(stage==='inspection')return 'Next: the Field Officer submits independent visit evidence.';
+  if(stage==='visit_reviewed')return 'Next: WeHouse prepares the non-public listing or hotel programme.';
+  if(stage==='listing_prepared')return 'Next: an Admin or Creator performs the final preview and publishes it.';
+  if(stage==='live')return 'This property is now public on WeHouse.';
+  if(stage==='changes_requested')return 'Action needed: follow the latest WeHouse correction request. The submission is not progressing.';
+  return 'This submission has been stopped by WeHouse.';
 }
 
 function Info({ label, value }: { label: string; value: string | number }) { return <div className="rounded-xl border border-white/[.06] bg-black/10 p-3"><p className="text-[8px] uppercase text-[#5F6273]">{label}</p><p className="mt-1 truncate text-[10px] font-semibold capitalize">{value || '—'}</p></div>; }
 function Status({ request }: { request: RequestRow }) { const state=partnerState(request); return <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${state.tone}`}>{state.label}</span>; }
 function partnerState(request:RequestRow){
-  const status=String(request.status||'pending').toLowerCase();
-  if(request.published_at)return{label:'Live',tone:'bg-emerald-500/10 text-emerald-300'};
-  if(status==='rejected')return{label:'Rejected',tone:'bg-red-500/10 text-red-300'};
-  if(status==='changes_requested')return{label:'Changes requested',tone:'bg-amber-500/10 text-amber-300'};
-  if(request.draft_listing_id||request.draft_hotel_id)return{label:'Listing preparation',tone:'bg-violet-500/10 text-violet-300'};
-  if(request.completed_at||['completed','approved'].includes(status))return{label:'Visit reviewed',tone:'bg-violet-500/10 text-violet-300'};
-  if(request.scheduled_date||['scheduled','in_progress'].includes(status))return{label:'Inspection',tone:'bg-violet-500/10 text-violet-300'};
-  if(request.access_evidence_status==='submitted')return{label:'Access review',tone:'bg-violet-500/10 text-violet-300'};
-  return{label:'Under review',tone:'bg-amber-500/10 text-amber-300'};
+  const stage=request.lifecycle_stage||'access_required';
+  const labels:Record<string,string>={access_required:'Evidence required',access_review:'Access review',inspection_ready:'Ready for assignment',inspection:'Inspection',visit_reviewed:'Visit reviewed',listing_prepared:'Listing prepared',live:'Live',changes_requested:'Changes requested',rejected:'Rejected'};
+  const tone=stage==='live'?'bg-emerald-500/10 text-emerald-300':stage==='rejected'?'bg-red-500/10 text-red-300':['access_required','changes_requested'].includes(stage)?'bg-amber-500/10 text-amber-300':'bg-violet-500/10 text-violet-300';
+  return{label:labels[stage]||'Under review',tone};
 }
 function Loader() { return <div className="grid min-h-40 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>; }
 function Empty() { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center"><p className="text-sm font-semibold">No properties submitted yet</p><p className="mt-2 text-[10px] text-[#66697A]">Use Add properties above to send your first property.</p></div>; }
