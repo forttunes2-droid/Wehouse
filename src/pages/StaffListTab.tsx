@@ -4,8 +4,9 @@ import { getAllUsers } from '@/lib/supabase/admin';
 import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
+import WeHouseSelect from '@/components/WeHouseSelect';
 
-const MODULES:Record<string,string>={operations:'Operations',finance:'Finance',support:'Support',security:'Security Operations',verification:'Worker Verification',field_officer:'Field Operations'};
+const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance',support:'Human Support',security:'Security Operations',verification:'Worker Verification',field_officer:'Field Operations'};
 type RoleFilter='all'|'admin'|'staff';
 
 export default function StaffListTab({profile}:{profile:Profile}){
@@ -65,20 +66,14 @@ function Manage({person,creator,module,saving,close,saveModule,reassign}:{person
 <p className="text-xs font-semibold">Branch assignment</p>
 <p className="mt-1 text-[9px] text-[#666D7E]">Controls the geographical records this account can access.</p>
 <div className="mt-3 grid grid-cols-2 gap-2">
-<select value={s} onChange={e=>{setS(e.target.value);setL('')}} className="h-11 rounded-xl bg-[#171A23] px-2 text-[10px]">
-<option value="">State</option>{NIGERIA_STATES.map(x=>
-<option key={x.state}>{x.state}</option>)}</select>
-<select value={l} disabled={!s} onChange={e=>setL(e.target.value)} className="h-11 rounded-xl bg-[#171A23] px-2 text-[10px]">
-<option value="">LGA</option>{(data?.cities||[]).map(x=>
-<option key={x}>{x}</option>)}</select>
+<WeHouseSelect value={s} onChange={value=>{setS(value);setL('')}} options={[{value:'',label:'Choose state'},...NIGERIA_STATES.map(x=>({value:x.state,label:x.state}))]} title="Choose staff state" ariaLabel="Choose staff state" className="h-11 w-full"/>
+<WeHouseSelect value={l} disabled={!s} onChange={setL} options={[{value:'',label:'Choose LGA'},...(data?.cities||[]).map(x=>({value:x,label:x}))]} title="Choose staff LGA" ariaLabel="Choose staff LGA" className="h-11 w-full"/>
 </div>
 <button disabled={saving||!s||!l} onClick={()=>void reassign(person,s,l)} className="mt-2 h-10 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Save branch</button>
 </section>}{person.role==='staff'&&<section className="rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
 <p className="text-xs font-semibold">Operational responsibility</p>
 <p className="mt-1 text-[9px] text-[#666D7E]">Assign exactly one module. Security observes and escalates; account sanctions stay with Admin and Creator.</p>
-<select value={module} disabled={saving} onChange={e=>void saveModule(person,e.target.value)} className="mt-3 h-11 w-full rounded-xl bg-[#171A23] px-3 text-[10px]">
-<option value="">No responsibility</option>{Object.entries(MODULES).map(([k,v])=>
-<option key={k} value={k}>{v}</option>)}</select>
+<div className="mt-3"><WeHouseSelect value={module} disabled={saving} onChange={value=>void saveModule(person,value)} options={[{value:'',label:'No responsibility'},...Object.entries(MODULES).map(([value,label])=>({value,label}))]} title="Choose staff responsibility" ariaLabel="Choose staff responsibility" className="h-11 w-full"/></div>
 </section>}</div>
 </aside>
 </div>}
