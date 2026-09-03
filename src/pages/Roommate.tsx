@@ -247,7 +247,7 @@ export default function RoommateWorkspace({
   }
   async function interest(
     match: RoommateMatchResult,
-    status: "accepted" | "viewed",
+    status: "accepted" | "declined",
   ) {
     if (interestBusy) return;
     setInterestBusy(match.id);
@@ -263,11 +263,9 @@ export default function RoommateWorkspace({
       return toast.error(error.message);
     }
     setInterestBusy(null);
-    if (status === "viewed") {
+    if (status === "declined") {
       setMatches((current) => current.filter((row) => row.id !== match.id));
-      toast.success(
-        "Moved lower for now. You may see this profile again after refreshing.",
-      );
+      toast.success("Passed privately. This profile will not be shown again.");
       return;
     }
     if (conversationId) {
@@ -531,7 +529,7 @@ function Matches({
   showSchool: boolean;
   onLoadMore: () => void;
   onChat?: (id: string) => void;
-  onInterest: (row: RoommateMatchResult, status: "accepted" | "viewed") => void;
+  onInterest: (row: RoommateMatchResult, status: "accepted" | "declined") => void;
 }) {
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   return (
@@ -540,8 +538,8 @@ function Matches({
         <div>
           <h2 className="text-lg font-bold">Best matches</h2>
           <p className="mt-1 text-[9px] text-[#6A7080]">
-            Ranked by compatibility. Choosing “Not now” moves someone lower
-            without permanently rejecting them.
+            Ranked by compatibility. Pass removes a profile privately without
+            creating a conversation.
           </p>
         </div>
         <span className="text-[9px] font-semibold text-violet-300">
@@ -683,10 +681,10 @@ function Matches({
                         </button>
                         <button
                           disabled={busyId === row.id}
-                          onClick={() => void onInterest(row, "viewed")}
+                          onClick={() => void onInterest(row, "declined")}
                           className="min-h-10 rounded-xl border border-white/[.08] px-3 text-[9px] font-semibold disabled:opacity-40"
                         >
-                          Not now
+                          Pass
                         </button>
                       </>
                     )}
@@ -760,54 +758,3 @@ function ReceivedInterests({
             {row.avatar_url ? (
               <img
                 src={row.avatar_url}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-bold text-violet-200">
-                {String(row.full_name || row.username || "W")[0].toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
-                {row.full_name || `@${row.username || "user"}`}
-              </p>
-              <p className="mt-1 truncate text-[9px] text-[#73798A]">
-                {row.match_score}% match ·{" "}
-                {[row.city, row.state].filter(Boolean).join(", ") || "Nigeria"}
-                {showSchool && row.school ? ` · ${row.school}` : ""}
-              </p>
-            </div>
-            <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:shrink-0">
-              <button
-                disabled={busyId === row.interest_id}
-                onClick={() => void onRespond(row, "accepted")}
-                className="min-h-10 rounded-xl bg-violet-500 px-3 text-[9px] font-semibold disabled:opacity-40"
-              >
-                Accept
-              </button>
-              <button
-                disabled={busyId === row.interest_id}
-                onClick={() => void onRespond(row, "declined")}
-                className="min-h-10 rounded-xl border border-white/[.08] px-3 text-[9px] font-semibold disabled:opacity-40"
-              >
-                Pass
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProfileFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[8px] uppercase tracking-wide text-[#606778]">
-        {label}
-      </p>
-      <p className="mt-1 font-semibold text-[#B1B6C3]">{value}</p>
-    </div>
-  );
-}
