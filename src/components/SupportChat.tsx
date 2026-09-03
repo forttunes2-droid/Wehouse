@@ -579,20 +579,23 @@ function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: Support
 function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:SupportThread;onOpenBooking?:(id:string)=>void;onOpenListing?:(id:string)=>void}){
   const snapshot=thread.context_snapshot||{};
   const presentation=conversationPresentation(thread);
-  const bookingId=String(thread.context_id||snapshot.reservation_id||'');
-  const listingId=String(snapshot.listing_id||'');
+  const reservationContext=['apartment_reservation','reservation','hotel_booking'].includes(String(thread.context_type||''));
+  const listingContext=thread.context_type==='listing';
+  const propertyRequestContext=thread.context_type==='property_inspection';
+  const bookingId=reservationContext?String(thread.context_id||snapshot.reservation_id||''):'';
+  const listingId=String(listingContext?thread.context_id||'':snapshot.listing_id||'');
   const rawStatus=String(snapshot.status||'').replace(/_/g,' ');
   const status=rawStatus==='occupied'?'Tenancy active':rawStatus==='checked in'?'Checked in':rawStatus==='checked out'?'Checked out':rawStatus;
   const code=String(snapshot.booking_code||snapshot.reference||'');
   const title=String(snapshot.listing_title||snapshot.hotel_name||presentation.title||'Reservation').replace(/\s*·\s*Reservation Desk$/i,'');
   const stayType=String(snapshot.stay_type||'');
-  const actionLabel=thread.context_type==='hotel_booking'?'Open stay':(stayType==='long_stay'||stayType==='long_let'||String(snapshot.status||'')==='occupied')?'Open tenancy':'Open booking';
+  const actionLabel=thread.context_type==='hotel_booking'?'Open stay':(stayType==='long_stay'||stayType==='long_let'||String(snapshot.status||'')==='occupied')?'Open tenancy':'Open reservation';
   const location=String(snapshot.listing_location||snapshot.room_name||'');
   const checkIn=String(snapshot.check_in||'');
   const checkOut=String(snapshot.check_out||'');
   return <section className="mb-4 border-y border-white/[.06] bg-white/[.018] py-3">
     <div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">⌂</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{title}</p>{location&&<p className="mt-1 truncate text-[9px] text-[#747B8C]">{location}</p>}<p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">{[status,code].filter(Boolean).join(' · ')}</p></div>
-    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">{actionLabel}</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View property</button>:null}</div>
+    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">{actionLabel}</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View property</button>:propertyRequestContext?<span className="shrink-0 text-[8px] font-semibold text-violet-300">Property request</span>:null}</div>
     {(checkIn||checkOut)&&<div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[.05] pt-3 text-[9px] text-[#747B8C]">{checkIn&&<p><span className="text-[#555C6D]">Check-in</span><br/>{new Date(checkIn).toLocaleDateString()}</p>}{checkOut&&<p><span className="text-[#555C6D]">Check-out</span><br/>{new Date(checkOut).toLocaleDateString()}</p>}</div>}
   </section>
 }

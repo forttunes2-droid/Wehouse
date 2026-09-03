@@ -575,10 +575,12 @@ export default function App() {
   const goTo = useCallback(
     (p: NavPage, c?: string) => {
       if (c) setWorkerCategory(c);
+      if (p !== "my_reservations") setBookingContextId(null);
       handleSetNavPage(p);
     },
     [handleSetNavPage],
   );
+  const consumeBookingContext = useCallback(() => setBookingContextId(null), []);
   const goToDetail = useCallback(
     (id: string) => {
       setDetailId(id);
@@ -927,7 +929,13 @@ export default function App() {
         );
       case "my_reservations":
         return isUserRole ? (
-          <MyReservations profile={profile} initialBookingId={bookingContextId} onOpenConversation={goToChat} onOpenListing={goToDetail} />
+          <MyReservations
+            profile={profile}
+            initialBookingId={bookingContextId}
+            onInitialBookingConsumed={consumeBookingContext}
+            onOpenConversation={goToChat}
+            onOpenListing={goToDetail}
+          />
         ) : (
           renderRoleRoot()
         );
@@ -991,11 +999,11 @@ export default function App() {
           {supportRole && profile && (
             <SupportChat
               onOpenListing={goToDetail}
-              onOpenBooking={(id) => {
+              onOpenBooking={isUserRole ? (id) => {
                 setBookingContextId(null);
                 goTo("my_reservations");
                 window.setTimeout(() => setBookingContextId(id), 0);
-              }}
+              } : undefined}
               profile={{
                 user_id: profile.user_id,
                 username: profile.username,

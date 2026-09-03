@@ -13,7 +13,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase/worker-bookings";
 
-type Props = { profile: Profile; initialBookingId?:string|null; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
+type Props = { profile: Profile; initialBookingId?:string|null; onInitialBookingConsumed?:()=>void; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
 type View = "all" | "housing" | "hotels" | "services";
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
@@ -41,7 +41,7 @@ const HOTEL_STATUS: Record<string, string> = {
   payment_conflict: "Payment review",
 };
 
-export default function MyReservations({ profile, initialBookingId }: Props) {
+export default function MyReservations({ profile, initialBookingId, onInitialBookingConsumed }: Props) {
   const openedInitialRef=useRef<string|null>(null);
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
@@ -94,12 +94,14 @@ export default function MyReservations({ profile, initialBookingId }: Props) {
   useEffect(()=>{
     if(!initialBookingId||loading||openedInitialRef.current===initialBookingId)return;
     const housingMatch=housing.find(row=>String(row.id)===initialBookingId||String(row.reservation_code||'')===initialBookingId||String(row.listing_id||'')===initialBookingId);
-    if(housingMatch){openedInitialRef.current=initialBookingId;setActiveHousing(housingMatch);return}
+    if(housingMatch){openedInitialRef.current=initialBookingId;setActiveHousing(housingMatch);onInitialBookingConsumed?.();return}
     const hotelMatch=hotels.find(row=>String(row.id||row.booking_id)===initialBookingId||String(row.reservation_code||row.booking_code||'')===initialBookingId);
-    if(hotelMatch){openedInitialRef.current=initialBookingId;setActiveHotel(hotelMatch);return}
+    if(hotelMatch){openedInitialRef.current=initialBookingId;setActiveHotel(hotelMatch);onInitialBookingConsumed?.();return}
     const serviceMatch=services.find(row=>String(row.booking_id)===initialBookingId||String(row.conversation_id)===initialBookingId||String(row.booking_code||'')===initialBookingId);
-    if(serviceMatch){openedInitialRef.current=initialBookingId;setActiveService({conversationId:serviceMatch.conversation_id,bookingId:serviceMatch.booking_id})}
-  },[initialBookingId,loading,housing,hotels,services]);
+    if(serviceMatch){openedInitialRef.current=initialBookingId;setActiveService({conversationId:serviceMatch.conversation_id,bookingId:serviceMatch.booking_id});onInitialBookingConsumed?.();return}
+    openedInitialRef.current=initialBookingId;
+    onInitialBookingConsumed?.();
+  },[initialBookingId,loading,housing,hotels,services,onInitialBookingConsumed]);
   const rows = useMemo(
     () =>
       [
