@@ -96,22 +96,26 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
 }
 function PropertiesWorkspace({ profile }: { profile: Profile }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filters: Array<{value:SubmissionFilter;label:string;description:string}> = [
+    {value:"all",label:"All submissions",description:"Every submitted property"},
+    {value:"submitted",label:"In progress",description:"Currently moving through review"},
+    {value:"public",label:"Live",description:"Published properties"},
+    {value:"rejected",label:"Changes requested",description:"Properties needing correction"},
+  ];
+  const selectedFilter=filters.find(item=>item.value===filter)!;
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
         <div><h2 className="text-sm font-semibold">Your properties</h2><p className="mt-1 text-[9px] text-[#686B7D]">The selection filters one property workspace; lifecycle states stay on each property.</p></div>
-        <select value={filter} onChange={(event) => setFilter(event.target.value as SubmissionFilter)} aria-label="Filter property records" className="h-10 min-w-36 rounded-xl border border-white/[.08] bg-[#111119] px-3 text-[10px] font-semibold text-[#B3B7C3] outline-none focus:border-violet-500/40">
-          <option value="all">All submissions</option>
-          <option value="submitted">In progress</option>
-          <option value="public">Live</option>
-          <option value="rejected">Changes requested / rejected</option>
-        </select>
+        <button type="button" onClick={()=>setFilterOpen(true)} aria-haspopup="dialog" aria-expanded={filterOpen} className="flex h-10 min-w-36 items-center justify-between gap-3 rounded-xl border border-white/[.08] bg-[#111119] px-3 text-[10px] font-semibold text-[#B3B7C3]"><span>{selectedFilter.label}</span><span aria-hidden="true">⌄</span></button>
       </div>
       {filter === "public" ? (
         <PropertiesTab profile={profile} />
       ) : (
         <PartnerSubmittedRequests profile={profile} filter={filter} />
       )}
+      {filterOpen&&<div className="fixed inset-0 z-[100100] flex items-end bg-black/70" role="dialog" aria-modal="true" aria-label="Choose property view" onClick={()=>setFilterOpen(false)}><section className="w-full rounded-t-[28px] border-t border-white/[.08] bg-[#11131A] p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={event=>event.stopPropagation()}><div className="mx-auto max-w-xl"><div className="mb-3 flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">Properties</p><h3 className="mt-1 text-base font-bold">Choose what to show</h3></div><button type="button" onClick={()=>setFilterOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05]" aria-label="Close filter">×</button></div><div className="divide-y divide-white/[.06]">{filters.map(item=><button key={item.value} type="button" onClick={()=>{setFilter(item.value);setFilterOpen(false)}} className="flex min-h-16 w-full items-center gap-3 py-3 text-left"><span className={`grid h-5 w-5 place-items-center rounded-full border ${filter===item.value?'border-violet-400 bg-violet-500':'border-white/20'}`}>{filter===item.value&&<span className="h-1.5 w-1.5 rounded-full bg-white"/>}</span><span className="flex-1"><span className="block text-xs font-semibold">{item.label}</span><span className="mt-1 block text-[9px] text-[#727889]">{item.description}</span></span></button>)}</div></div></section></div>}
     </div>
   );
 }
