@@ -5,12 +5,11 @@ import PropertyInspectionRequestPanel from "@/components/PropertyInspectionReque
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
-import PartnerSubmittedRequests from "@/components/PartnerSubmittedRequests";
+import PartnerSubmittedRequests, { type SubmissionFilter } from "@/components/PartnerSubmittedRequests";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import type { Profile } from "@/types";
 
 type PartnerTab = "properties" | "finance" | "communication";
-type PropertyView = "submitted" | "published";
 type FinanceView = "wallet" | "earnings";
 type Props = {
   profile: Profile;
@@ -96,20 +95,22 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
   );
 }
 function PropertiesWorkspace({ profile }: { profile: Profile }) {
-  const [view, setView] = useState<PropertyView>("submitted");
+  const [filter, setFilter] = useState<SubmissionFilter>("all");
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
         <div><h2 className="text-sm font-semibold">Your properties</h2><p className="mt-1 text-[9px] text-[#686B7D]">The selection filters one property workspace; lifecycle states stay on each property.</p></div>
-        <select value={view} onChange={(event) => setView(event.target.value as PropertyView)} aria-label="Filter property records" className="h-9 rounded-full border border-white/[.08] bg-[#111119] px-3 text-[9px] font-semibold text-[#B3B7C3] outline-none">
-          <option value="submitted">All submissions</option>
-          <option value="published">Public listings</option>
+        <select value={filter} onChange={(event) => setFilter(event.target.value as SubmissionFilter)} aria-label="Filter property records" className="h-10 min-w-36 rounded-xl border border-white/[.08] bg-[#111119] px-3 text-[10px] font-semibold text-[#B3B7C3] outline-none focus:border-violet-500/40">
+          <option value="all">All records</option>
+          <option value="submitted">Submitted / in review</option>
+          <option value="public">Public listings</option>
+          <option value="rejected">Needs action / rejected</option>
         </select>
       </div>
-      {view === "submitted" ? (
-        <PartnerSubmittedRequests profile={profile} />
-      ) : (
+      {filter === "public" ? (
         <PropertiesTab profile={profile} />
+      ) : (
+        <PartnerSubmittedRequests profile={profile} filter={filter} />
       )}
     </div>
   );
@@ -471,10 +472,8 @@ function FinanceTab({ profile }: { profile: Profile }) {
       </div>
       {view === "wallet" ? (
         <>
+          <WalletPanel profile={profile} />
           <PayoutAccountManager profile={profile} />
-          <div className="mt-5">
-            <WalletPanel profile={profile} />
-          </div>
         </>
       ) : (
         <EarningsTab profile={profile} />
