@@ -87,8 +87,6 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
         {tab === "communication" && (
           <CommunicationInbox
             profile={profile}
-            title="Inbox"
-            description="Property support conversations and meaningful account or lifecycle activity."
             onNavigate={onNavigate}
           />
         )}{" "}

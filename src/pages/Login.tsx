@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 
 type PublicRole = "user" | "worker" | "property_partner";
 type Mode =
-  | "waitlist"
   | "choose"
   | "choose_role"
   | "signin"
@@ -89,17 +88,11 @@ export default function Login({
   kickedOut,
 }: LoginProps) {
   const [mode, setMode] = useState<Mode>(() =>
-      recoveryRequested() ? "recover" : "waitlist",
+      recoveryRequested() ? "recover" : "choose",
     ),
-    [waitlistOpen, setWaitlistOpen] = useState(false),
     [signupRole, setSignupRole] = useState<PublicRole>("user"),
     [pendingMethod, setPendingMethod] = useState<PendingMethod>(null),
     [email, setEmail] = useState(""),
-    [fullName, setFullName] = useState(""),
-    [phone, setPhone] = useState(""),
-    [city, setCity] = useState(""),
-    [budget, setBudget] = useState(""),
-    [interest, setInterest] = useState("housing"),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
     [showPassword, setShowPassword] = useState(false),
@@ -343,43 +336,6 @@ export default function Login({
     }
     window.location.replace(`${window.location.origin}/`);
   }
-  async function joinWaitlist(e: React.FormEvent) {
-    e.preventDefault();
-    clearMessages();
-    const clean = email.trim().toLowerCase(),
-      cleanPhone = phone.trim();
-    if (!clean && !cleanPhone)
-      return setError("Enter a phone number or email address");
-    if (clean && !clean.includes("@"))
-      return setError("Enter a valid email address");
-    setWorking(true);
-    const { error: joinError } = await supabase
-      .from("waitlist_signups")
-      .insert({
-        email: clean || null,
-        phone: cleanPhone || null,
-        full_name: fullName.trim() || null,
-        city: city.trim() || null,
-        interest,
-        budget: budget ? Number(budget) : null,
-        source: "website",
-      });
-    setWorking(false);
-    if (joinError) {
-      if (joinError.code === "23505")
-        return setInfo("You are already on the WeHouse waitlist.");
-      return setError(friendlyError(joinError.message));
-    }
-    setInfo(
-      "🎉 You’re on the list! We’ll notify you when WeHouse is ready in your area.",
-    );
-    setEmail("");
-    setPhone("");
-    setFullName("");
-    setCity("");
-    setBudget("");
-    setWaitlistOpen(false);
-  }
   function backToChoose() {
     setMode("choose");
     setPendingMethod(null);
@@ -410,141 +366,6 @@ export default function Login({
         )}
         {displayError && <Notice tone="error">{displayError}</Notice>}
         {info && <Notice tone="info">{info}</Notice>}
-
-        {mode === "waitlist" && (
-          <div>
-            <div className="mb-6 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-violet-300">
-                WeHouse is coming
-              </p>
-              <h2 className="mt-3 text-3xl font-black leading-tight">
-                Find your place.
-                <br />
-                Build your life.
-              </h2>
-              <p className="mx-auto mt-3 max-w-xs text-xs leading-5 text-[#787E90]">
-                Finding a home, compatible roommate or trusted local
-                professional should be easier. Be among the first to use WeHouse
-                in your area.
-              </p>
-            </div>
-            {!waitlistOpen ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setWaitlistOpen(true);
-                  clearMessages();
-                }}
-                className="h-13 w-full rounded-full bg-gradient-to-r from-violet-500 to-violet-500 px-5 py-3.5 text-sm font-bold"
-              >
-                Join the Waitlist
-              </button>
-            ) : (
-              <form
-                onSubmit={joinWaitlist}
-                className="space-y-3 border-y border-white/[.08] py-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold">
-                      Join WeHouse Early Access
-                    </p>
-                    <p className="mt-1 text-[9px] text-[#73798A]">
-                      Tell us what you need in your area.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setWaitlistOpen(false)}
-                    className="grid h-9 w-9 place-items-center rounded-full border border-white/[.08] text-[#969CAA]"
-                  >
-                    ×
-                  </button>
-                </div>
-                <Field label="Name">
-                  <Input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Your name"
-                    maxLength={100}
-                    className="h-11 rounded-xl border-white/[.08] bg-[#0D0F15] text-white"
-                  />
-                </Field>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="Phone number">
-                    <Input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="080…"
-                      maxLength={30}
-                      className="h-11 rounded-xl border-white/[.08] bg-[#0D0F15] text-white"
-                    />
-                  </Field>
-                  <Field label="Email">
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Optional"
-                      className="h-11 rounded-xl border-white/[.08] bg-[#0D0F15] text-white"
-                    />
-                  </Field>
-                </div>
-                <Field label="I’m looking for">
-                  <select
-                    value={interest}
-                    onChange={(e) => setInterest(e.target.value)}
-                    className="h-11 w-full rounded-xl border border-white/[.08] bg-[#0D0F15] px-3 text-xs text-white outline-none"
-                  >
-                    <option value="housing">🏠 House</option>
-                    <option value="roommate">👥 Roommate</option>
-                    <option value="worker">🛠️ Worker</option>
-                  </select>
-                </Field>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="Location">
-                    <Input
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="City or LGA"
-                      maxLength={100}
-                      className="h-11 rounded-xl border-white/[.08] bg-[#0D0F15] text-white"
-                    />
-                  </Field>
-                  <Field label="Budget (optional)">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={budget}
-                      onChange={(e) => setBudget(e.target.value)}
-                      placeholder="₦"
-                      className="h-11 rounded-xl border-white/[.08] bg-[#0D0F15] text-white"
-                    />
-                  </Field>
-                </div>
-                <button
-                  type="submit"
-                  disabled={working}
-                  className="h-12 w-full rounded-full bg-gradient-to-r from-violet-500 to-violet-500 text-sm font-bold disabled:opacity-50"
-                >
-                  {working ? "Joining…" : "Join WeHouse"}
-                </button>
-              </form>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setMode("choose");
-                clearMessages();
-              }}
-              className="mt-5 w-full text-center text-xs text-[#777D8D]"
-            >
-              Already have a WeHouse account?{" "}
-              <span className="font-semibold text-white">Sign in</span>
-            </button>
-          </div>
-        )}
 
         {mode === "recover" && (
           <form onSubmit={handleRecovery} className="space-y-4">

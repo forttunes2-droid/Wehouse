@@ -133,13 +133,13 @@ function AccessEvidenceSummary({status}:{status:string|null}) {
   const rejected=status==='rejected';
   const submitted=status==='submitted';
   return <section className={`rounded-2xl border p-4 ${verified?'border-emerald-500/15 bg-emerald-500/[.04]':rejected?'border-amber-500/15 bg-amber-500/[.04]':'border-white/[.06] bg-[#111119]'}`}>
-    <div className="flex items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${verified?'bg-emerald-500/15 text-emerald-300':rejected?'bg-amber-500/15 text-amber-300':'bg-violet-500/10 text-violet-300'}`}>{verified?'✓':rejected?'!':'•'}</span><div><p className="text-xs font-semibold">{verified?'Property access confirmed':rejected?'WeHouse requested new evidence':submitted?'Private access recording received':'Access evidence unavailable'}</p><p className="mt-1 text-[9px] leading-4 text-[#74798A]">{verified?'An Operations Admin accepted the private evidence. The Creator retains oversight.':rejected?'Read the latest WeHouse update for the correction required.':submitted?'The temporary code was consumed and is no longer displayed. An Operations Admin will review the private recording before a Field Officer is assigned.':'This earlier submission has no accepted access recording. It cannot advance until WeHouse resolves the evidence requirement.'}</p></div></div>
+    <div className="flex items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${verified?'bg-emerald-500/15 text-emerald-300':rejected?'bg-amber-500/15 text-amber-300':'bg-violet-500/10 text-violet-300'}`}>{verified?'✓':rejected?'!':'•'}</span><div><p className="text-xs font-semibold">{verified?'Property access confirmed':rejected?'WeHouse requested new evidence':submitted?'Private access recording received':'Access evidence unavailable'}</p><p className="mt-1 text-[9px] leading-4 text-[#74798A]">{verified?'Operations accepted the private evidence. Admin and Creator retain oversight.':rejected?'Read the latest WeHouse update for the correction required.':submitted?'The temporary code was consumed and is no longer displayed. Operations will review the private recording before a Field Officer is assigned.':'This earlier submission has no accepted access recording. It cannot advance until WeHouse resolves the evidence requirement.'}</p></div></div>
   </section>;
 }
 
 function journeyNext(stage:string) {
   if(stage==='access_required')return 'Next: resolve the missing access evidence with WeHouse. A Field Officer cannot be assigned yet.';
-  if(stage==='access_review')return 'Next: an Operations Admin reviews the private access recording.';
+  if(stage==='access_review')return 'Next: Operations reviews the private access recording.';
   if(stage==='inspection_ready')return 'Next: WeHouse assigns a Field Officer for an independent visit.';
   if(stage==='inspection')return 'Next: the Field Officer submits independent visit evidence.';
   if(stage==='visit_reviewed')return 'Next: WeHouse prepares the non-public listing or hotel programme.';
@@ -153,7 +153,7 @@ function Info({ label, value }: { label: string; value: string | number }) { ret
 function Status({ request }: { request: RequestRow }) { const state=partnerState(request); return <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${state.tone}`}>{state.label}</span>; }
 function partnerState(request:RequestRow){
   const stage=request.lifecycle_stage||'access_required';
-  const labels:Record<string,string>={access_required:'Evidence required',access_review:'Access review',inspection_ready:'Ready for assignment',inspection:'Inspection',visit_reviewed:'Visit reviewed',listing_prepared:'Listing prepared',live:'Live',changes_requested:'Changes requested',rejected:'Rejected'};
+  const labels:Record<string,string>={access_required:'Needs attention',access_review:'With WeHouse',inspection_ready:'Visit being arranged',inspection:'Visit in progress',visit_reviewed:'Being prepared',listing_prepared:'Final review',live:'Published',changes_requested:'Needs attention',rejected:'Stopped'};
   const tone=stage==='live'?'bg-emerald-500/10 text-emerald-300':stage==='rejected'?'bg-red-500/10 text-red-300':['access_required','changes_requested'].includes(stage)?'bg-amber-500/10 text-amber-300':'bg-violet-500/10 text-violet-300';
   return{label:labels[stage]||'Under review',tone};
 }
