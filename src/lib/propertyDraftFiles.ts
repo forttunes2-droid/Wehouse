@@ -48,7 +48,7 @@ export async function loadPropertyDraftFiles(batchId: string, draftId: string): 
 
 export async function savePropertyDraftFiles(batchId: string, draftId: string, bundle: PropertyDraftFileBundle): Promise<void> {
   const database = await openDatabase();
-  if (!database) return;
+  if (!database) throw new Error('Draft media storage is unavailable on this device');
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE, 'readwrite');
     const stored: StoredPropertyDraftFileBundle = {
