@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getRoomById, createHotelBooking, getAllUsers, submitStaffReview } from '@/lib/supabase';
+import { getRoomById, createHotelBooking, getAllUsers, submitStaffReview, initializeHotelBookingPayment } from '@/lib/supabase';
 import type { HotelRoom, Hotel } from '@/types';
 import { Toaster, toast } from 'sonner';
 
@@ -130,21 +130,29 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
       guest_phone: guestPhone.trim(),
       special_requests: specialRequests.trim() || null,
     });
-    setSubmitting(false);
-
     if (error || !booking) {
+      setSubmitting(false);
       toast.error('Booking failed: ' + (error?.message || 'Unknown'));
       return;
     }
-
-    setBookingData({
-      totalNights: totals.nights,
-      totalPrice: totals.total,
-      checkIn,
-      checkOut,
-    });
-    setBookingComplete(true);
-    toast.success('Booking created!');
+    const payment = await initializeHotelBookingPayment(booking.booking_id);
+    if (payment.error || !payment.result?.success) {
+      setSubmitting(false);
+      toast.error(payment.error?.message || payment.result?.error || 'Could not start secure payment');
+      return;
+    }
+    if (payment.result.already_paid) {
+      setSubmitting(false);
+      toast.success('Booking payment already confirmed');
+      onComplete();
+      return;
+    }
+    if (!payment.result.authorization_url) {
+      setSubmitting(false);
+      toast.error('Secure checkout link is missing');
+      return;
+    }
+    window.location.assign(String(payment.result.authorization_url));
   }
 
   // Load staff list for rating

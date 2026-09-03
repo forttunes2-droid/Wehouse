@@ -66,18 +66,8 @@ export async function getHotelReviews(hotelId: number) {
 }
 
 export async function addHotelReview(hotelId: number, userId: string, rating: number, comment?: string) {
-  const { data, error } = await supabase
-    .from('hotel_reviews')
-    .insert({ hotel_id: hotelId, user_id: userId, rating, comment: comment || null })
-    .select()
-    .maybeSingle();
-  if (!error) {
-    const { data: allReviews } = await supabase.from('hotel_reviews').select('rating').eq('hotel_id', hotelId);
-    if (allReviews) {
-      const avg = allReviews.reduce((sum, review) => sum + review.rating, 0) / allReviews.length;
-      await supabase.from('hotels').update({ rating: Math.round(avg * 10) / 10, review_count: allReviews.length }).eq('hotel_id', hotelId);
-    }
-  }
+  void userId;
+  const { data, error } = await supabase.rpc('create_my_verified_hotel_review', { p_hotel_id: hotelId, p_rating: rating, p_comment: comment || null });
   return { review: data as HotelReview | null, error };
 }
 

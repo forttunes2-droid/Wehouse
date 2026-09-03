@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { getHotelById, getHotelReviews, addHotelReview } from '@/lib/supabase';
 import type { Hotel, HotelRoom, HotelReview } from '@/types';
 import { Toaster, toast } from 'sonner';
-import { useHotelReservationSettings, calculateReservationFee } from '@/hooks/useHotelReservationSettings';
 
 type ReviewRow=HotelReview&{profiles:{username:string|null;avatar_url:string|null}};
 type Props={hotelId:number;onBack:()=>void;onBook:(hotelId:number,roomId:number,checkIn:string,checkOut:string)=>void;onReserve:(hotelId:number,roomId:number)=>void;profile:{user_id:string;username:string|null}};
 
 export default function HotelDetail({hotelId,onBack,onBook,onReserve,profile}:Props){
  const[hotel,setHotel]=useState<(Hotel&{hotel_rooms:HotelRoom[]})|null>(null),[reviews,setReviews]=useState<ReviewRow[]>([]),[loading,setLoading]=useState(true),[currentImage,setCurrentImage]=useState(0),[showAllAmenities,setShowAllAmenities]=useState(false),[showReviewForm,setShowReviewForm]=useState(false),[reviewRating,setReviewRating]=useState(5),[reviewComment,setReviewComment]=useState(''),[submittingReview,setSubmittingReview]=useState(false),[selectedRoom,setSelectedRoom]=useState<HotelRoom|null>(null),[checkIn,setCheckIn]=useState(''),[checkOut,setCheckOut]=useState('');
- const reservationSettings=useHotelReservationSettings();
+ const reservationSettings={enabled:false} as const;
  useEffect(()=>{void load()},[hotelId]);
  async function load(){setLoading(true);const{hotel:h,error}=await getHotelById(hotelId);if(error||!h){toast.error('Hotel could not be loaded');setLoading(false);return}setHotel(h);setSelectedRoom(h.hotel_rooms?.[0]||null);const{reviews:r}=await getHotelReviews(hotelId);setReviews((r||[]) as ReviewRow[]);setLoading(false)}
  async function submitReview(){if(!profile.user_id)return;setSubmittingReview(true);const{error}=await addHotelReview(hotelId,profile.user_id,reviewRating,reviewComment||undefined);setSubmittingReview(false);if(error)return toast.error('Review could not be submitted');toast.success('Review submitted');setShowReviewForm(false);setReviewComment('');const{reviews:r}=await getHotelReviews(hotelId);setReviews((r||[]) as ReviewRow[]);const{hotel:h}=await getHotelById(hotelId);if(h)setHotel(h)}
@@ -17,7 +16,7 @@ export default function HotelDetail({hotelId,onBack,onBook,onReserve,profile}:Pr
  function minCheckout(){if(!checkIn)return tomorrowStr;const next=new Date(checkIn);next.setDate(next.getDate()+1);return next.toISOString().split('T')[0]}
  const nights=checkIn&&checkOut?Math.ceil((new Date(checkOut).getTime()-new Date(checkIn).getTime())/86400000):0;
  const totalPrice=selectedRoom&&nights>0?nights*selectedRoom.price_per_night:0;
- const reservationFee=reservationSettings.enabled?calculateReservationFee(reservationSettings,nights):0;
+ const reservationFee=0;
  function proceed(){if(!selectedRoom)return toast.error('Choose a room first');if(reservationSettings.enabled){onReserve(hotelId,selectedRoom.room_id);return}if(!checkIn||!checkOut)return toast.error('Select check-in and check-out');if(nights<=0)return toast.error('Check-out must be after check-in');onBook(hotelId,selectedRoom.room_id,checkIn,checkOut)}
  if(loading)return <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F]"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>;
  if(!hotel)return <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white"><div className="text-center"><p className="text-sm font-semibold">Hotel not found</p><button onClick={onBack} className="mt-4 rounded-xl bg-violet-500 px-4 py-2 text-xs font-semibold">Back to hotels</button></div></div>;

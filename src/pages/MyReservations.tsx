@@ -6,6 +6,7 @@ import {
 } from "@/lib/supabase/reservations";
 import {
   getHotelBookingsForUser,
+  initializeHotelBookingPayment,
   updateBookingStatus,
 } from "@/lib/supabase/hotels";
 import type { Profile } from "@/types";
@@ -142,6 +143,14 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
     toast.success("Hotel reservation cancelled");
     await load();
   }
+  async function payHotel(row:any){
+    const id=Number(row.booking_id);setBusyId(`hotel-${id}`);
+    const{result,error}=await initializeHotelBookingPayment(id);
+    if(error||!result?.success){setBusyId(null);return toast.error(error?.message||result?.error||"Could not open secure payment")}
+    if(result.already_paid){toast.success("Hotel payment already confirmed");await load();return}
+    if(!result.authorization_url){setBusyId(null);return toast.error("Secure checkout link is missing")}
+    window.location.assign(String(result.authorization_url));
+  }
   async function runPending() {
     const action = pending;
     setPending(null);
@@ -182,7 +191,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   }
   if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
   if(activeHousing)return <PropertyBookingDetail row={activeHousing} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)}/>;
-  if(activeHotel)return <HotelBookingDetail row={activeHotel} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)}/>;
+  if(activeHotel)return <HotelBookingDetail row={activeHotel} busy={busyId===`hotel-${activeHotel.booking_id}`} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)} onPay={()=>void payHotel(activeHotel)}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
       <Toaster position="top-center" richColors />
@@ -483,11 +492,11 @@ function PropertyBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDe
   const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Property stay':'Property booking');
   return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Reservation Desk</button></div></div></section></BookingDetailShell>;
 }
-function HotelBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDesk:()=>void}) {
+function HotelBookingDetail({row,busy,onBack,onDesk,onPay}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onPay:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';
   const status=HOTEL_STATUS[String(row.status||'')]||'Status unavailable';
   const room=row.hotel_rooms?.room_type||row.hotel_rooms?.name||row.room_name||'Room details unavailable';
-  return <BookingDetailShell title="Hotel booking" onBack={onBack}><section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">Hotel stay</p><h1 className="mt-1 text-xl font-bold">{name}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{room}</p></div><span className="rounded-full border border-amber-500/20 bg-amber-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-amber-200">{status}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><Info label="Check-in" value={date(row.check_in_date||row.check_in)}/><Info label="Check-out" value={date(row.check_out_date||row.check_out)}/><Info label="Guests" value={String(row.guest_count||'—')}/><Info label="Payment" value={hotelPaymentLabel(row.payment_status)}/></div>{(row.total_price||row.total_amount||row.amount)!=null&&<p className="mt-4 text-base font-bold">{money(row.total_price||row.total_amount||row.amount)}</p>}<button type="button" onClick={onDesk} className="mt-5 min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Reservation Desk</button></section></BookingDetailShell>;
+  return <BookingDetailShell title="Hotel booking" onBack={onBack}><section className="rounded-3xl border border-white/[.07] bg-[#11141C] p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">Hotel stay</p><h1 className="mt-1 text-xl font-bold">{name}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{room}</p></div><span className="rounded-full border border-amber-500/20 bg-amber-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-amber-200">{status}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><Info label="Check-in" value={date(row.check_in_date||row.check_in)}/><Info label="Check-out" value={date(row.check_out_date||row.check_out)}/><Info label="Guests" value={String(row.guest_count||'—')}/><Info label="Payment" value={hotelPaymentLabel(row.payment_status)}/></div>{(row.total_price||row.total_amount||row.amount)!=null&&<p className="mt-4 text-base font-bold">{money(row.total_price||row.total_amount||row.amount)}</p>}{row.status==='pending'&&['unpaid','payment_pending','failed'].includes(String(row.payment_status))&&<button type="button" disabled={busy} onClick={onPay} className="mt-5 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy?'Opening payment…':'Pay securely'}</button>}<button type="button" onClick={onDesk} className="mt-3 min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Reservation Desk</button></section></BookingDetailShell>;
 }
 function BookingDetailShell({title,onBack,children}:{title:string;onBack:()=>void;children:ReactNode}){return <div className="min-h-[100dvh] bg-[#090B10] text-white"><header className="sticky top-0 z-40 flex min-h-16 items-center gap-3 border-b border-white/[.06] bg-[#090B10]/95 px-4 backdrop-blur-xl"><button type="button" onClick={onBack} aria-label="Back to bookings" className="grid h-11 w-11 place-items-center rounded-full text-xl text-[#A6ABB9]">‹</button><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">Bookings</p><h1 className="text-sm font-semibold">{title}</h1></div></header><main className="mx-auto max-w-3xl p-4 sm:p-6">{children}</main></div>}
 function hotelPaymentLabel(value:any){const labels:Record<string,string>={unpaid:'Not paid',payment_pending:'Payment pending',paid:'Paid',refunded:'Refunded',failed:'Payment failed',expired:'Payment expired'};return labels[String(value||'')]||'Not available'}
