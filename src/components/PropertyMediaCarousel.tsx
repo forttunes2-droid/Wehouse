@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ListingMediaImage } from './ListingCandidateMedia';
 
 type Props = {
   images: string[];
@@ -41,7 +42,7 @@ export default function PropertyMediaCarousel({ images, title, children }: Props
           className="min-w-full snap-center"
           aria-label={`View photo ${index + 1} of ${images.length} full screen`}
         >
-          <img src={image} alt={`${title} · photo ${index + 1}`} draggable={false} className="aspect-[4/3] w-full select-none object-cover sm:aspect-[16/9]" />
+          <ListingMediaImage reference={image} alt={`${title} · photo ${index + 1}`} draggable={false} className="aspect-[4/3] w-full select-none object-cover sm:aspect-[16/9]" />
         </button>)}
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
@@ -55,8 +56,8 @@ export default function PropertyMediaCarousel({ images, title, children }: Props
     </section>
     {fullscreen && <div className="fixed inset-0 z-[120] flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Property photo viewer">
       <header className="flex h-14 shrink-0 items-center justify-between px-4"><span className="text-xs text-white/70">{activeIndex + 1} of {images.length}</span><button type="button" onClick={() => setFullscreen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl" aria-label="Close photo viewer">×</button></header>
-      <div className="flex min-h-0 flex-1 items-center justify-center"><img src={images[activeIndex]} alt={`${title} · photo ${activeIndex + 1}`} className="max-h-full max-w-full object-contain" /></div>
-      {images.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto p-4 scrollbar-hide">{images.map((image, index) => <button key={`${image}-thumb-${index}`} type="button" onClick={() => setActiveIndex(index)} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-violet-400' : 'border-transparent opacity-60'}`}><img src={image} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+      <div className="flex min-h-0 flex-1 items-center justify-center"><ListingMediaImage reference={images[activeIndex]} alt={`${title} · photo ${activeIndex + 1}`} className="max-h-full max-w-full object-contain" /></div>
+      {images.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto p-4 scrollbar-hide">{images.map((image, index) => <button key={`${image}-thumb-${index}`} type="button" onClick={() => setActiveIndex(index)} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-violet-400' : 'border-transparent opacity-60'}`}><ListingMediaImage reference={image} alt="" className="h-full w-full object-cover" /></button>)}</div>}
     </div>}
   </>;
 }

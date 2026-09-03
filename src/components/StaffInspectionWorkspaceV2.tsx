@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { uploadListingImage, uploadListingVideo } from '@/lib/supabase/listings';
+import { uploadListingCandidateImage, uploadListingCandidateVideo } from '@/lib/supabase/listings';
+import { ListingMediaImage, ListingMediaVideo, useListingMediaUrl } from './ListingCandidateMedia';
 import WeHouseSelect from '@/components/WeHouseSelect';
 import type { Profile } from '@/types';
 
@@ -91,22 +92,26 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
     const fieldPhotoCount=(selected.photo_urls||[]).length+media.filter(file=>file.type.startsWith('image/')).length;
     if(status==='completed'&&selected._source==='partner'&&fieldPhotoCount<4)return toast.error(`Add ${4-fieldPhotoCount} more Field Operations photo${4-fieldPhotoCount===1?'':'s'}`);
     setSaving(true);
+    const uploadedRefs:string[]=[];
+    let mediaRegistered=false;
     try{
       if(status==='completed'&&media.length){
         const photoUrls:string[]=[],videoUrls:string[]=[];
         for(const file of media){
-          const uploaded=file.type.startsWith('video/')?await uploadListingVideo(file,`field-inspection-${selected.id}`):await uploadListingImage(file,`field-inspection-${selected.id}`);
+          const uploaded=file.type.startsWith('video/')?await uploadListingCandidateVideo(file,{kind:'field',inspectionId:selected.id}):await uploadListingCandidateImage(file,{kind:'field',inspectionId:selected.id});
           if(uploaded.error||!uploaded.url)throw new Error(uploaded.error?.message||`Could not upload ${file.name}`);
+          uploadedRefs.push(uploaded.url);
           (file.type.startsWith('video/')?videoUrls:photoUrls).push(uploaded.url);
         }
         const saved=await supabase.rpc('field_officer_add_inspection_media',{p_inspection_id:selected.id,p_photo_urls:photoUrls,p_video_urls:videoUrls});
         if(saved.error)throw saved.error;
+        mediaRegistered=true;
       }
       const {error}=await supabase.rpc('update_inspection_status',{p_inspection_id:selected.id,p_new_status:status,p_source:selected._source||'user',p_report:status==='completed'?report.trim():null,p_condition:status==='completed'?(condition.trim()||null):null});
       if(error)throw error;
       toast.success(status==='completed'?'Inspection evidence submitted for review':'Inspection started');
       setSelected(null); void load();
-    }catch(error:unknown){toast.error(error instanceof Error?error.message:'Inspection could not be saved')}finally{setSaving(false)}
+    }catch(error:unknown){if(uploadedRefs.length&&!mediaRegistered)await supabase.storage.from('listing-candidates').remove(uploadedRefs);toast.error(error instanceof Error?error.message:'Inspection could not be saved')}finally{setSaving(false)}
   }
 
   if(selected){
@@ -131,5 +136,6 @@ function done(row:InspectionRow){return ['completed','approved'].includes(row.st
 function SectionTitle({step,title}:{step:string;title:string}){return <div><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">STEP {step}</p><h3 className="mt-1 text-sm font-semibold">{title}</h3></div>}
 function Head({row}:{row:InspectionRow}){return <div className="flex items-start justify-between gap-3"><p className="min-w-0 break-words text-sm font-semibold">{row.property_address||'Property inspection'}</p><span className="shrink-0 text-[8px] capitalize text-violet-300">{String(row.status||'pending').replace(/_/g,' ')}</span></div>}
 function Coordinate({label,value,set}:{label:string;value:string;set:(value:string)=>void}){return <label><span className="mb-1 block text-[9px] text-[#66758C]">{label}</span><input inputMode="decimal" value={value} onChange={event=>set(event.target.value.replace(/[^0-9+-.]/g,''))} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#111722] px-3 text-xs"/></label>}
-function CompletedInspection({row}:{row:InspectionRow}){const photos=row.photo_urls||[],videos=row.video_urls||[];return <section className="space-y-4"><div className="border-y border-emerald-500/15 py-4"><p className="text-xs font-semibold capitalize text-emerald-300">{String(row.status||'completed').replace(/_/g,' ')}</p><p className="mt-1 text-[9px] text-[#7B8791]">{row.completed_at?'Completed '+new Date(row.completed_at).toLocaleString():'The field visit is complete.'}</p></div>{row.notes&&<div className="border-b border-white/[.06] pb-4"><p className="text-[9px] font-semibold uppercase tracking-wide text-[#66758C]">Inspection report</p><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#A5AAB7]">{row.notes}</p></div>}<div><p className="text-xs font-semibold">Submitted evidence</p>{photos.length||videos.length?<div className="mt-3 grid grid-cols-3 gap-1.5">{photos.map((url,index)=><a key={url} href={url} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded-xl bg-black"><img src={url} alt={`Inspection evidence ${index+1}`} className="h-full w-full object-cover"/></a>)}{videos.map(url=><video key={url} src={url} controls playsInline className="aspect-square w-full rounded-xl bg-black object-cover"/>)}</div>:<p className="mt-2 text-[9px] text-[#6D7383]">No media is attached.</p>}</div></section>}
+function CompletedInspection({row}:{row:InspectionRow}){const photos=row.photo_urls||[],videos=row.video_urls||[];return <section className="space-y-4"><div className="border-y border-emerald-500/15 py-4"><p className="text-xs font-semibold capitalize text-emerald-300">{String(row.status||'completed').replace(/_/g,' ')}</p><p className="mt-1 text-[9px] text-[#7B8791]">{row.completed_at?'Completed '+new Date(row.completed_at).toLocaleString():'The field visit is complete.'}</p></div>{row.notes&&<div className="border-b border-white/[.06] pb-4"><p className="text-[9px] font-semibold uppercase tracking-wide text-[#66758C]">Inspection report</p><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#A5AAB7]">{row.notes}</p></div>}<div><p className="text-xs font-semibold">Submitted evidence</p>{photos.length||videos.length?<div className="mt-3 grid grid-cols-3 gap-1.5">{photos.map((reference,index)=><EvidenceImage key={reference} reference={reference} index={index}/>)}{videos.map(reference=><ListingMediaVideo key={reference} reference={reference} controls playsInline className="aspect-square w-full rounded-xl bg-black object-cover"/>)}</div>:<p className="mt-2 text-[9px] text-[#6D7383]">No media is attached.</p>}</div></section>}
+function EvidenceImage({reference,index}:{reference:string;index:number}){const url=useListingMediaUrl(reference);return <a href={url||undefined} target="_blank" rel="noreferrer" aria-disabled={!url} className="aspect-square overflow-hidden rounded-xl bg-black"><ListingMediaImage reference={reference} alt={`Inspection evidence ${index+1}`} className="h-full w-full object-cover"/></a>}
 function Empty({text}:{text:string}){return <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666D7E]">{text}</div>}

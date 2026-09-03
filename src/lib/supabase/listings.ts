@@ -163,6 +163,85 @@ export async function uploadListingVideo(file: File, listingId: string) {
   return { url: supabase.storage.from('listing-videos').getPublicUrl(path).data.publicUrl, error: null };
 }
 
+type CandidateScope =
+  | { kind: 'partner'; ownerId: string; batchId: string }
+  | { kind: 'field'; inspectionId: string };
+
+const candidatePath = (scope: CandidateScope, extension: string) => scope.kind === 'partner'
+  ? `partner/${scope.ownerId}/${scope.batchId}/${crypto.randomUUID()}.${extension}`
+  : `field/${scope.inspectionId}/${crypto.randomUUID()}.${extension}`;
+
+export function isPrivateListingMedia(reference: string | null | undefined) {
+  return Boolean(reference && !/^https?:\/\//i.test(reference));
+}
+
+export async function getListingMediaUrl(reference: string, expiresIn = 3600) {
+  if (!isPrivateListingMedia(reference)) return { url: reference, error: null };
+  const { data, error } = await supabase.storage.from('listing-candidates').createSignedUrl(reference, expiresIn);
+  return { url: data?.signedUrl || null, error };
+}
+
+export async function uploadListingCandidateImage(file: File, scope: CandidateScope) {
+  if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image file' } as any };
+  if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
+  try {
+    const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024;
+    const body = preserveOriginal ? file : await compressImageFile(file, 3840, 0.92, 4.5 * 1024 * 1024);
+    const extension = preserveOriginal ? ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type] || 'jpg') : 'jpg';
+    const contentType = preserveOriginal ? file.type : 'image/jpeg';
+    const path = candidatePath(scope, extension);
+    const { error } = await supabase.storage.from('listing-candidates').upload(path, body, { contentType });
+    return { url: error ? null : path, error };
+  } catch (error: any) {
+    return { url: null, error: { message: error?.message || 'Image upload failed' } };
+  }
+}
+
+export async function uploadListingCandidateVideo(file: File, scope: Extract<CandidateScope, { kind: 'field' }>) {
+  const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
+  if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
+  if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
+  const extension = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+  const path = candidatePath(scope, extension);
+  const { error } = await supabase.storage.from('listing-candidates').upload(path, file, { contentType: file.type });
+  return { url: error ? null : path, error };
+}
+
+export type PublishedCandidateSet = { sources: string[]; publicUrls: string[]; createdPaths: string[] };
+
+export async function publishListingCandidateImages(sources: string[], inspectionId: string): Promise<PublishedCandidateSet> {
+  const unique = Array.from(new Set(sources));
+  const settled = await Promise.allSettled(unique.map(async (source) => {
+    if (!isPrivateListingMedia(source)) return { source, publicUrl: source, createdPath: null };
+    const extension = source.split('.').pop()?.toLowerCase() || 'jpg';
+    const destination = `listings/final-${inspectionId}/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from('listing-candidates').copy(source, destination, { destinationBucket: 'listing-images' });
+    if (error) throw new Error(error.message || 'A selected image could not be prepared for publication');
+    return {
+      source,
+      publicUrl: supabase.storage.from('listing-images').getPublicUrl(destination).data.publicUrl,
+      createdPath: destination,
+    };
+  }));
+  const results = settled.flatMap((item) => item.status === 'fulfilled' ? [item.value] : []);
+  const failed = settled.find((item): item is PromiseRejectedResult => item.status === 'rejected');
+  if (failed) {
+    const copiedPaths = results.flatMap((item) => item.createdPath ? [item.createdPath] : []);
+    if (copiedPaths.length) await supabase.storage.from('listing-images').remove(copiedPaths);
+    throw failed.reason instanceof Error ? failed.reason : new Error('A selected image could not be prepared for publication');
+  }
+  return {
+    sources: results.map((item) => item.source),
+    publicUrls: results.map((item) => item.publicUrl),
+    createdPaths: results.flatMap((item) => item.createdPath ? [item.createdPath] : []),
+  };
+}
+
+export async function removePublishedCandidateCopies(paths: string[]) {
+  if (!paths.length) return;
+  await supabase.storage.from('listing-images').remove(paths);
+}
+
 export async function deleteListing(listingId: string, userId?: string) {
   void userId;
   const { data, error } = await supabase.rpc('soft_delete_listing_internal', { p_listing_id: listingId });
