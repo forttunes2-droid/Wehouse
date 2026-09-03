@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA extensions;
+
 --
 -- PostgreSQL database dump
 --
@@ -261,6 +263,13 @@ CREATE TABLE public.profiles (
     terms_accepted_at timestamp with time zone,
     privacy_accepted_at timestamp with time zone,
     legal_accepted_version text,
+    account_kind text DEFAULT 'consumer'::text NOT NULL,
+    precise_latitude numeric,
+    precise_longitude numeric,
+    precise_address text,
+    precise_location_accuracy_m numeric,
+    precise_location_updated_at timestamp with time zone,
+    CONSTRAINT profiles_account_kind_check CHECK ((account_kind = ANY (ARRAY['consumer'::text, 'worker'::text, 'property_partner'::text, 'creator'::text]))),
     CONSTRAINT profiles_role_check CHECK ((role = ANY (ARRAY['user'::text, 'worker'::text, 'property_partner'::text, 'staff'::text, 'admin'::text, 'creator'::text]))),
     CONSTRAINT profiles_worker_status_check CHECK (((worker_status IS NULL) OR (worker_status = ANY (ARRAY['pending'::text, 'verification_paid'::text, 'profile_under_review'::text, 'verified'::text, 'suspended'::text, 'rejected'::text]))))
 );
@@ -382,6 +391,25 @@ $$;
 
 
 --
+-- Name: _ensure_verified_worker_wallet(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public._ensure_verified_worker_wallet() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if new.role = 'worker' and new.worker_status = 'verified' and new.worker_verified is true then
+    insert into public.wallets(owner_id, owner_type, available_balance, pending_balance, frozen_balance, total_withdrawn)
+    values(new.user_id, 'worker', 0, 0, 0, 0)
+    on conflict(owner_id, owner_type) do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: _guard_worker_profile_state(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -479,6 +507,32 @@ begin
   end if;
   return public.get_my_legal_status();
 end $$;
+
+
+--
+-- Name: account_identity_is_current(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.account_identity_is_current(p_user_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select exists(
+    select 1 from public.worker_identity_checks c
+    where c.worker_id=p_user_id and c.status='passed' and c.captured_at is not null
+      and c.captured_at + make_interval(days=>public.account_identity_recheck_days()) > now()
+  )
+$$;
+
+
+--
+-- Name: account_identity_recheck_days(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.account_identity_recheck_days() RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$ select 30 $$;
 
 
 --
@@ -741,46 +795,39 @@ CREATE FUNCTION public.add_conversation_action(p_conversation_id uuid, p_action_
 
 CREATE FUNCTION public.admin_appoint_staff(p_target_user_id text, p_module text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_target public.profiles; v_limit integer:=0; v_used integer:=0;
+DECLARE v_actor public.profiles; v_target public.profiles; v_limit integer:=0; v_used integer:=0; v_state text; v_lga text;
 BEGIN
-  IF p_module NOT IN('operations','finance','support','verification','field_officer') THEN RAISE EXCEPTION 'A valid Staff module is required'; END IF;
-  SELECT * INTO v_actor FROM public.profiles
-  WHERE auth_id=auth.uid()::text AND role IN('admin','creator')
-    AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
+  IF p_module NOT IN('operations','finance','support','security','verification','field_officer') THEN RAISE EXCEPTION 'A valid Staff module is required'; END IF;
+  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text AND role IN('admin','creator') AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
   IF v_actor IS NULL THEN RAISE EXCEPTION 'Admin or Creator access required'; END IF;
   SELECT * INTO v_target FROM public.profiles WHERE user_id=p_target_user_id AND NOT COALESCE(deleted,false) FOR UPDATE;
   IF v_target IS NULL THEN RAISE EXCEPTION 'Target account not found'; END IF;
   IF v_target.role NOT IN('user','staff') THEN RAISE EXCEPTION 'Only a User or existing Staff account can be appointed'; END IF;
   IF v_actor.role='admin' THEN
     IF v_actor.assigned_state IS NULL OR v_actor.assigned_lga IS NULL THEN RAISE EXCEPTION 'Admin branch assignment is required'; END IF;
-    IF lower(COALESCE(v_target.state,''))<>lower(v_actor.assigned_state)
-      OR lower(COALESCE(NULLIF(v_target.local_government,''),NULLIF(v_target.city,''),''))<>lower(v_actor.assigned_lga)
-    THEN RAISE EXCEPTION 'Admin can appoint only Users in the assigned branch'; END IF;
+    IF lower(COALESCE(v_target.state,''))<>lower(v_actor.assigned_state) OR lower(COALESCE(NULLIF(v_target.local_government,''),NULLIF(v_target.city,''),''))<>lower(v_actor.assigned_lga) THEN RAISE EXCEPTION 'Admin can appoint only Users in the assigned branch'; END IF;
+    v_state:=v_actor.assigned_state; v_lga:=v_actor.assigned_lga;
     IF v_target.role<>'staff' THEN
       v_limit:=COALESCE(public.get_admin_staff_limit_v2(),0);
       IF v_limit>0 THEN
-        SELECT count(*)::integer INTO v_used
-        FROM public.profiles p JOIN public.staff_trust_profiles st ON st.staff_id=p.user_id
-        WHERE p.role='staff' AND NOT COALESCE(p.deleted,false) AND st.appointed_by=v_actor.user_id;
-        IF v_used>=v_limit THEN
-          RAISE EXCEPTION 'Staff appointment limit reached (% of %). Creator must increase the Admin Staff limit or appoint the Staff directly.',v_used,v_limit;
-        END IF;
+        SELECT count(*)::integer INTO v_used FROM public.profiles p WHERE p.role='staff' AND NOT COALESCE(p.deleted,false) AND lower(COALESCE(p.assigned_state,''))=lower(v_actor.assigned_state) AND lower(COALESCE(p.assigned_lga,''))=lower(v_actor.assigned_lga);
+        IF v_used>=v_limit THEN RAISE EXCEPTION 'Staff appointment limit reached (% of %). Creator must increase the Admin Staff limit or appoint the Staff directly.',v_used,v_limit; END IF;
       END IF;
     END IF;
+  ELSE
+    v_state:=COALESCE(NULLIF(v_target.assigned_state,''),NULLIF(v_target.state,''));
+    v_lga:=COALESCE(NULLIF(v_target.assigned_lga,''),NULLIF(v_target.local_government,''),NULLIF(v_target.city,''));
+    IF v_state IS NULL OR v_lga IS NULL THEN RAISE EXCEPTION 'Assign the Staff member to a State and LGA before appointment'; END IF;
   END IF;
   IF v_target.role='user' THEN PERFORM public.admin_update_role(p_target_user_id,'staff'); END IF;
+  UPDATE public.profiles SET assigned_state=v_state,assigned_lga=v_lga,updated_at=now(),updated_by=v_actor.user_id WHERE user_id=p_target_user_id;
   PERFORM public.manage_staff_permission(p_target_user_id,p_module,true);
-  INSERT INTO public.staff_trust_profiles(staff_id,status,appointed_by,appointed_at,trusted_by,trusted_at,supervisor_confirmed,orientation_completed,role_training_completed,code_of_conduct_confirmed,probation_observation_completed,notes,updated_at)
-  VALUES(p_target_user_id,'probation',v_actor.user_id,now(),NULL,NULL,false,false,false,false,false,'Staff appointment awaiting WeHouse trust review',now())
-  ON CONFLICT(staff_id) DO UPDATE SET status='probation',appointed_by=v_actor.user_id,appointed_at=now(),trusted_by=NULL,trusted_at=NULL,supervisor_confirmed=false,orientation_completed=false,role_training_completed=false,code_of_conduct_confirmed=false,probation_observation_completed=false,notes='Staff appointment awaiting WeHouse trust review',updated_at=now();
-  INSERT INTO public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
-  VALUES('STAFF_APPOINTMENT','profiles',p_target_user_id,
-    jsonb_build_object('module',p_module,'appointed_by_role',v_actor.role,'admin_staff_limit',CASE WHEN v_actor.role='admin' THEN COALESCE(public.get_admin_staff_limit_v2(),0) ELSE NULL END,'state',COALESCE(v_target.state,v_actor.assigned_state),'lga',COALESCE(NULLIF(v_target.local_government,''),NULLIF(v_target.city,''),v_actor.assigned_lga))::text,
-    v_actor.user_id,v_actor.email);
+  INSERT INTO public.audit_logs(action,target_type,target_id,details,admin_id,admin_email) VALUES('STAFF_APPOINTMENT','profiles',p_target_user_id,jsonb_build_object('module',p_module,'appointed_by_role',v_actor.role,'admin_staff_limit',CASE WHEN v_actor.role='admin' THEN COALESCE(public.get_admin_staff_limit_v2(),0) ELSE NULL END,'state',v_state,'lga',v_lga,'access_model','branch_and_module_permission')::text,v_actor.user_id,v_actor.email);
   RETURN true;
-END;$$;
+END;
+$$;
 
 
 --
@@ -789,19 +836,56 @@ END;$$;
 
 CREATE FUNCTION public.admin_assign_field_officer(p_inspection_id uuid, p_field_officer_id text, p_scheduled_date date DEFAULT NULL::date) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_ir public.inspection_requests; v_officer public.profiles;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role NOT IN ('admin','creator') THEN RAISE EXCEPTION 'Admin or Creator access required'; END IF;
-  SELECT * INTO v_ir FROM public.inspection_requests WHERE id=p_inspection_id FOR UPDATE;
-  IF v_ir IS NULL THEN RAISE EXCEPTION 'Inspection request not found'; END IF;
-  IF v_actor.role='admin' AND (v_ir.property_state IS DISTINCT FROM v_actor.assigned_state OR v_ir.property_city IS DISTINCT FROM v_actor.assigned_lga) THEN RAISE EXCEPTION 'Inspection is outside your assigned branch'; END IF;
-  SELECT * INTO v_officer FROM public.profiles WHERE user_id=p_field_officer_id;
-  IF v_officer IS NULL OR v_officer.role<>'staff' OR v_officer.assigned_state IS DISTINCT FROM v_ir.property_state OR v_officer.assigned_lga IS DISTINCT FROM v_ir.property_city OR NOT EXISTS(SELECT 1 FROM public.staff_permissions sp WHERE sp.staff_id=v_officer.user_id AND sp.permission='field_officer' AND sp.is_active=true) THEN RAISE EXCEPTION 'Field Officer must be active and assigned to the same LGA as the property'; END IF;
-  UPDATE public.inspection_requests SET assigned_to=v_officer.user_id,field_officer_id=v_officer.user_id,assigned_field_officer_id=v_officer.user_id,assigned_at=NOW(),scheduled_date=p_scheduled_date,status='scheduled',updated_at=NOW() WHERE id=p_inspection_id;
-END $$;
+declare
+  v_actor public.profiles;
+  v_ir public.inspection_requests;
+  v_officer public.profiles;
+begin
+  select * into v_actor
+  from public.profiles
+  where auth_id=auth.uid()::text
+    and role in ('staff','admin','creator')
+    and not coalesce(deleted,false)
+    and not coalesce(suspended,false)
+    and not coalesce(banned,false)
+  limit 1;
+  if v_actor is null or (v_actor.role='staff' and not public.current_staff_has_permission('operations')) then
+    raise exception 'Operations Staff, Admin or Creator access required';
+  end if;
+
+  select * into v_ir from public.inspection_requests where id=p_inspection_id for update;
+  if v_ir.id is null then raise exception 'Inspection request not found'; end if;
+  if v_ir.access_evidence_status<>'verified' then
+    raise exception 'Access evidence must be approved before assigning a Field Officer';
+  end if;
+  if v_actor.role<>'creator' and not public.current_actor_in_scope(v_ir.property_state,v_ir.property_city) then
+    raise exception 'Inspection is outside your assigned branch';
+  end if;
+
+  select * into v_officer from public.profiles where user_id=p_field_officer_id;
+  if v_officer.id is null or v_officer.role<>'staff'
+    or lower(coalesce(v_officer.assigned_state,''))<>lower(coalesce(v_ir.property_state,''))
+    or lower(coalesce(v_officer.assigned_lga,''))<>lower(coalesce(v_ir.property_city,''))
+    or not exists(
+      select 1 from public.staff_permissions sp
+      where sp.staff_id=v_officer.user_id and sp.permission='field_officer' and sp.is_active=true
+    ) then
+    raise exception 'Field Officer must be active and assigned to the same LGA as the property';
+  end if;
+
+  update public.inspection_requests
+  set assigned_to=v_officer.user_id,
+      field_officer_id=v_officer.user_id,
+      assigned_field_officer_id=v_officer.user_id,
+      assigned_at=now(),
+      scheduled_date=p_scheduled_date,
+      status='scheduled',
+      updated_at=now()
+  where id=p_inspection_id;
+end;
+$$;
 
 
 --
@@ -949,32 +1033,74 @@ END; $$;
 
 CREATE FUNCTION public.admin_get_field_officers_for_inspection(p_inspection_id uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_ir public.inspection_requests; v_result JSONB;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role NOT IN ('admin','creator') THEN RAISE EXCEPTION 'Admin or Creator access required'; END IF;
-  SELECT * INTO v_ir FROM public.inspection_requests WHERE id=p_inspection_id;
-  IF v_ir IS NULL THEN RAISE EXCEPTION 'Inspection request not found'; END IF;
-  IF v_actor.role='admin' AND (v_ir.property_state IS DISTINCT FROM v_actor.assigned_state OR v_ir.property_city IS DISTINCT FROM v_actor.assigned_lga) THEN RAISE EXCEPTION 'Inspection is outside your assigned branch'; END IF;
+declare
+  v_actor public.profiles;
+  v_ir public.inspection_requests;
+  v_result jsonb;
+begin
+  select * into v_actor
+  from public.profiles
+  where auth_id=auth.uid()::text
+    and role in ('staff','admin','creator')
+    and not coalesce(deleted,false)
+    and not coalesce(suspended,false)
+    and not coalesce(banned,false)
+  limit 1;
+  if v_actor is null or (v_actor.role='staff' and not public.current_staff_has_permission('operations')) then
+    raise exception 'Operations Staff, Admin or Creator access required';
+  end if;
 
-  SELECT COALESCE(jsonb_agg(x ORDER BY (x->>'distance_km')::numeric NULLS LAST,(x->>'active_inspections')::int,COALESCE(x->>'name','')),'[]'::jsonb) INTO v_result
-  FROM (
-    SELECT jsonb_build_object(
-      'user_id',p.user_id,'name',COALESCE(p.full_name,p.username,p.email),'email',p.email,'assigned_state',p.assigned_state,'assigned_lga',p.assigned_lga,
-      'active_inspections',(SELECT count(*) FROM public.inspection_requests q WHERE COALESCE(q.assigned_field_officer_id,q.field_officer_id,q.assigned_to)=p.user_id AND q.status IN ('scheduled','in_progress')),
+  select * into v_ir from public.inspection_requests where id=p_inspection_id;
+  if v_ir.id is null then raise exception 'Inspection request not found'; end if;
+  if v_actor.role<>'creator' and not public.current_actor_in_scope(v_ir.property_state,v_ir.property_city) then
+    raise exception 'Inspection is outside your assigned branch';
+  end if;
+
+  select coalesce(
+    jsonb_agg(x order by (x->>'distance_km')::numeric nulls last,(x->>'active_inspections')::int,coalesce(x->>'name','')),
+    '[]'::jsonb
+  ) into v_result
+  from (
+    select jsonb_build_object(
+      'user_id',p.user_id,
+      'name',coalesce(p.full_name,p.username,p.email),
+      'email',p.email,
+      'assigned_state',p.assigned_state,
+      'assigned_lga',p.assigned_lga,
+      'active_inspections',(
+        select count(*) from public.inspection_requests q
+        where coalesce(q.assigned_field_officer_id,q.field_officer_id,q.assigned_to)=p.user_id
+          and q.status in ('scheduled','in_progress')
+      ),
       'location_captured_at',loc.captured_at,
-      'distance_km',CASE WHEN v_ir.gps_latitude IS NOT NULL AND v_ir.gps_longitude IS NOT NULL AND loc.latitude IS NOT NULL AND loc.longitude IS NOT NULL AND loc.captured_at > NOW()-INTERVAL '24 hours' THEN ROUND((6371*2*ASIN(SQRT(POWER(SIN(RADIANS((loc.latitude-v_ir.gps_latitude)/2)),2)+COS(RADIANS(v_ir.gps_latitude))*COS(RADIANS(loc.latitude))*POWER(SIN(RADIANS((loc.longitude-v_ir.gps_longitude)/2)),2))))::numeric,2) ELSE NULL END
+      'distance_km',case
+        when v_ir.gps_latitude is not null and v_ir.gps_longitude is not null
+          and loc.latitude is not null and loc.longitude is not null
+          and loc.captured_at > now()-interval '24 hours'
+        then round((6371*2*asin(sqrt(
+          power(sin(radians((loc.latitude-v_ir.gps_latitude)/2)),2)
+          +cos(radians(v_ir.gps_latitude))*cos(radians(loc.latitude))
+          *power(sin(radians((loc.longitude-v_ir.gps_longitude)/2)),2)
+        )))::numeric,2)
+        else null
+      end
     ) x
-    FROM public.profiles p
-    JOIN public.staff_permissions sp ON sp.staff_id=p.user_id AND sp.permission='field_officer' AND sp.is_active=true
-    LEFT JOIN public.staff_location_presence loc ON loc.staff_id=p.user_id
-    WHERE p.role='staff' AND NOT COALESCE(p.deleted,false) AND NOT COALESCE(p.suspended,false) AND NOT COALESCE(p.banned,false)
-      AND p.assigned_state=v_ir.property_state AND p.assigned_lga=v_ir.property_city
+    from public.profiles p
+    join public.staff_permissions sp
+      on sp.staff_id=p.user_id and sp.permission='field_officer' and sp.is_active=true
+    left join public.staff_location_presence loc on loc.staff_id=p.user_id
+    where p.role='staff'
+      and not coalesce(p.deleted,false)
+      and not coalesce(p.suspended,false)
+      and not coalesce(p.banned,false)
+      and lower(coalesce(p.assigned_state,''))=lower(coalesce(v_ir.property_state,''))
+      and lower(coalesce(p.assigned_lga,''))=lower(coalesce(v_ir.property_city,''))
   ) ranked;
-  RETURN v_result;
-END $$;
+  return v_result;
+end;
+$$;
 
 
 --
@@ -1170,7 +1296,8 @@ CREATE TABLE public.user_inspection_requests (
     condition text,
     photo_urls text[] DEFAULT '{}'::text[],
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    video_urls text[] DEFAULT ARRAY[]::text[] NOT NULL
 );
 
 
@@ -1235,6 +1362,25 @@ CREATE TABLE public.inspection_requests (
     submission_batch_position integer,
     sub_type text,
     security_deposit_amount numeric,
+    video_urls text[] DEFAULT ARRAY[]::text[] NOT NULL,
+    authority_relationship text,
+    access_challenge_code text,
+    access_challenge_expires_at timestamp with time zone,
+    access_evidence_status text DEFAULT 'required'::text NOT NULL,
+    access_evidence_video_path text,
+    access_evidence_submitted_at timestamp with time zone,
+    access_evidence_verified_at timestamp with time zone,
+    access_evidence_verified_by text,
+    submission_schema_version integer DEFAULT 1 NOT NULL,
+    hotel_program jsonb,
+    lifecycle_stage text DEFAULT 'access_required'::text NOT NULL,
+    field_photo_urls text[] DEFAULT ARRAY[]::text[] NOT NULL,
+    field_video_urls text[] DEFAULT ARRAY[]::text[] NOT NULL,
+    final_media_reviewed_at timestamp with time zone,
+    final_media_reviewed_by text,
+    CONSTRAINT inspection_requests_access_evidence_status_check CHECK ((access_evidence_status = ANY (ARRAY['required'::text, 'submitted'::text, 'verified'::text, 'rejected'::text]))),
+    CONSTRAINT inspection_requests_authority_relationship_check CHECK (((authority_relationship IS NULL) OR (authority_relationship = ANY (ARRAY['owner'::text, 'property_manager'::text, 'agent'::text, 'authorized_representative'::text])))),
+    CONSTRAINT inspection_requests_lifecycle_stage_check CHECK ((lifecycle_stage = ANY (ARRAY['access_required'::text, 'access_review'::text, 'inspection_ready'::text, 'inspection'::text, 'visit_reviewed'::text, 'listing_prepared'::text, 'live'::text, 'changes_requested'::text, 'rejected'::text]))),
     CONSTRAINT inspection_requests_security_deposit_check CHECK (((security_deposit_amount IS NULL) OR (security_deposit_amount >= (0)::numeric))),
     CONSTRAINT inspection_requests_sub_type_check CHECK (((sub_type IS NULL) OR (sub_type = ANY (ARRAY['short_let'::text, 'long_stay'::text]))))
 );
@@ -1275,22 +1421,145 @@ $$;
 
 CREATE FUNCTION public.admin_get_worker_review_trust_status(p_worker_id text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_worker public.profiles;
+  v_ver public.worker_verifications;
+  v_identity public.worker_identity_checks;
+  v_payment boolean:=false;
+begin
+  select * into v_actor from public.profiles
+  where auth_id=auth.uid()::text and role in ('staff','admin','creator')
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false)
+  limit 1;
+  if v_actor is null then raise exception 'Worker oversight access required'; end if;
+  if v_actor.role='staff' and not public.current_staff_has_permission('verification') then
+    raise exception 'Verification Staff permission required';
+  end if;
+
+  select * into v_worker from public.profiles where user_id=p_worker_id and role='worker' limit 1;
+  if v_worker is null then raise exception 'Worker not found'; end if;
+  if v_actor.role in ('staff','admin')
+     and (v_actor.assigned_state is distinct from v_worker.state
+       or v_actor.assigned_lga is distinct from coalesce(v_worker.local_government,v_worker.city)) then
+    raise exception 'Worker is outside your assigned branch';
+  end if;
+
+  select * into v_ver from public.worker_verifications where worker_id=p_worker_id limit 1;
+  select * into v_identity from public.worker_identity_checks where worker_id=p_worker_id;
+  select exists(
+    select 1 from public.booking_payments
+    where user_id=p_worker_id and purpose='worker_verification' and status in ('paid','completed')
+  ) into v_payment;
+
+  return jsonb_build_object(
+    'payment_confirmed',v_payment,
+    'identity_status',case when public.worker_identity_is_current(p_worker_id) then 'passed' else coalesce(v_identity.status,'not_started') end,
+    'identity_captured',coalesce(v_identity.status='passed',false),
+    'identity_passed',public.worker_identity_is_current(p_worker_id),
+    'face_match_score',v_identity.face_match_score,
+    'liveness_score',v_identity.liveness_score,
+    'anti_spoof_score',v_identity.anti_spoof_score,
+    'readiness_passed',true,
+    'readiness_percent',100,
+    'evidence_saved',coalesce(nullif(btrim(coalesce(v_ver.verification_video_url,'')),'') is not null,false),
+    'certificate_path',v_ver.certificate_path,
+    'verification_video_url',v_ver.verification_video_url,
+    'submitted',coalesce(v_ver.submitted_at is not null,false),
+    'review_status',v_ver.status
+  );
+end;
+$$;
+
+
+--
+-- Name: admin_prepare_hotel_from_submission_v2(uuid, text, text, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_prepare_hotel_from_submission_v2(p_inspection_id uuid, p_name text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images text[] DEFAULT NULL::text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-DECLARE v_actor public.profiles; v_worker public.profiles; v_ver public.worker_verifications; v_identity public.worker_identity_checks; v_payment boolean:=false; v_test public.worker_test_attempts;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text AND role IN('staff','admin','creator') AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
-  IF v_actor IS NULL THEN RAISE EXCEPTION 'Worker oversight access required'; END IF;
-  IF v_actor.role='staff' AND NOT public.current_staff_has_permission('verification') THEN RAISE EXCEPTION 'Trusted Verification Staff permission required'; END IF;
-  SELECT * INTO v_worker FROM public.profiles WHERE user_id=p_worker_id AND role='worker' LIMIT 1;
-  IF v_worker IS NULL THEN RAISE EXCEPTION 'Worker not found'; END IF;
-  IF v_actor.role IN('staff','admin') AND(v_actor.assigned_state IS DISTINCT FROM v_worker.state OR(v_actor.assigned_lga IS NOT NULL AND v_actor.assigned_lga IS DISTINCT FROM COALESCE(v_worker.local_government,v_worker.city))) THEN RAISE EXCEPTION 'Worker is outside your assigned branch'; END IF;
-  SELECT * INTO v_ver FROM public.worker_verifications WHERE worker_id=p_worker_id LIMIT 1;
-  SELECT * INTO v_identity FROM public.worker_identity_checks WHERE worker_id=p_worker_id;
-  SELECT EXISTS(SELECT 1 FROM public.booking_payments WHERE user_id=p_worker_id AND purpose='worker_verification' AND status IN('paid','completed')) INTO v_payment;
-  SELECT * INTO v_test FROM public.worker_test_attempts WHERE worker_id=p_worker_id AND passed=true AND submitted_at IS NOT NULL ORDER BY submitted_at DESC LIMIT 1;
-  RETURN jsonb_build_object('payment_confirmed',v_payment,'identity_status',COALESCE(v_identity.status,'not_started'),'identity_captured',COALESCE(v_identity.status='passed',false),'identity_passed',COALESCE(v_identity.status='passed',false),'face_match_score',v_identity.face_match_score,'liveness_score',v_identity.liveness_score,'anti_spoof_score',v_identity.anti_spoof_score,'readiness_passed',v_test.id IS NOT NULL,'readiness_percent',v_test.percent,'evidence_saved',COALESCE(NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NOT NULL,false),'submitted',COALESCE(v_ver.submitted_at IS NOT NULL,false),'review_status',v_ver.status);
-END; $$;
+declare
+  v_actor public.profiles;
+  v_ir public.inspection_requests;
+  v_program jsonb;
+  v_rooms jsonb;
+  v_room jsonb;
+  v_hotel_id integer;
+  v_name text;
+  v_images text[];
+  v_amenities text[];
+begin
+  select * into v_actor from public.profiles where auth_id = auth.uid()::text limit 1;
+  if v_actor is null or v_actor.role not in ('admin', 'creator', 'staff') then
+    raise exception 'WeHouse operations access required';
+  end if;
+  if v_actor.role = 'staff' and not public.current_staff_has_permission('operations') then
+    raise exception 'Operations permission required';
+  end if;
+
+  select * into v_ir from public.inspection_requests where id = p_inspection_id for update;
+  if v_ir is null or v_ir.property_type <> 'hotel' or v_ir.status not in ('completed', 'approved') then
+    raise exception 'Completed hotel inspection required';
+  end if;
+  if v_actor.role in ('admin', 'staff') and
+     (v_ir.property_state is distinct from v_actor.assigned_state or v_ir.property_city is distinct from v_actor.assigned_lga) then
+    raise exception 'Hotel is outside your assigned branch';
+  end if;
+  if v_ir.draft_hotel_id is not null then
+    raise exception 'A hotel has already been prepared from this inspection';
+  end if;
+
+  v_program := coalesce(v_ir.hotel_program, '{}'::jsonb);
+  v_rooms := coalesce(v_program->'room_types', '[]'::jsonb);
+  v_name := coalesce(nullif(btrim(p_name), ''), nullif(btrim(v_program->>'name'), ''));
+  if v_name is null then raise exception 'Hotel name is required'; end if;
+  if jsonb_typeof(v_rooms) <> 'array' or jsonb_array_length(v_rooms) = 0 then
+    raise exception 'At least one submitted room type is required';
+  end if;
+
+  select coalesce(array_agg(value), array[]::text[]) into v_amenities
+  from jsonb_array_elements_text(coalesce(v_program->'amenities', '[]'::jsonb));
+  v_images := coalesce(p_images, v_ir.photo_urls, array[]::text[]);
+
+  insert into public.hotels(
+    name, description, state, city, address, images, amenities, owner_id, status,
+    featured, gps_latitude, gps_longitude, inspection_request_id, created_at, updated_at
+  ) values (
+    v_name, coalesce(nullif(btrim(p_description), ''), nullif(btrim(v_ir.description), '')),
+    v_ir.property_state, v_ir.property_city, v_ir.property_address, v_images, v_amenities,
+    v_ir.owner_id, 'draft', false, v_ir.gps_latitude, v_ir.gps_longitude, v_ir.id, now(), now()
+  ) returning hotel_id into v_hotel_id;
+
+  for v_room in select value from jsonb_array_elements(v_rooms)
+  loop
+    if nullif(btrim(v_room->>'name'), '') is null or coalesce((v_room->>'nightly_rate')::integer, 0) <= 0 then
+      raise exception 'Every room needs a name and valid nightly rate';
+    end if;
+    insert into public.hotel_rooms(
+      hotel_id, room_type, description, price_per_night, max_guests, bed_type,
+      images, amenities, total_rooms, created_at, updated_at
+    ) values (
+      v_hotel_id,
+      btrim(v_room->>'name'),
+      nullif(btrim(v_room->>'description'), ''),
+      (v_room->>'nightly_rate')::integer,
+      greatest(coalesce((v_room->>'guest_capacity')::integer, 2), 1),
+      nullif(btrim(v_room->>'bed_type'), ''),
+      coalesce(array(select jsonb_array_elements_text(coalesce(v_room->'media', '[]'::jsonb))), array[]::text[]),
+      coalesce(array(select jsonb_array_elements_text(coalesce(v_room->'amenities', '[]'::jsonb))), array[]::text[]),
+      greatest(coalesce((v_room->>'inventory')::integer, 1), 1),
+      now(), now()
+    );
+  end loop;
+
+  update public.inspection_requests set draft_hotel_id = v_hotel_id, updated_at = now() where id = v_ir.id;
+  return v_hotel_id;
+end;
+$$;
 
 
 --
@@ -1310,21 +1579,37 @@ BEGIN RAISE EXCEPTION 'Choose a Staff operational module and use the Staff appoi
 
 CREATE FUNCTION public.admin_publish_inspected_hotel(p_hotel_id integer) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_h public.hotels; v_ir public.inspection_requests; v_rooms INTEGER;
-BEGIN
- SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
- IF v_actor IS NULL OR v_actor.role NOT IN ('admin','creator') THEN RAISE EXCEPTION 'Admin or Creator access required'; END IF;
- SELECT * INTO v_h FROM public.hotels WHERE hotel_id=p_hotel_id FOR UPDATE;
- IF v_h IS NULL OR v_h.inspection_request_id IS NULL THEN RAISE EXCEPTION 'Inspection-linked hotel required'; END IF;
- SELECT * INTO v_ir FROM public.inspection_requests WHERE id=v_h.inspection_request_id FOR UPDATE;
- IF v_actor.role='admin' AND (v_ir.property_state IS DISTINCT FROM v_actor.assigned_state OR v_ir.property_city IS DISTINCT FROM v_actor.assigned_lga) THEN RAISE EXCEPTION 'Hotel is outside your assigned branch'; END IF;
- SELECT count(*) INTO v_rooms FROM public.hotel_rooms WHERE hotel_id=p_hotel_id;
- IF COALESCE(array_length(v_h.images,1),0)<1 OR v_rooms<1 THEN RAISE EXCEPTION 'At least one hotel image and one room type are required before publication'; END IF;
- UPDATE public.hotels SET status='active',approved_by=v_actor.user_id,approved_at=NOW(),published_at=NOW(),updated_at=NOW() WHERE hotel_id=p_hotel_id;
- UPDATE public.inspection_requests SET status='approved',approved_by=v_actor.user_id,approved_at=NOW(),published_at=NOW(),updated_at=NOW() WHERE id=v_ir.id;
-END $$;
+declare
+  v_actor public.profiles;
+  v_h public.hotels;
+  v_ir public.inspection_requests;
+  v_rooms integer;
+begin
+  select * into v_actor from public.profiles where auth_id = auth.uid()::text limit 1;
+  if v_actor is null or v_actor.role not in ('admin','creator') then raise exception 'Admin or Creator access required'; end if;
+  select * into v_h from public.hotels where hotel_id = p_hotel_id for update;
+  if v_h is null or v_h.inspection_request_id is null then raise exception 'Inspection-linked hotel required'; end if;
+  select * into v_ir from public.inspection_requests where id = v_h.inspection_request_id for update;
+  if v_actor.role = 'admin' and not public.current_actor_in_scope(v_ir.property_state, v_ir.property_city) then raise exception 'Hotel is outside your assigned branch'; end if;
+  if v_ir.final_media_reviewed_at is null then raise exception 'Confirm the hotel and every room gallery before publication'; end if;
+  select count(*) into v_rooms from public.hotel_rooms where hotel_id = p_hotel_id;
+  if cardinality(coalesce(v_h.images, array[]::text[])) < 1 or v_rooms < 1 then raise exception 'At least one hotel image and one room type are required before publication'; end if;
+  if exists (
+    select 1 from public.hotel_rooms hr
+    where hr.hotel_id = p_hotel_id
+      and exists (
+        select 1 from jsonb_array_elements(coalesce(v_ir.hotel_program->'room_types', '[]'::jsonb)) submitted_room
+        where lower(btrim(submitted_room->>'name')) = lower(btrim(hr.room_type))
+          and jsonb_array_length(coalesce(submitted_room->'media', '[]'::jsonb)) > 0
+      )
+      and cardinality(coalesce(hr.images, array[]::text[])) < 1
+  ) then raise exception 'Every submitted room type needs a confirmed public gallery'; end if;
+  update public.hotels set status = 'active', approved_by = v_actor.user_id, approved_at = now(), published_at = now(), updated_at = now() where hotel_id = p_hotel_id;
+  update public.inspection_requests set status = 'approved', approved_by = v_actor.user_id, approved_at = now(), published_at = now(), updated_at = now() where id = v_ir.id;
+end;
+$$;
 
 
 --
@@ -1333,33 +1618,33 @@ END $$;
 
 CREATE FUNCTION public.admin_publish_inspected_listing(p_listing_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_listing public.listings; v_ir public.inspection_requests;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role NOT IN ('admin','creator') THEN RAISE EXCEPTION 'Admin or Creator access required'; END IF;
-  SELECT * INTO v_listing FROM public.listings WHERE id=p_listing_id AND deleted_at IS NULL FOR UPDATE;
-  IF v_listing IS NULL OR v_listing.inspection_request_id IS NULL THEN RAISE EXCEPTION 'Inspection-linked listing required'; END IF;
-  SELECT * INTO v_ir FROM public.inspection_requests WHERE id=v_listing.inspection_request_id FOR UPDATE;
-  IF v_ir.status NOT IN ('completed','approved') THEN RAISE EXCEPTION 'Inspection is not complete'; END IF;
-  IF v_actor.role='admin' AND (v_ir.property_state IS DISTINCT FROM v_actor.assigned_state OR v_ir.property_city IS DISTINCT FROM v_actor.assigned_lga) THEN RAISE EXCEPTION 'Property is outside your assigned branch'; END IF;
-  IF NULLIF(BTRIM(v_listing.title),'') IS NULL OR COALESCE(v_listing.price,0)<=0 OR COALESCE(array_length(v_listing.images,1),0)<1 THEN
-    RAISE EXCEPTION 'Title, valid price and at least one image are required before publication';
-  END IF;
-  IF COALESCE(v_listing.property_type,'apartment')='apartment' THEN
-    IF v_listing.sub_type NOT IN ('short_let','long_stay') THEN RAISE EXCEPTION 'Apartment must be classified as Short Stay or Long Stay before publication'; END IF;
-    IF v_listing.sub_type='short_let' AND COALESCE(v_listing.security_deposit_amount,0)<=0 THEN RAISE EXCEPTION 'Short Stay requires a refundable security deposit'; END IF;
-    IF v_listing.sub_type='short_let' AND NOT ('Furnished'=ANY(COALESCE(v_listing.amenities,ARRAY[]::text[]))) THEN RAISE EXCEPTION 'Short Stay apartment must be furnished'; END IF;
-  END IF;
-
-  UPDATE public.listings
-  SET status='available',availability_status='available',approved_by=v_actor.user_id,approved_at=NOW(),rejection_reason=NULL,updated_at=NOW()
-  WHERE id=p_listing_id;
-  UPDATE public.inspection_requests
-  SET status='approved',approved_by=v_actor.user_id,approved_at=NOW(),published_at=NOW(),updated_at=NOW()
-  WHERE id=v_ir.id;
-END $$;
+declare
+  v_actor public.profiles;
+  v_listing public.listings;
+  v_ir public.inspection_requests;
+begin
+  select * into v_actor from public.profiles where auth_id = auth.uid()::text limit 1;
+  if v_actor is null or v_actor.role not in ('admin','creator') then raise exception 'Admin or Creator access required'; end if;
+  select * into v_listing from public.listings where id = p_listing_id and deleted_at is null for update;
+  if v_listing is null or v_listing.inspection_request_id is null then raise exception 'Inspection-linked listing required'; end if;
+  select * into v_ir from public.inspection_requests where id = v_listing.inspection_request_id for update;
+  if v_ir.status not in ('completed','approved') then raise exception 'Inspection is not complete'; end if;
+  if v_actor.role = 'admin' and not public.current_actor_in_scope(v_ir.property_state, v_ir.property_city) then raise exception 'Property is outside your assigned branch'; end if;
+  if v_ir.final_media_reviewed_at is null then raise exception 'Confirm the final property gallery before publication'; end if;
+  if nullif(btrim(v_listing.title),'') is null or coalesce(v_listing.price,0) <= 0 or cardinality(coalesce(v_listing.images,array[]::text[])) < 1 then
+    raise exception 'Title, valid price and at least one image are required before publication';
+  end if;
+  if coalesce(v_listing.property_type,'apartment') = 'apartment' then
+    if v_listing.sub_type not in ('short_let','long_stay') then raise exception 'Apartment must be classified as Short Stay or Long Stay before publication'; end if;
+    if v_listing.sub_type = 'short_let' and coalesce(v_listing.security_deposit_amount,0) <= 0 then raise exception 'Short Stay requires a refundable security deposit'; end if;
+    if v_listing.sub_type = 'short_let' and not ('Furnished' = any(coalesce(v_listing.amenities,array[]::text[]))) then raise exception 'Short Stay apartment must be furnished'; end if;
+  end if;
+  update public.listings set status = 'available', availability_status = 'available', approved_by = v_actor.user_id, approved_at = now(), rejection_reason = null, updated_at = now() where id = p_listing_id;
+  update public.inspection_requests set status = 'approved', approved_by = v_actor.user_id, approved_at = now(), published_at = now(), updated_at = now() where id = v_ir.id;
+end;
+$$;
 
 
 --
@@ -1442,28 +1727,45 @@ END $$;
 
 CREATE FUNCTION public.admin_review_my_branch_worker(p_worker_id text, p_decision text, p_reason text DEFAULT NULL::text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_worker public.profiles; v_ver public.worker_verifications;
+DECLARE
+  v_actor public.profiles;
+  v_worker public.profiles;
+  v_ver public.worker_verifications;
 BEGIN
   v_actor:=public._admin_dashboard_actor();
-  SELECT * INTO v_worker FROM public.profiles WHERE user_id=p_worker_id AND role='worker' AND COALESCE(deleted,false)=false FOR UPDATE;
+  SELECT * INTO v_worker FROM public.profiles
+  WHERE user_id=p_worker_id AND role='worker' AND COALESCE(deleted,false)=false
+  FOR UPDATE;
   IF v_worker IS NULL THEN RAISE EXCEPTION 'Worker not found'; END IF;
-  IF v_actor.role='admin' AND(v_worker.state IS DISTINCT FROM v_actor.assigned_state OR COALESCE(NULLIF(v_worker.local_government,''),NULLIF(v_worker.city,'')) IS DISTINCT FROM v_actor.assigned_lga) THEN RAISE EXCEPTION 'Worker is outside your assigned branch'; END IF;
+  IF v_actor.role='admin'
+     AND (v_worker.state IS DISTINCT FROM v_actor.assigned_state
+       OR COALESCE(NULLIF(v_worker.local_government,''),NULLIF(v_worker.city,'')) IS DISTINCT FROM v_actor.assigned_lga) THEN
+    RAISE EXCEPTION 'Worker is outside your assigned branch';
+  END IF;
   IF v_worker.worker_status<>'profile_under_review' THEN RAISE EXCEPTION 'Worker is not in the review queue'; END IF;
   SELECT * INTO v_ver FROM public.worker_verifications WHERE worker_id=p_worker_id LIMIT 1;
+
   IF p_decision='approve' THEN
-    IF NOT public.worker_test_passed(p_worker_id) THEN RAISE EXCEPTION 'Worker readiness check has not been passed'; END IF;
-    IF v_ver IS NULL OR NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NULL THEN RAISE EXCEPTION 'Professional work evidence is incomplete'; END IF;
+    IF NOT public.worker_identity_is_current(p_worker_id) THEN RAISE EXCEPTION 'The current private face check has not passed'; END IF;
+    IF v_ver IS NULL OR NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NULL THEN
+      RAISE EXCEPTION 'Professional work evidence is incomplete';
+    END IF;
     UPDATE public.profiles SET worker_status='verified',worker_verified=true,available=true,updated_at=now(),updated_by=v_actor.user_id WHERE user_id=p_worker_id;
     UPDATE public.worker_verifications SET status='verified',reviewed_by=v_actor.user_id,reviewed_at=now(),updated_at=now() WHERE id=v_ver.id;
   ELSIF p_decision='reject' THEN
     IF NULLIF(BTRIM(COALESCE(p_reason,'')),'') IS NULL THEN RAISE EXCEPTION 'Rejection reason is required'; END IF;
     UPDATE public.profiles SET worker_status='rejected',worker_verified=false,available=false,updated_at=now(),updated_by=v_actor.user_id WHERE user_id=p_worker_id;
     UPDATE public.worker_verifications SET status='rejected',reviewed_by=v_actor.user_id,review_notes=BTRIM(p_reason),reviewed_at=now(),updated_at=now() WHERE id=v_ver.id;
-  ELSE RAISE EXCEPTION 'Decision must be approve or reject'; END IF;
+  ELSE
+    RAISE EXCEPTION 'Decision must be approve or reject';
+  END IF;
+
   INSERT INTO public.worker_verification_reviews(worker_id,reviewer_id,reviewer_role,action,rejection_reason)
-  VALUES(p_worker_id,v_actor.user_id,v_actor.role,CASE WHEN p_decision='approve' THEN 'approved' ELSE 'rejected' END,CASE WHEN p_decision='reject' THEN BTRIM(p_reason) ELSE NULL END);
+  VALUES(p_worker_id,v_actor.user_id,v_actor.role,
+    CASE WHEN p_decision='approve' THEN 'approved' ELSE 'rejected' END,
+    CASE WHEN p_decision='reject' THEN BTRIM(p_reason) ELSE NULL END);
 END;
 $$;
 
@@ -1519,6 +1821,142 @@ begin
   end if;
   update public.announcements set recipient_count=v_count where id=v_id;
   return jsonb_build_object('id',v_id,'recipient_count',v_count);
+end;
+$$;
+
+
+--
+-- Name: admin_set_inspected_hotel_media(uuid, text[], jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_set_inspected_hotel_media(p_inspection_id uuid, p_hotel_images text[], p_room_galleries jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_request public.inspection_requests;
+  v_room public.hotel_rooms;
+  v_hotel_allowed text[];
+  v_room_allowed text[];
+  v_chosen text[];
+  v_value jsonb;
+begin
+  select * into v_actor from public.profiles
+  where auth_id = auth.uid()::text and role in ('admin', 'creator')
+    and not coalesce(deleted, false) and not coalesce(suspended, false)
+    and not coalesce(banned, false) limit 1;
+  if v_actor is null then raise exception 'Final Admin or Creator review required'; end if;
+
+  select * into v_request from public.inspection_requests where id = p_inspection_id for update;
+  if v_request is null or v_request.property_type <> 'hotel' or v_request.draft_hotel_id is null then
+    raise exception 'Prepared hotel inspection required';
+  end if;
+  if v_request.lifecycle_stage not in ('listing_prepared', 'live') then
+    raise exception 'The hotel must be prepared before its media is selected';
+  end if;
+  if v_actor.role = 'admin' and not public.current_actor_in_scope(v_request.property_state, v_request.property_city) then
+    raise exception 'Hotel is outside your assigned branch';
+  end if;
+  if jsonb_typeof(coalesce(p_room_galleries, '{}'::jsonb)) <> 'object' then
+    raise exception 'Room galleries must be supplied by room';
+  end if;
+
+  v_hotel_allowed := array(
+    select distinct image_url from unnest(
+      coalesce(v_request.photo_urls, array[]::text[]) || coalesce(v_request.field_photo_urls, array[]::text[])
+    ) image_url where nullif(btrim(image_url), '') is not null
+  );
+  if cardinality(coalesce(p_hotel_images, array[]::text[])) < 1 then raise exception 'Choose at least one hotel or field-visit image'; end if;
+  if cardinality(p_hotel_images) > 24 then raise exception 'A hotel gallery can contain at most 24 images'; end if;
+  if exists (select 1 from unnest(p_hotel_images) chosen where nullif(btrim(chosen), '') is null or not (chosen = any(v_hotel_allowed))) then
+    raise exception 'Hotel gallery images must come from the hotel-level or Field Operations submission';
+  end if;
+
+  update public.hotels
+  set images = array(select distinct image_url from unnest(p_hotel_images) image_url), updated_at = now()
+  where hotel_id = v_request.draft_hotel_id;
+  if not found then raise exception 'Prepared hotel not found'; end if;
+
+  for v_room in select * from public.hotel_rooms where hotel_id = v_request.draft_hotel_id order by room_id
+  loop
+    v_value := p_room_galleries -> v_room.room_id::text;
+    if v_value is null or jsonb_typeof(v_value) <> 'array' then
+      raise exception 'Choose the final gallery for room type %', v_room.room_type;
+    end if;
+    select coalesce(array_agg(value), array[]::text[]) into v_chosen from jsonb_array_elements_text(v_value);
+    select coalesce(array_agg(distinct media_url), array[]::text[]) into v_room_allowed
+    from jsonb_array_elements(coalesce(v_request.hotel_program->'room_types', '[]'::jsonb)) submitted_room
+    cross join lateral jsonb_array_elements_text(coalesce(submitted_room->'media', '[]'::jsonb)) media_url
+    where lower(btrim(submitted_room->>'name')) = lower(btrim(v_room.room_type));
+
+    if cardinality(v_room_allowed) > 0 and cardinality(v_chosen) < 1 then
+      raise exception 'Choose at least one submitted image for room type %', v_room.room_type;
+    end if;
+    if cardinality(v_chosen) > 12 then raise exception 'A room gallery can contain at most 12 images'; end if;
+    if exists (select 1 from unnest(v_chosen) chosen where nullif(btrim(chosen), '') is null or not (chosen = any(v_room_allowed))) then
+      raise exception 'Room images for % must come from that submitted room type', v_room.room_type;
+    end if;
+    update public.hotel_rooms set images = v_chosen, updated_at = now() where room_id = v_room.room_id;
+  end loop;
+
+  update public.inspection_requests
+  set final_media_reviewed_at = now(), final_media_reviewed_by = v_actor.user_id, updated_at = now()
+  where id = v_request.id;
+  return true;
+end;
+$$;
+
+
+--
+-- Name: admin_set_inspected_public_gallery(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_set_inspected_public_gallery(p_inspection_id uuid, p_images text[]) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_request public.inspection_requests;
+  v_allowed text[];
+begin
+  select * into v_actor from public.profiles
+  where auth_id = auth.uid()::text and role in ('admin', 'creator')
+    and not coalesce(deleted, false) and not coalesce(suspended, false)
+    and not coalesce(banned, false) limit 1;
+  if v_actor is null then raise exception 'Final Admin or Creator review required'; end if;
+
+  select * into v_request from public.inspection_requests where id = p_inspection_id for update;
+  if v_request is null then raise exception 'Inspection not found'; end if;
+  if v_request.property_type = 'hotel' then raise exception 'Use the hotel and room media review for a hotel'; end if;
+  if v_request.lifecycle_stage not in ('listing_prepared', 'live') then
+    raise exception 'The listing must be prepared before its public gallery is selected';
+  end if;
+  if v_actor.role = 'admin' and not public.current_actor_in_scope(v_request.property_state, v_request.property_city) then
+    raise exception 'Property is outside your assigned branch';
+  end if;
+
+  v_allowed := array(
+    select distinct image_url from unnest(
+      coalesce(v_request.photo_urls, array[]::text[]) || coalesce(v_request.field_photo_urls, array[]::text[])
+    ) image_url where nullif(btrim(image_url), '') is not null
+  );
+  if cardinality(coalesce(p_images, array[]::text[])) < 1 then raise exception 'Choose at least one submitted property image'; end if;
+  if cardinality(p_images) > 24 then raise exception 'A public gallery can contain at most 24 images'; end if;
+  if exists (select 1 from unnest(p_images) chosen where nullif(btrim(chosen), '') is null or not (chosen = any(v_allowed))) then
+    raise exception 'Public gallery images must come from the Property Partner or Field Operations submission';
+  end if;
+  if v_request.draft_listing_id is null then raise exception 'Prepared listing not found'; end if;
+
+  update public.listings set images = array(select distinct image_url from unnest(p_images) image_url), updated_at = now()
+  where id = v_request.draft_listing_id and deleted_at is null;
+  if not found then raise exception 'Prepared listing not found'; end if;
+
+  update public.inspection_requests
+  set final_media_reviewed_at = now(), final_media_reviewed_by = v_actor.user_id, updated_at = now()
+  where id = v_request.id;
+  return true;
 end;
 $$;
 
@@ -1657,18 +2095,20 @@ CREATE FUNCTION public.approve_withdrawal_v2(p_withdrawal_id uuid, p_approved_by
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public', 'extensions'
     AS $$
-DECLARE v_withdrawal RECORD; v_wallet RECORD;
-BEGIN
-  SELECT * INTO v_withdrawal FROM withdrawals WHERE id = p_withdrawal_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Withdrawal not found'; END IF;
-  IF v_withdrawal.status NOT IN ('pending', 'processing') THEN RAISE EXCEPTION 'Cannot be approved'; END IF;
-  SELECT * INTO v_wallet FROM wallets WHERE id = v_withdrawal.wallet_id FOR UPDATE;
-  IF v_wallet.owner_id = p_approved_by THEN RAISE EXCEPTION 'Cannot approve own withdrawal'; END IF;
-  UPDATE wallets SET frozen_balance = GREATEST(0, frozen_balance - v_withdrawal.amount), total_withdrawn = total_withdrawn + v_withdrawal.amount, updated_at = NOW() WHERE id = v_withdrawal.wallet_id;
-  UPDATE withdrawals SET status = 'successful', processed_at = NOW(), updated_at = NOW() WHERE id = p_withdrawal_id;
-  RETURN TRUE;
-END;
-$$;
+declare v_withdrawal record; v_wallet record; v_actor public.profiles; v_finance_staff boolean;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  select exists(select 1 from public.staff_permissions where staff_id=v_actor.user_id and permission='finance' and is_active=true) into v_finance_staff;
+  if v_actor is null or v_actor.user_id<>p_approved_by or (v_actor.role not in ('creator','admin') and not (v_actor.role='staff' and v_finance_staff)) then raise exception 'Finance approval access required'; end if;
+  select * into v_withdrawal from public.withdrawals where id=p_withdrawal_id for update;
+  if not found then raise exception 'Withdrawal not found'; end if;
+  if v_withdrawal.status not in ('pending','processing') then raise exception 'Cannot be approved'; end if;
+  select * into v_wallet from public.wallets where id=v_withdrawal.wallet_id for update;
+  if v_wallet.owner_id=p_approved_by then raise exception 'Cannot approve own withdrawal'; end if;
+  update public.wallets set frozen_balance=greatest(0,frozen_balance-v_withdrawal.amount),total_withdrawn=total_withdrawn+v_withdrawal.amount,updated_at=now() where id=v_withdrawal.wallet_id;
+  update public.withdrawals set status='successful',processed_at=now(),updated_at=now() where id=p_withdrawal_id;
+  return true;
+end $$;
 
 
 --
@@ -1723,6 +2163,26 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: bind_worker_booking_service(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bind_worker_booking_service() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare matched public.service_subcategories;
+begin
+  if new.service_subcategory_id is not null then
+    select * into matched from public.service_subcategories where id=new.service_subcategory_id;
+  elsif nullif(btrim(coalesce(new.service_type,'')),'') is not null then
+    select * into matched from public.service_subcategories where lower(btrim(name))=lower(btrim(new.service_type)) order by is_active desc,created_at limit 1;
+  end if;
+  if matched is not null then new.service_subcategory_id:=matched.id;new.service_type:=matched.name;end if;
+  return new;
+end $$;
 
 
 --
@@ -1826,6 +2286,36 @@ BEGIN
   END CASE;
   refund_amount:=round(v_res.amount*v_percent/100,2); wehouse_retained:=v_res.amount-refund_amount; refund_percent:=v_percent; RETURN NEXT;
 END;
+$$;
+
+
+--
+-- Name: can_access_my_conversation(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.can_access_my_conversation(p_conversation_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  SELECT public._can_access_conversation(p_conversation_id);
+$$;
+
+
+--
+-- Name: can_access_operational_conversation(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.can_access_operational_conversation(p_conversation_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+ select exists(
+  select 1 from public.partner_support_conversations c join public.profiles p on p.auth_id=auth.uid()::text
+  where c.id=p_conversation_id and (
+   p.user_id in (c.partner_id,c.assigned_staff_id,c.assigned_field_officer_id) or p.role in ('admin','creator') or
+   (p.role='staff' and c.assigned_staff_id is null and public.current_staff_has_permission(case when c.channel_kind='reservation_operations' then 'operations' else 'support' end))
+  )
+ )
 $$;
 
 
@@ -1976,21 +2466,88 @@ $$;
 
 CREATE FUNCTION public.cancel_rent_plan(p_plan_id uuid, p_reason text DEFAULT NULL::text, p_reason_category text DEFAULT 'voluntary'::text) RETURNS TABLE(refund_amount numeric, fee_amount numeric, total_contributed numeric)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public', 'extensions'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_plan RECORD; v_fee_amount NUMERIC; v_refund_amount NUMERIC;
-BEGIN
-  SELECT * INTO v_plan FROM rent_plans WHERE id = p_plan_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Rent plan not found'; END IF;
-  IF v_plan.status = 'cancelled' THEN RAISE EXCEPTION 'Already cancelled'; END IF;
-  IF p_reason_category = 'provider_failure' THEN v_fee_amount := 0; v_refund_amount := v_plan.total_contributed;
-  ELSE v_fee_amount := ROUND(v_plan.total_contributed * v_plan.cancellation_fee_percent / 100, 2); v_refund_amount := v_plan.total_contributed - v_fee_amount; END IF;
-  INSERT INTO rent_plan_cancellations (rent_plan_id, user_id, total_contributed, cancellation_fee_percent, cancellation_fee_amount, refund_amount, reason, reason_category)
-  VALUES (p_plan_id, v_plan.user_id, v_plan.total_contributed, v_plan.cancellation_fee_percent, v_fee_amount, v_refund_amount, p_reason, p_reason_category);
-  UPDATE rent_plans SET status = 'cancelled', total_paid_out = v_refund_amount, updated_at = NOW() WHERE id = p_plan_id;
-  refund_amount := v_refund_amount; fee_amount := v_fee_amount; total_contributed := v_plan.total_contributed;
-  RETURN NEXT;
-END;
+declare v_plan public.rent_plans%rowtype; v_actor text:=public.current_profile_user_id(); v_creator boolean:=public.is_current_creator(); v_fee_amount numeric; v_refund_amount numeric;
+begin
+ if v_actor is null then raise exception 'Authentication required'; end if;
+ select * into v_plan from public.rent_plans where id=p_plan_id for update;
+ if not found then raise exception 'Rent plan not found'; end if;
+ if v_plan.user_id is distinct from v_actor and not v_creator then raise exception 'You cannot cancel this rent plan'; end if;
+ if v_plan.status='cancelled' then raise exception 'Already cancelled'; end if;
+ if not v_creator and coalesce(p_reason_category,'voluntary')<>'voluntary' then raise exception 'Only WeHouse can classify a provider failure'; end if;
+ if p_reason_category='provider_failure' then v_fee_amount:=0; v_refund_amount:=v_plan.total_contributed;
+ else v_fee_amount:=round(v_plan.total_contributed*v_plan.cancellation_fee_percent/100,2); v_refund_amount:=v_plan.total_contributed-v_fee_amount; end if;
+ insert into public.rent_plan_cancellations(rent_plan_id,user_id,total_contributed,cancellation_fee_percent,cancellation_fee_amount,refund_amount,reason,reason_category)
+ values(p_plan_id,v_plan.user_id,v_plan.total_contributed,v_plan.cancellation_fee_percent,v_fee_amount,v_refund_amount,p_reason,coalesce(p_reason_category,'voluntary'));
+ update public.rent_plans set status='cancelled',total_paid_out=v_refund_amount,updated_at=now() where id=p_plan_id;
+ refund_amount:=v_refund_amount; fee_amount:=v_fee_amount; total_contributed:=v_plan.total_contributed; return next;
+end;$$;
+
+
+--
+-- Name: claim_my_communication_case(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_my_communication_case(p_conversation_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor public.profiles; channel text; owner_id text; owner_state text; owner_lga text;
+begin
+ select * into actor from public.profiles where auth_id=auth.uid()::text limit 1;
+ if actor.user_id is null or actor.role<>'staff' then raise exception 'Active Staff account required'; end if;
+ select c.channel_kind,p.user_id,p.state,coalesce(nullif(p.local_government,''),p.city) into channel,owner_id,owner_state,owner_lga
+ from public.partner_support_conversations c join public.profiles p on p.user_id=c.partner_id
+ where c.id=p_conversation_id for update of c;
+ if owner_id is null then raise exception 'Conversation not found'; end if;
+ if actor.assigned_state is distinct from owner_state or actor.assigned_lga is distinct from owner_lga then raise exception 'Conversation is outside your branch'; end if;
+ if not public.current_staff_has_permission(case when channel='reservation_operations' then 'operations' else 'support' end) then raise exception 'Conversation is outside your Staff responsibility'; end if;
+ update public.partner_support_conversations set assigned_staff_id=actor.user_id,updated_at=now()
+ where id=p_conversation_id and (assigned_staff_id is null or assigned_staff_id=actor.user_id);
+ if not found then raise exception 'This conversation is already assigned to another Staff member'; end if;
+ return true;
+end $$;
+
+
+--
+-- Name: classify_conversation_channel(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.classify_conversation_channel() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  new.channel_kind:=case
+    when new.context_type in ('apartment_reservation','reservation','hotel_booking') then 'reservation_operations'
+    when new.context_type='property_inspection' then 'property_operations'
+    else 'support_case'
+  end;
+  if new.channel_kind='support_case' and new.case_number is null then
+    new.case_number:='WHC-'||upper(substring(replace(gen_random_uuid()::text,'-','') from 1 for 10));
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: clear_consumed_property_access_code(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.clear_consumed_property_access_code() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if new.access_evidence_status in ('submitted','verified')
+     or new.access_evidence_video_path is not null
+     or new.published_at is not null then
+    new.access_challenge_code := null;
+    new.access_challenge_expires_at := null;
+  end if;
+  return new;
+end;
 $$;
 
 
@@ -2089,6 +2646,53 @@ BEGIN
   RETURN true;
 END;
 $$;
+
+
+--
+-- Name: complete_my_account_identity_check(text, numeric, numeric, numeric, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.complete_my_account_identity_check(p_photo_path text, p_face_match_score numeric, p_liveness_score numeric, p_anti_spoof_score numeric, p_challenge_result jsonb, p_consent boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'storage'
+    AS $$
+declare v_actor public.profiles; v_existing public.worker_identity_checks; v_renewal boolean; v_attempts integer;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role in ('worker','property_partner')
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Worker or Property Partner account required'; end if;
+  if not coalesce(p_consent,false) then raise exception 'Private face-check consent is required'; end if;
+  select * into v_existing from public.worker_identity_checks where worker_id=v_actor.user_id for update;
+  v_renewal:=v_existing.worker_id is not null and nullif(btrim(coalesce(v_existing.enrollment_photo_path,'')),'') is not null;
+  if nullif(btrim(coalesce(p_photo_path,'')),'') is null or split_part(p_photo_path,'/',1)<>v_actor.user_id then raise exception 'Invalid private identity path'; end if;
+  if v_renewal and p_photo_path<>v_existing.enrollment_photo_path then raise exception 'Renewal must reuse the original private identity reference'; end if;
+  if not exists(select 1 from storage.objects where bucket_id='worker-identity-private' and name=p_photo_path) then raise exception 'Private identity reference was not found'; end if;
+  if p_face_match_score not between 0 and 1 or p_liveness_score not between 0 and 1 or p_anti_spoof_score not between 0 and 1 then raise exception 'Invalid automatic face-check score'; end if;
+  if p_face_match_score<0.55 then raise exception 'Live face did not match the private identity reference closely enough'; end if;
+  if p_liveness_score<0.50 then raise exception 'Automatic liveness check did not pass'; end if;
+  if p_anti_spoof_score<0.50 then raise exception 'Automatic anti-spoof check did not pass'; end if;
+  if not coalesce((p_challenge_result->>'automatic')::boolean,false)
+    or not coalesce((p_challenge_result->>'center_start')::boolean,false)
+    or not coalesce((p_challenge_result->>'side_one')::boolean,false)
+    or not coalesce((p_challenge_result->>'side_two')::boolean,false)
+    or not coalesce((p_challenge_result->>'center_end')::boolean,false)
+    or coalesce((p_challenge_result->>'recorded_video')::boolean,true) then raise exception 'Automatic head-movement challenge is incomplete'; end if;
+  v_attempts:=coalesce(v_existing.attempt_count,0)+1;
+  insert into public.worker_identity_checks(worker_id,account_role,status,enrollment_photo_path,latest_reference_photo_path,latest_reference_at,
+    challenge_version,face_match_score,liveness_score,anti_spoof_score,challenge_result,consent_at,captured_at,attempt_count,updated_at)
+  values(v_actor.user_id,v_actor.role,'passed',p_photo_path,p_photo_path,now(),'human-3.3.6-head-turn-v4-shared',p_face_match_score,
+    p_liveness_score,p_anti_spoof_score,p_challenge_result,now(),now(),v_attempts,now())
+  on conflict(worker_id) do update set account_role=excluded.account_role,status='passed',
+    enrollment_photo_path=coalesce(worker_identity_checks.enrollment_photo_path,excluded.enrollment_photo_path),
+    latest_reference_photo_path=excluded.latest_reference_photo_path,latest_reference_at=excluded.latest_reference_at,
+    challenge_version=excluded.challenge_version,face_match_score=excluded.face_match_score,liveness_score=excluded.liveness_score,
+    anti_spoof_score=excluded.anti_spoof_score,challenge_result=excluded.challenge_result,consent_at=excluded.consent_at,
+    captured_at=excluded.captured_at,attempt_count=v_attempts,updated_at=now();
+  insert into public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
+  values(case when v_renewal then 'ACCOUNT_IDENTITY_RECHECK_PASSED' else 'ACCOUNT_IDENTITY_ENROLLED' end,'profiles',v_actor.user_id,
+    jsonb_build_object('role',v_actor.role,'challenge_version','human-3.3.6-head-turn-v4-shared')::text,v_actor.user_id,v_actor.email);
+  return jsonb_build_object('success',true,'current',true,'renewal',v_renewal,'recheck_days',public.account_identity_recheck_days());
+end $$;
 
 
 --
@@ -2255,6 +2859,35 @@ $$;
 
 
 --
+-- Name: confirm_apartment_handover(text, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.confirm_apartment_handover(p_booking_code text, p_start_date date DEFAULT CURRENT_DATE) RETURNS public.reservations
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_verified jsonb;
+  v_result public.reservations;
+begin
+  v_verified := public.verify_branch_booking_code(p_booking_code);
+
+  if v_verified is null or v_verified ->> 'kind' <> 'housing' then
+    raise exception 'Enter a valid housing booking code';
+  end if;
+
+  select public.activate_apartment_tenancy(
+    v_verified ->> 'reservation_id',
+    p_start_date
+  )
+  into v_result;
+
+  return v_result;
+end;
+$$;
+
+
+--
 -- Name: confirm_booking_payment(text, text, numeric, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2376,6 +3009,88 @@ CREATE FUNCTION public.confirm_booking_payment(p_reference text, p_transaction_i
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    RETURN jsonb_build_object('success', true, 'payment_id', v_payment.id);
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    END;
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    $$;
+
+
+--
+-- Name: confirm_my_move_in(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.confirm_my_move_in(p_reservation_id text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_reservation public.reservations;
+  v_start date:=current_date;
+  v_end date;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='user' limit 1;
+  if v_actor is null or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Active user account required';
+  end if;
+  select * into v_reservation from public.reservations
+  where id=p_reservation_id and user_id=v_actor.user_id for update;
+  if v_reservation.id is null then raise exception 'Reservation not found'; end if;
+  if v_reservation.status='occupied' then
+    return jsonb_build_object('success',true,'already_confirmed',true,'status','occupied','tenancy_start_date',v_reservation.tenancy_start_date,'tenancy_end_date',v_reservation.tenancy_end_date);
+  end if;
+  if v_reservation.status<>'ready_for_move_in' then raise exception 'This home is not ready for move-in confirmation'; end if;
+  if v_reservation.rent_payment_status not in ('paid','upfront_paid') then raise exception 'Rent payment must be confirmed first'; end if;
+
+  if v_reservation.stay_type='short_let' then
+    v_start:=greatest(current_date,coalesce(v_reservation.stay_check_in,current_date));
+    v_end:=coalesce(v_reservation.stay_check_out,v_start+1);
+  else
+    v_end:=(v_start + make_interval(years=>greatest(1,coalesce(v_reservation.rental_plan_years,1))))::date;
+  end if;
+
+  update public.reservations set status='occupied',tenancy_start_date=v_start,tenancy_end_date=v_end,
+    occupancy_started_at=now(),updated_at=now() where id=v_reservation.id;
+  update public.listings set status='occupied',availability_status='unavailable',updated_at=now()
+    where id::text=v_reservation.listing_id;
+  insert into public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
+  values('USER_MOVE_IN_CONFIRMED','reservations',v_reservation.id,
+    jsonb_build_object('booking_code',v_reservation.booking_code,'tenancy_start_date',v_start,'tenancy_end_date',v_end)::text,v_actor.user_id,v_actor.email);
+  return jsonb_build_object('success',true,'status','occupied','tenancy_start_date',v_start,'tenancy_end_date',v_end);
+end $$;
+
+
+--
+-- Name: confirm_shared_housing_payment(text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.confirm_shared_housing_payment(p_reference text, p_transaction_id text, p_verified_amount numeric) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare payment public.booking_payments; member public.shared_housing_members; group_row public.shared_housing_groups; property public.listings; reservation_id text;
+begin
+  select * into payment from public.booking_payments where paystack_reference=p_reference and purpose='shared_housing_share' for update;
+  if payment is null then raise exception 'Shared-home payment not found'; end if;
+  if payment.status in ('paid','completed') then return jsonb_build_object('success',true,'already_processed',true); end if;
+  if round(coalesce(payment.amount_total,payment.amount)*100)<>round(p_verified_amount*100) then raise exception 'Shared-home amount mismatch'; end if;
+  select * into member from public.shared_housing_members where id=(payment.metadata->>'shared_member_id')::uuid for update;
+  select * into group_row from public.shared_housing_groups where id=member.group_id for update;
+  update public.booking_payments set status='paid',paystack_transaction_id=p_transaction_id,verified_amount=p_verified_amount,verified_at=now(),paid_at=now(),webhook_processed=true,verification_source='webhook',updated_at=now() where id=payment.id;
+  update public.shared_housing_members set payment_status='paid',paid_at=now(),updated_at=now() where id=member.id;
+
+  if not exists(select 1 from public.shared_housing_members where group_id=group_row.id and payment_status<>'paid') then
+    if group_row.payment_phase='reservation_fee' then
+      select * into property from public.listings where id=group_row.listing_id for update;
+      reservation_id := gen_random_uuid()::text;
+      insert into public.reservations(id,listing_id,user_id,listing_title,listing_price,listing_location,status,amount,currency,paid_at,reservation_type,hold_expires_at,annual_rent_snapshot,contract_rent_total,upfront_rent_required,rent_payment_status,booking_code,created_at,updated_at)
+      values(reservation_id,property.id::text,group_row.created_by,property.title,property.price,concat_ws(', ',property.address,property.city,property.state),'reserved',group_row.reservation_fee_total,'NGN',now(),'shared_apartment',now()+interval '7 days',property.price,property.price,property.price+coalesce(property.security_deposit_amount,0),'not_started','WH-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),now(),now());
+      update public.listings set status='reserved',availability_status='reserved',current_reservation_id=reservation_id,reserved_by=group_row.created_by,reservation_fee_paid=true,updated_at=now() where id=property.id;
+      update public.shared_housing_groups set status='paid',reservation_id=reservation_id,updated_at=now() where id=group_row.id;
+    else
+      update public.shared_housing_groups set status='paid',payment_phase='complete',updated_at=now() where id=group_row.id;
+      update public.reservations set rent_payment_status='paid',rent_paid_at=now(),updated_at=now() where id=group_row.reservation_id;
+    end if;
+  end if;
+  return jsonb_build_object('success',true,'group_id',group_row.id);
+end;
+$$;
 
 
 --
@@ -2796,6 +3511,64 @@ $$;
 
 
 --
+-- Name: create_my_property_access_challenge(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_property_access_challenge() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_row public.property_access_challenges; v_code text;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='property_partner'
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  if not public.account_identity_is_current(v_actor.user_id) then raise exception 'Complete the private identity check before adding properties'; end if;
+  v_code:=lpad(((('x'||substr(encode(extensions.gen_random_bytes(4),'hex'),1,8))::bit(32)::bigint % 1000000))::text,6,'0');
+  insert into public.property_access_challenges(partner_id,code,expires_at)
+  values(v_actor.user_id,v_code,now()+interval '1 hour') returning * into v_row;
+  return jsonb_build_object('id',v_row.id,'code',v_row.code,'expires_at',v_row.expires_at);
+end $$;
+
+
+--
+-- Name: create_my_property_access_correction(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_property_access_correction(p_request_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_request public.inspection_requests;
+  v_challenge public.property_access_challenges; v_code text;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text
+    and role='property_partner' and not coalesce(deleted,false)
+    and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  select * into v_request from public.inspection_requests
+    where id=p_request_id and owner_id=v_actor.user_id for update;
+  if v_request.id is null then raise exception 'Property submission not found'; end if;
+  if v_request.published_at is not null or v_request.lifecycle_stage='live'
+    then raise exception 'A public property does not require new access evidence'; end if;
+  if v_request.lifecycle_stage='rejected' or lower(coalesce(v_request.status,''))='rejected'
+    then raise exception 'This submission was stopped. Contact WeHouse from Inbox'; end if;
+  if v_request.access_evidence_status<>'rejected'
+    then raise exception 'WeHouse has not requested replacement access evidence'; end if;
+  if coalesce(v_request.assigned_field_officer_id,v_request.field_officer_id,v_request.assigned_to) is not null
+    then raise exception 'Access evidence cannot be replaced after a Field Officer is assigned'; end if;
+
+  update public.property_access_challenges set status='expired'
+    where partner_id=v_actor.user_id and request_id=p_request_id and status='prepared';
+  v_code:=lpad(((('x'||substr(encode(gen_random_bytes(4),'hex'),1,8))::bit(32)::bigint % 1000000))::text,6,'0');
+  insert into public.property_access_challenges(partner_id,code,expires_at,request_id)
+  values(v_actor.user_id,v_code,now()+interval '1 hour',p_request_id)
+  returning * into v_challenge;
+  return jsonb_build_object('id',v_challenge.id,'code',v_challenge.code,'expires_at',v_challenge.expires_at);
+end $$;
+
+
+--
 -- Name: create_my_property_inspection_batch(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2929,6 +3702,116 @@ $$;
 
 
 --
+-- Name: create_my_property_inspection_batch_v2(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_property_inspection_batch_v2(p_items jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_result jsonb; v_request jsonb; v_relation text;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='property_partner'
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  if not public.account_identity_is_current(v_actor.user_id) then raise exception 'Complete the private identity check before submitting properties'; end if;
+  v_result:=public.create_my_property_inspection_batch(p_items);
+  for v_request in select value from jsonb_array_elements(v_result->'requests') loop
+    v_relation:=nullif(btrim(p_items->((v_request->>'position')::integer-1)->>'authority_relationship'),'');
+    if v_relation not in ('owner','property_manager','agent','authorized_representative') then raise exception 'Choose your relationship to property %',v_request->>'position'; end if;
+    update public.inspection_requests set authority_relationship=v_relation,
+      access_challenge_code=upper(substring(replace(gen_random_uuid()::text,'-','') from 1 for 6)),
+      access_challenge_expires_at=now()+interval '7 days',access_evidence_status='required',updated_at=now()
+    where id=(v_request->>'id')::uuid and owner_id=v_actor.user_id;
+  end loop;
+  return v_result;
+end $$;
+
+
+--
+-- Name: create_my_property_inspection_batch_v3(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_property_inspection_batch_v3(p_items jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_result jsonb; v_created jsonb; v_item jsonb;
+  v_position integer; v_challenge_id uuid; v_challenge public.property_access_challenges; v_request_id uuid;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='property_partner'
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  if p_items is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items)<1 then raise exception 'Add at least one property'; end if;
+  for v_item,v_position in select value,ordinality::integer from jsonb_array_elements(p_items) with ordinality loop
+    begin v_challenge_id:=(v_item->>'access_challenge_id')::uuid;
+    exception when others then raise exception 'Property %: valid live access recording required',v_position; end;
+    select * into v_challenge from public.property_access_challenges where id=v_challenge_id and partner_id=v_actor.user_id for update;
+    if v_challenge.id is null or v_challenge.status<>'submitted' or v_challenge.video_path is null or v_challenge.submitted_at is null then raise exception 'Property %: complete the live access recording before submitting',v_position; end if;
+    if v_challenge.submitted_at>v_challenge.expires_at then raise exception 'Property %: the access recording was submitted after its code expired. Record again',v_position; end if;
+  end loop;
+  v_result:=public.create_my_property_inspection_batch_v2(p_items);
+  for v_created in select value from jsonb_array_elements(v_result->'requests') loop
+    v_position:=(v_created->>'position')::integer; v_request_id:=(v_created->>'id')::uuid;
+    v_challenge_id:=(p_items->(v_position-1)->>'access_challenge_id')::uuid;
+    select * into v_challenge from public.property_access_challenges where id=v_challenge_id for update;
+    update public.inspection_requests set access_challenge_code=v_challenge.code,access_challenge_expires_at=v_challenge.expires_at,
+      access_evidence_video_path=v_challenge.video_path,access_evidence_status='submitted',access_evidence_submitted_at=v_challenge.submitted_at,updated_at=now()
+    where id=v_request_id and owner_id=v_actor.user_id;
+    update public.property_access_challenges set status='consumed',consumed_at=now(),request_id=v_request_id where id=v_challenge_id and partner_id=v_actor.user_id and status='submitted';
+    if not found then raise exception 'Property %: access recording was already used',v_position; end if;
+  end loop;
+  return v_result;
+end $$;
+
+
+--
+-- Name: create_my_property_inspection_batch_v4(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_property_inspection_batch_v4(p_batch_id uuid, p_items jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  actor_id text := (select auth.uid())::text;
+  result jsonb;
+  created jsonb;
+  item jsonb;
+  v_position integer;
+  request_id uuid;
+begin
+  if actor_id is null then raise exception 'Authentication required'; end if;
+  if not exists (
+    select 1 from public.property_submission_batches b
+    where b.id=p_batch_id and b.partner_user_id=actor_id and b.status in ('draft','submitting')
+    for update
+  ) then raise exception 'Property submission batch not found'; end if;
+  update public.property_submission_batches set status='submitting',updated_at=now() where id=p_batch_id;
+  result := public.create_my_property_inspection_batch_v3(p_items);
+  for created in select value from jsonb_array_elements(result->'requests') loop
+    v_position := (created->>'position')::integer;
+    request_id := (created->>'id')::uuid;
+    item := p_items->(v_position-1);
+    update public.inspection_requests set
+      submission_schema_version=2,
+      hotel_program=case when item->>'property_type'='hotel' then item->'hotel_program' else null end,
+      submission_batch_id=p_batch_id,
+      updated_at=now()
+    where id=request_id;
+    update public.property_submission_items set
+      inspection_request_id=request_id,status='submitted',updated_at=now()
+    where batch_id=p_batch_id and position=v_position-1;
+  end loop;
+  update public.property_submission_batches set status='submitted',submitted_at=now(),updated_at=now() where id=p_batch_id;
+  return result || jsonb_build_object('batch_id',p_batch_id);
+exception when others then
+  update public.property_submission_batches set status='draft',updated_at=now() where id=p_batch_id and partner_user_id=actor_id;
+  raise;
+end $$;
+
+
+--
 -- Name: create_my_property_inspection_request(text, text, text, text, integer, integer, numeric, text, text, text[], numeric, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2981,6 +3864,149 @@ end $$;
 
 
 --
+-- Name: create_my_shared_housing_group(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_shared_housing_group(p_listing_id uuid, p_conversation_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  actor text := public.current_profile_user_id();
+  peer text;
+  property public.listings;
+  group_id uuid;
+  fee numeric;
+begin
+  if actor is null then raise exception 'Authentication required'; end if;
+  select case when participant_a=actor then participant_b else participant_a end into peer
+  from public.conversations
+  where id=p_conversation_id and status='accepted' and actor in (participant_a,participant_b);
+  if peer is null then raise exception 'Choose an accepted roommate conversation'; end if;
+
+  select * into property from public.listings where id=p_listing_id for update;
+  if property is null or property.deleted_at is not null or property.status <> 'available' or property.availability_status <> 'available' then
+    raise exception 'This property is not available to share';
+  end if;
+  if coalesce(property.sub_type,'long_stay') <> 'long_stay' then
+    raise exception 'Shared payment is available for long-stay homes only';
+  end if;
+  if exists (
+    select 1 from public.shared_housing_groups g join public.shared_housing_members m on m.group_id=g.id
+    where g.listing_id=p_listing_id and g.status not in ('cancelled','expired') and m.user_id in (actor,peer)
+  ) then raise exception 'An active shared-home plan already exists for this property'; end if;
+
+  select coalesce(nullif(value,'')::numeric,5000) into fee from public.platform_settings where key='reservation_fee';
+  fee := coalesce(fee,5000);
+  insert into public.shared_housing_groups(
+    listing_id,created_by,status,member_limit,total_amount,conversation_id,payment_phase,
+    reservation_fee_total,contract_total,expires_at
+  ) values (
+    p_listing_id,actor,'inviting',2,fee,p_conversation_id,'reservation_fee',fee,
+    property.price + coalesce(property.security_deposit_amount,0),now()+interval '72 hours'
+  ) returning id into group_id;
+  insert into public.shared_housing_members(group_id,user_id,invitation_status,share_amount)
+  values
+    (group_id,actor,'accepted',round(fee/2,2)),
+    (group_id,peer,'invited',fee-round(fee/2,2));
+  return public.get_my_shared_housing_group(group_id);
+end;
+$$;
+
+
+--
+-- Name: create_my_shared_housing_payment(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_shared_housing_payment(p_group_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare actor text := public.current_profile_user_id(); member public.shared_housing_members; group_row public.shared_housing_groups; reference text;
+begin
+  select * into group_row from public.shared_housing_groups where id=p_group_id for update;
+  select * into member from public.shared_housing_members where group_id=p_group_id and user_id=actor for update;
+  if group_row is null or member is null then raise exception 'Shared-home access required'; end if;
+  if group_row.status not in ('ready','payment_pending') or member.invitation_status <> 'accepted' then raise exception 'Both roommates must accept first'; end if;
+  if group_row.expires_at <= now() then update public.shared_housing_groups set status='expired' where id=p_group_id; raise exception 'This shared-home hold has expired'; end if;
+  if member.payment_status='paid' then return jsonb_build_object('already_paid',true); end if;
+  reference := coalesce(member.payment_reference,'WH-SH-'||replace(gen_random_uuid()::text,'-',''));
+  update public.shared_housing_members set payment_status='pending',payment_reference=reference,updated_at=now() where id=member.id;
+  update public.shared_housing_groups set status='payment_pending',updated_at=now() where id=p_group_id;
+  insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,type,booking_type,listing_id,amount,amount_total,currency,status,purpose,metadata,created_at,updated_at)
+  values(reference,reference,actor,actor,'shared_housing','shared_housing',group_row.listing_id::text,member.share_amount,member.share_amount,'NGN','pending','shared_housing_share',jsonb_build_object('shared_group_id',p_group_id,'shared_member_id',member.id,'payment_phase',group_row.payment_phase),now(),now())
+  on conflict (payment_reference) do nothing;
+  return jsonb_build_object('reference',reference,'amount',member.share_amount,'payment_phase',group_row.payment_phase);
+end;
+$$;
+
+
+--
+-- Name: create_my_support_case(text, text, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_support_case(p_subject text, p_category text DEFAULT 'general'::text, p_source_type text DEFAULT NULL::text, p_source_id text DEFAULT NULL::text, p_source_snapshot jsonb DEFAULT '{}'::jsonb, p_priority text DEFAULT 'normal'::text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor public.profiles; result_id uuid; normalized_subject text;
+begin
+  select * into actor from public.profiles where auth_id=auth.uid()::text
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if actor.user_id is null then raise exception 'Active WeHouse account required'; end if;
+  normalized_subject:=nullif(btrim(coalesce(p_subject,'')),'');
+  if normalized_subject is null then raise exception 'Tell us what you need help with'; end if;
+  insert into public.partner_support_conversations(
+    partner_id,requester_role,subject,status,category,context_type,context_id,
+    context_snapshot,priority,channel_kind,case_number,created_at,updated_at
+  ) values(
+    actor.user_id,actor.role,normalized_subject,'open',coalesce(nullif(btrim(p_category),''),'general'),
+    'support_case',nullif(btrim(coalesce(p_source_id,'')),''),
+    coalesce(p_source_snapshot,'{}'::jsonb)||jsonb_strip_nulls(jsonb_build_object('source_type',nullif(btrim(coalesce(p_source_type,'')),''),'source_id',nullif(btrim(coalesce(p_source_id,'')),''))),
+    case when p_priority in ('low','normal','high','urgent') then p_priority else 'normal' end,
+    'support_case','WHC-'||upper(substring(replace(gen_random_uuid()::text,'-','') from 1 for 10)),now(),now()
+  ) returning id into result_id;
+  return result_id;
+end $$;
+
+
+--
+-- Name: hotel_reviews; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hotel_reviews (
+    review_id integer NOT NULL,
+    hotel_id integer NOT NULL,
+    user_id text NOT NULL,
+    rating integer NOT NULL,
+    comment text,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT hotel_reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
+);
+
+
+--
+-- Name: create_my_verified_hotel_review(integer, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_my_verified_hotel_review(p_hotel_id integer, p_rating integer, p_comment text DEFAULT NULL::text) RETURNS public.hotel_reviews
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_user text; v_review public.hotel_reviews;
+begin
+  select user_id into v_user from public.profiles where auth_id=auth.uid()::text and role='user' and coalesce(deleted,false)=false and coalesce(suspended,false)=false and coalesce(banned,false)=false limit 1;
+  if v_user is null then raise exception 'Active User account required'; end if;
+  if p_rating not between 1 and 5 then raise exception 'Rating must be between 1 and 5'; end if;
+  if not exists(select 1 from public.hotel_bookings where hotel_id=p_hotel_id and user_id=v_user and payment_status='paid' and status in('checked_out','completed')) then raise exception 'A completed paid stay is required before reviewing this hotel'; end if;
+  insert into public.hotel_reviews(hotel_id,user_id,rating,comment) values(p_hotel_id,v_user,p_rating,nullif(btrim(coalesce(p_comment,'')),''))
+  on conflict(hotel_id,user_id) do update set rating=excluded.rating,comment=excluded.comment,created_at=now() returning * into v_review;
+  update public.hotels h set rating=(select round(avg(r.rating)::numeric,1) from public.hotel_reviews r where r.hotel_id=p_hotel_id),review_count=(select count(*) from public.hotel_reviews r where r.hotel_id=p_hotel_id),updated_at=now() where h.hotel_id=p_hotel_id;
+  return v_review;
+end $$;
+
+
+--
 -- Name: worker_showcase_posts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2996,10 +4022,15 @@ CREATE TABLE public.worker_showcase_posts (
     expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     deleted_at timestamp with time zone,
+    job_confirmation_status text DEFAULT 'not_linked'::text NOT NULL,
+    job_confirmed_by text,
+    job_confirmed_at timestamp with time zone,
+    hidden_at timestamp with time zone,
     CONSTRAINT worker_showcase_caption_length CHECK (((caption IS NULL) OR (length(caption) <= 300))),
-    CONSTRAINT worker_showcase_posts_kind_check CHECK ((kind = ANY (ARRAY['story'::text, 'portfolio'::text]))),
+    CONSTRAINT worker_showcase_job_confirmation_status_check CHECK ((job_confirmation_status = ANY (ARRAY['not_linked'::text, 'pending'::text, 'confirmed'::text, 'declined'::text]))),
+    CONSTRAINT worker_showcase_posts_kind_check CHECK ((kind = 'work_post'::text)),
     CONSTRAINT worker_showcase_posts_media_type_check CHECK ((media_type = ANY (ARRAY['image'::text, 'video'::text]))),
-    CONSTRAINT worker_showcase_story_expiry CHECK ((((kind = 'story'::text) AND (expires_at IS NOT NULL)) OR ((kind = 'portfolio'::text) AND (expires_at IS NULL))))
+    CONSTRAINT worker_showcase_story_expiry CHECK ((expires_at IS NULL))
 );
 
 
@@ -3010,19 +4041,54 @@ CREATE TABLE public.worker_showcase_posts (
 CREATE FUNCTION public.create_my_worker_showcase_post(p_kind text, p_media_type text, p_storage_path text, p_caption text DEFAULT NULL::text, p_booking_id uuid DEFAULT NULL::uuid) RETURNS public.worker_showcase_posts
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'storage'
-    AS $$ declare v_worker public.profiles;v_verified_job boolean:=false;v_post public.worker_showcase_posts;begin
- select * into v_worker from public.profiles where auth_id=auth.uid()::text and role='worker' and worker_status='verified' and coalesce(worker_verified,false)=true and coalesce(deleted,false)=false and coalesce(suspended,false)=false and coalesce(banned,false)=false limit 1;
- if v_worker is null then raise exception 'Only an approved live Worker can publish Work Stories or Portfolio media'; end if;
- if not public.worker_identity_is_current(v_worker.user_id) then raise exception 'Repeat your WeHouse identity check before publishing new work'; end if;
- if p_kind not in ('story','portfolio') then raise exception 'Invalid showcase type'; end if;
- if p_media_type not in ('image','video') then raise exception 'Invalid media type'; end if;
- if nullif(btrim(coalesce(p_storage_path,'')),'') is null or split_part(p_storage_path,'/',1)<>v_worker.user_id then raise exception 'Invalid showcase storage path'; end if;
- if length(coalesce(p_caption,''))>300 then raise exception 'Caption is too long'; end if;
- if not exists(select 1 from storage.objects o where o.bucket_id='worker-showcase' and o.name=p_storage_path) then raise exception 'Showcase media upload was not found'; end if;
- if p_booking_id is not null then select exists(select 1 from public.worker_bookings b where b.id=p_booking_id and b.worker_id=v_worker.user_id and b.status='approved_released') into v_verified_job; if not v_verified_job then raise exception 'Only a completed approved WeHouse job can be linked as verified work'; end if; end if;
- insert into public.worker_showcase_posts(worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,expires_at) values(v_worker.user_id,p_kind,p_media_type,p_storage_path,nullif(btrim(coalesce(p_caption,'')),''),p_booking_id,v_verified_job,case when p_kind='story' then now()+interval '24 hours' else null end) returning * into v_post;
- return v_post;
-end; $$;
+    AS $$
+declare
+  v_worker public.profiles;
+  v_booking public.worker_bookings;
+  v_post public.worker_showcase_posts;
+begin
+  select * into v_worker from public.profiles
+  where auth_id=auth.uid()::text and role='worker' and worker_status='verified'
+    and coalesce(worker_verified,false)=true and coalesce(deleted,false)=false
+    and coalesce(suspended,false)=false and coalesce(banned,false)=false limit 1;
+  if v_worker is null then raise exception 'Only an approved live Worker can publish Work Posts'; end if;
+  if not public.worker_identity_is_current(v_worker.user_id) then raise exception 'Repeat your WeHouse identity check before publishing new work'; end if;
+  if p_kind <> 'work_post' then raise exception 'Only Work Posts are supported'; end if;
+  if p_media_type not in ('image','video') then raise exception 'Invalid media type'; end if;
+  if nullif(btrim(coalesce(p_storage_path,'')),'') is null or split_part(p_storage_path,'/',1)<>v_worker.user_id then raise exception 'Invalid Work Post storage path'; end if;
+  if length(coalesce(p_caption,''))>300 then raise exception 'Caption is too long'; end if;
+  if not exists(select 1 from storage.objects o where o.bucket_id='worker-showcase' and o.name=p_storage_path) then raise exception 'Work Post media upload was not found'; end if;
+
+  if p_booking_id is not null then
+    select * into v_booking from public.worker_bookings b
+    where b.id=p_booking_id and b.worker_id=v_worker.user_id and b.status='approved_released';
+    if v_booking is null then raise exception 'Only your completed WeHouse job can be linked'; end if;
+  end if;
+
+  insert into public.worker_showcase_posts(
+    worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,
+    expires_at,job_confirmation_status
+  ) values(
+    v_worker.user_id,'work_post',p_media_type,p_storage_path,
+    nullif(btrim(coalesce(p_caption,'')),''),p_booking_id,false,null,
+    case when p_booking_id is null then 'not_linked' else 'pending' end
+  ) returning * into v_post;
+
+  if p_booking_id is not null then
+    insert into public.notifications(
+      recipient_id,type,title,message,related_id,source_type,source_id,
+      destination_route,destination_params,event_key
+    ) values(
+      v_booking.user_id,'work_post_confirmation_requested','Confirm this work post',
+      'The worker linked a photo or video to your completed job. Review the media and confirm only if it shows the work completed for you.',
+      v_post.id::text,'worker_work_post',v_post.id::text,'activity',
+      jsonb_build_object('work_post_id',v_post.id,'booking_id',v_booking.id),
+      'work-post-confirmation:'||v_post.id::text
+    ) on conflict(recipient_id,event_key) where event_key is not null do nothing;
+  end if;
+  return v_post;
+end;
+$$;
 
 
 --
@@ -3033,17 +4099,16 @@ CREATE FUNCTION public.create_rent_plan(p_user_id text, p_listing_id uuid, p_tar
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public', 'extensions'
     AS $$
-DECLARE v_plan_id UUID; v_start_months INTEGER; v_cancel_percent NUMERIC;
-BEGIN
-  SELECT COALESCE(NULLIF(value, '')::INTEGER, 4) INTO v_start_months FROM platform_settings WHERE key = 'rent_plan_start_after_months';
-  SELECT COALESCE(NULLIF(value, '')::NUMERIC, 10) INTO v_cancel_percent FROM platform_settings WHERE key = 'rent_plan_cancellation_fee_percent';
-  INSERT INTO rent_plans (user_id, listing_id, target_amount, start_after_months, cancellation_fee_percent, accepted_terms, status, tenancy_start_date)
-  VALUES (p_user_id, p_listing_id, p_target_amount, v_start_months, v_cancel_percent,
-    jsonb_build_object('start_after_months', v_start_months, 'cancellation_fee_percent', v_cancel_percent, 'snapshot_at', NOW())::text,
-    'active', CURRENT_DATE) RETURNING id INTO v_plan_id;
-  RETURN v_plan_id;
-END;
-$$;
+declare v_plan_id uuid; v_start_months integer; v_cancel_percent numeric; v_actor text;
+begin
+  select user_id into v_actor from public.profiles where auth_id=auth.uid()::text and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null or v_actor<>p_user_id then raise exception 'Authenticated user mismatch'; end if;
+  select coalesce(nullif(value,'')::integer,4) into v_start_months from public.platform_settings where key='rent_plan_start_after_months';
+  select coalesce(nullif(value,'')::numeric,10) into v_cancel_percent from public.platform_settings where key='rent_plan_cancellation_fee_percent';
+  insert into public.rent_plans(user_id,listing_id,target_amount,start_after_months,cancellation_fee_percent,accepted_terms,status,tenancy_start_date)
+  values(p_user_id,p_listing_id,p_target_amount,v_start_months,v_cancel_percent,jsonb_build_object('start_after_months',v_start_months,'cancellation_fee_percent',v_cancel_percent,'snapshot_at',now())::text,'active',current_date)
+  returning id into v_plan_id; return v_plan_id;
+end $$;
 
 
 --
@@ -3296,51 +4361,70 @@ CREATE FUNCTION public.create_support_conversation(p_subject text, p_category te
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-DECLARE v_actor public.profiles; v_id uuid;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor.user_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
-  IF v_actor.role NOT IN ('user','worker','property_partner') THEN
-    RAISE EXCEPTION 'Human support is available to User, Worker and Property Partner accounts';
-  END IF;
-  IF COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN
-    RAISE EXCEPTION 'Account is not active';
-  END IF;
+declare
+  v_actor public.profiles;
+  v_id uuid;
+  v_context_type text := coalesce(nullif(btrim(p_context_type), ''), 'general');
+  v_context_id text := nullif(btrim(p_context_id), '');
+  v_subject text;
+begin
+  select * into v_actor
+  from public.profiles
+  where auth_id = auth.uid()::text
+  limit 1;
 
-  SELECT id INTO v_id
-  FROM public.partner_support_conversations
-  WHERE partner_id=v_actor.user_id
-  ORDER BY created_at
-  LIMIT 1;
+  if v_actor.user_id is null then raise exception 'Authentication required'; end if;
+  if v_actor.role not in ('user','worker','property_partner') then
+    raise exception 'WeHouse Help is available to User, Worker and Property Partner accounts';
+  end if;
+  if coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Account is not active';
+  end if;
 
-  IF v_id IS NULL THEN
-    INSERT INTO public.partner_support_conversations(
-      partner_id,requester_role,subject,status,category,context_type,context_id,context_snapshot,priority,
-      property_name,property_address,property_city,property_state,property_type,rental_mode,created_at,updated_at
-    ) VALUES (
-      v_actor.user_id,v_actor.role,'WeHouse Support','open',COALESCE(NULLIF(BTRIM(p_category),''),'general'),
-      COALESCE(NULLIF(BTRIM(p_context_type),''),'general'),NULLIF(BTRIM(p_context_id),''),COALESCE(p_context_snapshot,'{}'::jsonb),
-      CASE WHEN p_priority IN ('low','normal','high','urgent') THEN p_priority ELSE 'normal' END,
-      NULLIF(p_context_snapshot->>'property_name',''),NULLIF(p_context_snapshot->>'property_address',''),
-      COALESCE(NULLIF(p_context_snapshot->>'city',''),NULLIF(v_actor.local_government,''),v_actor.city),v_actor.state,
-      NULLIF(p_context_snapshot->>'property_type',''),NULLIF(p_context_snapshot->>'rental_mode',''),NOW(),NOW()
-    ) RETURNING id INTO v_id;
-  ELSE
-    UPDATE public.partner_support_conversations
-    SET requester_role=v_actor.role,
-        status='open',
-        subject='WeHouse Support',
-        category=COALESCE(NULLIF(BTRIM(p_category),''),category,'general'),
-        context_type=CASE WHEN NULLIF(BTRIM(p_context_type),'') IS NOT NULL AND p_context_type<>'general' THEN p_context_type ELSE context_type END,
-        context_id=COALESCE(NULLIF(BTRIM(p_context_id),''),context_id),
-        context_snapshot=CASE WHEN COALESCE(p_context_snapshot,'{}'::jsonb)<>'{}'::jsonb THEN p_context_snapshot ELSE context_snapshot END,
-        updated_at=NOW(),
-        resolved_at=NULL,
-        closed_at=NULL
-    WHERE id=v_id;
-  END IF;
-  RETURN v_id;
-END $$;
+  v_subject := coalesce(nullif(btrim(p_subject), ''),
+    case when v_context_type in ('apartment_reservation','reservation','hotel_booking')
+      then 'Reservation help' else 'WeHouse Help' end);
+
+  select id into v_id
+  from public.partner_support_conversations
+  where partner_id = v_actor.user_id
+    and context_type = v_context_type
+    and context_id is not distinct from v_context_id
+  order by created_at desc
+  limit 1;
+
+  if v_id is null then
+    insert into public.partner_support_conversations(
+      partner_id,requester_role,subject,status,category,context_type,context_id,
+      context_snapshot,priority,property_name,property_address,property_city,
+      property_state,property_type,rental_mode,created_at,updated_at
+    ) values (
+      v_actor.user_id,v_actor.role,v_subject,'open',
+      coalesce(nullif(btrim(p_category),''),'general'),v_context_type,v_context_id,
+      coalesce(p_context_snapshot,'{}'::jsonb),
+      case when p_priority in ('low','normal','high','urgent') then p_priority else 'normal' end,
+      nullif(p_context_snapshot->>'property_name',''),
+      nullif(p_context_snapshot->>'property_address',''),
+      coalesce(nullif(p_context_snapshot->>'city',''),nullif(v_actor.local_government,''),v_actor.city),
+      v_actor.state,nullif(p_context_snapshot->>'property_type',''),
+      nullif(p_context_snapshot->>'rental_mode',''),now(),now()
+    ) returning id into v_id;
+  else
+    update public.partner_support_conversations
+    set requester_role = v_actor.role,
+        status = 'open',
+        subject = v_subject,
+        category = coalesce(nullif(btrim(p_category),''),category,'general'),
+        context_snapshot = case
+          when coalesce(p_context_snapshot,'{}'::jsonb) <> '{}'::jsonb then p_context_snapshot
+          else context_snapshot end,
+        priority = case when p_priority in ('low','normal','high','urgent') then p_priority else priority end,
+        updated_at = now(),resolved_at = null,closed_at = null
+    where id = v_id;
+  end if;
+  return v_id;
+end;
+$$;
 
 
 --
@@ -3454,15 +4538,17 @@ CREATE FUNCTION public.create_worker_booking_v2(p_user_id text, p_worker_id text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public', 'extensions'
     AS $$
-DECLARE v_booking_id UUID; v_commission_percent NUMERIC; v_wehouse_fee NUMERIC;
-BEGIN
-  SELECT COALESCE(NULLIF(value, '')::NUMERIC, 15) INTO v_commission_percent FROM platform_settings WHERE key = 'commission_worker';
-  v_wehouse_fee := ROUND(p_agreed_price * v_commission_percent / 100, 2);
-  INSERT INTO worker_bookings (user_id, worker_id, service_type, agreed_amount, worker_receives, status, address, notes)
-  VALUES (p_user_id, p_worker_id, p_service_type, p_agreed_price, p_agreed_price - v_wehouse_fee, 'pending', p_address, p_notes) RETURNING id INTO v_booking_id;
-  RETURN v_booking_id;
-END;
-$$;
+declare v_booking_id uuid; v_commission_percent numeric; v_wehouse_fee numeric; v_actor text;
+begin
+  select user_id into v_actor from public.profiles where auth_id=auth.uid()::text and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null or v_actor<>p_user_id then raise exception 'Authenticated user mismatch'; end if;
+  if p_agreed_price is null or p_agreed_price<=0 then raise exception 'Agreed price must be greater than zero'; end if;
+  select coalesce(nullif(value,'')::numeric,15) into v_commission_percent from public.platform_settings where key='commission_worker';
+  v_wehouse_fee:=round(p_agreed_price*v_commission_percent/100,2);
+  insert into public.worker_bookings(user_id,worker_id,service_type,agreed_amount,worker_receives,status,address,notes)
+  values(p_user_id,p_worker_id,p_service_type,p_agreed_price,p_agreed_price-v_wehouse_fee,'pending',p_address,p_notes) returning id into v_booking_id;
+  return v_booking_id;
+end $$;
 
 
 --
@@ -3711,15 +4797,15 @@ $_$;
 
 CREATE FUNCTION public.creator_get_change_history(p_search text DEFAULT NULL::text, p_limit integer DEFAULT 150) RETURNS TABLE(event_id text, actor_name text, actor_role text, action_label text, area_label text, subject_label text, occurred_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
 DECLARE
   v_actor public.profiles;
-  v_limit integer:=least(greatest(coalesce(p_limit,150),1),250);
+  v_limit integer := least(greatest(coalesce(p_limit,150),1),250);
 BEGIN
   SELECT * INTO v_actor
   FROM public.profiles
-  WHERE auth_id=auth.uid()::text
+  WHERE auth_id=(select auth.uid())::text
     AND role='creator'
     AND coalesce(deleted,false)=false
     AND coalesce(suspended,false)=false
@@ -3728,23 +4814,68 @@ BEGIN
   IF v_actor IS NULL THEN RAISE EXCEPTION 'Creator access required'; END IF;
 
   RETURN QUERY
-  WITH projected AS (
+  WITH human_events AS (
+    SELECT a.*, actor.full_name actor_full_name, actor.username actor_username,
+           actor.role actor_profile_role, target_profile.full_name target_name,
+           target_profile.username target_username, ps.label setting_label
+    FROM public.audit_logs a
+    JOIN LATERAL (
+      SELECT p.full_name,p.username,p.role
+      FROM public.profiles p
+      WHERE p.user_id=a.admin_id OR p.auth_id=a.admin_id
+         OR (a.admin_email IS NOT NULL AND lower(p.email)=lower(a.admin_email))
+      ORDER BY CASE WHEN p.user_id=a.admin_id THEN 0 WHEN p.auth_id=a.admin_id THEN 1 ELSE 2 END
+      LIMIT 1
+    ) actor ON true
+    LEFT JOIN public.platform_settings ps
+      ON a.target_type='platform_settings' AND ps.key=a.target_id
+    LEFT JOIN public.profiles target_profile
+      ON a.target_type='profiles' AND target_profile.user_id=a.target_id
+    WHERE actor.role IN ('creator','admin','staff')
+      AND upper(coalesce(a.action,'')) NOT LIKE 'STAFF_TRUST%'
+      AND (
+        (a.target_type='platform_settings'
+          AND upper(a.action)='UPDATE'
+          AND actor.role='creator'
+          AND coalesce(ps.editable,false)=true
+          AND lower(coalesce(a.target_id,'')) NOT LIKE '%secret%'
+          AND lower(coalesce(a.target_id,'')) NOT LIKE '%password%'
+          AND lower(coalesce(a.target_id,'')) NOT LIKE '%token%')
+        OR
+        (a.target_type='profiles' AND upper(a.action) IN
+          ('ROLE_CHANGE','REASSIGN','SUSPEND','RESTORE','BAN','UNBAN','DELETE','PROMOTE','DEMOTE'))
+        OR
+        (a.target_type IN ('worker_verifications','listings','inspection_requests','listing_reports','withdrawals','wallets','worker_bookings')
+          AND upper(a.action) IN
+          ('APPROVE','REJECT','SUSPEND','RESTORE','REASSIGN','RESOLVE','DISMISS','FREEZE','UNFREEZE','RELEASE','HOLD','REFUND','CANCEL','COMPLETE'))
+      )
+  ), projected AS (
     SELECT
-      md5(coalesce(a.id,'')||':'||a.created_at::text) AS event_id,
-      coalesce(actor.full_name,actor.username,CASE WHEN a.admin_id IS NULL THEN 'WeHouse System' ELSE 'WeHouse team' END) AS actor_name,
-      coalesce(actor.role,'system')::text AS actor_role,
-      CASE upper(coalesce(a.action,''))
-        WHEN 'INSERT' THEN 'Created'
-        WHEN 'UPDATE' THEN 'Updated'
-        WHEN 'DELETE' THEN 'Removed'
+      md5(coalesce(h.id,'')||':'||h.created_at::text) AS event_id,
+      coalesce(h.actor_full_name,h.actor_username,'WeHouse team')::text AS actor_name,
+      h.actor_profile_role::text AS actor_role,
+      CASE upper(h.action)
+        WHEN 'ROLE_CHANGE' THEN 'Changed role for'
         WHEN 'REASSIGN' THEN 'Reassigned'
         WHEN 'APPROVE' THEN 'Approved'
         WHEN 'REJECT' THEN 'Rejected'
         WHEN 'SUSPEND' THEN 'Suspended'
         WHEN 'RESTORE' THEN 'Restored'
-        ELSE initcap(replace(lower(coalesce(a.action,'changed')),'_',' '))
+        WHEN 'BAN' THEN 'Restricted'
+        WHEN 'UNBAN' THEN 'Restored'
+        WHEN 'RESOLVE' THEN 'Resolved'
+        WHEN 'DISMISS' THEN 'Dismissed'
+        WHEN 'FREEZE' THEN 'Paused'
+        WHEN 'UNFREEZE' THEN 'Restored'
+        WHEN 'RELEASE' THEN 'Released'
+        WHEN 'HOLD' THEN 'Placed on hold'
+        WHEN 'REFUND' THEN 'Refunded'
+        WHEN 'CANCEL' THEN 'Cancelled'
+        WHEN 'COMPLETE' THEN 'Completed'
+        WHEN 'UPDATE' THEN 'Changed'
+        ELSE initcap(replace(lower(h.action),'_',' '))
       END::text AS action_label,
-      CASE lower(coalesce(a.target_type,''))
+      CASE lower(h.target_type)
         WHEN 'platform_settings' THEN 'Settings'
         WHEN 'profiles' THEN 'Team & accounts'
         WHEN 'worker_bookings' THEN 'Worker bookings'
@@ -3754,37 +4885,28 @@ BEGIN
         WHEN 'listing_reports' THEN 'Moderation'
         WHEN 'withdrawals' THEN 'Finance'
         WHEN 'wallets' THEN 'Finance'
-        ELSE 'Platform'
+        ELSE 'Operations'
       END::text AS area_label,
-      CASE lower(coalesce(a.target_type,''))
-        WHEN 'platform_settings' THEN coalesce(ps.label,initcap(replace(coalesce(a.target_id,'Platform setting'),'_',' ')))
-        WHEN 'profiles' THEN coalesce(target_profile.full_name,target_profile.username,'WeHouse account')
+      CASE lower(h.target_type)
+        WHEN 'platform_settings' THEN coalesce(h.setting_label,'Platform setting')
+        WHEN 'profiles' THEN coalesce(h.target_name,h.target_username,'WeHouse account')
         WHEN 'worker_bookings' THEN 'Worker service booking'
         WHEN 'worker_verifications' THEN 'Worker review'
         WHEN 'listings' THEN 'Property listing'
         WHEN 'inspection_requests' THEN 'Property inspection'
         WHEN 'listing_reports' THEN 'Listing report'
         WHEN 'withdrawals' THEN 'Payout request'
-        ELSE initcap(replace(coalesce(nullif(a.target_type,''),'platform'),'_',' '))
+        WHEN 'wallets' THEN 'Wallet'
+        ELSE 'Operational record'
       END::text AS subject_label,
-      a.created_at AS occurred_at
-    FROM public.audit_logs a
-    LEFT JOIN LATERAL (
-      SELECT p.full_name,p.username,p.role
-      FROM public.profiles p
-      WHERE p.user_id=a.admin_id
-         OR p.auth_id=a.admin_id
-         OR (a.admin_email IS NOT NULL AND lower(p.email)=lower(a.admin_email))
-      ORDER BY CASE WHEN p.user_id=a.admin_id THEN 0 WHEN p.auth_id=a.admin_id THEN 1 ELSE 2 END
-      LIMIT 1
-    ) actor ON true
-    LEFT JOIN public.platform_settings ps ON a.target_type='platform_settings' AND ps.key=a.target_id
-    LEFT JOIN public.profiles target_profile ON a.target_type='profiles' AND target_profile.user_id=a.target_id
+      h.created_at AS occurred_at
+    FROM human_events h
   )
   SELECT p.event_id,p.actor_name,p.actor_role,p.action_label,p.area_label,p.subject_label,p.occurred_at
   FROM projected p
   WHERE nullif(trim(coalesce(p_search,'')),'') IS NULL
-     OR lower(concat_ws(' ',p.actor_name,p.actor_role,p.action_label,p.area_label,p.subject_label)) LIKE '%'||lower(trim(p_search))||'%'
+     OR lower(concat_ws(' ',p.actor_name,p.actor_role,p.action_label,p.area_label,p.subject_label))
+        LIKE '%'||lower(trim(p_search))||'%'
   ORDER BY p.occurred_at DESC
   LIMIT v_limit;
 END;
@@ -3917,6 +5039,80 @@ $$;
 
 
 --
+-- Name: creator_reject_property_submission(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.creator_reject_property_submission(p_inspection_id uuid, p_reason text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_request public.inspection_requests;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if v_actor is null or v_actor.role not in ('creator','admin')
+     or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Creator or Admin access required';
+  end if;
+  if nullif(btrim(coalesce(p_reason,'')),'') is null then raise exception 'A rejection reason is required'; end if;
+
+  select * into v_request from public.inspection_requests where id=p_inspection_id for update;
+  if v_request.id is null then raise exception 'Property submission not found'; end if;
+  if v_request.published_at is not null then raise exception 'A published property must be handled from Published listings'; end if;
+  if v_actor.role='admin' and (v_request.property_state is distinct from v_actor.assigned_state or v_request.property_city is distinct from v_actor.assigned_lga) then
+    raise exception 'Property is outside your assigned branch';
+  end if;
+  if v_request.draft_listing_id is not null and exists(
+    select 1 from public.reservations r where r.listing_id=v_request.draft_listing_id::text
+      and r.status in ('payment_pending','reserved','inspection_pending','ready_for_move_in','occupied')
+  ) then raise exception 'This draft has an active reservation and cannot be rejected'; end if;
+
+  if v_request.draft_listing_id is not null then
+    update public.listings set deleted_at=now(),status='closed',availability_status='unavailable',updated_at=now()
+    where id=v_request.draft_listing_id and deleted_at is null;
+  end if;
+  if v_request.draft_hotel_id is not null then
+    update public.hotels set status='rejected',updated_at=now() where hotel_id=v_request.draft_hotel_id;
+  end if;
+  update public.inspection_requests
+  set status='rejected',rejection_reason=btrim(p_reason),assigned_to=null,assigned_field_officer_id=null,
+      field_officer_id=null,scheduled_date=null,updated_at=now()
+  where id=p_inspection_id;
+
+  insert into public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
+  values('PROPERTY_SUBMISSION_REJECTED','inspection_requests',p_inspection_id::text,
+    jsonb_build_object('reason',btrim(p_reason),'request_code',v_request.request_code)::text,v_actor.user_id,v_actor.email);
+  return true;
+end $$;
+
+
+--
+-- Name: creator_remove_listing(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.creator_remove_listing(p_listing_id uuid, p_reason text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_row public.listings;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if v_actor is null or v_actor.role not in ('creator','admin') or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Creator or Admin access required';
+  end if;
+  select * into v_row from public.listings where id=p_listing_id and deleted_at is null for update;
+  if v_row.id is null then raise exception 'Listing not found'; end if;
+  if exists(select 1 from public.reservations r where r.listing_id::text=p_listing_id::text and r.status in ('payment_pending','reserved','inspection_pending','ready_for_move_in','occupied')) then
+    raise exception 'This property has an active reservation and cannot be removed. Resolve the reservation first.';
+  end if;
+  update public.listings set deleted_at=now(),status='closed',availability_status='unavailable',current_reservation_id=null,updated_at=now() where id=p_listing_id;
+  return true;
+end
+$$;
+
+
+--
 -- Name: creator_send_announcement(text, text, text[], text[], text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3976,66 +5172,67 @@ $$;
 
 CREATE FUNCTION public.creator_set_team_role(p_target_user_id text, p_new_role text, p_state text DEFAULT NULL::text, p_lga text DEFAULT NULL::text, p_module text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE
-  v_actor public.profiles;
-  v_target public.profiles;
-  v_state text := NULLIF(btrim(p_state),'');
-  v_lga text := NULLIF(btrim(p_lga),'');
-  v_module text := NULLIF(btrim(p_module),'');
+DECLARE v_actor public.profiles; v_target public.profiles; v_state text:=NULLIF(btrim(p_state),''); v_lga text:=NULLIF(btrim(p_lga),''); v_module text:=NULLIF(btrim(p_module),'');
 BEGIN
-  SELECT * INTO v_actor FROM public.profiles
-  WHERE auth_id=auth.uid()::text
-    AND role='creator'
-    AND NOT COALESCE(deleted,false)
-    AND NOT COALESCE(suspended,false)
-    AND NOT COALESCE(banned,false)
-  LIMIT 1;
+  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text AND role='creator' AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
   IF v_actor IS NULL THEN RAISE EXCEPTION 'Creator access required'; END IF;
-
   SELECT * INTO v_target FROM public.profiles WHERE user_id=p_target_user_id FOR UPDATE;
   IF v_target IS NULL THEN RAISE EXCEPTION 'Target account not found'; END IF;
   IF v_target.user_id=v_actor.user_id OR v_target.role='creator' THEN RAISE EXCEPTION 'Creator role cannot be modified'; END IF;
-  IF p_new_role NOT IN ('admin','staff','user') THEN RAISE EXCEPTION 'Invalid team role'; END IF;
-
-  IF p_new_role IN ('admin','staff') THEN
-    IF v_target.role NOT IN ('user','admin','staff') THEN RAISE EXCEPTION 'Only User, Admin or Staff accounts can enter Team management'; END IF;
+  IF p_new_role NOT IN('admin','staff','user') THEN RAISE EXCEPTION 'Invalid team role'; END IF;
+  IF p_new_role IN('admin','staff') THEN
+    IF v_target.role NOT IN('user','admin','staff') THEN RAISE EXCEPTION 'Only User, Admin or Staff accounts can enter Team management'; END IF;
     IF v_state IS NULL OR v_lga IS NULL THEN RAISE EXCEPTION 'State and LGA are required'; END IF;
-    IF p_new_role='staff' AND (v_module IS NULL OR v_module NOT IN ('operations','finance','support','verification','field_officer')) THEN
-      RAISE EXCEPTION 'A valid Staff module is required';
-    END IF;
-
-    UPDATE public.profiles
-    SET role=p_new_role,
-        assigned_state=v_state,
-        assigned_lga=v_lga,
-        scope='local',
-        updated_by=v_actor.user_id,
-        updated_at=now()
-    WHERE user_id=p_target_user_id;
-
-    UPDATE public.staff_permissions
-    SET is_active=false,revoked_at=now()
-    WHERE staff_id=p_target_user_id AND is_active=true;
-
+    IF p_new_role='staff' AND (v_module IS NULL OR v_module NOT IN('operations','finance','support','security','verification','field_officer')) THEN RAISE EXCEPTION 'A valid Staff module is required'; END IF;
+    UPDATE public.profiles SET role=p_new_role,assigned_state=v_state,assigned_lga=v_lga,scope='local',updated_by=v_actor.user_id,updated_at=now() WHERE user_id=p_target_user_id;
+    UPDATE public.staff_permissions SET is_active=false,revoked_at=now() WHERE staff_id=p_target_user_id AND is_active=true;
     IF p_new_role='staff' THEN
-      INSERT INTO public.staff_permissions(staff_id,permission,granted_by,granted_at,revoked_at,is_active)
-      VALUES(p_target_user_id,v_module,v_actor.user_id,now(),NULL,true)
+      INSERT INTO public.staff_permissions(staff_id,permission,granted_by,granted_at,revoked_at,is_active) VALUES(p_target_user_id,v_module,v_actor.user_id,now(),NULL,true)
       ON CONFLICT(staff_id,permission) DO UPDATE SET granted_by=EXCLUDED.granted_by,granted_at=now(),revoked_at=NULL,is_active=true;
     END IF;
   ELSE
-    IF v_target.role NOT IN ('admin','staff') THEN RAISE EXCEPTION 'Only Admin or Staff can be returned to User'; END IF;
-    UPDATE public.profiles
-    SET role='user',assigned_state=NULL,assigned_lga=NULL,scope=NULL,updated_by=v_actor.user_id,updated_at=now()
-    WHERE user_id=p_target_user_id;
+    IF v_target.role NOT IN('admin','staff') THEN RAISE EXCEPTION 'Only Admin or Staff can be returned to User'; END IF;
+    UPDATE public.profiles SET role='user',assigned_state=NULL,assigned_lga=NULL,scope=NULL,updated_by=v_actor.user_id,updated_at=now() WHERE user_id=p_target_user_id;
     UPDATE public.staff_permissions SET is_active=false,revoked_at=now() WHERE staff_id=p_target_user_id AND is_active=true;
   END IF;
-
-  INSERT INTO public.audit_logs(action,target_type,target_id,details,admin_id)
-  VALUES('ROLE_CHANGE','profiles',p_target_user_id,jsonb_build_object('old_role',v_target.role,'new_role',p_new_role,'assigned_state',v_state,'assigned_lga',v_lga,'staff_module',CASE WHEN p_new_role='staff' THEN v_module ELSE NULL END)::text,v_actor.user_id);
+  INSERT INTO public.audit_logs(action,target_type,target_id,details,admin_id) VALUES('ROLE_CHANGE','profiles',p_target_user_id,jsonb_build_object('old_role',v_target.role,'new_role',p_new_role,'assigned_state',v_state,'assigned_lga',v_lga,'staff_module',CASE WHEN p_new_role='staff' THEN v_module ELSE NULL END)::text,v_actor.user_id);
   RETURN true;
 END;
+$$;
+
+
+--
+-- Name: creator_update_listing(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.creator_update_listing(p_listing_id uuid, p_changes jsonb) RETURNS public.listings
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_row public.listings; v_images text[];
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if v_actor is null or v_actor.role not in ('creator','admin') or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Creator or Admin access required';
+  end if;
+  if p_changes ? 'images' then
+    select coalesce(array_agg(value),array[]::text[]) into v_images
+    from jsonb_array_elements_text(coalesce(p_changes->'images','[]'::jsonb));
+  end if;
+  update public.listings set
+    title=case when p_changes ? 'title' then nullif(btrim(p_changes->>'title'),'') else title end,
+    description=case when p_changes ? 'description' then nullif(btrim(p_changes->>'description'),'') else description end,
+    price=case when p_changes ? 'price' then (p_changes->>'price')::numeric else price end,
+    images=case when p_changes ? 'images' then v_images else images end,
+    updated_at=now()
+  where id=p_listing_id and deleted_at is null
+  returning * into v_row;
+  if v_row.id is null then raise exception 'Listing not found'; end if;
+  if v_row.title is null or v_row.price<=0 then raise exception 'A title and valid price are required'; end if;
+  return v_row;
+end
 $$;
 
 
@@ -4162,6 +5359,59 @@ $$;
 
 
 --
+-- Name: current_actor_has_personal_workspace(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_actor_has_personal_workspace() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select exists(
+    select 1
+    from public.profiles p
+    where p.auth_id=auth.uid()::text
+      and p.account_kind='consumer'
+      and not coalesce(p.deleted,false)
+      and not coalesce(p.suspended,false)
+      and not coalesce(p.banned,false)
+  );
+$$;
+
+
+--
+-- Name: current_actor_has_workspace_role(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_actor_has_workspace_role(p_role text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select exists(
+    select 1 from public.workspace_role_assignments a
+    join public.profiles p on p.user_id=a.user_id
+    where p.auth_id=auth.uid()::text and a.workspace_role=p_role and a.status='active'
+      and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
+  );
+$$;
+
+
+--
+-- Name: current_actor_hotel_role(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_actor_hotel_role(p_hotel_id integer) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select case when h.owner_id=p.user_id then 'owner' else tm.hotel_role end
+  from public.profiles p join public.hotels h on h.hotel_id=p_hotel_id
+  left join public.hotel_team_members tm on tm.hotel_id=h.hotel_id and tm.member_user_id=p.user_id and tm.status='active'
+  where p.auth_id=auth.uid()::text and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
+    and (h.owner_id=p.user_id or tm.id is not null) limit 1
+$$;
+
+
+--
 -- Name: current_actor_in_scope(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4169,6 +5419,43 @@ CREATE FUNCTION public.current_actor_in_scope(p_state text, p_lga text) RETURNS 
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $$ DECLARE v_actor public.profiles; BEGIN SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false LIMIT 1; IF v_actor IS NULL THEN RETURN false; END IF; IF v_actor.role='creator' THEN RETURN true; END IF; IF v_actor.role NOT IN ('admin','staff') THEN RETURN false; END IF; IF NULLIF(BTRIM(COALESCE(v_actor.assigned_state,'')),'') IS NULL OR NULLIF(BTRIM(COALESCE(v_actor.assigned_lga,'')),'') IS NULL OR NULLIF(BTRIM(COALESCE(p_state,'')),'') IS NULL OR NULLIF(BTRIM(COALESCE(p_lga,'')),'') IS NULL THEN RETURN false; END IF; RETURN lower(BTRIM(v_actor.assigned_state))=lower(BTRIM(p_state)) AND lower(BTRIM(v_actor.assigned_lga))=lower(BTRIM(p_lga)); END; $$;
+
+
+--
+-- Name: current_oversight_can_review_worker(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_oversight_can_review_worker(p_worker_id text) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_worker public.profiles;
+begin
+  select * into v_actor
+  from public.profiles
+  where auth_id=auth.uid()::text
+    and role in ('creator','admin')
+    and not coalesce(deleted,false)
+    and not coalesce(suspended,false)
+    and not coalesce(banned,false)
+  limit 1;
+
+  if v_actor is null then return false; end if;
+
+  select * into v_worker
+  from public.profiles
+  where user_id=p_worker_id and role='worker'
+  limit 1;
+
+  if v_worker is null then return false; end if;
+  if v_actor.role='creator' then return true; end if;
+
+  return lower(btrim(coalesce(v_worker.state,'')))=lower(btrim(coalesce(v_actor.assigned_state,'')))
+    and lower(btrim(coalesce(v_worker.local_government,v_worker.city,'')))=lower(btrim(coalesce(v_actor.assigned_lga,'')));
+end;
+$$;
 
 
 --
@@ -4207,18 +5494,30 @@ CREATE FUNCTION public.current_staff_can_review_worker(p_worker_id text) RETURNS
 
 CREATE FUNCTION public.current_staff_has_permission(p_permission text) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
   SELECT EXISTS(
-    SELECT 1 FROM public.profiles p
-    JOIN public.staff_permissions sp ON sp.staff_id=p.user_id AND sp.permission=p_permission AND sp.is_active=true
-    JOIN public.staff_trust_profiles st ON st.staff_id=p.user_id AND st.status='trusted'
-    WHERE p.auth_id=auth.uid()::text AND p.role='staff'
-      AND NOT COALESCE(p.deleted,false) AND NOT COALESCE(p.suspended,false) AND NOT COALESCE(p.banned,false)
+    SELECT 1
+    FROM public.profiles p
+    JOIN public.staff_permissions sp
+      ON sp.staff_id=p.user_id
+     AND sp.permission=p_permission
+     AND sp.is_active=true
+    WHERE p.auth_id=auth.uid()::text
+      AND p.role='staff'
+      AND NULLIF(BTRIM(COALESCE(p.assigned_state,'')),'') IS NOT NULL
+      AND NULLIF(BTRIM(COALESCE(p.assigned_lga,'')),'') IS NOT NULL
+      AND NOT COALESCE(p.deleted,false)
+      AND NOT COALESCE(p.suspended,false)
+      AND NOT COALESCE(p.banned,false)
   ) OR EXISTS(
-    SELECT 1 FROM public.profiles p
-    WHERE p.auth_id=auth.uid()::text AND p.role IN('admin','creator')
-      AND NOT COALESCE(p.deleted,false) AND NOT COALESCE(p.suspended,false) AND NOT COALESCE(p.banned,false)
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.auth_id=auth.uid()::text
+      AND p.role IN ('admin','creator')
+      AND NOT COALESCE(p.deleted,false)
+      AND NOT COALESCE(p.suspended,false)
+      AND NOT COALESCE(p.banned,false)
   );
 $$;
 
@@ -4328,6 +5627,31 @@ $$;
 
 
 --
+-- Name: delete_conversation_message_for_me(text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_conversation_message_for_me(p_kind text, p_message_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_conversation uuid;
+begin
+  v_actor:=public._current_comm_actor();
+  if v_actor is null then raise exception 'Authentication required'; end if;
+  if p_kind='roommate' then
+    select conversation_id into v_conversation from public.messages where id=p_message_id;
+    if v_conversation is null or not public._can_access_conversation(v_conversation) then raise exception 'Message unavailable'; end if;
+    update public.messages set hidden_for=array_append(hidden_for,v_actor.user_id) where id=p_message_id and not(v_actor.user_id=any(hidden_for));
+  elsif p_kind='worker' then
+    select bm.conversation_id into v_conversation from public.booking_messages bm join public.booking_conversations bc on bc.id=bm.conversation_id where bm.id=p_message_id and v_actor.user_id in(bc.user_id,bc.worker_id);
+    if v_conversation is null then raise exception 'Message unavailable'; end if;
+    update public.booking_messages set hidden_for=array_append(hidden_for,v_actor.user_id) where id=p_message_id and not(v_actor.user_id=any(hidden_for));
+  else raise exception 'Unsupported message type'; end if;
+  return true;
+end $$;
+
+
+--
 -- Name: delete_my_worker_showcase_post(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4343,8 +5667,13 @@ CREATE FUNCTION public.delete_my_worker_showcase_post(p_post_id uuid) RETURNS te
 
 CREATE FUNCTION public.delete_service_category(p_category_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public', 'extensions'
-    AS $$ BEGIN DELETE FROM public.service_subcategories WHERE category_id = p_category_id; DELETE FROM public.service_categories WHERE id = p_category_id; END; $$;
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+ if not public.is_current_creator() then raise exception 'Creator account required'; end if;
+ delete from public.service_subcategories where category_id=p_category_id;
+ delete from public.service_categories where id=p_category_id;
+end;$$;
 
 
 --
@@ -4353,8 +5682,12 @@ CREATE FUNCTION public.delete_service_category(p_category_id uuid) RETURNS void
 
 CREATE FUNCTION public.delete_service_subcategory(p_subcategory_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public', 'extensions'
-    AS $$ BEGIN DELETE FROM public.service_subcategories WHERE id = p_subcategory_id; END; $$;
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+ if not public.is_current_creator() then raise exception 'Creator account required'; end if;
+ delete from public.service_subcategories where id=p_subcategory_id;
+end;$$;
 
 
 --
@@ -4610,6 +5943,24 @@ $$;
 
 
 --
+-- Name: enforce_conversation_context_ownership(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_conversation_context_ownership() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if old.context_type is distinct from new.context_type
+    or old.context_id is distinct from new.context_id
+    or old.channel_kind is distinct from new.channel_kind then
+    raise exception 'Conversation ownership cannot be reassigned';
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: enforce_hotel_booking_integrity(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4697,6 +6048,45 @@ $$;
 
 
 --
+-- Name: enforce_hotel_team_consumer_account(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_hotel_team_consumer_account() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if not exists(select 1 from public.profiles p where p.user_id=new.member_user_id and p.account_kind='consumer' and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)) then
+    raise exception 'Hotel Manager and Hotel Staff must use an active personal WeHouse account';
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: enforce_property_access_before_assignment(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_property_access_before_assignment() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if coalesce(new.assigned_field_officer_id,new.field_officer_id,new.assigned_to) is not null
+  and (
+    coalesce(new.assigned_field_officer_id,new.field_officer_id,new.assigned_to)
+      is distinct from coalesce(old.assigned_field_officer_id,old.field_officer_id,old.assigned_to)
+    or lower(coalesce(new.status,'')) in ('scheduled','in_progress')
+       and lower(coalesce(old.status,'')) not in ('scheduled','in_progress')
+  ) and new.access_evidence_status <> 'verified' then
+    raise exception 'Operations Admin must approve the private access recording before assigning a Field Officer';
+  end if;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: enforce_property_partner_listing_owner(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4723,6 +6113,65 @@ $$;
 
 
 --
+-- Name: enforce_roommate_call_not_blocked(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_roommate_call_not_blocked() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+begin
+  if new.context_type = 'roommate' and exists (
+    select 1 from public.roommate_user_blocks b
+    where (b.blocker_user_id = new.caller_id and b.blocked_user_id = new.callee_id)
+       or (b.blocker_user_id = new.callee_id and b.blocked_user_id = new.caller_id)
+  ) then raise exception 'This roommate connection is blocked'; end if;
+  return new;
+end $$;
+
+
+--
+-- Name: enforce_roommate_match_not_blocked(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_roommate_match_not_blocked() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+begin
+  if exists (
+    select 1 from public.roommate_user_blocks b
+    where (b.blocker_user_id = new.searcher_id and b.blocked_user_id = new.matched_user_id)
+       or (b.blocker_user_id = new.matched_user_id and b.blocked_user_id = new.searcher_id)
+  ) then return null; end if;
+  return new;
+end $$;
+
+
+--
+-- Name: enforce_roommate_message_not_blocked(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enforce_roommate_message_not_blocked() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare peer text;
+begin
+  select case when c.participant_a = new.sender_id then c.participant_b else c.participant_a end
+    into peer from public.conversations c
+    where c.id = new.conversation_id and c.conversation_type = 'roommate'
+      and new.sender_id in (c.participant_a,c.participant_b);
+  if peer is not null and exists (
+    select 1 from public.roommate_user_blocks b
+    where (b.blocker_user_id = new.sender_id and b.blocked_user_id = peer)
+       or (b.blocker_user_id = peer and b.blocked_user_id = new.sender_id)
+  ) then raise exception 'This roommate connection is blocked'; end if;
+  return new;
+end $$;
+
+
+--
 -- Name: ensure_my_property_partner_wallet(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4745,6 +6194,39 @@ BEGIN
   RETURN v_wallet_id;
 END;
 $$;
+
+
+--
+-- Name: establish_private_conversation_key(text, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.establish_private_conversation_key(p_conversation_kind text, p_conversation_id uuid, p_envelopes jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor text := public.current_profile_user_id(); first_user text; second_user text; envelope_count integer;
+begin
+  if actor is null then raise exception 'Active WeHouse profile required'; end if;
+  if p_conversation_kind='roommate' then
+    select participant_a,participant_b into first_user,second_user from public.conversations where id=p_conversation_id and actor in(participant_a,participant_b);
+  elsif p_conversation_kind='worker' then
+    select user_id,worker_id into first_user,second_user from public.booking_conversations where id=p_conversation_id and actor in(user_id,worker_id);
+  else raise exception 'Unsupported private conversation kind'; end if;
+  if first_user is null or second_user is null then raise exception 'Conversation access denied'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_conversation_kind||':'||p_conversation_id::text,0));
+  if exists(select 1 from public.conversation_key_envelopes where conversation_kind=p_conversation_kind and conversation_id=p_conversation_id) then return false; end if;
+  select count(*) into envelope_count from jsonb_array_elements(coalesce(p_envelopes,'[]'::jsonb));
+  if envelope_count<>2 then raise exception 'Exactly two participant envelopes are required'; end if;
+  if not exists(select 1 from jsonb_array_elements(p_envelopes) e where e->>'recipient_user_id'=first_user)
+     or not exists(select 1 from jsonb_array_elements(p_envelopes) e where e->>'recipient_user_id'=second_user)
+     or exists(select 1 from jsonb_array_elements(p_envelopes) e where e->>'recipient_user_id' not in(first_user,second_user)) then raise exception 'Envelope recipients must be the conversation participants'; end if;
+  insert into public.conversation_key_envelopes(conversation_kind,conversation_id,recipient_user_id,recipient_key_version,sender_ephemeral_public_key_jwk,wrapped_key,wrap_iv)
+  select p_conversation_kind,p_conversation_id,e->>'recipient_user_id',(e->>'recipient_key_version')::integer,e->'sender_ephemeral_public_key_jwk',e->>'wrapped_key',e->>'wrap_iv'
+  from jsonb_array_elements(p_envelopes) e join public.user_encryption_identities identity on identity.user_id=e->>'recipient_user_id' and identity.key_version=(e->>'recipient_key_version')::integer;
+  if not found then raise exception 'Current participant encryption identities are required'; end if;
+  if (select count(*) from public.conversation_key_envelopes where conversation_kind=p_conversation_kind and conversation_id=p_conversation_id)<>2 then raise exception 'Both current participant keys are required'; end if;
+  return true;
+end; $$;
 
 
 --
@@ -4776,31 +6258,63 @@ CREATE FUNCTION public.expire_overdue_reservations() RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_role text; v_count integer:=0; v_row record;
-BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    SELECT role INTO v_role FROM public.profiles WHERE auth_id=auth.uid()::text AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false LIMIT 1;
-    IF v_role<>'creator' THEN RAISE EXCEPTION 'Creator or service execution required'; END IF;
-  END IF;
-  FOR v_row IN
-    SELECT r.id,r.listing_id,r.status,r.payment_reference
-    FROM public.reservations r
-    WHERE (r.status='payment_pending' AND r.payment_expires_at<now())
-       OR (r.status IN ('reserved','inspection_pending','ready_for_move_in') AND r.hold_expires_at<now())
-    FOR UPDATE
-  LOOP
-    IF v_row.status='payment_pending' AND EXISTS(
-      SELECT 1 FROM public.booking_payments bp WHERE bp.paystack_reference=v_row.payment_reference AND bp.status IN ('paid','completed')
-    ) THEN CONTINUE; END IF;
-    UPDATE public.reservations SET status='expired',refund_amount=0,refund_reason='Reservation hold expired',processed_at=now(),updated_at=now() WHERE id=v_row.id;
-    UPDATE public.booking_payments SET status='expired',updated_at=now() WHERE paystack_reference=v_row.payment_reference AND status='pending';
-    UPDATE public.listings SET status='available',availability_status='available',reserved_by=NULL,reservation_expiry=NULL,
-      reservation_fee_paid=false,chat_unlocked=false,current_reservation_id=NULL,updated_at=now()
-    WHERE id::text=v_row.listing_id AND current_reservation_id=v_row.id;
+declare
+  v_role text;
+  v_count integer := 0;
+  v_row record;
+begin
+  if auth.uid() is not null then
+    select role into v_role
+    from public.profiles
+    where auth_id=auth.uid()::text
+      and coalesce(deleted,false)=false
+      and coalesce(suspended,false)=false
+      and coalesce(banned,false)=false
+    limit 1;
+    if v_role <> 'creator' then
+      raise exception 'Creator or service execution required';
+    end if;
+  end if;
+
+  for v_row in
+    select r.id,r.listing_id,r.status,r.payment_reference
+    from public.reservations r
+    where coalesce(r.rent_payment_status,'not_started') not in ('paid','upfront_paid')
+      and (
+        (r.status='payment_pending' and r.payment_expires_at < now())
+        or
+        (r.status in ('reserved','inspection_pending','ready_for_move_in') and r.hold_expires_at < now())
+      )
+    for update
+  loop
+    if v_row.status='payment_pending' and exists(
+      select 1 from public.booking_payments bp
+      where bp.paystack_reference=v_row.payment_reference
+        and bp.status in ('paid','completed')
+    ) then
+      continue;
+    end if;
+
+    update public.reservations
+    set status='expired',refund_amount=0,refund_reason='Reservation hold expired',
+        processed_at=now(),updated_at=now()
+    where id=v_row.id
+      and coalesce(rent_payment_status,'not_started') not in ('paid','upfront_paid');
+    if not found then continue; end if;
+
+    update public.booking_payments
+    set status='expired',updated_at=now()
+    where paystack_reference=v_row.payment_reference and status='pending';
+
+    update public.listings
+    set status='available',availability_status='available',reserved_by=null,
+        reservation_expiry=null,reservation_fee_paid=false,chat_unlocked=false,
+        current_reservation_id=null,updated_at=now()
+    where id::text=v_row.listing_id and current_reservation_id=v_row.id;
     v_count:=v_count+1;
-  END LOOP;
-  RETURN v_count;
-END;
+  end loop;
+  return v_count;
+end;
 $$;
 
 
@@ -4902,6 +6416,112 @@ BEGIN
   RETURN jsonb_build_object('success',true,'amount_returned',v_withdrawal.amount,'new_balance',v_new_balance);
 END;
 $$;
+
+
+--
+-- Name: field_officer_add_inspection_media(uuid, text[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.field_officer_add_inspection_media(p_inspection_id uuid, p_photo_urls text[] DEFAULT ARRAY[]::text[], p_video_urls text[] DEFAULT ARRAY[]::text[]) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_updated integer := 0;
+begin
+  select *
+  into v_actor
+  from public.profiles
+  where auth_id = auth.uid()::text
+    and role = 'staff'
+    and not coalesce(deleted, false)
+    and not coalesce(suspended, false)
+    and not coalesce(banned, false)
+    and exists (
+      select 1
+      from public.staff_permissions sp
+      where sp.staff_id = profiles.user_id
+        and sp.permission = 'field_officer'
+        and sp.is_active
+    )
+  limit 1;
+
+  if v_actor is null then
+    raise exception 'Active Field Operations access required';
+  end if;
+
+  if cardinality(coalesce(p_photo_urls, array[]::text[]))
+     + cardinality(coalesce(p_video_urls, array[]::text[])) > 12 then
+    raise exception 'A maximum of 12 evidence files is allowed per upload';
+  end if;
+
+  update public.inspection_requests
+  set field_photo_urls = array(
+        select distinct unnest(
+          coalesce(field_photo_urls, array[]::text[])
+          || coalesce(p_photo_urls, array[]::text[])
+        )
+      ),
+      field_video_urls = array(
+        select distinct unnest(
+          coalesce(field_video_urls, array[]::text[])
+          || coalesce(p_video_urls, array[]::text[])
+        )
+      ),
+      updated_at = now()
+  where id = p_inspection_id
+    and coalesce(assigned_field_officer_id, field_officer_id, assigned_to) = v_actor.user_id;
+  get diagnostics v_updated = row_count;
+
+  if v_updated = 0 then
+    update public.user_inspection_requests
+    set photo_urls = array(
+          select distinct unnest(
+            coalesce(photo_urls, array[]::text[])
+            || coalesce(p_photo_urls, array[]::text[])
+          )
+        ),
+        video_urls = array(
+          select distinct unnest(
+            coalesce(video_urls, array[]::text[])
+            || coalesce(p_video_urls, array[]::text[])
+          )
+        ),
+        updated_at = now()
+    where id = p_inspection_id
+      and field_officer_id = v_actor.user_id;
+    get diagnostics v_updated = row_count;
+  end if;
+
+  if v_updated = 0 then
+    raise exception 'Inspection is not assigned to this Field Operations account';
+  end if;
+
+  return true;
+end;
+$$;
+
+
+--
+-- Name: field_officer_add_inspection_photos(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.field_officer_add_inspection_photos(p_inspection_id uuid, p_photo_urls text[]) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles;
+begin
+  v_actor:=public._current_comm_actor();
+  if v_actor is null or v_actor.role<>'staff' or not public.current_staff_has_permission('field_officer') then raise exception 'Field Officer access required'; end if;
+  if coalesce(array_length(p_photo_urls,1),0)=0 then raise exception 'Inspection photos are required'; end if;
+  update public.inspection_requests set photo_urls=array(select distinct unnest(coalesce(photo_urls,'{}'::text[])||p_photo_urls)),updated_at=now() where id=p_inspection_id and coalesce(assigned_field_officer_id,field_officer_id,assigned_to)=v_actor.user_id;
+  if found then return true; end if;
+  update public.user_inspection_requests set photo_urls=array(select distinct unnest(coalesce(photo_urls,'{}'::text[])||p_photo_urls)),updated_at=now() where id=p_inspection_id and field_officer_id=v_actor.user_id;
+  if not found then raise exception 'Inspection is not assigned to this Field Officer'; end if;
+  return true;
+end $$;
 
 
 --
@@ -5340,6 +6960,72 @@ $$;
 
 
 --
+-- Name: get_allowed_conversation_profile(text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_allowed_conversation_profile(p_context_type text, p_context_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor text;
+  v_peer text;
+  v_profile public.profiles;
+  v_roommate public.roommate_profiles;
+  v_actor_prefs public.roommate_preferences;
+  v_peer_prefs public.roommate_preferences;
+  v_school_visible boolean := false;
+begin
+  select user_id into v_actor from public.profiles
+  where auth_id=(select auth.uid())::text and not coalesce(deleted,false)
+    and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Authentication required'; end if;
+
+  if p_context_type='roommate' then
+    select case when participant_a=v_actor then participant_b else participant_a end into v_peer
+    from public.conversations where id=p_context_id and conversation_type='roommate'
+      and v_actor in (participant_a,participant_b);
+  elsif p_context_type='worker_booking' then
+    select case when user_id=v_actor then worker_id else user_id end into v_peer
+    from public.worker_bookings where id=p_context_id and v_actor in (user_id,worker_id);
+  else
+    raise exception 'Unsupported conversation type';
+  end if;
+  if v_peer is null then raise exception 'Conversation access denied'; end if;
+
+  select * into v_profile from public.profiles where user_id=v_peer limit 1;
+  if v_profile.user_id is null then raise exception 'Profile unavailable'; end if;
+  if p_context_type='roommate' then
+    select * into v_roommate from public.roommate_profiles where user_id=v_peer limit 1;
+    select * into v_actor_prefs from public.roommate_preferences where user_id=v_actor limit 1;
+    select * into v_peer_prefs from public.roommate_preferences where user_id=v_peer limit 1;
+    v_school_visible := coalesce(v_actor_prefs.school_match,false)
+      and coalesce(v_peer_prefs.school_match,false)
+      and lower(regexp_replace(btrim(coalesce(v_actor_prefs.school_name,'')),'\s+',' ','g'))
+        = lower(regexp_replace(btrim(coalesce(v_peer_prefs.school_name,'')),'\s+',' ','g'));
+  end if;
+
+  return jsonb_strip_nulls(jsonb_build_object(
+    'user_id',v_profile.user_id,'role',v_profile.role,'full_name',v_profile.full_name,
+    'username',v_profile.username,'avatar_url',v_profile.avatar_url,'bio',v_profile.bio,
+    'school',case when v_school_visible then v_profile.school else null end,
+    'gender',v_profile.gender,'state',v_profile.state,
+    'lga',coalesce(v_profile.local_government,v_profile.city),
+    'worker_occupation',v_profile.worker_occupation,'worker_bio',v_profile.worker_bio,
+    'worker_skills',v_profile.worker_skills,'worker_verified',v_profile.worker_verified,
+    'worker_price',v_profile.worker_price,'worker_experience',v_profile.worker_experience,
+    'rating',v_profile.rating,'review_count',v_profile.review_count,
+    'roommate',case when p_context_type='roommate' then jsonb_strip_nulls(jsonb_build_object(
+      'age',v_roommate.age,'budget_min',v_roommate.budget_min,'budget_max',v_roommate.budget_max,
+      'area',v_roommate.area,'city',v_roommate.city,'personality_type',v_roommate.personality_type,
+      'stay_duration',v_roommate.stay_duration
+    )) else null end
+  ));
+end;
+$$;
+
+
+--
 -- Name: get_booking_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5355,18 +7041,32 @@ CREATE FUNCTION public.get_booking_details(p_booking_id uuid) RETURNS TABLE(id u
 
 CREATE FUNCTION public.get_booking_messages(p_conversation_id uuid) RETURNS TABLE(id uuid, sender_id text, sender_name text, sender_role text, content text, attachments text[], is_read boolean, created_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE a public.profiles; bc public.booking_conversations;
-BEGIN
-  a:=public._current_comm_actor();
-  IF a IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
-  SELECT * INTO bc FROM public.booking_conversations WHERE id=p_conversation_id;
-  IF bc IS NULL OR a.user_id NOT IN (bc.user_id,bc.worker_id) THEN RAISE EXCEPTION 'Not authorized for this booking conversation'; END IF;
-  RETURN QUERY SELECT bm.id,bm.sender_id,p.full_name,p.role,bm.content,bm.attachments,bm.is_read,bm.created_at
-  FROM public.booking_messages bm JOIN public.profiles p ON p.user_id=bm.sender_id
-  WHERE bm.conversation_id=p_conversation_id ORDER BY bm.created_at ASC;
-END;
+declare
+  v_actor public.profiles;
+  v_conv public.booking_conversations;
+begin
+  v_actor := public._current_comm_actor();
+  if v_actor is null then raise exception 'Authentication required'; end if;
+
+  select bc.*
+  into v_conv
+  from public.booking_conversations bc
+  where bc.id = p_conversation_id;
+
+  if v_conv is null or v_actor.user_id not in (v_conv.user_id, v_conv.worker_id) then
+    raise exception 'Not authorized for this booking conversation';
+  end if;
+
+  return query
+  select bm.id, bm.sender_id, p.full_name, p.role, bm.content, bm.attachments, bm.is_read, bm.created_at
+  from public.booking_messages bm
+  join public.profiles p on p.user_id = bm.sender_id
+  where bm.conversation_id = p_conversation_id
+    and not (v_actor.user_id = any(coalesce(bm.hidden_for, array[]::text[])))
+  order by bm.created_at;
+end
 $$;
 
 
@@ -5484,14 +7184,134 @@ end $$;
 
 
 --
+-- Name: get_inspection_media_for_review(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_inspection_media_for_review(p_inspection_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_request public.inspection_requests;
+begin
+  select *
+  into v_actor
+  from public.profiles
+  where auth_id = auth.uid()::text
+    and role in ('creator', 'admin', 'staff')
+    and not coalesce(deleted, false)
+    and not coalesce(suspended, false)
+    and not coalesce(banned, false)
+  limit 1;
+
+  if v_actor is null then
+    raise exception 'Operations review access required';
+  end if;
+
+  if v_actor.role = 'staff' and not exists (
+    select 1
+    from public.staff_permissions sp
+    where sp.staff_id = v_actor.user_id
+      and sp.permission = 'operations'
+      and sp.is_active
+  ) then
+    raise exception 'Property Operations access required';
+  end if;
+
+  select *
+  into v_request
+  from public.inspection_requests
+  where id = p_inspection_id;
+
+  if v_request is null then
+    raise exception 'Inspection not found';
+  end if;
+
+  if v_actor.role <> 'creator'
+     and not public.current_actor_in_scope(
+       v_request.property_state,
+       v_request.property_city
+     ) then
+    raise exception 'Inspection is outside your assigned branch';
+  end if;
+
+  return jsonb_build_object(
+    'photos', coalesce(to_jsonb(v_request.field_photo_urls), '[]'::jsonb),
+    'videos', coalesce(to_jsonb(v_request.field_video_urls), '[]'::jsonb),
+    'report', v_request.notes,
+    'status', v_request.status
+  );
+end;
+$$;
+
+
+--
+-- Name: get_my_account_identity_reference(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_account_identity_reference() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_check public.worker_identity_checks;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role in ('worker','property_partner')
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Worker or Property Partner account required'; end if;
+  select * into v_check from public.worker_identity_checks where worker_id=v_actor.user_id;
+  return jsonb_build_object('has_reference',coalesce(nullif(btrim(coalesce(v_check.enrollment_photo_path,'')),'') is not null,false),
+    'anchor_photo_path',v_check.enrollment_photo_path,'recent_photo_path',coalesce(v_check.latest_reference_photo_path,v_check.enrollment_photo_path),
+    'captured_at',v_check.captured_at,'status',coalesce(v_check.status,'not_started'));
+end $$;
+
+
+--
+-- Name: get_my_account_identity_status(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_account_identity_status() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_check public.worker_identity_checks; v_days integer:=public.account_identity_recheck_days();
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role in ('worker','property_partner')
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Worker or Property Partner account required'; end if;
+  select * into v_check from public.worker_identity_checks where worker_id=v_actor.user_id;
+  return jsonb_build_object(
+    'current',public.account_identity_is_current(v_actor.user_id),
+    'enrolled',coalesce(nullif(btrim(coalesce(v_check.enrollment_photo_path,'')),'') is not null,false),
+    'status',coalesce(v_check.status,'not_started'),'recheck_days',v_days,
+    'captured_at',v_check.captured_at,
+    'due_at',case when v_check.captured_at is null then null else v_check.captured_at+make_interval(days=>v_days) end
+  );
+end $$;
+
+
+--
 -- Name: get_my_active_private_calls(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.get_my_active_private_calls() RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
- select coalesce(jsonb_agg(public.get_private_call_details(c.id) order by c.created_at desc),'[]'::jsonb) from public.private_calls c where public.current_profile_user_id() in (c.caller_id,c.callee_id) and c.status in ('ringing','accepted');
+declare v_me text:=public.current_profile_user_id(); result jsonb;
+begin
+  if v_me is null then raise exception 'Authenticated profile required'; end if;
+  update public.private_calls
+  set status='missed',ended_at=now()
+  where v_me in(caller_id,callee_id)
+    and status='ringing'
+    and created_at < now() - interval '45 seconds';
+  select coalesce(jsonb_agg(public.get_private_call_details(c.id) order by c.created_at desc),'[]'::jsonb)
+    into result
+  from public.private_calls c
+  where v_me in(c.caller_id,c.callee_id) and c.status in('ringing','accepted');
+  return result;
+end;
 $$;
 
 
@@ -5501,22 +7321,61 @@ $$;
 
 CREATE FUNCTION public.get_my_admin_staff_capacity() RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_limit integer:=0; v_used integer:=0;
+DECLARE
+  v_actor public.profiles;
+  v_limit integer:=0;
+  v_used integer:=0;
 BEGIN
-  SELECT * INTO v_actor FROM public.profiles
-  WHERE auth_id=auth.uid()::text AND role IN('admin','creator')
-    AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
+  SELECT * INTO v_actor
+  FROM public.profiles
+  WHERE auth_id=auth.uid()::text
+    AND role IN ('admin','creator')
+    AND NOT COALESCE(deleted,false)
+    AND NOT COALESCE(suspended,false)
+    AND NOT COALESCE(banned,false)
+  LIMIT 1;
   IF v_actor IS NULL THEN RAISE EXCEPTION 'Admin or Creator access required'; END IF;
+
   v_limit:=COALESCE(public.get_admin_staff_limit_v2(),0);
   IF v_actor.role='admin' THEN
     SELECT count(*)::integer INTO v_used
-    FROM public.profiles p JOIN public.staff_trust_profiles st ON st.staff_id=p.user_id
-    WHERE p.role='staff' AND NOT COALESCE(p.deleted,false) AND st.appointed_by=v_actor.user_id;
+    FROM public.profiles p
+    WHERE p.role='staff'
+      AND NOT COALESCE(p.deleted,false)
+      AND lower(COALESCE(p.assigned_state,''))=lower(COALESCE(v_actor.assigned_state,''))
+      AND lower(COALESCE(p.assigned_lga,''))=lower(COALESCE(v_actor.assigned_lga,''));
   END IF;
-  RETURN jsonb_build_object('limit',v_limit,'used',v_used,'remaining',CASE WHEN v_limit=0 THEN NULL ELSE GREATEST(0,v_limit-v_used) END,'unlimited',(v_limit=0));
-END;$$;
+
+  RETURN jsonb_build_object(
+    'limit',v_limit,
+    'used',v_used,
+    'remaining',CASE WHEN v_limit=0 THEN NULL ELSE GREATEST(0,v_limit-v_used) END,
+    'unlimited',(v_limit=0)
+  );
+END;
+$$;
+
+
+--
+-- Name: get_my_announcement_inbox(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_announcement_inbox() RETURNS TABLE(id bigint, announcement_id bigint, read_status boolean, delivered_at timestamp with time zone, announcement jsonb)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select ar.id, ar.announcement_id, coalesce(ar.read_status, false), ar.delivered_at,
+    jsonb_build_object('id', a.id, 'title', a.title, 'content', a.content, 'sender_id', a.sender_id,
+      'sender_role', a.sender_role, 'target_type', a.target_type, 'created_at', a.created_at)
+  from public.announcement_recipients ar
+  join public.announcements a on a.id = ar.announcement_id
+  where ar.user_id = public.current_profile_user_id()
+    and ar.delivered_at >= now() - interval '90 days'
+  order by ar.delivered_at desc, ar.id desc
+  limit 100;
+$$;
 
 
 --
@@ -5626,6 +7485,44 @@ $_$;
 
 
 --
+-- Name: get_my_hotel_operations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_hotel_operations() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'hotel_id',h.hotel_id,'name',h.name,'description',h.description,'state',h.state,'city',h.city,'area',h.area,'address',h.address,
+    'images',h.images,'amenities',h.amenities,'owner_id',h.owner_id,'status',h.status,'rating',h.rating,'review_count',h.review_count,
+    'featured',h.featured,'created_at',h.created_at,'updated_at',h.updated_at,'access_role',case when h.owner_id=p.user_id then 'owner' else tm.hotel_role end
+  ) order by h.updated_at desc),'[]'::jsonb)
+  from public.profiles p join public.hotels h on h.owner_id=p.user_id
+    or exists(select 1 from public.hotel_team_members x where x.hotel_id=h.hotel_id and x.member_user_id=p.user_id and x.status='active')
+  left join public.hotel_team_members tm on tm.hotel_id=h.hotel_id and tm.member_user_id=p.user_id and tm.status='active'
+  where p.auth_id=auth.uid()::text and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
+$$;
+
+
+--
+-- Name: get_my_hotel_team(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_hotel_team(p_hotel_id integer) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_user text; v_result jsonb;
+begin
+  select user_id into v_user from public.profiles where auth_id=auth.uid()::text and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false);
+  if not exists(select 1 from public.hotels where hotel_id=p_hotel_id and owner_id=v_user) then raise exception 'Hotel owner access required'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id',tm.id,'member_user_id',tm.member_user_id,'hotel_role',tm.hotel_role,'status',tm.status,'name',coalesce(p.full_name,p.username,'Team member'),'email',p.email) order by tm.created_at),'[]'::jsonb)
+    into v_result from public.hotel_team_members tm join public.profiles p on p.user_id=tm.member_user_id where tm.hotel_id=p_hotel_id and tm.status='active';
+  return v_result;
+end $$;
+
+
+--
 -- Name: get_my_housing_operations(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5673,19 +7570,28 @@ $$;
 -- Name: get_my_inspections(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_my_inspections(p_field_officer_id text) RETURNS TABLE(id uuid, inspection_code text, property_address text, property_city text, property_state text, property_type text, status text, owner_id text, owner_name text, owner_email text, owner_phone text, notes text, field_officer_id text, partner_id text, scheduled_date timestamp with time zone, completed_at timestamp with time zone, created_at timestamp with time zone, photo_urls text[], document_urls text[], _source text, gps_latitude numeric, gps_longitude numeric, location_accuracy_m numeric)
+CREATE FUNCTION public.get_my_inspections(p_field_officer_id text) RETURNS TABLE(id uuid, inspection_code text, property_address text, property_city text, property_state text, property_type text, status text, owner_id text, owner_name text, owner_email text, owner_phone text, notes text, field_officer_id text, partner_id text, scheduled_date timestamp with time zone, completed_at timestamp with time zone, created_at timestamp with time zone, photo_urls text[], document_urls text[], video_urls text[], _source text, gps_latitude numeric, gps_longitude numeric, location_accuracy_m numeric)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role<>'staff' OR v_actor.user_id<>p_field_officer_id OR NOT public.current_staff_has_permission('field_officer') THEN
-    RAISE EXCEPTION 'Field Officer access required';
-  END IF;
+declare
+  v_actor public.profiles;
+begin
+  select *
+  into v_actor
+  from public.profiles
+  where auth_id = auth.uid()::text
+  limit 1;
 
-  RETURN QUERY
-  SELECT
+  if v_actor is null
+     or v_actor.role <> 'staff'
+     or v_actor.user_id <> p_field_officer_id
+     or not public.current_staff_has_permission('field_officer') then
+    raise exception 'Field Operations access required';
+  end if;
+
+  return query
+  select
     ir.id,
     ir.request_code,
     ir.property_address,
@@ -5694,57 +7600,62 @@ BEGIN
     ir.property_type,
     ir.status,
     ir.owner_id,
-    COALESCE(p.full_name,p.username,p.email),
+    coalesce(p.full_name, p.username, p.email),
     ir.owner_email,
     ir.owner_phone,
     ir.notes,
-    COALESCE(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to),
+    coalesce(ir.assigned_field_officer_id, ir.field_officer_id, ir.assigned_to),
     ir.partner_id::text,
     ir.scheduled_date::timestamptz,
     ir.completed_at,
     ir.created_at,
-    ir.photo_urls,
+    ir.field_photo_urls,
     ir.document_urls,
+    ir.field_video_urls,
     'partner'::text,
     ir.gps_latitude,
     ir.gps_longitude,
     ir.location_accuracy_m
-  FROM public.inspection_requests ir
-  LEFT JOIN public.profiles p ON p.user_id=ir.owner_id
-  WHERE COALESCE(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to)=v_actor.user_id
+  from public.inspection_requests ir
+  left join public.profiles p on p.user_id = ir.owner_id
+  where coalesce(ir.assigned_field_officer_id, ir.field_officer_id, ir.assigned_to)
+        = v_actor.user_id
 
-  UNION ALL
+  union all
 
-  SELECT
+  select
     ur.id,
-    COALESCE(ur.reservation_id,ur.id::text),
-    COALESCE(l.address,l.title,'Reserved property'),
+    coalesce(ur.reservation_id, ur.id::text),
+    coalesce(l.address, l.title, 'Reserved property'),
     l.city,
     l.state,
     l.property_type::text,
     ur.status,
     ur.user_id,
-    COALESCE(u.full_name,u.username,u.email),
+    coalesce(u.full_name, u.username, u.email),
     u.email,
     u.phone,
     ur.notes,
     ur.field_officer_id,
-    NULL::text,
+    null::text,
     ur.scheduled_date,
-    NULL::timestamptz,
+    null::timestamptz,
     ur.created_at,
     ur.photo_urls,
-    ARRAY[]::text[],
+    array[]::text[],
+    ur.video_urls,
     'user'::text,
     l.gps_latitude,
     l.gps_longitude,
-    NULL::numeric
-  FROM public.user_inspection_requests ur
-  LEFT JOIN public.listings l ON l.listing_id=ur.listing_id OR l.id::text=ur.listing_id
-  LEFT JOIN public.profiles u ON u.user_id=ur.user_id
-  WHERE ur.field_officer_id=v_actor.user_id
-  ORDER BY created_at DESC;
-END
+    null::numeric
+  from public.user_inspection_requests ur
+  left join public.listings l
+    on l.listing_id = ur.listing_id
+    or l.id::text = ur.listing_id
+  left join public.profiles u on u.user_id = ur.user_id
+  where ur.field_officer_id = v_actor.user_id
+  order by created_at desc;
+end;
 $$;
 
 
@@ -5778,6 +7689,91 @@ end $$;
 
 
 --
+-- Name: get_my_operations_inbox_summary(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_operations_inbox_summary() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $_$
+declare
+  v_actor public.profiles;
+  v_message_unread bigint := 0;
+  v_event_unread bigint := 0;
+  v_announcement_unread bigint := 0;
+  v_latest_title text;
+  v_latest_created_at timestamptz;
+begin
+  select * into v_actor from public.profiles
+  where auth_id = auth.uid()::text
+    and not coalesce(deleted, false)
+    and not coalesce(suspended, false)
+    and not coalesce(banned, false)
+  limit 1;
+  if v_actor is null or not (
+    v_actor.role in ('creator', 'admin')
+    or (v_actor.role = 'staff' and public.current_staff_has_permission('operations'))
+  ) then raise exception 'Property Operations access required'; end if;
+
+  select coalesce(sum(inbox.unread_count), 0) into v_message_unread
+  from public.support_inbox('reservation_operations') inbox;
+
+  select count(*) into v_event_unread
+  from public.notifications n
+  where n.recipient_id = v_actor.user_id and not n.read
+    and n.created_at >= now() - case when n.type ~* '(security|device_login|payment|payout|earning|dispute|refund)' then interval '90 days' else interval '30 days' end
+    and not (
+      n.type = 'missed_call'
+      or (
+        n.type !~* '(price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status)'
+        and (
+          n.type ~* '(^|_)(message|reply|replied|chat)(_|$)'
+          or (n.destination_route = 'conversation' and coalesce(n.source_type, '') ~* '(conversation|message|chat)')
+        )
+      )
+    );
+
+  select count(*) into v_announcement_unread
+  from public.announcement_recipients ar
+  where ar.user_id = v_actor.user_id and not coalesce(ar.read_status, false)
+    and ar.delivered_at >= now() - interval '90 days';
+
+  select recent.title, recent.created_at into v_latest_title, v_latest_created_at
+  from (
+    select n.title, n.created_at
+    from public.notifications n
+    where n.recipient_id = v_actor.user_id
+      and n.created_at >= now() - case when n.type ~* '(security|device_login|payment|payout|earning|dispute|refund)' then interval '90 days' else interval '30 days' end
+      and not (
+        n.type = 'missed_call'
+        or (
+          n.type !~* '(price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status)'
+          and (
+            n.type ~* '(^|_)(message|reply|replied|chat)(_|$)'
+            or (n.destination_route = 'conversation' and coalesce(n.source_type, '') ~* '(conversation|message|chat)')
+          )
+        )
+      )
+    union all
+    select a.title, ar.delivered_at
+    from public.announcement_recipients ar
+    join public.announcements a on a.id = ar.announcement_id
+    where ar.user_id = v_actor.user_id and ar.delivered_at >= now() - interval '90 days'
+  ) recent
+  order by recent.created_at desc
+  limit 1;
+
+  return jsonb_build_object(
+    'message_unread', v_message_unread,
+    'activity_unread', v_event_unread + v_announcement_unread,
+    'latest_title', v_latest_title,
+    'latest_created_at', v_latest_created_at
+  );
+end;
+$_$;
+
+
+--
 -- Name: get_my_private_call_preferences(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5785,12 +7781,16 @@ CREATE FUNCTION public.get_my_private_call_preferences() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_me text:=public.current_profile_user_id(); v_pref public.private_call_preferences;
+declare v_me text := public.current_profile_user_id(); v_pref public.private_call_preferences;
 begin
- if v_me is null then raise exception 'Authenticated profile required'; end if;
- select * into v_pref from public.private_call_preferences where user_id=v_me;
- return jsonb_build_object('allow_audio_calls',coalesce(v_pref.allow_audio_calls,true),'allow_video_calls',coalesce(v_pref.allow_video_calls,false));
-end; $$;
+  if v_me is null then raise exception 'Authenticated profile required'; end if;
+  select * into v_pref from public.private_call_preferences where user_id = v_me;
+  return jsonb_build_object(
+    'allow_audio_calls', coalesce(v_pref.allow_audio_calls, true),
+    'allow_video_calls', coalesce(v_pref.allow_video_calls, true)
+  );
+end;
+$$;
 
 
 --
@@ -5838,45 +7838,119 @@ CREATE FUNCTION public.get_my_property_pipeline(p_stage text DEFAULT 'all'::text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-DECLARE v_actor public.profiles; v_result JSONB;
-BEGIN
- SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
- IF v_actor IS NULL OR v_actor.role NOT IN ('admin','creator','staff') THEN RAISE EXCEPTION 'WeHouse operations access required'; END IF;
- IF v_actor.role='staff' AND NOT public.current_staff_has_permission('operations') THEN RAISE EXCEPTION 'Operations permission required'; END IF;
- IF v_actor.role IN ('admin','staff') AND (v_actor.assigned_state IS NULL OR v_actor.assigned_lga IS NULL) THEN RAISE EXCEPTION 'Branch assignment required'; END IF;
- SELECT COALESCE(jsonb_agg(jsonb_build_object(
+declare v_actor public.profiles; v_result jsonb;
+begin
+ select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+ if v_actor is null or v_actor.role not in ('admin','creator','staff') then raise exception 'WeHouse operations access required'; end if;
+ if v_actor.role='staff' and not public.current_staff_has_permission('operations') then raise exception 'Operations permission required'; end if;
+ if v_actor.role in ('admin','staff') and (v_actor.assigned_state is null or v_actor.assigned_lga is null) then raise exception 'Branch assignment required'; end if;
+ select coalesce(jsonb_agg(jsonb_build_object(
    'id',ir.id,'request_code',ir.request_code,'owner_id',ir.owner_id,
-   'owner_name',COALESCE(owner.full_name,owner.username,owner.email),'owner_email',ir.owner_email,'owner_phone',ir.owner_phone,
+   'owner_name',coalesce(owner.full_name,owner.username,owner.email),'owner_email',ir.owner_email,'owner_phone',ir.owner_phone,
    'property_address',ir.property_address,'property_city',ir.property_city,'property_state',ir.property_state,
    'property_type',ir.property_type,'sub_type',ir.sub_type,'bedrooms',ir.bedrooms,'bathrooms',ir.bathrooms,
    'expected_rent',ir.expected_rent,'security_deposit_amount',ir.security_deposit_amount,'amenities',ir.amenities,
    'description',ir.description,'status',ir.status,'scheduled_date',ir.scheduled_date,
-   'assigned_field_officer_id',COALESCE(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to),
-   'field_officer_name',COALESCE(officer.full_name,officer.username,officer.email),'notes',ir.notes,
-   'photo_urls',ir.photo_urls,'document_urls',ir.document_urls,'gps_latitude',ir.gps_latitude,'gps_longitude',ir.gps_longitude,
+   'assigned_field_officer_id',coalesce(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to),
+   'field_officer_name',coalesce(officer.full_name,officer.username,officer.email),'notes',ir.notes,
+   'photo_urls',ir.photo_urls,'video_urls',ir.video_urls,'document_urls',ir.document_urls,'gps_latitude',ir.gps_latitude,'gps_longitude',ir.gps_longitude,
    'draft_listing_id',ir.draft_listing_id,'draft_hotel_id',ir.draft_hotel_id,'approved_by',ir.approved_by,'approved_at',ir.approved_at,'published_at',ir.published_at,
-   'listing',CASE WHEN l.id IS NULL THEN NULL ELSE jsonb_build_object(
+   'listing',case when l.id is null then null else jsonb_build_object(
      'id',l.id,'listing_id',l.listing_id,'title',l.title,'price',l.price,'status',l.status,'availability_status',l.availability_status,
-     'sub_type',l.sub_type,'security_deposit_amount',l.security_deposit_amount,'amenities',l.amenities,'images',l.images,'created_at',l.created_at
-   ) END,
-   'hotel',CASE WHEN h.hotel_id IS NULL THEN NULL ELSE jsonb_build_object('hotel_id',h.hotel_id,'name',h.name,'status',h.status,'images',h.images,'created_at',h.created_at) END,
+     'sub_type',l.sub_type,'security_deposit_amount',l.security_deposit_amount,'amenities',l.amenities,'images',l.images,'videos',l.videos,'created_at',l.created_at
+   ) end,
+   'hotel',case when h.hotel_id is null then null else jsonb_build_object('hotel_id',h.hotel_id,'name',h.name,'status',h.status,'images',h.images,'created_at',h.created_at) end,
    'created_at',ir.created_at
- ) ORDER BY ir.created_at DESC),'[]'::jsonb) INTO v_result
- FROM public.inspection_requests ir
- LEFT JOIN public.profiles owner ON owner.user_id=ir.owner_id
- LEFT JOIN public.profiles officer ON officer.user_id=COALESCE(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to)
- LEFT JOIN public.listings l ON l.id=ir.draft_listing_id AND l.deleted_at IS NULL
- LEFT JOIN public.hotels h ON h.hotel_id=ir.draft_hotel_id
- WHERE (v_actor.role='creator' OR (ir.property_state=v_actor.assigned_state AND ir.property_city=v_actor.assigned_lga))
-   AND (p_stage='all'
-     OR (p_stage='new' AND ir.status='pending' AND COALESCE(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to) IS NULL)
-     OR (p_stage='inspection' AND ir.status IN ('pending','scheduled','in_progress') AND COALESCE(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to) IS NOT NULL)
-     OR (p_stage='ready' AND ir.status IN ('completed','approved') AND ir.draft_listing_id IS NULL AND ir.draft_hotel_id IS NULL)
-     OR (p_stage='preparing' AND (ir.draft_listing_id IS NOT NULL OR ir.draft_hotel_id IS NOT NULL) AND ir.published_at IS NULL)
-     OR (p_stage='published' AND ir.published_at IS NOT NULL)
-     OR (p_stage='rejected' AND ir.status='rejected'));
- RETURN v_result;
-END $$;
+ ) order by ir.created_at desc),'[]'::jsonb) into v_result
+ from public.inspection_requests ir
+ left join public.profiles owner on owner.user_id=ir.owner_id
+ left join public.profiles officer on officer.user_id=coalesce(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to)
+ left join public.listings l on l.id=ir.draft_listing_id and l.deleted_at is null
+ left join public.hotels h on h.hotel_id=ir.draft_hotel_id
+ where (v_actor.role='creator' or (ir.property_state=v_actor.assigned_state and ir.property_city=v_actor.assigned_lga))
+   and (p_stage='all'
+     or (p_stage='new' and ir.status='pending' and coalesce(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to) is null)
+     or (p_stage='inspection' and ir.status in ('pending','scheduled','in_progress') and coalesce(ir.assigned_field_officer_id,ir.field_officer_id,ir.assigned_to) is not null)
+     or (p_stage='ready' and ir.status in ('completed','approved') and ir.draft_listing_id is null and ir.draft_hotel_id is null)
+     or (p_stage='preparing' and (ir.draft_listing_id is not null or ir.draft_hotel_id is not null) and ir.published_at is null)
+     or (p_stage='published' and ir.published_at is not null)
+     or (p_stage='rejected' and ir.status='rejected'));
+ return v_result;
+end
+$$;
+
+
+--
+-- Name: get_my_property_pipeline_v2(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_property_pipeline_v2(p_stage text DEFAULT 'all'::text) RETURNS jsonb
+    LANGUAGE sql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select coalesce(
+    jsonb_agg(
+      item || jsonb_build_object(
+        'submission_schema_version', ir.submission_schema_version,
+        'submission_batch_id', ir.submission_batch_id,
+        'hotel_program', coalesce(ir.hotel_program, '{}'::jsonb),
+        'lifecycle_stage', ir.lifecycle_stage,
+        'final_media_reviewed_at', ir.final_media_reviewed_at,
+        'final_media_reviewed_by', ir.final_media_reviewed_by
+      ) order by (item->>'created_at')::timestamptz desc
+    ), '[]'::jsonb
+  )
+  from jsonb_array_elements(public.get_my_property_pipeline('all')) item
+  join public.inspection_requests ir on ir.id = (item->>'id')::uuid
+  where p_stage = 'all'
+     or (p_stage = 'new' and ir.lifecycle_stage in ('access_required','access_review','inspection_ready'))
+     or (p_stage = 'inspection' and ir.lifecycle_stage = 'inspection')
+     or (p_stage = 'ready' and ir.lifecycle_stage = 'visit_reviewed')
+     or (p_stage = 'preparing' and ir.lifecycle_stage = 'listing_prepared')
+     or (p_stage = 'published' and ir.lifecycle_stage = 'live')
+     or (p_stage = 'rejected' and ir.lifecycle_stage in ('changes_requested','rejected'));
+$$;
+
+
+--
+-- Name: get_my_received_roommate_interests(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_received_roommate_interests() RETURNS TABLE(interest_id uuid, sender_user_id text, match_score integer, sent_at timestamp with time zone, username text, full_name text, avatar_url text, city text, state text, school text, bio text)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if v_actor is null or not public.current_actor_has_personal_workspace() or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Active regular user required';
+  end if;
+  return query
+  select incoming.id,incoming.searcher_id,incoming.match_score,incoming.updated_at,
+    sender.username,sender.full_name,sender.avatar_url,sender.city,sender.state,
+    coalesce(sender_prefs.school_name,sender.school),sender.bio
+  from public.roommate_search_results incoming
+  join public.profiles sender on sender.user_id=incoming.searcher_id
+  left join public.roommate_preferences sender_prefs on sender_prefs.user_id=sender.user_id
+  left join public.roommate_search_results response
+    on response.searcher_id=v_actor.user_id and response.matched_user_id=incoming.searcher_id
+  where incoming.matched_user_id=v_actor.user_id
+    and incoming.status='accepted'
+    and coalesce(response.status,'new') not in ('accepted','declined')
+    and coalesce(sender.deleted,false)=false
+    and coalesce(sender.suspended,false)=false
+    and coalesce(sender.banned,false)=false
+    and coalesce(sender.privacy_profile_visible,true)=true
+    and not exists(
+      select 1 from public.conversations c
+      where c.conversation_type='roommate' and c.status='active'
+        and ((c.participant_a=v_actor.user_id and c.participant_b=incoming.searcher_id)
+          or (c.participant_b=v_actor.user_id and c.participant_a=incoming.searcher_id))
+    )
+  order by incoming.updated_at desc;
+end
+$$;
 
 
 --
@@ -5918,7 +7992,7 @@ begin
   where auth_id = auth.uid()::text
   limit 1;
 
-  if a is null or a.role <> 'user'
+  if a is null or not public.current_actor_has_personal_workspace()
      or coalesce(a.deleted,false)
      or coalesce(a.suspended,false)
      or coalesce(a.banned,false) then
@@ -5941,7 +8015,7 @@ begin
     and coalesce(p.deleted,false)=false
     and coalesce(p.suspended,false)=false
     and coalesce(p.banned,false)=false
-    and p.role='user'
+    and p.account_kind='consumer'
     and public._conversation_route_allowed(c.id,a.user_id)
   order by c.last_message_at desc nulls last, c.created_at desc;
 end;
@@ -5964,34 +8038,97 @@ $$;
 -- Name: get_my_roommate_matches_page(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_my_roommate_matches_page(p_limit integer DEFAULT 24, p_offset integer DEFAULT 0) RETURNS TABLE(id uuid, matched_user_id text, match_score integer, status text, created_at timestamp with time zone, username text, full_name text, avatar_url text, gender text, city text, state text, bio text, school text, area_preference text, mutual_accepted boolean, conversation_id uuid)
+CREATE FUNCTION public.get_my_roommate_matches_page(p_limit integer DEFAULT 24, p_offset integer DEFAULT 0) RETURNS TABLE(id uuid, matched_user_id text, match_score integer, status text, created_at timestamp with time zone, username text, full_name text, avatar_url text, gender text, city text, state text, bio text, school text, area_preference text, budget_score integer, location_score integer, cleanliness_score integer, noise_score integer, visitors_score integer, stay_score integer, mutual_accepted boolean, conversation_id uuid)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles; v_prefs public.roommate_preferences; v_school text;
+  v_state text; v_lga text; v_limit integer:=greatest(1,least(coalesce(p_limit,24),50));
+  v_offset integer:=greatest(0,coalesce(p_offset,0));
+begin
+  select * into v_actor from public.profiles where auth_id=(select auth.uid())::text limit 1;
+  if v_actor is null or not public.current_actor_has_personal_workspace() then raise exception 'Regular user required'; end if;
+  if coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then raise exception 'Account is not active'; end if;
+  select * into v_prefs from public.roommate_preferences where user_id=v_actor.user_id limit 1;
+  if v_prefs is null then raise exception 'Roommate preferences required'; end if;
+  v_school:=nullif(btrim(coalesce(v_prefs.school_name,v_actor.school,'')),'');
+  v_state:=nullif(btrim(coalesce(v_actor.state,'')),'');
+  v_lga:=nullif(btrim(coalesce(v_actor.local_government,v_actor.city,'')),'');
+  if v_state is null or v_lga is null then raise exception 'State and LGA are required for roommate matching'; end if;
+
+  return query with scored as (
+    select r.id result_id,r.matched_user_id result_user_id,r.status result_status,r.created_at result_created_at,
+      p.username profile_username,p.full_name profile_full_name,p.avatar_url profile_avatar_url,p.gender profile_gender,
+      p.city profile_city,p.state profile_state,p.bio profile_bio,
+      case when coalesce(v_prefs.school_match,false) and coalesce(rp.school_match,false) then coalesce(rp.school_name,p.school) else null end profile_school,
+      rp.area_preference preference_area,
+      round(30*(greatest(0,least(rp.budget_max,v_prefs.budget_max)-greatest(rp.budget_min,v_prefs.budget_min)+1)::numeric
+        /greatest(1,least(rp.budget_max-rp.budget_min+1,v_prefs.budget_max-v_prefs.budget_min+1))))::integer budget_points,
+      20::integer location_points,
+      case when lower(coalesce(rp.cleanliness,''))=lower(coalesce(v_prefs.cleanliness,'')) then 15 else 0 end cleanliness_points,
+      case when lower(coalesce(rp.noise_level,''))=lower(coalesce(v_prefs.noise_level,'')) then 15 else 0 end noise_points,
+      case when lower(coalesce(rp.visitors,''))=lower(coalesce(v_prefs.visitors,'')) then 10 else 0 end visitors_points,
+      case when lower(coalesce(rp.stay_duration,''))=lower(coalesce(v_prefs.stay_duration,'')) then 10 else 0 end stay_points
+    from public.roommate_search_results r
+    join public.profiles p on p.user_id=r.matched_user_id
+    join public.roommate_preferences rp on rp.user_id=p.user_id
+    where r.searcher_id=v_actor.user_id and r.status<>'declined'
+      and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
+      and lower(btrim(coalesce(p.state,'')))=lower(v_state)
+      and lower(btrim(coalesce(p.local_government,p.city,'')))=lower(v_lga)
+      and (not coalesce(v_prefs.school_match,false) or lower(regexp_replace(btrim(coalesce(rp.school_name,p.school,'')),'\s+',' ','g'))=lower(regexp_replace(v_school,'\s+',' ','g')))
+      and (r.status='accepted' or (coalesce(p.privacy_search_visible,true) and coalesce(p.privacy_profile_visible,true)
+        and coalesce(rp.active,false) and rp.search_status='active'))
+  ), ranked as (
+    select scored.*,least(100,budget_points+location_points+cleanliness_points+noise_points+visitors_points+stay_points)::integer current_score from scored
+  )
+  select s.result_id,s.result_user_id,s.current_score,s.result_status,s.result_created_at,s.profile_username,
+    s.profile_full_name,s.profile_avatar_url,s.profile_gender,s.profile_city,s.profile_state,s.profile_bio,s.profile_school,
+    s.preference_area,s.budget_points,s.location_points,s.cleanliness_points,s.noise_points,s.visitors_points,s.stay_points,
+    exists(select 1 from public.roommate_search_results rr where rr.searcher_id=s.result_user_id and rr.matched_user_id=v_actor.user_id and rr.status='accepted'),
+    (select c.id from public.conversations c where c.conversation_type='roommate' and c.status='active'
+      and ((c.participant_a=v_actor.user_id and c.participant_b=s.result_user_id) or (c.participant_b=v_actor.user_id and c.participant_a=s.result_user_id)) limit 1)
+  from ranked s order by s.current_score desc,s.result_created_at desc,s.result_id limit v_limit offset v_offset;
+end;
+$$;
+
+
+--
+-- Name: get_my_roommate_peer_details(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_roommate_peer_details() RETURNS TABLE(conversation_id uuid, user_id text, full_name text, username text, avatar_url text, bio text, city text, state text, school text, occupation text, is_student boolean, is_blocked boolean)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
-  v_actor public.profiles;
-  v_prefs public.roommate_preferences;
-  v_school text;
-  v_limit integer:=greatest(1,least(coalesce(p_limit,24),50));
-  v_offset integer:=greatest(0,coalesce(p_offset,0));
+  actor public.profiles;
 begin
-  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
-  if v_actor is null or v_actor.role<>'user' then raise exception 'Regular user required'; end if;
-  if coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then raise exception 'Account is not active'; end if;
-  select * into v_prefs from public.roommate_preferences where user_id=v_actor.user_id limit 1;
-  v_school:=nullif(btrim(coalesce(v_prefs.school_name,v_actor.school,'')),'');
+  actor := public._current_comm_actor();
+  if actor is null or not public.current_actor_has_personal_workspace() then
+    raise exception 'Regular user account required';
+  end if;
+
   return query
-  select r.id,r.matched_user_id,r.match_score,r.status,r.created_at,p.username,p.full_name,p.avatar_url,p.gender,p.city,p.state,p.bio,coalesce(rp.school_name,p.school),rp.area_preference,
-    exists(select 1 from public.roommate_search_results rr where rr.searcher_id=r.matched_user_id and rr.matched_user_id=v_actor.user_id and rr.status='accepted'),
-    (select c.id from public.conversations c where c.conversation_type='roommate' and c.status='active' and ((c.participant_a=v_actor.user_id and c.participant_b=r.matched_user_id) or (c.participant_b=v_actor.user_id and c.participant_a=r.matched_user_id)) limit 1)
-  from public.roommate_search_results r
-  join public.profiles p on p.user_id=r.matched_user_id
-  left join public.roommate_preferences rp on rp.user_id=p.user_id
-  where r.searcher_id=v_actor.user_id and r.status<>'declined'
-    and coalesce(p.deleted,false)=false and coalesce(p.suspended,false)=false and coalesce(p.banned,false)=false
-    and (r.status='accepted' or (coalesce(p.privacy_search_visible,true)=true and coalesce(p.privacy_profile_visible,true)=true and coalesce(rp.active,false)=true and rp.search_status='active' and (not coalesce(v_prefs.school_match,false) or lower(regexp_replace(btrim(coalesce(rp.school_name,p.school,'')),'\s+',' ','g'))=lower(regexp_replace(btrim(coalesce(v_school,'')),'\s+',' ','g')))))
-  order by r.match_score desc,r.created_at desc,r.id
-  limit v_limit offset v_offset;
+  select c.id, p.user_id, p.full_name, p.username, p.avatar_url,
+    p.bio, p.city, p.state, p.school, p.occupation, p.is_student,
+    exists(
+      select 1 from public.roommate_user_blocks b
+      where b.blocker_user_id = actor.user_id and b.blocked_user_id = p.user_id
+    )
+  from public.conversations c
+  join public.profiles p
+    on p.user_id = case when c.participant_a = actor.user_id then c.participant_b else c.participant_a end
+  where c.conversation_type = 'roommate'
+    and coalesce(c.status, 'active') = 'active'
+    and actor.user_id in (c.participant_a, c.participant_b)
+    and coalesce(p.deleted, false) = false
+    and coalesce(p.suspended, false) = false
+    and coalesce(p.banned, false) = false
+    and p.account_kind = 'consumer'
+    and public._conversation_route_allowed(c.id, actor.user_id)
+  order by c.last_message_at desc nulls last, c.created_at desc;
 end;
 $$;
 
@@ -6043,11 +8180,82 @@ CREATE FUNCTION public.get_my_roommate_preferences() RETURNS SETOF public.roomma
 DECLARE v_actor public.profiles;
 BEGIN
   SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role<>'user' OR COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN
+  IF v_actor IS NULL OR not public.current_actor_has_personal_workspace() OR COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN
     RETURN;
   END IF;
   RETURN QUERY SELECT rp.* FROM public.roommate_preferences rp WHERE rp.user_id=v_actor.user_id LIMIT 1;
 END;
+$$;
+
+
+--
+-- Name: get_my_shared_housing_group(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_shared_housing_group(p_group_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare actor text := public.current_profile_user_id(); result jsonb;
+begin
+  if actor is null then raise exception 'Authenticated profile required'; end if;
+  if not exists(
+    select 1 from public.shared_housing_members
+    where group_id=p_group_id and user_id=actor
+  ) then raise exception 'Shared-home access required'; end if;
+
+  select jsonb_build_object(
+    'id',g.id,
+    'created_by',g.created_by,
+    'conversation_id',g.conversation_id,
+    'listing_id',g.listing_id,
+    'status',g.status,
+    'payment_phase',g.payment_phase,
+    'expires_at',g.expires_at,
+    'total_amount',g.total_amount,
+    'reservation_fee_total',g.reservation_fee_total,
+    'contract_total',g.contract_total,
+    'reservation_id',g.reservation_id,
+    'listing',jsonb_build_object(
+      'id',l.id,'title',l.title,'price',l.price,'image',l.images[1],
+      'address',l.address,'city',l.city,'state',l.state
+    ),
+    'members',coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'user_id',m.user_id,
+        'name',coalesce(p.full_name,p.username,'Roommate'),
+        'invitation_status',m.invitation_status,
+        'share_amount',m.share_amount,
+        'payment_status',m.payment_status,
+        'paid_at',m.paid_at
+      ) order by m.created_at)
+      from public.shared_housing_members m
+      left join public.profiles p on p.user_id=m.user_id
+      where m.group_id=g.id
+    ),'[]'::jsonb)
+  ) into result
+  from public.shared_housing_groups g
+  join public.listings l on l.id=g.listing_id
+  where g.id=p_group_id;
+  return result;
+end;
+$$;
+
+
+--
+-- Name: get_my_shared_housing_groups(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_shared_housing_groups() RETURNS jsonb
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select coalesce(
+    jsonb_agg(public.get_my_shared_housing_group(m.group_id) order by m.created_at desc),
+    '[]'::jsonb
+  )
+  from public.shared_housing_members m
+  where m.user_id = public.current_profile_user_id();
 $$;
 
 
@@ -6172,6 +8380,54 @@ $$;
 
 
 --
+-- Name: get_my_staff_security_monitor(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_staff_security_monitor() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'auth'
+    AS $$
+DECLARE v_actor public.profiles; v_result jsonb;
+BEGIN
+  SELECT * INTO v_actor FROM public.profiles p
+  WHERE p.auth_id=auth.uid()::text AND p.role='staff' AND NOT COALESCE(p.deleted,false) AND NOT COALESCE(p.suspended,false) AND NOT COALESCE(p.banned,false) LIMIT 1;
+  IF v_actor IS NULL OR NOT EXISTS(SELECT 1 FROM public.staff_permissions sp WHERE sp.staff_id=v_actor.user_id AND sp.permission='security' AND sp.is_active=true AND sp.revoked_at IS NULL) THEN RAISE EXCEPTION 'Security Staff permission required'; END IF;
+  IF NULLIF(btrim(v_actor.assigned_state),'') IS NULL OR NULLIF(btrim(v_actor.assigned_lga),'') IS NULL THEN RAISE EXCEPTION 'Security Staff branch assignment is incomplete'; END IF;
+
+  WITH scoped_profiles AS (
+    SELECT p.* FROM public.profiles p WHERE lower(COALESCE(NULLIF(p.assigned_state,''),NULLIF(p.state,''),''))=lower(v_actor.assigned_state)
+      AND lower(COALESCE(NULLIF(p.assigned_lga,''),NULLIF(p.local_government,''),NULLIF(p.city,''),''))=lower(v_actor.assigned_lga)
+  ), recent_sessions AS (
+    SELECT s.*,p.full_name,p.username,p.role FROM public.user_sessions s JOIN scoped_profiles p ON p.user_id=s.user_id WHERE s.login_time>=now()-interval '30 days'
+  ), multi_ip AS (
+    SELECT user_id,COALESCE(max(full_name),max(username),'Account') name,count(DISTINCT ip_address) locations FROM recent_sessions WHERE is_active=true AND NULLIF(ip_address,'') IS NOT NULL GROUP BY user_id HAVING count(DISTINCT ip_address)>=2
+  ), bursts AS (
+    SELECT user_id,COALESCE(max(full_name),max(username),'Account') name,count(*) attempts FROM recent_sessions WHERE login_time>=now()-interval '60 minutes' GROUP BY user_id HAVING count(*)>=5
+  ), restricted AS (
+    SELECT count(*)::integer total FROM scoped_profiles WHERE COALESCE(banned,false) OR COALESCE(suspended,false) OR COALESCE(deleted,false)
+  ), alerts AS (
+    SELECT jsonb_build_object('kind','multiple_locations','severity','high','title','Concurrent location pattern','detail',name||' has '||locations||' active network locations. Review the session trail and escalate if the user does not recognise them.') item FROM multi_ip
+    UNION ALL
+    SELECT jsonb_build_object('kind','login_burst','severity','high','title','Rapid sign-in pattern','detail',name||' recorded '||attempts||' session starts within the last hour. Confirm context before escalation.') FROM bursts
+  ), auth_events AS (
+    SELECT a.id,a.created_at,COALESCE(a.payload->>'action','authentication_event') action,COALESCE(p.full_name,p.username,'Branch account') name
+    FROM auth.audit_log_entries a JOIN scoped_profiles p ON p.auth_id=COALESCE(a.payload->>'user_id',a.payload->>'actor_id')
+    WHERE a.created_at>=now()-interval '30 days' ORDER BY a.created_at DESC LIMIT 50
+  )
+  SELECT jsonb_build_object(
+    'stats',jsonb_build_object('active_sessions',(SELECT count(*) FROM recent_sessions WHERE is_active=true),'multi_ip_accounts',(SELECT count(*) FROM multi_ip),'login_bursts',(SELECT count(*) FROM bursts),'restricted_accounts',(SELECT total FROM restricted)),
+    'alerts',COALESCE((SELECT jsonb_agg(item) FROM alerts),'[]'::jsonb),
+    'sessions',COALESCE((SELECT jsonb_agg(x ORDER BY x.last_seen DESC) FROM (SELECT id session_id,COALESCE(full_name,username,'Branch account') name,role,device,browser,os,is_active,last_seen,login_time FROM recent_sessions ORDER BY last_seen DESC NULLS LAST LIMIT 50) x),'[]'::jsonb),
+    'admin_actions',COALESCE((SELECT jsonb_agg(x ORDER BY x.created_at DESC) FROM (SELECT a.id,a.action,a.target_type,a.target_id,a.details,a.admin_id actor_id,a.admin_email actor_email,a.created_at FROM public.admin_audit_log a LEFT JOIN public.profiles actor ON actor.user_id=a.admin_id WHERE a.created_at>=now()-interval '30 days' AND lower(COALESCE(NULLIF(actor.assigned_state,''),v_actor.assigned_state))=lower(v_actor.assigned_state) AND lower(COALESCE(NULLIF(actor.assigned_lga,''),v_actor.assigned_lga))=lower(v_actor.assigned_lga) ORDER BY a.created_at DESC LIMIT 50) x),'[]'::jsonb),
+    'auth_events',COALESCE((SELECT jsonb_agg(auth_events ORDER BY created_at DESC) FROM auth_events),'[]'::jsonb),
+    'auth_audit_available',true
+  ) INTO v_result;
+  RETURN v_result;
+END;
+$$;
+
+
+--
 -- Name: get_my_staff_trust_status(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6232,68 +8488,26 @@ CREATE FUNCTION public.get_my_staff_worker_reviews(p_status text DEFAULT 'pendin
 
 CREATE FUNCTION public.get_my_support_conversations() RETURNS TABLE(conversation_id uuid, subject text, status text, category text, context_type text, context_id text, context_snapshot jsonb, priority text, assigned_staff_name text, last_message text, last_message_time timestamp with time zone, unread_count bigint, created_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles;
-BEGIN
-  SELECT * INTO v_actor
-  FROM public.profiles
-  WHERE auth_id=auth.uid()::text
-  LIMIT 1;
-
-  IF v_actor.user_id IS NULL THEN
-    RAISE EXCEPTION 'Authentication required';
-  END IF;
-
-  RETURN QUERY
-  SELECT
-    c.id,
-    'WeHouse Support'::text,
-    c.status,
-    c.category,
-    c.context_type,
-    c.context_id,
-    c.context_snapshot,
-    c.priority,
-    COALESCE(s.full_name,s.username),
-    (
-      SELECT CASE
-        WHEN NULLIF(BTRIM(m.content),'') IS NOT NULL THEN m.content
-        WHEN COALESCE(cardinality(m.attachments),0)>0 THEN 'Attachment'
-        ELSE ''
-      END
-      FROM public.partner_support_messages m
-      WHERE m.conversation_id=c.id
-      ORDER BY m.created_at DESC
-      LIMIT 1
-    ),
-    (
-      SELECT m.created_at
-      FROM public.partner_support_messages m
-      WHERE m.conversation_id=c.id
-      ORDER BY m.created_at DESC
-      LIMIT 1
-    ),
-    (
-      SELECT COUNT(*)
-      FROM public.partner_support_messages m
-      WHERE m.conversation_id=c.id
-        AND COALESCE(m.is_read,false)=false
-        AND m.sender_id<>v_actor.user_id
-    ),
+declare v_actor public.profiles;
+begin
+  select * into v_actor from public.profiles
+  where auth_id=auth.uid()::text and not coalesce(deleted,false) and not coalesce(banned,false) limit 1;
+  if v_actor.user_id is null then raise exception 'Authentication required'; end if;
+  return query
+  select c.id,coalesce(nullif(btrim(c.subject),''),'WeHouse Help')::text,c.status,c.category,c.context_type,c.context_id,c.context_snapshot,c.priority,
+    coalesce(s.full_name,s.username),
+    (select case when nullif(btrim(m.content),'') is not null then m.content when coalesce(cardinality(m.attachments),0)>0 then 'Attachment' else '' end from public.partner_support_messages m where m.conversation_id=c.id order by m.created_at desc limit 1),
+    (select m.created_at from public.partner_support_messages m where m.conversation_id=c.id order by m.created_at desc limit 1),
+    (select count(*) from public.partner_support_messages m where m.conversation_id=c.id and coalesce(m.is_read,false)=false and m.sender_id<>v_actor.user_id),
     c.created_at
-  FROM public.partner_support_conversations c
-  LEFT JOIN public.profiles s ON s.user_id=c.assigned_staff_id
-  WHERE c.partner_id=v_actor.user_id
-    AND EXISTS (
-      SELECT 1
-      FROM public.partner_support_messages first_message
-      WHERE first_message.conversation_id=c.id
-    )
-  ORDER BY c.updated_at DESC
-  LIMIT 1;
-END
-$$;
+  from public.partner_support_conversations c
+  left join public.profiles s on s.user_id=c.assigned_staff_id
+  where c.partner_id=v_actor.user_id
+    and exists(select 1 from public.partner_support_messages first_message where first_message.conversation_id=c.id)
+  order by coalesce((select max(latest.created_at) from public.partner_support_messages latest where latest.conversation_id=c.id),c.created_at) desc;
+end $$;
 
 
 --
@@ -6302,46 +8516,65 @@ $$;
 
 CREATE FUNCTION public.get_my_worker_activation() RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-declare
-  v_profile public.profiles; v_ver public.worker_verifications; v_payment public.booking_payments; v_test public.worker_test_attempts; v_identity public.worker_identity_checks;
-  v_attempts_24h integer:=0; v_profile_ready boolean:=false; v_paid boolean:=false; v_days integer:=public.worker_identity_recheck_days(); v_identity_current boolean:=false; v_due_at timestamptz; v_days_remaining integer;
-begin
-  select * into v_profile from public.profiles where auth_id=auth.uid()::text and role='worker' limit 1;
-  if v_profile is null then raise exception 'Worker profile not found'; end if;
+DECLARE
+  v_profile public.profiles;
+  v_ver public.worker_verifications;
+  v_payment public.booking_payments;
+  v_identity public.worker_identity_checks;
+  v_profile_ready boolean:=false;
+  v_paid boolean:=false;
+  v_days integer:=public.worker_identity_recheck_days();
+  v_identity_current boolean:=false;
+  v_due_at timestamptz;
+  v_days_remaining integer;
+BEGIN
+  SELECT * INTO v_profile
+  FROM public.profiles
+  WHERE auth_id=auth.uid()::text AND role='worker'
+  LIMIT 1;
+  IF v_profile IS NULL THEN RAISE EXCEPTION 'Worker profile not found'; END IF;
+
   v_profile_ready:=public.worker_professional_profile_ready(v_profile.user_id);
-  select * into v_ver from public.worker_verifications where worker_id=v_profile.user_id limit 1;
-  select * into v_payment from public.booking_payments where user_id=v_profile.user_id and purpose='worker_verification' order by created_at desc limit 1;
-  select * into v_test from public.worker_test_attempts where worker_id=v_profile.user_id order by started_at desc limit 1;
-  select * into v_identity from public.worker_identity_checks where worker_id=v_profile.user_id;
-  select count(*) into v_attempts_24h from public.worker_test_attempts where worker_id=v_profile.user_id and started_at>=now()-interval '24 hours';
-  v_paid:=coalesce(v_payment.status in('paid','completed'),false);
-  if v_identity.status='passed' and v_identity.captured_at is not null then
+  SELECT * INTO v_ver FROM public.worker_verifications WHERE worker_id=v_profile.user_id LIMIT 1;
+  SELECT * INTO v_payment FROM public.booking_payments
+    WHERE user_id=v_profile.user_id AND purpose='worker_verification'
+    ORDER BY created_at DESC LIMIT 1;
+  SELECT * INTO v_identity FROM public.worker_identity_checks WHERE worker_id=v_profile.user_id;
+  v_paid:=COALESCE(v_payment.status IN ('paid','completed'),false);
+
+  IF v_identity.status='passed' AND v_identity.captured_at IS NOT NULL THEN
     v_due_at:=v_identity.captured_at+make_interval(days=>v_days);
     v_identity_current:=v_due_at>now();
-    v_days_remaining:=greatest(0,ceil(extract(epoch from (v_due_at-now()))/86400.0)::integer);
-  end if;
-  return jsonb_build_object(
-    'worker_status',coalesce(v_profile.worker_status,'pending'),
-    'live',coalesce(v_profile.worker_status='verified' and v_profile.worker_verified and v_identity_current,false),
+    v_days_remaining:=GREATEST(0,CEIL(EXTRACT(epoch FROM (v_due_at-now()))/86400.0)::integer);
+  END IF;
+
+  RETURN jsonb_build_object(
+    'worker_status',COALESCE(v_profile.worker_status,'pending'),
+    'live',COALESCE(v_profile.worker_status='verified' AND v_profile.worker_verified AND v_identity_current,false),
     'profile_complete',v_profile_ready,
-    'payment_status',v_payment.status,'payment_confirmed',v_paid,'gold_badge',v_paid,
+    'payment_status',v_payment.status,
+    'payment_confirmed',v_paid,
+    'gold_badge',v_paid,
     'identity_required',true,
-    'identity_status',case when v_identity.status='passed' and not v_identity_current then 'expired' else coalesce(v_identity.status,'not_started') end,
-    'identity_captured',coalesce(v_identity.status='passed',false),
+    'identity_status',CASE WHEN v_identity.status='passed' AND NOT v_identity_current THEN 'expired' ELSE COALESCE(v_identity.status,'not_started') END,
+    'identity_captured',COALESCE(v_identity.status='passed',false),
     'identity_passed',v_identity_current,
     'identity_current',v_identity_current,
     'identity_captured_at',v_identity.captured_at,
     'identity_due_at',v_due_at,
     'identity_recheck_days',v_days,
     'identity_days_remaining',v_days_remaining,
-    'test_passed',public.worker_test_passed(v_profile.user_id),'test_percent',v_test.percent,'test_attempts_24h',v_attempts_24h,
-    'evidence_saved',coalesce(nullif(btrim(coalesce(v_ver.verification_video_url,'')),'') is not null,false),
-    'submitted',coalesce(v_ver.submitted_at is not null,false),'review_status',v_ver.status,
-    'rejection_reason',(select rejection_reason from public.worker_verification_reviews where worker_id=v_profile.user_id order by created_at desc limit 1)
+    'test_passed',true,
+    'test_percent',100,
+    'test_attempts_24h',0,
+    'evidence_saved',COALESCE(NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NOT NULL,false),
+    'submitted',COALESCE(v_ver.submitted_at IS NOT NULL,false),
+    'review_status',v_ver.status,
+    'rejection_reason',(SELECT rejection_reason FROM public.worker_verification_reviews WHERE worker_id=v_profile.user_id ORDER BY created_at DESC LIMIT 1)
   );
-end;
+END;
 $$;
 
 
@@ -6351,54 +8584,85 @@ $$;
 
 CREATE FUNCTION public.get_my_worker_booking_details(p_booking_id uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO ''
     AS $$
-DECLARE
-  v_actor public.profiles;
-  v_booking public.worker_bookings;
-  v_customer public.profiles;
-  v_worker public.profiles;
-BEGIN
-  SELECT * INTO v_actor
-  FROM public.profiles
-  WHERE auth_id=auth.uid()::text
-    AND COALESCE(deleted,false)=false
-    AND COALESCE(suspended,false)=false
-    AND COALESCE(banned,false)=false
-  LIMIT 1;
-  IF v_actor IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
+declare
+  actor public.profiles;
+  booking public.worker_bookings;
+  customer public.profiles;
+  worker public.profiles;
+  payment_state text;
+begin
+  select p.* into actor
+  from public.profiles p
+  where p.auth_id = (select auth.uid())::text
+    and coalesce(p.deleted,false)=false
+    and coalesce(p.suspended,false)=false
+    and coalesce(p.banned,false)=false
+  limit 1;
+  if actor is null then raise exception 'Authentication required'; end if;
 
-  SELECT * INTO v_booking FROM public.worker_bookings WHERE id=p_booking_id;
-  IF v_booking IS NULL THEN RETURN NULL; END IF;
-  IF v_actor.user_id IS DISTINCT FROM v_booking.user_id
-     AND v_actor.user_id IS DISTINCT FROM v_booking.worker_id THEN
-    RAISE EXCEPTION 'Booking participant access required';
-  END IF;
+  select wb.* into booking from public.worker_bookings wb where wb.id=p_booking_id;
+  if booking is null then return null; end if;
+  if actor.user_id is distinct from booking.user_id and actor.user_id is distinct from booking.worker_id then
+    raise exception 'Booking participant access required';
+  end if;
 
-  SELECT * INTO v_customer FROM public.profiles WHERE user_id=v_booking.user_id LIMIT 1;
-  SELECT * INTO v_worker FROM public.profiles WHERE user_id=v_booking.worker_id LIMIT 1;
+  select p.* into customer from public.profiles p where p.user_id=booking.user_id limit 1;
+  select p.* into worker from public.profiles p where p.user_id=booking.worker_id limit 1;
+  select bp.status into payment_state
+  from public.booking_payments bp
+  where bp.worker_booking_id=booking.id
+  order by bp.created_at desc
+  limit 1;
 
-  RETURN jsonb_build_object(
-    'id',v_booking.id,
-    'booking_code',v_booking.booking_code,
-    'status',v_booking.status,
-    'service_type',v_booking.service_type,
-    'description',v_booking.description,
-    'address',v_booking.address,
-    'negotiated_amount',v_booking.negotiated_amount,
-    'agreed_amount',v_booking.agreed_amount,
-    'scheduled_date',v_booking.scheduled_date,
-    'created_at',v_booking.created_at,
-    'updated_at',v_booking.updated_at,
-    'user_id',v_booking.user_id,
-    'worker_id',v_booking.worker_id,
-    'user_name',COALESCE(v_customer.full_name,v_customer.username,'Customer'),
-    'customer_username',v_customer.username,
-    'user_avatar',v_customer.avatar_url,
-    'worker_name',COALESCE(v_worker.full_name,v_worker.username,'Worker'),
-    'worker_avatar',v_worker.avatar_url
+  return jsonb_build_object(
+    'id',booking.id,'booking_code',booking.booking_code,'status',booking.status,
+    'service_type',booking.service_type,'description',booking.description,
+    'customer_message',booking.customer_message,'request_attachments',booking.request_attachments,
+    'address',booking.address,'scheduled_date',booking.scheduled_date,
+    'negotiated_amount',booking.negotiated_amount,'agreed_amount',booking.agreed_amount,
+    'wehouse_fee',booking.wehouse_fee,'worker_receives',booking.worker_receives,
+    'payment_status',coalesce(payment_state,'not_started'),
+    'created_at',booking.created_at,'updated_at',booking.updated_at,
+    'user_id',booking.user_id,'worker_id',booking.worker_id,
+    'user_name',coalesce(customer.full_name,customer.username,'Customer'),
+    'customer_username',customer.username,'user_avatar',customer.avatar_url,
+    'worker_name',coalesce(worker.full_name,worker.username,'Worker'),'worker_avatar',worker.avatar_url
   );
-END;
+end
+$$;
+
+
+--
+-- Name: worker_booking_reviews; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.worker_booking_reviews (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    booking_id uuid NOT NULL,
+    user_id text NOT NULL,
+    worker_id text NOT NULL,
+    rating smallint NOT NULL,
+    comment text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT worker_booking_reviews_check CHECK ((user_id <> worker_id)),
+    CONSTRAINT worker_booking_reviews_comment_check CHECK (((comment IS NULL) OR (char_length(comment) <= 1200))),
+    CONSTRAINT worker_booking_reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
+);
+
+
+--
+-- Name: get_my_worker_booking_review(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_worker_booking_review(p_booking_id uuid) RETURNS public.worker_booking_reviews
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+ select r.* from public.worker_booking_reviews r join public.worker_bookings b on b.id=r.booking_id
+ where r.booking_id=p_booking_id and public.current_profile_user_id() in(b.user_id,b.worker_id) limit 1
 $$;
 
 
@@ -6454,6 +8718,25 @@ begin
     'status',coalesce(v_identity.status,'not_started')
   );
 end; $$;
+
+
+--
+-- Name: get_my_workspace_access(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_my_workspace_access() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select jsonb_build_object(
+    'identity',jsonb_build_object('user_id',p.user_id,'account_kind',p.account_kind),
+    'personal_workspace',p.account_kind='consumer',
+    'privileged_workspaces',coalesce((select jsonb_agg(x order by x->>'role') from (
+      select jsonb_build_object('role',a.workspace_role,'scope_type',a.scope_type,'state',a.scope_state,'lga',a.scope_lga) x from public.workspace_role_assignments a where a.user_id=p.user_id and a.status='active'
+      union all select jsonb_build_object('role','hotel','scope_type','hotel','state',null,'lga',null) where exists(select 1 from public.hotel_team_members tm where tm.member_user_id=p.user_id and tm.status='active')
+    ) roles),'[]'::jsonb)
+  ) from public.profiles p where p.auth_id=auth.uid()::text
+$$;
 
 
 --
@@ -6521,22 +8804,22 @@ $$;
 
 CREATE FUNCTION public.get_private_call_capabilities(p_context_type text, p_context_id uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-declare v_me text:=public.current_profile_user_id(); v_peer text; v_profile public.profiles; v_pref public.private_call_preferences;
+declare v_me text:=public.current_profile_user_id();v_peer text;v_profile public.profiles;v_pref public.private_call_preferences;
 begin
  if v_me is null then raise exception 'Authenticated profile required'; end if;
  if p_context_type='roommate' then
-   select case when c.participant_a=v_me then c.participant_b else c.participant_a end into v_peer from public.conversations c where c.id=p_context_id and c.conversation_type='roommate' and v_me in (c.participant_a,c.participant_b) limit 1;
+  select case when c.participant_a=v_me then c.participant_b else c.participant_a end into v_peer from public.conversations c where c.id=p_context_id and c.conversation_type='roommate' and coalesce(c.status,'active')='active' and v_me in(c.participant_a,c.participant_b) limit 1;
  elsif p_context_type='worker_booking' then
-   select case when c.user_id=v_me then c.worker_id else c.user_id end into v_peer from public.booking_conversations c where c.id=p_context_id and v_me in (c.user_id,c.worker_id) limit 1;
+  select case when c.user_id=v_me then c.worker_id else c.user_id end into v_peer from public.booking_conversations c join public.worker_bookings b on b.id=c.booking_id where c.id=p_context_id and v_me in(c.user_id,c.worker_id) and b.status not in('approved_released','cancelled','refunded') limit 1;
  else raise exception 'Unsupported call context'; end if;
- if v_peer is null then raise exception 'Private conversation not found'; end if;
+ if v_peer is null then raise exception 'This job conversation is closed'; end if;
  select * into v_profile from public.profiles where user_id=v_peer and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
- if v_profile is null or v_profile.role not in ('user','worker') then raise exception 'This person cannot receive private calls'; end if;
+ if v_profile is null or not(v_profile.account_kind='consumer' or v_profile.role='worker') then raise exception 'This person cannot receive private calls'; end if;
  select * into v_pref from public.private_call_preferences where user_id=v_peer;
- return jsonb_build_object('peer_id',v_peer,'peer_name',coalesce(v_profile.full_name,v_profile.username,'WeHouse member'),'peer_avatar',v_profile.avatar_url,'allow_audio_calls',coalesce(v_pref.allow_audio_calls,true),'allow_video_calls',coalesce(v_pref.allow_video_calls,false));
-end; $$;
+ return jsonb_build_object('peer_id',v_peer,'peer_name',coalesce(v_profile.full_name,v_profile.username,'WeHouse member'),'peer_avatar',v_profile.avatar_url,'allow_audio_calls',coalesce(v_pref.allow_audio_calls,true),'allow_video_calls',coalesce(v_pref.allow_video_calls,true));
+end $$;
 
 
 --
@@ -6558,6 +8841,120 @@ end; $$;
 
 
 --
+-- Name: get_private_chat_peer_public_key(text, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_private_chat_peer_public_key(p_conversation_kind text, p_conversation_id uuid, p_peer_user_id text) RETURNS TABLE(user_id text, key_version integer, public_key_jwk jsonb)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare actor text:=public.current_profile_user_id(); begin if actor is null then raise exception 'Active WeHouse profile required'; end if;
+if p_conversation_kind='roommate' then if not exists(select 1 from public.conversations c where c.id=p_conversation_id and actor in(c.participant_a,c.participant_b) and p_peer_user_id in(c.participant_a,c.participant_b)) then raise exception 'Conversation access denied'; end if;
+elsif p_conversation_kind='worker' then if not exists(select 1 from public.booking_conversations c where c.id=p_conversation_id and actor in(c.user_id,c.worker_id) and p_peer_user_id in(c.user_id,c.worker_id)) then raise exception 'Conversation access denied'; end if;
+else raise exception 'Unsupported private conversation kind'; end if;
+return query select i.user_id,i.key_version,i.public_key_jwk from public.user_encryption_identities i where i.user_id=p_peer_user_id; end $$;
+
+
+--
+-- Name: get_private_encrypted_messages(text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_private_encrypted_messages(p_conversation_kind text, p_conversation_id uuid) RETURNS TABLE(id uuid, sender_id text, ciphertext text, encryption_iv text, encryption_version integer, encrypted_attachments jsonb, created_at timestamp with time zone, legacy_content text, is_read boolean, reply_to_id uuid, reactions jsonb, legacy_attachments text[], legacy_attachment_types text[])
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare actor text:=public.current_profile_user_id();
+begin
+  if actor is null then raise exception 'Active WeHouse profile required'; end if;
+  if p_conversation_kind='roommate' then
+    if not exists(
+      select 1 from public.conversations c
+      where c.id=p_conversation_id
+        and actor in(c.participant_a,c.participant_b)
+        and c.conversation_type='roommate'
+        and coalesce(c.status,'active')='active'
+    ) then raise exception 'Conversation access denied'; end if;
+    return query
+    select m.id,m.sender_id,m.ciphertext,m.encryption_iv,m.encryption_version,
+      coalesce(m.encrypted_attachments,'[]'::jsonb),m.created_at,
+      case when m.ciphertext is null then m.content else null end,
+      coalesce(m.seen,false),m.reply_to_id,coalesce(m.reactions,'{}'::jsonb),
+      coalesce(m.attachments,'{}'::text[]),coalesce(m.attachment_types,'{}'::text[])
+    from public.messages m
+    where m.conversation_id=p_conversation_id
+      and not(actor=any(coalesce(m.hidden_for,'{}'::text[])))
+    order by m.created_at,m.id;
+  elsif p_conversation_kind='worker' then
+    if not exists(
+      select 1 from public.booking_conversations c
+      where c.id=p_conversation_id and actor in(c.user_id,c.worker_id)
+    ) then raise exception 'Conversation access denied'; end if;
+    return query
+    select m.id,m.sender_id,m.ciphertext,m.encryption_iv,m.encryption_version,
+      coalesce(m.encrypted_attachments,'[]'::jsonb),m.created_at,
+      case when m.ciphertext is null then m.content else null end,
+      coalesce(m.is_read,false),m.reply_to_id,coalesce(m.reactions,'{}'::jsonb),
+      coalesce(m.attachments,'{}'::text[]),'{}'::text[]
+    from public.booking_messages m
+    where m.conversation_id=p_conversation_id
+      and not(actor=any(coalesce(m.hidden_for,'{}'::text[])))
+    order by m.created_at,m.id;
+  else
+    raise exception 'Unsupported private conversation kind';
+  end if;
+end
+$$;
+
+
+--
+-- Name: get_property_access_review_details(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_property_access_review_details(p_request_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_request public.inspection_requests;
+  v_code text;
+begin
+  select * into v_actor
+  from public.profiles
+  where auth_id=auth.uid()::text
+    and role in ('staff','admin','creator')
+    and not coalesce(deleted,false)
+    and not coalesce(suspended,false)
+    and not coalesce(banned,false)
+  limit 1;
+
+  if v_actor is null or (v_actor.role='staff' and not public.current_staff_has_permission('operations')) then
+    raise exception 'Operations Staff, Admin or Creator access required';
+  end if;
+
+  select * into v_request from public.inspection_requests where id=p_request_id;
+  if v_request.id is null then raise exception 'Property request not found'; end if;
+  if v_actor.role<>'creator' and not public.current_actor_in_scope(v_request.property_state,v_request.property_city) then
+    raise exception 'Property is outside your assigned area';
+  end if;
+
+  select c.code into v_code
+  from public.property_access_challenges c
+  where c.request_id=v_request.id and c.status='consumed'
+  order by c.consumed_at desc nulls last
+  limit 1;
+
+  return jsonb_build_object(
+    'status',v_request.access_evidence_status,
+    'video_path',v_request.access_evidence_video_path,
+    'submitted_at',v_request.access_evidence_submitted_at,
+    'code',v_code
+  );
+end;
+$$;
+
+
+--
 -- Name: get_property_pipeline_requests(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6575,6 +8972,27 @@ begin
  where v_actor.role='creator' or (lower(coalesce(ir.property_state,''))=lower(coalesce(v_actor.assigned_state,'')) and lower(coalesce(ir.property_city,''))=lower(coalesce(v_actor.assigned_lga,'')))
  order by ir.created_at desc;
 end $$;
+
+
+--
+-- Name: get_public_worker_reviews(text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_public_worker_reviews(p_worker_id text, p_limit integer DEFAULT 20) RETURNS TABLE(id uuid, rating smallint, comment text, created_at timestamp with time zone, reviewer_name text, service_name text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  select r.id,r.rating,r.comment,r.created_at,
+    case when r.user_id=(select actor.user_id from public.profiles actor where actor.auth_id=(select auth.uid())::text limit 1)
+      then 'Your review' else 'Verified customer' end,
+    coalesce(s.name,b.service_type,'Service job')
+  from public.worker_booking_reviews r
+  join public.worker_bookings b on b.id=r.booking_id
+  left join public.service_subcategories s on s.id=b.service_subcategory_id
+  where r.worker_id=p_worker_id and b.status='approved_released'
+  order by r.created_at desc
+  limit least(greatest(coalesce(p_limit,20),1),50)
+$$;
 
 
 --
@@ -6600,20 +9018,26 @@ end; $$;
 
 CREATE FUNCTION public.get_roommate_messages_v2(p_conversation_id uuid) RETURNS TABLE(id uuid, conversation_id uuid, sender_id text, content text, seen boolean, created_at timestamp with time zone, edited_at timestamp with time zone, file_url text, file_name text, file_type text, attachments text[], attachment_types text[])
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-BEGIN
-  IF NOT public._can_access_conversation(p_conversation_id) THEN
-    RAISE EXCEPTION 'Not authorized for this conversation';
-  END IF;
+declare
+  v_actor public.profiles;
+begin
+  v_actor := public._current_comm_actor();
+  if v_actor is null or not public._can_access_conversation(p_conversation_id) then
+    raise exception 'Not authorized for this conversation';
+  end if;
 
-  RETURN QUERY
-  SELECT m.id,m.conversation_id,m.sender_id,m.content,m.seen,m.created_at,m.edited_at,
+  return query
+  select m.id,m.conversation_id,m.sender_id,m.content,m.seen,m.created_at,m.edited_at,
          m.file_url,m.file_name,m.file_type,m.attachments,m.attachment_types
-  FROM public.messages m
-  WHERE m.conversation_id=p_conversation_id
-  ORDER BY m.created_at ASC;
-END;
+  from public.messages m
+  where m.conversation_id = p_conversation_id
+    and not (
+      v_actor.user_id = any(coalesce(m.hidden_for, '{}'::text[]))
+    )
+  order by m.created_at;
+end
 $$;
 
 
@@ -6718,35 +9142,33 @@ END; $$;
 
 CREATE FUNCTION public.get_support_messages(p_conversation_id uuid) RETURNS TABLE(id uuid, sender_id text, sender_name text, sender_role text, content text, attachments text[], attachment_types text[], action_type text, action_metadata jsonb, is_read boolean, created_at timestamp with time zone)
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
 declare
   v_actor public.profiles;
   v_conv public.partner_support_conversations;
-  v_staff_ok boolean:=false;
+  v_staff_ok boolean := false;
 begin
-  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  select p.* into v_actor from public.profiles p where p.auth_id=auth.uid()::text limit 1;
   if v_actor.user_id is null then raise exception 'Authentication required'; end if;
-  select * into v_conv from public.partner_support_conversations where id=p_conversation_id;
+  select c.* into v_conv from public.partner_support_conversations c where c.id=p_conversation_id;
   if v_conv.id is null then raise exception 'Conversation not found'; end if;
   if v_actor.role='staff' then
-    select exists(select 1 from public.staff_permissions sp where sp.staff_id=v_actor.user_id and sp.permission='support' and coalesce(sp.is_active,true)=true and sp.revoked_at is null) into v_staff_ok;
+    select exists(select 1 from public.staff_permissions sp where sp.staff_id=v_actor.user_id and sp.permission='support' and coalesce(sp.is_active,true) and sp.revoked_at is null) into v_staff_ok;
   end if;
   if not (
-    v_actor.user_id=v_conv.partner_id
-    or v_actor.user_id=v_conv.assigned_staff_id
-    or v_actor.user_id=v_conv.assigned_field_officer_id
-    or v_actor.role in ('admin','creator')
+    v_actor.user_id=v_conv.partner_id or v_actor.user_id=v_conv.assigned_staff_id
+    or v_actor.user_id=v_conv.assigned_field_officer_id or v_actor.role in ('admin','creator')
     or (v_staff_ok and v_conv.assigned_staff_id is null)
   ) then raise exception 'Not authorised'; end if;
   return query
-  select m.id,m.sender_id,coalesce(p.full_name,p.username,'WeHouse'),m.sender_role,m.content,m.attachments,m.attachment_types,m.action_type,m.action_metadata,m.is_read,m.created_at
+  select m.id,m.sender_id,coalesce(p.full_name,p.username,'WeHouse'),m.sender_role,
+    m.content,m.attachments,m.attachment_types,m.action_type,m.action_metadata,m.is_read,m.created_at
   from public.partner_support_messages m
   left join public.profiles p on p.user_id=m.sender_id
   where m.conversation_id=p_conversation_id
   order by m.created_at;
-end;
-$$;
+end $$;
 
 
 --
@@ -6777,28 +9199,23 @@ CREATE TABLE public.conversations (
 
 CREATE FUNCTION public.get_user_conversations(p_user_id text) RETURNS SETOF public.conversations
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE a public.profiles;
-BEGIN
+declare a public.profiles;
+begin
   a:=public._current_comm_actor();
-  IF a IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
-  IF p_user_id IS DISTINCT FROM a.user_id THEN RAISE EXCEPTION 'User identity mismatch'; END IF;
-
-  RETURN QUERY
-    SELECT c.*
-    FROM public.conversations c
-    WHERE (c.participant_a=a.user_id OR c.participant_b=a.user_id)
-      AND public._can_access_conversation(c.id)
-      AND public._conversation_route_allowed(c.id,a.user_id)
-      AND (
-        (c.participant_a=a.user_id AND (c.hidden_at_a IS NULL OR c.last_message_at>c.hidden_at_a))
-        OR
-        (c.participant_b=a.user_id AND (c.hidden_at_b IS NULL OR c.last_message_at>c.hidden_at_b))
-      )
-    ORDER BY c.last_message_at DESC NULLS LAST,c.created_at DESC;
-END;
-$$;
+  if a is null then raise exception 'Authentication required'; end if;
+  if p_user_id is distinct from a.user_id then raise exception 'User identity mismatch'; end if;
+  return query
+    select c.* from public.conversations c
+    where (c.participant_a=a.user_id or c.participant_b=a.user_id)
+      and public._can_access_conversation(c.id)
+      and public._conversation_route_allowed(c.id,a.user_id)
+      and exists(select 1 from public.messages m where m.conversation_id=c.id)
+      and ((c.participant_a=a.user_id and (c.hidden_at_a is null or c.last_message_at>c.hidden_at_a))
+        or (c.participant_b=a.user_id and (c.hidden_at_b is null or c.last_message_at>c.hidden_at_b)))
+    order by c.last_message_at desc nulls last,c.created_at desc;
+end $$;
 
 
 --
@@ -6807,27 +9224,37 @@ $$;
 
 CREATE FUNCTION public.get_worker_marketplace_trust(p_worker_id text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE
-  v_worker public.profiles; v_identity public.worker_identity_checks; v_enabled boolean:=false; v_min_jobs integer:=5; v_min_rating numeric:=4.5; v_max_cancel numeric:=20; v_block_disputes boolean:=true; v_completed integer:=0; v_worker_cancelled integer:=0; v_open_disputes integer:=0; v_cancel_rate numeric:=0; v_trusted boolean:=false;
-BEGIN
-  SELECT * INTO v_worker FROM public.profiles
-  WHERE user_id=p_worker_id AND role='worker' AND worker_status='verified' AND worker_verified=true AND available=true AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
-  IF v_worker IS NULL THEN RETURN jsonb_build_object('reviewed',false,'trusted',false); END IF;
-  SELECT * INTO v_identity FROM public.worker_identity_checks WHERE worker_id=p_worker_id;
-  SELECT COALESCE(lower(value) IN('true','1','yes','on'),false) INTO v_enabled FROM public.platform_settings WHERE key='worker_trust_enabled' AND is_active=true LIMIT 1;
-  SELECT COALESCE(NULLIF(value,''),'5')::integer INTO v_min_jobs FROM public.platform_settings WHERE key='worker_trusted_min_completed_jobs' AND is_active=true LIMIT 1;
-  SELECT COALESCE(NULLIF(value,''),'4.5')::numeric INTO v_min_rating FROM public.platform_settings WHERE key='worker_trusted_min_rating' AND is_active=true LIMIT 1;
-  SELECT COALESCE(NULLIF(value,''),'20')::numeric INTO v_max_cancel FROM public.platform_settings WHERE key='worker_trusted_max_cancel_rate' AND is_active=true LIMIT 1;
-  SELECT COALESCE(lower(value) IN('true','1','yes','on'),true) INTO v_block_disputes FROM public.platform_settings WHERE key='worker_trusted_block_open_disputes' AND is_active=true LIMIT 1;
-  SELECT count(*) INTO v_completed FROM public.worker_bookings WHERE worker_id=p_worker_id AND status='approved_released';
-  SELECT count(*) INTO v_worker_cancelled FROM public.worker_bookings WHERE worker_id=p_worker_id AND status='cancelled' AND cancelled_by=p_worker_id;
-  SELECT count(*) INTO v_open_disputes FROM public.worker_bookings WHERE worker_id=p_worker_id AND status='disputed';
-  IF v_completed+v_worker_cancelled>0 THEN v_cancel_rate:=round((v_worker_cancelled::numeric*100)/(v_completed+v_worker_cancelled),2); END IF;
-  v_trusted:=COALESCE(v_enabled,false) AND COALESCE(v_identity.status='passed',false) AND v_completed>=COALESCE(v_min_jobs,5) AND COALESCE(v_worker.rating,0)>=COALESCE(v_min_rating,4.5) AND v_cancel_rate<=COALESCE(v_max_cancel,20) AND (NOT COALESCE(v_block_disputes,true) OR v_open_disputes=0);
-  RETURN jsonb_build_object('reviewed',true,'face_check_passed',COALESCE(v_identity.status='passed',false),'trusted',v_trusted,'trusted_enabled',COALESCE(v_enabled,false),'completed_jobs',v_completed,'rating',COALESCE(v_worker.rating,0),'review_count',COALESCE(v_worker.review_count,0),'worker_cancel_rate',v_cancel_rate,'open_disputes',v_open_disputes,'label',CASE WHEN v_trusted THEN 'WeHouse Trusted' ELSE 'WeHouse Reviewed' END);
-END; $$;
+declare
+  v_worker public.profiles; v_enabled boolean:=false; v_min_jobs integer:=5;
+  v_min_rating numeric:=4.5; v_max_cancel numeric:=20; v_block_disputes boolean:=true;
+  v_completed integer:=0; v_worker_cancelled integer:=0; v_open_disputes integer:=0;
+  v_cancel_rate numeric:=0; v_trusted boolean:=false;
+begin
+  select * into v_worker from public.profiles where user_id=p_worker_id and role='worker'
+    and worker_status='verified' and worker_verified=true and available=true
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_worker is null then return jsonb_build_object('reviewed',false,'trusted',false); end if;
+  select coalesce(lower(value) in('true','1','yes','on'),false) into v_enabled from public.platform_settings where key='worker_trust_enabled' and is_active=true limit 1;
+  select coalesce(nullif(value,''),'5')::integer into v_min_jobs from public.platform_settings where key='worker_trusted_min_completed_jobs' and is_active=true limit 1;
+  select coalesce(nullif(value,''),'4.5')::numeric into v_min_rating from public.platform_settings where key='worker_trusted_min_rating' and is_active=true limit 1;
+  select coalesce(nullif(value,''),'20')::numeric into v_max_cancel from public.platform_settings where key='worker_trusted_max_cancel_rate' and is_active=true limit 1;
+  select coalesce(lower(value) in('true','1','yes','on'),true) into v_block_disputes from public.platform_settings where key='worker_trusted_block_open_disputes' and is_active=true limit 1;
+  select count(*) into v_completed from public.worker_bookings where worker_id=p_worker_id and status='approved_released';
+  select count(*) into v_worker_cancelled from public.worker_bookings where worker_id=p_worker_id and status='cancelled' and cancelled_by=p_worker_id;
+  select count(*) into v_open_disputes from public.worker_bookings where worker_id=p_worker_id and status='disputed';
+  if v_completed+v_worker_cancelled>0 then v_cancel_rate:=round((v_worker_cancelled::numeric*100)/(v_completed+v_worker_cancelled),2); end if;
+  v_trusted:=coalesce(v_enabled,false) and v_completed>=coalesce(v_min_jobs,5)
+    and coalesce(v_worker.rating,0)>=coalesce(v_min_rating,4.5)
+    and v_cancel_rate<=coalesce(v_max_cancel,20)
+    and (not coalesce(v_block_disputes,true) or v_open_disputes=0);
+  return jsonb_build_object('reviewed',true,'trusted',v_trusted,'trusted_enabled',coalesce(v_enabled,false),
+    'completed_jobs',v_completed,'rating',coalesce(v_worker.rating,0),'review_count',coalesce(v_worker.review_count,0),
+    'worker_cancel_rate',v_cancel_rate,'open_disputes',v_open_disputes,
+    'label',case when v_trusted then 'WeHouse Trusted' else 'WeHouse Reviewed' end);
+end;
+$$;
 
 
 --
@@ -6888,10 +9315,32 @@ CREATE FUNCTION public.guard_retired_worker_identity_fields() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
-BEGIN
-  IF NULLIF(BTRIM(COALESCE(NEW.gov_id_type,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(NEW.gov_id_number,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(NEW.gov_id_photo_url,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(NEW.selfie_photo_url,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(NEW.identity_provider,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(NEW.identity_reference,'')),'') IS NOT NULL THEN RAISE EXCEPTION 'Government/external identity fields are retired. Use the private WeHouse automatic face check.'; END IF;
-  RETURN NEW;
-END; $$;
+begin
+  if tg_op = 'INSERT' then
+    if nullif(btrim(coalesce(new.gov_id_type,'')),'') is not null
+      or nullif(btrim(coalesce(new.gov_id_number,'')),'') is not null
+      or nullif(btrim(coalesce(new.gov_id_photo_url,'')),'') is not null
+      or nullif(btrim(coalesce(new.selfie_photo_url,'')),'') is not null
+      or nullif(btrim(coalesce(new.identity_provider,'')),'') is not null
+      or nullif(btrim(coalesce(new.identity_reference,'')),'') is not null
+    then raise exception 'Government/external identity fields are retired. Use the private WeHouse automatic face check.';
+    end if;
+  elsif (new.gov_id_type,new.gov_id_number,new.gov_id_photo_url,new.selfie_photo_url,new.identity_provider,new.identity_reference)
+        is distinct from
+        (old.gov_id_type,old.gov_id_number,old.gov_id_photo_url,old.selfie_photo_url,old.identity_provider,old.identity_reference)
+    and (
+      nullif(btrim(coalesce(new.gov_id_type,'')),'') is not null
+      or nullif(btrim(coalesce(new.gov_id_number,'')),'') is not null
+      or nullif(btrim(coalesce(new.gov_id_photo_url,'')),'') is not null
+      or nullif(btrim(coalesce(new.selfie_photo_url,'')),'') is not null
+      or nullif(btrim(coalesce(new.identity_provider,'')),'') is not null
+      or nullif(btrim(coalesce(new.identity_reference,'')),'') is not null
+    )
+  then raise exception 'Government/external identity fields are retired. Use the private WeHouse automatic face check.';
+  end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -6941,7 +9390,7 @@ DECLARE
   v_conv public.conversations;
 BEGIN
   v_actor:=public._current_comm_actor();
-  IF v_actor IS NULL OR v_actor.role<>'user' THEN RAISE EXCEPTION 'Regular user account required'; END IF;
+  IF v_actor IS NULL OR not public.current_actor_has_personal_workspace() THEN RAISE EXCEPTION 'Regular user account required'; END IF;
 
   SELECT * INTO v_conv
   FROM public.conversations
@@ -7010,6 +9459,36 @@ CREATE FUNCTION public.increment_unread(p_room_id integer, p_user_id character v
                                                                                                                                                                                       WHERE room_id = p_room_id AND user_id = p_user_id;
                                                                                                                                                                                       END;
                                                                                                                                                                                       $$;
+
+
+--
+-- Name: invalidate_inspection_media_review(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.invalidate_inspection_media_review() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_inspection_id uuid;
+begin
+  if tg_table_name = 'listings' then
+    v_inspection_id := case when tg_op = 'DELETE' then old.inspection_request_id else new.inspection_request_id end;
+  elsif tg_table_name = 'hotels' then
+    v_inspection_id := case when tg_op = 'DELETE' then old.inspection_request_id else new.inspection_request_id end;
+  else
+    select inspection_request_id into v_inspection_id from public.hotels
+    where hotel_id = case when tg_op = 'DELETE' then old.hotel_id else new.hotel_id end;
+  end if;
+  if v_inspection_id is not null then
+    update public.inspection_requests
+    set final_media_reviewed_at = null, final_media_reviewed_by = null, updated_at = now()
+    where id = v_inspection_id;
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -7180,8 +9659,39 @@ $$;
 
 CREATE FUNCTION public.manage_staff_permission(p_staff_id text, p_permission text, p_enabled boolean) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE v_actor public.profiles; v_target public.profiles;
+BEGIN
+  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
+  SELECT * INTO v_target FROM public.profiles WHERE user_id=p_staff_id AND role='staff' AND NOT COALESCE(deleted,false) LIMIT 1;
+  IF v_actor.role NOT IN('creator','admin') THEN RAISE EXCEPTION 'Not authorized'; END IF;
+  IF v_target IS NULL THEN RAISE EXCEPTION 'Staff profile not found'; END IF;
+  IF p_permission NOT IN('operations','finance','support','security','verification','field_officer') THEN RAISE EXCEPTION 'Invalid Staff module'; END IF;
+  IF v_actor.role='admin' AND (v_actor.assigned_state IS DISTINCT FROM v_target.assigned_state OR v_actor.assigned_lga IS DISTINCT FROM v_target.assigned_lga) THEN RAISE EXCEPTION 'Admin can manage only Staff in the same assigned LGA'; END IF;
+  IF p_enabled THEN UPDATE public.staff_permissions SET is_active=false,revoked_at=now() WHERE staff_id=p_staff_id AND is_active=true AND permission<>p_permission; END IF;
+  INSERT INTO public.staff_permissions(staff_id,permission,granted_by,granted_at,revoked_at,is_active)
+  VALUES(p_staff_id,p_permission,v_actor.user_id,CASE WHEN p_enabled THEN now() ELSE NULL END,CASE WHEN p_enabled THEN NULL ELSE now() END,p_enabled)
+  ON CONFLICT(staff_id,permission) DO UPDATE SET granted_by=EXCLUDED.granted_by,granted_at=CASE WHEN EXCLUDED.is_active THEN now() ELSE staff_permissions.granted_at END,revoked_at=CASE WHEN EXCLUDED.is_active THEN NULL ELSE now() END,is_active=EXCLUDED.is_active;
+END;
+$$;
+
+
+--
+-- Name: mark_all_my_notifications_read(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_all_my_notifications_read() RETURNS integer
+    LANGUAGE plpgsql
     SET search_path TO 'public'
-    AS $$ DECLARE v_actor public.profiles; v_target public.profiles; BEGIN SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text AND deleted=false AND suspended=false AND banned=false; SELECT * INTO v_target FROM public.profiles WHERE user_id=p_staff_id AND role='staff' AND deleted=false; IF v_actor.role NOT IN('creator','admin') THEN RAISE EXCEPTION 'Not authorized'; END IF; IF v_target IS NULL THEN RAISE EXCEPTION 'Staff profile not found'; END IF; IF p_permission NOT IN('operations','finance','support','verification','field_officer') THEN RAISE EXCEPTION 'Invalid staff module'; END IF; IF v_actor.role='admin' AND(v_actor.assigned_state IS DISTINCT FROM v_target.assigned_state OR v_actor.assigned_lga IS DISTINCT FROM v_target.assigned_lga) THEN RAISE EXCEPTION 'Admin can manage only staff in the same assigned LGA'; END IF; IF p_enabled THEN UPDATE public.staff_permissions SET is_active=false,revoked_at=now() WHERE staff_id=p_staff_id AND is_active=true AND permission<>p_permission; END IF; INSERT INTO public.staff_permissions(staff_id,permission,granted_by,granted_at,revoked_at,is_active) VALUES(p_staff_id,p_permission,v_actor.user_id,CASE WHEN p_enabled THEN now() ELSE NULL END,CASE WHEN p_enabled THEN NULL ELSE now() END,p_enabled) ON CONFLICT(staff_id,permission) DO UPDATE SET granted_by=EXCLUDED.granted_by,granted_at=CASE WHEN EXCLUDED.is_active THEN now() ELSE staff_permissions.granted_at END,revoked_at=CASE WHEN EXCLUDED.is_active THEN NULL ELSE now() END,is_active=EXCLUDED.is_active; END; $$;
+    AS $$
+declare affected integer;
+begin
+  update public.notifications set read=true,read_at=coalesce(read_at,now())
+  where recipient_id=public.current_profile_user_id() and not read;
+  get diagnostics affected=row_count;
+  return affected;
+end $$;
 
 
 --
@@ -7259,6 +9769,20 @@ $$;
 
 
 --
+-- Name: mark_my_notification_read(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_my_notification_read(p_notification_id uuid) RETURNS boolean
+    LANGUAGE sql
+    SET search_path TO 'public'
+    AS $$
+  update public.notifications set read=true,read_at=coalesce(read_at,now())
+  where id=p_notification_id and recipient_id=public.current_profile_user_id()
+  returning true;
+$$;
+
+
+--
 -- Name: mark_my_reservation_support_contacted(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7285,33 +9809,27 @@ $$;
 
 CREATE FUNCTION public.mark_support_messages_read(p_conversation_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
 declare
   v_actor public.profiles;
   v_conv public.partner_support_conversations;
-  v_staff_ok boolean:=false;
+  v_staff_ok boolean := false;
 begin
-  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
-  select * into v_conv from public.partner_support_conversations where id=p_conversation_id;
+  select p.* into v_actor from public.profiles p where p.auth_id=auth.uid()::text limit 1;
+  select c.* into v_conv from public.partner_support_conversations c where c.id=p_conversation_id;
   if v_actor.user_id is null or v_conv.id is null then raise exception 'Conversation not found'; end if;
   if v_actor.role='staff' then
-    select exists(select 1 from public.staff_permissions sp where sp.staff_id=v_actor.user_id and sp.permission='support' and coalesce(sp.is_active,true)=true and sp.revoked_at is null) into v_staff_ok;
+    select exists(select 1 from public.staff_permissions sp where sp.staff_id=v_actor.user_id and sp.permission='support' and coalesce(sp.is_active,true) and sp.revoked_at is null) into v_staff_ok;
   end if;
   if not (
-    v_actor.user_id=v_conv.partner_id
-    or v_actor.user_id=v_conv.assigned_staff_id
-    or v_actor.user_id=v_conv.assigned_field_officer_id
-    or v_actor.role in ('admin','creator')
+    v_actor.user_id=v_conv.partner_id or v_actor.user_id=v_conv.assigned_staff_id
+    or v_actor.user_id=v_conv.assigned_field_officer_id or v_actor.role in ('admin','creator')
     or (v_staff_ok and v_conv.assigned_staff_id is null)
   ) then raise exception 'Not authorised'; end if;
-  update public.partner_support_messages
-  set is_read=true
-  where conversation_id=p_conversation_id
-    and sender_id<>v_actor.user_id
-    and coalesce(is_read,false)=false;
-end;
-$$;
+  update public.partner_support_messages m set is_read=true
+  where m.conversation_id=p_conversation_id and m.sender_id<>v_actor.user_id and not coalesce(m.is_read,false);
+end $$;
 
 
 --
@@ -7324,6 +9842,568 @@ CREATE FUNCTION public.message_edit_window_minutes() RETURNS integer
     AS $_$
   select greatest(1,least(60,coalesce((select case when trim(value) ~ '^[0-9]+$' then trim(value)::integer end from public.platform_settings where key='message_edit_window_minutes' and is_active=true limit 1),10)));
 $_$;
+
+
+--
+-- Name: normalize_hotel_submission_program(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.normalize_hotel_submission_program() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare normalized_rooms jsonb;
+begin
+  if new.property_type <> 'hotel' or new.hotel_program is null then return new; end if;
+  select coalesce(jsonb_agg(
+    (room - 'rate' - 'max_guests') || jsonb_build_object(
+      'nightly_rate', coalesce(room->'nightly_rate', room->'rate'),
+      'guest_capacity', coalesce(room->'guest_capacity', room->'max_guests')
+    ) order by ordinal
+  ), '[]'::jsonb) into normalized_rooms
+  from jsonb_array_elements(coalesce(new.hotel_program->'room_types', new.hotel_program->'rooms', '[]'::jsonb))
+    with ordinality as submitted(room, ordinal);
+  new.hotel_program := jsonb_set(new.hotel_program - 'rooms', '{room_types}', normalized_rooms, true);
+  return new;
+end $$;
+
+
+--
+-- Name: normalize_notification_context(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.normalize_notification_context() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+if new.type='roommate_interest' then
+new.source_type:=coalesce(new.source_type,'roommate_interest');
+new.source_id:=coalesce(new.source_id,nullif(new.related_id,''));
+new.destination_route:=coalesce(new.destination_route,'roommate');
+new.destination_params:=coalesce(new.destination_params,'{}'::jsonb)||jsonb_build_object('interestId',new.related_id);
+elsif new.type='roommate_match' then
+new.source_type:=coalesce(new.source_type,'roommate_conversation');
+new.source_id:=coalesce(new.source_id,nullif(new.related_id,''));
+new.destination_route:=coalesce(new.destination_route,'messages');
+new.destination_params:=coalesce(new.destination_params,'{}'::jsonb)||jsonb_build_object('conversationId',new.related_id);
+elsif new.type in ('announcement','official_announcement') then
+new.source_type:=coalesce(new.source_type,'announcement');
+new.destination_route:=coalesce(new.destination_route,'notifications');
+new.destination_params:=coalesce(new.destination_params,'{}'::jsonb)||jsonb_build_object('announcementId',new.related_id);
+end if;
+return new;
+end;$$;
+
+
+--
+-- Name: notify_matching_saved_home_searches(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_matching_saved_home_searches() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.deleted_at is not null or new.status<>'available' or new.availability_status<>'available' then return new; end if;
+  if tg_op='UPDATE' and old.status='available' and old.availability_status='available' then return new; end if;
+  insert into public.notifications(recipient_id,type,title,message,related_id,source_type,source_id,destination_route,destination_params,event_key)
+  select s.user_id,'saved_search_match','A new home matches your search',new.title,new.id::text,
+    'listing',new.id::text,'detail',jsonb_build_object('listing_id',new.id),
+    concat('saved-search:',s.id,':listing:',new.id)
+  from public.saved_searches s
+  where s.search_kind='homes' and s.notifications_enabled
+    and (coalesce(s.criteria->>'state','')='' or lower(s.criteria->>'state')=lower(coalesce(new.state,'')))
+    and (coalesce(s.criteria->>'city','')='' or lower(s.criteria->>'city')=lower(coalesce(new.city,'')))
+    and coalesce((s.criteria->>'min_price')::numeric,0)<=new.price
+    and (nullif(s.criteria->>'max_price','') is null or new.price<=(s.criteria->>'max_price')::numeric)
+    and (nullif(s.criteria->>'bedrooms','') is null or new.bedrooms>=(s.criteria->>'bedrooms')::integer)
+    and (coalesce(s.criteria->>'sub_type','')='' or s.criteria->>'sub_type'=coalesce(new.sub_type,''))
+  on conflict(recipient_id,event_key) where event_key is not null do nothing;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: notify_matching_saved_hotel_searches(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_matching_saved_hotel_searches(p_hotel_id integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_hotel public.hotels;
+begin
+  select * into v_hotel from public.hotels where hotel_id=p_hotel_id;
+  if v_hotel.hotel_id is null or v_hotel.status<>'active' or v_hotel.approved_at is null then return; end if;
+  insert into public.notifications(recipient_id,type,title,message,related_id,source_type,source_id,destination_route,destination_params,event_key)
+  select s.user_id,'saved_search_match','A hotel matches your search',v_hotel.name,v_hotel.hotel_id::text,'hotel',v_hotel.hotel_id::text,'hotel_detail',jsonb_build_object('hotel_id',v_hotel.hotel_id),concat('saved-search:',s.id,':hotel:',v_hotel.hotel_id)
+  from public.saved_searches s
+  where s.search_kind='hotels' and s.notifications_enabled
+    and (coalesce(s.criteria->>'state','')='' or lower(s.criteria->>'state')=lower(coalesce(v_hotel.state,'')))
+    and (coalesce(s.criteria->>'city','')='' or lower(s.criteria->>'city')=lower(coalesce(v_hotel.city,'')))
+    and (coalesce(s.criteria->'amenities','[]'::jsonb)='[]'::jsonb or not exists (select 1 from jsonb_array_elements_text(s.criteria->'amenities') wanted where not (wanted.value=any(coalesce(v_hotel.amenities,'{}'::text[])))))
+    and exists (select 1 from public.hotel_rooms room where room.hotel_id=v_hotel.hotel_id and (nullif(s.criteria->>'min_price','') is null or room.price_per_night>=(s.criteria->>'min_price')::numeric) and (nullif(s.criteria->>'max_price','') is null or room.price_per_night<=(s.criteria->>'max_price')::numeric))
+  on conflict(recipient_id,event_key) where event_key is not null do nothing;
+end;
+$$;
+
+
+--
+-- Name: notify_missed_private_call(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_missed_private_call() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.status = 'missed' and old.status is distinct from 'missed' then
+    insert into public.notifications(
+      recipient_id, type, title, message, related_id, read,
+      source_type, source_id, destination_route, destination_params, event_key
+    )
+    select new.callee_id, 'missed_call',
+      'Missed ' || new.call_type || ' call',
+      'You missed a ' || new.call_type || ' call. Open the conversation to call back.',
+      new.id::text, false, new.context_type, new.context_id,
+      'messages', jsonb_build_object('contextType', new.context_type, 'contextId', new.context_id),
+      'missed_call:' || new.id::text
+    where not exists (
+      select 1 from public.notifications n
+      where n.recipient_id = new.callee_id and n.event_key = 'missed_call:' || new.id::text
+    );
+  end if;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: notify_property_operations_activity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_property_operations_activity() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_title text;
+  v_message text;
+  v_recipient text;
+begin
+  if tg_op = 'UPDATE' and new.lifecycle_stage is not distinct from old.lifecycle_stage then
+    return new;
+  end if;
+
+  v_title := case new.lifecycle_stage
+    when 'access_required' then 'Property access evidence required'
+    when 'access_review' then 'Property access evidence ready'
+    when 'inspection_ready' then 'Property ready for Field Operations'
+    when 'inspection' then 'Field visit in progress'
+    when 'visit_reviewed' then 'Field visit submitted'
+    when 'listing_prepared' then 'Listing prepared for final review'
+    when 'live' then 'Property published'
+    when 'changes_requested' then 'Property changes requested'
+    when 'rejected' then 'Property submission rejected'
+    else 'Property lifecycle updated'
+  end;
+  v_message := concat_ws(' · ', nullif(new.property_address, ''), nullif(new.request_code, ''), replace(new.lifecycle_stage, '_', ' '));
+
+  for v_recipient in
+    select distinct p.user_id
+    from public.profiles p
+    where not coalesce(p.deleted, false)
+      and not coalesce(p.suspended, false)
+      and not coalesce(p.banned, false)
+      and (
+        p.role = 'creator'
+        or (p.role = 'admin'
+          and lower(btrim(coalesce(p.assigned_state, ''))) = lower(btrim(coalesce(new.property_state, '')))
+          and lower(btrim(coalesce(p.assigned_lga, ''))) = lower(btrim(coalesce(new.property_city, ''))))
+        or (p.role = 'staff'
+          and lower(btrim(coalesce(p.assigned_state, ''))) = lower(btrim(coalesce(new.property_state, '')))
+          and lower(btrim(coalesce(p.assigned_lga, ''))) = lower(btrim(coalesce(new.property_city, '')))
+          and exists (
+            select 1 from public.staff_permissions sp
+            where sp.staff_id = p.user_id and sp.permission = 'operations' and sp.is_active
+          ))
+      )
+  loop
+    insert into public.notifications(
+      recipient_id, type, title, message, read, related_id, source_type, source_id,
+      destination_route, destination_params, event_key, created_at
+    ) values (
+      v_recipient, 'property_' || new.lifecycle_stage, v_title, v_message, false,
+      new.id::text, 'inspection_request', new.id::text, 'operations_properties',
+      jsonb_build_object('inspection_id', new.id, 'request_code', new.request_code, 'lifecycle_stage', new.lifecycle_stage),
+      'operations_property:' || new.id::text || ':' || new.lifecycle_stage, now()
+    ) on conflict (recipient_id, event_key) where event_key is not null do nothing;
+  end loop;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: notify_reservation_operations_activity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_reservation_operations_activity() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_listing public.listings;
+  v_title text;
+  v_recipient text;
+  v_state_key text;
+begin
+  if tg_op = 'UPDATE'
+     and new.status is not distinct from old.status
+     and new.rent_payment_status is not distinct from old.rent_payment_status then
+    return new;
+  end if;
+
+  select * into v_listing from public.listings where id::text = new.listing_id::text;
+  if v_listing is null then return new; end if;
+
+  v_title := case
+    when new.status = 'ready_for_move_in' then 'Booking ready for handover'
+    when new.status = 'occupied' then 'Move-in recorded'
+    when new.rent_payment_status in ('paid', 'upfront_paid') then 'Rent payment verified'
+    when tg_op = 'INSERT' then 'New property reservation'
+    else 'Reservation status updated'
+  end;
+  v_state_key := coalesce(new.status, 'unknown') || ':' || coalesce(new.rent_payment_status, 'unknown');
+
+  for v_recipient in
+    select distinct p.user_id
+    from public.profiles p
+    where not coalesce(p.deleted, false)
+      and not coalesce(p.suspended, false)
+      and not coalesce(p.banned, false)
+      and (
+        p.role = 'creator'
+        or (p.role = 'admin'
+          and lower(btrim(coalesce(p.assigned_state, ''))) = lower(btrim(coalesce(v_listing.state, '')))
+          and lower(btrim(coalesce(p.assigned_lga, ''))) = lower(btrim(coalesce(v_listing.city, ''))))
+        or (p.role = 'staff'
+          and lower(btrim(coalesce(p.assigned_state, ''))) = lower(btrim(coalesce(v_listing.state, '')))
+          and lower(btrim(coalesce(p.assigned_lga, ''))) = lower(btrim(coalesce(v_listing.city, '')))
+          and exists (
+            select 1 from public.staff_permissions sp
+            where sp.staff_id = p.user_id and sp.permission = 'operations' and sp.is_active
+          ))
+      )
+  loop
+    insert into public.notifications(
+      recipient_id, type, title, message, read, related_id, source_type, source_id,
+      destination_route, destination_params, event_key, created_at
+    ) values (
+      v_recipient, 'reservation_' || coalesce(new.status, 'updated'), v_title,
+      concat_ws(' · ', nullif(v_listing.title, ''), nullif(new.booking_code, ''), replace(coalesce(new.status, 'updated'), '_', ' ')),
+      false, new.id::text, 'reservation', new.id::text, 'operations_inbox',
+      jsonb_build_object('reservation_id', new.id, 'booking_code', new.booking_code, 'status', new.status),
+      'operations_reservation:' || new.id::text || ':' || v_state_key, now()
+    ) on conflict (recipient_id, event_key) where event_key is not null do nothing;
+  end loop;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: notify_saved_hotel_searches_from_hotel(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_saved_hotel_searches_from_hotel() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$ begin
+  if new.status='active' and new.approved_at is not null and (tg_op='INSERT' or old.status is distinct from new.status or old.approved_at is distinct from new.approved_at) then perform public.notify_matching_saved_hotel_searches(new.hotel_id); end if;
+  return new;
+end $$;
+
+
+--
+-- Name: notify_saved_hotel_searches_from_room(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_saved_hotel_searches_from_room() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$ begin perform public.notify_matching_saved_hotel_searches(new.hotel_id); return new; end $$;
+
+
+--
+-- Name: notify_shared_housing_member_event(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_shared_housing_member_event() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  group_row public.shared_housing_groups;
+  listing_title text;
+  actor_name text;
+begin
+  select * into group_row from public.shared_housing_groups where id=new.group_id;
+  select title into listing_title from public.listings where id=group_row.listing_id;
+  select coalesce(full_name, username, 'Your roommate') into actor_name
+    from public.profiles where user_id=coalesce(group_row.created_by,new.user_id);
+
+  if tg_op='INSERT' and new.invitation_status='invited' then
+    insert into public.notifications(
+      recipient_id,type,title,message,related_id,read,source_type,source_id,
+      destination_route,destination_params,event_key
+    ) values (
+      new.user_id,'shared_home_invite','Shared home invitation',
+      actor_name||' invited you to share '||coalesce(listing_title,'a home')||'.',
+      new.group_id::text,false,'shared_housing',new.group_id,'my_reservations',
+      jsonb_build_object('sharedGroupId',new.group_id),
+      'shared_home_invite:'||new.group_id::text||':'||new.user_id
+    ) on conflict (recipient_id,event_key) where event_key is not null do nothing;
+  elsif tg_op='UPDATE' and new.invitation_status is distinct from old.invitation_status
+    and new.invitation_status in ('accepted','declined') then
+    insert into public.notifications(
+      recipient_id,type,title,message,related_id,read,source_type,source_id,
+      destination_route,destination_params,event_key
+    ) values (
+      group_row.created_by,'shared_home_response',
+      case when new.invitation_status='accepted' then 'Shared home accepted' else 'Shared home declined' end,
+      case when new.invitation_status='accepted'
+        then 'Your roommate accepted the invitation for '||coalesce(listing_title,'the selected home')||'.'
+        else 'Your roommate declined the invitation for '||coalesce(listing_title,'the selected home')||'.' end,
+      new.group_id::text,false,'shared_housing',new.group_id,'my_reservations',
+      jsonb_build_object('sharedGroupId',new.group_id),
+      'shared_home_response:'||new.group_id::text||':'||new.invitation_status
+    ) on conflict (recipient_id,event_key) where event_key is not null do nothing;
+  elsif tg_op='UPDATE' and new.payment_status='paid'
+    and old.payment_status is distinct from 'paid' then
+    insert into public.notifications(
+      recipient_id,type,title,message,related_id,read,source_type,source_id,
+      destination_route,destination_params,event_key
+    )
+    select member.user_id,'shared_home_payment','Roommate share updated',
+      'A payment share for '||coalesce(listing_title,'your shared home')||' was confirmed.',
+      new.group_id::text,false,'shared_housing',new.group_id,'my_reservations',
+      jsonb_build_object('sharedGroupId',new.group_id),
+      'shared_home_payment:'||new.group_id::text||':'||new.id::text
+    from public.shared_housing_members member
+    where member.group_id=new.group_id and member.user_id<>new.user_id
+    on conflict (recipient_id,event_key) where event_key is not null do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: notify_worker_booking_lifecycle(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_worker_booking_lifecycle() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare conversation_id uuid; recipient text; event_title text; event_message text;
+begin
+  select id into conversation_id from public.booking_conversations where booking_id=new.id limit 1;
+  if tg_op='INSERT' then
+    recipient:=new.worker_id;
+    event_title:='New service request';
+    event_message:='A customer requested '||coalesce(new.service_type,'your service')||'.';
+  elsif new.status is distinct from old.status then
+    if new.status='waiting_payment' then recipient:=new.user_id;event_title:='Price ready for approval';event_message:='The Worker entered an agreed price of ₦'||trim(to_char(new.negotiated_amount,'FM999,999,999,990'))||'.';
+    elsif new.status='confirmed' then recipient:=new.worker_id;event_title:='Service payment confirmed';event_message:='The customer secured payment for this job.';
+    elsif new.status='in_progress' then recipient:=new.user_id;event_title:='Work started';event_message:=coalesce(new.service_type,'Your service')||' is now in progress.';
+    elsif new.status='completed_pending_approval' then recipient:=new.user_id;event_title:='Review completed work';event_message:='The Worker marked the job complete. Review it before releasing payment.';
+    elsif new.status in ('approved_released','cancelled','refunded') then recipient:=new.user_id;event_title:='Service booking updated';event_message:='Your '||coalesce(new.service_type,'service')||' booking is now '||replace(new.status,'_',' ')||'.';
+    else return new; end if;
+  else return new; end if;
+  if recipient is null then return new; end if;
+  insert into public.notifications(
+    recipient_id,type,title,message,related_id,read,source_type,source_id,
+    destination_route,destination_params,event_key
+  ) values (
+    recipient,'service_booking',event_title,event_message,new.id::text,false,
+    'worker_booking',new.id,'messages',
+    jsonb_build_object('conversationId',conversation_id,'bookingId',new.id),
+    'worker_booking:'||new.id::text||':'||new.status||':'||recipient
+  ) on conflict(recipient_id,event_key) where event_key is not null do nothing;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: open_my_reservation_conversation(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.open_my_reservation_conversation(p_context_type text, p_context_id text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  actor public.profiles;
+  result_id uuid;
+  snapshot jsonb;
+  display_subject text;
+begin
+  select * into actor from public.profiles
+  where auth_id=auth.uid()::text and not coalesce(deleted,false)
+    and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if actor.user_id is null then raise exception 'Active WeHouse account required'; end if;
+
+  if p_context_type in ('apartment_reservation','reservation') then
+    select to_jsonb(r)||jsonb_build_object(
+      'reservation_id',r.id,'listing_title',coalesce(l.title,'Property reservation'),
+      'listing_city',l.city,'listing_state',l.state
+    ), coalesce(l.title,case when r.stay_type='short_let' then 'Short Let' else 'Long Stay' end)
+    into snapshot,display_subject
+    from public.reservations r
+    left join public.listings l on l.listing_id=r.listing_id or l.id::text=r.listing_id
+    where r.id=p_context_id and r.user_id=actor.user_id limit 1;
+  elsif p_context_type='hotel_booking' then
+    select to_jsonb(b)||jsonb_build_object('hotel_name',h.name),coalesce(h.name,'Hotel stay')
+    into snapshot,display_subject
+    from public.hotel_bookings b join public.hotels h on h.hotel_id=b.hotel_id
+    where b.booking_id::text=p_context_id and b.user_id=actor.user_id limit 1;
+  else
+    raise exception 'Reservation context is invalid';
+  end if;
+  if snapshot is null then raise exception 'Reservation was not found'; end if;
+
+  select id into result_id from public.partner_support_conversations
+  where partner_id=actor.user_id and channel_kind='reservation_operations'
+    and context_type=p_context_type and context_id=p_context_id limit 1;
+  if result_id is null then
+    insert into public.partner_support_conversations(
+      partner_id,requester_role,subject,status,category,context_type,context_id,
+      context_snapshot,priority,channel_kind,created_at,updated_at
+    ) values(
+      actor.user_id,actor.role,display_subject,'open','reservation_operations',
+      p_context_type,p_context_id,snapshot,'normal','reservation_operations',now(),now()
+    ) returning id into result_id;
+  else
+    update public.partner_support_conversations set subject=display_subject,
+      context_snapshot=snapshot,updated_at=now() where id=result_id;
+  end if;
+  return result_id;
+end $$;
+
+
+--
+-- Name: owner_set_hotel_team_member(integer, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.owner_set_hotel_team_member(p_hotel_id integer, p_email text, p_role text, p_enabled boolean DEFAULT true) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_owner public.profiles; v_member public.profiles;
+begin
+  select * into v_owner from public.profiles where auth_id=auth.uid()::text and role='property_partner' and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false);
+  if v_owner is null or not exists(select 1 from public.hotels where hotel_id=p_hotel_id and owner_id=v_owner.user_id) then raise exception 'Hotel owner access required'; end if;
+  if p_role not in('manager','staff') then raise exception 'Choose Manager or Hotel Staff'; end if;
+  select * into v_member from public.profiles where lower(email)=lower(btrim(p_email)) and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_member is null then raise exception 'No active WeHouse account uses that email'; end if;
+  if v_member.user_id=v_owner.user_id then raise exception 'The hotel owner already has full access'; end if;
+  insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,status,invited_by,updated_at,revoked_at)
+  values(p_hotel_id,v_member.user_id,p_role,case when p_enabled then 'active' else 'revoked' end,v_owner.user_id,now(),case when p_enabled then null else now() end)
+  on conflict(hotel_id,member_user_id) do update set hotel_role=excluded.hotel_role,status=excluded.status,invited_by=excluded.invited_by,updated_at=now(),revoked_at=excluded.revoked_at;
+  return true;
+end $$;
+
+
+--
+-- Name: partner_set_hotel_inventory_range(integer, date, date, integer, boolean, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.partner_set_hotel_inventory_range(p_room_id integer, p_start_date date, p_end_date date, p_available_quantity integer, p_closed boolean DEFAULT false, p_rate_override integer DEFAULT NULL::integer, p_note text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_room public.hotel_rooms; v_count integer; v_role text; v_user text;
+begin
+  select * into v_room from public.hotel_rooms where room_id=p_room_id;
+  if v_room is null then raise exception 'Room type not found'; end if;
+  v_role:=public.current_actor_hotel_role(v_room.hotel_id);
+  if v_role not in('owner','manager') then raise exception 'Hotel owner or Manager access required'; end if;
+  select user_id into v_user from public.profiles where auth_id=auth.uid()::text;
+  if p_start_date<current_date or p_end_date<p_start_date or p_end_date>p_start_date+366 then raise exception 'Choose a valid date range up to one year'; end if;
+  if p_available_quantity<0 or p_available_quantity>v_room.total_rooms then raise exception 'Availability must be within this room type quantity'; end if;
+  if p_rate_override is not null and p_rate_override<=0 then raise exception 'Rate override must be positive'; end if;
+  insert into public.hotel_inventory_daily(hotel_id,room_id,inventory_date,available_quantity,rate_override,closed,note,updated_by,updated_at)
+  select v_room.hotel_id,v_room.room_id,d,p_available_quantity,p_rate_override,coalesce(p_closed,false),nullif(btrim(coalesce(p_note,'')),''),v_user,now() from generate_series(p_start_date,p_end_date,interval '1 day') d
+  on conflict(room_id,inventory_date) do update set available_quantity=excluded.available_quantity,rate_override=excluded.rate_override,closed=excluded.closed,note=excluded.note,updated_by=excluded.updated_by,updated_at=now();
+  get diagnostics v_count=row_count; return v_count;
+end $$;
+
+
+--
+-- Name: partner_transition_hotel_booking(integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.partner_transition_hotel_booking(p_booking_id integer, p_status text) RETURNS public.hotel_bookings
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_booking public.hotel_bookings; v_role text;
+begin
+  select * into v_booking from public.hotel_bookings where booking_id=p_booking_id for update;
+  if v_booking is null then raise exception 'Hotel booking not found'; end if;
+  v_role:=public.current_actor_hotel_role(v_booking.hotel_id);
+  if v_role not in('owner','manager','staff') then raise exception 'Hotel operations access required'; end if;
+  if p_status='checked_in' and not(v_booking.status='confirmed' and v_booking.payment_status='paid' and v_booking.check_in<=current_date) then raise exception 'Only a paid confirmed arrival can be checked in';
+  elsif p_status='completed' and not(v_booking.status='checked_in' and v_booking.payment_status='paid' and v_booking.check_out<=current_date) then raise exception 'Only a paid checked-in stay reaching departure can be completed';
+  elsif p_status not in('checked_in','completed') then raise exception 'Unsupported hotel booking transition'; end if;
+  update public.hotel_bookings set status=p_status,updated_at=now() where booking_id=p_booking_id returning * into v_booking;
+  return v_booking;
+end $$;
+
+
+--
+-- Name: hotel_rooms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hotel_rooms (
+    room_id integer NOT NULL,
+    hotel_id integer NOT NULL,
+    room_type text NOT NULL,
+    description text,
+    price_per_night integer NOT NULL,
+    max_guests integer DEFAULT 2,
+    bed_type text,
+    images text[] DEFAULT '{}'::text[],
+    amenities text[] DEFAULT '{}'::text[],
+    total_rooms integer DEFAULT 1,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: partner_update_hotel_room(integer, text, text, integer, integer, text, integer, text[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.partner_update_hotel_room(p_room_id integer, p_room_type text, p_description text, p_price_per_night integer, p_max_guests integer, p_bed_type text, p_total_rooms integer, p_amenities text[] DEFAULT NULL::text[], p_images text[] DEFAULT NULL::text[]) RETURNS public.hotel_rooms
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_room public.hotel_rooms; v_role text;
+begin
+  select * into v_room from public.hotel_rooms where room_id=p_room_id for update;
+  if v_room is null then raise exception 'Room type not found'; end if;
+  v_role:=public.current_actor_hotel_role(v_room.hotel_id);
+  if v_role not in('owner','manager') then raise exception 'Hotel owner or Manager access required'; end if;
+  if nullif(btrim(p_room_type),'') is null or coalesce(p_price_per_night,0)<=0 or coalesce(p_max_guests,0)<1 or coalesce(p_total_rooms,0)<0 then raise exception 'Valid room name, rate, capacity and quantity are required'; end if;
+  update public.hotel_rooms set room_type=btrim(p_room_type),description=nullif(btrim(coalesce(p_description,'')),''),price_per_night=p_price_per_night,max_guests=p_max_guests,bed_type=nullif(btrim(coalesce(p_bed_type,'')),''),total_rooms=p_total_rooms,amenities=coalesce(p_amenities,amenities),images=coalesce(p_images,images),updated_at=now() where room_id=p_room_id returning * into v_room;
+  return v_room;
+end $$;
 
 
 --
@@ -7439,6 +10519,39 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: prevent_privileged_self_review(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prevent_privileged_self_review() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor text:=public.current_profile_user_id(); v_new jsonb:=to_jsonb(new); v_old jsonb:=to_jsonb(old);
+begin
+  if actor is null then return new; end if;
+  if tg_table_name='listings'
+     and (v_new->>'approved_by' is distinct from v_old->>'approved_by' or (v_old->>'status' is distinct from v_new->>'status' and v_new->>'status' in('available','rejected')))
+     and actor in(coalesce(v_new->>'owner_id',''),coalesce(v_new->>'partner_id','')) then
+    raise exception 'Another authorized person must review your listing';
+  elsif tg_table_name='profiles'
+     and (v_new->>'worker_status' in('verified','rejected') or coalesce((v_new->>'worker_verified')::boolean,false))
+     and (v_new->>'worker_status' is distinct from v_old->>'worker_status' or v_new->>'worker_verified' is distinct from v_old->>'worker_verified')
+     and actor=v_new->>'user_id' then
+    raise exception 'Another authorized person must review your Worker verification';
+  elsif tg_table_name='reservations'
+     and v_new->>'status'='refunded' and v_old->>'status' is distinct from v_new->>'status' and actor=v_new->>'user_id' then
+    raise exception 'Another authorized person must process your refund';
+  elsif tg_table_name='inspection_requests'
+     and v_new->>'access_evidence_status' in('verified','rejected')
+     and v_old->>'access_evidence_status' is distinct from v_new->>'access_evidence_status'
+     and actor=v_new->>'owner_id' then
+    raise exception 'Another authorized person must review your property evidence';
+  end if;
+  return new;
+end $$;
 
 
 --
@@ -7606,6 +10719,34 @@ $$;
 
 
 --
+-- Name: prune_my_activity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prune_my_activity() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_recipient text := public.current_profile_user_id();
+  v_deleted integer := 0;
+begin
+  if v_recipient is null then raise exception 'Authenticated profile required'; end if;
+  delete from public.notifications
+  where recipient_id = v_recipient
+    and (
+      created_at < now() - interval '90 days'
+      or (
+        type !~* '(security|device_login|payment|payout|earning|dispute|refund)'
+        and (created_at < now() - interval '30 days' or (read and created_at < now() - interval '7 days'))
+      )
+    );
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$$;
+
+
+--
 -- Name: record_bank_account_change(text, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7759,6 +10900,26 @@ $$;
 
 
 --
+-- Name: refresh_my_property_access_challenge(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_my_property_access_challenge(p_request_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_actor public.profiles; v_code text;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='property_partner' limit 1;
+  if v_actor is null then raise exception 'Property Partner account required'; end if;
+  v_code:=upper(substring(replace(gen_random_uuid()::text,'-','') from 1 for 6));
+  update public.inspection_requests set access_challenge_code=v_code,access_challenge_expires_at=now()+interval '7 days',
+    access_evidence_status='required',updated_at=now() where id=p_request_id and owner_id=v_actor.user_id and published_at is null;
+  if not found then raise exception 'Property request not found'; end if;
+  return jsonb_build_object('code',v_code,'expires_at',now()+interval '7 days');
+end $$;
+
+
+--
 -- Name: refresh_my_roommate_search(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7777,7 +10938,7 @@ begin
   where auth_id = auth.uid()::text
   limit 1;
 
-  if v_actor is null or v_actor.role <> 'user' then
+  if v_actor is null or not public.current_actor_has_personal_workspace() then
     raise exception 'Regular user required';
   end if;
   if coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
@@ -7826,7 +10987,7 @@ begin
     from public.profiles c
     join public.roommate_preferences cp on cp.user_id = c.user_id
     where c.user_id <> v_actor.user_id
-      and c.role = 'user'
+      and c.account_kind = 'consumer'
       and coalesce(c.profile_complete,false)=true
       and coalesce(c.deleted,false)=false
       and coalesce(c.suspended,false)=false
@@ -7930,6 +11091,150 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'amount_refunded', v_escrow.amount_total);
 END;
+$$;
+
+
+--
+-- Name: register_current_device(text, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.register_current_device(p_device_id text, p_device text, p_os text, p_browser text, p_existing_session_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_auth_id text := (select auth.uid())::text;
+  v_user_id text;
+  v_auth_session_id text := nullif((select auth.jwt() ->> 'session_id'), '');
+  v_row public.user_sessions%rowtype;
+  v_has_trusted_device boolean := false;
+  v_has_any_trusted_device boolean := false;
+  v_status text;
+  v_new_device boolean;
+begin
+  if v_auth_id is null or v_auth_session_id is null then
+    raise exception 'Authentication session is required';
+  end if;
+  if p_device_id is null or length(trim(p_device_id)) < 16 or length(p_device_id) > 128 then
+    raise exception 'A valid device identifier is required';
+  end if;
+
+  v_user_id := public.current_profile_user_id();
+  if v_user_id is null then raise exception 'WeHouse profile not found'; end if;
+
+  select * into v_row
+  from public.user_sessions
+  where auth_session_id = v_auth_session_id
+    and user_id = v_user_id
+    and auth_id = v_auth_id
+  limit 1;
+
+  if found then
+    update public.user_sessions
+    set last_seen = now(),
+        device_id = p_device_id,
+        device = left(coalesce(nullif(trim(p_device), ''), 'Device'), 120),
+        os = left(coalesce(nullif(trim(p_os), ''), 'Unknown'), 120),
+        browser = left(coalesce(nullif(trim(p_browser), ''), 'Unknown'), 120)
+    where id = v_row.id
+    returning * into v_row;
+    return jsonb_build_object(
+      'session_id', v_row.id,
+      'trust_status', v_row.trust_status,
+      'new_device', false
+    );
+  end if;
+
+  if p_existing_session_id is not null then
+    select * into v_row
+    from public.user_sessions
+    where id = p_existing_session_id
+      and user_id = v_user_id
+      and auth_id = v_auth_id
+      and is_active = true
+      and auth_session_id is null
+    limit 1;
+
+    if found then
+      update public.user_sessions
+      set auth_session_id = v_auth_session_id,
+          device_id = p_device_id,
+          trust_status = 'trusted',
+          last_seen = now(),
+          device = left(coalesce(nullif(trim(p_device), ''), 'Device'), 120),
+          os = left(coalesce(nullif(trim(p_os), ''), 'Unknown'), 120),
+          browser = left(coalesce(nullif(trim(p_browser), ''), 'Unknown'), 120)
+      where id = v_row.id
+      returning * into v_row;
+      return jsonb_build_object(
+        'session_id', v_row.id,
+        'trust_status', 'trusted',
+        'new_device', false
+      );
+    end if;
+  end if;
+
+  select exists(
+    select 1 from public.user_sessions
+    where user_id = v_user_id
+      and device_id = p_device_id
+      and trust_status = 'trusted'
+  ) into v_has_trusted_device;
+
+  select exists(
+    select 1 from public.user_sessions
+    where user_id = v_user_id
+      and trust_status = 'trusted'
+  ) into v_has_any_trusted_device;
+
+  v_new_device := v_has_any_trusted_device and not v_has_trusted_device;
+  v_status := case when v_new_device then 'pending' else 'trusted' end;
+
+  insert into public.user_sessions(
+    user_id, auth_id, device_id, auth_session_id, device, os, browser,
+    is_active, is_current, last_seen, trust_status
+  ) values (
+    v_user_id, v_auth_id, p_device_id, v_auth_session_id,
+    left(coalesce(nullif(trim(p_device), ''), 'Device'), 120),
+    left(coalesce(nullif(trim(p_os), ''), 'Unknown'), 120),
+    left(coalesce(nullif(trim(p_browser), ''), 'Unknown'), 120),
+    true, true, now(), v_status
+  ) returning * into v_row;
+
+  if v_status = 'pending' then
+    insert into public.notifications(
+      recipient_id, type, title, message, related_id, source_type, source_id,
+      destination_route, destination_params, event_key
+    )
+    select
+      v_user_id,
+      'new_device_login',
+      'New device signed in',
+      concat_ws(' · ', v_row.device, v_row.os, v_row.browser),
+      v_row.id::text,
+      'security',
+      v_row.id::text,
+      'security',
+      jsonb_build_object(
+        'session_id', v_row.id,
+        'device', v_row.device,
+        'os', v_row.os,
+        'browser', v_row.browser,
+        'login_time', v_row.login_time
+      ),
+      'new_device_login:' || v_row.id::text
+    where not exists (
+      select 1 from public.notifications
+      where event_key = 'new_device_login:' || v_row.id::text
+    );
+  end if;
+
+  return jsonb_build_object(
+    'session_id', v_row.id,
+    'trust_status', v_status,
+    'new_device', v_new_device
+  );
+end;
 $$;
 
 
@@ -8116,6 +11421,45 @@ BEGIN
   RETURN jsonb_build_object('success',true,'partner_id',v_e.partner_id,'amount',v_e.net_amount,'status','available');
 END;
 $$;
+
+
+--
+-- Name: service_subcategories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.service_subcategories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    category_id uuid NOT NULL,
+    name text NOT NULL,
+    icon text DEFAULT ''::text,
+    sort_order integer DEFAULT 0,
+    is_active boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: rename_service_subcategory(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.rename_service_subcategory(p_subcategory_id uuid, p_name text) RETURNS public.service_subcategories
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor public.profiles;old_name text;result public.service_subcategories;
+begin
+  select * into actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if actor is null or not public.is_current_creator() then raise exception 'Creator authorization required';end if;
+  if nullif(btrim(p_name),'') is null then raise exception 'Service name is required';end if;
+  select name into old_name from public.service_subcategories where id=p_subcategory_id for update;
+  if old_name is null then raise exception 'Service not found';end if;
+  update public.service_subcategories set name=btrim(p_name),updated_at=now() where id=p_subcategory_id returning * into result;
+  update public.worker_bookings set service_type=result.name where service_subcategory_id=p_subcategory_id or(service_subcategory_id is null and lower(btrim(coalesce(service_type,'')))=lower(btrim(old_name)));
+  update public.profiles p set worker_skills=(select coalesce(jsonb_agg(case when lower(btrim(skill))=lower(btrim(old_name)) then result.name else skill end),'[]'::jsonb) from jsonb_array_elements_text(coalesce(p.worker_skills,'[]'::jsonb)) skill),updated_at=now()
+  where exists(select 1 from jsonb_array_elements_text(coalesce(p.worker_skills,'[]'::jsonb)) skill where lower(btrim(skill))=lower(btrim(old_name)));
+  return result;
+end $$;
 
 
 --
@@ -8346,6 +11690,25 @@ $$;
 
 
 --
+-- Name: require_independent_field_evidence(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.require_independent_field_evidence() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if new.status in ('completed', 'approved')
+     and old.status is distinct from new.status
+     and cardinality(coalesce(new.field_photo_urls, array[]::text[])) < 4 then
+    raise exception 'At least 4 independent Field Operations photos are required';
+  end if;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: reserve_lga_booking_code(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8399,6 +11762,198 @@ begin
  update public.private_calls set status=case when p_accept then 'accepted' else 'declined' end,answered_at=case when p_accept then now() else null end,ended_at=case when p_accept then null else now() end where id=p_call_id;
  return public.get_private_call_details(p_call_id);
 end; $$;
+
+
+--
+-- Name: respond_to_device_login(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.respond_to_device_login(p_session_id uuid, p_approved boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_auth_id text := (select auth.uid())::text;
+  v_user_id text;
+  v_current_auth_session_id text := nullif((select auth.jwt() ->> 'session_id'), '');
+  v_current public.user_sessions%rowtype;
+  v_target public.user_sessions%rowtype;
+  v_status text := case when p_approved then 'trusted' else 'rejected' end;
+begin
+  if v_auth_id is null or v_current_auth_session_id is null then
+    raise exception 'Authentication session is required';
+  end if;
+  v_user_id := public.current_profile_user_id();
+
+  select * into v_current
+  from public.user_sessions
+  where user_id = v_user_id
+    and auth_id = v_auth_id
+    and auth_session_id = v_current_auth_session_id
+    and is_active = true
+    and trust_status = 'trusted'
+  limit 1;
+  if not found then
+    raise exception 'Use another trusted device to review this login';
+  end if;
+
+  select * into v_target
+  from public.user_sessions
+  where id = p_session_id
+    and user_id = v_user_id
+    and auth_id = v_auth_id
+  for update;
+  if not found then raise exception 'Device login not found'; end if;
+  if v_target.id = v_current.id or v_target.auth_session_id = v_current_auth_session_id then
+    raise exception 'A new device cannot approve itself';
+  end if;
+  if v_target.trust_status <> 'pending' then
+    return jsonb_build_object('session_id', v_target.id, 'trust_status', v_target.trust_status);
+  end if;
+
+  update public.user_sessions
+  set trust_status = v_status,
+      trust_reviewed_at = now(),
+      trust_reviewed_by_session_id = v_current.id,
+      is_active = case when p_approved then is_active else false end,
+      is_current = case when p_approved then is_current else false end,
+      logout_time = case when p_approved then logout_time else now() end
+  where id = v_target.id;
+
+  update public.notifications
+  set read = true, read_at = coalesce(read_at, now())
+  where recipient_id = v_user_id
+    and type = 'new_device_login'
+    and source_id = v_target.id::text;
+
+  return jsonb_build_object('session_id', v_target.id, 'trust_status', v_status);
+end;
+$$;
+
+
+--
+-- Name: respond_to_my_roommate_interest(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.respond_to_my_roommate_interest(p_interest_id uuid, p_response text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_interest public.roommate_search_results;
+  v_conv uuid;
+begin
+  if p_response not in ('accepted','declined') then raise exception 'Response must be accepted or declined'; end if;
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if v_actor is null or not public.current_actor_has_personal_workspace() or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then
+    raise exception 'Active regular user required';
+  end if;
+  select * into v_interest from public.roommate_search_results
+  where id=p_interest_id and matched_user_id=v_actor.user_id and status='accepted'
+  for update;
+  if v_interest is null then raise exception 'Roommate interest not found'; end if;
+
+  insert into public.roommate_search_results(searcher_id,matched_user_id,match_score,status,created_at,updated_at)
+  values(v_actor.user_id,v_interest.searcher_id,v_interest.match_score,p_response,now(),now())
+  on conflict(searcher_id,matched_user_id) do update
+    set status=excluded.status,updated_at=now();
+
+  update public.notifications set read=true
+  where recipient_id=v_actor.user_id and type='roommate_interest' and related_id=v_interest.id::text;
+
+  if p_response='accepted' then
+    select c.id into v_conv from public.conversations c
+    where c.conversation_type='roommate'
+      and ((c.participant_a=v_actor.user_id and c.participant_b=v_interest.searcher_id)
+        or (c.participant_b=v_actor.user_id and c.participant_a=v_interest.searcher_id))
+    limit 1;
+    if v_conv is null then
+      insert into public.conversations(participant_a,participant_b,status,conversation_type,subject,created_at,last_message_at,unread_a,unread_b)
+      values(v_actor.user_id,v_interest.searcher_id,'active','roommate','Roommate Match',now(),now(),0,0)
+      returning id into v_conv;
+    end if;
+    insert into public.notifications(recipient_id,type,title,message,related_id,read)
+    select v_interest.searcher_id,'roommate_match','Roommate interest accepted',
+      coalesce(nullif(v_actor.full_name,''),nullif(v_actor.username,''),'Your match')||' accepted your interest. You can now chat.',
+      v_conv::text,false
+    where not exists(
+      select 1 from public.notifications n
+      where n.recipient_id=v_interest.searcher_id and n.type='roommate_match' and n.related_id=v_conv::text
+    );
+  end if;
+  return v_conv;
+end
+$$;
+
+
+--
+-- Name: respond_to_shared_housing_invite(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.respond_to_shared_housing_invite(p_group_id uuid, p_accept boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare actor text := public.current_profile_user_id();
+begin
+  update public.shared_housing_members set invitation_status=case when p_accept then 'accepted' else 'declined' end,updated_at=now()
+  where group_id=p_group_id and user_id=actor and invitation_status='invited';
+  if not found then raise exception 'Pending shared-home invitation not found'; end if;
+  update public.shared_housing_groups set status=case when p_accept then 'ready' else 'cancelled' end,updated_at=now() where id=p_group_id;
+  return public.get_my_shared_housing_group(p_group_id);
+end;
+$$;
+
+
+--
+-- Name: respond_to_worker_work_post_confirmation(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.respond_to_worker_work_post_confirmation(p_post_id uuid, p_confirm boolean) RETURNS public.worker_showcase_posts
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_post public.worker_showcase_posts;
+  v_booking public.worker_bookings;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if v_actor is null then raise exception 'Profile not found'; end if;
+  select * into v_post from public.worker_showcase_posts
+    where id=p_post_id and deleted_at is null and booking_id is not null for update;
+  if v_post is null then raise exception 'Linked Work Post not found'; end if;
+  select * into v_booking from public.worker_bookings where id=v_post.booking_id;
+  if v_booking is null or v_booking.user_id<>v_actor.user_id or v_booking.worker_id<>v_post.worker_id or v_booking.status<>'approved_released' then
+    raise exception 'Only the customer from this completed job can confirm this Work Post';
+  end if;
+  if v_post.job_confirmation_status<>'pending' then raise exception 'This Work Post confirmation has already been answered'; end if;
+
+  update public.worker_showcase_posts set
+    job_confirmation_status=case when p_confirm then 'confirmed' else 'declined' end,
+    verified_job=p_confirm,
+    job_confirmed_by=v_actor.user_id,
+    job_confirmed_at=now()
+  where id=v_post.id returning * into v_post;
+
+  update public.notifications set read=true,read_at=coalesce(read_at,now())
+    where recipient_id=v_actor.user_id and event_key='work-post-confirmation:'||v_post.id::text;
+  insert into public.notifications(
+    recipient_id,type,title,message,related_id,source_type,source_id,
+    destination_route,destination_params,event_key
+  ) values(
+    v_post.worker_id,
+    case when p_confirm then 'work_post_confirmed' else 'work_post_declined' end,
+    case when p_confirm then 'Customer confirmed your work post' else 'Customer did not confirm your work post' end,
+    case when p_confirm then 'This post can now show Completed through WeHouse.' else 'The post remains public as an ordinary Work Post without a WeHouse job badge.' end,
+    v_post.id::text,'worker_work_post',v_post.id::text,'worker-dashboard',
+    jsonb_build_object('work_post_id',v_post.id,'booking_id',v_booking.id),
+    'work-post-response:'||v_post.id::text
+  ) on conflict(recipient_id,event_key) where event_key is not null do nothing;
+  return v_post;
+end;
+$$;
 
 
 --
@@ -8502,32 +12057,154 @@ CREATE FUNCTION public.review_my_staff_listing(p_listing_id uuid, p_decision tex
 
 CREATE FUNCTION public.review_my_staff_worker_v2(p_worker_id text, p_status text, p_reason text DEFAULT NULL::text, p_notes text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_worker public.profiles; v_ver public.worker_verifications; v_identity public.worker_identity_checks;
+DECLARE
+  v_actor public.profiles;
+  v_worker public.profiles;
+  v_ver public.worker_verifications;
 BEGIN
   SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role<>'staff' OR COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN RAISE EXCEPTION 'Active Staff account required'; END IF;
-  IF NOT public.current_staff_has_permission('verification') THEN RAISE EXCEPTION 'Trusted Verification Staff permission required'; END IF;
-  IF p_status NOT IN('verified','rejected') THEN RAISE EXCEPTION 'Invalid review outcome'; END IF;
+  IF v_actor IS NULL OR v_actor.role<>'staff' OR COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN
+    RAISE EXCEPTION 'Active Staff account required';
+  END IF;
+  IF NOT public.current_staff_has_permission('verification') THEN RAISE EXCEPTION 'Verification Staff permission required'; END IF;
+  IF p_status NOT IN ('verified','rejected') THEN RAISE EXCEPTION 'Invalid review outcome'; END IF;
   IF p_status='rejected' AND NULLIF(BTRIM(COALESCE(p_reason,'')),'') IS NULL THEN RAISE EXCEPTION 'Rejection reason is required'; END IF;
+
   SELECT * INTO v_worker FROM public.profiles WHERE user_id=p_worker_id AND role='worker' FOR UPDATE;
   IF v_worker IS NULL THEN RAISE EXCEPTION 'Worker not found'; END IF;
-  IF v_actor.assigned_state IS NULL OR lower(COALESCE(v_worker.state,''))<>lower(v_actor.assigned_state) OR(v_actor.assigned_lga IS NOT NULL AND lower(COALESCE(v_worker.local_government,v_worker.city,''))<>lower(v_actor.assigned_lga)) THEN RAISE EXCEPTION 'Worker is outside your assigned branch'; END IF;
+  IF v_actor.assigned_state IS NULL
+     OR lower(COALESCE(v_worker.state,''))<>lower(v_actor.assigned_state)
+     OR v_actor.assigned_lga IS NULL
+     OR lower(COALESCE(v_worker.local_government,v_worker.city,''))<>lower(v_actor.assigned_lga) THEN
+    RAISE EXCEPTION 'Worker is outside your assigned branch';
+  END IF;
+
   SELECT * INTO v_ver FROM public.worker_verifications WHERE worker_id=p_worker_id LIMIT 1;
   IF p_status='verified' THEN
     IF v_worker.worker_status<>'profile_under_review' THEN RAISE EXCEPTION 'Worker is not in the review queue'; END IF;
-    SELECT * INTO v_identity FROM public.worker_identity_checks WHERE worker_id=p_worker_id;
-    IF v_identity IS NULL OR v_identity.status<>'passed' THEN RAISE EXCEPTION 'Automatic private face check has not passed'; END IF;
-    IF NOT public.worker_test_passed(p_worker_id) THEN RAISE EXCEPTION 'Worker readiness check has not been passed'; END IF;
-    IF v_ver IS NULL OR NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NULL THEN RAISE EXCEPTION 'Professional work evidence is incomplete'; END IF;
+    IF NOT public.worker_identity_is_current(p_worker_id) THEN RAISE EXCEPTION 'The current private face check has not passed'; END IF;
+    IF v_ver IS NULL OR NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NULL THEN
+      RAISE EXCEPTION 'Professional work evidence is incomplete';
+    END IF;
   END IF;
-  UPDATE public.profiles SET worker_status=p_status,worker_verified=(p_status='verified'),available=(p_status='verified'),updated_at=now(),updated_by=v_actor.user_id WHERE user_id=p_worker_id;
-  UPDATE public.worker_verifications SET status=p_status,reviewed_by=v_actor.user_id,review_notes=COALESCE(NULLIF(BTRIM(p_notes),''),NULLIF(BTRIM(p_reason),'')),reviewed_at=now(),updated_at=now() WHERE id=v_ver.id;
+
+  UPDATE public.profiles
+  SET worker_status=p_status,worker_verified=(p_status='verified'),available=(p_status='verified'),updated_at=now(),updated_by=v_actor.user_id
+  WHERE user_id=p_worker_id;
+  UPDATE public.worker_verifications
+  SET status=p_status,reviewed_by=v_actor.user_id,
+      review_notes=COALESCE(NULLIF(BTRIM(p_notes),''),NULLIF(BTRIM(p_reason),'')),
+      reviewed_at=now(),updated_at=now()
+  WHERE id=v_ver.id;
   INSERT INTO public.worker_verification_reviews(worker_id,reviewer_id,reviewer_role,action,rejection_reason,notes,created_at)
-  VALUES(p_worker_id,v_actor.user_id,v_actor.role,p_status,CASE WHEN p_status='rejected' THEN BTRIM(p_reason) ELSE NULL END,NULLIF(BTRIM(COALESCE(p_notes,'')),''),now());
+  VALUES(p_worker_id,v_actor.user_id,v_actor.role,p_status,
+    CASE WHEN p_status='rejected' THEN BTRIM(p_reason) ELSE NULL END,
+    NULLIF(BTRIM(COALESCE(p_notes,'')),''),now());
   RETURN true;
-END; $$;
+END;
+$$;
+
+
+--
+-- Name: review_property_access_evidence(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.review_property_access_evidence(p_request_id uuid, p_decision text, p_note text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_actor public.profiles;
+  v_request public.inspection_requests;
+  v_status text;
+  v_override boolean;
+begin
+  select * into v_actor
+  from public.profiles
+  where auth_id=auth.uid()::text
+    and role in ('staff','admin','creator')
+    and not coalesce(deleted,false)
+    and not coalesce(suspended,false)
+    and not coalesce(banned,false)
+  limit 1;
+
+  if v_actor is null or (v_actor.role='staff' and not public.current_staff_has_permission('operations')) then
+    raise exception 'Operations Staff, Admin or Creator access required';
+  end if;
+
+  select * into v_request from public.inspection_requests where id=p_request_id for update;
+  if v_request.id is null then raise exception 'Property request not found'; end if;
+  if v_actor.role<>'creator' and not public.current_actor_in_scope(v_request.property_state,v_request.property_city) then
+    raise exception 'Property is outside your assigned area';
+  end if;
+  if v_request.access_evidence_video_path is null then raise exception 'No private access recording to review'; end if;
+  if p_decision not in ('accept','reject') then raise exception 'Choose accept or reject'; end if;
+  if p_decision='reject' and nullif(btrim(coalesce(p_note,'')),'') is null then
+    raise exception 'Explain what the Property Partner must record again';
+  end if;
+
+  v_override := v_request.access_evidence_status in ('verified','rejected');
+  if v_override and coalesce(v_request.assigned_field_officer_id,v_request.field_officer_id,v_request.assigned_to) is not null then
+    raise exception 'Access evidence cannot be overridden after a Field Officer has been assigned';
+  end if;
+  if v_actor.role='staff' and v_request.access_evidence_status<>'submitted' then
+    raise exception 'Admin or Creator authority is required to override an evidence decision';
+  end if;
+  if v_actor.role in ('admin','creator') and v_request.access_evidence_status not in ('submitted','verified','rejected') then
+    raise exception 'No submitted evidence decision is available';
+  end if;
+
+  v_status:=case when p_decision='accept' then 'verified' else 'rejected' end;
+  update public.inspection_requests
+  set access_evidence_status=v_status,
+      access_evidence_verified_at=case when v_status='verified' then now() else null end,
+      access_evidence_verified_by=case when v_status='verified' then v_actor.user_id else null end,
+      rejection_reason=case when v_status='rejected' then btrim(p_note) else null end,
+      updated_at=now()
+  where id=p_request_id;
+
+  insert into public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
+  values(
+    case when v_override then 'PROPERTY_ACCESS_EVIDENCE_OVERRIDDEN'
+         when v_status='verified' then 'PROPERTY_ACCESS_EVIDENCE_ACCEPTED'
+         else 'PROPERTY_ACCESS_EVIDENCE_REJECTED' end,
+    'inspection_requests',p_request_id::text,
+    jsonb_build_object(
+      'decision',p_decision,
+      'note',nullif(btrim(coalesce(p_note,'')),''),
+      'previous_status',v_request.access_evidence_status,
+      'reviewer_role',v_actor.role
+    )::text,
+    v_actor.user_id,v_actor.email
+  );
+  return jsonb_build_object('success',true,'status',v_status,'override',v_override);
+end;
+$$;
+
+
+--
+-- Name: save_my_property_search(text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.save_my_property_search(p_name text, p_search_kind text, p_criteria jsonb) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare actor text := public.current_profile_user_id(); result uuid;
+begin
+  if actor is null then raise exception 'Authenticated profile required'; end if;
+  if p_search_kind not in ('homes','hotels') then raise exception 'Unsupported saved search'; end if;
+  if nullif(btrim(p_name),'') is null then raise exception 'Saved search name is required'; end if;
+  insert into public.saved_searches(user_id,name,search_kind,criteria)
+  values(actor,btrim(p_name),p_search_kind,coalesce(p_criteria,'{}'::jsonb))
+  on conflict(user_id,name,search_kind) do update
+    set criteria=excluded.criteria,notifications_enabled=true,updated_at=now()
+  returning id into result;
+  return result;
+end;
+$$;
 
 
 --
@@ -8541,7 +12218,7 @@ CREATE FUNCTION public.save_my_roommate_preferences(p_gender text, p_gender_pref
 DECLARE v_actor public.profiles; v_row public.roommate_preferences; v_allowed boolean;
 BEGIN
   SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role<>'user' THEN RAISE EXCEPTION 'Roommate matching is available to regular users only'; END IF;
+  IF v_actor IS NULL OR not public.current_actor_has_personal_workspace() THEN RAISE EXCEPTION 'Roommate matching is available to regular users only'; END IF;
   IF COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN RAISE EXCEPTION 'Account is not active'; END IF;
   IF NOT COALESCE(v_actor.profile_complete,false) THEN RAISE EXCEPTION 'Complete your profile first'; END IF;
   IF NULLIF(BTRIM(COALESCE(p_gender,'')),'') IS NULL THEN RAISE EXCEPTION 'Gender is required'; END IF;
@@ -8565,27 +12242,62 @@ $$;
 
 CREATE FUNCTION public.save_my_worker_professional_evidence(p_certificate_path text, p_video_path text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_profile public.profiles; v_paid boolean; v_id uuid;
-BEGIN
- SELECT * INTO v_profile FROM public.profiles WHERE auth_id=auth.uid()::text AND role='worker' AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false LIMIT 1;
- IF v_profile IS NULL THEN RAISE EXCEPTION 'Active Worker account required'; END IF;
- IF v_profile.worker_status='verified' THEN RAISE EXCEPTION 'Live Worker evidence changes require a new review process'; END IF;
- IF NOT COALESCE(v_profile.profile_complete,false) THEN RAISE EXCEPTION 'Complete your professional profile first'; END IF;
- IF NOT EXISTS(SELECT 1 FROM public.worker_service_coverage WHERE worker_id=v_profile.user_id) THEN RAISE EXCEPTION 'Complete your service coverage first'; END IF;
- SELECT EXISTS(SELECT 1 FROM public.booking_payments WHERE user_id=v_profile.user_id AND purpose='worker_verification' AND status IN ('paid','completed')) INTO v_paid;
- IF NOT v_paid THEN RAISE EXCEPTION 'Verified Paystack payment is required first'; END IF;
- IF NOT public.worker_test_passed(v_profile.user_id) THEN RAISE EXCEPTION 'Pass the Worker readiness test first'; END IF;
- IF NULLIF(BTRIM(COALESCE(p_video_path,'')),'') IS NULL THEN RAISE EXCEPTION 'Skill demonstration video is required'; END IF;
- IF split_part(p_video_path,'/',1)<>v_profile.user_id THEN RAISE EXCEPTION 'Invalid Worker video path'; END IF;
- IF NULLIF(BTRIM(COALESCE(p_certificate_path,'')),'') IS NOT NULL AND split_part(p_certificate_path,'/',1)<>v_profile.user_id THEN RAISE EXCEPTION 'Invalid Worker certificate path'; END IF;
- INSERT INTO public.worker_verifications(worker_id,certificate_path,verification_video_url,status,identity_provider,identity_status,submitted_at,created_at,updated_at,gov_id_type,gov_id_number,gov_id_photo_url,selfie_photo_url)
- VALUES(v_profile.user_id,NULLIF(BTRIM(COALESCE(p_certificate_path,'')),''),BTRIM(p_video_path),'evidence_ready','youverify','ready_for_external',NULL,now(),now(),NULL,NULL,NULL,NULL)
- ON CONFLICT(worker_id) DO UPDATE SET certificate_path=EXCLUDED.certificate_path,verification_video_url=EXCLUDED.verification_video_url,status='evidence_ready',identity_provider=CASE WHEN worker_verifications.identity_status='verified' THEN worker_verifications.identity_provider ELSE 'youverify' END,identity_status=CASE WHEN worker_verifications.identity_status='verified' THEN 'verified' ELSE 'ready_for_external' END,identity_reference=CASE WHEN worker_verifications.identity_status='verified' THEN worker_verifications.identity_reference ELSE NULL END,identity_checked_at=CASE WHEN worker_verifications.identity_status='verified' THEN worker_verifications.identity_checked_at ELSE NULL END,identity_failure_reason=NULL,submitted_at=NULL,reviewed_by=NULL,review_notes=NULL,reviewed_at=NULL,gov_id_type=NULL,gov_id_number=NULL,gov_id_photo_url=NULL,selfie_photo_url=NULL,updated_at=now() RETURNING id INTO v_id;
- UPDATE public.profiles SET worker_status='verification_paid',worker_verified=false,available=false,worker_cert_url=NULLIF(BTRIM(COALESCE(p_certificate_path,'')),''),worker_video_url=BTRIM(p_video_path),updated_at=now() WHERE user_id=v_profile.user_id;
- RETURN v_id;
-END; $$;
+declare
+  v_profile public.profiles;
+  v_paid boolean;
+  v_id uuid;
+begin
+  select * into v_profile
+  from public.profiles
+  where auth_id=auth.uid()::text and role='worker'
+    and coalesce(deleted,false)=false
+    and coalesce(suspended,false)=false
+    and coalesce(banned,false)=false
+  limit 1;
+  if v_profile is null then raise exception 'Active Worker account required'; end if;
+  if v_profile.worker_status='verified' then raise exception 'Live Worker evidence changes require a new review process'; end if;
+  if not public.worker_professional_profile_ready(v_profile.user_id) then raise exception 'Complete your professional profile and service coverage first'; end if;
+  if not public.worker_identity_is_current(v_profile.user_id) then raise exception 'Complete the current private WeHouse face check first'; end if;
+
+  select exists(
+    select 1 from public.booking_payments
+    where user_id=v_profile.user_id and purpose='worker_verification' and status in ('paid','completed')
+  ) into v_paid;
+  if not v_paid then raise exception 'Verified Paystack payment is required first'; end if;
+  if nullif(btrim(coalesce(p_video_path,'')),'') is null then raise exception 'Skill demonstration video is required'; end if;
+  if split_part(p_video_path,'/',1)<>v_profile.user_id then raise exception 'Invalid Worker video path'; end if;
+  if nullif(btrim(coalesce(p_certificate_path,'')),'') is not null
+     and split_part(p_certificate_path,'/',1)<>v_profile.user_id then
+    raise exception 'Invalid Worker certificate path';
+  end if;
+
+  insert into public.worker_verifications(
+    worker_id,certificate_path,verification_video_url,status,submitted_at,created_at,updated_at
+  ) values(
+    v_profile.user_id,nullif(btrim(coalesce(p_certificate_path,'')),''),btrim(p_video_path),
+    'evidence_ready',null,now(),now()
+  )
+  on conflict(worker_id) do update set
+    certificate_path=excluded.certificate_path,
+    verification_video_url=excluded.verification_video_url,
+    status='evidence_ready',
+    submitted_at=null,
+    reviewed_by=null,
+    review_notes=null,
+    reviewed_at=null,
+    updated_at=now()
+  returning id into v_id;
+
+  update public.profiles
+  set worker_status='verification_paid',worker_verified=false,available=false,
+      worker_cert_url=nullif(btrim(coalesce(p_certificate_path,'')),''),
+      worker_video_url=btrim(p_video_path),updated_at=now()
+  where user_id=v_profile.user_id;
+  return v_id;
+end;
+$$;
 
 
 --
@@ -8732,7 +12444,7 @@ BEGIN
   INSERT INTO public.financial_audit_logs(
     event_type,user_id,target_user_id,reference_id,reference_type,description,metadata,created_at
   ) VALUES (
-    CASE WHEN v_is_first THEN 'payout_account_added' ELSE 'additional_payout_account_added' END,
+    'bank_account_change',
     p_user_id,p_user_id,v_account.id::text,'bank_account',
     CASE WHEN v_is_first THEN 'First verified payout account added' ELSE 'Additional verified payout account added' END,
     jsonb_build_object(
@@ -8830,7 +12542,14 @@ CREATE TABLE public.messages (
     file_name text,
     file_type text,
     attachments text[] DEFAULT '{}'::text[] NOT NULL,
-    attachment_types text[] DEFAULT '{}'::text[] NOT NULL
+    attachment_types text[] DEFAULT '{}'::text[] NOT NULL,
+    hidden_for text[] DEFAULT '{}'::text[] NOT NULL,
+    ciphertext text,
+    encryption_iv text,
+    encryption_version integer,
+    encrypted_attachments jsonb,
+    reply_to_id uuid,
+    reactions jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -8845,7 +12564,7 @@ CREATE FUNCTION public.send_my_roommate_message(p_conversation_id uuid, p_conten
 declare a public.profiles; m public.messages;
 begin
   select * into a from public.profiles where auth_id=auth.uid()::text limit 1;
-  if a is null or a.role<>'user' then raise exception 'Regular user account required'; end if;
+  if a is null or not public.current_actor_has_personal_workspace() then raise exception 'Regular user account required'; end if;
   if not public._can_access_conversation(p_conversation_id) then raise exception 'Roommate conversation unavailable'; end if;
   if nullif(btrim(p_content),'') is null then raise exception 'Message is required'; end if;
   insert into public.messages(conversation_id,sender_id,content,seen,created_at)
@@ -8862,60 +12581,76 @@ CREATE FUNCTION public.send_my_roommate_message_v2(p_conversation_id uuid, p_con
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-DECLARE
-  v_actor public.profiles;
-  v_conv public.conversations;
-  v_message public.messages;
-  v_path text;
-  v_type text;
-  v_i integer;
-BEGIN
-  v_actor:=public._current_comm_actor();
-  IF v_actor IS NULL OR v_actor.role<>'user' THEN RAISE EXCEPTION 'Regular user account required'; END IF;
-
-  SELECT * INTO v_conv FROM public.conversations WHERE id=p_conversation_id;
-  IF v_conv IS NULL OR v_conv.conversation_type<>'roommate'
-     OR v_actor.user_id NOT IN (v_conv.participant_a,v_conv.participant_b)
-     OR NOT public._can_access_conversation(p_conversation_id) THEN
-    RAISE EXCEPTION 'Roommate conversation unavailable';
-  END IF;
-
-  IF NULLIF(BTRIM(COALESCE(p_content,'')),'') IS NULL AND COALESCE(cardinality(p_attachments),0)=0 THEN
-    RAISE EXCEPTION 'Message, photo or voice note is required';
-  END IF;
-  IF COALESCE(cardinality(p_attachments),0)>6 THEN RAISE EXCEPTION 'A maximum of 6 attachments can be sent at once'; END IF;
-  IF COALESCE(cardinality(p_attachments),0)<>COALESCE(cardinality(p_attachment_types),0) THEN
-    RAISE EXCEPTION 'Attachment metadata mismatch';
-  END IF;
-
-  IF COALESCE(cardinality(p_attachments),0)>0 THEN
-    FOR v_i IN 1..cardinality(p_attachments) LOOP
-      v_path:=p_attachments[v_i];
-      v_type:=COALESCE(p_attachment_types[v_i],'');
-      IF v_path IS NULL OR v_path NOT LIKE p_conversation_id::text||'/%' THEN
-        RAISE EXCEPTION 'Invalid attachment path';
-      END IF;
-      IF v_type NOT LIKE 'image/%' AND v_type NOT LIKE 'audio/%' THEN
-        RAISE EXCEPTION 'Roommate chat supports photos and voice notes only';
-      END IF;
-    END LOOP;
-  END IF;
-
-  INSERT INTO public.messages(conversation_id,sender_id,content,seen,created_at,attachments,attachment_types)
-  VALUES(
-    p_conversation_id,
-    v_actor.user_id,
-    COALESCE(BTRIM(p_content),''),
-    false,
-    now(),
-    COALESCE(p_attachments,'{}'::text[]),
-    COALESCE(p_attachment_types,'{}'::text[])
-  )
-  RETURNING * INTO v_message;
-
-  RETURN v_message;
-END;
+declare
+  actor public.profiles;
+  conv public.conversations;
+  outgoing public.messages;
+  peer_id text;
+  attachment_path text;
+  attachment_type text;
+  i integer;
+begin
+  actor := public._current_comm_actor();
+  if actor is null or not public.current_actor_has_personal_workspace() then raise exception 'Regular user account required'; end if;
+  select * into conv from public.conversations where id = p_conversation_id;
+  if conv is null or conv.conversation_type <> 'roommate'
+     or actor.user_id not in (conv.participant_a, conv.participant_b)
+     or not public._can_access_conversation(p_conversation_id) then
+    raise exception 'Roommate conversation unavailable';
+  end if;
+  peer_id := case when conv.participant_a = actor.user_id then conv.participant_b else conv.participant_a end;
+  if exists (
+    select 1 from public.roommate_user_blocks b
+    where (b.blocker_user_id = actor.user_id and b.blocked_user_id = peer_id)
+       or (b.blocker_user_id = peer_id and b.blocked_user_id = actor.user_id)
+  ) then
+    raise exception 'Messages are blocked in this conversation';
+  end if;
+  if nullif(btrim(coalesce(p_content, '')), '') is null and coalesce(cardinality(p_attachments), 0) = 0 then
+    raise exception 'Message, photo or voice note is required';
+  end if;
+  if coalesce(cardinality(p_attachments), 0) > 6 then raise exception 'A maximum of 6 attachments can be sent at once'; end if;
+  if coalesce(cardinality(p_attachments), 0) <> coalesce(cardinality(p_attachment_types), 0) then raise exception 'Attachment metadata mismatch'; end if;
+  if coalesce(cardinality(p_attachments), 0) > 0 then
+    for i in 1..cardinality(p_attachments) loop
+      attachment_path := p_attachments[i]; attachment_type := coalesce(p_attachment_types[i], '');
+      if attachment_path is null or attachment_path not like p_conversation_id::text || '/%' then raise exception 'Invalid attachment path'; end if;
+      if attachment_type not like 'image/%' and attachment_type not like 'audio/%' then raise exception 'Roommate chat supports photos and voice notes only'; end if;
+    end loop;
+  end if;
+  insert into public.messages(conversation_id, sender_id, content, seen, created_at, attachments, attachment_types)
+  values(p_conversation_id, actor.user_id, coalesce(btrim(p_content), ''), false, now(), coalesce(p_attachments, '{}'::text[]), coalesce(p_attachment_types, '{}'::text[]))
+  returning * into outgoing;
+  return outgoing;
+end;
 $$;
+
+
+--
+-- Name: send_private_encrypted_message(text, uuid, text, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.send_private_encrypted_message(p_conversation_kind text, p_conversation_id uuid, p_ciphertext text, p_encryption_iv text, p_encrypted_attachments jsonb DEFAULT '[]'::jsonb, p_reply_to_id uuid DEFAULT NULL::uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare actor text:=public.current_profile_user_id();message_id uuid;
+begin
+ if actor is null then raise exception 'Active WeHouse profile required'; end if;
+ if nullif(p_ciphertext,'') is null or nullif(p_encryption_iv,'') is null then raise exception 'Encrypted payload is required'; end if;
+ if p_conversation_kind='roommate' then
+  if not exists(select 1 from public.conversations c where c.id=p_conversation_id and actor in(c.participant_a,c.participant_b) and coalesce(c.status,'active')='active') then raise exception 'Conversation access denied'; end if;
+  if p_reply_to_id is not null and not exists(select 1 from public.messages where id=p_reply_to_id and conversation_id=p_conversation_id) then raise exception 'Reply target is not in this conversation'; end if;
+  insert into public.messages(conversation_id,sender_id,content,ciphertext,encryption_iv,encryption_version,encrypted_attachments,reply_to_id) values(p_conversation_id,actor,'[Encrypted message]',p_ciphertext,p_encryption_iv,1,coalesce(p_encrypted_attachments,'[]'::jsonb),p_reply_to_id) returning id into message_id;
+  update public.conversations set last_message='Encrypted message',last_message_at=now(),unread_a=case when participant_a=actor then unread_a else coalesce(unread_a,0)+1 end,unread_b=case when participant_b=actor then unread_b else coalesce(unread_b,0)+1 end where id=p_conversation_id;
+ elsif p_conversation_kind='worker' then
+  if not exists(select 1 from public.booking_conversations c join public.worker_bookings b on b.id=c.booking_id where c.id=p_conversation_id and actor in(c.user_id,c.worker_id) and b.status not in('approved_released','cancelled','refunded')) then raise exception 'This job conversation is closed'; end if;
+  if p_reply_to_id is not null and not exists(select 1 from public.booking_messages where id=p_reply_to_id and conversation_id=p_conversation_id) then raise exception 'Reply target is not in this conversation'; end if;
+  insert into public.booking_messages(conversation_id,sender_id,content,ciphertext,encryption_iv,encryption_version,encrypted_attachments,reply_to_id) values(p_conversation_id,actor,'[Encrypted message]',p_ciphertext,p_encryption_iv,1,coalesce(p_encrypted_attachments,'[]'::jsonb),p_reply_to_id) returning id into message_id;
+  update public.booking_conversations set updated_at=now() where id=p_conversation_id;
+ else raise exception 'Unsupported private conversation kind'; end if;
+ return message_id;
+end $$;
 
 
 --
@@ -9095,6 +12830,41 @@ end; $$;
 
 
 --
+-- Name: set_my_roommate_block(text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_my_roommate_block(p_user_id text, p_blocked boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor public.profiles;
+begin
+  actor := public._current_comm_actor();
+  if actor is null or not public.current_actor_has_personal_workspace() or actor.user_id=p_user_id then
+    raise exception 'Invalid roommate block request';
+  end if;
+  if not exists(select 1 from public.conversations c where c.conversation_type='roommate'
+    and actor.user_id in(c.participant_a,c.participant_b) and p_user_id in(c.participant_a,c.participant_b)) then
+    raise exception 'Roommate connection unavailable';
+  end if;
+  if p_blocked then
+    insert into public.roommate_user_blocks(blocker_user_id,blocked_user_id)
+    values(actor.user_id,p_user_id) on conflict do nothing;
+    delete from public.roommate_search_results
+      where (searcher_id=actor.user_id and matched_user_id=p_user_id)
+         or (searcher_id=p_user_id and matched_user_id=actor.user_id);
+    update public.private_calls set status=case when status='ringing' then 'declined' else 'ended' end,
+      ended_at=coalesce(ended_at,now())
+      where context_type='roommate' and status in('ringing','accepted')
+        and ((caller_id=actor.user_id and callee_id=p_user_id) or (caller_id=p_user_id and callee_id=actor.user_id));
+  else
+    delete from public.roommate_user_blocks where blocker_user_id=actor.user_id and blocked_user_id=p_user_id;
+  end if;
+  return p_blocked;
+end $$;
+
+
+--
 -- Name: set_my_roommate_school_filter(boolean, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9112,7 +12882,7 @@ BEGIN
   WHERE auth_id=auth.uid()::text
   LIMIT 1;
 
-  IF v_actor IS NULL OR v_actor.role<>'user' THEN
+  IF v_actor IS NULL OR not public.current_actor_has_personal_workspace() THEN
     RAISE EXCEPTION 'Roommate matching is available to regular users only';
   END IF;
   IF COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN
@@ -9177,6 +12947,57 @@ begin
   if p_is_available and (w.worker_status<>'verified' or w.worker_verified is distinct from true) then raise exception 'Only verified workers can become available'; end if;
   if p_is_available and not public.worker_identity_is_current(w.user_id) then raise exception 'Repeat your WeHouse identity check before going available'; end if;
   update public.profiles set available=p_is_available,updated_at=now() where id=w.id;
+end $$;
+
+
+--
+-- Name: set_my_worker_work_post_hidden(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_my_worker_work_post_hidden(p_post_id uuid, p_hidden boolean) RETURNS public.worker_showcase_posts
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_worker text; v_post public.worker_showcase_posts;
+begin
+  select p.user_id into v_worker from public.profiles p
+  where p.auth_id=auth.uid()::text and p.role='worker'
+    and coalesce(p.deleted,false)=false and coalesce(p.suspended,false)=false
+    and coalesce(p.banned,false)=false limit 1;
+  if v_worker is null then raise exception 'Active Worker account required'; end if;
+  update public.worker_showcase_posts
+    set hidden_at=case when p_hidden then coalesce(hidden_at,now()) else null end
+    where id=p_post_id and worker_id=v_worker and deleted_at is null
+    returning * into v_post;
+  if v_post is null then raise exception 'Work Post not found'; end if;
+  return v_post;
+end;
+$$;
+
+
+--
+-- Name: set_private_message_reaction(text, uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_private_message_reaction(p_conversation_kind text, p_conversation_id uuid, p_message_id uuid, p_emoji text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare actor text:=public.current_profile_user_id();result jsonb;
+begin
+ if actor is null then raise exception 'Active WeHouse profile required'; end if;
+ if p_emoji is not null and p_emoji not in ('👍','❤️','😂','😮','😢','🙏') then raise exception 'Unsupported reaction'; end if;
+ if p_conversation_kind='roommate' then
+  if not exists(select 1 from public.conversations c where c.id=p_conversation_id and actor in(c.participant_a,c.participant_b) and coalesce(c.status,'active')='active') then raise exception 'Conversation access denied'; end if;
+  update public.messages set reactions=case when nullif(p_emoji,'') is null then coalesce(reactions,'{}'::jsonb)-actor else jsonb_set(coalesce(reactions,'{}'::jsonb),array[actor],to_jsonb(p_emoji),true) end
+   where id=p_message_id and conversation_id=p_conversation_id returning reactions into result;
+ elsif p_conversation_kind='worker' then
+  if not exists(select 1 from public.booking_conversations c where c.id=p_conversation_id and actor in(c.user_id,c.worker_id)) then raise exception 'Conversation access denied'; end if;
+  update public.booking_messages set reactions=case when nullif(p_emoji,'') is null then coalesce(reactions,'{}'::jsonb)-actor else jsonb_set(coalesce(reactions,'{}'::jsonb),array[actor],to_jsonb(p_emoji),true) end
+   where id=p_message_id and conversation_id=p_conversation_id returning reactions into result;
+ else raise exception 'Unsupported private conversation kind'; end if;
+ if result is null then raise exception 'Message was not found'; end if;
+ return result;
 end $$;
 
 
@@ -9555,45 +13376,19 @@ CREATE FUNCTION public.staff_branch_analytics(p_staff_user_id text) RETURNS TABL
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-DECLARE v_staff RECORD; v_permission TEXT;
-BEGIN
-  SELECT assigned_state,assigned_lga,scope INTO v_staff FROM public.profiles WHERE user_id=p_staff_user_id AND role='staff';
-  IF v_staff.assigned_state IS NULL OR v_staff.assigned_lga IS NULL THEN
-    metric:='unassigned'; value:=1; RETURN NEXT; RETURN;
-  END IF;
-  SELECT permission INTO v_permission FROM public.staff_permissions WHERE staff_id=p_staff_user_id AND is_active=true LIMIT 1;
-  IF v_permission='field_officer' THEN
-    metric:='inspections';
-    SELECT COUNT(*)::INTEGER INTO value FROM public.user_inspection_requests uir JOIN public.listings l ON l.id=uir.listing_id WHERE l.state=v_staff.assigned_state AND COALESCE(l.city,l.local_government)=v_staff.assigned_lga AND uir.field_officer_id=p_staff_user_id AND uir.status IN ('scheduled','in_progress');
-    RETURN NEXT;
-  END IF;
-  IF v_permission='support' THEN
-    metric:='open_conversations';
-    SELECT COUNT(*)::INTEGER INTO value
-    FROM public.partner_support_conversations c
-    JOIN public.profiles p ON p.user_id=c.partner_id
-    WHERE c.status NOT IN ('resolved','closed')
-      AND p.state=v_staff.assigned_state
-      AND COALESCE(NULLIF(p.local_government,''),p.city)=v_staff.assigned_lga;
-    RETURN NEXT;
-  END IF;
-  IF v_permission='operations' THEN
-    metric:='pending_listings';
-    SELECT COUNT(*)::INTEGER INTO value FROM public.listings WHERE status='pending_approval' AND state=v_staff.assigned_state AND COALESCE(city,local_government)=v_staff.assigned_lga;
-    RETURN NEXT;
-  END IF;
-  IF v_permission='verification' THEN
-    metric:='pending_workers';
-    SELECT COUNT(*)::INTEGER INTO value FROM public.profiles WHERE role='worker' AND worker_status='pending' AND state=v_staff.assigned_state AND COALESCE(local_government,city)=v_staff.assigned_lga;
-    RETURN NEXT;
-  END IF;
-  IF v_permission='finance' THEN
-    metric:='pending_withdrawals';
-    SELECT COUNT(*)::INTEGER INTO value FROM public.withdrawals w JOIN public.wallets wl ON wl.id=w.wallet_id JOIN public.profiles p ON p.user_id=wl.owner_id WHERE w.status='pending' AND p.state=v_staff.assigned_state AND COALESCE(p.local_government,p.city)=v_staff.assigned_lga;
-    RETURN NEXT;
-  END IF;
-END;
-$$;
+declare v_staff record; v_permission text; v_actor text;
+begin
+  select user_id into v_actor from public.profiles where auth_id=auth.uid()::text and role='staff' and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null or v_actor<>p_staff_user_id then raise exception 'Staff account required'; end if;
+  select assigned_state,assigned_lga,scope into v_staff from public.profiles where user_id=p_staff_user_id and role='staff';
+  if v_staff.assigned_state is null or v_staff.assigned_lga is null then metric:='unassigned'; value:=1; return next; return; end if;
+  select permission into v_permission from public.staff_permissions where staff_id=p_staff_user_id and is_active=true limit 1;
+  if v_permission='field_officer' then metric:='inspections'; select count(*)::integer into value from public.user_inspection_requests uir join public.listings l on l.id=uir.listing_id where l.state=v_staff.assigned_state and coalesce(l.city,l.local_government)=v_staff.assigned_lga and uir.field_officer_id=p_staff_user_id and uir.status in ('scheduled','in_progress'); return next; end if;
+  if v_permission='support' then metric:='open_conversations'; select count(*)::integer into value from public.partner_support_conversations c join public.profiles p on p.user_id=c.partner_id where c.status not in ('resolved','closed') and p.state=v_staff.assigned_state and coalesce(nullif(p.local_government,''),p.city)=v_staff.assigned_lga; return next; end if;
+  if v_permission='operations' then metric:='pending_listings'; select count(*)::integer into value from public.listings where status='pending_approval' and state=v_staff.assigned_state and coalesce(city,local_government)=v_staff.assigned_lga; return next; end if;
+  if v_permission='verification' then metric:='pending_workers'; select count(*)::integer into value from public.profiles where role='worker' and worker_status='pending' and state=v_staff.assigned_state and coalesce(local_government,city)=v_staff.assigned_lga; return next; end if;
+  if v_permission='finance' then metric:='pending_withdrawals'; select count(*)::integer into value from public.withdrawals w join public.wallets wl on wl.id=w.wallet_id join public.profiles p on p.user_id=wl.owner_id where w.status='pending' and p.state=v_staff.assigned_state and coalesce(p.local_government,p.city)=v_staff.assigned_lga; return next; end if;
+end $$;
 
 
 --
@@ -9658,7 +13453,7 @@ CREATE FUNCTION public.start_my_roommate_search() RETURNS public.roommate_prefer
 DECLARE v_actor public.profiles; v_row public.roommate_preferences;
 BEGIN
   SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role<>'user' THEN RAISE EXCEPTION 'Roommate matching is available to regular users only'; END IF;
+  IF v_actor IS NULL OR not public.current_actor_has_personal_workspace() THEN RAISE EXCEPTION 'Roommate matching is available to regular users only'; END IF;
   IF COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN RAISE EXCEPTION 'Account is not active'; END IF;
   IF NOT COALESCE(v_actor.profile_complete,false) THEN RAISE EXCEPTION 'Complete your profile first'; END IF;
   IF COALESCE(v_actor.privacy_search_visible,true)=false OR COALESCE(v_actor.privacy_profile_visible,true)=false THEN RAISE EXCEPTION 'Enable Roommate discovery and profile visibility first'; END IF;
@@ -9670,6 +13465,27 @@ BEGIN
   UPDATE public.roommate_preferences SET active=true,search_status='active',search_started_at=COALESCE(search_started_at,now()),search_expires_at=NULL,updated_at=now() WHERE user_id=v_actor.user_id RETURNING * INTO v_row;
   RETURN v_row;
 END;
+$$;
+
+
+--
+-- Name: start_my_shared_contract_split(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.start_my_shared_contract_split(p_group_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare actor text := public.current_profile_user_id(); group_row public.shared_housing_groups;
+begin
+  select * into group_row from public.shared_housing_groups where id=p_group_id for update;
+  if group_row.created_by<>actor then raise exception 'Only the group creator can start contract payment'; end if;
+  if group_row.reservation_id is null or not exists(select 1 from public.reservations where id=group_row.reservation_id and inspection_result='passed') then raise exception 'Property inspection must pass first'; end if;
+  update public.shared_housing_groups set status='ready',payment_phase='contract_rent',total_amount=contract_total,updated_at=now() where id=p_group_id;
+  update public.shared_housing_members set share_amount=round(group_row.contract_total/2,2),payment_status='not_started',payment_reference=null,paid_at=null,updated_at=now() where group_id=p_group_id;
+  update public.reservations set rent_payment_status='payment_pending',updated_at=now() where id=group_row.reservation_id;
+  return public.get_my_shared_housing_group(p_group_id);
+end;
 $$;
 
 
@@ -9713,17 +13529,36 @@ CREATE FUNCTION public.start_private_call(p_context_type text, p_context_id uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_me text:=public.current_profile_user_id(); v_cap jsonb; v_peer text; v_call public.private_calls;
+declare
+  v_me text := public.current_profile_user_id();
+  v_cap jsonb;
+  v_peer text;
+  v_call public.private_calls;
 begin
- if v_me is null then raise exception 'Authenticated profile required'; end if;
- if p_call_type not in ('audio','video') then raise exception 'Invalid call type'; end if;
- v_cap:=public.get_private_call_capabilities(p_context_type,p_context_id); v_peer:=v_cap->>'peer_id';
- if p_call_type='audio' and coalesce((v_cap->>'allow_audio_calls')::boolean,false)=false then raise exception 'This person is not accepting audio calls'; end if;
- if p_call_type='video' and coalesce((v_cap->>'allow_video_calls')::boolean,false)=false then raise exception 'This person is not accepting video calls'; end if;
- if exists(select 1 from public.private_calls c where c.status in ('ringing','accepted') and (v_me in (c.caller_id,c.callee_id) or v_peer in (c.caller_id,c.callee_id))) then raise exception 'One of you is already in a call'; end if;
- insert into public.private_calls(context_type,context_id,caller_id,callee_id,call_type,status) values(p_context_type,p_context_id,v_me,v_peer,p_call_type,'ringing') returning * into v_call;
- return to_jsonb(v_call)||jsonb_build_object('peer_name',v_cap->>'peer_name','peer_avatar',v_cap->>'peer_avatar');
-end; $$;
+  if v_me is null then raise exception 'Authenticated profile required'; end if;
+  if p_call_type not in ('audio', 'video') then raise exception 'Invalid call type'; end if;
+  v_cap := public.get_private_call_capabilities(p_context_type, p_context_id);
+  v_peer := v_cap ->> 'peer_id';
+  if p_call_type = 'audio' and not coalesce((v_cap ->> 'allow_audio_calls')::boolean, false) then
+    raise exception 'This person is not accepting audio calls';
+  end if;
+  if p_call_type = 'video' and not coalesce((v_cap ->> 'allow_video_calls')::boolean, false) then
+    raise exception 'This person is not accepting video calls';
+  end if;
+  if exists (
+    select 1 from public.private_calls c
+    where c.status in ('ringing', 'accepted')
+      and (v_me in (c.caller_id, c.callee_id) or v_peer in (c.caller_id, c.callee_id))
+  ) then raise exception 'One of you is already in a call'; end if;
+  insert into public.private_calls(context_type, context_id, caller_id, callee_id, call_type, status)
+  values (p_context_type, p_context_id, v_me, v_peer, p_call_type, 'ringing')
+  returning * into v_call;
+  return to_jsonb(v_call) || jsonb_build_object(
+    'peer_name', v_cap ->> 'peer_name',
+    'peer_avatar', v_cap ->> 'peer_avatar'
+  );
+end;
+$$;
 
 
 --
@@ -9736,12 +13571,144 @@ CREATE FUNCTION public.stop_my_roommate_search() RETURNS public.roommate_prefere
     AS $$
 DECLARE v_id text; v_row public.roommate_preferences;
 BEGIN
-  SELECT user_id INTO v_id FROM public.profiles WHERE auth_id=auth.uid()::text AND role='user' AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false LIMIT 1;
+  SELECT user_id INTO v_id FROM public.profiles WHERE auth_id=auth.uid()::text AND account_kind='consumer' AND COALESCE(deleted,false)=false AND COALESCE(suspended,false)=false AND COALESCE(banned,false)=false LIMIT 1;
   IF v_id IS NULL THEN RAISE EXCEPTION 'Regular user account required'; END IF;
   UPDATE public.roommate_preferences SET active=false,search_status='stopped',search_expires_at=NULL,updated_at=now() WHERE user_id=v_id RETURNING * INTO v_row;
   RETURN v_row;
 END;
 $$;
+
+
+--
+-- Name: submit_my_property_access_challenge(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_my_property_access_challenge(p_challenge_id uuid, p_video_path text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'storage'
+    AS $$
+declare v_actor public.profiles; v_row public.property_access_challenges;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='property_partner'
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  select * into v_row from public.property_access_challenges where id=p_challenge_id and partner_id=v_actor.user_id for update;
+  if v_row.id is null then raise exception 'Property access challenge not found'; end if;
+  if v_row.status='submitted' and v_row.video_path is not null then
+    return jsonb_build_object('success',true,'status','submitted','already_submitted',true,'video_path',v_row.video_path);
+  end if;
+  if v_row.status='consumed' then raise exception 'This property was already submitted'; end if;
+  if v_row.status<>'prepared' then raise exception 'Create a new one-use recording code'; end if;
+  if v_row.expires_at<=now() then update public.property_access_challenges set status='expired' where id=v_row.id; raise exception 'The one-use code expired. Create a new code and record again'; end if;
+  if split_part(p_video_path,'/',1)<>v_actor.user_id or split_part(p_video_path,'/',2)<>p_challenge_id::text then raise exception 'Invalid private property access path'; end if;
+  if not exists(select 1 from storage.objects where bucket_id='property-access-private' and name=p_video_path) then raise exception 'Private property access recording was not found'; end if;
+  update public.property_access_challenges set video_path=p_video_path,status='submitted',submitted_at=now() where id=v_row.id;
+  return jsonb_build_object('success',true,'status','submitted','already_submitted',false,'video_path',p_video_path);
+end $$;
+
+
+--
+-- Name: submit_my_property_access_correction(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_my_property_access_correction(p_request_id uuid, p_challenge_id uuid, p_video_path text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'storage'
+    AS $$
+declare v_actor public.profiles; v_request public.inspection_requests;
+  v_challenge public.property_access_challenges; v_previous_path text;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text
+    and role='property_partner' and not coalesce(deleted,false)
+    and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  select * into v_request from public.inspection_requests
+    where id=p_request_id and owner_id=v_actor.user_id for update;
+  if v_request.id is null then raise exception 'Property submission not found'; end if;
+  if v_request.access_evidence_status<>'rejected' or v_request.lifecycle_stage<>'changes_requested'
+    then raise exception 'Replacement evidence is not currently requested'; end if;
+  select * into v_challenge from public.property_access_challenges
+    where id=p_challenge_id and partner_id=v_actor.user_id and request_id=p_request_id for update;
+  if v_challenge.id is null or v_challenge.status<>'prepared'
+    then raise exception 'This one-use correction code is unavailable'; end if;
+  if v_challenge.expires_at<=now() then
+    update public.property_access_challenges set status='expired' where id=p_challenge_id;
+    raise exception 'The one-use code expired. Create a new code and record again';
+  end if;
+  if split_part(p_video_path,'/',1)<>v_actor.user_id or split_part(p_video_path,'/',2)<>p_challenge_id::text
+    then raise exception 'Invalid private property access path'; end if;
+  if not exists(select 1 from storage.objects where bucket_id='property-access-private' and name=p_video_path)
+    then raise exception 'Private property access recording was not found'; end if;
+
+  v_previous_path:=v_request.access_evidence_video_path;
+  update public.property_access_challenges set video_path=p_video_path,status='consumed',
+    submitted_at=now(),consumed_at=now() where id=p_challenge_id;
+  update public.inspection_requests set access_evidence_video_path=p_video_path,
+    access_evidence_status='submitted',access_evidence_submitted_at=now(),
+    access_evidence_verified_at=null,access_evidence_verified_by=null,
+    rejection_reason=null,updated_at=now() where id=p_request_id;
+  insert into public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
+  values('PROPERTY_ACCESS_EVIDENCE_RESUBMITTED','inspection_requests',p_request_id::text,
+    jsonb_build_object('previous_video_path',v_previous_path,'replacement_video_path',p_video_path)::text,
+    v_actor.user_id,v_actor.email);
+  return jsonb_build_object('success',true,'status','submitted');
+end $$;
+
+
+--
+-- Name: submit_my_property_access_evidence(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_my_property_access_evidence(p_request_id uuid, p_video_path text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'storage'
+    AS $$
+declare v_actor public.profiles; v_request public.inspection_requests;
+begin
+  select * into v_actor from public.profiles where auth_id=auth.uid()::text and role='property_partner'
+    and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) limit 1;
+  if v_actor is null then raise exception 'Active Property Partner account required'; end if;
+  if not public.account_identity_is_current(v_actor.user_id) then raise exception 'Complete the private identity check before submitting access evidence'; end if;
+  select * into v_request from public.inspection_requests where id=p_request_id and owner_id=v_actor.user_id for update;
+  if v_request.id is null then raise exception 'Property request not found'; end if;
+  if v_request.access_challenge_expires_at<=now() then raise exception 'This temporary code expired. Request a new code'; end if;
+  if split_part(p_video_path,'/',1)<>v_actor.user_id or split_part(p_video_path,'/',2)<>p_request_id::text then raise exception 'Invalid private access evidence path'; end if;
+  if not exists(select 1 from storage.objects where bucket_id='property-access-private' and name=p_video_path) then raise exception 'Private access evidence upload was not found'; end if;
+  update public.inspection_requests set access_evidence_video_path=p_video_path,access_evidence_status='submitted',
+    access_evidence_submitted_at=now(),updated_at=now() where id=p_request_id;
+  insert into public.audit_logs(action,target_type,target_id,details,admin_id,admin_email)
+  values('PROPERTY_ACCESS_EVIDENCE_SUBMITTED','inspection_requests',p_request_id::text,
+    jsonb_build_object('request_code',v_request.request_code,'relationship',v_request.authority_relationship)::text,v_actor.user_id,v_actor.email);
+  return jsonb_build_object('success',true,'status','submitted');
+end $$;
+
+
+--
+-- Name: submit_my_worker_booking_review(uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.submit_my_worker_booking_review(p_booking_id uuid, p_rating integer, p_comment text DEFAULT NULL::text) RETURNS public.worker_booking_reviews
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor public.profiles;booking public.worker_bookings;result public.worker_booking_reviews;
+begin
+  select * into actor from public.profiles where auth_id=auth.uid()::text limit 1;
+  if actor is null or not public.current_actor_has_personal_workspace() then raise exception 'Personal workspace required';end if;
+  if p_rating not between 1 and 5 then raise exception 'Choose a rating from 1 to 5';end if;
+  select * into booking from public.worker_bookings where id=p_booking_id and user_id=actor.user_id for update;
+  if booking is null then raise exception 'Completed booking not found';end if;
+  if booking.status<>'approved_released' then raise exception 'Review becomes available after the job is completed';end if;
+  insert into public.worker_booking_reviews(booking_id,user_id,worker_id,rating,comment)
+  values(booking.id,actor.user_id,booking.worker_id,p_rating,nullif(btrim(coalesce(p_comment,'')),''))
+  on conflict(booking_id) do update set rating=excluded.rating,comment=excluded.comment,updated_at=now()
+  where worker_booking_reviews.user_id=actor.user_id
+  returning * into result;
+  update public.profiles p set rating=summary.average,review_count=summary.total,updated_at=now()
+  from(select round(avg(r.rating)::numeric,2) average,count(*)::int total from public.worker_booking_reviews r where r.worker_id=booking.worker_id)summary
+  where p.user_id=booking.worker_id;
+  return result;
+end $$;
 
 
 --
@@ -9776,106 +13743,147 @@ END; $_$;
 
 CREATE FUNCTION public.submit_my_worker_verification() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_profile public.profiles; v_ver public.worker_verifications; v_identity public.worker_identity_checks; v_paid boolean:=false;
+DECLARE
+  v_profile public.profiles;
+  v_ver public.worker_verifications;
+  v_paid boolean:=false;
 BEGIN
-  SELECT * INTO v_profile FROM public.profiles WHERE auth_id=auth.uid()::text AND role='worker' AND NOT COALESCE(deleted,false) AND NOT COALESCE(suspended,false) AND NOT COALESCE(banned,false) LIMIT 1;
+  SELECT * INTO v_profile
+  FROM public.profiles
+  WHERE auth_id=auth.uid()::text AND role='worker'
+    AND NOT COALESCE(deleted,false)
+    AND NOT COALESCE(suspended,false)
+    AND NOT COALESCE(banned,false)
+  LIMIT 1;
   IF v_profile IS NULL THEN RAISE EXCEPTION 'Active Worker account required'; END IF;
-  IF NOT public.worker_professional_profile_ready(v_profile.user_id) THEN RAISE EXCEPTION 'Complete your professional profile and service coverage first'; END IF;
-  SELECT * INTO v_identity FROM public.worker_identity_checks WHERE worker_id=v_profile.user_id;
-  IF v_identity IS NULL OR v_identity.status<>'passed' THEN RAISE EXCEPTION 'Pass the automatic private WeHouse face check before submission'; END IF;
-  SELECT EXISTS(SELECT 1 FROM public.booking_payments WHERE user_id=v_profile.user_id AND purpose='worker_verification' AND status IN('paid','completed')) INTO v_paid;
+  IF NOT public.worker_professional_profile_ready(v_profile.user_id) THEN
+    RAISE EXCEPTION 'Complete your professional profile and service coverage first';
+  END IF;
+  IF NOT public.worker_identity_is_current(v_profile.user_id) THEN
+    RAISE EXCEPTION 'Complete the current private WeHouse face check before submission';
+  END IF;
+
+  SELECT EXISTS(
+    SELECT 1 FROM public.booking_payments
+    WHERE user_id=v_profile.user_id AND purpose='worker_verification' AND status IN ('paid','completed')
+  ) INTO v_paid;
   IF NOT v_paid THEN RAISE EXCEPTION 'Confirmed Paystack payment is required before submission'; END IF;
-  IF NOT public.worker_test_passed(v_profile.user_id) THEN RAISE EXCEPTION 'Pass the Worker readiness check before submission'; END IF;
+
   SELECT * INTO v_ver FROM public.worker_verifications WHERE worker_id=v_profile.user_id LIMIT 1;
-  IF v_ver IS NULL OR NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NULL THEN RAISE EXCEPTION 'A work demonstration video is required before review'; END IF;
-  UPDATE public.worker_verifications SET status='profile_under_review',submitted_at=now(),updated_at=now() WHERE id=v_ver.id;
-  UPDATE public.profiles SET worker_status='profile_under_review',worker_verified=false,available=false,updated_at=now() WHERE user_id=v_profile.user_id;
-END; $$;
-
-
---
--- Name: support_inbox(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.support_inbox() RETURNS TABLE(conversation_id uuid, requester_id text, requester_role text, requester_name text, requester_email text, requester_state text, requester_lga text, subject text, status text, category text, context_type text, context_id text, context_snapshot jsonb, priority text, assigned_staff_id text, assigned_staff_name text, last_message text, last_message_time timestamp with time zone, unread_count bigint, created_at timestamp with time zone)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-DECLARE v_actor public.profiles; v_staff_ok boolean:=false;
-BEGIN
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor.user_id IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
-
-  IF v_actor.role='staff' THEN
-    SELECT EXISTS(
-      SELECT 1 FROM public.staff_permissions sp
-      WHERE sp.staff_id=v_actor.user_id
-        AND sp.permission='support'
-        AND COALESCE(sp.is_active,true)=true
-        AND sp.revoked_at IS NULL
-    ) INTO v_staff_ok;
+  IF v_ver IS NULL OR NULLIF(BTRIM(COALESCE(v_ver.verification_video_url,'')),'') IS NULL THEN
+    RAISE EXCEPTION 'A work demonstration video is required before review';
   END IF;
 
-  IF v_actor.role NOT IN ('admin','creator') AND NOT v_staff_ok THEN
-    RAISE EXCEPTION 'Support team access required';
-  END IF;
-
-  RETURN QUERY
-  SELECT
-    c.id,
-    c.partner_id,
-    COALESCE(c.requester_role,p.role),
-    COALESCE(p.full_name,p.username,p.email),
-    p.email,
-    p.state,
-    COALESCE(NULLIF(p.local_government,''),p.city),
-    'WeHouse Support'::text,
-    c.status,
-    c.category,
-    c.context_type,
-    c.context_id,
-    c.context_snapshot,
-    c.priority,
-    c.assigned_staff_id,
-    COALESCE(s.full_name,s.username),
-    (
-      SELECT CASE
-        WHEN NULLIF(BTRIM(m.content),'') IS NOT NULL THEN m.content
-        WHEN COALESCE(cardinality(m.attachments),0)>0 THEN 'Attachment'
-        ELSE '' END
-      FROM public.partner_support_messages m
-      WHERE m.conversation_id=c.id
-      ORDER BY m.created_at DESC LIMIT 1
-    ),
-    (
-      SELECT m.created_at FROM public.partner_support_messages m
-      WHERE m.conversation_id=c.id
-      ORDER BY m.created_at DESC LIMIT 1
-    ),
-    (
-      SELECT COUNT(*) FROM public.partner_support_messages m
-      WHERE m.conversation_id=c.id
-        AND COALESCE(m.is_read,false)=false
-        AND m.sender_id<>v_actor.user_id
-    ),
-    c.created_at
-  FROM public.partner_support_conversations c
-  JOIN public.profiles p ON p.user_id=c.partner_id
-  LEFT JOIN public.profiles s ON s.user_id=c.assigned_staff_id
-  WHERE EXISTS (
-      SELECT 1 FROM public.partner_support_messages first_message
-      WHERE first_message.conversation_id=c.id
-    )
-    AND (v_actor.role='creator' OR (p.state=v_actor.assigned_state AND COALESCE(NULLIF(p.local_government,''),p.city)=v_actor.assigned_lga))
-    AND (v_actor.role<>'staff' OR c.assigned_staff_id IS NULL OR c.assigned_staff_id=v_actor.user_id)
-  ORDER BY
-    CASE WHEN c.assigned_staff_id=v_actor.user_id THEN 0 WHEN c.assigned_staff_id IS NULL THEN 1 ELSE 2 END,
-    (SELECT MAX(m.created_at) FROM public.partner_support_messages m WHERE m.conversation_id=c.id) DESC NULLS LAST,
-    c.updated_at DESC;
-END
+  UPDATE public.worker_verifications
+  SET status='profile_under_review',submitted_at=now(),updated_at=now()
+  WHERE id=v_ver.id;
+  UPDATE public.profiles
+  SET worker_status='profile_under_review',worker_verified=false,available=false,updated_at=now()
+  WHERE user_id=v_profile.user_id;
+END;
 $$;
+
+
+--
+-- Name: support_inbox(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.support_inbox(p_queue text DEFAULT 'support'::text) RETURNS TABLE(conversation_id uuid, requester_id text, requester_role text, requester_name text, requester_email text, requester_state text, requester_lga text, subject text, status text, category text, context_type text, context_id text, context_snapshot jsonb, priority text, assigned_staff_id text, assigned_staff_name text, last_message text, last_message_time timestamp with time zone, unread_count bigint, created_at timestamp with time zone)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare actor public.profiles; allowed boolean:=false;
+begin
+ if p_queue not in ('support','reservation_operations') then raise exception 'Invalid communication queue'; end if;
+ select * into actor from public.profiles where auth_id=auth.uid()::text limit 1;
+ if actor.user_id is null then raise exception 'Authentication required'; end if;
+ allowed:=actor.role in ('admin','creator') or (actor.role='staff' and public.current_staff_has_permission(case when p_queue='reservation_operations' then 'operations' else 'support' end));
+ if not allowed then raise exception 'This communication queue is outside your Staff responsibility'; end if;
+ return query
+ select c.id,c.partner_id,coalesce(c.requester_role,p.role),coalesce(p.full_name,p.username,p.email),p.email,p.state,coalesce(nullif(p.local_government,''),p.city),
+   c.subject,c.status,c.category,c.context_type,c.context_id,c.context_snapshot,c.priority,c.assigned_staff_id,coalesce(s.full_name,s.username),
+   (select case when nullif(btrim(m.content),'') is not null then m.content when cardinality(m.attachments)>0 then 'Attachment' else '' end from public.partner_support_messages m where m.conversation_id=c.id order by m.created_at desc limit 1),
+   (select m.created_at from public.partner_support_messages m where m.conversation_id=c.id order by m.created_at desc limit 1),
+   (select count(*) from public.partner_support_messages m where m.conversation_id=c.id and not coalesce(m.is_read,false) and m.sender_id<>actor.user_id),c.created_at
+ from public.partner_support_conversations c join public.profiles p on p.user_id=c.partner_id left join public.profiles s on s.user_id=c.assigned_staff_id
+ where exists(select 1 from public.partner_support_messages m where m.conversation_id=c.id)
+   and (case when p_queue='reservation_operations' then c.channel_kind='reservation_operations' else coalesce(c.channel_kind,'support') not in ('reservation_operations','property_operations') end)
+   and (actor.role='creator' or (p.state=actor.assigned_state and coalesce(nullif(p.local_government,''),p.city)=actor.assigned_lga))
+   and (actor.role<>'staff' or c.assigned_staff_id is null or c.assigned_staff_id=actor.user_id)
+ order by case when c.assigned_staff_id=actor.user_id then 0 when c.assigned_staff_id is null then 1 else 2 end,c.updated_at desc;
+end $$;
+
+
+--
+-- Name: sync_hotel_inspection_canonical_media(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_hotel_inspection_canonical_media() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if new.inspection_request_id is not null then
+    update public.inspection_requests
+       set photo_urls = coalesce(new.images, array[]::text[]),
+           updated_at = now()
+     where id = new.inspection_request_id
+       and photo_urls is distinct from coalesce(new.images, array[]::text[]);
+  end if;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: sync_inspection_request_canonical_media(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_inspection_request_canonical_media() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if new.inspection_request_id is not null then
+    update public.inspection_requests
+       set photo_urls = coalesce(new.images, array[]::text[]),
+           video_urls = coalesce(new.videos, array[]::text[]),
+           updated_at = now()
+     where id = new.inspection_request_id
+       and (
+         photo_urls is distinct from coalesce(new.images, array[]::text[])
+         or video_urls is distinct from coalesce(new.videos, array[]::text[])
+       );
+  end if;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: sync_legacy_profile_role_assignment(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_legacy_profile_role_assignment() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  if new.role in('staff','admin','creator') and (tg_op='INSERT' or old.role is distinct from new.role or old.assigned_state is distinct from new.assigned_state or old.assigned_lga is distinct from new.assigned_lga) then
+    update public.workspace_role_assignments set status='revoked',revoked_by=new.updated_by,revoked_at=now(),updated_at=now()
+      where user_id=new.user_id and workspace_role in('staff','admin') and workspace_role<>new.role and status='active';
+    insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state,scope_lga,granted_by)
+      values(new.user_id,new.role,case when new.role='creator' then 'global' else 'branch' end,new.assigned_state,new.assigned_lga,new.updated_by)
+    on conflict(user_id,workspace_role) where status='active' do update
+      set scope_type=excluded.scope_type,scope_state=excluded.scope_state,scope_lga=excluded.scope_lga,updated_at=now();
+  elsif tg_op='UPDATE' and old.role in('staff','admin') and new.role not in('staff','admin') then
+    update public.workspace_role_assignments set status='revoked',revoked_by=new.updated_by,revoked_at=now(),updated_at=now()
+      where user_id=new.user_id and workspace_role=old.role and status='active';
+  end if;
+  return new;
+end $$;
 
 
 --
@@ -9898,6 +13906,40 @@ BEGIN
   NEW.updated_at := NOW();
   RETURN NEW;
 END;
+$$;
+
+
+--
+-- Name: sync_property_submission_lifecycle(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_property_submission_lifecycle() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+begin
+  -- Publication is the terminal successful state. Before publication, evidence
+  -- state takes precedence so assigned legacy rows cannot look approved.
+  new.lifecycle_stage := case
+    when new.published_at is not null then 'live'
+    when lower(coalesce(new.status,''))='rejected' then 'rejected'
+    when new.access_evidence_status='rejected' then 'changes_requested'
+    when new.access_evidence_status is null or new.access_evidence_status='required' then 'access_required'
+    when new.access_evidence_status='submitted' then 'access_review'
+    when new.draft_listing_id is not null or new.draft_hotel_id is not null then 'listing_prepared'
+    when new.completed_at is not null or lower(coalesce(new.status,'')) in ('completed','approved') then 'visit_reviewed'
+    when coalesce(new.assigned_field_officer_id,new.field_officer_id,new.assigned_to) is not null
+      or new.scheduled_date is not null or lower(coalesce(new.status,'')) in ('scheduled','in_progress') then 'inspection'
+    when new.access_evidence_status='verified' then 'inspection_ready'
+    else 'access_required'
+  end;
+
+  -- A recording code belongs to the private challenge record. A submitted
+  -- inspection request must never expose it again to the Property Partner.
+  new.access_challenge_code := null;
+  new.access_challenge_expires_at := null;
+  return new;
+end;
 $$;
 
 
@@ -10160,6 +14202,26 @@ end $$;
 
 
 --
+-- Name: update_my_precise_location(numeric, numeric, text, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_my_precise_location(p_latitude numeric, p_longitude numeric, p_address text DEFAULT NULL::text, p_accuracy_m numeric DEFAULT NULL::numeric) RETURNS public.profiles
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare v_profile public.profiles;
+begin
+  if (p_latitude is null) <> (p_longitude is null) then raise exception 'Latitude and longitude must be saved together'; end if;
+  if p_latitude is not null and (p_latitude not between -90 and 90 or p_longitude not between -180 and 180) then raise exception 'Invalid coordinates'; end if;
+  if length(coalesce(p_address,''))>500 then raise exception 'Address is too long'; end if;
+  update public.profiles set precise_latitude=p_latitude,precise_longitude=p_longitude,precise_address=case when p_latitude is null then null else nullif(btrim(p_address),'') end,precise_location_accuracy_m=case when p_latitude is null or p_accuracy_m<0 then null else p_accuracy_m end,precise_location_updated_at=case when p_latitude is null then null else now() end,updated_at=now()
+  where auth_id=auth.uid()::text and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false) returning * into v_profile;
+  if v_profile is null then raise exception 'Active profile not found'; end if;
+  return v_profile;
+end $$;
+
+
+--
 -- Name: update_my_privacy(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10292,26 +14354,34 @@ $$;
 
 CREATE FUNCTION public.update_my_roommate_match_status(p_match_id uuid, p_status text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
-DECLARE v_actor public.profiles; v_match public.roommate_search_results; v_reverse public.roommate_search_results; v_conv uuid;
-BEGIN
-  IF p_status NOT IN ('new','viewed','accepted','declined') THEN RAISE EXCEPTION 'Invalid match status'; END IF;
-  SELECT * INTO v_actor FROM public.profiles WHERE auth_id=auth.uid()::text LIMIT 1;
-  IF v_actor IS NULL OR v_actor.role<>'user' OR COALESCE(v_actor.deleted,false) OR COALESCE(v_actor.suspended,false) OR COALESCE(v_actor.banned,false) THEN RAISE EXCEPTION 'Active regular user required'; END IF;
-  SELECT * INTO v_match FROM public.roommate_search_results WHERE id=p_match_id AND searcher_id=v_actor.user_id FOR UPDATE;
-  IF v_match IS NULL THEN RAISE EXCEPTION 'Match not found'; END IF;
-  UPDATE public.roommate_search_results SET status=p_status,updated_at=now() WHERE id=p_match_id;
-  IF p_status='accepted' THEN
-    SELECT * INTO v_reverse FROM public.roommate_search_results WHERE searcher_id=v_match.matched_user_id AND matched_user_id=v_actor.user_id AND status='accepted' LIMIT 1;
-    IF v_reverse IS NOT NULL THEN
-      SELECT c.id INTO v_conv FROM public.conversations c WHERE c.conversation_type='roommate' AND ((c.participant_a=v_actor.user_id AND c.participant_b=v_match.matched_user_id) OR (c.participant_b=v_actor.user_id AND c.participant_a=v_match.matched_user_id)) LIMIT 1;
-      IF v_conv IS NULL THEN INSERT INTO public.conversations(participant_a,participant_b,status,conversation_type,subject,created_at,last_message_at,unread_a,unread_b) VALUES(v_actor.user_id,v_match.matched_user_id,'active','roommate','Roommate Match',now(),now(),0,0) RETURNING id INTO v_conv; END IF;
-    END IF;
-  END IF;
-  RETURN v_conv;
-END;
-$$;
+declare v_actor public.profiles;v_match public.roommate_search_results;v_reverse public.roommate_search_results;v_conv uuid;
+begin
+if p_status not in ('new','viewed','accepted','declined') then raise exception 'Invalid match status'; end if;
+select * into v_actor from public.profiles where auth_id=auth.uid()::text limit 1;
+if v_actor is null or v_actor.role<>'user' or coalesce(v_actor.deleted,false) or coalesce(v_actor.suspended,false) or coalesce(v_actor.banned,false) then raise exception 'Active regular user required'; end if;
+select * into v_match from public.roommate_search_results where id=p_match_id and searcher_id=v_actor.user_id for update;
+if v_match is null then raise exception 'Match not found'; end if;
+update public.roommate_search_results set status=case when p_status='viewed' then 'declined' else p_status end,updated_at=now() where id=p_match_id;
+if p_status='accepted' then
+if v_match.status is distinct from 'accepted' then
+insert into public.notifications(recipient_id,type,title,message,related_id,read)
+select v_match.matched_user_id,'roommate_interest','New roommate interest',coalesce(nullif(v_actor.full_name,''),nullif(v_actor.username,''),'Someone')||' is interested in being roommates with you.',v_match.id::text,false
+where not exists(select 1 from public.notifications n where n.recipient_id=v_match.matched_user_id and n.type='roommate_interest' and n.related_id=v_match.id::text and not n.read);
+end if;
+select * into v_reverse from public.roommate_search_results where searcher_id=v_match.matched_user_id and matched_user_id=v_actor.user_id and status='accepted' limit 1;
+if v_reverse is not null then
+select c.id into v_conv from public.conversations c where c.conversation_type='roommate' and ((c.participant_a=v_actor.user_id and c.participant_b=v_match.matched_user_id) or (c.participant_b=v_actor.user_id and c.participant_a=v_match.matched_user_id)) limit 1;
+if v_conv is null then insert into public.conversations(participant_a,participant_b,status,conversation_type,subject,created_at,last_message_at,unread_a,unread_b) values(v_actor.user_id,v_match.matched_user_id,'active','roommate','Roommate Match',now(),now(),0,0) returning id into v_conv; end if;
+update public.notifications set read=true where recipient_id=v_match.matched_user_id and type='roommate_interest' and related_id=v_match.id::text;
+insert into public.notifications(recipient_id,type,title,message,related_id,read)
+select v_match.matched_user_id,'roommate_match','You have a roommate match','You both expressed interest. Open Messages to start chatting.',v_conv::text,false
+where not exists(select 1 from public.notifications n where n.recipient_id=v_match.matched_user_id and n.type='roommate_match' and n.related_id=v_conv::text);
+end if;
+end if;
+return v_conv;
+end $$;
 
 
 --
@@ -10492,10 +14562,8 @@ $$;
 
 CREATE FUNCTION public.worker_identity_recheck_days() RETURNS integer
     LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $_$
-  select greatest(1,least(90,coalesce((select case when trim(value) ~ '^[0-9]+$' then trim(value)::integer end from public.platform_settings where key='worker_identity_recheck_days' and is_active=true limit 1),14)));
-$_$;
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$ select public.account_identity_recheck_days() $$;
 
 
 --
@@ -10856,7 +14924,14 @@ CREATE TABLE public.booking_messages (
     attachments text[],
     created_at timestamp with time zone DEFAULT now(),
     is_read boolean DEFAULT false,
-    edited_at timestamp with time zone
+    edited_at timestamp with time zone,
+    hidden_for text[] DEFAULT '{}'::text[] NOT NULL,
+    ciphertext text,
+    encryption_iv text,
+    encryption_version integer,
+    encrypted_attachments jsonb,
+    reply_to_id uuid,
+    reactions jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -11014,6 +15089,25 @@ CREATE TABLE public.commission_ledger (
 
 
 --
+-- Name: conversation_key_envelopes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conversation_key_envelopes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    conversation_kind text NOT NULL,
+    conversation_id uuid NOT NULL,
+    recipient_user_id text NOT NULL,
+    recipient_key_version integer NOT NULL,
+    sender_ephemeral_public_key_jwk jsonb NOT NULL,
+    wrapped_key text NOT NULL,
+    wrap_iv text NOT NULL,
+    algorithm text DEFAULT 'ECDH-P256+A256GCM'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT conversation_key_envelopes_conversation_kind_check CHECK ((conversation_kind = ANY (ARRAY['roommate'::text, 'worker'::text])))
+);
+
+
+--
 -- Name: escrow_transactions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11139,17 +15233,23 @@ ALTER SEQUENCE public.hotel_bookings_booking_id_seq OWNED BY public.hotel_bookin
 
 
 --
--- Name: hotel_reviews; Type: TABLE; Schema: public; Owner: -
+-- Name: hotel_inventory_daily; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.hotel_reviews (
-    review_id integer NOT NULL,
+CREATE TABLE public.hotel_inventory_daily (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     hotel_id integer NOT NULL,
-    user_id text NOT NULL,
-    rating integer NOT NULL,
-    comment text,
-    created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT hotel_reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
+    room_id integer NOT NULL,
+    inventory_date date NOT NULL,
+    available_quantity integer NOT NULL,
+    rate_override integer,
+    closed boolean DEFAULT false NOT NULL,
+    note text,
+    updated_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT hotel_inventory_daily_available_quantity_check CHECK ((available_quantity >= 0)),
+    CONSTRAINT hotel_inventory_daily_rate_override_check CHECK (((rate_override IS NULL) OR (rate_override > 0)))
 );
 
 
@@ -11174,26 +15274,6 @@ ALTER SEQUENCE public.hotel_reviews_review_id_seq OWNED BY public.hotel_reviews.
 
 
 --
--- Name: hotel_rooms; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.hotel_rooms (
-    room_id integer NOT NULL,
-    hotel_id integer NOT NULL,
-    room_type text NOT NULL,
-    description text,
-    price_per_night integer NOT NULL,
-    max_guests integer DEFAULT 2,
-    bed_type text,
-    images text[] DEFAULT '{}'::text[],
-    amenities text[] DEFAULT '{}'::text[],
-    total_rooms integer DEFAULT 1,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
-
---
 -- Name: hotel_rooms_room_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -11211,6 +15291,25 @@ CREATE SEQUENCE public.hotel_rooms_room_id_seq
 --
 
 ALTER SEQUENCE public.hotel_rooms_room_id_seq OWNED BY public.hotel_rooms.room_id;
+
+
+--
+-- Name: hotel_team_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hotel_team_members (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    hotel_id integer NOT NULL,
+    member_user_id text NOT NULL,
+    hotel_role text NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    invited_by text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    CONSTRAINT hotel_team_members_hotel_role_check CHECK ((hotel_role = ANY (ARRAY['manager'::text, 'staff'::text]))),
+    CONSTRAINT hotel_team_members_status_check CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text])))
+);
 
 
 --
@@ -11240,7 +15339,7 @@ CREATE TABLE public.hotels (
     approved_by text,
     approved_at timestamp with time zone,
     published_at timestamp with time zone,
-    CONSTRAINT hotels_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
+    CONSTRAINT hotels_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'inactive'::text])))
 );
 
 
@@ -11376,7 +15475,13 @@ CREATE TABLE public.notifications (
     message text,
     read boolean DEFAULT false NOT NULL,
     related_id text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    source_type text,
+    source_id text,
+    destination_route text,
+    destination_params jsonb DEFAULT '{}'::jsonb NOT NULL,
+    event_key text,
+    read_at timestamp with time zone
 );
 
 
@@ -11409,6 +15514,9 @@ CREATE TABLE public.partner_support_conversations (
     context_id text,
     context_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
     priority text DEFAULT 'normal'::text NOT NULL,
+    channel_kind text DEFAULT 'support_case'::text NOT NULL,
+    case_number text,
+    CONSTRAINT partner_support_conversations_channel_kind_check CHECK ((channel_kind = ANY (ARRAY['reservation_operations'::text, 'property_operations'::text, 'support_case'::text]))),
     CONSTRAINT partner_support_conversations_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text]))),
     CONSTRAINT partner_support_conversations_requester_role_check CHECK (((requester_role IS NULL) OR (requester_role = ANY (ARRAY['user'::text, 'worker'::text, 'property_partner'::text])))),
     CONSTRAINT partner_support_conversations_status_check CHECK ((status = ANY (ARRAY['open'::text, 'assigned'::text, 'in_progress'::text, 'resolved'::text, 'closed'::text])))
@@ -11432,7 +15540,7 @@ CREATE TABLE public.partner_support_messages (
     created_at timestamp with time zone DEFAULT now(),
     is_read boolean DEFAULT false,
     CONSTRAINT partner_support_messages_action_type_check CHECK ((action_type = ANY (ARRAY['message'::text, 'inspection_requested'::text, 'request_received'::text, 'field_officer_assigned'::text, 'inspection_scheduled'::text, 'inspection_completed'::text, 'listing_created'::text, 'listing_published'::text, 'status_change'::text, 'attachment_added'::text, 'conversation_closed'::text]))),
-    CONSTRAINT partner_support_messages_sender_role_check CHECK ((sender_role = ANY (ARRAY['partner'::text, 'staff'::text, 'field_officer'::text, 'creator'::text, 'system'::text])))
+    CONSTRAINT partner_support_messages_sender_role_check CHECK ((sender_role = ANY (ARRAY['user'::text, 'worker'::text, 'property_partner'::text, 'partner'::text, 'staff'::text, 'support'::text, 'field_officer'::text, 'admin'::text, 'creator'::text, 'system'::text])))
 );
 
 
@@ -11540,7 +15648,7 @@ ALTER SEQUENCE public.platform_settings_id_seq OWNED BY public.platform_settings
 CREATE TABLE public.private_call_preferences (
     user_id text NOT NULL,
     allow_audio_calls boolean DEFAULT true NOT NULL,
-    allow_video_calls boolean DEFAULT false NOT NULL,
+    allow_video_calls boolean DEFAULT true NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -11583,6 +15691,25 @@ CREATE TABLE public.private_calls (
 
 
 --
+-- Name: property_access_challenges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.property_access_challenges (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    partner_id text NOT NULL,
+    code text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    video_path text,
+    status text DEFAULT 'prepared'::text NOT NULL,
+    submitted_at timestamp with time zone,
+    consumed_at timestamp with time zone,
+    request_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT property_access_challenges_status_check CHECK ((status = ANY (ARRAY['prepared'::text, 'submitted'::text, 'consumed'::text, 'expired'::text])))
+);
+
+
+--
 -- Name: property_partner_earning_releases; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11607,6 +15734,43 @@ CREATE TABLE public.property_partner_earning_releases (
     CONSTRAINT property_partner_earning_releases_earning_type_check CHECK ((earning_type = ANY (ARRAY['long_stay_rent'::text, 'short_stay_rent'::text, 'rent_plan_contribution'::text, 'hotel_payment'::text]))),
     CONSTRAINT property_partner_earning_releases_net_amount_check CHECK ((net_amount > (0)::numeric)),
     CONSTRAINT property_partner_earning_releases_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'available'::text, 'held'::text, 'reversed'::text])))
+);
+
+
+--
+-- Name: property_submission_batches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.property_submission_batches (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    partner_user_id text NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    active_item integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    submitted_at timestamp with time zone,
+    CONSTRAINT property_submission_batches_active_item_check CHECK ((active_item >= 0)),
+    CONSTRAINT property_submission_batches_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'submitting'::text, 'submitted'::text, 'cancelled'::text])))
+);
+
+
+--
+-- Name: property_submission_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.property_submission_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    batch_id uuid NOT NULL,
+    "position" integer NOT NULL,
+    property_type text DEFAULT 'apartment'::text NOT NULL,
+    draft_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    inspection_request_id uuid,
+    status text DEFAULT 'draft'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT property_submission_items_position_check CHECK (("position" >= 0)),
+    CONSTRAINT property_submission_items_property_type_check CHECK ((property_type = ANY (ARRAY['apartment'::text, 'hotel'::text]))),
+    CONSTRAINT property_submission_items_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'ready'::text, 'submitted'::text, 'failed'::text])))
 );
 
 
@@ -11893,6 +16057,18 @@ CREATE TABLE public.roommate_search_results (
 
 
 --
+-- Name: roommate_user_blocks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.roommate_user_blocks (
+    blocker_user_id text NOT NULL,
+    blocked_user_id text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT roommate_user_blocks_not_self CHECK ((blocker_user_id <> blocked_user_id))
+);
+
+
+--
 -- Name: saved_listings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11901,6 +16077,24 @@ CREATE TABLE public.saved_listings (
     user_id text NOT NULL,
     listing_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: saved_searches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saved_searches (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id text NOT NULL,
+    name text NOT NULL,
+    search_kind text NOT NULL,
+    criteria jsonb DEFAULT '{}'::jsonb NOT NULL,
+    notifications_enabled boolean DEFAULT true NOT NULL,
+    last_notified_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saved_searches_search_kind_check CHECK ((search_kind = ANY (ARRAY['homes'::text, 'hotels'::text])))
 );
 
 
@@ -11935,18 +16129,51 @@ CREATE TABLE public.service_categories (
 
 
 --
--- Name: service_subcategories; Type: TABLE; Schema: public; Owner: -
+-- Name: shared_housing_groups; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.service_subcategories (
+CREATE TABLE public.shared_housing_groups (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    category_id uuid NOT NULL,
-    name text NOT NULL,
-    icon text DEFAULT ''::text,
-    sort_order integer DEFAULT 0,
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    listing_id uuid NOT NULL,
+    created_by text NOT NULL,
+    status text DEFAULT 'inviting'::text NOT NULL,
+    member_limit integer DEFAULT 2 NOT NULL,
+    total_amount numeric(12,2) NOT NULL,
+    split_method text DEFAULT 'equal'::text NOT NULL,
+    expires_at timestamp with time zone DEFAULT (now() + '72:00:00'::interval) NOT NULL,
+    reservation_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    conversation_id uuid,
+    payment_phase text DEFAULT 'reservation_fee'::text NOT NULL,
+    reservation_fee_total numeric(12,2) DEFAULT 0 NOT NULL,
+    contract_total numeric(12,2) DEFAULT 0 NOT NULL,
+    CONSTRAINT shared_housing_groups_member_limit_check CHECK (((member_limit >= 2) AND (member_limit <= 6))),
+    CONSTRAINT shared_housing_groups_payment_phase_check CHECK ((payment_phase = ANY (ARRAY['reservation_fee'::text, 'contract_rent'::text, 'complete'::text]))),
+    CONSTRAINT shared_housing_groups_split_method_check CHECK ((split_method = 'equal'::text)),
+    CONSTRAINT shared_housing_groups_status_check CHECK ((status = ANY (ARRAY['inviting'::text, 'ready'::text, 'payment_pending'::text, 'paid'::text, 'cancelled'::text, 'expired'::text]))),
+    CONSTRAINT shared_housing_groups_total_amount_check CHECK ((total_amount > (0)::numeric))
+);
+
+
+--
+-- Name: shared_housing_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.shared_housing_members (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    group_id uuid NOT NULL,
+    user_id text NOT NULL,
+    invitation_status text DEFAULT 'invited'::text NOT NULL,
+    share_amount numeric(12,2) DEFAULT 0 NOT NULL,
+    payment_status text DEFAULT 'not_started'::text NOT NULL,
+    payment_reference text,
+    paid_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT shared_housing_members_invitation_status_check CHECK ((invitation_status = ANY (ARRAY['invited'::text, 'accepted'::text, 'declined'::text, 'removed'::text]))),
+    CONSTRAINT shared_housing_members_payment_status_check CHECK ((payment_status = ANY (ARRAY['not_started'::text, 'pending'::text, 'paid'::text, 'failed'::text, 'refunded'::text]))),
+    CONSTRAINT shared_housing_members_share_amount_check CHECK ((share_amount >= (0)::numeric))
 );
 
 
@@ -12076,6 +16303,28 @@ ALTER SEQUENCE public.user_counters_id_seq OWNED BY public.user_counters.id;
 
 
 --
+-- Name: user_encryption_identities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_encryption_identities (
+    user_id text NOT NULL,
+    key_version integer DEFAULT 1 NOT NULL,
+    public_key_jwk jsonb NOT NULL,
+    encrypted_private_key text NOT NULL,
+    backup_iv text NOT NULL,
+    backup_salt text NOT NULL,
+    kdf_name text DEFAULT 'PBKDF2-SHA-256'::text NOT NULL,
+    kdf_iterations integer DEFAULT 600000 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    rotated_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_encryption_identities_kdf_iterations_check CHECK ((kdf_iterations >= 600000)),
+    CONSTRAINT user_encryption_identities_kdf_name_check CHECK ((kdf_name = 'PBKDF2-SHA-256'::text)),
+    CONSTRAINT user_encryption_identities_key_version_check CHECK ((key_version > 0))
+);
+
+
+--
 -- Name: user_id_counter; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12132,7 +16381,13 @@ CREATE TABLE public.user_sessions (
     is_current boolean DEFAULT true,
     login_time timestamp with time zone DEFAULT now() NOT NULL,
     last_seen timestamp with time zone DEFAULT now() NOT NULL,
-    logout_time timestamp with time zone
+    logout_time timestamp with time zone,
+    device_id text,
+    auth_session_id text,
+    trust_status text DEFAULT 'trusted'::text NOT NULL,
+    trust_reviewed_at timestamp with time zone,
+    trust_reviewed_by_session_id uuid,
+    CONSTRAINT user_sessions_trust_status_check CHECK ((trust_status = ANY (ARRAY['pending'::text, 'trusted'::text, 'rejected'::text])))
 );
 
 
@@ -12320,7 +16575,9 @@ CREATE TABLE public.worker_bookings (
     completed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    cancelled_by text
+    cancelled_by text,
+    request_attachments text[] DEFAULT ARRAY[]::text[] NOT NULL,
+    service_subcategory_id uuid
 );
 
 
@@ -12343,6 +16600,8 @@ CREATE TABLE public.worker_identity_checks (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     latest_reference_photo_path text,
     latest_reference_at timestamp with time zone,
+    account_role text,
+    CONSTRAINT worker_identity_checks_account_role_check CHECK (((account_role IS NULL) OR (account_role = ANY (ARRAY['worker'::text, 'property_partner'::text])))),
     CONSTRAINT worker_identity_checks_attempt_count_check CHECK ((attempt_count >= 0)),
     CONSTRAINT worker_identity_checks_status_check CHECK ((status = ANY (ARRAY['not_started'::text, 'passed'::text, 'failed'::text])))
 );
@@ -12519,6 +16778,30 @@ CREATE SEQUENCE public.workers_id_seq
 --
 
 ALTER SEQUENCE public.workers_id_seq OWNED BY public.workers.id;
+
+
+--
+-- Name: workspace_role_assignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workspace_role_assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id text NOT NULL,
+    workspace_role text NOT NULL,
+    scope_type text DEFAULT 'global'::text NOT NULL,
+    scope_state text,
+    scope_lga text,
+    status text DEFAULT 'active'::text NOT NULL,
+    granted_by text,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_by text,
+    revoked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT workspace_role_assignments_scope_type_check CHECK ((scope_type = ANY (ARRAY['global'::text, 'state'::text, 'branch'::text]))),
+    CONSTRAINT workspace_role_assignments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text]))),
+    CONSTRAINT workspace_role_assignments_workspace_role_check CHECK ((workspace_role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])))
+);
 
 
 --
@@ -12853,6 +17136,22 @@ ALTER TABLE ONLY public.commission_ledger
 
 
 --
+-- Name: conversation_key_envelopes conversation_key_envelopes_conversation_kind_conversation_i_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_key_envelopes
+    ADD CONSTRAINT conversation_key_envelopes_conversation_kind_conversation_i_key UNIQUE (conversation_kind, conversation_id, recipient_user_id, recipient_key_version);
+
+
+--
+-- Name: conversation_key_envelopes conversation_key_envelopes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_key_envelopes
+    ADD CONSTRAINT conversation_key_envelopes_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: conversations conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12901,6 +17200,22 @@ ALTER TABLE ONLY public.hotel_bookings
 
 
 --
+-- Name: hotel_inventory_daily hotel_inventory_daily_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_inventory_daily
+    ADD CONSTRAINT hotel_inventory_daily_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: hotel_inventory_daily hotel_inventory_daily_room_id_inventory_date_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_inventory_daily
+    ADD CONSTRAINT hotel_inventory_daily_room_id_inventory_date_key UNIQUE (room_id, inventory_date);
+
+
+--
 -- Name: hotel_reviews hotel_reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12914,6 +17229,22 @@ ALTER TABLE ONLY public.hotel_reviews
 
 ALTER TABLE ONLY public.hotel_rooms
     ADD CONSTRAINT hotel_rooms_pkey PRIMARY KEY (room_id);
+
+
+--
+-- Name: hotel_team_members hotel_team_members_hotel_id_member_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_team_members
+    ADD CONSTRAINT hotel_team_members_hotel_id_member_user_id_key UNIQUE (hotel_id, member_user_id);
+
+
+--
+-- Name: hotel_team_members hotel_team_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_team_members
+    ADD CONSTRAINT hotel_team_members_pkey PRIMARY KEY (id);
 
 
 --
@@ -13117,6 +17448,14 @@ ALTER TABLE ONLY public.profiles
 
 
 --
+-- Name: property_access_challenges property_access_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_access_challenges
+    ADD CONSTRAINT property_access_challenges_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: property_partner_earning_releases property_partner_earning_releases_payment_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13146,6 +17485,30 @@ ALTER TABLE ONLY public.property_partners
 
 ALTER TABLE ONLY public.property_partners
     ADD CONSTRAINT property_partners_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: property_submission_batches property_submission_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_submission_batches
+    ADD CONSTRAINT property_submission_batches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: property_submission_items property_submission_items_batch_id_position_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_submission_items
+    ADD CONSTRAINT property_submission_items_batch_id_position_key UNIQUE (batch_id, "position");
+
+
+--
+-- Name: property_submission_items property_submission_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_submission_items
+    ADD CONSTRAINT property_submission_items_pkey PRIMARY KEY (id);
 
 
 --
@@ -13194,6 +17557,14 @@ ALTER TABLE ONLY public.rent_plans
 
 ALTER TABLE ONLY public.reservation_refunds
     ADD CONSTRAINT reservation_refunds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reservations reservations_no_overlapping_short_stays; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reservations
+    ADD CONSTRAINT reservations_no_overlapping_short_stays EXCLUDE USING gist (listing_id WITH =, daterange(stay_check_in, stay_check_out, '[)'::text) WITH &&) WHERE (((stay_type = 'short_let'::text) AND (status = ANY (ARRAY['payment_pending'::text, 'reserved'::text, 'inspection_pending'::text, 'ready_for_move_in'::text, 'occupied'::text]))));
 
 
 --
@@ -13285,6 +17656,14 @@ ALTER TABLE ONLY public.roommate_search_results
 
 
 --
+-- Name: roommate_user_blocks roommate_user_blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.roommate_user_blocks
+    ADD CONSTRAINT roommate_user_blocks_pkey PRIMARY KEY (blocker_user_id, blocked_user_id);
+
+
+--
 -- Name: saved_listings saved_listings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13298,6 +17677,22 @@ ALTER TABLE ONLY public.saved_listings
 
 ALTER TABLE ONLY public.saved_listings
     ADD CONSTRAINT saved_listings_user_id_listing_id_key UNIQUE (user_id, listing_id);
+
+
+--
+-- Name: saved_searches saved_searches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saved_searches
+    ADD CONSTRAINT saved_searches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saved_searches saved_searches_user_id_name_search_kind_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saved_searches
+    ADD CONSTRAINT saved_searches_user_id_name_search_kind_key UNIQUE (user_id, name, search_kind);
 
 
 --
@@ -13330,6 +17725,38 @@ ALTER TABLE ONLY public.service_categories
 
 ALTER TABLE ONLY public.service_subcategories
     ADD CONSTRAINT service_subcategories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: shared_housing_groups shared_housing_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_groups
+    ADD CONSTRAINT shared_housing_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: shared_housing_members shared_housing_members_group_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_members
+    ADD CONSTRAINT shared_housing_members_group_id_user_id_key UNIQUE (group_id, user_id);
+
+
+--
+-- Name: shared_housing_members shared_housing_members_payment_reference_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_members
+    ADD CONSTRAINT shared_housing_members_payment_reference_key UNIQUE (payment_reference);
+
+
+--
+-- Name: shared_housing_members shared_housing_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_members
+    ADD CONSTRAINT shared_housing_members_pkey PRIMARY KEY (id);
 
 
 --
@@ -13429,6 +17856,14 @@ ALTER TABLE ONLY public.user_counters
 
 
 --
+-- Name: user_encryption_identities user_encryption_identities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_encryption_identities
+    ADD CONSTRAINT user_encryption_identities_pkey PRIMARY KEY (user_id);
+
+
+--
 -- Name: user_id_counter user_id_counter_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13514,6 +17949,22 @@ ALTER TABLE ONLY public.withdrawal_requests
 
 ALTER TABLE ONLY public.withdrawals
     ADD CONSTRAINT withdrawals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: worker_booking_reviews worker_booking_reviews_booking_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker_booking_reviews
+    ADD CONSTRAINT worker_booking_reviews_booking_id_key UNIQUE (booking_id);
+
+
+--
+-- Name: worker_booking_reviews worker_booking_reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker_booking_reviews
+    ADD CONSTRAINT worker_booking_reviews_pkey PRIMARY KEY (id);
 
 
 --
@@ -13613,6 +18064,28 @@ ALTER TABLE ONLY public.workers
 
 
 --
+-- Name: workspace_role_assignments workspace_role_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_role_assignments
+    ADD CONSTRAINT workspace_role_assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: announcement_recipients_one_delivery; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX announcement_recipients_one_delivery ON public.announcement_recipients USING btree (announcement_id, user_id);
+
+
+--
+-- Name: announcement_recipients_user_unread_delivered; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX announcement_recipients_user_unread_delivered ON public.announcement_recipients USING btree (user_id, read_status, delivered_at DESC);
+
+
+--
 -- Name: bank_accounts_one_default_per_user; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13627,6 +18100,27 @@ CREATE UNIQUE INDEX bank_accounts_unique_user_destination ON public.bank_account
 
 
 --
+-- Name: booking_conversations_participant_activity_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX booking_conversations_participant_activity_idx ON public.booking_conversations USING btree (user_id, worker_id, updated_at DESC);
+
+
+--
+-- Name: booking_messages_reply_to_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX booking_messages_reply_to_idx ON public.booking_messages USING btree (reply_to_id) WHERE (reply_to_id IS NOT NULL);
+
+
+--
+-- Name: booking_messages_unread_participant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX booking_messages_unread_participant_idx ON public.booking_messages USING btree (conversation_id, is_read, sender_id, created_at DESC);
+
+
+--
 -- Name: hotel_bookings_booking_code_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13638,6 +18132,27 @@ CREATE UNIQUE INDEX hotel_bookings_booking_code_unique ON public.hotel_bookings 
 --
 
 CREATE UNIQUE INDEX hotel_bookings_payment_reference_unique ON public.hotel_bookings USING btree (payment_reference) WHERE (payment_reference IS NOT NULL);
+
+
+--
+-- Name: hotel_inventory_daily_hotel_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX hotel_inventory_daily_hotel_date_idx ON public.hotel_inventory_daily USING btree (hotel_id, inventory_date);
+
+
+--
+-- Name: hotel_reviews_one_per_guest_hotel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX hotel_reviews_one_per_guest_hotel ON public.hotel_reviews USING btree (hotel_id, user_id);
+
+
+--
+-- Name: hotel_team_member_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX hotel_team_member_active_idx ON public.hotel_team_members USING btree (member_user_id, hotel_id) WHERE (status = 'active'::text);
 
 
 --
@@ -13799,6 +18314,216 @@ CREATE INDEX idx_conversations_participants ON public.conversations USING btree 
 --
 
 CREATE INDEX idx_conversations_type ON public.conversations USING btree (conversation_type);
+
+
+--
+-- Name: idx_fk_booking_status_history_booking_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_booking_status_history_booking_id_fkey ON public.booking_status_history USING btree (booking_id);
+
+
+--
+-- Name: idx_fk_commission_ledger_payment_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_commission_ledger_payment_id_fkey ON public.commission_ledger USING btree (payment_id);
+
+
+--
+-- Name: idx_fk_financial_audit_logs_target_user_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_financial_audit_logs_target_user_id_fkey ON public.financial_audit_logs USING btree (target_user_id);
+
+
+--
+-- Name: idx_fk_hotel_bookings_room_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_hotel_bookings_room_id_fkey ON public.hotel_bookings USING btree (room_id);
+
+
+--
+-- Name: idx_fk_hotel_reviews_user_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_hotel_reviews_user_id_fkey ON public.hotel_reviews USING btree (user_id);
+
+
+--
+-- Name: idx_fk_hotels_owner_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_hotels_owner_id_fkey ON public.hotels USING btree (owner_id);
+
+
+--
+-- Name: idx_fk_inspection_requests_draft_hotel_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_inspection_requests_draft_hotel_id_fkey ON public.inspection_requests USING btree (draft_hotel_id);
+
+
+--
+-- Name: idx_fk_inspection_status_history_inspection_request_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_inspection_status_history_inspection_request_id_fkey ON public.inspection_status_history USING btree (inspection_request_id);
+
+
+--
+-- Name: idx_fk_listings_approved_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_listings_approved_by_fkey ON public.listings USING btree (approved_by);
+
+
+--
+-- Name: idx_fk_listings_current_reservation_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_listings_current_reservation_id_fkey ON public.listings USING btree (current_reservation_id);
+
+
+--
+-- Name: idx_fk_payment_reversals_original_payment_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_payment_reversals_original_payment_id_fkey ON public.payment_reversals USING btree (original_payment_id);
+
+
+--
+-- Name: idx_fk_private_call_signals_sender_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_private_call_signals_sender_id_fkey ON public.private_call_signals USING btree (sender_id);
+
+
+--
+-- Name: idx_fk_property_partner_earning_releases_held_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_property_partner_earning_releases_held_by_fkey ON public.property_partner_earning_releases USING btree (held_by);
+
+
+--
+-- Name: idx_fk_property_partner_earning_releases_partner_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_property_partner_earning_releases_partner_id_fkey ON public.property_partner_earning_releases USING btree (partner_id);
+
+
+--
+-- Name: idx_fk_property_partner_earning_releases_released_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_property_partner_earning_releases_released_by_fkey ON public.property_partner_earning_releases USING btree (released_by);
+
+
+--
+-- Name: idx_fk_property_partner_earning_releases_reversed_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_property_partner_earning_releases_reversed_by_fkey ON public.property_partner_earning_releases USING btree (reversed_by);
+
+
+--
+-- Name: idx_fk_rent_plan_cancellations_rent_plan_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_rent_plan_cancellations_rent_plan_id_fkey ON public.rent_plan_cancellations USING btree (rent_plan_id);
+
+
+--
+-- Name: idx_fk_rent_plan_contributions_reservation_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_rent_plan_contributions_reservation_id_fkey ON public.rent_plan_contributions USING btree (reservation_id);
+
+
+--
+-- Name: idx_fk_rent_plans_listing_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_rent_plans_listing_id_fkey ON public.rent_plans USING btree (listing_id);
+
+
+--
+-- Name: idx_fk_rent_plans_user_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_rent_plans_user_id_fkey ON public.rent_plans USING btree (user_id);
+
+
+--
+-- Name: idx_fk_reservation_refunds_reservation_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_reservation_refunds_reservation_id_fkey ON public.reservation_refunds USING btree (reservation_id);
+
+
+--
+-- Name: idx_fk_saved_listings_listing_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_saved_listings_listing_id_fkey ON public.saved_listings USING btree (listing_id);
+
+
+--
+-- Name: idx_fk_service_categories_created_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_service_categories_created_by_fkey ON public.service_categories USING btree (created_by);
+
+
+--
+-- Name: idx_fk_verified_paystack_references_booking_payment_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_verified_paystack_references_booking_payment_id_fkey ON public.verified_paystack_references USING btree (booking_payment_id);
+
+
+--
+-- Name: idx_fk_wallets_frozen_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_wallets_frozen_by_fkey ON public.wallets USING btree (frozen_by);
+
+
+--
+-- Name: idx_fk_withdrawals_bank_account_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_withdrawals_bank_account_id_fkey ON public.withdrawals USING btree (bank_account_id);
+
+
+--
+-- Name: idx_fk_worker_showcase_posts_booking_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_worker_showcase_posts_booking_id_fkey ON public.worker_showcase_posts USING btree (booking_id);
+
+
+--
+-- Name: idx_fk_worker_verifications_reviewed_by_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_worker_verifications_reviewed_by_fkey ON public.worker_verifications USING btree (reviewed_by);
+
+
+--
+-- Name: idx_fk_worker_verifications_service_category_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_worker_verifications_service_category_id_fkey ON public.worker_verifications USING btree (service_category_id);
+
+
+--
+-- Name: idx_fk_worker_verifications_service_subcategory_id_fkey; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fk_worker_verifications_service_subcategory_id_fkey ON public.worker_verifications USING btree (service_subcategory_id);
 
 
 --
@@ -13977,13 +18702,6 @@ CREATE INDEX idx_messages_conversation ON public.messages USING btree (conversat
 
 
 --
--- Name: idx_messages_conversation_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_messages_conversation_id ON public.messages USING btree (conversation_id);
-
-
---
 -- Name: idx_msg_req_receiver; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14114,13 +18832,6 @@ CREATE INDEX idx_reservations_status ON public.reservations USING btree (status)
 --
 
 CREATE INDEX idx_reservations_user ON public.reservations USING btree (user_id);
-
-
---
--- Name: idx_reservations_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_reservations_user_id ON public.reservations USING btree (user_id);
 
 
 --
@@ -14341,13 +19052,6 @@ CREATE INDEX idx_worker_services_worker ON public.worker_services USING btree (w
 
 
 --
--- Name: idx_worker_showcase_story_expiry; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_worker_showcase_story_expiry ON public.worker_showcase_posts USING btree (expires_at) WHERE ((kind = 'story'::text) AND (deleted_at IS NULL));
-
-
---
 -- Name: idx_worker_showcase_worker_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14418,10 +19122,52 @@ CREATE UNIQUE INDEX listings_one_per_inspection_idx ON public.listings USING btr
 
 
 --
--- Name: partner_support_one_requester_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: messages_conversation_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX partner_support_one_requester_idx ON public.partner_support_conversations USING btree (partner_id) WHERE (partner_id IS NOT NULL);
+CREATE INDEX messages_conversation_created ON public.messages USING btree (conversation_id, created_at DESC);
+
+
+--
+-- Name: messages_reply_to_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_reply_to_idx ON public.messages USING btree (reply_to_id) WHERE (reply_to_id IS NOT NULL);
+
+
+--
+-- Name: notifications_recipient_activity_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_recipient_activity_idx ON public.notifications USING btree (recipient_id, created_at DESC);
+
+
+--
+-- Name: notifications_recipient_event_key_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX notifications_recipient_event_key_unique ON public.notifications USING btree (recipient_id, event_key) WHERE (event_key IS NOT NULL);
+
+
+--
+-- Name: notifications_recipient_read_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_recipient_read_created ON public.notifications USING btree (recipient_id, read, created_at DESC);
+
+
+--
+-- Name: partner_support_case_number_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX partner_support_case_number_idx ON public.partner_support_conversations USING btree (case_number) WHERE (case_number IS NOT NULL);
+
+
+--
+-- Name: partner_support_requester_context_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX partner_support_requester_context_idx ON public.partner_support_conversations USING btree (partner_id, context_type, COALESCE(context_id, ''::text)) WHERE (partner_id IS NOT NULL);
 
 
 --
@@ -14453,10 +19199,31 @@ CREATE INDEX profiles_field_officer_branch_idx ON public.profiles USING btree (l
 
 
 --
+-- Name: property_access_challenges_partner_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX property_access_challenges_partner_status_idx ON public.property_access_challenges USING btree (partner_id, status, created_at DESC);
+
+
+--
 -- Name: property_partners_profile_id_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX property_partners_profile_id_uidx ON public.property_partners USING btree (profile_id);
+
+
+--
+-- Name: property_submission_batches_partner_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX property_submission_batches_partner_idx ON public.property_submission_batches USING btree (partner_user_id, updated_at DESC);
+
+
+--
+-- Name: property_submission_items_batch_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX property_submission_items_batch_idx ON public.property_submission_items USING btree (batch_id, "position");
 
 
 --
@@ -14502,10 +19269,17 @@ CREATE UNIQUE INDEX reservations_booking_code_unique ON public.reservations USIN
 
 
 --
--- Name: reservations_one_live_hold_per_listing; Type: INDEX; Schema: public; Owner: -
+-- Name: reservations_one_live_long_stay_per_listing; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX reservations_one_live_hold_per_listing ON public.reservations USING btree (listing_id) WHERE (status = ANY (ARRAY['payment_pending'::text, 'reserved'::text, 'inspection_pending'::text, 'ready_for_move_in'::text, 'occupied'::text]));
+CREATE UNIQUE INDEX reservations_one_live_long_stay_per_listing ON public.reservations USING btree (listing_id) WHERE ((COALESCE(stay_type, 'long_stay'::text) <> 'short_let'::text) AND (status = ANY (ARRAY['payment_pending'::text, 'reserved'::text, 'inspection_pending'::text, 'ready_for_move_in'::text, 'occupied'::text])));
+
+
+--
+-- Name: shared_housing_members_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX shared_housing_members_user_idx ON public.shared_housing_members USING btree (user_id, created_at DESC);
 
 
 --
@@ -14530,10 +19304,38 @@ CREATE UNIQUE INDEX uq_pending_housing_payment_per_reservation_purpose ON public
 
 
 --
--- Name: uq_saved_listings_user_listing; Type: INDEX; Schema: public; Owner: -
+-- Name: user_sessions_auth_session_unique; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_saved_listings_user_listing ON public.saved_listings USING btree (user_id, listing_id);
+CREATE UNIQUE INDEX user_sessions_auth_session_unique ON public.user_sessions USING btree (auth_session_id) WHERE (auth_session_id IS NOT NULL);
+
+
+--
+-- Name: user_sessions_device_trust_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_sessions_device_trust_idx ON public.user_sessions USING btree (user_id, device_id, trust_status);
+
+
+--
+-- Name: user_sessions_trust_reviewer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_sessions_trust_reviewer_idx ON public.user_sessions USING btree (trust_reviewed_by_session_id) WHERE (trust_reviewed_by_session_id IS NOT NULL);
+
+
+--
+-- Name: worker_bookings_participant_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX worker_bookings_participant_updated_idx ON public.worker_bookings USING btree (user_id, worker_id, updated_at DESC);
+
+
+--
+-- Name: worker_showcase_public_visible_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX worker_showcase_public_visible_idx ON public.worker_showcase_posts USING btree (worker_id, created_at DESC) WHERE ((deleted_at IS NULL) AND (hidden_at IS NULL) AND (kind = 'work_post'::text));
 
 
 --
@@ -14544,10 +19346,31 @@ CREATE UNIQUE INDEX worker_verifications_one_per_worker ON public.worker_verific
 
 
 --
+-- Name: workspace_role_active_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX workspace_role_active_scope ON public.workspace_role_assignments USING btree (workspace_role, scope_state, scope_lga) WHERE (status = 'active'::text);
+
+
+--
+-- Name: workspace_role_one_active_role; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_role_one_active_role ON public.workspace_role_assignments USING btree (user_id, workspace_role) WHERE (status = 'active'::text);
+
+
+--
 -- Name: booking_messages booking_messages_edit_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER booking_messages_edit_guard BEFORE UPDATE ON public.booking_messages FOR EACH ROW EXECUTE FUNCTION public.enforce_chat_message_update();
+
+
+--
+-- Name: inspection_requests clear_consumed_property_access_code; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER clear_consumed_property_access_code BEFORE INSERT OR UPDATE OF access_evidence_status, access_evidence_video_path, published_at ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.clear_consumed_property_access_code();
 
 
 --
@@ -14600,6 +19423,97 @@ CREATE TRIGGER guard_inspected_public_listing_trigger BEFORE INSERT OR UPDATE OF
 
 
 --
+-- Name: hotel_rooms hotel_rooms_invalidate_media_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER hotel_rooms_invalidate_media_review AFTER INSERT OR DELETE OR UPDATE ON public.hotel_rooms FOR EACH ROW EXECUTE FUNCTION public.invalidate_inspection_media_review();
+
+
+--
+-- Name: hotel_rooms hotel_rooms_saved_search_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER hotel_rooms_saved_search_activity AFTER INSERT OR UPDATE OF price_per_night ON public.hotel_rooms FOR EACH ROW EXECUTE FUNCTION public.notify_saved_hotel_searches_from_room();
+
+
+--
+-- Name: hotel_team_members hotel_team_consumer_account_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER hotel_team_consumer_account_guard BEFORE INSERT OR UPDATE OF member_user_id, status ON public.hotel_team_members FOR EACH ROW WHEN ((new.status = 'active'::text)) EXECUTE FUNCTION public.enforce_hotel_team_consumer_account();
+
+
+--
+-- Name: hotels hotels_invalidate_media_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER hotels_invalidate_media_review AFTER UPDATE OF images ON public.hotels FOR EACH ROW WHEN ((new.images IS DISTINCT FROM old.images)) EXECUTE FUNCTION public.invalidate_inspection_media_review();
+
+
+--
+-- Name: hotels hotels_saved_search_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER hotels_saved_search_activity AFTER INSERT OR UPDATE OF status, approved_at ON public.hotels FOR EACH ROW EXECUTE FUNCTION public.notify_saved_hotel_searches_from_hotel();
+
+
+--
+-- Name: hotels hotels_sync_canonical_media; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER hotels_sync_canonical_media AFTER INSERT OR UPDATE OF images ON public.hotels FOR EACH ROW EXECUTE FUNCTION public.sync_hotel_inspection_canonical_media();
+
+
+--
+-- Name: inspection_requests inspection_requests_normalize_hotel_program; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER inspection_requests_normalize_hotel_program BEFORE INSERT OR UPDATE OF hotel_program ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.normalize_hotel_submission_program();
+
+
+--
+-- Name: inspection_requests inspection_requests_operations_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER inspection_requests_operations_activity AFTER INSERT OR UPDATE OF lifecycle_stage ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.notify_property_operations_activity();
+
+
+--
+-- Name: inspection_requests inspection_requests_require_field_evidence; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER inspection_requests_require_field_evidence BEFORE UPDATE OF status ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.require_independent_field_evidence();
+
+
+--
+-- Name: listings listings_invalidate_media_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER listings_invalidate_media_review AFTER UPDATE OF images ON public.listings FOR EACH ROW WHEN ((new.images IS DISTINCT FROM old.images)) EXECUTE FUNCTION public.invalidate_inspection_media_review();
+
+
+--
+-- Name: listings listings_no_self_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER listings_no_self_review BEFORE UPDATE ON public.listings FOR EACH ROW EXECUTE FUNCTION public.prevent_privileged_self_review();
+
+
+--
+-- Name: listings listings_saved_search_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER listings_saved_search_activity AFTER INSERT OR UPDATE OF status, availability_status ON public.listings FOR EACH ROW EXECUTE FUNCTION public.notify_matching_saved_home_searches();
+
+
+--
+-- Name: listings listings_sync_canonical_media; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER listings_sync_canonical_media AFTER INSERT OR UPDATE OF images, videos ON public.listings FOR EACH ROW EXECUTE FUNCTION public.sync_inspection_request_canonical_media();
+
+
+--
 -- Name: profiles lock_admin_staff_location_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14614,6 +19528,27 @@ CREATE TRIGGER messages_edit_guard BEFORE UPDATE ON public.messages FOR EACH ROW
 
 
 --
+-- Name: notifications notifications_normalize_context; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER notifications_normalize_context BEFORE INSERT OR UPDATE OF type, related_id, destination_route, destination_params ON public.notifications FOR EACH ROW EXECUTE FUNCTION public.normalize_notification_context();
+
+
+--
+-- Name: partner_support_conversations partner_support_classify_channel; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER partner_support_classify_channel BEFORE INSERT ON public.partner_support_conversations FOR EACH ROW EXECUTE FUNCTION public.classify_conversation_channel();
+
+
+--
+-- Name: partner_support_conversations partner_support_context_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER partner_support_context_immutable BEFORE UPDATE ON public.partner_support_conversations FOR EACH ROW EXECUTE FUNCTION public.enforce_conversation_context_ownership();
+
+
+--
 -- Name: platform_settings platform_legal_version_bump; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14625,6 +19560,27 @@ CREATE TRIGGER platform_legal_version_bump AFTER INSERT OR UPDATE OF value ON pu
 --
 
 CREATE TRIGGER prevent_double_reservation_trigger BEFORE INSERT OR UPDATE OF listing_id, status ON public.reservations FOR EACH ROW WHEN ((new.status = ANY (ARRAY['payment_pending'::text, 'reserved'::text, 'inspection_pending'::text, 'ready_for_move_in'::text, 'occupied'::text]))) EXECUTE FUNCTION public.prevent_double_reservation();
+
+
+--
+-- Name: private_calls private_calls_notify_missed; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER private_calls_notify_missed AFTER UPDATE OF status ON public.private_calls FOR EACH ROW EXECUTE FUNCTION public.notify_missed_private_call();
+
+
+--
+-- Name: profiles profiles_sync_workspace_assignment; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER profiles_sync_workspace_assignment AFTER INSERT OR UPDATE OF role, assigned_state, assigned_lga ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.sync_legacy_profile_role_assignment();
+
+
+--
+-- Name: inspection_requests property_evidence_no_self_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER property_evidence_no_self_review BEFORE UPDATE OF access_evidence_status ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.prevent_privileged_self_review();
 
 
 --
@@ -14646,6 +19602,41 @@ CREATE TRIGGER register_pending_property_partner_earning_trigger AFTER INSERT OR
 --
 
 CREATE TRIGGER request_inspection_pause_expiry_trigger AFTER INSERT ON public.user_inspection_requests FOR EACH ROW EXECUTE FUNCTION public.request_inspection_pause_expiry();
+
+
+--
+-- Name: reservations reservation_refunds_no_self_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER reservation_refunds_no_self_review BEFORE UPDATE OF status ON public.reservations FOR EACH ROW EXECUTE FUNCTION public.prevent_privileged_self_review();
+
+
+--
+-- Name: reservations reservations_operations_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER reservations_operations_activity AFTER INSERT OR UPDATE OF status, rent_payment_status ON public.reservations FOR EACH ROW EXECUTE FUNCTION public.notify_reservation_operations_activity();
+
+
+--
+-- Name: private_calls roommate_call_reject_blocked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER roommate_call_reject_blocked BEFORE INSERT ON public.private_calls FOR EACH ROW EXECUTE FUNCTION public.enforce_roommate_call_not_blocked();
+
+
+--
+-- Name: roommate_search_results roommate_match_reject_blocked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER roommate_match_reject_blocked BEFORE INSERT OR UPDATE ON public.roommate_search_results FOR EACH ROW EXECUTE FUNCTION public.enforce_roommate_match_not_blocked();
+
+
+--
+-- Name: messages roommate_message_reject_blocked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER roommate_message_reject_blocked BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION public.enforce_roommate_message_not_blocked();
 
 
 --
@@ -14677,10 +19668,24 @@ CREATE TRIGGER settle_verified_property_partner_payment_trigger AFTER UPDATE OF 
 
 
 --
+-- Name: shared_housing_members shared_housing_member_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER shared_housing_member_activity AFTER INSERT OR UPDATE OF invitation_status, payment_status ON public.shared_housing_members FOR EACH ROW EXECUTE FUNCTION public.notify_shared_housing_member_event();
+
+
+--
 -- Name: listings sync_listing_lifecycle_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER sync_listing_lifecycle_trigger BEFORE INSERT OR UPDATE OF status, availability_status ON public.listings FOR EACH ROW EXECUTE FUNCTION public.sync_listing_lifecycle();
+
+
+--
+-- Name: inspection_requests sync_property_submission_lifecycle; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sync_property_submission_lifecycle BEFORE INSERT OR UPDATE OF status, access_evidence_status, access_evidence_video_path, assigned_field_officer_id, field_officer_id, assigned_to, scheduled_date, completed_at, draft_listing_id, draft_hotel_id, published_at ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.sync_property_submission_lifecycle();
 
 
 --
@@ -14705,10 +19710,24 @@ CREATE TRIGGER trg_enforce_hotel_booking_integrity BEFORE INSERT OR UPDATE ON pu
 
 
 --
+-- Name: profiles trg_ensure_verified_worker_wallet; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ensure_verified_worker_wallet AFTER INSERT OR UPDATE OF role, worker_status, worker_verified ON public.profiles FOR EACH ROW EXECUTE FUNCTION public._ensure_verified_worker_wallet();
+
+
+--
 -- Name: profiles trg_guard_worker_profile_state; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_guard_worker_profile_state BEFORE INSERT OR UPDATE OF role, worker_status, worker_verified, available, deleted, suspended, banned ON public.profiles FOR EACH ROW EXECUTE FUNCTION public._guard_worker_profile_state();
+
+
+--
+-- Name: inspection_requests trg_require_property_access_before_assignment; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_require_property_access_before_assignment BEFORE UPDATE OF assigned_field_officer_id, field_officer_id, assigned_to ON public.inspection_requests FOR EACH ROW EXECUTE FUNCTION public.enforce_property_access_before_assignment();
 
 
 --
@@ -14726,10 +19745,31 @@ CREATE TRIGGER trg_sync_staff_trust_on_role_change AFTER INSERT OR UPDATE OF rol
 
 
 --
+-- Name: worker_bookings worker_booking_activity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER worker_booking_activity AFTER INSERT OR UPDATE OF status ON public.worker_bookings FOR EACH ROW EXECUTE FUNCTION public.notify_worker_booking_lifecycle();
+
+
+--
+-- Name: worker_bookings worker_bookings_bind_service; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER worker_bookings_bind_service BEFORE INSERT OR UPDATE OF service_type, service_subcategory_id ON public.worker_bookings FOR EACH ROW EXECUTE FUNCTION public.bind_worker_booking_service();
+
+
+--
 -- Name: worker_verifications worker_verifications_retired_identity_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER worker_verifications_retired_identity_guard BEFORE INSERT OR UPDATE ON public.worker_verifications FOR EACH ROW EXECUTE FUNCTION public.guard_retired_worker_identity_fields();
+
+
+--
+-- Name: profiles workers_no_self_review; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workers_no_self_review BEFORE UPDATE OF worker_status, worker_verified ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.prevent_privileged_self_review();
 
 
 --
@@ -14770,6 +19810,14 @@ ALTER TABLE ONLY public.booking_conversations
 
 ALTER TABLE ONLY public.booking_messages
     ADD CONSTRAINT booking_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.booking_conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: booking_messages booking_messages_reply_to_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_messages
+    ADD CONSTRAINT booking_messages_reply_to_id_fkey FOREIGN KEY (reply_to_id) REFERENCES public.booking_messages(id) ON DELETE SET NULL;
 
 
 --
@@ -14837,6 +19885,30 @@ ALTER TABLE ONLY public.hotel_bookings
 
 
 --
+-- Name: hotel_inventory_daily hotel_inventory_daily_hotel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_inventory_daily
+    ADD CONSTRAINT hotel_inventory_daily_hotel_id_fkey FOREIGN KEY (hotel_id) REFERENCES public.hotels(hotel_id) ON DELETE CASCADE;
+
+
+--
+-- Name: hotel_inventory_daily hotel_inventory_daily_room_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_inventory_daily
+    ADD CONSTRAINT hotel_inventory_daily_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.hotel_rooms(room_id) ON DELETE CASCADE;
+
+
+--
+-- Name: hotel_inventory_daily hotel_inventory_daily_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_inventory_daily
+    ADD CONSTRAINT hotel_inventory_daily_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profiles(user_id) ON DELETE SET NULL;
+
+
+--
 -- Name: hotel_reviews hotel_reviews_hotel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14858,6 +19930,30 @@ ALTER TABLE ONLY public.hotel_reviews
 
 ALTER TABLE ONLY public.hotel_rooms
     ADD CONSTRAINT hotel_rooms_hotel_id_fkey FOREIGN KEY (hotel_id) REFERENCES public.hotels(hotel_id) ON DELETE CASCADE;
+
+
+--
+-- Name: hotel_team_members hotel_team_members_hotel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_team_members
+    ADD CONSTRAINT hotel_team_members_hotel_id_fkey FOREIGN KEY (hotel_id) REFERENCES public.hotels(hotel_id) ON DELETE CASCADE;
+
+
+--
+-- Name: hotel_team_members hotel_team_members_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_team_members
+    ADD CONSTRAINT hotel_team_members_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.profiles(user_id);
+
+
+--
+-- Name: hotel_team_members hotel_team_members_member_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hotel_team_members
+    ADD CONSTRAINT hotel_team_members_member_user_id_fkey FOREIGN KEY (member_user_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;
 
 
 --
@@ -14925,6 +20021,14 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: messages messages_reply_to_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_reply_to_id_fkey FOREIGN KEY (reply_to_id) REFERENCES public.messages(id) ON DELETE SET NULL;
+
+
+--
 -- Name: partner_support_messages partner_support_messages_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14981,6 +20085,22 @@ ALTER TABLE ONLY public.private_calls
 
 
 --
+-- Name: property_access_challenges property_access_challenges_partner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_access_challenges
+    ADD CONSTRAINT property_access_challenges_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: property_access_challenges property_access_challenges_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_access_challenges
+    ADD CONSTRAINT property_access_challenges_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.inspection_requests(id) ON DELETE SET NULL;
+
+
+--
 -- Name: property_partner_earning_releases property_partner_earning_releases_held_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15018,6 +20138,22 @@ ALTER TABLE ONLY public.property_partner_earning_releases
 
 ALTER TABLE ONLY public.property_partner_earning_releases
     ADD CONSTRAINT property_partner_earning_releases_reversed_by_fkey FOREIGN KEY (reversed_by) REFERENCES public.profiles(user_id);
+
+
+--
+-- Name: property_submission_items property_submission_items_batch_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_submission_items
+    ADD CONSTRAINT property_submission_items_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES public.property_submission_batches(id) ON DELETE CASCADE;
+
+
+--
+-- Name: property_submission_items property_submission_items_inspection_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.property_submission_items
+    ADD CONSTRAINT property_submission_items_inspection_request_id_fkey FOREIGN KEY (inspection_request_id) REFERENCES public.inspection_requests(id) ON DELETE SET NULL;
 
 
 --
@@ -15093,6 +20229,22 @@ ALTER TABLE ONLY public.roommate_search_results
 
 
 --
+-- Name: roommate_user_blocks roommate_user_blocks_blocked_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.roommate_user_blocks
+    ADD CONSTRAINT roommate_user_blocks_blocked_user_id_fkey FOREIGN KEY (blocked_user_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: roommate_user_blocks roommate_user_blocks_blocker_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.roommate_user_blocks
+    ADD CONSTRAINT roommate_user_blocks_blocker_user_id_fkey FOREIGN KEY (blocker_user_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;
+
+
+--
 -- Name: saved_listings saved_listings_listing_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15117,6 +20269,38 @@ ALTER TABLE ONLY public.service_subcategories
 
 
 --
+-- Name: shared_housing_groups shared_housing_groups_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_groups
+    ADD CONSTRAINT shared_housing_groups_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: shared_housing_groups shared_housing_groups_listing_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_groups
+    ADD CONSTRAINT shared_housing_groups_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES public.listings(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: shared_housing_groups shared_housing_groups_reservation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_groups
+    ADD CONSTRAINT shared_housing_groups_reservation_id_fkey FOREIGN KEY (reservation_id) REFERENCES public.reservations(id) ON DELETE SET NULL;
+
+
+--
+-- Name: shared_housing_members shared_housing_members_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shared_housing_members
+    ADD CONSTRAINT shared_housing_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.shared_housing_groups(id) ON DELETE CASCADE;
+
+
+--
 -- Name: staff_location_presence staff_location_presence_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15138,6 +20322,14 @@ ALTER TABLE ONLY public.staff_trust_profiles
 
 ALTER TABLE ONLY public.user_inspection_requests
     ADD CONSTRAINT user_inspection_requests_reservation_id_fkey FOREIGN KEY (reservation_id) REFERENCES public.reservations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_sessions user_sessions_trust_reviewed_by_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_sessions
+    ADD CONSTRAINT user_sessions_trust_reviewed_by_session_id_fkey FOREIGN KEY (trust_reviewed_by_session_id) REFERENCES public.user_sessions(id) ON DELETE SET NULL;
 
 
 --
@@ -15186,6 +20378,38 @@ ALTER TABLE ONLY public.withdrawals
 
 ALTER TABLE ONLY public.withdrawals
     ADD CONSTRAINT withdrawals_wallet_id_fkey FOREIGN KEY (wallet_id) REFERENCES public.wallets(id);
+
+
+--
+-- Name: worker_booking_reviews worker_booking_reviews_booking_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker_booking_reviews
+    ADD CONSTRAINT worker_booking_reviews_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.worker_bookings(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: worker_booking_reviews worker_booking_reviews_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker_booking_reviews
+    ADD CONSTRAINT worker_booking_reviews_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(user_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: worker_booking_reviews worker_booking_reviews_worker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker_booking_reviews
+    ADD CONSTRAINT worker_booking_reviews_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.profiles(user_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: worker_bookings worker_bookings_service_subcategory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker_bookings
+    ADD CONSTRAINT worker_bookings_service_subcategory_id_fkey FOREIGN KEY (service_subcategory_id) REFERENCES public.service_subcategories(id) ON DELETE SET NULL;
 
 
 --
@@ -15261,6 +20485,30 @@ ALTER TABLE ONLY public.worker_verifications
 
 
 --
+-- Name: workspace_role_assignments workspace_role_assignments_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_role_assignments
+    ADD CONSTRAINT workspace_role_assignments_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.profiles(user_id);
+
+
+--
+-- Name: workspace_role_assignments workspace_role_assignments_revoked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_role_assignments
+    ADD CONSTRAINT workspace_role_assignments_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.profiles(user_id);
+
+
+--
+-- Name: workspace_role_assignments workspace_role_assignments_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_role_assignments
+    ADD CONSTRAINT workspace_role_assignments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;
+
+
+--
 -- Name: activity_logs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15304,7 +20552,7 @@ ALTER TABLE public.announcement_recipients ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY announcement_recipients_creator_insert ON public.announcement_recipients FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'creator'::text)))));
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'creator'::text)))));
 
 
 --
@@ -15326,7 +20574,7 @@ ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY announcements_creator_insert ON public.announcements FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'creator'::text)))));
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'creator'::text)))));
 
 
 --
@@ -15342,10 +20590,10 @@ CREATE POLICY announcements_creator_update ON public.announcements FOR UPDATE TO
 
 CREATE POLICY announcements_sender_delete ON public.announcements FOR DELETE TO authenticated USING (((sender_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (EXISTS ( SELECT 1
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'creator'::text))))));
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'creator'::text))))));
 
 
 --
@@ -15386,7 +20634,7 @@ ALTER TABLE public.bank_accounts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY bank_accounts_owner_select ON public.bank_accounts FOR SELECT TO authenticated USING ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -15396,16 +20644,16 @@ CREATE POLICY bank_accounts_owner_select ON public.bank_accounts FOR SELECT TO a
 
 CREATE POLICY bc_all ON public.booking_conversations TO authenticated USING (((user_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (worker_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)))) WITH CHECK (((user_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (worker_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1))));
 
 
@@ -15421,7 +20669,7 @@ ALTER TABLE public.blocked_workers ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY blue_badge_own ON public.blue_badge_subscriptions FOR SELECT TO authenticated USING ((worker_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -15431,7 +20679,7 @@ CREATE POLICY blue_badge_own ON public.blue_badge_subscriptions FOR SELECT TO au
 
 CREATE POLICY blue_badge_staff ON public.blue_badge_subscriptions TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles
-  WHERE ((profiles.auth_id = (auth.uid())::text) AND (profiles.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text]))))));
+  WHERE ((profiles.auth_id = (( SELECT auth.uid() AS uid))::text) AND (profiles.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text]))))));
 
 
 --
@@ -15464,15 +20712,15 @@ ALTER TABLE public.booking_messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY booking_messages_insert ON public.booking_messages FOR INSERT TO authenticated WITH CHECK (((sender_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) AND (conversation_id IN ( SELECT bc.id
    FROM public.booking_conversations bc
   WHERE ((bc.user_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)) OR (bc.worker_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)))))));
 
 
@@ -15484,10 +20732,10 @@ CREATE POLICY booking_messages_select ON public.booking_messages FOR SELECT TO a
    FROM public.booking_conversations bc
   WHERE ((bc.user_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)) OR (bc.worker_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1))))));
 
 
@@ -15499,18 +20747,18 @@ CREATE POLICY booking_messages_update ON public.booking_messages FOR UPDATE TO a
    FROM public.booking_conversations bc
   WHERE ((bc.user_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)) OR (bc.worker_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)))))) WITH CHECK ((conversation_id IN ( SELECT bc.id
    FROM public.booking_conversations bc
   WHERE ((bc.user_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)) OR (bc.worker_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1))))));
 
 
@@ -15598,7 +20846,7 @@ ALTER TABLE public.chat_usage ENABLE ROW LEVEL SECURITY;
 -- Name: chat_usage chat_usage_owner; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY chat_usage_owner ON public.chat_usage TO authenticated USING ((user_id = (auth.uid())::text));
+CREATE POLICY chat_usage_owner ON public.chat_usage TO authenticated USING ((user_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
@@ -15613,8 +20861,32 @@ ALTER TABLE public.commission_ledger ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY commission_ledger_creator_select ON public.commission_ledger FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'creator'::text) AND (NOT COALESCE(p.deleted, false)) AND (NOT COALESCE(p.suspended, false)) AND (NOT COALESCE(p.banned, false))))));
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'creator'::text) AND (NOT COALESCE(p.deleted, false)) AND (NOT COALESCE(p.suspended, false)) AND (NOT COALESCE(p.banned, false))))));
 
+
+--
+-- Name: conversation_key_envelopes conversation_key_envelope_participant_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversation_key_envelope_participant_insert ON public.conversation_key_envelopes FOR INSERT TO authenticated WITH CHECK ((((conversation_kind = 'roommate'::text) AND (EXISTS ( SELECT 1
+   FROM public.conversations c
+  WHERE ((c.id = conversation_key_envelopes.conversation_id) AND ((public.current_profile_user_id() = c.participant_a) OR (public.current_profile_user_id() = c.participant_b)) AND ((conversation_key_envelopes.recipient_user_id = c.participant_a) OR (conversation_key_envelopes.recipient_user_id = c.participant_b)))))) OR ((conversation_kind = 'worker'::text) AND (EXISTS ( SELECT 1
+   FROM public.booking_conversations c
+  WHERE ((c.id = conversation_key_envelopes.conversation_id) AND ((public.current_profile_user_id() = c.user_id) OR (public.current_profile_user_id() = c.worker_id)) AND ((conversation_key_envelopes.recipient_user_id = c.user_id) OR (conversation_key_envelopes.recipient_user_id = c.worker_id))))))));
+
+
+--
+-- Name: conversation_key_envelopes conversation_key_envelope_recipient_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversation_key_envelope_recipient_read ON public.conversation_key_envelopes FOR SELECT TO authenticated USING ((recipient_user_id = public.current_profile_user_id()));
+
+
+--
+-- Name: conversation_key_envelopes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.conversation_key_envelopes ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: conversations; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15633,14 +20905,35 @@ CREATE POLICY conversations_insert ON public.conversations FOR INSERT TO authent
 -- Name: conversations conversations_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY conversations_select ON public.conversations FOR SELECT TO authenticated USING (public._can_access_conversation(id));
+CREATE POLICY conversations_select ON public.conversations FOR SELECT TO authenticated USING (public.can_access_my_conversation(id));
 
 
 --
 -- Name: conversations conversations_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY conversations_update ON public.conversations FOR UPDATE TO authenticated USING (public._can_access_conversation(id)) WITH CHECK (public._can_access_conversation(id));
+CREATE POLICY conversations_update ON public.conversations FOR UPDATE TO authenticated USING (public.can_access_my_conversation(id)) WITH CHECK (public.can_access_my_conversation(id));
+
+
+--
+-- Name: user_encryption_identities encryption_identity_owner_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY encryption_identity_owner_insert ON public.user_encryption_identities FOR INSERT TO authenticated WITH CHECK ((user_id = public.current_profile_user_id()));
+
+
+--
+-- Name: user_encryption_identities encryption_identity_owner_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY encryption_identity_owner_read ON public.user_encryption_identities FOR SELECT TO authenticated USING ((user_id = public.current_profile_user_id()));
+
+
+--
+-- Name: user_encryption_identities encryption_identity_owner_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY encryption_identity_owner_update ON public.user_encryption_identities FOR UPDATE TO authenticated USING ((user_id = public.current_profile_user_id())) WITH CHECK ((user_id = public.current_profile_user_id()));
 
 
 --
@@ -15666,7 +20959,7 @@ ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 -- Name: favorites favorites_owner; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY favorites_owner ON public.favorites TO authenticated USING (((user_id)::text = (auth.uid())::text));
+CREATE POLICY favorites_owner ON public.favorites TO authenticated USING (((user_id)::text = (( SELECT auth.uid() AS uid))::text));
 
 
 --
@@ -15708,7 +21001,7 @@ ALTER TABLE public.hotel_bookings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY hotel_bookings_admin_select_v2 ON public.hotel_bookings FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM (public.profiles actor
      JOIN public.hotels h ON ((h.hotel_id = hotel_bookings.hotel_id)))
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (NOT COALESCE(actor.deleted, false)) AND (NOT COALESCE(actor.suspended, false)) AND (NOT COALESCE(actor.banned, false)) AND ((actor.role = 'creator'::text) OR ((lower(TRIM(BOTH FROM COALESCE(h.state, ''::text))) = lower(TRIM(BOTH FROM COALESCE(actor.assigned_state, ''::text)))) AND (lower(TRIM(BOTH FROM COALESCE(h.city, ''::text))) = lower(TRIM(BOTH FROM COALESCE(actor.assigned_lga, ''::text))))))))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (NOT COALESCE(actor.deleted, false)) AND (NOT COALESCE(actor.suspended, false)) AND (NOT COALESCE(actor.banned, false)) AND ((actor.role = 'creator'::text) OR ((lower(TRIM(BOTH FROM COALESCE(h.state, ''::text))) = lower(TRIM(BOTH FROM COALESCE(actor.assigned_state, ''::text)))) AND (lower(TRIM(BOTH FROM COALESCE(h.city, ''::text))) = lower(TRIM(BOTH FROM COALESCE(actor.assigned_lga, ''::text))))))))));
 
 
 --
@@ -15717,7 +21010,7 @@ CREATE POLICY hotel_bookings_admin_select_v2 ON public.hotel_bookings FOR SELECT
 
 CREATE POLICY hotel_bookings_creator_select_v2 ON public.hotel_bookings FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'creator'::text) AND (NOT COALESCE(p.deleted, false)) AND (NOT COALESCE(p.suspended, false)) AND (NOT COALESCE(p.banned, false))))));
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'creator'::text) AND (NOT COALESCE(p.deleted, false)) AND (NOT COALESCE(p.suspended, false)) AND (NOT COALESCE(p.banned, false))))));
 
 
 --
@@ -15726,7 +21019,7 @@ CREATE POLICY hotel_bookings_creator_select_v2 ON public.hotel_bookings FOR SELE
 
 CREATE POLICY hotel_bookings_customer_insert_v2 ON public.hotel_bookings FOR INSERT TO authenticated WITH CHECK ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'user'::text) AND (NOT COALESCE(p.deleted, false)) AND (NOT COALESCE(p.suspended, false)) AND (NOT COALESCE(p.banned, false)))
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'user'::text) AND (NOT COALESCE(p.deleted, false)) AND (NOT COALESCE(p.suspended, false)) AND (NOT COALESCE(p.banned, false)))
  LIMIT 1)));
 
 
@@ -15736,7 +21029,7 @@ CREATE POLICY hotel_bookings_customer_insert_v2 ON public.hotel_bookings FOR INS
 
 CREATE POLICY hotel_bookings_customer_select_v2 ON public.hotel_bookings FOR SELECT TO authenticated USING ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -15746,11 +21039,49 @@ CREATE POLICY hotel_bookings_customer_select_v2 ON public.hotel_bookings FOR SEL
 
 CREATE POLICY hotel_bookings_customer_update_v2 ON public.hotel_bookings FOR UPDATE TO authenticated USING ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'user'::text))
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'user'::text))
  LIMIT 1))) WITH CHECK ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (p.role = 'user'::text))
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (p.role = 'user'::text))
  LIMIT 1)));
+
+
+--
+-- Name: hotel_bookings hotel_bookings_partner_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY hotel_bookings_partner_select ON public.hotel_bookings FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM public.hotels h
+  WHERE ((h.hotel_id = hotel_bookings.hotel_id) AND (h.owner_id = public.current_profile_user_id())))));
+
+
+--
+-- Name: hotel_bookings hotel_bookings_team_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY hotel_bookings_team_select ON public.hotel_bookings FOR SELECT TO authenticated USING ((public.current_actor_hotel_role(hotel_id) = ANY (ARRAY['manager'::text, 'staff'::text])));
+
+
+--
+-- Name: hotel_inventory_daily; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.hotel_inventory_daily ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: hotel_inventory_daily hotel_inventory_daily_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY hotel_inventory_daily_read ON public.hotel_inventory_daily FOR SELECT TO authenticated, anon USING ((EXISTS ( SELECT 1
+   FROM public.hotels h
+  WHERE ((h.hotel_id = hotel_inventory_daily.hotel_id) AND ((h.status = 'active'::text) OR (h.owner_id = public.current_profile_user_id()) OR (public.current_profile_role() = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])))))));
+
+
+--
+-- Name: hotel_inventory_daily hotel_inventory_team_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY hotel_inventory_team_read ON public.hotel_inventory_daily FOR SELECT TO authenticated USING ((public.current_actor_hotel_role(hotel_id) = ANY (ARRAY['manager'::text, 'staff'::text])));
 
 
 --
@@ -15767,13 +21098,6 @@ CREATE POLICY hotel_reviews_public_read_canonical ON public.hotel_reviews FOR SE
 
 
 --
--- Name: hotel_reviews hotel_reviews_user_insert_canonical; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY hotel_reviews_user_insert_canonical ON public.hotel_reviews FOR INSERT TO authenticated WITH CHECK (((user_id = public.current_profile_user_id()) AND (public.current_profile_role() = 'user'::text)));
-
-
---
 -- Name: hotel_rooms; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15787,10 +21111,10 @@ CREATE POLICY hotel_rooms_canonical_select ON public.hotel_rooms FOR SELECT TO a
    FROM public.hotels h
   WHERE ((h.hotel_id = hotel_rooms.hotel_id) AND ((h.status = 'active'::text) OR (h.owner_id = ( SELECT p.user_id
            FROM public.profiles p
-          WHERE (p.auth_id = (auth.uid())::text)
+          WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
          LIMIT 1)) OR (EXISTS ( SELECT 1
            FROM public.profiles actor
-          WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))))))));
+          WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))))))));
 
 
 --
@@ -15799,7 +21123,7 @@ CREATE POLICY hotel_rooms_canonical_select ON public.hotel_rooms FOR SELECT TO a
 
 CREATE POLICY hotel_rooms_internal_delete ON public.hotel_rooms FOR DELETE TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
 
 
 --
@@ -15808,7 +21132,7 @@ CREATE POLICY hotel_rooms_internal_delete ON public.hotel_rooms FOR DELETE TO au
 
 CREATE POLICY hotel_rooms_internal_insert ON public.hotel_rooms FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
 
 
 --
@@ -15817,10 +21141,25 @@ CREATE POLICY hotel_rooms_internal_insert ON public.hotel_rooms FOR INSERT TO au
 
 CREATE POLICY hotel_rooms_internal_update ON public.hotel_rooms FOR UPDATE TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false))))) WITH CHECK ((EXISTS ( SELECT 1
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
 
+
+--
+-- Name: hotel_team_members hotel_team_member_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY hotel_team_member_read ON public.hotel_team_members FOR SELECT TO authenticated USING (((member_user_id = public.current_profile_user_id()) OR (EXISTS ( SELECT 1
+   FROM public.hotels h
+  WHERE ((h.hotel_id = hotel_team_members.hotel_id) AND (h.owner_id = public.current_profile_user_id()))))));
+
+
+--
+-- Name: hotel_team_members; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.hotel_team_members ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: hotels; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15834,10 +21173,10 @@ ALTER TABLE public.hotels ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY hotels_canonical_select ON public.hotels FOR SELECT TO authenticated, anon USING (((status = 'active'::text) OR (owner_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false))))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false))))));
 
 
 --
@@ -15846,7 +21185,7 @@ CREATE POLICY hotels_canonical_select ON public.hotels FOR SELECT TO authenticat
 
 CREATE POLICY hotels_internal_delete ON public.hotels FOR DELETE TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
 
 
 --
@@ -15855,7 +21194,7 @@ CREATE POLICY hotels_internal_delete ON public.hotels FOR DELETE TO authenticate
 
 CREATE POLICY hotels_internal_insert ON public.hotels FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
 
 
 --
@@ -15864,9 +21203,9 @@ CREATE POLICY hotels_internal_insert ON public.hotels FOR INSERT TO authenticate
 
 CREATE POLICY hotels_internal_update ON public.hotels FOR UPDATE TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false))))) WITH CHECK ((EXISTS ( SELECT 1
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false))))) WITH CHECK ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))));
 
 
 --
@@ -15972,24 +21311,24 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 -- Name: messages messages_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY messages_insert ON public.messages FOR INSERT TO authenticated WITH CHECK (((sender_id = ( SELECT profiles.user_id
-   FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
- LIMIT 1)) AND public._can_access_conversation(conversation_id)));
+CREATE POLICY messages_insert ON public.messages FOR INSERT TO authenticated WITH CHECK (((sender_id = ( SELECT p.user_id
+   FROM public.profiles p
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
+ LIMIT 1)) AND public.can_access_my_conversation(conversation_id)));
 
 
 --
 -- Name: messages messages_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY messages_select ON public.messages FOR SELECT TO authenticated USING (public._can_access_conversation(conversation_id));
+CREATE POLICY messages_select ON public.messages FOR SELECT TO authenticated USING (public.can_access_my_conversation(conversation_id));
 
 
 --
 -- Name: messages messages_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY messages_update ON public.messages FOR UPDATE TO authenticated USING (public._can_access_conversation(conversation_id));
+CREATE POLICY messages_update ON public.messages FOR UPDATE TO authenticated USING (public.can_access_my_conversation(conversation_id));
 
 
 --
@@ -16087,6 +21426,111 @@ CREATE POLICY platform_settings_read_safe ON public.platform_settings FOR SELECT
 
 
 --
+-- Name: activity_logs private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.activity_logs TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: admin_logs private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.admin_logs TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: audit_logs private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.audit_logs TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: booking_code_registry private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.booking_code_registry TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: booking_payments private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.booking_payments TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: chat_rooms private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.chat_rooms TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: message_requests private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.message_requests TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: payments private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.payments TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: reviews private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.reviews TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: system_settings private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.system_settings TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: verified_paystack_references private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.verified_paystack_references TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: wallet_balances private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.wallet_balances TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: worker_identity_checks private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.worker_identity_checks TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: worker_test_questions private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.worker_test_questions TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
+-- Name: workers private by default; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "private by default" ON public.workers TO authenticated, anon USING (false) WITH CHECK (false);
+
+
+--
 -- Name: private_call_preferences; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -16146,14 +21590,27 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 -- Name: profiles profiles_read_canonical; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY profiles_read_canonical ON public.profiles FOR SELECT TO authenticated USING (((auth_id = (auth.uid())::text) OR (public.current_profile_role() = 'creator'::text)));
+CREATE POLICY profiles_read_canonical ON public.profiles FOR SELECT TO authenticated USING (((auth_id = (( SELECT auth.uid() AS uid))::text) OR (public.current_profile_role() = 'creator'::text)));
 
 
 --
 -- Name: profiles profiles_self_update_canonical; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY profiles_self_update_canonical ON public.profiles FOR UPDATE TO authenticated USING (((auth_id = (auth.uid())::text) AND (COALESCE(deleted, false) = false) AND (COALESCE(suspended, false) = false) AND (COALESCE(banned, false) = false))) WITH CHECK (((auth_id = (auth.uid())::text) AND (COALESCE(deleted, false) = false) AND (COALESCE(suspended, false) = false) AND (COALESCE(banned, false) = false)));
+CREATE POLICY profiles_self_update_canonical ON public.profiles FOR UPDATE TO authenticated USING (((auth_id = (( SELECT auth.uid() AS uid))::text) AND (COALESCE(deleted, false) = false) AND (COALESCE(suspended, false) = false) AND (COALESCE(banned, false) = false))) WITH CHECK (((auth_id = (( SELECT auth.uid() AS uid))::text) AND (COALESCE(deleted, false) = false) AND (COALESCE(suspended, false) = false) AND (COALESCE(banned, false) = false)));
+
+
+--
+-- Name: property_access_challenges; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.property_access_challenges ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: property_access_challenges property_access_challenges_no_direct_access; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY property_access_challenges_no_direct_access ON public.property_access_challenges TO authenticated USING (false) WITH CHECK (false);
 
 
 --
@@ -16168,7 +21625,7 @@ ALTER TABLE public.property_partner_earning_releases ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY property_partner_earning_releases_self_read ON public.property_partner_earning_releases FOR SELECT TO authenticated USING ((partner_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16217,6 +21674,36 @@ CREATE POLICY property_partners_owner_insert ON public.property_partners FOR INS
 --
 
 CREATE POLICY property_partners_owner_read_canonical ON public.property_partners FOR SELECT TO authenticated USING ((profile_id = public.current_profile_user_id()));
+
+
+--
+-- Name: property_submission_batches; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.property_submission_batches ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: property_submission_batches property_submission_batches_owner_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY property_submission_batches_owner_all ON public.property_submission_batches TO authenticated USING ((partner_user_id = (( SELECT auth.uid() AS uid))::text)) WITH CHECK ((partner_user_id = (( SELECT auth.uid() AS uid))::text));
+
+
+--
+-- Name: property_submission_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.property_submission_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: property_submission_items property_submission_items_owner_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY property_submission_items_owner_all ON public.property_submission_items TO authenticated USING ((EXISTS ( SELECT 1
+   FROM public.property_submission_batches b
+  WHERE ((b.id = property_submission_items.batch_id) AND (b.partner_user_id = (( SELECT auth.uid() AS uid))::text))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.property_submission_batches b
+  WHERE ((b.id = property_submission_items.batch_id) AND (b.partner_user_id = (( SELECT auth.uid() AS uid))::text)))));
 
 
 --
@@ -16332,6 +21819,34 @@ CREATE POLICY role_change_history_read_canonical ON public.role_change_history F
 
 
 --
+-- Name: roommate_user_blocks roommate blocks private delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "roommate blocks private delete" ON public.roommate_user_blocks FOR DELETE TO authenticated USING (false);
+
+
+--
+-- Name: roommate_user_blocks roommate blocks private insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "roommate blocks private insert" ON public.roommate_user_blocks FOR INSERT TO authenticated WITH CHECK (false);
+
+
+--
+-- Name: roommate_user_blocks roommate blocks private select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "roommate blocks private select" ON public.roommate_user_blocks FOR SELECT TO authenticated USING (false);
+
+
+--
+-- Name: roommate_user_blocks roommate blocks private update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "roommate blocks private update" ON public.roommate_user_blocks FOR UPDATE TO authenticated USING (false) WITH CHECK (false);
+
+
+--
 -- Name: roommate_matches; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -16361,7 +21876,7 @@ ALTER TABLE public.roommate_preferences ENABLE ROW LEVEL SECURITY;
 -- Name: roommate_preferences roommate_preferences_self; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY roommate_preferences_self ON public.roommate_preferences TO authenticated USING ((auth_id = (auth.uid())::text)) WITH CHECK ((auth_id = (auth.uid())::text));
+CREATE POLICY roommate_preferences_self ON public.roommate_preferences TO authenticated USING ((auth_id = (( SELECT auth.uid() AS uid))::text)) WITH CHECK ((auth_id = (( SELECT auth.uid() AS uid))::text));
 
 
 --
@@ -16374,7 +21889,7 @@ ALTER TABLE public.roommate_profiles ENABLE ROW LEVEL SECURITY;
 -- Name: roommate_profiles roommate_profiles_owner; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY roommate_profiles_owner ON public.roommate_profiles TO authenticated USING (((user_id)::text = (auth.uid())::text));
+CREATE POLICY roommate_profiles_owner ON public.roommate_profiles TO authenticated USING (((user_id)::text = (( SELECT auth.uid() AS uid))::text));
 
 
 --
@@ -16383,10 +21898,10 @@ CREATE POLICY roommate_profiles_owner ON public.roommate_profiles TO authenticat
 
 CREATE POLICY roommate_results_self ON public.roommate_search_results TO authenticated USING ((searcher_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1))) WITH CHECK ((searcher_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16395,6 +21910,12 @@ CREATE POLICY roommate_results_self ON public.roommate_search_results TO authent
 --
 
 ALTER TABLE public.roommate_search_results ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: roommate_user_blocks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.roommate_user_blocks ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: saved_listings; Type: ROW SECURITY; Schema: public; Owner: -
@@ -16408,7 +21929,7 @@ ALTER TABLE public.saved_listings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY saved_listings_delete ON public.saved_listings FOR DELETE TO authenticated USING ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))
  LIMIT 1)));
 
 
@@ -16418,7 +21939,7 @@ CREATE POLICY saved_listings_delete ON public.saved_listings FOR DELETE TO authe
 
 CREATE POLICY saved_listings_insert ON public.saved_listings FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))
  LIMIT 1)) AND (EXISTS ( SELECT 1
    FROM public.listings l
   WHERE ((l.id = saved_listings.listing_id) AND (l.deleted_at IS NULL) AND (l.status = 'available'::text))))));
@@ -16430,8 +21951,42 @@ CREATE POLICY saved_listings_insert ON public.saved_listings FOR INSERT TO authe
 
 CREATE POLICY saved_listings_select ON public.saved_listings FOR SELECT TO authenticated USING ((user_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE ((p.auth_id = (auth.uid())::text) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))
+  WHERE ((p.auth_id = (( SELECT auth.uid() AS uid))::text) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))
  LIMIT 1)));
+
+
+--
+-- Name: saved_searches; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saved_searches saved_searches_owner_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saved_searches_owner_delete ON public.saved_searches FOR DELETE TO authenticated USING ((user_id = public.current_profile_user_id()));
+
+
+--
+-- Name: saved_searches saved_searches_owner_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saved_searches_owner_insert ON public.saved_searches FOR INSERT TO authenticated WITH CHECK ((user_id = public.current_profile_user_id()));
+
+
+--
+-- Name: saved_searches saved_searches_owner_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saved_searches_owner_select ON public.saved_searches FOR SELECT TO authenticated USING ((user_id = public.current_profile_user_id()));
+
+
+--
+-- Name: saved_searches saved_searches_owner_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saved_searches_owner_update ON public.saved_searches FOR UPDATE TO authenticated USING ((user_id = public.current_profile_user_id())) WITH CHECK ((user_id = public.current_profile_user_id()));
 
 
 --
@@ -16488,6 +22043,36 @@ CREATE POLICY service_subcategories_read ON public.service_subcategories FOR SEL
 
 
 --
+-- Name: shared_housing_groups; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.shared_housing_groups ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: shared_housing_groups shared_housing_groups_member_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY shared_housing_groups_member_read ON public.shared_housing_groups FOR SELECT TO authenticated USING (((created_by = (( SELECT auth.uid() AS uid))::text) OR (EXISTS ( SELECT 1
+   FROM public.shared_housing_members m
+  WHERE ((m.group_id = m.id) AND (m.user_id = (( SELECT auth.uid() AS uid))::text))))));
+
+
+--
+-- Name: shared_housing_members; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.shared_housing_members ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: shared_housing_members shared_housing_members_member_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY shared_housing_members_member_read ON public.shared_housing_members FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM public.shared_housing_members mine
+  WHERE ((mine.group_id = shared_housing_members.group_id) AND (mine.user_id = public.current_profile_user_id())))));
+
+
+--
 -- Name: staff_location_presence; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -16499,7 +22084,7 @@ ALTER TABLE public.staff_location_presence ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY staff_location_self_read ON public.staff_location_presence FOR SELECT TO authenticated USING ((staff_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16509,10 +22094,10 @@ CREATE POLICY staff_location_self_read ON public.staff_location_presence FOR SEL
 
 CREATE POLICY staff_location_self_write ON public.staff_location_presence TO authenticated USING ((staff_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1))) WITH CHECK ((staff_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16537,7 +22122,7 @@ CREATE POLICY staff_permissions_admin_read ON public.staff_permissions FOR SELEC
 
 CREATE POLICY staff_permissions_self_read ON public.staff_permissions FOR SELECT TO authenticated USING ((staff_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16573,13 +22158,13 @@ ALTER TABLE public.staff_trust_profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY staff_trust_select ON public.staff_trust_profiles FOR SELECT TO authenticated USING (((staff_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = 'creator'::text) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))) OR (EXISTS ( SELECT 1
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = 'creator'::text) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false)))) OR (EXISTS ( SELECT 1
    FROM (public.profiles actor
      JOIN public.profiles target ON ((target.user_id = staff_trust_profiles.staff_id)))
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = 'admin'::text) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false) AND (NOT (actor.assigned_state IS DISTINCT FROM target.assigned_state)) AND (NOT (actor.assigned_lga IS DISTINCT FROM target.assigned_lga)))))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = 'admin'::text) AND (COALESCE(actor.deleted, false) = false) AND (COALESCE(actor.suspended, false) = false) AND (COALESCE(actor.banned, false) = false) AND (NOT (actor.assigned_state IS DISTINCT FROM target.assigned_state)) AND (NOT (actor.assigned_lga IS DISTINCT FROM target.assigned_lga)))))));
 
 
 --
@@ -16612,7 +22197,7 @@ ALTER TABLE public.user_activity ENABLE ROW LEVEL SECURITY;
 -- Name: user_activity user_activity_insert_own_canonical; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_activity_insert_own_canonical ON public.user_activity FOR INSERT TO authenticated WITH CHECK (((user_id = public.current_profile_user_id()) AND (auth_id = (auth.uid())::text)));
+CREATE POLICY user_activity_insert_own_canonical ON public.user_activity FOR INSERT TO authenticated WITH CHECK (((user_id = public.current_profile_user_id()) AND (auth_id = (( SELECT auth.uid() AS uid))::text)));
 
 
 --
@@ -16634,7 +22219,7 @@ ALTER TABLE public.user_counters ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY user_counters_creator ON public.user_counters TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles
-  WHERE ((profiles.user_id = (auth.uid())::text) AND (profiles.role = ANY (ARRAY['creator'::text]))))));
+  WHERE ((profiles.user_id = (( SELECT auth.uid() AS uid))::text) AND (profiles.role = ANY (ARRAY['creator'::text]))))));
 
 
 --
@@ -16643,6 +22228,12 @@ CREATE POLICY user_counters_creator ON public.user_counters TO authenticated USI
 
 CREATE POLICY user_create_block ON public.blocked_workers FOR INSERT TO authenticated WITH CHECK (true);
 
+
+--
+-- Name: user_encryption_identities; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_encryption_identities ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_id_counter; Type: ROW SECURITY; Schema: public; Owner: -
@@ -16656,7 +22247,7 @@ ALTER TABLE public.user_id_counter ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY user_id_counter_creator ON public.user_id_counter TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles
-  WHERE ((profiles.user_id = (auth.uid())::text) AND (profiles.role = ANY (ARRAY['creator'::text]))))));
+  WHERE ((profiles.user_id = (( SELECT auth.uid() AS uid))::text) AND (profiles.role = ANY (ARRAY['creator'::text]))))));
 
 
 --
@@ -16671,7 +22262,7 @@ ALTER TABLE public.user_ids ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY user_ids_creator ON public.user_ids TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles
-  WHERE ((profiles.user_id = (auth.uid())::text) AND (profiles.role = ANY (ARRAY['creator'::text]))))));
+  WHERE ((profiles.user_id = (( SELECT auth.uid() AS uid))::text) AND (profiles.role = ANY (ARRAY['creator'::text]))))));
 
 
 --
@@ -16699,35 +22290,35 @@ ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY user_sessions_admin_read ON public.user_sessions FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.profiles actor
-  WHERE ((actor.auth_id = (auth.uid())::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (NOT COALESCE(actor.deleted, false)) AND (NOT COALESCE(actor.suspended, false)) AND (NOT COALESCE(actor.banned, false)) AND ((actor.role = 'creator'::text) OR public.can_current_actor_read_profile(user_sessions.user_id))))));
+  WHERE ((actor.auth_id = (( SELECT auth.uid() AS uid))::text) AND (actor.role = ANY (ARRAY['admin'::text, 'creator'::text])) AND (NOT COALESCE(actor.deleted, false)) AND (NOT COALESCE(actor.suspended, false)) AND (NOT COALESCE(actor.banned, false)) AND ((actor.role = 'creator'::text) OR public.can_current_actor_read_profile(user_sessions.user_id))))));
 
 
 --
 -- Name: user_sessions user_sessions_owner_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_sessions_owner_insert ON public.user_sessions FOR INSERT TO authenticated WITH CHECK (((auth_id = (auth.uid())::text) AND (user_id = public.current_profile_user_id())));
+CREATE POLICY user_sessions_owner_insert ON public.user_sessions FOR INSERT TO authenticated WITH CHECK (((auth_id = (( SELECT auth.uid() AS uid))::text) AND (user_id = public.current_profile_user_id())));
 
 
 --
 -- Name: user_sessions user_sessions_owner_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_sessions_owner_read ON public.user_sessions FOR SELECT TO authenticated USING (((auth_id = (auth.uid())::text) AND (user_id = public.current_profile_user_id())));
+CREATE POLICY user_sessions_owner_read ON public.user_sessions FOR SELECT TO authenticated USING (((auth_id = (( SELECT auth.uid() AS uid))::text) AND (user_id = public.current_profile_user_id())));
 
 
 --
 -- Name: user_sessions user_sessions_owner_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY user_sessions_owner_update ON public.user_sessions FOR UPDATE TO authenticated USING (((auth_id = (auth.uid())::text) AND (user_id = public.current_profile_user_id()))) WITH CHECK (((auth_id = (auth.uid())::text) AND (user_id = public.current_profile_user_id())));
+CREATE POLICY user_sessions_owner_update ON public.user_sessions FOR UPDATE TO authenticated USING (((auth_id = (( SELECT auth.uid() AS uid))::text) AND (user_id = public.current_profile_user_id()))) WITH CHECK (((auth_id = (( SELECT auth.uid() AS uid))::text) AND (user_id = public.current_profile_user_id())));
 
 
 --
 -- Name: rent_plan_cancellations users_own_cancellations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY users_own_cancellations ON public.rent_plan_cancellations FOR SELECT USING (((auth.uid())::text = user_id));
+CREATE POLICY users_own_cancellations ON public.rent_plan_cancellations FOR SELECT USING (((( SELECT auth.uid() AS uid))::text = user_id));
 
 
 --
@@ -16767,10 +22358,10 @@ CREATE POLICY wallets_read_canonical ON public.wallets FOR SELECT TO authenticat
 
 CREATE POLICY wda_owner ON public.withdrawal_requests FOR SELECT USING (((user_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (EXISTS ( SELECT 1
    FROM public.profiles
-  WHERE ((profiles.auth_id = (auth.uid())::text) AND (profiles.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])))))));
+  WHERE ((profiles.auth_id = (( SELECT auth.uid() AS uid))::text) AND (profiles.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])))))));
 
 
 --
@@ -16795,6 +22386,12 @@ CREATE POLICY withdrawals_read_canonical ON public.withdrawals FOR SELECT TO aut
 
 
 --
+-- Name: worker_booking_reviews; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.worker_booking_reviews ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: worker_bookings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -16813,7 +22410,7 @@ CREATE POLICY worker_bookings_read_canonical ON public.worker_bookings FOR SELEC
 
 CREATE POLICY worker_coverage_owner_read ON public.worker_service_coverage FOR SELECT TO authenticated USING ((worker_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16900,8 +22497,8 @@ ALTER TABLE public.worker_showcase_posts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY worker_showcase_select ON public.worker_showcase_posts FOR SELECT TO authenticated USING (((deleted_at IS NULL) AND ((worker_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
- LIMIT 1)) OR (((kind = 'portfolio'::text) OR (expires_at > now())) AND (EXISTS ( SELECT 1
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
+ LIMIT 1)) OR ((hidden_at IS NULL) AND (kind = 'work_post'::text) AND (EXISTS ( SELECT 1
    FROM public.profiles p
   WHERE ((p.user_id = worker_showcase_posts.worker_id) AND (p.role = 'worker'::text) AND (p.worker_status = 'verified'::text) AND (COALESCE(p.worker_verified, false) = true) AND (COALESCE(p.deleted, false) = false) AND (COALESCE(p.suspended, false) = false) AND (COALESCE(p.banned, false) = false))))))));
 
@@ -16918,7 +22515,7 @@ ALTER TABLE public.worker_test_attempts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY worker_test_attempts_select_own ON public.worker_test_attempts FOR SELECT TO authenticated USING ((worker_id = ( SELECT p.user_id
    FROM public.profiles p
-  WHERE (p.auth_id = (auth.uid())::text)
+  WHERE (p.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)));
 
 
@@ -16954,15 +22551,28 @@ ALTER TABLE public.worker_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workers ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: workspace_role_assignments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.workspace_role_assignments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: workspace_role_assignments workspace_role_owner_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY workspace_role_owner_read ON public.workspace_role_assignments FOR SELECT TO authenticated USING ((user_id = public.current_profile_user_id()));
+
+
+--
 -- Name: wallet_transactions wtx_owner; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY wtx_owner ON public.wallet_transactions FOR SELECT USING (((user_id = ( SELECT profiles.user_id
    FROM public.profiles
-  WHERE (profiles.auth_id = (auth.uid())::text)
+  WHERE (profiles.auth_id = (( SELECT auth.uid() AS uid))::text)
  LIMIT 1)) OR (EXISTS ( SELECT 1
    FROM public.profiles
-  WHERE ((profiles.auth_id = (auth.uid())::text) AND (profiles.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])))))));
+  WHERE ((profiles.auth_id = (( SELECT auth.uid() AS uid))::text) AND (profiles.role = ANY (ARRAY['staff'::text, 'admin'::text, 'creator'::text])))))));
 
 
 --
@@ -17048,6 +22658,14 @@ GRANT ALL ON FUNCTION public._current_comm_actor() TO service_role;
 
 
 --
+-- Name: FUNCTION _ensure_verified_worker_wallet(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public._ensure_verified_worker_wallet() FROM PUBLIC;
+GRANT ALL ON FUNCTION public._ensure_verified_worker_wallet() TO service_role;
+
+
+--
 -- Name: FUNCTION _guard_worker_profile_state(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -17074,6 +22692,22 @@ GRANT ALL ON FUNCTION public.accept_current_legal(p_document text) TO service_ro
 
 
 --
+-- Name: FUNCTION account_identity_is_current(p_user_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.account_identity_is_current(p_user_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.account_identity_is_current(p_user_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION account_identity_recheck_days(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.account_identity_recheck_days() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.account_identity_recheck_days() TO service_role;
+
+
+--
 -- Name: TABLE reservations; Type: ACL; Schema: public; Owner: -
 --
 
@@ -17087,7 +22721,6 @@ GRANT ALL ON TABLE public.reservations TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.activate_apartment_tenancy(p_reservation_id text, p_start_date date) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.activate_apartment_tenancy(p_reservation_id text, p_start_date date) TO authenticated;
 GRANT ALL ON FUNCTION public.activate_apartment_tenancy(p_reservation_id text, p_start_date date) TO service_role;
 
 
@@ -17095,7 +22728,7 @@ GRANT ALL ON FUNCTION public.activate_apartment_tenancy(p_reservation_id text, p
 -- Name: FUNCTION activate_short_stay(p_reservation_id text, p_actual_check_in date); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.activate_short_stay(p_reservation_id text, p_actual_check_in date) TO anon;
+REVOKE ALL ON FUNCTION public.activate_short_stay(p_reservation_id text, p_actual_check_in date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.activate_short_stay(p_reservation_id text, p_actual_check_in date) TO authenticated;
 GRANT ALL ON FUNCTION public.activate_short_stay(p_reservation_id text, p_actual_check_in date) TO service_role;
 
@@ -17105,7 +22738,6 @@ GRANT ALL ON FUNCTION public.activate_short_stay(p_reservation_id text, p_actual
 --
 
 REVOKE ALL ON FUNCTION public.add_conversation_action(p_conversation_id uuid, p_action_type text, p_content text, p_metadata jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.add_conversation_action(p_conversation_id uuid, p_action_type text, p_content text, p_metadata jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.add_conversation_action(p_conversation_id uuid, p_action_type text, p_content text, p_metadata jsonb) TO service_role;
 
 
@@ -17150,7 +22782,6 @@ GRANT ALL ON FUNCTION public.admin_count_branch_announcement_recipients(p_target
 --
 
 REVOKE ALL ON FUNCTION public.admin_create_hotel_from_inspection(p_inspection_id uuid, p_name text, p_description text, p_images text[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_create_hotel_from_inspection(p_inspection_id uuid, p_name text, p_description text, p_images text[]) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_create_hotel_from_inspection(p_inspection_id uuid, p_name text, p_description text, p_images text[]) TO service_role;
 
 
@@ -17249,7 +22880,6 @@ GRANT ALL ON FUNCTION public.admin_get_my_branch_worker_bookings() TO service_ro
 --
 
 REVOKE ALL ON FUNCTION public.admin_get_partner_inspections() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_get_partner_inspections() TO authenticated;
 GRANT ALL ON FUNCTION public.admin_get_partner_inspections() TO service_role;
 
 
@@ -17276,7 +22906,6 @@ GRANT ALL ON TABLE public.user_inspection_requests TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.admin_get_user_inspections() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_get_user_inspections() TO authenticated;
 GRANT ALL ON FUNCTION public.admin_get_user_inspections() TO service_role;
 
 
@@ -17294,7 +22923,6 @@ GRANT ALL ON TABLE public.inspection_requests TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.admin_get_user_inspections(p_user_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_get_user_inspections(p_user_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_get_user_inspections(p_user_id text) TO service_role;
 
 
@@ -17303,7 +22931,6 @@ GRANT ALL ON FUNCTION public.admin_get_user_inspections(p_user_id text) TO servi
 --
 
 REVOKE ALL ON FUNCTION public.admin_get_worker_review_identity_status(p_worker_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_get_worker_review_identity_status(p_worker_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_get_worker_review_identity_status(p_worker_id text) TO service_role;
 
 
@@ -17317,11 +22944,19 @@ GRANT ALL ON FUNCTION public.admin_get_worker_review_trust_status(p_worker_id te
 
 
 --
+-- Name: FUNCTION admin_prepare_hotel_from_submission_v2(p_inspection_id uuid, p_name text, p_description text, p_images text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.admin_prepare_hotel_from_submission_v2(p_inspection_id uuid, p_name text, p_description text, p_images text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.admin_prepare_hotel_from_submission_v2(p_inspection_id uuid, p_name text, p_description text, p_images text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.admin_prepare_hotel_from_submission_v2(p_inspection_id uuid, p_name text, p_description text, p_images text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION admin_promote_to_staff(p_target_user_id text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.admin_promote_to_staff(p_target_user_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.admin_promote_to_staff(p_target_user_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_promote_to_staff(p_target_user_id text) TO service_role;
 
 
@@ -17376,6 +23011,7 @@ GRANT ALL ON FUNCTION public.admin_review_my_branch_listing(p_listing_id uuid, p
 
 REVOKE ALL ON FUNCTION public.admin_review_my_branch_worker(p_worker_id text, p_decision text, p_reason text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.admin_review_my_branch_worker(p_worker_id text, p_decision text, p_reason text) TO service_role;
+GRANT ALL ON FUNCTION public.admin_review_my_branch_worker(p_worker_id text, p_decision text, p_reason text) TO authenticated;
 
 
 --
@@ -17385,6 +23021,24 @@ GRANT ALL ON FUNCTION public.admin_review_my_branch_worker(p_worker_id text, p_d
 REVOKE ALL ON FUNCTION public.admin_send_branch_announcement(p_title text, p_content text, p_target_roles text[], p_recipient_ids text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.admin_send_branch_announcement(p_title text, p_content text, p_target_roles text[], p_recipient_ids text[]) TO authenticated;
 GRANT ALL ON FUNCTION public.admin_send_branch_announcement(p_title text, p_content text, p_target_roles text[], p_recipient_ids text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION admin_set_inspected_hotel_media(p_inspection_id uuid, p_hotel_images text[], p_room_galleries jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.admin_set_inspected_hotel_media(p_inspection_id uuid, p_hotel_images text[], p_room_galleries jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.admin_set_inspected_hotel_media(p_inspection_id uuid, p_hotel_images text[], p_room_galleries jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.admin_set_inspected_hotel_media(p_inspection_id uuid, p_hotel_images text[], p_room_galleries jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION admin_set_inspected_public_gallery(p_inspection_id uuid, p_images text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.admin_set_inspected_public_gallery(p_inspection_id uuid, p_images text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.admin_set_inspected_public_gallery(p_inspection_id uuid, p_images text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.admin_set_inspected_public_gallery(p_inspection_id uuid, p_images text[]) TO service_role;
 
 
 --
@@ -17438,6 +23092,7 @@ GRANT ALL ON FUNCTION public.approve_listing_internal(p_listing_id uuid) TO serv
 
 REVOKE ALL ON FUNCTION public.approve_withdrawal_v2(p_withdrawal_id uuid, p_approved_by text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.approve_withdrawal_v2(p_withdrawal_id uuid, p_approved_by text) TO service_role;
+GRANT ALL ON FUNCTION public.approve_withdrawal_v2(p_withdrawal_id uuid, p_approved_by text) TO authenticated;
 
 
 --
@@ -17445,7 +23100,6 @@ GRANT ALL ON FUNCTION public.approve_withdrawal_v2(p_withdrawal_id uuid, p_appro
 --
 
 REVOKE ALL ON FUNCTION public.assign_field_officer(p_conversation_id uuid, p_staff_id text, p_officer_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.assign_field_officer(p_conversation_id uuid, p_staff_id text, p_officer_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.assign_field_officer(p_conversation_id uuid, p_staff_id text, p_officer_id text) TO service_role;
 
 
@@ -17454,7 +23108,6 @@ GRANT ALL ON FUNCTION public.assign_field_officer(p_conversation_id uuid, p_staf
 --
 
 REVOKE ALL ON FUNCTION public.assign_partner_inspection(p_inspection_id uuid, p_field_officer_id text, p_scheduled_date date) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.assign_partner_inspection(p_inspection_id uuid, p_field_officer_id text, p_scheduled_date date) TO authenticated;
 GRANT ALL ON FUNCTION public.assign_partner_inspection(p_inspection_id uuid, p_field_officer_id text, p_scheduled_date date) TO service_role;
 
 
@@ -17462,9 +23115,17 @@ GRANT ALL ON FUNCTION public.assign_partner_inspection(p_inspection_id uuid, p_f
 -- Name: FUNCTION attach_property_partner_to_inspection(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.attach_property_partner_to_inspection() TO anon;
-GRANT ALL ON FUNCTION public.attach_property_partner_to_inspection() TO authenticated;
+REVOKE ALL ON FUNCTION public.attach_property_partner_to_inspection() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.attach_property_partner_to_inspection() TO service_role;
+
+
+--
+-- Name: FUNCTION bind_worker_booking_service(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.bind_worker_booking_service() TO anon;
+GRANT ALL ON FUNCTION public.bind_worker_booking_service() TO authenticated;
+GRANT ALL ON FUNCTION public.bind_worker_booking_service() TO service_role;
 
 
 --
@@ -17489,7 +23150,6 @@ GRANT ALL ON FUNCTION public.bump_legal_version() TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.calculate_commission(p_amount numeric, p_type text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.calculate_commission(p_amount numeric, p_type text) TO authenticated;
 GRANT ALL ON FUNCTION public.calculate_commission(p_amount numeric, p_type text) TO service_role;
 
 
@@ -17500,6 +23160,24 @@ GRANT ALL ON FUNCTION public.calculate_commission(p_amount numeric, p_type text)
 REVOKE ALL ON FUNCTION public.calculate_reservation_refund(p_reservation_id text, p_reason_category text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.calculate_reservation_refund(p_reservation_id text, p_reason_category text) TO authenticated;
 GRANT ALL ON FUNCTION public.calculate_reservation_refund(p_reservation_id text, p_reason_category text) TO service_role;
+
+
+--
+-- Name: FUNCTION can_access_my_conversation(p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.can_access_my_conversation(p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.can_access_my_conversation(p_conversation_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.can_access_my_conversation(p_conversation_id uuid) TO authenticated;
+
+
+--
+-- Name: FUNCTION can_access_operational_conversation(p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.can_access_operational_conversation(p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.can_access_operational_conversation(p_conversation_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.can_access_operational_conversation(p_conversation_id uuid) TO service_role;
 
 
 --
@@ -17557,6 +23235,31 @@ GRANT ALL ON FUNCTION public.cancel_rent_plan(p_plan_id uuid, p_reason text, p_r
 
 
 --
+-- Name: FUNCTION claim_my_communication_case(p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.claim_my_communication_case(p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.claim_my_communication_case(p_conversation_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.claim_my_communication_case(p_conversation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION classify_conversation_channel(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.classify_conversation_channel() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.classify_conversation_channel() TO service_role;
+
+
+--
+-- Name: FUNCTION clear_consumed_property_access_code(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.clear_consumed_property_access_code() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.clear_consumed_property_access_code() TO service_role;
+
+
+--
 -- Name: FUNCTION complete_apartment_tenancy(p_reservation_id text, p_next_status text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -17575,6 +23278,15 @@ GRANT ALL ON FUNCTION public.complete_inspection_result(p_inspection_id uuid, p_
 
 
 --
+-- Name: FUNCTION complete_my_account_identity_check(p_photo_path text, p_face_match_score numeric, p_liveness_score numeric, p_anti_spoof_score numeric, p_challenge_result jsonb, p_consent boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.complete_my_account_identity_check(p_photo_path text, p_face_match_score numeric, p_liveness_score numeric, p_anti_spoof_score numeric, p_challenge_result jsonb, p_consent boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.complete_my_account_identity_check(p_photo_path text, p_face_match_score numeric, p_liveness_score numeric, p_anti_spoof_score numeric, p_challenge_result jsonb, p_consent boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.complete_my_account_identity_check(p_photo_path text, p_face_match_score numeric, p_liveness_score numeric, p_anti_spoof_score numeric, p_challenge_result jsonb, p_consent boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION complete_my_worker_identity_check(p_photo_path text, p_face_match_score numeric, p_liveness_score numeric, p_anti_spoof_score numeric, p_challenge_result jsonb, p_consent boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -17587,9 +23299,18 @@ GRANT ALL ON FUNCTION public.complete_my_worker_identity_check(p_photo_path text
 -- Name: FUNCTION complete_short_stay(p_reservation_id text, p_next_status text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.complete_short_stay(p_reservation_id text, p_next_status text) TO anon;
+REVOKE ALL ON FUNCTION public.complete_short_stay(p_reservation_id text, p_next_status text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.complete_short_stay(p_reservation_id text, p_next_status text) TO authenticated;
 GRANT ALL ON FUNCTION public.complete_short_stay(p_reservation_id text, p_next_status text) TO service_role;
+
+
+--
+-- Name: FUNCTION confirm_apartment_handover(p_booking_code text, p_start_date date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.confirm_apartment_handover(p_booking_code text, p_start_date date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.confirm_apartment_handover(p_booking_code text, p_start_date date) TO service_role;
+GRANT ALL ON FUNCTION public.confirm_apartment_handover(p_booking_code text, p_start_date date) TO authenticated;
 
 
 --
@@ -17598,6 +23319,23 @@ GRANT ALL ON FUNCTION public.complete_short_stay(p_reservation_id text, p_next_s
 
 REVOKE ALL ON FUNCTION public.confirm_booking_payment(p_reference text, p_transaction_id text, p_verified_amount numeric, p_verification_source text, p_purpose text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.confirm_booking_payment(p_reference text, p_transaction_id text, p_verified_amount numeric, p_verification_source text, p_purpose text) TO service_role;
+GRANT ALL ON FUNCTION public.confirm_booking_payment(p_reference text, p_transaction_id text, p_verified_amount numeric, p_verification_source text, p_purpose text) TO authenticated;
+
+
+--
+-- Name: FUNCTION confirm_my_move_in(p_reservation_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.confirm_my_move_in(p_reservation_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.confirm_my_move_in(p_reservation_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION confirm_shared_housing_payment(p_reference text, p_transaction_id text, p_verified_amount numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.confirm_shared_housing_payment(p_reference text, p_transaction_id text, p_verified_amount numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.confirm_shared_housing_payment(p_reference text, p_transaction_id text, p_verified_amount numeric) TO service_role;
 
 
 --
@@ -17681,12 +23419,55 @@ GRANT ALL ON FUNCTION public.create_my_profile(p_email text, p_role text) TO ser
 
 
 --
+-- Name: FUNCTION create_my_property_access_challenge(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_property_access_challenge() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_property_access_challenge() TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_property_access_challenge() TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_property_access_correction(p_request_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_property_access_correction(p_request_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_property_access_correction(p_request_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_property_access_correction(p_request_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION create_my_property_inspection_batch(p_items jsonb); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.create_my_property_inspection_batch(p_items jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.create_my_property_inspection_batch(p_items jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.create_my_property_inspection_batch(p_items jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_property_inspection_batch_v2(p_items jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_property_inspection_batch_v2(p_items jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_property_inspection_batch_v2(p_items jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_property_inspection_batch_v3(p_items jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_property_inspection_batch_v3(p_items jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_property_inspection_batch_v3(p_items jsonb) TO service_role;
+GRANT ALL ON FUNCTION public.create_my_property_inspection_batch_v3(p_items jsonb) TO authenticated;
+
+
+--
+-- Name: FUNCTION create_my_property_inspection_batch_v4(p_batch_id uuid, p_items jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_property_inspection_batch_v4(p_batch_id uuid, p_items jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_property_inspection_batch_v4(p_batch_id uuid, p_items jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_property_inspection_batch_v4(p_batch_id uuid, p_items jsonb) TO service_role;
 
 
 --
@@ -17694,7 +23475,6 @@ GRANT ALL ON FUNCTION public.create_my_property_inspection_batch(p_items jsonb) 
 --
 
 REVOKE ALL ON FUNCTION public.create_my_property_inspection_request(p_property_address text, p_property_city text, p_property_state text, p_property_type text, p_bedrooms integer, p_bathrooms integer, p_expected_rent numeric, p_description text, p_owner_phone text, p_photo_urls text[], p_gps_latitude numeric, p_gps_longitude numeric) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.create_my_property_inspection_request(p_property_address text, p_property_city text, p_property_state text, p_property_type text, p_bedrooms integer, p_bathrooms integer, p_expected_rent numeric, p_description text, p_owner_phone text, p_photo_urls text[], p_gps_latitude numeric, p_gps_longitude numeric) TO authenticated;
 GRANT ALL ON FUNCTION public.create_my_property_inspection_request(p_property_address text, p_property_city text, p_property_state text, p_property_type text, p_bedrooms integer, p_bathrooms integer, p_expected_rent numeric, p_description text, p_owner_phone text, p_photo_urls text[], p_gps_latitude numeric, p_gps_longitude numeric) TO service_role;
 
 
@@ -17703,8 +23483,52 @@ GRANT ALL ON FUNCTION public.create_my_property_inspection_request(p_property_ad
 --
 
 REVOKE ALL ON FUNCTION public.create_my_property_inspection_request_v2(p_property_address text, p_property_city text, p_property_state text, p_property_type text, p_bedrooms integer, p_bathrooms integer, p_expected_rent numeric, p_description text, p_owner_phone text, p_photo_urls text[], p_gps_latitude numeric, p_gps_longitude numeric, p_location_accuracy_m numeric) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.create_my_property_inspection_request_v2(p_property_address text, p_property_city text, p_property_state text, p_property_type text, p_bedrooms integer, p_bathrooms integer, p_expected_rent numeric, p_description text, p_owner_phone text, p_photo_urls text[], p_gps_latitude numeric, p_gps_longitude numeric, p_location_accuracy_m numeric) TO authenticated;
 GRANT ALL ON FUNCTION public.create_my_property_inspection_request_v2(p_property_address text, p_property_city text, p_property_state text, p_property_type text, p_bedrooms integer, p_bathrooms integer, p_expected_rent numeric, p_description text, p_owner_phone text, p_photo_urls text[], p_gps_latitude numeric, p_gps_longitude numeric, p_location_accuracy_m numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_shared_housing_group(p_listing_id uuid, p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_shared_housing_group(p_listing_id uuid, p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_shared_housing_group(p_listing_id uuid, p_conversation_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_shared_housing_group(p_listing_id uuid, p_conversation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_shared_housing_payment(p_group_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_shared_housing_payment(p_group_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_shared_housing_payment(p_group_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_shared_housing_payment(p_group_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_support_case(p_subject text, p_category text, p_source_type text, p_source_id text, p_source_snapshot jsonb, p_priority text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_support_case(p_subject text, p_category text, p_source_type text, p_source_id text, p_source_snapshot jsonb, p_priority text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_support_case(p_subject text, p_category text, p_source_type text, p_source_id text, p_source_snapshot jsonb, p_priority text) TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_support_case(p_subject text, p_category text, p_source_type text, p_source_id text, p_source_snapshot jsonb, p_priority text) TO service_role;
+
+
+--
+-- Name: TABLE hotel_reviews; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.hotel_reviews TO anon;
+GRANT ALL ON TABLE public.hotel_reviews TO authenticated;
+GRANT ALL ON TABLE public.hotel_reviews TO service_role;
+
+
+--
+-- Name: FUNCTION create_my_verified_hotel_review(p_hotel_id integer, p_rating integer, p_comment text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.create_my_verified_hotel_review(p_hotel_id integer, p_rating integer, p_comment text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.create_my_verified_hotel_review(p_hotel_id integer, p_rating integer, p_comment text) TO authenticated;
+GRANT ALL ON FUNCTION public.create_my_verified_hotel_review(p_hotel_id integer, p_rating integer, p_comment text) TO service_role;
 
 
 --
@@ -17746,7 +23570,7 @@ GRANT ALL ON FUNCTION public.create_rent_plan_contribution_payment(p_contributio
 -- Name: FUNCTION create_short_stay_payment(p_reservation_id text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.create_short_stay_payment(p_reservation_id text) TO anon;
+REVOKE ALL ON FUNCTION public.create_short_stay_payment(p_reservation_id text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.create_short_stay_payment(p_reservation_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.create_short_stay_payment(p_reservation_id text) TO service_role;
 
@@ -17755,7 +23579,7 @@ GRANT ALL ON FUNCTION public.create_short_stay_payment(p_reservation_id text) TO
 -- Name: FUNCTION create_short_stay_reservation(p_listing_id text, p_check_in date, p_check_out date); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.create_short_stay_reservation(p_listing_id text, p_check_in date, p_check_out date) TO anon;
+REVOKE ALL ON FUNCTION public.create_short_stay_reservation(p_listing_id text, p_check_in date, p_check_out date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.create_short_stay_reservation(p_listing_id text, p_check_in date, p_check_out date) TO authenticated;
 GRANT ALL ON FUNCTION public.create_short_stay_reservation(p_listing_id text, p_check_in date, p_check_out date) TO service_role;
 
@@ -17793,6 +23617,7 @@ GRANT ALL ON FUNCTION public.create_worker_booking_payment(p_booking_id uuid) TO
 
 REVOKE ALL ON FUNCTION public.create_worker_booking_v2(p_user_id text, p_worker_id text, p_agreed_price numeric, p_service_type text, p_address text, p_notes text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.create_worker_booking_v2(p_user_id text, p_worker_id text, p_agreed_price numeric, p_service_type text, p_address text, p_notes text) TO service_role;
+GRANT ALL ON FUNCTION public.create_worker_booking_v2(p_user_id text, p_worker_id text, p_agreed_price numeric, p_service_type text, p_address text, p_notes text) TO authenticated;
 
 
 --
@@ -17886,6 +23711,24 @@ GRANT ALL ON FUNCTION public.creator_reassign_branch(p_target_user_id text, p_ne
 
 
 --
+-- Name: FUNCTION creator_reject_property_submission(p_inspection_id uuid, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.creator_reject_property_submission(p_inspection_id uuid, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.creator_reject_property_submission(p_inspection_id uuid, p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.creator_reject_property_submission(p_inspection_id uuid, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION creator_remove_listing(p_listing_id uuid, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.creator_remove_listing(p_listing_id uuid, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.creator_remove_listing(p_listing_id uuid, p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.creator_remove_listing(p_listing_id uuid, p_reason text) TO service_role;
+
+
+--
 -- Name: FUNCTION creator_send_announcement(p_title text, p_content text, p_target_roles text[], p_recipient_ids text[], p_scope_state text, p_scope_lga text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -17904,11 +23747,21 @@ GRANT ALL ON FUNCTION public.creator_set_team_role(p_target_user_id text, p_new_
 
 
 --
+-- Name: FUNCTION creator_update_listing(p_listing_id uuid, p_changes jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.creator_update_listing(p_listing_id uuid, p_changes jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.creator_update_listing(p_listing_id uuid, p_changes jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.creator_update_listing(p_listing_id uuid, p_changes jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION credit_wallet(p_wallet_id uuid, p_amount numeric, p_description text, p_reference text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.credit_wallet(p_wallet_id uuid, p_amount numeric, p_description text, p_reference text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.credit_wallet(p_wallet_id uuid, p_amount numeric, p_description text, p_reference text) TO service_role;
+GRANT ALL ON FUNCTION public.credit_wallet(p_wallet_id uuid, p_amount numeric, p_description text, p_reference text) TO authenticated;
 
 
 --
@@ -17925,7 +23778,6 @@ GRANT ALL ON FUNCTION public.current_actor_can_access_listing_ref(p_listing_ref 
 --
 
 REVOKE ALL ON FUNCTION public.current_actor_can_access_reservation(p_reservation_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.current_actor_can_access_reservation(p_reservation_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.current_actor_can_access_reservation(p_reservation_id text) TO service_role;
 
 
@@ -17939,12 +23791,48 @@ GRANT ALL ON FUNCTION public.current_actor_can_access_worker_booking(p_booking_i
 
 
 --
+-- Name: FUNCTION current_actor_has_personal_workspace(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_actor_has_personal_workspace() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_actor_has_personal_workspace() TO authenticated;
+GRANT ALL ON FUNCTION public.current_actor_has_personal_workspace() TO service_role;
+
+
+--
+-- Name: FUNCTION current_actor_has_workspace_role(p_role text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_actor_has_workspace_role(p_role text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_actor_has_workspace_role(p_role text) TO authenticated;
+GRANT ALL ON FUNCTION public.current_actor_has_workspace_role(p_role text) TO service_role;
+
+
+--
+-- Name: FUNCTION current_actor_hotel_role(p_hotel_id integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_actor_hotel_role(p_hotel_id integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_actor_hotel_role(p_hotel_id integer) TO authenticated;
+GRANT ALL ON FUNCTION public.current_actor_hotel_role(p_hotel_id integer) TO service_role;
+
+
+--
 -- Name: FUNCTION current_actor_in_scope(p_state text, p_lga text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.current_actor_in_scope(p_state text, p_lga text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.current_actor_in_scope(p_state text, p_lga text) TO authenticated;
 GRANT ALL ON FUNCTION public.current_actor_in_scope(p_state text, p_lga text) TO service_role;
+
+
+--
+-- Name: FUNCTION current_oversight_can_review_worker(p_worker_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.current_oversight_can_review_worker(p_worker_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.current_oversight_can_review_worker(p_worker_id text) TO authenticated;
+GRANT ALL ON FUNCTION public.current_oversight_can_review_worker(p_worker_id text) TO service_role;
 
 
 --
@@ -18020,6 +23908,15 @@ GRANT ALL ON FUNCTION public.customer_raise_dispute(p_booking_id uuid, p_reason 
 
 
 --
+-- Name: FUNCTION delete_conversation_message_for_me(p_kind text, p_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.delete_conversation_message_for_me(p_kind text, p_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.delete_conversation_message_for_me(p_kind text, p_message_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.delete_conversation_message_for_me(p_kind text, p_message_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION delete_my_worker_showcase_post(p_post_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18067,7 +23964,7 @@ GRANT ALL ON FUNCTION public.disable_creator_auth(p_password text) TO service_ro
 -- Name: FUNCTION edit_my_booking_message(p_message_id uuid, p_content text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.edit_my_booking_message(p_message_id uuid, p_content text) TO anon;
+REVOKE ALL ON FUNCTION public.edit_my_booking_message(p_message_id uuid, p_content text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.edit_my_booking_message(p_message_id uuid, p_content text) TO authenticated;
 GRANT ALL ON FUNCTION public.edit_my_booking_message(p_message_id uuid, p_content text) TO service_role;
 
@@ -18076,7 +23973,7 @@ GRANT ALL ON FUNCTION public.edit_my_booking_message(p_message_id uuid, p_conten
 -- Name: FUNCTION edit_my_roommate_message(p_message_id uuid, p_content text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.edit_my_roommate_message(p_message_id uuid, p_content text) TO anon;
+REVOKE ALL ON FUNCTION public.edit_my_roommate_message(p_message_id uuid, p_content text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.edit_my_roommate_message(p_message_id uuid, p_content text) TO authenticated;
 GRANT ALL ON FUNCTION public.edit_my_roommate_message(p_message_id uuid, p_content text) TO service_role;
 
@@ -18094,9 +23991,16 @@ GRANT ALL ON FUNCTION public.end_private_call(p_call_id uuid) TO service_role;
 -- Name: FUNCTION enforce_chat_message_update(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.enforce_chat_message_update() TO anon;
-GRANT ALL ON FUNCTION public.enforce_chat_message_update() TO authenticated;
+REVOKE ALL ON FUNCTION public.enforce_chat_message_update() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.enforce_chat_message_update() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_conversation_context_ownership(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.enforce_conversation_context_ownership() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.enforce_conversation_context_ownership() TO service_role;
 
 
 --
@@ -18108,11 +24012,51 @@ GRANT ALL ON FUNCTION public.enforce_hotel_booking_integrity() TO service_role;
 
 
 --
+-- Name: FUNCTION enforce_hotel_team_consumer_account(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.enforce_hotel_team_consumer_account() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.enforce_hotel_team_consumer_account() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_property_access_before_assignment(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.enforce_property_access_before_assignment() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.enforce_property_access_before_assignment() TO service_role;
+
+
+--
 -- Name: FUNCTION enforce_property_partner_listing_owner(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.enforce_property_partner_listing_owner() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.enforce_property_partner_listing_owner() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_roommate_call_not_blocked(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.enforce_roommate_call_not_blocked() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.enforce_roommate_call_not_blocked() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_roommate_match_not_blocked(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.enforce_roommate_match_not_blocked() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.enforce_roommate_match_not_blocked() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_roommate_message_not_blocked(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.enforce_roommate_message_not_blocked() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.enforce_roommate_message_not_blocked() TO service_role;
 
 
 --
@@ -18122,6 +24066,15 @@ GRANT ALL ON FUNCTION public.enforce_property_partner_listing_owner() TO service
 REVOKE ALL ON FUNCTION public.ensure_my_property_partner_wallet() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ensure_my_property_partner_wallet() TO authenticated;
 GRANT ALL ON FUNCTION public.ensure_my_property_partner_wallet() TO service_role;
+
+
+--
+-- Name: FUNCTION establish_private_conversation_key(p_conversation_kind text, p_conversation_id uuid, p_envelopes jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.establish_private_conversation_key(p_conversation_kind text, p_conversation_id uuid, p_envelopes jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.establish_private_conversation_key(p_conversation_kind text, p_conversation_id uuid, p_envelopes jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.establish_private_conversation_key(p_conversation_kind text, p_conversation_id uuid, p_envelopes jsonb) TO service_role;
 
 
 --
@@ -18159,6 +24112,24 @@ GRANT ALL ON FUNCTION public.fail_withdrawal(p_withdrawal_id uuid, p_reason text
 
 
 --
+-- Name: FUNCTION field_officer_add_inspection_media(p_inspection_id uuid, p_photo_urls text[], p_video_urls text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.field_officer_add_inspection_media(p_inspection_id uuid, p_photo_urls text[], p_video_urls text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.field_officer_add_inspection_media(p_inspection_id uuid, p_photo_urls text[], p_video_urls text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.field_officer_add_inspection_media(p_inspection_id uuid, p_photo_urls text[], p_video_urls text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION field_officer_add_inspection_photos(p_inspection_id uuid, p_photo_urls text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.field_officer_add_inspection_photos(p_inspection_id uuid, p_photo_urls text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.field_officer_add_inspection_photos(p_inspection_id uuid, p_photo_urls text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.field_officer_add_inspection_photos(p_inspection_id uuid, p_photo_urls text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION field_officer_update_inspection_location(p_inspection_id uuid, p_latitude numeric, p_longitude numeric, p_accuracy_m numeric); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18180,8 +24151,7 @@ GRANT ALL ON FUNCTION public.freeze_wallet(p_wallet_id uuid, p_reason text, p_fr
 -- Name: FUNCTION fulfill_apartment_rent_payment(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.fulfill_apartment_rent_payment() TO anon;
-GRANT ALL ON FUNCTION public.fulfill_apartment_rent_payment() TO authenticated;
+REVOKE ALL ON FUNCTION public.fulfill_apartment_rent_payment() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.fulfill_apartment_rent_payment() TO service_role;
 
 
@@ -18189,8 +24159,7 @@ GRANT ALL ON FUNCTION public.fulfill_apartment_rent_payment() TO service_role;
 -- Name: FUNCTION fulfill_apartment_reservation_payment(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.fulfill_apartment_reservation_payment() TO anon;
-GRANT ALL ON FUNCTION public.fulfill_apartment_reservation_payment() TO authenticated;
+REVOKE ALL ON FUNCTION public.fulfill_apartment_reservation_payment() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.fulfill_apartment_reservation_payment() TO service_role;
 
 
@@ -18198,8 +24167,7 @@ GRANT ALL ON FUNCTION public.fulfill_apartment_reservation_payment() TO service_
 -- Name: FUNCTION fulfill_hotel_booking_payment(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.fulfill_hotel_booking_payment() TO anon;
-GRANT ALL ON FUNCTION public.fulfill_hotel_booking_payment() TO authenticated;
+REVOKE ALL ON FUNCTION public.fulfill_hotel_booking_payment() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.fulfill_hotel_booking_payment() TO service_role;
 
 
@@ -18207,8 +24175,7 @@ GRANT ALL ON FUNCTION public.fulfill_hotel_booking_payment() TO service_role;
 -- Name: FUNCTION fulfill_rent_plan_contribution_payment(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.fulfill_rent_plan_contribution_payment() TO anon;
-GRANT ALL ON FUNCTION public.fulfill_rent_plan_contribution_payment() TO authenticated;
+REVOKE ALL ON FUNCTION public.fulfill_rent_plan_contribution_payment() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.fulfill_rent_plan_contribution_payment() TO service_role;
 
 
@@ -18235,7 +24202,6 @@ GRANT ALL ON FUNCTION public.generate_user_id_simple() TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.get_admin_staff_limit_v2() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_admin_staff_limit_v2() TO authenticated;
 GRANT ALL ON FUNCTION public.get_admin_staff_limit_v2() TO service_role;
 
 
@@ -18246,6 +24212,15 @@ GRANT ALL ON FUNCTION public.get_admin_staff_limit_v2() TO service_role;
 REVOKE ALL ON FUNCTION public.get_all_settings_v2() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_all_settings_v2() TO authenticated;
 GRANT ALL ON FUNCTION public.get_all_settings_v2() TO service_role;
+
+
+--
+-- Name: FUNCTION get_allowed_conversation_profile(p_context_type text, p_context_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_allowed_conversation_profile(p_context_type text, p_context_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_allowed_conversation_profile(p_context_type text, p_context_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.get_allowed_conversation_profile(p_context_type text, p_context_id uuid) TO service_role;
 
 
 --
@@ -18269,7 +24244,7 @@ GRANT ALL ON FUNCTION public.get_booking_messages(p_conversation_id uuid) TO ser
 -- Name: FUNCTION get_chat_peer_presence(p_peer_user_id text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.get_chat_peer_presence(p_peer_user_id text) TO anon;
+REVOKE ALL ON FUNCTION public.get_chat_peer_presence(p_peer_user_id text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_chat_peer_presence(p_peer_user_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.get_chat_peer_presence(p_peer_user_id text) TO service_role;
 
@@ -18293,6 +24268,33 @@ GRANT ALL ON FUNCTION public.get_inspection_field_officer_candidates(p_inspectio
 
 
 --
+-- Name: FUNCTION get_inspection_media_for_review(p_inspection_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_inspection_media_for_review(p_inspection_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_inspection_media_for_review(p_inspection_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.get_inspection_media_for_review(p_inspection_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_account_identity_reference(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_account_identity_reference() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_account_identity_reference() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_account_identity_reference() TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_account_identity_status(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_account_identity_status() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_account_identity_status() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_account_identity_status() TO service_role;
+
+
+--
 -- Name: FUNCTION get_my_active_private_calls(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18308,6 +24310,15 @@ GRANT ALL ON FUNCTION public.get_my_active_private_calls() TO service_role;
 REVOKE ALL ON FUNCTION public.get_my_admin_staff_capacity() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_my_admin_staff_capacity() TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_admin_staff_capacity() TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_announcement_inbox(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_announcement_inbox() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_announcement_inbox() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_announcement_inbox() TO service_role;
 
 
 --
@@ -18338,6 +24349,24 @@ GRANT ALL ON FUNCTION public.get_my_booking_conversations_v2(p_user_id text) TO 
 
 
 --
+-- Name: FUNCTION get_my_hotel_operations(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_hotel_operations() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_hotel_operations() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_hotel_operations() TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_hotel_team(p_hotel_id integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_hotel_team(p_hotel_id integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_hotel_team(p_hotel_id integer) TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_hotel_team(p_hotel_id integer) TO service_role;
+
+
+--
 -- Name: FUNCTION get_my_housing_operations(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18362,6 +24391,15 @@ GRANT ALL ON FUNCTION public.get_my_inspections(p_field_officer_id text) TO serv
 REVOKE ALL ON FUNCTION public.get_my_legal_status() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_my_legal_status() TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_legal_status() TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_operations_inbox_summary(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_operations_inbox_summary() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_operations_inbox_summary() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_operations_inbox_summary() TO service_role;
 
 
 --
@@ -18392,6 +24430,24 @@ GRANT ALL ON FUNCTION public.get_my_property_pipeline(p_stage text) TO service_r
 
 
 --
+-- Name: FUNCTION get_my_property_pipeline_v2(p_stage text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_property_pipeline_v2(p_stage text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_property_pipeline_v2(p_stage text) TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_property_pipeline_v2(p_stage text) TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_received_roommate_interests(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_received_roommate_interests() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_received_roommate_interests() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_received_roommate_interests() TO service_role;
+
+
+--
 -- Name: FUNCTION get_my_reservation_for_listing(p_listing_id text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18405,7 +24461,6 @@ GRANT ALL ON FUNCTION public.get_my_reservation_for_listing(p_listing_id text) T
 --
 
 REVOKE ALL ON FUNCTION public.get_my_roommate_conversation_people() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_my_roommate_conversation_people() TO anon;
 GRANT ALL ON FUNCTION public.get_my_roommate_conversation_people() TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_roommate_conversation_people() TO service_role;
 
@@ -18424,9 +24479,17 @@ GRANT ALL ON FUNCTION public.get_my_roommate_matches() TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.get_my_roommate_matches_page(p_limit integer, p_offset integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_my_roommate_matches_page(p_limit integer, p_offset integer) TO anon;
 GRANT ALL ON FUNCTION public.get_my_roommate_matches_page(p_limit integer, p_offset integer) TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_roommate_matches_page(p_limit integer, p_offset integer) TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_roommate_peer_details(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_roommate_peer_details() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_roommate_peer_details() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_roommate_peer_details() TO service_role;
 
 
 --
@@ -18448,10 +24511,28 @@ GRANT ALL ON FUNCTION public.get_my_roommate_preferences() TO service_role;
 
 
 --
+-- Name: FUNCTION get_my_shared_housing_group(p_group_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_shared_housing_group(p_group_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_shared_housing_group(p_group_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_shared_housing_group(p_group_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_shared_housing_groups(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_shared_housing_groups() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_shared_housing_groups() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_shared_housing_groups() TO service_role;
+
+
+--
 -- Name: FUNCTION get_my_short_stay_operations(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.get_my_short_stay_operations() TO anon;
+REVOKE ALL ON FUNCTION public.get_my_short_stay_operations() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_my_short_stay_operations() TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_short_stay_operations() TO service_role;
 
@@ -18475,11 +24556,19 @@ GRANT ALL ON FUNCTION public.get_my_staff_operations_listings(p_status text) TO 
 
 
 --
+-- Name: FUNCTION get_my_staff_security_monitor(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_staff_security_monitor() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_staff_security_monitor() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_staff_security_monitor() TO service_role;
+
+
+--
 -- Name: FUNCTION get_my_staff_trust_status(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.get_my_staff_trust_status() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_my_staff_trust_status() TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_staff_trust_status() TO service_role;
 
 
@@ -18538,6 +24627,22 @@ GRANT ALL ON FUNCTION public.get_my_worker_booking_details(p_booking_id uuid) TO
 
 
 --
+-- Name: TABLE worker_booking_reviews; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.worker_booking_reviews TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_worker_booking_review(p_booking_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_worker_booking_review(p_booking_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_worker_booking_review(p_booking_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_worker_booking_review(p_booking_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION get_my_worker_identity_check(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18553,6 +24658,15 @@ GRANT ALL ON FUNCTION public.get_my_worker_identity_check() TO service_role;
 REVOKE ALL ON FUNCTION public.get_my_worker_identity_reference() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_my_worker_identity_reference() TO authenticated;
 GRANT ALL ON FUNCTION public.get_my_worker_identity_reference() TO service_role;
+
+
+--
+-- Name: FUNCTION get_my_workspace_access(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_my_workspace_access() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_my_workspace_access() TO authenticated;
+GRANT ALL ON FUNCTION public.get_my_workspace_access() TO service_role;
 
 
 --
@@ -18578,7 +24692,6 @@ GRANT ALL ON FUNCTION public.get_or_create_my_property_partner() TO service_role
 --
 
 REVOKE ALL ON FUNCTION public.get_platform_setting(p_key text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_platform_setting(p_key text) TO authenticated;
 GRANT ALL ON FUNCTION public.get_platform_setting(p_key text) TO service_role;
 
 
@@ -18587,7 +24700,6 @@ GRANT ALL ON FUNCTION public.get_platform_setting(p_key text) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.get_platform_settings(p_category text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_platform_settings(p_category text) TO authenticated;
 GRANT ALL ON FUNCTION public.get_platform_settings(p_category text) TO service_role;
 
 
@@ -18610,12 +24722,48 @@ GRANT ALL ON FUNCTION public.get_private_call_details(p_call_id uuid) TO service
 
 
 --
+-- Name: FUNCTION get_private_chat_peer_public_key(p_conversation_kind text, p_conversation_id uuid, p_peer_user_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_private_chat_peer_public_key(p_conversation_kind text, p_conversation_id uuid, p_peer_user_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_private_chat_peer_public_key(p_conversation_kind text, p_conversation_id uuid, p_peer_user_id text) TO authenticated;
+GRANT ALL ON FUNCTION public.get_private_chat_peer_public_key(p_conversation_kind text, p_conversation_id uuid, p_peer_user_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION get_private_encrypted_messages(p_conversation_kind text, p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_private_encrypted_messages(p_conversation_kind text, p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_private_encrypted_messages(p_conversation_kind text, p_conversation_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.get_private_encrypted_messages(p_conversation_kind text, p_conversation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION get_property_access_review_details(p_request_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_property_access_review_details(p_request_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_property_access_review_details(p_request_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.get_property_access_review_details(p_request_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION get_property_pipeline_requests(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.get_property_pipeline_requests() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_property_pipeline_requests() TO authenticated;
 GRANT ALL ON FUNCTION public.get_property_pipeline_requests() TO service_role;
+
+
+--
+-- Name: FUNCTION get_public_worker_reviews(p_worker_id text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_public_worker_reviews(p_worker_id text, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_public_worker_reviews(p_worker_id text, p_limit integer) TO authenticated;
+GRANT ALL ON FUNCTION public.get_public_worker_reviews(p_worker_id text, p_limit integer) TO service_role;
 
 
 --
@@ -18631,7 +24779,7 @@ GRANT ALL ON FUNCTION public.get_public_workers(p_state text, p_city text, p_occ
 -- Name: FUNCTION get_roommate_messages_v2(p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.get_roommate_messages_v2(p_conversation_id uuid) TO anon;
+REVOKE ALL ON FUNCTION public.get_roommate_messages_v2(p_conversation_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_roommate_messages_v2(p_conversation_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.get_roommate_messages_v2(p_conversation_id uuid) TO service_role;
 
@@ -18641,7 +24789,6 @@ GRANT ALL ON FUNCTION public.get_roommate_messages_v2(p_conversation_id uuid) TO
 --
 
 REVOKE ALL ON FUNCTION public.get_secret_v2(p_key text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_secret_v2(p_key text) TO authenticated;
 GRANT ALL ON FUNCTION public.get_secret_v2(p_key text) TO service_role;
 
 
@@ -18658,7 +24805,7 @@ GRANT ALL ON FUNCTION public.get_setting_v2(p_key text) TO service_role;
 -- Name: FUNCTION get_short_stay_unavailable_listing_ids(p_check_in date, p_check_out date); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.get_short_stay_unavailable_listing_ids(p_check_in date, p_check_out date) TO anon;
+REVOKE ALL ON FUNCTION public.get_short_stay_unavailable_listing_ids(p_check_in date, p_check_out date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_short_stay_unavailable_listing_ids(p_check_in date, p_check_out date) TO authenticated;
 GRANT ALL ON FUNCTION public.get_short_stay_unavailable_listing_ids(p_check_in date, p_check_out date) TO service_role;
 
@@ -18713,7 +24860,6 @@ GRANT ALL ON FUNCTION public.get_user_conversations(p_user_id text) TO service_r
 --
 
 REVOKE ALL ON FUNCTION public.get_worker_marketplace_trust(p_worker_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_worker_marketplace_trust(p_worker_id text) TO anon;
 GRANT ALL ON FUNCTION public.get_worker_marketplace_trust(p_worker_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.get_worker_marketplace_trust(p_worker_id text) TO service_role;
 
@@ -18723,7 +24869,6 @@ GRANT ALL ON FUNCTION public.get_worker_marketplace_trust(p_worker_id text) TO s
 --
 
 REVOKE ALL ON FUNCTION public.get_worker_verification_chats() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.get_worker_verification_chats() TO authenticated;
 GRANT ALL ON FUNCTION public.get_worker_verification_chats() TO service_role;
 
 
@@ -18767,7 +24912,7 @@ GRANT ALL ON FUNCTION public.hide_my_booking_conversation(p_conversation_id uuid
 -- Name: FUNCTION hide_my_roommate_conversation(p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.hide_my_roommate_conversation(p_conversation_id uuid) TO anon;
+REVOKE ALL ON FUNCTION public.hide_my_roommate_conversation(p_conversation_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.hide_my_roommate_conversation(p_conversation_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.hide_my_roommate_conversation(p_conversation_id uuid) TO service_role;
 
@@ -18791,11 +24936,18 @@ GRANT ALL ON FUNCTION public.increment_unread(p_room_id integer, p_user_id chara
 
 
 --
+-- Name: FUNCTION invalidate_inspection_media_review(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.invalidate_inspection_media_review() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.invalidate_inspection_media_review() TO service_role;
+
+
+--
 -- Name: FUNCTION is_current_announcement_recipient(p_announcement_id bigint); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.is_current_announcement_recipient(p_announcement_id bigint) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.is_current_announcement_recipient(p_announcement_id bigint) TO authenticated;
 GRANT ALL ON FUNCTION public.is_current_announcement_recipient(p_announcement_id bigint) TO service_role;
 
 
@@ -18804,8 +24956,8 @@ GRANT ALL ON FUNCTION public.is_current_announcement_recipient(p_announcement_id
 --
 
 REVOKE ALL ON FUNCTION public.is_current_announcement_sender(p_announcement_id bigint) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.is_current_announcement_sender(p_announcement_id bigint) TO authenticated;
 GRANT ALL ON FUNCTION public.is_current_announcement_sender(p_announcement_id bigint) TO service_role;
+GRANT ALL ON FUNCTION public.is_current_announcement_sender(p_announcement_id bigint) TO authenticated;
 
 
 --
@@ -18822,7 +24974,6 @@ GRANT ALL ON FUNCTION public.is_current_creator() TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.is_staff_or_creator(uid text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.is_staff_or_creator(uid text) TO authenticated;
 GRANT ALL ON FUNCTION public.is_staff_or_creator(uid text) TO service_role;
 
 
@@ -18870,6 +25021,15 @@ GRANT ALL ON FUNCTION public.manage_staff_permission(p_staff_id text, p_permissi
 
 
 --
+-- Name: FUNCTION mark_all_my_notifications_read(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mark_all_my_notifications_read() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mark_all_my_notifications_read() TO authenticated;
+GRANT ALL ON FUNCTION public.mark_all_my_notifications_read() TO service_role;
+
+
+--
 -- Name: FUNCTION mark_my_announcement_read(p_announcement_id integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18897,6 +25057,15 @@ GRANT ALL ON FUNCTION public.mark_my_conversation_seen(p_conversation_id uuid) T
 
 
 --
+-- Name: FUNCTION mark_my_notification_read(p_notification_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mark_my_notification_read(p_notification_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mark_my_notification_read(p_notification_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.mark_my_notification_read(p_notification_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION mark_my_reservation_support_contacted(p_reservation_id text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18918,9 +25087,150 @@ GRANT ALL ON FUNCTION public.mark_support_messages_read(p_conversation_id uuid) 
 -- Name: FUNCTION message_edit_window_minutes(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.message_edit_window_minutes() TO anon;
-GRANT ALL ON FUNCTION public.message_edit_window_minutes() TO authenticated;
+REVOKE ALL ON FUNCTION public.message_edit_window_minutes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.message_edit_window_minutes() TO service_role;
+
+
+--
+-- Name: FUNCTION normalize_hotel_submission_program(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.normalize_hotel_submission_program() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.normalize_hotel_submission_program() TO service_role;
+
+
+--
+-- Name: FUNCTION normalize_notification_context(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.normalize_notification_context() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.normalize_notification_context() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_matching_saved_home_searches(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_matching_saved_home_searches() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_matching_saved_home_searches() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_matching_saved_hotel_searches(p_hotel_id integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_matching_saved_hotel_searches(p_hotel_id integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_matching_saved_hotel_searches(p_hotel_id integer) TO service_role;
+
+
+--
+-- Name: FUNCTION notify_missed_private_call(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_missed_private_call() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_missed_private_call() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_property_operations_activity(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_property_operations_activity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_property_operations_activity() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_reservation_operations_activity(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_reservation_operations_activity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_reservation_operations_activity() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_saved_hotel_searches_from_hotel(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_saved_hotel_searches_from_hotel() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_saved_hotel_searches_from_hotel() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_saved_hotel_searches_from_room(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_saved_hotel_searches_from_room() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_saved_hotel_searches_from_room() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_shared_housing_member_event(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_shared_housing_member_event() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_shared_housing_member_event() TO service_role;
+
+
+--
+-- Name: FUNCTION notify_worker_booking_lifecycle(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_worker_booking_lifecycle() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_worker_booking_lifecycle() TO service_role;
+
+
+--
+-- Name: FUNCTION open_my_reservation_conversation(p_context_type text, p_context_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.open_my_reservation_conversation(p_context_type text, p_context_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.open_my_reservation_conversation(p_context_type text, p_context_id text) TO authenticated;
+GRANT ALL ON FUNCTION public.open_my_reservation_conversation(p_context_type text, p_context_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION owner_set_hotel_team_member(p_hotel_id integer, p_email text, p_role text, p_enabled boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.owner_set_hotel_team_member(p_hotel_id integer, p_email text, p_role text, p_enabled boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.owner_set_hotel_team_member(p_hotel_id integer, p_email text, p_role text, p_enabled boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.owner_set_hotel_team_member(p_hotel_id integer, p_email text, p_role text, p_enabled boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION partner_set_hotel_inventory_range(p_room_id integer, p_start_date date, p_end_date date, p_available_quantity integer, p_closed boolean, p_rate_override integer, p_note text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.partner_set_hotel_inventory_range(p_room_id integer, p_start_date date, p_end_date date, p_available_quantity integer, p_closed boolean, p_rate_override integer, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.partner_set_hotel_inventory_range(p_room_id integer, p_start_date date, p_end_date date, p_available_quantity integer, p_closed boolean, p_rate_override integer, p_note text) TO authenticated;
+GRANT ALL ON FUNCTION public.partner_set_hotel_inventory_range(p_room_id integer, p_start_date date, p_end_date date, p_available_quantity integer, p_closed boolean, p_rate_override integer, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION partner_transition_hotel_booking(p_booking_id integer, p_status text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.partner_transition_hotel_booking(p_booking_id integer, p_status text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.partner_transition_hotel_booking(p_booking_id integer, p_status text) TO authenticated;
+GRANT ALL ON FUNCTION public.partner_transition_hotel_booking(p_booking_id integer, p_status text) TO service_role;
+
+
+--
+-- Name: TABLE hotel_rooms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.hotel_rooms TO anon;
+GRANT ALL ON TABLE public.hotel_rooms TO authenticated;
+GRANT ALL ON TABLE public.hotel_rooms TO service_role;
+
+
+--
+-- Name: FUNCTION partner_update_hotel_room(p_room_id integer, p_room_type text, p_description text, p_price_per_night integer, p_max_guests integer, p_bed_type text, p_total_rooms integer, p_amenities text[], p_images text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.partner_update_hotel_room(p_room_id integer, p_room_type text, p_description text, p_price_per_night integer, p_max_guests integer, p_bed_type text, p_total_rooms integer, p_amenities text[], p_images text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.partner_update_hotel_room(p_room_id integer, p_room_type text, p_description text, p_price_per_night integer, p_max_guests integer, p_bed_type text, p_total_rooms integer, p_amenities text[], p_images text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.partner_update_hotel_room(p_room_id integer, p_room_type text, p_description text, p_price_per_night integer, p_max_guests integer, p_bed_type text, p_total_rooms integer, p_amenities text[], p_images text[]) TO service_role;
 
 
 --
@@ -18938,6 +25248,14 @@ GRANT ALL ON FUNCTION public.post_property_from_inspection(p_data jsonb) TO auth
 
 REVOKE ALL ON FUNCTION public.prevent_double_reservation() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.prevent_double_reservation() TO service_role;
+
+
+--
+-- Name: FUNCTION prevent_privileged_self_review(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.prevent_privileged_self_review() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.prevent_privileged_self_review() TO service_role;
 
 
 --
@@ -18974,6 +25292,15 @@ GRANT ALL ON FUNCTION public.protect_privileged_profile_fields() TO service_role
 
 
 --
+-- Name: FUNCTION prune_my_activity(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.prune_my_activity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.prune_my_activity() TO authenticated;
+GRANT ALL ON FUNCTION public.prune_my_activity() TO service_role;
+
+
+--
 -- Name: FUNCTION record_bank_account_change(p_user_id text, p_bank_name text, p_bank_code text, p_bank_account_number text, p_bank_account_name text, p_verified_account_name text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -18987,6 +25314,15 @@ GRANT ALL ON FUNCTION public.record_bank_account_change(p_user_id text, p_bank_n
 
 REVOKE ALL ON FUNCTION public.record_worker_verification_payment(p_user_id text, p_reference text, p_amount numeric) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.record_worker_verification_payment(p_user_id text, p_reference text, p_amount numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION refresh_my_property_access_challenge(p_request_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.refresh_my_property_access_challenge(p_request_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.refresh_my_property_access_challenge(p_request_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.refresh_my_property_access_challenge(p_request_id uuid) TO service_role;
 
 
 --
@@ -19004,6 +25340,15 @@ GRANT ALL ON FUNCTION public.refresh_my_roommate_search() TO service_role;
 
 REVOKE ALL ON FUNCTION public.refund_escrow(p_escrow_id uuid, p_reason text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.refund_escrow(p_escrow_id uuid, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION register_current_device(p_device_id text, p_device text, p_os text, p_browser text, p_existing_session_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.register_current_device(p_device_id text, p_device text, p_os text, p_browser text, p_existing_session_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.register_current_device(p_device_id text, p_device text, p_os text, p_browser text, p_existing_session_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.register_current_device(p_device_id text, p_device text, p_os text, p_browser text, p_existing_session_id uuid) TO service_role;
 
 
 --
@@ -19049,6 +25394,24 @@ GRANT ALL ON FUNCTION public.release_property_partner_earning(p_payment_id uuid,
 
 
 --
+-- Name: TABLE service_subcategories; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.service_subcategories TO anon;
+GRANT ALL ON TABLE public.service_subcategories TO authenticated;
+GRANT ALL ON TABLE public.service_subcategories TO service_role;
+
+
+--
+-- Name: FUNCTION rename_service_subcategory(p_subcategory_id uuid, p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rename_service_subcategory(p_subcategory_id uuid, p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rename_service_subcategory(p_subcategory_id uuid, p_name text) TO authenticated;
+GRANT ALL ON FUNCTION public.rename_service_subcategory(p_subcategory_id uuid, p_name text) TO service_role;
+
+
+--
 -- Name: FUNCTION request_inspection_pause_expiry(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -19091,6 +25454,14 @@ GRANT ALL ON FUNCTION public.request_worker_withdrawal(p_amount numeric, p_bank_
 
 
 --
+-- Name: FUNCTION require_independent_field_evidence(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.require_independent_field_evidence() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.require_independent_field_evidence() TO service_role;
+
+
+--
 -- Name: FUNCTION reserve_lga_booking_code(p_lga text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -19113,6 +25484,42 @@ GRANT ALL ON FUNCTION public.reserve_listing_on_activation() TO service_role;
 REVOKE ALL ON FUNCTION public.respond_private_call(p_call_id uuid, p_accept boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.respond_private_call(p_call_id uuid, p_accept boolean) TO authenticated;
 GRANT ALL ON FUNCTION public.respond_private_call(p_call_id uuid, p_accept boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION respond_to_device_login(p_session_id uuid, p_approved boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.respond_to_device_login(p_session_id uuid, p_approved boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.respond_to_device_login(p_session_id uuid, p_approved boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.respond_to_device_login(p_session_id uuid, p_approved boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION respond_to_my_roommate_interest(p_interest_id uuid, p_response text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.respond_to_my_roommate_interest(p_interest_id uuid, p_response text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.respond_to_my_roommate_interest(p_interest_id uuid, p_response text) TO authenticated;
+GRANT ALL ON FUNCTION public.respond_to_my_roommate_interest(p_interest_id uuid, p_response text) TO service_role;
+
+
+--
+-- Name: FUNCTION respond_to_shared_housing_invite(p_group_id uuid, p_accept boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.respond_to_shared_housing_invite(p_group_id uuid, p_accept boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.respond_to_shared_housing_invite(p_group_id uuid, p_accept boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.respond_to_shared_housing_invite(p_group_id uuid, p_accept boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION respond_to_worker_work_post_confirmation(p_post_id uuid, p_confirm boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.respond_to_worker_work_post_confirmation(p_post_id uuid, p_confirm boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.respond_to_worker_work_post_confirmation(p_post_id uuid, p_confirm boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.respond_to_worker_work_post_confirmation(p_post_id uuid, p_confirm boolean) TO service_role;
 
 
 --
@@ -19147,6 +25554,24 @@ GRANT ALL ON FUNCTION public.review_my_staff_listing(p_listing_id uuid, p_decisi
 REVOKE ALL ON FUNCTION public.review_my_staff_worker_v2(p_worker_id text, p_status text, p_reason text, p_notes text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.review_my_staff_worker_v2(p_worker_id text, p_status text, p_reason text, p_notes text) TO authenticated;
 GRANT ALL ON FUNCTION public.review_my_staff_worker_v2(p_worker_id text, p_status text, p_reason text, p_notes text) TO service_role;
+
+
+--
+-- Name: FUNCTION review_property_access_evidence(p_request_id uuid, p_decision text, p_note text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.review_property_access_evidence(p_request_id uuid, p_decision text, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.review_property_access_evidence(p_request_id uuid, p_decision text, p_note text) TO authenticated;
+GRANT ALL ON FUNCTION public.review_property_access_evidence(p_request_id uuid, p_decision text, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION save_my_property_search(p_name text, p_search_kind text, p_criteria jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.save_my_property_search(p_name text, p_search_kind text, p_criteria jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.save_my_property_search(p_name text, p_search_kind text, p_criteria jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.save_my_property_search(p_name text, p_search_kind text, p_criteria jsonb) TO service_role;
 
 
 --
@@ -19215,9 +25640,18 @@ GRANT ALL ON FUNCTION public.send_my_roommate_message(p_conversation_id uuid, p_
 -- Name: FUNCTION send_my_roommate_message_v2(p_conversation_id uuid, p_content text, p_attachments text[], p_attachment_types text[]); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.send_my_roommate_message_v2(p_conversation_id uuid, p_content text, p_attachments text[], p_attachment_types text[]) TO anon;
+REVOKE ALL ON FUNCTION public.send_my_roommate_message_v2(p_conversation_id uuid, p_content text, p_attachments text[], p_attachment_types text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.send_my_roommate_message_v2(p_conversation_id uuid, p_content text, p_attachments text[], p_attachment_types text[]) TO authenticated;
 GRANT ALL ON FUNCTION public.send_my_roommate_message_v2(p_conversation_id uuid, p_content text, p_attachments text[], p_attachment_types text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION send_private_encrypted_message(p_conversation_kind text, p_conversation_id uuid, p_ciphertext text, p_encryption_iv text, p_encrypted_attachments jsonb, p_reply_to_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.send_private_encrypted_message(p_conversation_kind text, p_conversation_id uuid, p_ciphertext text, p_encryption_iv text, p_encrypted_attachments jsonb, p_reply_to_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.send_private_encrypted_message(p_conversation_kind text, p_conversation_id uuid, p_ciphertext text, p_encryption_iv text, p_encrypted_attachments jsonb, p_reply_to_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.send_private_encrypted_message(p_conversation_kind text, p_conversation_id uuid, p_ciphertext text, p_encryption_iv text, p_encrypted_attachments jsonb, p_reply_to_id uuid) TO service_role;
 
 
 --
@@ -19234,7 +25668,6 @@ GRANT ALL ON FUNCTION public.send_support_message(p_conversation_id uuid, p_cont
 --
 
 REVOKE ALL ON FUNCTION public.set_apartment_commission_on_reservation(p_reservation_id text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.set_apartment_commission_on_reservation(p_reservation_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.set_apartment_commission_on_reservation(p_reservation_id text) TO service_role;
 
 
@@ -19242,8 +25675,7 @@ GRANT ALL ON FUNCTION public.set_apartment_commission_on_reservation(p_reservati
 -- Name: FUNCTION set_hotel_booking_code(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.set_hotel_booking_code() TO anon;
-GRANT ALL ON FUNCTION public.set_hotel_booking_code() TO authenticated;
+REVOKE ALL ON FUNCTION public.set_hotel_booking_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_hotel_booking_code() TO service_role;
 
 
@@ -19266,6 +25698,15 @@ GRANT ALL ON FUNCTION public.set_my_private_call_preferences(p_allow_audio boole
 
 
 --
+-- Name: FUNCTION set_my_roommate_block(p_user_id text, p_blocked boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_my_roommate_block(p_user_id text, p_blocked boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.set_my_roommate_block(p_user_id text, p_blocked boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.set_my_roommate_block(p_user_id text, p_blocked boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION set_my_roommate_school_filter(p_school_match boolean, p_school_name text, p_campus text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -19284,10 +25725,28 @@ GRANT ALL ON FUNCTION public.set_my_worker_availability(p_is_available boolean) 
 
 
 --
+-- Name: FUNCTION set_my_worker_work_post_hidden(p_post_id uuid, p_hidden boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_my_worker_work_post_hidden(p_post_id uuid, p_hidden boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.set_my_worker_work_post_hidden(p_post_id uuid, p_hidden boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.set_my_worker_work_post_hidden(p_post_id uuid, p_hidden boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION set_private_message_reaction(p_conversation_kind text, p_conversation_id uuid, p_message_id uuid, p_emoji text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_private_message_reaction(p_conversation_kind text, p_conversation_id uuid, p_message_id uuid, p_emoji text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.set_private_message_reaction(p_conversation_kind text, p_conversation_id uuid, p_message_id uuid, p_emoji text) TO authenticated;
+GRANT ALL ON FUNCTION public.set_private_message_reaction(p_conversation_kind text, p_conversation_id uuid, p_message_id uuid, p_emoji text) TO service_role;
+
+
+--
 -- Name: FUNCTION set_property_inspection_stay_type(p_inspection_id uuid, p_sub_type text, p_security_deposit_amount numeric); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.set_property_inspection_stay_type(p_inspection_id uuid, p_sub_type text, p_security_deposit_amount numeric) TO anon;
+REVOKE ALL ON FUNCTION public.set_property_inspection_stay_type(p_inspection_id uuid, p_sub_type text, p_security_deposit_amount numeric) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_property_inspection_stay_type(p_inspection_id uuid, p_sub_type text, p_security_deposit_amount numeric) TO authenticated;
 GRANT ALL ON FUNCTION public.set_property_inspection_stay_type(p_inspection_id uuid, p_sub_type text, p_security_deposit_amount numeric) TO service_role;
 
@@ -19296,8 +25755,7 @@ GRANT ALL ON FUNCTION public.set_property_inspection_stay_type(p_inspection_id u
 -- Name: FUNCTION set_reservation_booking_code(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.set_reservation_booking_code() TO anon;
-GRANT ALL ON FUNCTION public.set_reservation_booking_code() TO authenticated;
+REVOKE ALL ON FUNCTION public.set_reservation_booking_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_reservation_booking_code() TO service_role;
 
 
@@ -19331,7 +25789,6 @@ GRANT ALL ON FUNCTION public.set_setting_v2(p_key text, p_value text) TO service
 --
 
 REVOKE ALL ON FUNCTION public.set_staff_trust_status(p_staff_id text, p_status text, p_notes text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.set_staff_trust_status(p_staff_id text, p_status text, p_notes text) TO authenticated;
 GRANT ALL ON FUNCTION public.set_staff_trust_status(p_staff_id text, p_status text, p_notes text) TO service_role;
 
 
@@ -19398,6 +25855,15 @@ GRANT ALL ON FUNCTION public.start_my_roommate_search() TO service_role;
 
 
 --
+-- Name: FUNCTION start_my_shared_contract_split(p_group_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.start_my_shared_contract_split(p_group_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.start_my_shared_contract_split(p_group_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.start_my_shared_contract_split(p_group_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION start_my_worker_test(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -19425,6 +25891,42 @@ GRANT ALL ON FUNCTION public.stop_my_roommate_search() TO service_role;
 
 
 --
+-- Name: FUNCTION submit_my_property_access_challenge(p_challenge_id uuid, p_video_path text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.submit_my_property_access_challenge(p_challenge_id uuid, p_video_path text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.submit_my_property_access_challenge(p_challenge_id uuid, p_video_path text) TO authenticated;
+GRANT ALL ON FUNCTION public.submit_my_property_access_challenge(p_challenge_id uuid, p_video_path text) TO service_role;
+
+
+--
+-- Name: FUNCTION submit_my_property_access_correction(p_request_id uuid, p_challenge_id uuid, p_video_path text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.submit_my_property_access_correction(p_request_id uuid, p_challenge_id uuid, p_video_path text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.submit_my_property_access_correction(p_request_id uuid, p_challenge_id uuid, p_video_path text) TO authenticated;
+GRANT ALL ON FUNCTION public.submit_my_property_access_correction(p_request_id uuid, p_challenge_id uuid, p_video_path text) TO service_role;
+
+
+--
+-- Name: FUNCTION submit_my_property_access_evidence(p_request_id uuid, p_video_path text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.submit_my_property_access_evidence(p_request_id uuid, p_video_path text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.submit_my_property_access_evidence(p_request_id uuid, p_video_path text) TO authenticated;
+GRANT ALL ON FUNCTION public.submit_my_property_access_evidence(p_request_id uuid, p_video_path text) TO service_role;
+
+
+--
+-- Name: FUNCTION submit_my_worker_booking_review(p_booking_id uuid, p_rating integer, p_comment text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.submit_my_worker_booking_review(p_booking_id uuid, p_rating integer, p_comment text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.submit_my_worker_booking_review(p_booking_id uuid, p_rating integer, p_comment text) TO authenticated;
+GRANT ALL ON FUNCTION public.submit_my_worker_booking_review(p_booking_id uuid, p_rating integer, p_comment text) TO service_role;
+
+
+--
 -- Name: FUNCTION submit_my_worker_test(p_attempt_id uuid, p_answers jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -19443,12 +25945,36 @@ GRANT ALL ON FUNCTION public.submit_my_worker_verification() TO service_role;
 
 
 --
--- Name: FUNCTION support_inbox(); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION support_inbox(p_queue text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.support_inbox() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.support_inbox() TO authenticated;
-GRANT ALL ON FUNCTION public.support_inbox() TO service_role;
+REVOKE ALL ON FUNCTION public.support_inbox(p_queue text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.support_inbox(p_queue text) TO authenticated;
+GRANT ALL ON FUNCTION public.support_inbox(p_queue text) TO service_role;
+
+
+--
+-- Name: FUNCTION sync_hotel_inspection_canonical_media(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sync_hotel_inspection_canonical_media() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sync_hotel_inspection_canonical_media() TO service_role;
+
+
+--
+-- Name: FUNCTION sync_inspection_request_canonical_media(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sync_inspection_request_canonical_media() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sync_inspection_request_canonical_media() TO service_role;
+
+
+--
+-- Name: FUNCTION sync_legacy_profile_role_assignment(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sync_legacy_profile_role_assignment() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sync_legacy_profile_role_assignment() TO service_role;
 
 
 --
@@ -19461,11 +25987,18 @@ GRANT ALL ON FUNCTION public.sync_listing_lifecycle() TO service_role;
 
 
 --
+-- Name: FUNCTION sync_property_submission_lifecycle(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sync_property_submission_lifecycle() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sync_property_submission_lifecycle() TO service_role;
+
+
+--
 -- Name: FUNCTION sync_staff_trust_on_role_change(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.sync_staff_trust_on_role_change() TO anon;
-GRANT ALL ON FUNCTION public.sync_staff_trust_on_role_change() TO authenticated;
+REVOKE ALL ON FUNCTION public.sync_staff_trust_on_role_change() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sync_staff_trust_on_role_change() TO service_role;
 
 
@@ -19473,7 +26006,7 @@ GRANT ALL ON FUNCTION public.sync_staff_trust_on_role_change() TO service_role;
 -- Name: FUNCTION touch_my_presence(p_online boolean); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.touch_my_presence(p_online boolean) TO anon;
+REVOKE ALL ON FUNCTION public.touch_my_presence(p_online boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.touch_my_presence(p_online boolean) TO authenticated;
 GRANT ALL ON FUNCTION public.touch_my_presence(p_online boolean) TO service_role;
 
@@ -19492,6 +26025,7 @@ GRANT ALL ON FUNCTION public.transition_inspection_status(p_inspection_id uuid, 
 
 REVOKE ALL ON FUNCTION public.unfreeze_wallet(p_wallet_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.unfreeze_wallet(p_wallet_id uuid) TO service_role;
+GRANT ALL ON FUNCTION public.unfreeze_wallet(p_wallet_id uuid) TO authenticated;
 
 
 --
@@ -19519,6 +26053,15 @@ GRANT ALL ON FUNCTION public.update_my_field_location(p_latitude numeric, p_long
 REVOKE ALL ON FUNCTION public.update_my_field_officer_location(p_latitude numeric, p_longitude numeric, p_accuracy_m numeric) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.update_my_field_officer_location(p_latitude numeric, p_longitude numeric, p_accuracy_m numeric) TO authenticated;
 GRANT ALL ON FUNCTION public.update_my_field_officer_location(p_latitude numeric, p_longitude numeric, p_accuracy_m numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION update_my_precise_location(p_latitude numeric, p_longitude numeric, p_address text, p_accuracy_m numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.update_my_precise_location(p_latitude numeric, p_longitude numeric, p_address text, p_accuracy_m numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.update_my_precise_location(p_latitude numeric, p_longitude numeric, p_address text, p_accuracy_m numeric) TO authenticated;
+GRANT ALL ON FUNCTION public.update_my_precise_location(p_latitude numeric, p_longitude numeric, p_address text, p_accuracy_m numeric) TO service_role;
 
 
 --
@@ -19571,7 +26114,6 @@ GRANT ALL ON FUNCTION public.update_platform_setting(p_key text, p_value text) T
 --
 
 REVOKE ALL ON FUNCTION public.update_staff_trust_checklist(p_staff_id text, p_supervisor_confirmed boolean, p_orientation_completed boolean, p_role_training_completed boolean, p_code_of_conduct_confirmed boolean, p_probation_observation_completed boolean, p_notes text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.update_staff_trust_checklist(p_staff_id text, p_supervisor_confirmed boolean, p_orientation_completed boolean, p_role_training_completed boolean, p_code_of_conduct_confirmed boolean, p_probation_observation_completed boolean, p_notes text) TO authenticated;
 GRANT ALL ON FUNCTION public.update_staff_trust_checklist(p_staff_id text, p_supervisor_confirmed boolean, p_orientation_completed boolean, p_role_training_completed boolean, p_code_of_conduct_confirmed boolean, p_probation_observation_completed boolean, p_notes text) TO service_role;
 
 
@@ -19614,8 +26156,7 @@ GRANT ALL ON FUNCTION public.worker_accept_booking(p_booking_id uuid, p_negotiat
 -- Name: FUNCTION worker_identity_is_current(p_worker_id text); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.worker_identity_is_current(p_worker_id text) TO anon;
-GRANT ALL ON FUNCTION public.worker_identity_is_current(p_worker_id text) TO authenticated;
+REVOKE ALL ON FUNCTION public.worker_identity_is_current(p_worker_id text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.worker_identity_is_current(p_worker_id text) TO service_role;
 
 
@@ -19623,8 +26164,7 @@ GRANT ALL ON FUNCTION public.worker_identity_is_current(p_worker_id text) TO ser
 -- Name: FUNCTION worker_identity_recheck_days(); Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON FUNCTION public.worker_identity_recheck_days() TO anon;
-GRANT ALL ON FUNCTION public.worker_identity_recheck_days() TO authenticated;
+REVOKE ALL ON FUNCTION public.worker_identity_recheck_days() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.worker_identity_recheck_days() TO service_role;
 
 
@@ -19884,6 +26424,15 @@ GRANT ALL ON TABLE public.commission_ledger TO service_role;
 
 
 --
+-- Name: TABLE conversation_key_envelopes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.conversation_key_envelopes TO anon;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.conversation_key_envelopes TO authenticated;
+GRANT ALL ON TABLE public.conversation_key_envelopes TO service_role;
+
+
+--
 -- Name: TABLE escrow_transactions; Type: ACL; Schema: public; Owner: -
 --
 
@@ -19938,12 +26487,12 @@ GRANT ALL ON SEQUENCE public.hotel_bookings_booking_id_seq TO service_role;
 
 
 --
--- Name: TABLE hotel_reviews; Type: ACL; Schema: public; Owner: -
+-- Name: TABLE hotel_inventory_daily; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.hotel_reviews TO anon;
-GRANT ALL ON TABLE public.hotel_reviews TO authenticated;
-GRANT ALL ON TABLE public.hotel_reviews TO service_role;
+GRANT ALL ON TABLE public.hotel_inventory_daily TO service_role;
+GRANT SELECT ON TABLE public.hotel_inventory_daily TO anon;
+GRANT SELECT ON TABLE public.hotel_inventory_daily TO authenticated;
 
 
 --
@@ -19956,21 +26505,20 @@ GRANT ALL ON SEQUENCE public.hotel_reviews_review_id_seq TO service_role;
 
 
 --
--- Name: TABLE hotel_rooms; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.hotel_rooms TO anon;
-GRANT ALL ON TABLE public.hotel_rooms TO authenticated;
-GRANT ALL ON TABLE public.hotel_rooms TO service_role;
-
-
---
 -- Name: SEQUENCE hotel_rooms_room_id_seq; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON SEQUENCE public.hotel_rooms_room_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.hotel_rooms_room_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.hotel_rooms_room_id_seq TO service_role;
+
+
+--
+-- Name: TABLE hotel_team_members; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.hotel_team_members TO service_role;
+GRANT SELECT ON TABLE public.hotel_team_members TO authenticated;
 
 
 --
@@ -20141,12 +26689,37 @@ GRANT ALL ON TABLE public.private_calls TO service_role;
 
 
 --
+-- Name: TABLE property_access_challenges; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.property_access_challenges TO service_role;
+
+
+--
 -- Name: TABLE property_partner_earning_releases; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON TABLE public.property_partner_earning_releases TO anon;
 GRANT ALL ON TABLE public.property_partner_earning_releases TO authenticated;
 GRANT ALL ON TABLE public.property_partner_earning_releases TO service_role;
+
+
+--
+-- Name: TABLE property_submission_batches; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.property_submission_batches TO anon;
+GRANT ALL ON TABLE public.property_submission_batches TO authenticated;
+GRANT ALL ON TABLE public.property_submission_batches TO service_role;
+
+
+--
+-- Name: TABLE property_submission_items; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.property_submission_items TO anon;
+GRANT ALL ON TABLE public.property_submission_items TO authenticated;
+GRANT ALL ON TABLE public.property_submission_items TO service_role;
 
 
 --
@@ -20274,12 +26847,28 @@ GRANT ALL ON TABLE public.roommate_search_results TO service_role;
 
 
 --
+-- Name: TABLE roommate_user_blocks; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.roommate_user_blocks TO service_role;
+
+
+--
 -- Name: TABLE saved_listings; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON TABLE public.saved_listings TO anon;
 GRANT ALL ON TABLE public.saved_listings TO authenticated;
 GRANT ALL ON TABLE public.saved_listings TO service_role;
+
+
+--
+-- Name: TABLE saved_searches; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.saved_searches TO anon;
+GRANT ALL ON TABLE public.saved_searches TO authenticated;
+GRANT ALL ON TABLE public.saved_searches TO service_role;
 
 
 --
@@ -20301,12 +26890,21 @@ GRANT ALL ON TABLE public.service_categories TO service_role;
 
 
 --
--- Name: TABLE service_subcategories; Type: ACL; Schema: public; Owner: -
+-- Name: TABLE shared_housing_groups; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.service_subcategories TO anon;
-GRANT ALL ON TABLE public.service_subcategories TO authenticated;
-GRANT ALL ON TABLE public.service_subcategories TO service_role;
+GRANT ALL ON TABLE public.shared_housing_groups TO anon;
+GRANT ALL ON TABLE public.shared_housing_groups TO authenticated;
+GRANT ALL ON TABLE public.shared_housing_groups TO service_role;
+
+
+--
+-- Name: TABLE shared_housing_members; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.shared_housing_members TO anon;
+GRANT ALL ON TABLE public.shared_housing_members TO authenticated;
+GRANT ALL ON TABLE public.shared_housing_members TO service_role;
 
 
 --
@@ -20339,7 +26937,6 @@ GRANT ALL ON TABLE public.staff_reviews TO service_role;
 -- Name: TABLE staff_trust_profiles; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.staff_trust_profiles TO authenticated;
 GRANT ALL ON TABLE public.staff_trust_profiles TO service_role;
 
 
@@ -20375,6 +26972,15 @@ GRANT ALL ON TABLE public.user_counters TO service_role;
 GRANT ALL ON SEQUENCE public.user_counters_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.user_counters_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.user_counters_id_seq TO service_role;
+
+
+--
+-- Name: TABLE user_encryption_identities; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.user_encryption_identities TO anon;
+GRANT ALL ON TABLE public.user_encryption_identities TO authenticated;
+GRANT ALL ON TABLE public.user_encryption_identities TO service_role;
 
 
 --
@@ -20478,7 +27084,7 @@ GRANT ALL ON TABLE public.withdrawals TO service_role;
 -- Name: TABLE worker_bookings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.worker_bookings TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.worker_bookings TO anon;
 GRANT ALL ON TABLE public.worker_bookings TO authenticated;
 GRANT ALL ON TABLE public.worker_bookings TO service_role;
 
@@ -20557,6 +27163,15 @@ GRANT ALL ON TABLE public.workers TO service_role;
 GRANT ALL ON SEQUENCE public.workers_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.workers_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.workers_id_seq TO service_role;
+
+
+--
+-- Name: TABLE workspace_role_assignments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.workspace_role_assignments TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.workspace_role_assignments TO authenticated;
+GRANT ALL ON TABLE public.workspace_role_assignments TO service_role;
 
 
 --
