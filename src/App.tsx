@@ -991,7 +991,11 @@ export default function App() {
           {supportRole && profile && (
             <SupportChat
               onOpenListing={goToDetail}
-              onOpenBooking={(id) => { setBookingContextId(id); goTo("my_reservations"); }}
+              onOpenBooking={(id) => {
+                setBookingContextId(null);
+                goTo("my_reservations");
+                window.setTimeout(() => setBookingContextId(id), 0);
+              }}
               profile={{
                 user_id: profile.user_id,
                 username: profile.username,

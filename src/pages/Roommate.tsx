@@ -554,8 +554,9 @@ function Matches({
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
+                connected = Boolean(row.conversation_id),
                 sent = row.status === "accepted",
-                matched = sent && row.mutual_accepted;
+                matched = connected || (sent && row.mutual_accepted);
               return (
                 <article key={row.id} className="min-w-0 overflow-hidden rounded-3xl border border-white/[.07] bg-gradient-to-br from-[#151826] to-[#0E1118] p-4">
                   <div className="flex items-start gap-3">

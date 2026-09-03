@@ -40,7 +40,8 @@ export function conversationPresentation(
   const contextType = "context_type" in value ? value.context_type : value.contextType || "general";
   const snapshot = ("context_snapshot" in value ? value.context_snapshot : value.contextSnapshot) || {};
   const rawSubject = String("subject" in value ? value.subject || "" : value.subject || "").trim();
-  const status = String(("status" in value ? value.status : snapshot.status) || "").replace(/_/g, " ");
+  const threadStatus = "status" in value ? value.status : "";
+  const status = String(snapshot.status || threadStatus || "").replace(/_/g, " ");
   const code = String(snapshot.booking_code || snapshot.reference || snapshot.request_code || "").trim();
   const reservation = ["apartment_reservation", "reservation", "hotel_booking"].includes(contextType);
   if (reservation) {
@@ -51,7 +52,7 @@ export function conversationPresentation(
       kind: "reservation",
       title: place || safeSubject || (contextType === "hotel_booking" ? "Hotel stay" : stay),
       operator: "Reservation Desk",
-      meta: [code, status].filter(Boolean).join(" · "),
+      meta: [code, reservationStatusLabel(status, contextType)].filter(Boolean).join(" · "),
       operational: true,
     };
   }
@@ -76,6 +77,15 @@ export function conversationPresentation(
     meta: status,
     operational: false,
   };
+}
+
+function reservationStatusLabel(status: string, contextType: string) {
+  const value = status.toLowerCase();
+  if (value === "occupied") return "Tenancy active";
+  if (value === "checked in" || value === "checked_in") return "Checked in";
+  if (value === "checked out" || value === "checked_out") return "Checked out";
+  if (value === "confirmed") return contextType === "hotel_booking" ? "Stay confirmed" : "Booking confirmed";
+  return value ? value[0].toUpperCase() + value.slice(1) : "";
 }
 
 export async function createSupportConversation(

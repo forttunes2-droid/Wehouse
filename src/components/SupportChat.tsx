@@ -195,9 +195,14 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       setMessages(cached || []);
       setLoading(!cached);
 
+      let preferredId = context?.conversationId || null;
+      if (context && hasContext(context) && ["apartment_reservation", "reservation", "hotel_booking"].includes(context.contextType || "")) {
+        const ensured = await ensureSupportConversation(context);
+        if (!ensured.error && ensured.conversationId) preferredId = ensured.conversationId;
+      }
       const current = await refreshThread(
         context,
-        context?.conversationId || null,
+        preferredId,
       );
       setPendingContext(current ? null : context && hasContext(context) ? context : null);
       if (current?.conversation_id)
@@ -345,7 +350,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.05),transparent_34%)] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-4xl">
           {presentation.operational && thread && (
-            <LinkedOperationalContext thread={thread} onOpenBooking={onOpenBooking} onOpenListing={onOpenListing} />
+            <LinkedOperationalContext thread={thread} onOpenBooking={onOpenBooking ? (id) => { setOpen(false); onOpenBooking(id); } : undefined} onOpenListing={onOpenListing ? (id) => { setOpen(false); onOpenListing(id); } : undefined} />
           )}
           {loading ? (
             <ConversationSkeleton />
@@ -576,7 +581,8 @@ function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:S
   const presentation=conversationPresentation(thread);
   const bookingId=String(thread.context_id||snapshot.reservation_id||'');
   const listingId=String(snapshot.listing_id||'');
-  const status=String(snapshot.status||thread.status||'').replace(/_/g,' ');
+  const rawStatus=String(snapshot.status||'').replace(/_/g,' ');
+  const status=rawStatus==='occupied'?'Tenancy active':rawStatus==='checked in'?'Checked in':rawStatus==='checked out'?'Checked out':rawStatus;
   const code=String(snapshot.booking_code||snapshot.reference||'');
   const title=String(snapshot.listing_title||snapshot.hotel_name||presentation.title||'Reservation').replace(/\s*·\s*Reservation Desk$/i,'');
   const stayType=String(snapshot.stay_type||'');
