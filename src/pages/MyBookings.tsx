@@ -4,23 +4,18 @@ import {
   BOOKING_STATUS_LABELS,
 } from "@/lib/supabase/worker-bookings";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
+import WeHouseSelect from "@/components/WeHouseSelect";
+import { canonicalStatusOptions } from "@/lib/status";
 import type { Profile } from "@/types";
 import { Toaster, toast } from "sonner";
 
-export type BookingStage = "all" | "needs_action" | "active" | "upcoming" | "completed";
+export type BookingStage = string;
 type Props = { profile: Profile; onBack: () => void; embedded?: boolean; stage?:BookingStage; showFilters?:boolean };
-const HISTORY = new Set(["approved_released", "cancelled", "refunded"]);
 const ATTENTION = new Set([
   "waiting_payment",
   "completed_pending_approval",
   "disputed",
 ]);
-const ACTIVE = new Set([
-  "booking_requested",
-  "negotiating",
-  "in_progress",
-]);
-const UPCOMING = new Set(["confirmed"]);
 
 export default function MyBookings({ profile, onBack, embedded = false, stage, showFilters = true }: Props) {
   const [rows, setRows] = useState<any[]>([]),
@@ -29,7 +24,7 @@ export default function MyBookings({ profile, onBack, embedded = false, stage, s
       conversationId: string;
       bookingId: string;
     } | null>(null),
-    [localStage, setLocalStage] = useState<BookingStage>("all"),
+    [statusFilter, setStatusFilter] = useState<BookingStage>("all"),
     [search, setSearch] = useState("");
   async function load() {
     setLoading(true);
@@ -43,27 +38,14 @@ export default function MyBookings({ profile, onBack, embedded = false, stage, s
   useEffect(() => {
     void load();
   }, [profile.user_id]);
-  const view=stage||localStage;
-  const counts = useMemo(
-    () => ({
-      all: rows.length,
-      needs_action: rows.filter((row) => ATTENTION.has(row.booking_status)).length,
-      active: rows.filter((row) => ACTIVE.has(row.booking_status)).length,
-      upcoming: rows.filter((row) => UPCOMING.has(row.booking_status)).length,
-      completed: rows.filter((row) => HISTORY.has(row.booking_status)).length,
-    }),
-    [rows],
-  );
+  const view=stage||statusFilter;
+  const statusOptions=useMemo(()=>canonicalStatusOptions(rows.map(row=>row.booking_status)),[rows]);
+  useEffect(()=>{if(!stage&&!statusOptions.some(option=>option.value===statusFilter))setStatusFilter('all')},[stage,statusFilter,statusOptions]);
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows
       .filter((row) => {
-        const matchesView =
-          view === "all" ||
-          (view === "needs_action" && ATTENTION.has(row.booking_status)) ||
-          (view === "active" && ACTIVE.has(row.booking_status)) ||
-          (view === "upcoming" && UPCOMING.has(row.booking_status)) ||
-          (view === "completed" && HISTORY.has(row.booking_status));
+        const matchesView = view === "all" || row.booking_status === view;
         if (!matchesView) return false;
         if (!q) return true;
         return [
@@ -117,30 +99,7 @@ export default function MyBookings({ profile, onBack, embedded = false, stage, s
         </div>
       </header>}
       <main className={embedded ? "space-y-4" : "mx-auto max-w-3xl space-y-4 px-4 py-4"}>
-        {showFilters && <div className="grid grid-cols-5 gap-1 rounded-2xl border border-white/[.06] bg-[#0D1017] p-1">
-          {(
-            [
-              ["all", "All"],
-              ["needs_action", "Needs action"],
-              ["active", "Active"],
-              ["upcoming", "Upcoming"],
-              ["completed", "Completed"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setLocalStage(id)}
-              className={`min-h-11 rounded-xl px-1 text-[9px] font-semibold ${view === id ? "bg-violet-500 text-white" : "text-[#73798A]"}`}
-            >
-              {label}
-              <span
-                className={`ml-1 ${view === id ? "text-violet-100" : "text-[#4F5667]"}`}
-              >
-                {counts[id]}
-              </span>
-            </button>
-          ))}
-        </div>}
+        {showFilters && <div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Status filter</span><WeHouseSelect value={view} options={statusOptions} onChange={setStatusFilter} eyebrow="Booking status" title="Filter by booking status" ariaLabel="Filter service bookings by status" className="max-w-[13rem] rounded-full"/></div>}
         <div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5E6575]">
             ⌕

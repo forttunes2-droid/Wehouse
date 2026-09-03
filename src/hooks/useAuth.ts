@@ -13,6 +13,7 @@ import {
   updateSessionLastSeen,
 } from "@/lib/supabase";
 import type { Profile, Page } from "@/types";
+import type { User } from "@supabase/supabase-js";
 interface AuthState {
   page: Page;
   profile: Profile | null;
@@ -172,7 +173,7 @@ export function useAuth() {
     if (p.role === "property_partner") return "property_partner";
     return "dashboard";
   }, []);
-  const allowEntry = useCallback(async (p: Profile) => {
+  const allowEntry = useCallback(async (p: Profile, maintenanceEnabled?: boolean) => {
     if (p.banned || p.suspended || p.deleted) {
       explicitSignOutRef.current = true;
       await supabase.auth.signOut({ scope: "local" });
@@ -192,7 +193,7 @@ export function useAuth() {
     if (
       !isCreator(p.role) &&
       !(p as any).maintenance_exempt &&
-      (await maintenance())
+      (maintenanceEnabled ?? (await maintenance()))
     ) {
       setState({
         page: "login",
@@ -208,13 +209,15 @@ export function useAuth() {
   const loadProfile = useCallback(
     async (
       authId: string,
-      { preserveOnFailure = false }: { preserveOnFailure?: boolean } = {},
+      {
+        preserveOnFailure = false,
+        user: suppliedUser,
+      }: { preserveOnFailure?: boolean; user?: User } = {},
     ) => {
       if (profileLoadRef.current) return profileLoadRef.current;
       profileLoadRef.current = (async () => {
         try {
-          const { data: userData } = await supabase.auth.getUser();
-          const user = userData?.user;
+          const user = suppliedUser ?? (await supabase.auth.getUser()).data?.user;
           const email = user?.email || "";
           if(user?.email&&!user.email_confirmed_at){
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
@@ -225,10 +228,11 @@ export function useAuth() {
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
             return;
           }
-          const { profile: existing, error } = await getProfileByAuthId(
-            authId,
-            email,
-          );
+          const [profileResult, maintenanceEnabled] = await Promise.all([
+            getProfileByAuthId(authId, email),
+            maintenance(),
+          ]);
+          const { profile: existing, error } = profileResult;
           if (error) {
             if (!preserveOnFailure)
               setState((s) => ({
@@ -243,7 +247,7 @@ export function useAuth() {
           if (!profile) {
             const role = publicRole(user?.user_metadata?.signup_role)||publicRole(sessionStorage.getItem('wh_google_verify_role'));
             if (role) {
-              if (await maintenance())
+              if (maintenanceEnabled)
                 throw new Error("WeHouse is currently under maintenance.");
               if (await registrationClosed())
                 throw new Error("New registrations are currently closed.");
@@ -266,7 +270,7 @@ export function useAuth() {
               return;
             }
           }
-          if (await allowEntry(profile)) {
+          if (await allowEntry(profile, maintenanceEnabled)) {
             syncIdentityNavigation(profile);
             setState({
               profile,
@@ -313,7 +317,7 @@ export function useAuth() {
           return;
         }
         if (data.session?.user) {
-          await loadProfile(data.session.user.id);
+          await loadProfile(data.session.user.id, { user: data.session.user });
           return;
         }
         setState({
@@ -363,7 +367,7 @@ export function useAuth() {
           session?.user
         ) {
           if (handlingLoginRef.current && event === "SIGNED_IN") return;
-          void loadProfile(session.user.id, { preserveOnFailure: true });
+          void loadProfile(session.user.id, { preserveOnFailure: true, user: session.user });
           return;
         }
         if (event === "SIGNED_OUT") {
@@ -394,7 +398,7 @@ export function useAuth() {
         .getSession()
         .then(({ data }) => {
           if (data.session?.user)
-            void loadProfile(data.session.user.id, { preserveOnFailure: true });
+            void loadProfile(data.session.user.id, { preserveOnFailure: true, user: data.session.user });
         })
         .catch(() => {});
     };
@@ -420,12 +424,15 @@ export function useAuth() {
       handlingLoginRef.current = true;
       setState((s) => ({ ...s, isLoading: true, error: "" }));
       try {
-        const { profile: byAuth, error: profileError } =
-          await getProfileByAuthId(authId);
+        const [profileResult, maintenanceEnabled] = await Promise.all([
+          getProfileByAuthId(authId, email),
+          maintenance(),
+        ]);
+        const { profile: byAuth, error: profileError } = profileResult;
         if (profileError) throw profileError;
         let p = byAuth;
         if (!p) {
-          if (await maintenance())
+          if (maintenanceEnabled)
             throw new Error("WeHouse is currently under maintenance.");
           if (await registrationClosed())
             throw new Error("New registrations are currently closed.");
@@ -440,7 +447,7 @@ export function useAuth() {
           if ((role || "user") === "property_partner")
             await ensurePropertyPartnerRecord();
         }
-        if (await allowEntry(p)) {
+        if (await allowEntry(p, maintenanceEnabled)) {
           syncIdentityNavigation(p);
           setState({
             profile: p,

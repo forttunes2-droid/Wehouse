@@ -81,8 +81,28 @@ const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
 
-function PageSkeleton() {
-  return <div className="min-h-screen bg-[#0A0A0F]" role="status" aria-label="Loading WeHouse" />;
+function AppLaunchScreen() {
+  return (
+    <div
+      className="relative grid min-h-[100dvh] place-items-center overflow-hidden bg-[#08090D] px-6 text-white"
+      role="status"
+      aria-live="polite"
+      aria-label="Opening WeHouse"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(139,92,246,.16),transparent_34%)]" />
+      <div className="relative flex flex-col items-center text-center">
+        <div className="relative grid h-16 w-16 place-items-center rounded-[22px] border border-violet-400/20 bg-violet-500/[.08] shadow-[0_0_50px_rgba(139,92,246,.15)]">
+          <span className="text-lg font-black tracking-[-.08em] text-violet-200">WH</span>
+          <span className="absolute inset-0 rounded-[22px] border border-violet-300/20 motion-safe:animate-ping" />
+        </div>
+        <p className="mt-5 text-[11px] font-bold tracking-[.32em] text-violet-200">WEHOUSE</p>
+        <p className="mt-2 text-[10px] text-[#777D8D]">Opening your workspace</p>
+        <div className="mt-5 h-0.5 w-28 overflow-hidden rounded-full bg-white/[.06]">
+          <span className="block h-full w-1/2 rounded-full bg-violet-400 motion-safe:animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
 }
 function ErrorFallback({ reset }: { reset: () => void }) {
   return (
@@ -94,7 +114,7 @@ function ErrorFallback({ reset }: { reset: () => void }) {
         </p>
         <button
           onClick={reset}
-          className="h-11 rounded-xl bg-blue-500 px-6 text-sm font-semibold"
+          className="h-11 rounded-xl bg-violet-500 px-6 text-sm font-semibold"
         >
           Reload App
         </button>
@@ -621,7 +641,7 @@ export default function App() {
     else handleSetNavPage("profile");
   }, [handleSetNavPage]);
 
-  if (auth.isLoading) return <PageSkeleton />;
+  if (auth.isLoading) return <AppLaunchScreen />;
   if (auth.page === "login")
     return (
       <Login
@@ -979,7 +999,7 @@ export default function App() {
   return (
     <CreatorAuthProvider>
       <AdminAuthProvider>
-        <Suspense fallback={<PageSkeleton />}>
+        <Suspense fallback={<AppLaunchScreen />}>
           <PrivateCallCenter />
           <DesktopLayout
             navItems={desktopNavItems}

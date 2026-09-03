@@ -13,14 +13,14 @@ type InspectionRow = {
   video_urls?:string[]|null; notes?:string|null; completed_at?:string|null;
 };
 type Preview = { file:File; url:string };
-type InspectionFilter = 'active'|'scheduled'|'in_progress'|'completed'|'approved'|'all';
+type InspectionFilter = 'pending'|'scheduled'|'in_progress'|'completed'|'approved'|'all';
 const INSPECTION_FILTERS: Array<{value:InspectionFilter;label:string;description?:string}> = [
-  {value:'active',label:'Needs action',description:'Scheduled and in-progress visits'},
+  {value:'all',label:'All statuses'},
+  {value:'pending',label:'Pending'},
   {value:'scheduled',label:'Scheduled'},
   {value:'in_progress',label:'In progress'},
-  {value:'completed',label:'Submitted for review'},
+  {value:'completed',label:'Completed'},
   {value:'approved',label:'Approved'},
-  {value:'all',label:'All inspections'},
 ];
 
 export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile }) {
@@ -28,7 +28,7 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
   const [rows,setRows] = useState<InspectionRow[]>([]);
   const [selected,setSelected] = useState<InspectionRow|null>(null);
   const [search,setSearch] = useState('');
-  const [filter,setFilter] = useState<InspectionFilter>('active');
+  const [filter,setFilter] = useState<InspectionFilter>('all');
   const [report,setReport] = useState('');
   const [condition,setCondition] = useState('');
   const [media,setMedia] = useState<File[]>([]);
@@ -52,10 +52,7 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
   useEffect(()=>()=>previews.forEach(item=>URL.revokeObjectURL(item.url)),[previews]);
   const shown=useMemo(()=>rows.filter(row=>{
     const status=String(row.status||'pending');
-    const matchesStatus=filter==='all'
-      || (filter==='active'&&['pending','scheduled','in_progress'].includes(status))
-      || (filter==='scheduled'&&['pending','scheduled'].includes(status))
-      || status===filter;
+    const matchesStatus=filter==='all'||status===filter;
     const query=search.trim().toLowerCase();
     const matchesSearch=!query||[row.property_address,row.property_city,row.property_state,row.owner_name,row.status].filter(Boolean).join(' ').toLowerCase().includes(query);
     return matchesStatus&&matchesSearch;
@@ -125,12 +122,12 @@ export default function StaffInspectionWorkspaceV2({ profile }:{ profile:Profile
   }
 
   const active=rows.filter(row=>!done(row)).length;
-  return <div className="space-y-4"><header><h2 className="text-lg font-bold">Inspections</h2><p className="mt-1 text-[10px] text-[#707687]">{active} active · {rows.length-active} completed</p></header><div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Inspection status</span><WeHouseSelect value={filter} options={INSPECTION_FILTERS} onChange={setFilter} eyebrow="Field Operations" title="Choose inspection work" ariaLabel="Filter inspections by status" className="max-w-[13rem] rounded-full"/></div><input value={search} onChange={event=>setSearch(event.target.value)} aria-label="Search inspections" placeholder="Search address or Property Partner" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none"/>{loading?<Empty text="Loading inspections…"/>:shown.length===0?<Empty text="No inspections match this view."/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(row=><button key={`${row._source}-${row.id}`} onClick={()=>open(row)} className="w-full py-4 text-left"><Head row={row}/><p className="mt-2 text-[9px] text-[#73798B]">{row.scheduled_date?new Date(row.scheduled_date).toLocaleString():'Schedule pending'}</p></button>)}</div>}</div>;
+  return <div className="space-y-4"><header><h2 className="text-lg font-bold">Inspections</h2><p className="mt-1 text-[10px] text-[#707687]">{active} active · {rows.length-active} completed</p></header><div className="flex items-center justify-between gap-3 border-y border-white/[.07] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Status filter</span><WeHouseSelect value={filter} options={INSPECTION_FILTERS} onChange={setFilter} eyebrow="Inspection status" title="Filter by inspection status" ariaLabel="Filter inspections by status" className="max-w-[13rem] rounded-full"/></div><input value={search} onChange={event=>setSearch(event.target.value)} aria-label="Search inspections" placeholder="Search address or Property Partner" className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none"/>{loading?<Empty text="Loading inspections…"/>:shown.length===0?<Empty text="No inspections match this status."/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(row=><button key={`${row._source}-${row.id}`} onClick={()=>open(row)} className="w-full py-4 text-left"><Head row={row}/><p className="mt-2 text-[9px] text-[#73798B]">{row.scheduled_date?new Date(row.scheduled_date).toLocaleString():'Schedule pending'}</p></button>)}</div>}</div>;
 }
 
 function done(row:InspectionRow){return ['completed','approved'].includes(row.status)}
 function SectionTitle({step,title}:{step:string;title:string}){return <div><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">STEP {step}</p><h3 className="mt-1 text-sm font-semibold">{title}</h3></div>}
 function Head({row}:{row:InspectionRow}){return <div className="flex items-start justify-between gap-3"><p className="min-w-0 break-words text-sm font-semibold">{row.property_address||'Property inspection'}</p><span className="shrink-0 text-[8px] capitalize text-violet-300">{String(row.status||'pending').replace(/_/g,' ')}</span></div>}
 function Coordinate({label,value,set}:{label:string;value:string;set:(value:string)=>void}){return <label><span className="mb-1 block text-[9px] text-[#66758C]">{label}</span><input inputMode="decimal" value={value} onChange={event=>set(event.target.value.replace(/[^0-9+-.]/g,''))} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#111722] px-3 text-xs"/></label>}
-function CompletedInspection({row}:{row:InspectionRow}){const photos=row.photo_urls||[],videos=row.video_urls||[];return <section className="space-y-4"><div className="border-y border-emerald-500/15 py-4"><p className="text-xs font-semibold text-emerald-300">{row.status==='approved'?'Inspection reviewed and approved':'Inspection submitted for review'}</p><p className="mt-1 text-[9px] text-[#7B8791]">{row.completed_at?'Completed '+new Date(row.completed_at).toLocaleString():'The field visit is complete.'}</p></div>{row.notes&&<div className="border-b border-white/[.06] pb-4"><p className="text-[9px] font-semibold uppercase tracking-wide text-[#66758C]">Inspection report</p><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#A5AAB7]">{row.notes}</p></div>}<div><p className="text-xs font-semibold">Submitted evidence</p>{photos.length||videos.length?<div className="mt-3 grid grid-cols-3 gap-1.5">{photos.map((url,index)=><a key={url} href={url} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded-xl bg-black"><img src={url} alt={`Inspection evidence ${index+1}`} className="h-full w-full object-cover"/></a>)}{videos.map(url=><video key={url} src={url} controls playsInline className="aspect-square w-full rounded-xl bg-black object-cover"/>)}</div>:<p className="mt-2 text-[9px] text-[#6D7383]">No media is attached.</p>}</div></section>}
+function CompletedInspection({row}:{row:InspectionRow}){const photos=row.photo_urls||[],videos=row.video_urls||[];return <section className="space-y-4"><div className="border-y border-emerald-500/15 py-4"><p className="text-xs font-semibold capitalize text-emerald-300">{String(row.status||'completed').replace(/_/g,' ')}</p><p className="mt-1 text-[9px] text-[#7B8791]">{row.completed_at?'Completed '+new Date(row.completed_at).toLocaleString():'The field visit is complete.'}</p></div>{row.notes&&<div className="border-b border-white/[.06] pb-4"><p className="text-[9px] font-semibold uppercase tracking-wide text-[#66758C]">Inspection report</p><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#A5AAB7]">{row.notes}</p></div>}<div><p className="text-xs font-semibold">Submitted evidence</p>{photos.length||videos.length?<div className="mt-3 grid grid-cols-3 gap-1.5">{photos.map((url,index)=><a key={url} href={url} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded-xl bg-black"><img src={url} alt={`Inspection evidence ${index+1}`} className="h-full w-full object-cover"/></a>)}{videos.map(url=><video key={url} src={url} controls playsInline className="aspect-square w-full rounded-xl bg-black object-cover"/>)}</div>:<p className="mt-2 text-[9px] text-[#6D7383]">No media is attached.</p>}</div></section>}
 function Empty({text}:{text:string}){return <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666D7E]">{text}</div>}

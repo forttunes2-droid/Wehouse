@@ -6,7 +6,7 @@ import WeHouseSelect from '@/components/WeHouseSelect';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirm } from '@/hooks/useConfirm';
 
-type Filter = 'attention' | 'reserved' | 'occupied' | 'available' | 'maintenance' | 'all';
+type Filter = 'reserved' | 'occupied' | 'available' | 'maintenance' | 'closed' | 'all';
 const STATUS: Record<string, { label: string; cls: string }> = {
   available: { label: 'Available', cls: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' },
   reserved: { label: 'Reserved', cls: 'border-amber-500/20 bg-amber-500/10 text-amber-300' },
@@ -18,7 +18,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 export default function HousingOperationsWorkspace() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>('attention');
+  const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<any | null>(null);
   const [bookingCode, setBookingCode] = useState('');
   const [checkingCode, setCheckingCode] = useState(false);
@@ -48,11 +48,6 @@ export default function HousingOperationsWorkspace() {
 
   const filtered = useMemo(() => rows.filter(row => {
     if (filter === 'all') return true;
-    if (filter === 'attention') {
-      return row.listing_status === 'reserved'
-        || row.listing_status === 'maintenance'
-        || (row.listing_status === 'occupied' && row.move_out_grace_until && new Date(row.move_out_grace_until).getTime() <= Date.now());
-    }
     return row.listing_status === filter;
   }), [rows, filter]);
   const verifiedHousingRow = useMemo(() => {
@@ -74,7 +69,7 @@ export default function HousingOperationsWorkspace() {
     </section>
 
     <div className="grid grid-cols-4 gap-2"><Metric label="Reserved" value={rows.filter(row => row.listing_status === 'reserved').length} /><Metric label="Occupied" value={rows.filter(row => row.listing_status === 'occupied').length} /><Metric label="Available" value={rows.filter(row => row.listing_status === 'available').length} /><Metric label="Maintenance" value={rows.filter(row => row.listing_status === 'maintenance').length} /></div>
-    <div className="flex items-center justify-between gap-3 border-y border-white/[.06] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Tenancy filter</span><WeHouseSelect value={filter} options={[{value:'attention',label:'Needs attention'},{value:'reserved',label:'Reserved'},{value:'occupied',label:'Occupied'},{value:'available',label:'Available'},{value:'maintenance',label:'Maintenance'},{value:'all',label:'All tenancies'}]} onChange={setFilter} eyebrow="Reservation Desk" title="Choose what to show" ariaLabel="Filter tenancy operations" className="max-w-[13rem] rounded-full"/></div>
+    <div className="flex items-center justify-between gap-3 border-y border-white/[.06] py-3"><span className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Status filter</span><WeHouseSelect value={filter} options={[{value:'all',label:'All statuses'},{value:'available',label:'Available'},{value:'reserved',label:'Reserved'},{value:'occupied',label:'Occupied'},{value:'maintenance',label:'Maintenance'},{value:'closed',label:'Closed'}]} onChange={setFilter} eyebrow="Property status" title="Filter by property status" ariaLabel="Filter properties by status" className="max-w-[13rem] rounded-full"/></div>
     {loading ? <Loading /> : filtered.length === 0 ? <Empty /> : <div className="space-y-2">{filtered.map(row => <button key={row.listing_id} onClick={() => { setVerifiedMoveInCode(null); setSelected(row); }} className="w-full rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/20"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{row.listing_title}</p><p className="mt-1 truncate text-[9px] text-[#686D7E]">{[row.address,row.lga,row.state].filter(Boolean).join(', ')}</p></div><Badge status={row.listing_status} /></div>{row.current_reservation_id && <div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3"><div><p className="text-[9px] text-[#626778]">{row.customer_name || 'Customer'}</p><p className="mt-0.5 text-[8px] capitalize text-violet-300">{String(row.reservation_status || '').replace(/_/g,' ')} · rent {String(row.rent_payment_status || 'not started').replace(/_/g,' ')}</p></div>{row.tenancy_end_date && <p className="text-[8px] text-[#777C8C]">Ends {new Date(row.tenancy_end_date).toLocaleDateString()}</p>}</div>}</button>)}</div>}
   </div>;
 }
