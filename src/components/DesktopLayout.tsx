@@ -64,6 +64,15 @@ function isWorkspaceRoot(role: string, page: NavPage) {
   return false;
 }
 
+function WorkspaceNavIcon({label}:{label:string}) {
+  const common={width:20,height:20,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round' as const,strokeLinejoin:'round' as const};
+  if(label==='Properties')return <svg {...common}><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>;
+  if(label==='Inbox')return <svg {...common}><path d="M4 5h16v12H8l-4 3Z"/><path d="M8 9h8M8 13h5"/></svg>;
+  if(label==='Finance')return <svg {...common}><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/></svg>;
+  if(label==='Account')return <svg {...common}><circle cx="12" cy="8" r="3"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>;
+  return <svg {...common}><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>;
+}
+
 export default function DesktopLayout({
   children,
   navItems,
@@ -382,7 +391,7 @@ export default function DesktopLayout({
                       active ? 'text-violet-300' : 'text-[#6E7282]'
                     }`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-violet-400' : 'bg-transparent'}`} />
+                    <WorkspaceNavIcon label={display} />
                     <span className="max-w-full truncate">{display}</span>
                   </button>
                 );
@@ -394,7 +403,7 @@ export default function DesktopLayout({
                     moreOpen ? 'text-violet-300' : 'text-[#6E7282]'
                   }`}
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full ${moreOpen ? 'bg-violet-400' : 'bg-transparent'}`} />
+                  <WorkspaceNavIcon label={accountItem && mobilePlan.extra.length === 0 ? 'Account' : 'More'} />
                   <span>{accountItem && mobilePlan.extra.length === 0 ? 'Account' : 'More'}</span>
                 </button>
               )}

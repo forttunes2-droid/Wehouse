@@ -44,10 +44,15 @@ type RequestRow = {
 
 const fields = 'id,request_code,property_address,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage';
 
-export default function PartnerSubmittedRequests({ profile, filter = 'all' }: { profile: Profile; filter?: SubmissionFilter }) {
+export default function PartnerSubmittedRequests({ profile, filter = 'all', onDetailChange }: { profile: Profile; filter?: SubmissionFilter; onDetailChange?: (open:boolean)=>void }) {
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [selected, setSelected] = useState<RequestRow | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    onDetailChange?.(Boolean(selected));
+    return () => onDetailChange?.(false);
+  }, [selected, onDetailChange]);
 
   async function refresh() {
     setLoading(true);

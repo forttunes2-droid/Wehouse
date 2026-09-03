@@ -97,6 +97,7 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
 }
 function PropertiesWorkspace({ profile }: { profile: Profile }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
+  const [viewingDetail, setViewingDetail] = useState(false);
   const filters: Array<{value:SubmissionFilter;label:string;description:string}> = [
     {value:"all",label:"All submissions",description:"Every submitted property"},
     {value:"submitted",label:"In progress",description:"Currently moving through review"},
@@ -105,14 +106,14 @@ function PropertiesWorkspace({ profile }: { profile: Profile }) {
   ];
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+      {!viewingDetail && <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
         <div><h2 className="text-sm font-semibold">Your properties</h2><p className="mt-1 text-[9px] text-[#686B7D]">The selection filters one property workspace; lifecycle states stay on each property.</p></div>
         <WeHouseSelect value={filter} options={filters} onChange={setFilter} eyebrow="Properties" title="Choose what to show" ariaLabel="Filter property submissions" />
-      </div>
+      </div>}
       {filter === "public" ? (
         <PropertiesTab profile={profile} />
       ) : (
-        <PartnerSubmittedRequests profile={profile} filter={filter} />
+        <PartnerSubmittedRequests profile={profile} filter={filter} onDetailChange={setViewingDetail} />
       )}
     </div>
   );

@@ -33,7 +33,6 @@ function selectTitle(select: HTMLSelectElement) {
 export default function NativeSelectBridge() {
   const [active, setActive] = useState<HTMLSelectElement | null>(null);
   const [version, setVersion] = useState(0);
-  const [search, setSearch] = useState('');
 
   useEffect(() => {
     function open(event: PointerEvent) {
@@ -44,7 +43,6 @@ export default function NativeSelectBridge() {
       event.preventDefault();
       event.stopPropagation();
       setActive(select);
-      setSearch('');
       setVersion((value) => value + 1);
     }
 
@@ -69,12 +67,6 @@ export default function NativeSelectBridge() {
     }));
   }, [active, version]);
 
-  const shown = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return options;
-    return options.filter((option) => `${option.label} ${option.value}`.toLowerCase().includes(needle));
-  }, [options, search]);
-
   if (!active || typeof document === 'undefined') return null;
 
   const title = selectTitle(active);
@@ -92,7 +84,6 @@ export default function NativeSelectBridge() {
     active.dispatchEvent(new Event('change', { bubbles: true }));
     active.focus({ preventScroll: true });
     setActive(null);
-    setSearch('');
   }
 
   return createPortal(
@@ -112,21 +103,8 @@ export default function NativeSelectBridge() {
           <button type="button" onClick={() => setActive(null)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-lg text-[#A1A6B3]">×</button>
         </header>
 
-        <div className="border-b border-white/[0.06] p-3 sm:p-4">
-          <div className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#171B24] px-3 focus-within:border-violet-500/40">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#686F7F]"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <input
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Type to search…"
-              className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-[#626979]"
-            />
-          </div>
-        </div>
-
         <div className="max-h-[55dvh] overflow-y-auto p-2 sm:max-h-[420px]">
-          {shown.map((option) => (
+          {options.map((option) => (
             <button
               key={`${option.value}:${option.label}`}
               type="button"
@@ -138,11 +116,10 @@ export default function NativeSelectBridge() {
               {option.value === currentValue ? <span className="text-violet-300">✓</span> : null}
             </button>
           ))}
-          {shown.length === 0 ? <div className="px-4 py-12 text-center text-xs text-[#666D7D]">No matching option</div> : null}
         </div>
 
         <div className="border-t border-white/[0.06] px-4 py-3 pb-[max(.75rem,env(safe-area-inset-bottom))] text-[9px] text-[#626979] sm:px-5">
-          Choose one option. Type above when the list is long.
+          Choose one option.
         </div>
       </section>
     </div>,
