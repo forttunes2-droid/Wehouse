@@ -22,6 +22,70 @@ interface AuthState {
   kickedOut?: boolean;
 }
 type PublicRole = "user" | "worker" | "property_partner";
+const PROFILE_SNAPSHOT_KEY = "wh_profile_snapshot_v1";
+const PROFILE_SNAPSHOT_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const SNAPSHOT_EXCLUDED_FIELDS = new Set([
+  "bank_name",
+  "bank_code",
+  "bank_account_number",
+  "paystack_subaccount_code",
+  "paystack_transfer_recipient",
+  "worker_gov_id_url",
+  "worker_cert_url",
+  "precise_latitude",
+  "precise_longitude",
+  "precise_address",
+  "precise_location_accuracy_m",
+]);
+
+function pageForProfile(p: Profile | null): Page {
+  if (!p) return "login";
+  if (p.role === "worker") return "worker_dashboard";
+  if (!p.profile_complete) return "setup";
+  if (isCreator(p.role)) return "creator";
+  if (p.role === "admin") return "admin";
+  if (p.role === "staff") return "staff_dashboard";
+  if (p.role === "property_partner") return "property_partner";
+  return "dashboard";
+}
+
+function readProfileSnapshot(): Profile | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROFILE_SNAPSHOT_KEY) || "null");
+    const profile = parsed?.profile as Profile | undefined;
+    if (
+      !profile?.auth_id ||
+      !profile.user_id ||
+      !profile.role ||
+      Date.now() - Number(parsed.saved_at || 0) > PROFILE_SNAPSHOT_MAX_AGE
+    ) {
+      localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
+      return null;
+    }
+    return profile;
+  } catch {
+    return null;
+  }
+}
+
+function saveProfileSnapshot(profile: Profile) {
+  try {
+    const safeProfile = Object.fromEntries(
+      Object.entries(profile).filter(([key]) => !SNAPSHOT_EXCLUDED_FIELDS.has(key)),
+    );
+    localStorage.setItem(
+      PROFILE_SNAPSHOT_KEY,
+      JSON.stringify({ profile: safeProfile, saved_at: Date.now() }),
+    );
+  } catch {}
+}
+
+function clearProfileSnapshot() {
+  try {
+    localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
+  } catch {}
+}
+
 async function wipeOnLogout() {
   try {
     const keys: string[] = [];
@@ -151,10 +215,12 @@ async function registrationClosed() {
   return v === "false" || v === "closed" || v === "0";
 }
 export function useAuth() {
+  const initialProfileRef = useRef<Profile | null>(readProfileSnapshot());
+  const initialProfile = initialProfileRef.current;
   const [state, setState] = useState<AuthState>({
-    page: "loading",
-    profile: null,
-    isLoading: true,
+    page: initialProfile ? pageForProfile(initialProfile) : "loading",
+    profile: initialProfile,
+    isLoading: !initialProfile,
     error: "",
     kickedOut: false,
   });
@@ -163,16 +229,7 @@ export function useAuth() {
     profileLoadRef = useRef<Promise<void> | null>(null),
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
-  const determinePage = useCallback((p: Profile | null): Page => {
-    if (!p) return "login";
-    if (p.role === "worker") return "worker_dashboard";
-    if (!p.profile_complete) return "setup";
-    if (isCreator(p.role)) return "creator";
-    if (p.role === "admin") return "admin";
-    if (p.role === "staff") return "staff_dashboard";
-    if (p.role === "property_partner") return "property_partner";
-    return "dashboard";
-  }, []);
+  const determinePage = useCallback(pageForProfile, []);
   const allowEntry = useCallback(async (p: Profile, maintenanceEnabled?: boolean) => {
     if (p.banned || p.suspended || p.deleted) {
       explicitSignOutRef.current = true;
@@ -271,6 +328,7 @@ export function useAuth() {
             }
           }
           if (await allowEntry(profile, maintenanceEnabled)) {
+            saveProfileSnapshot(profile);
             syncIdentityNavigation(profile);
             setState({
               profile,
@@ -302,7 +360,7 @@ export function useAuth() {
     let alive = true;
     let authEventTimer: number | undefined;
     async function restore() {
-      setState((s) => ({ ...s, isLoading: true }));
+      setState((s) => (s.profile ? s : { ...s, isLoading: true }));
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
@@ -318,9 +376,21 @@ export function useAuth() {
           return;
         }
         if (data.session?.user) {
-          await loadProfile(data.session.user.id, { user: data.session.user });
+          const snapshotMatches =
+            initialProfileRef.current?.auth_id === data.session.user.id;
+          if (!snapshotMatches) {
+            clearProfileSnapshot();
+            initialProfileRef.current = null;
+            setState((s) => ({ ...s, profile: null, page: "loading", isLoading: true }));
+          }
+          await loadProfile(data.session.user.id, {
+            preserveOnFailure: snapshotMatches,
+            user: data.session.user,
+          });
           return;
         }
+        clearProfileSnapshot();
+        initialProfileRef.current = null;
         setState({
           page: "login",
           profile: null,
@@ -451,6 +521,7 @@ export function useAuth() {
             await ensurePropertyPartnerRecord();
         }
         if (await allowEntry(p, maintenanceEnabled)) {
+          saveProfileSnapshot(p);
           syncIdentityNavigation(p);
           setState({
             profile: p,
@@ -477,6 +548,7 @@ export function useAuth() {
   );
   const handleSetupComplete = useCallback(
     (p: Profile) => {
+      saveProfileSnapshot(p);
       syncIdentityNavigation(p);
       setState({
         profile: p,
@@ -560,6 +632,21 @@ export function useAuth() {
     }
     void ensure();
     const timer = setInterval(() => void ensure(), 30000);
+    const sessionChannel = supabase
+      .channel(`session-guard:${uid}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "user_sessions",
+          filter: `user_id=eq.${uid}`,
+        },
+        (payload) => {
+          if (sid && (payload.new as { id?: string }).id === sid) void ensure();
+        },
+      )
+      .subscribe();
     const visible = () => {
       if (document.visibilityState === "visible") void ensure();
     };
@@ -568,6 +655,7 @@ export function useAuth() {
     return () => {
       stopped = true;
       clearInterval(timer);
+      void supabase.removeChannel(sessionChannel);
       window.removeEventListener("online", ensure);
       document.removeEventListener("visibilitychange", visible);
     };

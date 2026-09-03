@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getStoredSessionId, supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser, markAnnouncementRead } from "@/lib/supabase/announcements";
 import type { Profile } from "@/types";
 import { toast, Toaster } from "sonner";
@@ -12,6 +12,7 @@ type Activity = {
   destination_params?: Record<string, unknown> | null;
 };
 type WorkPostConfirmation = { id:string; media_type:'image'|'video'; storage_path:string; caption:string|null; job_confirmation_status:string; url:string };
+type DeviceLogin = { sessionId:string; device:string; os:string; browser:string; loginTime:string; currentDevice:boolean };
 const activityCache=new Map<string,Activity[]>();
 
 export default function Notifications({ profile, onNavigate, embedded = false }: Props) {
@@ -19,6 +20,7 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
   const [rows, setRows] = useState<Activity[]>(cached||[]), [loading, setLoading] = useState(!cached), [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null), [confirmBusy,setConfirmBusy]=useState(false);
+  const [deviceLogin,setDeviceLogin]=useState<DeviceLogin|null>(null),[deviceBusy,setDeviceBusy]=useState(false);
 
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
@@ -73,6 +75,11 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
       if(signed.error||!signed.data?.signedUrl)return toast.error(signed.error?.message||'Work Post media could not be opened');
       setWorkPost({...data,url:signed.data.signedUrl} as WorkPostConfirmation);return;
     }
+    if(row.type==='new_device_login'){
+      const sessionId=String(row.destination_params?.session_id||row.source_id||'');
+      if(!sessionId)return toast.error('Device session reference is missing');
+      setDeviceLogin({sessionId,device:String(row.destination_params?.device||'Device'),os:String(row.destination_params?.os||'Unknown'),browser:String(row.destination_params?.browser||'Unknown'),loginTime:String(row.destination_params?.login_time||row.created_at),currentDevice:getStoredSessionId()===sessionId});return;
+    }
     const route = row.destination_route || legacyRoute(row.type), params = row.destination_params || {};
     const id = String(params.listing_id || params.listingId || params.conversation_id || params.conversationId || params.contextId || params.booking_id || params.bookingId || params.sharedGroupId || row.source_id || "");
     if (route) onNavigate(route, id || undefined);
@@ -83,6 +90,13 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
     const{error}=await supabase.rpc('respond_to_worker_work_post_confirmation',{p_post_id:workPost.id,p_confirm:confirm});
     setConfirmBusy(false);if(error)return toast.error(error.message);
     toast.success(confirm?'Work confirmed':'Work not confirmed');setWorkPost(null);await load(true);
+  }
+
+  async function answerDeviceLogin(approved:boolean){
+    if(!deviceLogin)return;setDeviceBusy(true);
+    const{error}=await supabase.rpc('respond_to_device_login',{p_session_id:deviceLogin.sessionId,p_approved:approved});
+    setDeviceBusy(false);if(error)return toast.error(error.message||'Device login could not be reviewed');
+    toast.success(approved?'Device confirmed':'Device access rejected');setDeviceLogin(null);await load(true);
   }
 
   async function markAll() {
@@ -104,8 +118,9 @@ export default function Notifications({ profile, onNavigate, embedded = false }:
     </button>)}</div></section>)}
   </div>}</main>;
   const confirmation=workPost&&<div className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white" role="dialog" aria-modal="true" aria-label="Confirm worker Work Post"><header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3"><button onClick={()=>setWorkPost(null)} disabled={confirmBusy} className="grid h-10 w-10 place-items-center text-xl" aria-label="Close">×</button><div><p className="text-sm font-semibold">Does this show the completed work?</p><p className="text-[9px] text-[#707687]">Confirm only the work from your linked WeHouse job</p></div></header><main className="min-h-0 flex-1 overflow-y-auto"><div className="grid min-h-[52dvh] place-items-center bg-black">{workPost.media_type==='video'?<video src={workPost.url} controls playsInline className="max-h-[68dvh] w-full object-contain"/>:<img src={workPost.url} alt="Worker's linked completed work" className="max-h-[68dvh] w-full object-contain"/>}</div><div className="mx-auto max-w-xl space-y-4 p-4">{workPost.caption&&<p className="text-xs leading-5 text-[#B4B8C3]">{workPost.caption}</p>}{workPost.job_confirmation_status==='pending'?<><p className="text-[10px] leading-5 text-[#7D8393]">Yes adds the “Completed through WeHouse” badge. No keeps this as an ordinary worker post without that badge.</p><div className="grid grid-cols-2 gap-3"><button onClick={()=>void answerWorkPost(false)} disabled={confirmBusy} className="h-12 rounded-2xl border border-white/[.1] text-xs font-semibold disabled:opacity-40">No, it does not</button><button onClick={()=>void answerWorkPost(true)} disabled={confirmBusy} className="h-12 rounded-2xl bg-emerald-500 text-xs font-semibold text-[#04110B] disabled:opacity-40">{confirmBusy?'Saving…':'Yes, confirm'}</button></div></>:<p className="rounded-2xl bg-white/[.04] p-4 text-xs text-[#A5AAB6]">This confirmation has already been answered.</p>}</div></main></div>;
-  if (embedded) return <><Toaster position="top-center" richColors />{content}{confirmation}</>;
-  return <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white"><Toaster position="top-center" richColors /><header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl"><div className="mx-auto max-w-4xl"><p className="text-[9px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE</p><h1 className="mt-1 text-xl font-bold">Activity</h1><p className="mt-1 text-[10px] text-[#747A8B]">Lifecycle, payment, security and official updates linked to their source.</p></div></header>{content}{confirmation}</div>;
+  const deviceConfirmation=deviceLogin&&<div className="fixed inset-0 z-[110] grid place-items-end bg-black/70 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Review new device login"><section className="w-full rounded-t-[28px] border border-white/[.08] bg-[#10131B] p-5 text-white shadow-2xl sm:max-w-md sm:rounded-[28px]"><div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">Security</p><h2 className="mt-2 text-lg font-bold">Was this you?</h2></div><button onClick={()=>setDeviceLogin(null)} disabled={deviceBusy} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close">×</button></div><div className="mt-5 border-y border-white/[.07] py-4"><p className="text-sm font-semibold">{deviceLogin.device}</p><p className="mt-1 text-[10px] text-[#7B8191]">{deviceLogin.os} · {deviceLogin.browser}</p><p className="mt-2 text-[9px] text-[#5F6676]">{new Date(deviceLogin.loginTime).toLocaleString()}</p></div>{deviceLogin.currentDevice?<p className="mt-4 rounded-2xl bg-amber-500/[.07] p-4 text-[10px] leading-5 text-amber-200">For your protection, this new device cannot approve itself. Open WeHouse on one of your other trusted devices.</p>:<div className="mt-5 grid grid-cols-2 gap-3"><button onClick={()=>void answerDeviceLogin(false)} disabled={deviceBusy} className="h-12 rounded-2xl border border-red-500/20 bg-red-500/[.06] text-xs font-semibold text-red-300 disabled:opacity-40">No, it’s not me</button><button onClick={()=>void answerDeviceLogin(true)} disabled={deviceBusy} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{deviceBusy?'Saving…':'Yes, it’s me'}</button></div>}</section></div>;
+  if (embedded) return <><Toaster position="top-center" richColors />{content}{confirmation}{deviceConfirmation}</>;
+  return <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white"><Toaster position="top-center" richColors /><header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl"><div className="mx-auto max-w-4xl"><p className="text-[9px] font-bold uppercase tracking-[.24em] text-violet-400">WEHOUSE</p><h1 className="mt-1 text-xl font-bold">Activity</h1><p className="mt-1 text-[10px] text-[#747A8B]">Lifecycle, payment, security and official updates linked to their source.</p></div></header>{content}{confirmation}{deviceConfirmation}</div>;
 }
 
 function isOrdinaryMessageEvent(row: Pick<Activity,"type"|"source_type"|"destination_route">) {

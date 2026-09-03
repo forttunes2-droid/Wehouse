@@ -84,10 +84,16 @@ const TermsPage = lazy(() => import("@/pages/TermsPage"));
 function PageTransitionFallback() {
   return (
     <div
-      className="min-h-[100dvh] bg-[#08090D]"
+      className="grid min-h-[100dvh] place-items-center bg-[#08090D]"
       role="status"
       aria-label="Loading WeHouse"
-    />
+    >
+      <img
+        src="/app-icon.svg"
+        alt=""
+        className="h-9 w-9 rounded-[10px] opacity-90"
+      />
+    </div>
   );
 }
 function ErrorFallback({ reset }: { reset: () => void }) {
