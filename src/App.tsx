@@ -818,6 +818,8 @@ export default function App() {
         return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} />;
       case "devices":
         return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} initialSection="devices" />;
+      case "encryption":
+        return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} initialSection="encryption" />;
       case "profile_edit":
         return (
           <ProfileEdit

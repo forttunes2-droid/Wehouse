@@ -180,6 +180,32 @@ export async function encryptionIdentityStatus() {
   return { enabled: Boolean(identity), unlocked, error };
 }
 
+export type PrivateConversationReadiness = {
+  state: "ready" | "setup_required" | "unlock_required" | "peer_setup_required" | "unavailable";
+  message: string;
+};
+
+export async function privateConversationReadiness(
+  kind: PrivateConversationKind,
+  conversationId: string,
+  peerUserId: string,
+): Promise<PrivateConversationReadiness> {
+  const mine = await encryptionIdentityStatus();
+  if (mine.error) return { state: "unavailable", message: mine.error.message || "Secure chat could not be checked" };
+  if (!mine.enabled) return { state: "setup_required", message: "Create your Recovery PIN before sending private messages." };
+  if (!mine.unlocked) return { state: "unlock_required", message: "Unlock private messages with your Recovery PIN on this device." };
+  try {
+    await peerPublicKey(kind, conversationId, peerUserId);
+    return { state: "ready", message: "End-to-end encrypted" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Secure chat is not ready";
+    if (/other person.*enable secure messages/i.test(message)) {
+      return { state: "peer_setup_required", message: "This person has not activated encrypted chats yet." };
+    }
+    return { state: "unavailable", message };
+  }
+}
+
 async function unlockedPrivateKey() {
   const value = sessionStorage.getItem(await sessionKey());
   if (!value) throw new Error("Enter your Recovery PIN to unlock private messages");

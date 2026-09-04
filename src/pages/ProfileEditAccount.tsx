@@ -25,6 +25,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [school, setSchool] = useState(profile.school || '');
   const [state, setState] = useState(profile.state || '');
   const [lga, setLga] = useState(profile.local_government || profile.city || '');
+  const [locationNotice, setLocationNotice] = useState('');
   const [preciseLocation,setPreciseLocation]=useState<PreciseLocation|null>(()=>profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null);
   const [institutions, setInstitutions] = useState<RegisteredInstitution[]>([]);
   const [institutionsLoading, setInstitutionsLoading] = useState(false);
@@ -136,6 +137,29 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     setEditing(false);
   }
 
+  function resolveLocation(next: PreciseLocation | null) {
+    setPreciseLocation(next);
+    if (!next?.state) { setLocationNotice(''); return; }
+    const clean = (value:string) => value.toLowerCase().replace(/\b(state|local government area|lga|municipality)\b/g, '').replace(/[^a-z]/g, '');
+    const detectedState = NIGERIA_STATES.find((item) => clean(item.state) === clean(next.state || ''));
+    if (!detectedState) {
+      setLocationNotice('Street address found. Check that the selected State and LGA match this address.');
+      return;
+    }
+    const detectedLga = detectedState.cities.find((item) => clean(item) === clean(next.city || '')) || '';
+    const stateChanged = state !== detectedState.state;
+    const lgaChanged = Boolean(detectedLga && lga !== detectedLga);
+    setState(detectedState.state);
+    if (detectedLga) setLga(detectedLga);
+    else if (stateChanged) setLga('');
+    if (stateChanged || lgaChanged) {
+      setSchool('');
+      setLocationNotice(detectedLga
+        ? `Region updated to ${detectedLga}, ${detectedState.state} to match this street address.`
+        : `State updated to ${detectedState.state}. Choose the correct LGA for this street address before saving.`);
+    } else setLocationNotice('Street address and selected region agree.');
+  }
+
   if (!editing) return (
     <AccountShell profile={profile} title="Personal details" description="Your WeHouse profile and location." onBack={onBack}>
       <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -184,10 +208,10 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
             <h2 className="text-sm font-semibold">Location</h2>
             <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Use your phone location below to find and confirm one private street address.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
-              <SearchableSelect label="Local Government" value={lga} onChange={setLga} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
+              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setLocationNotice(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
+              <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setLocationNotice('')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
             </div>
-            <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={setPreciseLocation}/></div>
+            <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={resolveLocation}/>{locationNotice&&<p className="mt-2 rounded-xl bg-violet-500/[.07] px-3 py-2 text-[9px] leading-5 text-violet-200" role="status">{locationNotice}</p>}</div>
           </section>
 
         {hasChanges && <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white transition disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>}

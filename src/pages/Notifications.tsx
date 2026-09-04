@@ -14,7 +14,6 @@ type Activity = {
 };
 type WorkPostConfirmation = { id:string; media_type:'image'|'video'; storage_path:string; caption:string|null; job_confirmation_status:string; url:string };
 type DeviceLogin = { rowId:string; sessionId:string; device:string; os:string; browser:string; location:string; loginTime:string };
-type ActivityScope = "all" | "security" | "money" | "bookings" | "updates";
 const activityCache=new Map<string,Activity[]>();
 
 export default function Notifications({ profile, onNavigate, embedded = false, onUnreadChange }: Props) {
@@ -23,7 +22,6 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null), [confirmBusy,setConfirmBusy]=useState(false);
   const [deviceLogin,setDeviceLogin]=useState<DeviceLogin|null>(null),[deviceBusy,setDeviceBusy]=useState(false);
-  const [scope,setScope]=useState<ActivityScope>("all");
 
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
@@ -59,9 +57,9 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
 
   const groups = useMemo(() => {
     const result = new Map<string, Activity[]>();
-    for (const row of rows.filter((item)=>scope==='all'||activityScope(item)===scope)) { const day = dayLabel(row.created_at); result.set(day, [...(result.get(day) || []), row]); }
+    for (const row of rows) { const day = !row.read ? 'New' : dayLabel(row.created_at); result.set(day, [...(result.get(day) || []), row]); }
     return [...result];
-  }, [rows,scope]);
+  }, [rows]);
 
   async function markRead(row:Activity){
     if(row.read)return true;
@@ -74,7 +72,7 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
     if(row.type==='new_device_login'){
       const decision=String(row.destination_params?.decision||'unreviewed');
       const sessionId=String(row.destination_params?.session_id||row.source_id||'');
-      if(decision==='unreviewed'&&sessionId&&getStoredSessionId()!==sessionId){
+      if(['unreviewed','pending','verified_with_google'].includes(decision)&&sessionId&&getStoredSessionId()!==sessionId){
         const{data:session,error:sessionError}=await supabase.from('user_sessions').select('id,device,os,browser,login_time,is_active').eq('id',sessionId).maybeSingle();
         if(sessionError||!session)return toast.error('Login details could not be loaded');
         if(!session.is_active){await markRead(row);setExpanded(current=>current===row.id?null:row.id);return}
@@ -126,11 +124,10 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
   useEffect(() => { onUnreadChange?.(unread); }, [onUnreadChange, unread]);
   const content = <main className={embedded ? "py-1" : "mx-auto max-w-4xl px-4 py-5"}>{loading ? <ActivityLoading /> : error && rows.length === 0 ? <ErrorState text={error} retry={() => void load()} /> : rows.length === 0 ? <Empty /> : <div className="space-y-5">
     <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">{unread>0?`${unread} new update${unread===1?'':'s'}`:'Recent activity'}</p><p className="mt-1 text-[9px] text-[#697081]">Security, money, bookings and official WeHouse updates.</p></div>{unread>0&&<button onClick={() => void markAll()} className="shrink-0 rounded-full border border-white/[.08] px-3 py-2 text-[9px] font-semibold text-violet-300">Mark read</button>}</div>
-    <div className="flex gap-1.5 overflow-x-auto border-b border-white/[.06] pb-3 scrollbar-hide" aria-label="Activity categories">{activityScopes(rows).map(item=><button key={item.id} onClick={()=>setScope(item.id)} className={`shrink-0 rounded-full px-3 py-2 text-[9px] font-semibold ${scope===item.id?'bg-violet-500 text-white':'bg-white/[.04] text-[#777D8D]'}`}>{item.label}{item.count>0?` · ${item.count}`:''}</button>)}</div>
-    {groups.length===0?<p className="py-12 text-center text-[10px] text-[#666C7D]">No activity in this category.</p>:groups.map(([day, items]) => <section key={day}><h2 className="mb-2 text-[9px] font-bold uppercase tracking-[.15em] text-[#656B7C]">{day}</h2><div className="divide-y divide-white/[.055] border-y border-white/[.06]">{items.map((row) => <div key={row.id}><button onClick={() => void open(row)} className="flex min-h-20 w-full items-start gap-3 py-3 text-left">
+    {groups.map(([day, items]) => <section key={day}><h2 className={`mb-2 text-[9px] font-bold uppercase tracking-[.15em] ${day==='New'?'text-violet-300':'text-[#656B7C]'}`}>{day}</h2><div className="divide-y divide-white/[.055] border-y border-white/[.06]">{items.map((row) => <div key={row.id}><button onClick={() => void open(row)} className="flex min-h-20 w-full items-start gap-3 py-3 text-left">
       <span className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-white/[.035] text-[#73798A]" : "bg-violet-500/12 text-violet-300"}`}>{icon(row.type)}</span>
-      <span className="min-w-0 flex-1"><span className="mb-1 block text-[7px] font-bold uppercase tracking-[.14em] text-[#62697A]">{scopeLabel(activityScope(row))}</span><span className={`block text-xs ${row.read ? "font-medium text-[#A3A7B3]" : "font-semibold text-white"}`}>{row.title}</span>
-      {row.message && <span className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[#717788]`}>{row.message}</span>}
+      <span className="min-w-0 flex-1"><span className="mb-1 block text-[7px] font-bold uppercase tracking-[.14em] text-[#62697A]">{activityKind(row)}</span><span className={`block text-xs ${row.read ? "font-medium text-[#A3A7B3]" : "font-semibold text-white"}`}>{activityTitle(row)}</span>
+      {activityMessage(row) && <span className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[#717788]`}>{activityMessage(row)}</span>}
       <span className="mt-2 flex items-center gap-2"><span className="text-[8px] text-[#555C6D]">{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><span className="text-[8px] font-semibold text-violet-300">{activityAction(row, expanded === row.id)}</span></span></span>{!row.read ? <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-violet-400" />:<span className="mt-2 text-[#555C6D]">›</span>}
     </button>{deviceLogin?.rowId===row.id&&<DeviceLoginReview login={deviceLogin} busy={deviceBusy} answer={answerDeviceLogin}/>}</div>)}</div></section>)}
   </div>}</main>;
@@ -148,7 +145,7 @@ function activityRoute(row:Activity){
 }
 function activityAction(row: Activity, expanded: boolean) {
   if (row.source === 'announcement') return expanded ? 'Show less' : 'Read update';
-  if (row.type === 'new_device_login') {const decision=String(row.destination_params?.decision||'unreviewed');return decision==='unreviewed'?'Was this you?':'View details'}
+  if (row.type === 'new_device_login') {const decision=String(row.destination_params?.decision||'unreviewed');return ['unreviewed','pending','verified_with_google'].includes(decision)?'Review login':'View details'}
   if (row.type === 'work_post_confirmation_requested') return 'Review completed work';
   const route = activityRoute(row).toLowerCase();
   if (route.includes('propert') || route === 'detail' || route === 'listing_detail') return 'Open property record';
@@ -163,7 +160,7 @@ function ActivityLoading(){return <div className="grid min-h-40 place-items-cent
 function Empty() { return <div className="grid min-h-[55dvh] place-items-center text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-violet-500/10 text-violet-300">✓</div><p className="mt-4 text-sm font-semibold">You’re up to date</p><p className="mt-2 max-w-xs text-[10px] leading-5 text-[#6C7282]">Nothing needs your attention right now.</p></div></div>; }
 function ErrorState({ text, retry }: { text: string; retry: () => void }) { return <div className="rounded-2xl border border-red-500/15 p-5 text-center"><p className="text-xs font-semibold">Activity could not be loaded</p><p className="mt-1 text-[9px] text-[#757B8A]">{text}</p><button onClick={retry} className="mt-3 text-[10px] font-semibold text-violet-300">Try again</button></div>; }
 function DeviceDetail({label,value}:{label:string;value:string}){return <div className="flex items-start justify-between gap-5"><span className="text-[9px] text-[#656C7D]">{label}</span><strong className="text-right text-[10px] font-semibold text-[#D7DAE3]">{value}</strong></div>}
-function DeviceLoginReview({login,busy,answer}:{login:DeviceLogin;busy:boolean;answer:(wasMe:boolean)=>Promise<void>}){return <section className="mb-3 ml-12 border-l-2 border-violet-500/35 pl-4" aria-label="Review new login"><p className="text-xs font-semibold">Was this you?</p><p className="mt-1 text-[9px] leading-4 text-[#777D8D]">This device is already signed in after confirming the account email. If you do not recognize it, WeHouse will end that session.</p><div className="mt-3 space-y-2 border-y border-white/[.05] py-3"><DeviceDetail label="Device" value={login.device}/><DeviceDetail label="System" value={`${login.os} · ${login.browser}`}/><DeviceDetail label="Location" value={login.location}/><DeviceDetail label="Time" value={new Date(login.loginTime).toLocaleString()}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>void answer(false)} disabled={busy} className="min-h-11 rounded-xl border border-red-500/20 bg-red-500/[.05] px-2 text-[10px] font-semibold text-red-300 disabled:opacity-40">No, sign it out</button><button onClick={()=>void answer(true)} disabled={busy} className="min-h-11 rounded-xl bg-violet-500 px-2 text-[10px] font-semibold disabled:opacity-40">{busy?'Saving…':'Yes, this was me'}</button></div></section>}
-function activityScope(row:Activity):ActivityScope{const value=`${row.type} ${row.source_type} ${row.destination_route}`.toLowerCase();if(/security|device|password|login/.test(value))return'security';if(/payment|payout|earning|refund|wallet|commission/.test(value))return'money';if(/booking|reservation|inspection|listing|property|hotel|job|worker|roommate/.test(value))return'bookings';return'updates'}
-function scopeLabel(scope:ActivityScope){return scope==='money'?'Payments':scope==='bookings'?'Bookings':scope==='security'?'Security':scope==='updates'?'Updates':'All activity'}
-function activityScopes(rows:Activity[]){const ids:ActivityScope[]=['all','security','money','bookings','updates'];return ids.map(id=>({id,label:scopeLabel(id),count:id==='all'?rows.length:rows.filter(row=>activityScope(row)===id).length}))}
+function DeviceLoginReview({login,busy,answer}:{login:DeviceLogin;busy:boolean;answer:(wasMe:boolean)=>Promise<void>}){return <section className="mb-3 ml-12 border-l-2 border-violet-500/35 pl-4" aria-label="Review new login"><p className="text-xs font-semibold">Was this you?</p><p className="mt-1 text-[9px] leading-4 text-[#777D8D]">The login already happened after the account email was confirmed. This is a safety notice, not a login approval. If it was not you, end that session now.</p><div className="mt-3 space-y-2 border-y border-white/[.05] py-3"><DeviceDetail label="Device" value={login.device}/><DeviceDetail label="System" value={`${login.os} · ${login.browser}`}/><DeviceDetail label="Location" value={login.location}/><DeviceDetail label="Time" value={new Date(login.loginTime).toLocaleString()}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>void answer(false)} disabled={busy} className="min-h-11 rounded-xl border border-red-500/20 bg-red-500/[.05] px-2 text-[10px] font-semibold text-red-300 disabled:opacity-40">Not me · sign out</button><button onClick={()=>void answer(true)} disabled={busy} className="min-h-11 rounded-xl bg-violet-500 px-2 text-[10px] font-semibold disabled:opacity-40">{busy?'Saving…':'Yes, it was me'}</button></div></section>}
+function activityKind(row:Activity){const value=`${row.type} ${row.source_type}`.toLowerCase();if(/security|device|password|login/.test(value))return'Security';if(/payment|payout|earning|refund|wallet|commission/.test(value))return'Money';if(/booking|reservation|inspection|listing|property|hotel|job|worker/.test(value))return'Booking';if(/roommate/.test(value))return'Roommates';return'WeHouse'}
+function activityTitle(row:Activity){if(row.type==='new_device_login'){const decision=String(row.destination_params?.decision||'unreviewed');if(decision==='recognized')return'Login recognized';if(['terminated','blocked','rejected'].includes(decision))return'Unrecognized login ended';return'New login to your account'}if(row.type==='roommate_match')return'Roommate connection ready';return row.title}
+function activityMessage(row:Activity){if(row.type==='roommate_match')return String(row.message||'').replace('You can now chat.','Open Roommates to view the connection.');return row.message||''}
