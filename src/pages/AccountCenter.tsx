@@ -189,7 +189,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-base font-bold text-violet-200">
-            {profile.avatar_url && !isWorker ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
+            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">

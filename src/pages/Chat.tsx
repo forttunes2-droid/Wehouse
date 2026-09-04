@@ -69,13 +69,6 @@ type InboxItem =
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
-function hasStartedRoommateConversation(row: Conversation) {
-  const unreadCount = Number(row.unread_a || 0) + Number(row.unread_b || 0);
-  if (unreadCount > 0) return true;
-  const created = new Date(row.created_at || 0).getTime();
-  const lastMessage = new Date(row.last_message_at || 0).getTime();
-  return Number.isFinite(created) && Number.isFinite(lastMessage) && lastMessage > created + 1000;
-}
 function latestTime(...values:(string|null|undefined)[]) {
   return values.filter(Boolean).sort((a,b)=>new Date(b!).getTime()-new Date(a!).getTime())[0] || "";
 }
@@ -161,13 +154,13 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       const allRoommateRows = (convResult.conversations || []).filter(
         (row) => row.conversation_type === "roommate",
       );
-      // Mutual acceptance establishes the relationship and may reserve a
-      // conversation id, but Inbox → Chats should not show an empty thread.
-      // A deep link can still open that accepted relationship so the first
-      // real message can be composed; it enters the Inbox after that message.
       const calls:Record<string,PrivateCall>={};for(const row of callResult.data||[])if(!calls[row.context_id])calls[row.context_id]=row as PrivateCall;
       setRecentRoommateCalls(calls);
-      setConversations(allRoommateRows.filter(row=>hasStartedRoommateConversation(row)||Boolean(calls[row.id])));
+      // A mutual roommate match is already a real relationship. Keep its
+      // canonical conversation in Inbox so either person can send the first
+      // message; requiring an existing message here makes the thread
+      // impossible to start from Inbox.
+      setConversations(allRoommateRows);
       setPeople(peerResult.people || {});
       setBookingConversations(
         (bookingResult.conversations || []) as BookingConversation[],

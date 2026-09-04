@@ -22,6 +22,7 @@ type Mode =
   | "forgot"
   | "recover";
 type PendingMethod = "authenticated" | "email" | null;
+type VerificationContext = "signup" | "password_recovery" | "new_device";
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: PublicRole) => void;
   serverError: string;
@@ -44,6 +45,20 @@ function googleRecoveryRequested() {
   } catch {
     return false;
   }
+}
+function googleVerificationContext(): VerificationContext | null {
+  try {
+    const value = sessionStorage.getItem("wh_google_verify_context");
+    return value === "signup" || value === "password_recovery" || value === "new_device" ? value : null;
+  } catch {
+    return null;
+  }
+}
+function cancelledGoogleMessage(context: VerificationContext | null) {
+  if (context === "signup") return "Email confirmation was cancelled. Your WeHouse account is still waiting for confirmation.";
+  if (context === "password_recovery") return "Password reset confirmation was cancelled. Your password was not changed.";
+  if (context === "new_device") return "New-device confirmation was cancelled. This device has not entered your account.";
+  return "Google was cancelled. Nothing on your WeHouse account was changed.";
 }
 function friendlyError(raw: string) {
   const msg = raw.toLowerCase();
@@ -119,10 +134,15 @@ export default function Login({
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const oauthError = params.get("error_description") || hash.get("error_description");
     if (!oauthError) return;
+    const context = googleVerificationContext();
     setWorking(false);
-    setError("Google verification was cancelled or could not be completed. Your WeHouse account was not changed.");
+    setRecoveryReady(false);
+    setError(cancelledGoogleMessage(context));
+    if (context === "password_recovery") setMode("forgot");
+    else if (context === "signup") setMode("verify_email");
+    else if (context === "new_device") setMode(pendingDevice ? "confirm_device" : "signin");
     window.history.replaceState({}, "", window.location.pathname);
-  }, []);
+  }, [pendingDevice]);
 
   useEffect(()=>{
     if(!pendingDevice)return;
@@ -344,6 +364,16 @@ export default function Login({
     sessionStorage.setItem('wh_google_verify_context',context||'signup');
     setWorking(true);const{error:googleError}=await signInWithGoogle(email.trim().toLowerCase());
     if(googleError){setWorking(false);setError(friendlyError(googleError.message));}
+  }
+  async function returnFromGoogleMismatch(){
+    const context=googleVerificationContext();
+    setWorking(true);
+    await supabase.auth.signOut({scope:'local'}).catch(()=>{});
+    setWorking(false);setGoogleMismatchEmail('');clearMessages();
+    if(context==='password_recovery')setMode('forgot');
+    else if(context==='signup')setMode('verify_email');
+    else if(context==='new_device'&&pendingDevice)setMode('confirm_device');
+    else setMode('signin');
   }
   async function cancelDeviceConfirmation(){
     setWorking(true);
@@ -603,11 +633,11 @@ export default function Login({
           </div>
         )}
 
-        {mode === 'verify_email'&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">CONFIRM EMAIL OWNERSHIP</p><h2 className="mt-2 text-xl font-semibold">Prove this email is yours</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Choose the Google account for <span className="font-semibold text-white">{email.trim()}</span>. This replaces an emailed verification code; it is not another WeHouse sign-in.</p><p className="mt-3 text-[9px] leading-4 text-[#666C7D]">A different Google address will be rejected and will not change the account you created.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Verify email with Google'}</button><button type="button" onClick={()=>{setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Use a different email</button></div>}
+        {mode === 'verify_email'&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">EMAIL CONFIRMATION</p><h2 className="mt-2 text-xl font-semibold">Confirm your email</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span>. This confirms you can access that address instead of making you copy an emailed code.</p><p className="mt-3 text-[9px] leading-4 text-[#666C7D]">This does not change your sign-in method. After setup, you can sign in with your email and password.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Continue with Google to confirm'}</button><button type="button" onClick={()=>{setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Use a different email</button></div>}
 
-        {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Is this device yours?</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Verify ownership of <span className="font-semibold text-white">{email.trim()}</span> with its Google account. This replaces the usual emailed code.</p><div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]"><div className="py-3"><SecurityDetail label="Device" value={pendingDevice.device}/></div><div className="py-3"><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/></div><div className="py-3"><SecurityDetail label="Location" value={pendingDevice.location}/></div></div></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Verify device with Google'}</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50">Cancel sign-in</button></div>}
+        {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Confirm this new login</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Your password was correct. Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span> to confirm access to the same email before this device enters WeHouse.</p><div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]"><div className="py-3"><SecurityDetail label="Device" value={pendingDevice.device}/></div><div className="py-3"><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/></div><div className="py-3"><SecurityDetail label="Approximate location" value={pendingDevice.location}/></div></div><p className="mt-3 text-[9px] leading-4 text-[#666C7D]">After confirmation, your other signed-in devices will receive a security notice about this login.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Continue with Google to confirm'}</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50">Cancel sign-in</button></div>}
 
-        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That Google account does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">WeHouse must confirm <strong className="text-white">{email}</strong>, but Google returned <strong className="text-white">{googleMismatchEmail}</strong>. Access remains blocked.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose the correct Google account</button><button type="button" onClick={()=>void (googleRecoveryRequested()?cancelRecovery():cancelDeviceConfirmation())} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel and return to sign in</button></div>}
+        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">Choose the same email</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">You asked WeHouse to confirm <strong className="text-white">{email}</strong>, but selected <strong className="text-white">{googleMismatchEmail||'a different Google account'}</strong>. Nothing was changed.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Try {email} again</button><button type="button" onClick={()=>void returnFromGoogleMismatch()} disabled={working} className="w-full text-center text-xs text-[#73798A]">Back</button></div>}
 
         {(mode === "signin" || mode === "signup") && (
           <form
@@ -692,7 +722,7 @@ export default function Login({
               disabled={working || !email.trim() || !email.includes("@")}
               className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
             >
-              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Verify account with Google"}</span>
+              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Continue with Google to confirm"}</span>
             </button>
             <button
               type="button"
