@@ -11,7 +11,9 @@ const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|sched
 
 export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "source_type" | "destination_route">) {
   const type = String(row.type || "").toLowerCase();
-  if (type === "device_confirmation_pending") return true;
+  // Device verification and new-login alerts are security surfaces. They are
+  // deliberately delivered outside the Activity feed.
+  if (type === "device_confirmation_pending" || type === "new_device_login") return true;
   if (type === "missed_call") return true;
   if (MESSAGE_LIFECYCLE.test(type)) return false;
   if (/(^|_)(message|reply|replied|chat)(_|$)/.test(type)) return true;

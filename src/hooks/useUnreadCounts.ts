@@ -54,7 +54,8 @@ export function useUnreadCounts(userId: string, userRole: string) {
         .from("notifications")
         .select("*", { count: "exact", head: true })
         .eq("recipient_id", userId)
-        .eq("read", false);
+        .eq("read", false)
+        .not("type", "in", "(new_device_login,device_confirmation_pending)");
 
       // 3. Support unread (for staff: new partner_support messages)
       let supportCount = 0;

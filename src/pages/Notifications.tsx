@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getStoredSessionId, supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser, markAnnouncementRead } from "@/lib/supabase/announcements";
 import type { Profile } from "@/types";
 import { toast, Toaster } from "sonner";
@@ -13,7 +13,6 @@ type Activity = {
   destination_params?: Record<string, unknown> | null;
 };
 type WorkPostConfirmation = { id:string; media_type:'image'|'video'; storage_path:string; caption:string|null; job_confirmation_status:string; url:string };
-type DeviceLogin = { rowId:string; sessionId:string; device:string; os:string; browser:string; location:string; loginTime:string };
 const activityCache=new Map<string,Activity[]>();
 
 export default function Notifications({ profile, onNavigate, embedded = false, onUnreadChange }: Props) {
@@ -21,7 +20,6 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
   const [rows, setRows] = useState<Activity[]>(cached||[]), [loading, setLoading] = useState(!cached), [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null), [confirmBusy,setConfirmBusy]=useState(false);
-  const [deviceLogin,setDeviceLogin]=useState<DeviceLogin|null>(null),[deviceBusy,setDeviceBusy]=useState(false);
 
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
@@ -69,18 +67,6 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
   }
 
   async function open(row: Activity) {
-    if(row.type==='new_device_login'){
-      const decision=String(row.destination_params?.decision||'unreviewed');
-      const sessionId=String(row.destination_params?.session_id||row.source_id||'');
-      if(['unreviewed','pending','verified_with_google'].includes(decision)&&sessionId&&getStoredSessionId()!==sessionId){
-        const{data:session,error:sessionError}=await supabase.from('user_sessions').select('id,device,os,browser,login_time,is_active').eq('id',sessionId).maybeSingle();
-        if(sessionError||!session)return toast.error('Login details could not be loaded');
-        if(!session.is_active){await markRead(row);setExpanded(current=>current===row.id?null:row.id);return}
-        setExpanded(row.id);
-        setDeviceLogin({rowId:row.id,sessionId,device:String(session.device||row.destination_params?.device||'Device'),os:String(session.os||row.destination_params?.os||'Unknown'),browser:String(session.browser||row.destination_params?.browser||'Unknown'),location:String(row.destination_params?.location||'Location unavailable'),loginTime:String(session.login_time||row.destination_params?.login_time||row.created_at)});return;
-      }
-      await markRead(row);setExpanded(current=>current===row.id?null:row.id);return;
-    }
     if(!await markRead(row))return;
     if (row.source === "announcement") { setExpanded((current) => current === row.id ? null : row.id); return; }
     if(row.type==='work_post_confirmation_requested'){
@@ -105,16 +91,14 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
     toast.success(confirm?'Work confirmed':'Work not confirmed');setWorkPost(null);await load(true);
   }
 
-  async function answerDeviceLogin(wasMe:boolean):Promise<void>{
-    if(!deviceLogin)return;setDeviceBusy(true);
-    const{error}=await supabase.rpc('review_new_device_login',{p_session_id:deviceLogin.sessionId,p_was_me:wasMe});
-    setDeviceBusy(false);if(error){toast.error(error.message||'Login notice could not be reviewed');return}
-    toast.success(wasMe?'Login marked as recognized':'That device has been signed out');setDeviceLogin(null);await load(true);
-  }
-
   async function markAll() {
+    const unreadEvents = rows.filter((row) => !row.read && row.source === "event");
     const unreadAnnouncements = rows.filter((row) => !row.read && row.source === "announcement");
-    const [{ error: eventError }, announcementResults] = await Promise.all([supabase.rpc("mark_all_my_notifications_read"), Promise.all(unreadAnnouncements.map((row) => markAnnouncementRead(Number(row.sourceNumericId), profile.user_id)))]);
+    const [eventResults, announcementResults] = await Promise.all([
+      Promise.all(unreadEvents.map((row) => supabase.rpc('mark_my_notification_read',{p_notification_id:row.id.replace('event:','')}))),
+      Promise.all(unreadAnnouncements.map((row) => markAnnouncementRead(Number(row.sourceNumericId), profile.user_id))),
+    ]);
+    const eventError = eventResults.find((result) => result.error)?.error;
     const announcementError = announcementResults.find((result) => result.error)?.error;
     if (eventError || announcementError) return toast.error(eventError?.message || announcementError?.message || "Activity could not be marked as read");
     setRows((current) => current.map((row) => ({ ...row, read: true }))); toast.success("Activity marked as read");
@@ -129,7 +113,7 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
       <span className="min-w-0 flex-1"><span className="mb-1 block text-[7px] font-bold uppercase tracking-[.14em] text-[#62697A]">{activityKind(row)}</span><span className={`block text-xs ${row.read ? "font-medium text-[#A3A7B3]" : "font-semibold text-white"}`}>{activityTitle(row)}</span>
       {activityMessage(row) && <span className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[#717788]`}>{activityMessage(row)}</span>}
       <span className="mt-2 flex items-center gap-2"><span className="text-[8px] text-[#555C6D]">{new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><span className="text-[8px] font-semibold text-violet-300">{activityAction(row, expanded === row.id)}</span></span></span>{!row.read ? <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-violet-400" />:<span className="mt-2 text-[#555C6D]">›</span>}
-    </button>{deviceLogin?.rowId===row.id&&<DeviceLoginReview login={deviceLogin} busy={deviceBusy} answer={answerDeviceLogin}/>}</div>)}</div></section>)}
+    </button></div>)}</div></section>)}
   </div>}</main>;
   const confirmation=workPost&&<div className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white" role="dialog" aria-modal="true" aria-label="Confirm worker Work Post"><header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3"><button onClick={()=>setWorkPost(null)} disabled={confirmBusy} className="grid h-10 w-10 place-items-center text-xl" aria-label="Close">×</button><div><p className="text-sm font-semibold">Does this show the completed work?</p><p className="text-[9px] text-[#707687]">Confirm only the work from your linked WeHouse job</p></div></header><main className="min-h-0 flex-1 overflow-y-auto"><div className="grid min-h-[52dvh] place-items-center bg-black">{workPost.media_type==='video'?<video src={workPost.url} controls playsInline className="max-h-[68dvh] w-full object-contain"/>:<img src={workPost.url} alt="Worker's linked completed work" className="max-h-[68dvh] w-full object-contain"/>}</div><div className="mx-auto max-w-xl space-y-4 p-4">{workPost.caption&&<p className="text-xs leading-5 text-[#B4B8C3]">{workPost.caption}</p>}{workPost.job_confirmation_status==='pending'?<><p className="text-[10px] leading-5 text-[#7D8393]">Yes adds the “Completed through WeHouse” badge. No keeps this as an ordinary worker post without that badge.</p><div className="grid grid-cols-2 gap-3"><button onClick={()=>void answerWorkPost(false)} disabled={confirmBusy} className="h-12 rounded-2xl border border-white/[.1] text-xs font-semibold disabled:opacity-40">No, it does not</button><button onClick={()=>void answerWorkPost(true)} disabled={confirmBusy} className="h-12 rounded-2xl bg-emerald-500 text-xs font-semibold text-[#04110B] disabled:opacity-40">{confirmBusy?'Saving…':'Yes, confirm'}</button></div></>:<p className="rounded-2xl bg-white/[.04] p-4 text-xs text-[#A5AAB6]">This confirmation has already been answered.</p>}</div></main></div>;
   if (embedded) return <><Toaster position="top-center" richColors />{content}{confirmation}</>;
@@ -145,7 +129,6 @@ function activityRoute(row:Activity){
 }
 function activityAction(row: Activity, expanded: boolean) {
   if (row.source === 'announcement') return expanded ? 'Show less' : 'Read update';
-  if (row.type === 'new_device_login') {const decision=String(row.destination_params?.decision||'unreviewed');return ['unreviewed','pending','verified_with_google'].includes(decision)?'Review login':'View details'}
   if (row.type === 'work_post_confirmation_requested') return 'Review completed work';
   const route = activityRoute(row).toLowerCase();
   if (route.includes('propert') || route === 'detail' || route === 'listing_detail') return 'Open property record';
@@ -155,12 +138,10 @@ function activityAction(row: Activity, expanded: boolean) {
   return expanded ? 'Show less' : 'View details';
 }
 function dayLabel(value: string) { const date = new Date(value), today = new Date(), yesterday = new Date(); yesterday.setDate(today.getDate() - 1); if (date.toDateString() === today.toDateString()) return "Today"; if (date.toDateString() === yesterday.toDateString()) return "Yesterday"; return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); }
-function icon(type: string) { if (type === "announcement") return "W"; if (type.includes("payment")) return "₦"; if (type.includes("roommate")) return "◉"; if (type.includes("security")||type==='new_device_login') return "⌾"; if (type.includes("booking") || type.includes("reservation")) return "✓"; return "•"; }
+function icon(type: string) { if (type === "announcement") return "W"; if (type.includes("payment")) return "₦"; if (type.includes("roommate")) return "◉"; if (type.includes("security")) return "⌾"; if (type.includes("booking") || type.includes("reservation")) return "✓"; return "•"; }
 function ActivityLoading(){return <div className="grid min-h-40 place-items-center" role="status" aria-label="Loading activity"><div className="text-center"><div className="mx-auto grid h-10 w-10 animate-pulse place-items-center rounded-2xl bg-violet-500 text-sm font-black">WH</div><p className="mt-3 text-[9px] text-[#686F80]">Loading recent activity…</p></div></div>}
 function Empty() { return <div className="grid min-h-[55dvh] place-items-center text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-violet-500/10 text-violet-300">✓</div><p className="mt-4 text-sm font-semibold">You’re up to date</p><p className="mt-2 max-w-xs text-[10px] leading-5 text-[#6C7282]">Nothing needs your attention right now.</p></div></div>; }
 function ErrorState({ text, retry }: { text: string; retry: () => void }) { return <div className="rounded-2xl border border-red-500/15 p-5 text-center"><p className="text-xs font-semibold">Activity could not be loaded</p><p className="mt-1 text-[9px] text-[#757B8A]">{text}</p><button onClick={retry} className="mt-3 text-[10px] font-semibold text-violet-300">Try again</button></div>; }
-function DeviceDetail({label,value}:{label:string;value:string}){return <div className="flex items-start justify-between gap-5"><span className="text-[9px] text-[#656C7D]">{label}</span><strong className="text-right text-[10px] font-semibold text-[#D7DAE3]">{value}</strong></div>}
-function DeviceLoginReview({login,busy,answer}:{login:DeviceLogin;busy:boolean;answer:(wasMe:boolean)=>Promise<void>}){return <section className="mb-3 ml-12 border-l-2 border-violet-500/35 pl-4" aria-label="Review new login"><p className="text-xs font-semibold">Was this you?</p><p className="mt-1 text-[9px] leading-4 text-[#777D8D]">The login already happened after the account email was confirmed. This is a safety notice, not a login approval. If it was not you, end that session now.</p><div className="mt-3 space-y-2 border-y border-white/[.05] py-3"><DeviceDetail label="Device" value={login.device}/><DeviceDetail label="System" value={`${login.os} · ${login.browser}`}/><DeviceDetail label="Location" value={login.location}/><DeviceDetail label="Time" value={new Date(login.loginTime).toLocaleString()}/></div><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>void answer(false)} disabled={busy} className="min-h-11 rounded-xl border border-red-500/20 bg-red-500/[.05] px-2 text-[10px] font-semibold text-red-300 disabled:opacity-40">Not me · sign out</button><button onClick={()=>void answer(true)} disabled={busy} className="min-h-11 rounded-xl bg-violet-500 px-2 text-[10px] font-semibold disabled:opacity-40">{busy?'Saving…':'Yes, it was me'}</button></div></section>}
 function activityKind(row:Activity){const value=`${row.type} ${row.source_type}`.toLowerCase();if(/security|device|password|login/.test(value))return'Security';if(/payment|payout|earning|refund|wallet|commission/.test(value))return'Money';if(/booking|reservation|inspection|listing|property|hotel|job|worker/.test(value))return'Booking';if(/roommate/.test(value))return'Roommates';return'WeHouse'}
-function activityTitle(row:Activity){if(row.type==='new_device_login'){const decision=String(row.destination_params?.decision||'unreviewed');if(decision==='recognized')return'Login recognized';if(['terminated','blocked','rejected'].includes(decision))return'Unrecognized login ended';return'New login to your account'}if(row.type==='roommate_match')return'Roommate connection ready';return row.title}
+function activityTitle(row:Activity){if(row.type==='roommate_match')return'Roommate connection ready';return row.title}
 function activityMessage(row:Activity){if(row.type==='roommate_match')return String(row.message||'').replace('You can now chat.','Open Roommates to view the connection.');return row.message||''}
