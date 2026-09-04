@@ -20,6 +20,7 @@ import RoommatePreferencesPanel from "@/components/RoommatePreferencesPanel";
 import type { RoommatePreferenceForm } from "@/components/RoommatePreferencesPanel";
 import DiscoveryShell from "@/components/DiscoveryShell";
 import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
+import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import type { Profile, RoommatePreferences } from "@/types";
 
 type Props = {
@@ -645,7 +646,7 @@ function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{it
 function RoommateProfileSheet({row,showSchool,onClose}:{row:RoommateMatchResult;showSchool:boolean;onClose:()=>void}){
   const p=row.matched_profile,score=Number(row.match_score||0);
   const highlights=Object.entries(p.score_factors||{}).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3).map(([key])=>key==='stay'?'Stay length':key[0].toUpperCase()+key.slice(1));
-  return <div className="fixed inset-0 z-[100100] overflow-y-auto bg-[#090B10] text-white" role="dialog" aria-modal="true" aria-label="Roommate profile"><header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-white/[.06] bg-[#090B10]/95 px-3 backdrop-blur-xl"><button type="button" onClick={onClose} className="grid h-11 w-11 place-items-center text-xl text-[#A6ABB9]" aria-label="Close profile">‹</button><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">Roommates</p><h2 className="text-sm font-semibold">Profile</h2></div></header><main className="mx-auto max-w-xl px-5 py-7"><div className="flex items-center gap-4"><div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-2xl font-bold text-violet-100">{p.avatar_url?<img src={p.avatar_url} alt="" className="h-full w-full object-cover"/>:String(p.full_name||p.username||'W')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><h3 className="truncate text-xl font-bold">{p.full_name||`@${p.username||'user'}`}</h3><p className="mt-1 truncate text-[11px] text-[#737889]">{[p.city,p.state].filter(Boolean).join(', ')||'Nigeria'}</p></div></div><section className="mt-7 border-y border-white/[.07] py-5"><div className="flex items-end justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">Compatibility</p><p className="mt-1 text-sm font-semibold">{matchLabel(score)} match</p></div><strong className="text-3xl text-violet-300">{score}%</strong></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-violet-500" style={{width:`${Math.min(100,Math.max(0,score))}%`}}/></div>{highlights.length>0&&<p className="mt-3 text-[10px] text-[#777D8D]">Strongest alignment · {highlights.join(' · ')}</p>}</section><div className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-white/[.06] py-5"><ProfileFact label="Preferred area" value={p.area_preference||'Flexible'}/>{showSchool&&p.school&&<ProfileFact label="School" value={p.school}/>}</div><section className="py-5"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">About</p><p className="mt-2 text-[12px] leading-6 text-[#A2A7B5]">{p.bio||'This person has not added an introduction yet.'}</p></section><p className="border-t border-white/[.06] pt-4 text-[9px] leading-5 text-[#666D7E]">Compatibility combines budget, location and living preferences. Eligibility rules are applied before ranking.</p></main></div>;
+  return <RoommatePublicProfile person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:showSchool?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score} matchLabel={`${matchLabel(score)} match`} highlights={highlights} footer={<p className="border-t border-white/[.06] pt-4 text-[9px] leading-5 text-[#666D7E]">Compatibility combines budget, location and living preferences. Eligibility rules are applied before ranking.</p>}/>;
 }
 
 function ReceivedInterests({
@@ -726,16 +727,5 @@ function ReceivedInterests({
         ))}
       </div>
     </section>
-  );
-}
-
-function ProfileFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[8px] uppercase tracking-wide text-[#606778]">
-        {label}
-      </p>
-      <p className="mt-1 font-semibold text-[#B1B6C3]">{value}</p>
-    </div>
   );
 }

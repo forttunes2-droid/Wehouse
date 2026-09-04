@@ -14,9 +14,10 @@ Deno.serve(async req=>{
   const details=data&&typeof data.address==='object'?data.address:{};
   const street=[details.house_number,details.road||details.pedestrian||details.residential].filter(Boolean).join(' ');
   const area=details.neighbourhood||details.suburb||details.quarter||details.hamlet||details.village||'';
-  const city=details.city||details.town||details.municipality||details.state_district||details.county||'';
+  const locality=details.city||details.town||details.village||details.municipality||'';
+  const city=details.state_district||details.county||details.municipality||locality||'';
   const state=details.state||'';
-  const parts=[street,area,city,state].map(value=>String(value||'').trim()).filter((value,index,rows)=>value&&rows.findIndex(item=>item.toLowerCase()===value.toLowerCase())===index);
+  const parts=[street,area,locality,city,state].map(value=>String(value||'').trim()).filter((value,index,rows)=>value&&rows.findIndex(item=>item.toLowerCase()===value.toLowerCase())===index);
   return json({address:parts.length?parts.join(', '):typeof data.display_name==='string'?data.display_name:null,city:city||null,state:state||null});
  }catch{return json({address:null},200)}
 });
