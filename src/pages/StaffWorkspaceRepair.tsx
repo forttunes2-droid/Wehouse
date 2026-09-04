@@ -11,6 +11,8 @@ import StaffFinanceSummary from '@/components/StaffFinanceSummary';
 import StaffFinanceRecords from '@/components/StaffFinanceRecords';
 import StaffSecurityOverviewV2 from '@/components/StaffSecurityOverviewV2';
 import StaffActivityTrailV2 from '@/components/StaffActivityTrailV2';
+import InboxTabs from '@/components/InboxTabs';
+import NewLoginAlert from '@/components/NewLoginAlert';
 import { useStaffPermissions } from '@/hooks/useStaffPermissions';
 import { useOperationsInboxSummary } from '@/hooks/useOperationsInboxSummary';
 import type { Profile } from '@/types';
@@ -52,7 +54,7 @@ function Workspace({module,profile,onLogout,onNavigate}:{module:Module;profile:P
  let content:React.ReactNode;
  if(tab==='home')content=<StaffHome profile={profile} module={module} copy={copy} branch={branch} openWork={()=>setTab(directConversation?'conversations':'work')} onNavigate={onNavigate}/>;
  else if(tab==='conversations'&&module==='operations')content=<OperationsInbox profile={profile} scope={scope} summary={inboxSummary} openProperties={()=>setTab('work')} onNavigate={onNavigate}/>;
- else if(tab==='conversations'&&directConversation)content=<CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue="support"/>;
+ else if(tab==='conversations'&&directConversation)content=<SupportInbox profile={profile} scope={scope} onNavigate={onNavigate}/>;
  else content=<ModuleWork module={module} profile={profile} view={workView} setView={setWorkView}/>;
  const activeLabel=items.find(item=>item.id===tab)?.label||copy.title;
  return <><Toaster position="top-center" richColors/><WorkspaceFrameV2 label={`WEHOUSE TEAM · ${copy.title}`} title={activeLabel} description={`${copy.description} · ${branch}`} items={items} active={tab} setActive={(id)=>setTab(id as MainTab)} onAccount={onNavigate?()=>onNavigate('profile'):undefined} onLogout={onLogout}>{content}</WorkspaceFrameV2></>;
@@ -72,14 +74,15 @@ function OperationsInbox({profile,scope,summary,openProperties,onNavigate}:{prof
  function navigate(page:string){if(page==='operations_properties')return openProperties();if(page==='operations_inbox')return setView('booking');onNavigate?.(page)}
  if(view==='booking')return <InboxDetail title="Find a booking" back={()=>setView('chats')}><HousingOperationsWorkspace/></InboxDetail>;
  return <div className="space-y-4">
-  <InboxTabs view={view} setView={setView} messages={summary.messageUnread} activity={summary.activityUnread}/>
+  <InboxTabs value={view} onChange={setView} chatCount={summary.messageUnread} activityCount={summary.activityUnread}/>
   {view==='activity'?<Notifications profile={profile} embedded onUnreadChange={summary.refresh} onNavigate={page=>navigate(page)}/>:<>
+   <NewLoginAlert profile={profile}/>
    <button type="button" onClick={()=>setView('booking')} className="flex min-h-14 w-full items-center justify-between border-y border-white/[.06] py-3 text-left"><span><strong className="block text-xs">Find a booking</strong><span className="mt-1 block text-[9px] text-[#707687]">Check a booking code before an arrival or handover</span></span><span className="text-[#656B7C]">›</span></button>
    <CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue="reservation_operations" onUnreadChange={summary.refresh}/>
   </>}
  </div>
 }
-function InboxTabs({view,setView,messages,activity}:{view:InboxView;setView:(view:InboxView)=>void;messages:number;activity:number}){return <div className="grid grid-cols-2 border-b border-white/[.07]">{([['chats','Chats',messages],['activity','Activity',activity]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative min-h-12 text-xs font-semibold ${view===id?'text-white':'text-[#73798A]'}`}>{label}{count>0?` · ${count>99?'99+':count}`:''}{view===id&&<span className="absolute inset-x-8 bottom-0 h-0.5 bg-violet-400"/>}</button>)}</div>}
+function SupportInbox({profile,scope,onNavigate}:{profile:Profile;scope:{state:string;lga:string};onNavigate?:(page:string)=>void}){const[view,setView]=useState<'chats'|'activity'>('chats');return <div className="space-y-4"><InboxTabs value={view} onChange={setView}/>{view==='activity'?<Notifications profile={profile} embedded onNavigate={page=>onNavigate?.(page)}/>:<><NewLoginAlert profile={profile}/><CommunicationsWorkspace profile={profile} scope={scope} forcedView="inbox" hideViewTabs queue="support"/></>}</div>}
 function InboxDetail({title,badge=0,back,children}:{title:string;badge?:number;back:()=>void;children:React.ReactNode}){return <div className="space-y-4"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button type="button" onClick={back} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Inbox">‹</button><div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Inbox</p><h2 className="mt-0.5 text-base font-bold">{title}</h2></div>{badge>0&&<span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-[8px] font-bold">{badge>99?'99+':badge}</span>}</header>{children}</div>}
 function StaffHome({module,copy,branch,openWork}:{profile:Profile;module:Module;copy:{title:string;description:string;workLabel:string};branch:string;openWork:()=>void;onNavigate?:(page:string)=>void}){return <div className="space-y-6"><section className="border-b border-white/[.07] pb-6"><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">YOUR WORK AREA</p><h2 className="mt-3 text-2xl font-bold">{copy.title}</h2><p className="mt-2 max-w-xl text-xs leading-6 text-[#858B9B]">{copy.description}</p><p className="mt-2 text-[10px] text-[#666D7E]">Branch · {branch}</p></section><div className="border-y border-white/[.06]"><button onClick={openWork} className="flex min-h-16 w-full items-center justify-between py-3 text-left"><span><strong className="block text-sm">{module==='support'?'Open conversations':copy.workLabel}</strong><span className="mt-1 block text-[10px] text-[#6E7484]">Continue your assigned work</span></span><span className="text-violet-300">›</span></button></div></div>}
 function LocalTabs<T extends string>({items,active,set}:{items:Array<[T,string]>;active:T;set:(view:T)=>void}){return <div className="flex gap-5 overflow-x-auto border-b border-white/[.07]">{items.map(([id,label])=><button key={id} onClick={()=>set(id)} className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active===id?'text-white':'text-[#6E7484]'}`}>{label}{active===id&&<span className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-500"/>}</button>)}</div>}

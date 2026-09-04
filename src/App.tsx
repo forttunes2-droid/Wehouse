@@ -25,7 +25,6 @@ import AdminAuthModal from "@/components/AdminAuthModal";
 import SupportChat from "@/components/SupportChat";
 import DesktopLayout from "@/components/DesktopLayout";
 import PrivateCallCenter from "@/components/PrivateCallCenter";
-import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
@@ -33,6 +32,8 @@ import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
+import { getMySupportConversations } from "@/lib/supabase/support";
+import { currentActivityRows } from "@/lib/activityFeed";
 
 type ConversationUnreadRow = {
   id: string;
@@ -47,11 +48,6 @@ type IncomingMessageRow = {
   attachments?: unknown[] | null;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
-
-function isOrdinaryChatNotification(type: string) {
-  if (type === "new_device_login" || type === "device_confirmation_pending") return true;
-  return type !== "missed_call" && (type === "new_message" || type === "message" || type === "chat_message" || type.endsWith("_message"));
-}
 
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
@@ -432,25 +428,26 @@ export default function App() {
     }
     const uid = profile.user_id;
     async function count() {
-      const [{ data }, bookingResult, { data: activityRows }, { count: announcements }] = await Promise.all([
+      const [{ data }, bookingResult, supportResult, { data: activityRows }, { count: announcements }] = await Promise.all([
         supabase
           .from("conversations")
           .select("id,participant_a,unread_a,unread_b,last_message_at")
           .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
         getCommunicationBookingConversations(uid),
-        supabase.from('notifications').select('type').eq('recipient_id',uid).eq('read',false),
+        getMySupportConversations(),
+        supabase.from('notifications').select('id,type,read,created_at,source_type,source_id,destination_route').eq('recipient_id',uid).eq('read',false),
         supabase.from('announcement_recipients').select('id',{count:'exact',head:true}).eq('user_id',uid).eq('read_status',false),
       ]);
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
-        roommate +=
-          Number(c.participant_a === uid ? c.unread_a : c.unread_b) || 0;
+        if (Number(c.participant_a === uid ? c.unread_a : c.unread_b) > 0) roommate += 1;
         if (!seenMessagesRef.current.has(c.id))
           seenMessagesRef.current.set(c.id, String(c.last_message_at || ""));
       });
-      const worker = (bookingResult.conversations || []).reduce((sum: number, row: { unread_count?: number }) => sum + Number(row.unread_count || 0), 0);
-      const activity = (activityRows || []).filter((row) => !isOrdinaryChatNotification(String(row.type || ''))).length;
-      setUnreadCount(roommate + worker);
+      const worker = (bookingResult.conversations || []).reduce((sum: number, row: { unread_count?: number }) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0), 0);
+      const support = (supportResult.conversations || []).reduce((sum: number, row: { unread_count?: number }) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0), 0);
+      const activity = currentActivityRows((activityRows || []) as Array<{id:string;type:string;read:boolean;created_at:string;source_type?:string|null;source_id?:string|null;destination_route?:string|null}>).length;
+      setUnreadCount(roommate + worker + support);
       setNotificationCount(activity + Number(announcements || 0));
     }
     void count();
@@ -1024,7 +1021,6 @@ export default function App() {
       <AdminAuthProvider>
         <Suspense fallback={<PageTransitionFallback />}>
           <PrivateCallCenter />
-          {profile && <NewLoginAlert profile={profile} />}
           <DesktopLayout
             navItems={desktopNavItems}
             activePage={navPage === "notifications" ? "conversation" : navPage}

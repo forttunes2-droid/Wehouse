@@ -30,6 +30,11 @@ import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
+import SecureChatOnboarding from "@/components/SecureChatOnboarding";
+import {
+  privateConversationReadiness,
+  type PrivateConversationReadiness,
+} from "@/lib/e2ee";
 
 type Props = {
   conversationId: string;
@@ -103,7 +108,8 @@ export default function BookingNegotiationChat({
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
-    [confirmDelete, setConfirmDelete] = useState(false);
+    [confirmDelete, setConfirmDelete] = useState(false),
+    [secureChat, setSecureChat] = useState<PrivateConversationReadiness | null>(null);
   const [review,setReview]=useState<any>(null),[reviewRating,setReviewRating]=useState(0),[reviewComment,setReviewComment]=useState(''),[reviewSaving,setReviewSaving]=useState(false),[reviewOpen,setReviewOpen]=useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null),
@@ -116,6 +122,10 @@ export default function BookingNegotiationChat({
     : null;
   const presence = useChatPresence(peerId);
   const presenceText = chatPresenceLabel(presence);
+  const refreshSecureChat = useCallback(async () => {
+    if (!peerId) return setSecureChat(null);
+    setSecureChat(await privateConversationReadiness("worker", conversationId, peerId));
+  }, [conversationId, peerId]);
   const loadAll = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
@@ -141,6 +151,9 @@ export default function BookingNegotiationChat({
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+  useEffect(() => {
+    void refreshSecureChat();
+  }, [refreshSecureChat]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
@@ -182,9 +195,14 @@ export default function BookingNegotiationChat({
         () => void loadAll(true),
       )
       .subscribe();
-    const timer = window.setInterval(() => void loadAll(true), 4000);
+    const refresh = () => {
+      if (document.visibilityState === "visible") void loadAll(true);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
-      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
     };
   }, [conversationId, loadAll]);
@@ -233,6 +251,7 @@ export default function BookingNegotiationChat({
   }
   async function handleSend() {
     if (sending || (!input.trim() && !files.length)) return;
+    if (secureChat?.state !== "ready" || !peerId) return toast.error("Secure chat is not ready yet");
     const content = input.trim(),
       queuedFiles = [...files];
     setSending(true);
@@ -799,6 +818,7 @@ export default function BookingNegotiationChat({
       <footer className="chat-input-container shrink-0 border-t border-white/[.06] bg-[#11131A]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         {openConversation ? (
           <div className="mx-auto max-w-4xl">
+            {!secureChat ? <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Checking private chat…</div> : secureChat.state !== "ready" ? <SecureChatOnboarding status={secureChat} personName={peerName} onReady={() => {setSecureChat(null);void privateConversationReadiness("worker",conversationId,peerId||"").then(result=>{setSecureChat(result);if(result.state==="ready")void loadAll(true)})}}/> : <>
             {files.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {files.map((file, index) => (
@@ -886,8 +906,9 @@ export default function BookingNegotiationChat({
               </button>
             </div>
             <p className="mt-2 text-center text-[8px] leading-relaxed text-[#505565]">
-              Private to you and the Worker · securely stored for job safety and disputes · photos and voice notes supported
+              End-to-end encrypted · private to you and the Worker
             </p>
+            </>}
           </div>
         ) : (
           <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Human Support</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>

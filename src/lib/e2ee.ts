@@ -27,13 +27,14 @@ type EnvelopeRow = {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
+const readinessTimeoutMs = 10_000;
 
 async function currentProfileId(){
   const {data,error}=await supabase.rpc("current_profile_user_id");
   if(error||!data)throw error||new Error("Active WeHouse profile required");
   return String(data);
 }
-async function sessionKey(){return `${SESSION_KEY_PREFIX}${await currentProfileId()}`}
+function sessionKey(profileId:string){return `${SESSION_KEY_PREFIX}${profileId}`}
 
 function bytesToBase64(value: ArrayBuffer | Uint8Array) {
   const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
@@ -103,7 +104,7 @@ export async function createEncryptionIdentity(pin: string) {
     kdf_iterations: 600_000,
   });
   if (error) throw error;
-  sessionStorage.setItem(await sessionKey(), JSON.stringify(privateJwk));
+  sessionStorage.setItem(sessionKey(profileId), JSON.stringify(privateJwk));
 }
 
 export async function unlockEncryptionIdentity(pin: string) {
@@ -118,7 +119,7 @@ export async function unlockEncryptionIdentity(pin: string) {
       base64ToBytes(identity.encrypted_private_key),
     );
     const jwk = JSON.parse(decoder.decode(clear)) as JsonWebKey;
-    sessionStorage.setItem(await sessionKey(), JSON.stringify(jwk));
+    sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(jwk));
   } catch {
     throw new Error("Incorrect Recovery PIN");
   }
@@ -167,16 +168,16 @@ export async function changeEncryptionRecoveryPin(currentPin: string, nextPin: s
   if (updateError) throw updateError;
   // The identity key itself is unchanged, so existing conversation envelopes
   // and old messages remain decryptable. Only its encrypted recovery backup changes.
-  sessionStorage.setItem(await sessionKey(), JSON.stringify(privateJwk));
+  sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(privateJwk));
 }
 
 export async function lockEncryptionIdentity() {
-  sessionStorage.removeItem(await sessionKey());
+  sessionStorage.removeItem(sessionKey(await currentProfileId()));
 }
 
 export async function encryptionIdentityStatus() {
   const { identity, error } = await myIdentity();
-  const unlocked=identity?Boolean(sessionStorage.getItem(await sessionKey())):false;
+  const unlocked=identity?Boolean(sessionStorage.getItem(sessionKey(identity.user_id))):false;
   return { enabled: Boolean(identity), unlocked, error };
 }
 
@@ -186,6 +187,20 @@ export type PrivateConversationReadiness = {
 };
 
 export async function privateConversationReadiness(
+  kind: PrivateConversationKind,
+  conversationId: string,
+  peerUserId: string,
+): Promise<PrivateConversationReadiness> {
+  return Promise.race([
+    checkPrivateConversationReadiness(kind, conversationId, peerUserId),
+    new Promise<PrivateConversationReadiness>((resolve) => window.setTimeout(() => resolve({
+      state: "unavailable",
+      message: "Secure chat is taking longer than expected. Check your connection and try again.",
+    }), readinessTimeoutMs)),
+  ]);
+}
+
+async function checkPrivateConversationReadiness(
   kind: PrivateConversationKind,
   conversationId: string,
   peerUserId: string,
@@ -207,7 +222,7 @@ export async function privateConversationReadiness(
 }
 
 async function unlockedPrivateKey() {
-  const value = sessionStorage.getItem(await sessionKey());
+  const value = sessionStorage.getItem(sessionKey(await currentProfileId()));
   if (!value) throw new Error("Enter your Recovery PIN to unlock private messages");
   return importPrivateKey(JSON.parse(value) as JsonWebKey);
 }

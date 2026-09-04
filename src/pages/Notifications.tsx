@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser, markAnnouncementRead } from "@/lib/supabase/announcements";
 import type { Profile } from "@/types";
 import { toast, Toaster } from "sonner";
-import { activityIsCurrent, isConversationDestination, isOrdinaryMessageEvent, longestActivityCutoff } from "@/lib/activityFeed";
+import { activityIsCurrent, currentActivityRows, isConversationDestination, longestActivityCutoff } from "@/lib/activityFeed";
 
 type Props = { profile: Profile; onNavigate: (page: string, id?: string) => void; embedded?: boolean; onUnreadChange?: (count: number) => void };
 type Activity = {
@@ -31,9 +31,9 @@ export default function Notifications({ profile, onNavigate, embedded = false, o
     const failures = [eventResult.error?.message, announcementResult.error?.message].filter(Boolean) as string[];
     if (failures.length === 2) setError(failures.join(" · "));
     else {
-      const events = ((eventResult.data || []) as Omit<Activity, "source">[])
-        .filter((row) => !isOrdinaryMessageEvent(row) && activityIsCurrent({ ...row, source: "event" }))
-        .map((row) => ({ ...row, id: `event:${row.id}`, source: "event" as const }));
+      const events = currentActivityRows(
+        ((eventResult.data || []) as Omit<Activity, "source">[]).map((row) => ({ ...row, source: "event" as const })),
+      ).map((row) => ({ ...row, id: `event:${row.id}` }));
       const announcements = (announcementResult.messages || []).map((delivery: any) => {
         const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
         return { id: `announcement:${delivery.announcement_id}`, sourceNumericId: Number(delivery.announcement_id), source: "announcement" as const, type: "announcement", title: announcement?.title || "WeHouse announcement", message: announcement?.content || null, read: Boolean(delivery.read_status), created_at: announcement?.created_at || delivery.delivered_at };

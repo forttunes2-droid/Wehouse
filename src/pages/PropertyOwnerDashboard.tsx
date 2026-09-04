@@ -8,10 +8,10 @@ import CommunicationInbox from "@/components/CommunicationInbox";
 import PartnerSubmittedRequests, { type SubmissionFilter } from "@/components/PartnerSubmittedRequests";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import WeHouseSelect from "@/components/WeHouseSelect";
+import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import type { Profile } from "@/types";
 
 type PartnerTab = "properties" | "finance" | "communication";
-type FinanceView = "wallet" | "earnings";
 type Props = {
   profile: Profile;
   onLogout: () => void;
@@ -50,39 +50,19 @@ const hidden = "₦••••••";
 export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
-  void onLogout;
   return (
-    <div className="min-h-[100dvh] bg-[#09090D] text-white">
+    <>
       <Toaster position="top-center" richColors />
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#09090D]/94 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-5 lg:px-8 lg:pt-5">
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold tracking-[.22em] text-violet-400">
-              PROPERTY PARTNER
-            </p>
-            <h1 className="mt-1 text-xl font-bold lg:text-2xl">
-              {current.label}
-            </h1>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C] lg:text-[11px]">
-              {current.description}
-            </p>
-          </div>
-          <div className="mt-4 overflow-x-auto pb-3 scrollbar-hide">
-            <div className="flex min-w-max gap-1">
-              {TABS.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setTab(item.key)}
-                  className={`rounded-xl px-3 py-2 text-[10px] font-semibold transition ${tab === item.key ? "bg-violet-500 text-white" : "text-[#777A8C] hover:bg-white/[.04] hover:text-white"}`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-5 pb-24 sm:px-5 lg:px-8 lg:py-8">
+      <WorkspaceFrameV2
+        label="WEHOUSE · PROPERTY PARTNER"
+        title={current.label}
+        description={current.description}
+        items={TABS.map((item) => ({ id: item.key, label: item.label }))}
+        active={tab}
+        setActive={(id) => setTab(id as PartnerTab)}
+        onAccount={() => onNavigate("profile")}
+        onLogout={onLogout}
+      >
         {tab === "properties" && <PropertiesWorkspace profile={profile} />}{" "}
         {tab === "communication" && (
           <CommunicationInbox
@@ -91,8 +71,8 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
           />
         )}{" "}
         {tab === "finance" && <FinanceTab profile={profile} />}
-      </main>
-    </div>
+      </WorkspaceFrameV2>
+    </>
   );
 }
 function PropertiesWorkspace({ profile }: { profile: Profile }) {
@@ -457,81 +437,32 @@ function PropertyDetails({
   );
 }
 function FinanceTab({ profile }: { profile: Profile }) {
-  const [view, setView] = useState<FinanceView>("wallet");
+  const key = `wh_finance_amounts_visible_${profile.user_id}`;
+  const [showAmounts, setShowAmounts] = useState(() => {
+    try { return localStorage.getItem(key) !== "false"; } catch { return true; }
+  });
+  function toggleAmounts() {
+    setShowAmounts((current) => {
+      const next = !current;
+      try { localStorage.setItem(key, String(next)); } catch {}
+      return next;
+    });
+  }
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/[.06] bg-[#101018] p-1">
-        <button
-          onClick={() => setView("wallet")}
-          className={`rounded-lg px-4 py-2.5 text-[10px] font-semibold ${view === "wallet" ? "bg-violet-500 text-white" : "text-[#747689]"}`}
-        >
-          Wallet
-        </button>
-        <button
-          onClick={() => setView("earnings")}
-          className={`rounded-lg px-4 py-2.5 text-[10px] font-semibold ${view === "earnings" ? "bg-violet-500 text-white" : "text-[#747689]"}`}
-        >
-          Earnings
-        </button>
-      </div>
-      {view === "wallet" ? (
-        <>
-          <WalletPanel profile={profile} />
-          <PayoutAccountManager profile={profile} />
-        </>
-      ) : (
-        <EarningsTab profile={profile} />
-      )}
+      <PropertyPartnerFinancePanel profile={profile} showAmounts={showAmounts} onToggleAmounts={toggleAmounts}/>
+      <PayoutAccountManager profile={profile} />
+      <section className="border-t border-white/[.07] pt-5">
+        <div className="mb-4"><h2 className="text-sm font-bold">Property earnings</h2><p className="mt-1 text-[9px] text-[#66687B]">Every property-income release in the same Finance workspace.</p></div>
+        <EarningsTab profile={profile} showAmounts={showAmounts} toggleAmounts={toggleAmounts}/>
+      </section>
     </div>
   );
 }
-function WalletPanel({ profile }: { profile: Profile }) {
-  const key = `wh_partner_wallet_visible_${profile.user_id}`;
-  const [show, setShow] = useState(() => {
-    try {
-      return localStorage.getItem(key) !== "false";
-    } catch {
-      return true;
-    }
-  });
-  function toggle() {
-    setShow((value) => {
-      const next = !value;
-      try {
-        localStorage.setItem(key, String(next));
-      } catch {}
-      return next;
-    });
-  }
-  return (
-    <PropertyPartnerFinancePanel
-      profile={profile}
-      showAmounts={show}
-      onToggleAmounts={toggle}
-    />
-  );
-}
-function EarningsTab({ profile }: { profile: Profile }) {
-  const key = `wh_partner_earnings_visible_${profile.user_id}`;
-  const [showAmounts, setShowAmounts] = useState(() => {
-      try {
-        return localStorage.getItem(key) !== "false";
-      } catch {
-        return true;
-      }
-    }),
-    [rows, setRows] = useState<EarningRelease[]>([]),
+function EarningsTab({ profile, showAmounts, toggleAmounts }: { profile: Profile; showAmounts: boolean; toggleAmounts: () => void }) {
+  const [rows, setRows] = useState<EarningRelease[]>([]),
     [loading, setLoading] = useState(true),
     [filter, setFilter] = useState<"all" | EarningRelease["status"]>("all");
-  function toggle() {
-    setShowAmounts((value) => {
-      const next = !value;
-      try {
-        localStorage.setItem(key, String(next));
-      } catch {}
-      return next;
-    });
-  }
   useEffect(() => {
     let active = true;
     (async () => {
@@ -573,7 +504,7 @@ function EarningsTab({ profile }: { profile: Profile }) {
             </p>
           </div>
           <button
-            onClick={toggle}
+            onClick={toggleAmounts}
             aria-label={showAmounts ? "Hide earnings" : "Show earnings"}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-black/10 text-[#D7D8E2]"
           >
