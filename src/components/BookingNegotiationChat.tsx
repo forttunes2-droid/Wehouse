@@ -195,7 +195,7 @@ export default function BookingNegotiationChat({
         detail: {
           category: "service_booking_help",
           subject: `${booking?.service_type || "Service booking"} help`,
-          contextType: "support_case",
+          contextType: "worker_booking",
           contextId: bookingId,
           contextSnapshot: {
             source_type: "worker_booking",

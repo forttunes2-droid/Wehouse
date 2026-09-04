@@ -12,6 +12,7 @@ import {
   sendSupportMessage,
   uploadSupportAttachment,
   conversationPresentation,
+  supportContextType,
   type SupportOpenContext,
   type SupportThread,
 } from "@/lib/supabase/support";
@@ -105,7 +106,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       (row) => ({
         category: "service_booking_help",
         subject: `${row.service_type || "Service booking"} help`,
-        contextType: "support_case",
+        contextType: "worker_booking",
         contextId: row.id,
         contextSnapshot: {
           source_type: "worker_booking",
@@ -123,7 +124,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       (row) => ({
         category: "reservation_support",
         subject: `Help with reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
-        contextType: "support_case",
+        contextType: "apartment_reservation",
         contextId: row.id,
         contextSnapshot: {
           source_type: "reservation",
@@ -175,7 +176,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
         : context && hasContext(context)
           ? conversations?.find(
               (item) =>
-                item.context_type === context.contextType &&
+                supportContextType(item) === supportContextType(context) &&
                 item.context_id === context.contextId,
             ) || null
           : conversations?.find((item) => item.context_type === "general") ||
@@ -195,11 +196,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       setMessages(cached || []);
       setLoading(!cached);
 
-      let preferredId = context?.conversationId || null;
-      if (context && hasContext(context) && ["apartment_reservation", "reservation", "hotel_booking"].includes(context.contextType || "")) {
-        const ensured = await ensureSupportConversation(context);
-        if (!ensured.error && ensured.conversationId) preferredId = ensured.conversationId;
-      }
+      const preferredId = context?.conversationId || null;
       const current = await refreshThread(
         context,
         preferredId,
@@ -579,17 +576,19 @@ function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: Support
 function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:SupportThread;onOpenBooking?:(id:string)=>void;onOpenListing?:(id:string)=>void}){
   const snapshot=thread.context_snapshot||{};
   const presentation=conversationPresentation(thread);
-  const reservationContext=['apartment_reservation','reservation','hotel_booking'].includes(String(thread.context_type||''));
-  const listingContext=thread.context_type==='listing';
-  const propertyRequestContext=thread.context_type==='property_inspection';
-  const bookingId=reservationContext?String(thread.context_id||snapshot.reservation_id||''):'';
+  const contextType=supportContextType(thread);
+  const reservationContext=['apartment_reservation','apartment_payment','reservation','hotel_booking'].includes(contextType);
+  const serviceContext=contextType==='worker_booking';
+  const listingContext=contextType==='property_listing';
+  const propertyRequestContext=contextType==='property_inspection';
+  const bookingId=reservationContext||serviceContext?String(thread.context_id||snapshot.reservation_id||snapshot.source_id||''):'';
   const listingId=String(listingContext?thread.context_id||'':snapshot.listing_id||'');
   const rawStatus=String(snapshot.status||'').replace(/_/g,' ');
   const status=rawStatus==='occupied'?'Tenancy active':rawStatus==='checked in'?'Checked in':rawStatus==='checked out'?'Checked out':rawStatus;
   const code=String(snapshot.booking_code||snapshot.reference||'');
   const title=String(snapshot.listing_title||snapshot.hotel_name||presentation.title||'Reservation').replace(/\s*·\s*Reservation Desk$/i,'');
   const stayType=String(snapshot.stay_type||'');
-  const actionLabel=thread.context_type==='hotel_booking'?'Open stay':(stayType==='long_stay'||stayType==='long_let'||String(snapshot.status||'')==='occupied')?'Open tenancy':'Open reservation';
+  const actionLabel=serviceContext?'Open service job':contextType==='hotel_booking'?'Open stay':(stayType==='long_stay'||stayType==='long_let'||String(snapshot.status||'')==='occupied')?'Open tenancy':'Open reservation';
   const location=String(snapshot.listing_location||snapshot.room_name||'');
   const checkIn=String(snapshot.check_in||'');
   const checkOut=String(snapshot.check_out||'');

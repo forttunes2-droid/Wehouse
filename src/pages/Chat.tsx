@@ -156,10 +156,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       );
       const calls:Record<string,PrivateCall>={};for(const row of callResult.data||[])if(!calls[row.context_id])calls[row.context_id]=row as PrivateCall;
       setRecentRoommateCalls(calls);
-      // A mutual roommate match is already a real relationship. Keep its
-      // canonical conversation in Inbox so either person can send the first
-      // message; requiring an existing message here makes the thread
-      // impossible to start from Inbox.
+      // The database returns only threads with at least one sent message.
+      // A match may open an empty composer from Roommates, but an untouched
+      // composer must never become an Inbox row.
       setConversations(allRoommateRows);
       setPeople(peerResult.people || {});
       setBookingConversations(
@@ -782,7 +781,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                 {inboxQuery.trim() ? "No matching conversations" : inboxFilter === "wehouse" ? "No WeHouse conversations" : inboxFilter === "people" ? "No private conversations" : "No conversations yet"}
               </p>
               <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
-                {inboxQuery.trim() ? "Try a person, service, property or reservation name." : "Conversations appear after a mutual roommate match, service request, reservation, or a help case you create."}
+                {inboxQuery.trim() ? "Try a person, service, property or reservation name." : "Conversations appear after someone sends the first message in a roommate chat, service booking, reservation or WeHouse help case."}
               </p>
             </div>
           ) : (

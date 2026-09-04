@@ -392,7 +392,7 @@ function PropertyDetails({
         detail: {
           category: "property_inspection",
           subject: `Listing help: ${property.title || "Property"}`,
-          contextType: "listing",
+          contextType: "property_listing",
           contextId: String(property.id),
           contextSnapshot: {
             property_name: property.title,

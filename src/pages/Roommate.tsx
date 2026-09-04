@@ -349,44 +349,23 @@ export default function RoommateWorkspace({
       onNavigate={navigate}
     >
       <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-6">
-        <header className="relative isolate min-h-48 overflow-hidden rounded-[1.75rem] border border-white/[.08] bg-[#121520]">
-          {profile.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 -z-20 h-full w-full scale-110 object-cover opacity-35 blur-xl"
-            />
-          ) : null}
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(115deg,rgba(9,10,15,.98)_15%,rgba(9,10,15,.75)_58%,rgba(124,58,237,.22))]" />
-          <div className="flex min-h-48 items-end gap-4 p-5">
-            <ProfileImage
-              src={profile.avatar_url}
-              name={profile.full_name || profile.username || "Your profile"}
-              className="h-20 w-20 rounded-2xl border-2 border-white/10 text-2xl"
-            />
-            <div className="min-w-0 flex-1 pb-0.5">
-              <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
-                Your roommate profile
-              </p>
-              <h2 className="mt-1 truncate text-xl font-bold">
-                {profile.full_name || profile.username || "Complete your profile"}
-              </h2>
-              <p className="mt-1 truncate text-[10px] text-[#A3A8B7]">
-                {location || "State and LGA required"}
-              </p>
-              <div className="mt-3 flex items-center gap-3">
-                <span className={`text-[9px] font-semibold ${matchingActive ? "text-emerald-300" : "text-[#8B91A1]"}`}>
-                  {matchingLabel}
-                </span>
-                {onEditProfile ? (
-                  <button type="button" onClick={onEditProfile} className="text-[9px] font-semibold text-violet-300">
-                    Edit profile
-                  </button>
-                ) : null}
-              </div>
-            </div>
+        <header className="flex items-center gap-3 border-y border-white/[.07] py-4">
+          <ProfileImage
+            src={profile.avatar_url}
+            name={profile.full_name || profile.username || "Your profile"}
+            className="h-12 w-12 rounded-full border border-white/10 text-base"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">
+              {profile.full_name || profile.username || "Your roommate profile"}
+            </p>
+            <p className="mt-1 truncate text-[9px] text-[#777D8D]">
+              {location || "State and LGA required"}
+            </p>
           </div>
+          <span className={`shrink-0 text-[9px] font-semibold ${matchingActive ? "text-emerald-300" : "text-[#8B91A1]"}`}>
+            {matchingLabel}
+          </span>
         </header>
 
         {!profileReady && (
@@ -643,17 +622,22 @@ function Matches({
 }
 
 function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];busyId:string|null;showSchool:boolean;onOpenProfile:(id:string)=>void;onChat?:(id:string)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"declined")=>void}) {
-  return <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">{items.map((row)=>{
+  return <div className="divide-y divide-white/[.06] border-y border-white/[.07]">{items.map((row)=>{
     const p=row.matched_profile,score=Number(row.match_score||0),connected=Boolean(row.conversation_id),sent=row.status==="accepted";
-    return <article key={row.id} className="relative min-h-[25rem] w-[82vw] max-w-[21rem] shrink-0 snap-center overflow-hidden rounded-[1.75rem] border border-white/[.09] bg-[#12151D] sm:w-auto sm:max-w-none">
-      {p.avatar_url?<img src={p.avatar_url} alt={p.full_name||p.username||"Roommate match"} className="absolute inset-0 h-full w-full object-cover"/>:<div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_25%_15%,rgba(139,92,246,.55),transparent_34%),linear-gradient(145deg,#1D162D,#0D1017_68%)] text-7xl font-bold text-violet-100">{String(p.full_name||p.username||"W")[0].toUpperCase()}</div>}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#090A0F] via-[#090A0F]/25 to-black/10"/>
-      <button type="button" onClick={()=>onOpenProfile(row.id)} className="absolute inset-x-0 top-0 h-[66%] w-full" aria-label={`View ${p.full_name||p.username||"roommate"} profile`}/>
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-lg font-bold">{p.full_name||`@${p.username||"user"}`}</h3><p className="mt-1 truncate text-[10px] text-[#BEC2CE]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{showSchool&&p.school?` · ${p.school}`:""}</p></div><span className="shrink-0 rounded-full bg-black/55 px-2.5 py-1 text-[9px] font-bold text-violet-200 backdrop-blur-md">{score}% {matchLabel(score)}</span></div>
-        <p className={`mt-2 text-[9px] font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[#B7BBC6]"}`}>{connected?"Connected":sent?"Interest sent":"Available to connect"}</p>
-        <div className="mt-3 flex gap-2">{connected&&row.conversation_id?<button type="button" onClick={()=>onChat?.(row.conversation_id!)} className="min-h-11 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold shadow-lg shadow-black/30">Open chat</button>:sent?<div className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-violet-400/15 bg-black/35 px-3 text-[9px] font-semibold text-violet-200 backdrop-blur-md">Waiting for their response</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-11 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"declined")} className="min-h-11 rounded-xl border border-white/15 bg-black/35 px-4 text-[9px] font-semibold backdrop-blur-md disabled:opacity-40">Pass</button></>}</div>
+    const name=p.full_name||`@${p.username||"user"}`;
+    return <article key={row.id} className="py-4">
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={()=>onOpenProfile(row.id)} className="shrink-0 rounded-full" aria-label={`View ${name} profile`}>
+          <ProfileImage src={p.avatar_url} name={name} className="h-14 w-14 rounded-full border border-white/10 text-lg"/>
+        </button>
+        <button type="button" onClick={()=>onOpenProfile(row.id)} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center justify-between gap-3"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="shrink-0 text-[10px] font-bold text-violet-300">{score}%</span></div>
+          <p className="mt-1 truncate text-[9px] text-[#747A8B]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{showSchool&&p.school?` · ${p.school}`:""}</p>
+          <p className={`mt-1 text-[9px] font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[#858B99]"}`}>{connected?"Connected":sent?"Interest sent":`${matchLabel(score)} compatibility`}</p>
+        </button>
+        <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[#6D7383]" aria-label={`Open ${name} profile`}>›</button>
       </div>
+      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected&&row.conversation_id?<button type="button" onClick={()=>onChat?.(row.conversation_id!)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold">Message</button>:sent?<div className="flex min-h-10 flex-1 items-center rounded-xl border border-violet-400/15 px-3 text-[9px] font-semibold text-violet-200">Waiting for their response</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"declined")} className="min-h-10 rounded-xl border border-white/[.09] px-4 text-[9px] font-semibold disabled:opacity-40">Pass</button></>}</div>
     </article>;
   })}</div>;
 }
