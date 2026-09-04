@@ -208,17 +208,6 @@ export default function WorkerShowcaseManager({
 
   return (
     <section className="space-y-5">
-      <div className="flex items-end justify-between gap-4 border-b border-white/[.07] pb-4">
-        <div>
-          <p className="text-xs font-semibold">Portfolio</p>
-          <p className="mt-1 max-w-xl text-[9px] leading-relaxed text-[#6C7282]">
-            Photos and videos customers can view until you remove them. Link a
-            completed WeHouse job only when the media shows that exact work.
-          </p>
-        </div>
-        <span className="text-[9px] text-[#686F80]">{workPosts.length}</span>
-      </div>
-
       <input
         ref={input}
         type="file"
@@ -317,7 +306,7 @@ export default function WorkerShowcaseManager({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold text-violet-200">
-                        {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading portfolio media" : "Creating your work post"}
+                        {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading showcase media" : "Creating your work post"}
                       </p>
                       <p className="mt-1 text-[8px] text-[#777E8E]">
                         {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Almost done."}
@@ -339,11 +328,9 @@ export default function WorkerShowcaseManager({
       )}
 
       <div>
-        <div className="mb-2">
-          <h3 className="text-sm font-bold">Portfolio</h3>
-          <p className="mt-1 text-[9px] text-[#666D7E]">
-            Your published professional work
-          </p>
+        <div className="mb-3 flex items-end justify-between gap-3 border-b border-white/[.07] pb-3">
+          <p className="text-[10px] text-[#707687]">Published work</p>
+          <span className="text-[9px] text-[#686F80]">{workPosts.length}</span>
         </div>
         {workPosts.length > 0 ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">

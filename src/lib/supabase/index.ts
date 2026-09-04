@@ -14,7 +14,6 @@ export {
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
-  resetPassword,
   getSession,
   isUsernameTaken,
   updateUsername,
