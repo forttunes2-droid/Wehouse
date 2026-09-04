@@ -20,7 +20,7 @@ type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
-  { id: "inbox", label: "Job Inbox" },
+  { id: "inbox", label: "Inbox" },
   { id: "showcase", label: "Showcase" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
