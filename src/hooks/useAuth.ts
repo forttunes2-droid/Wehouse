@@ -126,6 +126,22 @@ function googlePasswordRecoveryRequested() {
     return false;
   }
 }
+function googleVerificationCallbackFailed() {
+  try {
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    return Boolean(query.get("error") || query.get("error_description") || hash.get("error") || hash.get("error_description"));
+  } catch {
+    return false;
+  }
+}
+function googleVerificationActive() {
+  try {
+    return Boolean(sessionStorage.getItem("wh_google_verify_context"));
+  } catch {
+    return false;
+  }
+}
 function roleRoot(p: Profile) {
   return p.role === "creator"
     ? "creator"
@@ -236,6 +252,7 @@ export function useAuth() {
   });
   const handlingLoginRef = useRef(false),
     explicitSignOutRef = useRef(false),
+    logoutBusyRef = useRef(false),
     profileLoadRef = useRef<Promise<void> | null>(null),
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
@@ -423,7 +440,7 @@ export function useAuth() {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         if (!alive) return;
-        if (passwordRecoveryRequested() || googlePasswordRecoveryRequested()) {
+        if (passwordRecoveryRequested() || googlePasswordRecoveryRequested() || googleVerificationCallbackFailed()) {
           setState({
             page: "login",
             profile: null,
@@ -520,7 +537,7 @@ export function useAuth() {
     );
     const refresh = () => {
       if (
-        passwordRecoveryRequested() || googlePasswordRecoveryRequested() ||
+        passwordRecoveryRequested() || googleVerificationActive() ||
         (document.visibilityState === "hidden" && !navigator.onLine)
       )
         return;
@@ -625,6 +642,8 @@ export function useAuth() {
     [determinePage],
   );
   const logout = useCallback(async () => {
+    if (logoutBusyRef.current) return;
+    logoutBusyRef.current = true;
     const userId = state.profile?.user_id,
       authId = state.profile?.auth_id,
       sid = getStoredSessionId();
@@ -642,11 +661,15 @@ export function useAuth() {
     if (userId && authId)
       remoteCleanup.push(endSession(userId, authId).catch(() => {}));
     void Promise.allSettled(remoteCleanup);
-    await Promise.race([
-      supabase.auth.signOut({ scope: "local" }).catch(() => {}),
-      new Promise<void>((resolve) => window.setTimeout(resolve, 1500)),
-    ]);
-    await wipeOnLogout();
+    try {
+      await Promise.race([
+        supabase.auth.signOut({ scope: "local" }).catch(() => {}),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 1500)),
+      ]);
+      await wipeOnLogout();
+    } finally {
+      logoutBusyRef.current = false;
+    }
   }, [state.profile]);
   useEffect(() => {
     if (!state.profile) return;
@@ -656,7 +679,7 @@ export function useAuth() {
     const uid = state.profile.user_id,
       aid = state.profile.auth_id;
     async function ensure() {
-      if (stopped || running) return;
+      if (stopped || running || logoutBusyRef.current) return;
       running = true;
       try {
         if (sid) {
