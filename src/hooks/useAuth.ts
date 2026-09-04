@@ -6,6 +6,8 @@ import {
   trackSession,
   endSession,
   createUserSession,
+  registerUserSession,
+  confirmCurrentDeviceWithGoogle,
   deactivateUserSession,
   getStoredSessionId,
   clearStoredSessionId,
@@ -14,12 +16,14 @@ import {
 } from "@/lib/supabase";
 import type { Profile, Page } from "@/types";
 import type { User } from "@supabase/supabase-js";
+import type { DeviceRegistration } from "@/lib/supabase";
 interface AuthState {
   page: Page;
   profile: Profile | null;
   isLoading: boolean;
   error: string;
   kickedOut?: boolean;
+  pendingDevice?: DeviceRegistration | null;
 }
 type PublicRole = "user" | "worker" | "property_partner";
 const PROFILE_SNAPSHOT_KEY = "wh_profile_snapshot_v1";
@@ -284,6 +288,19 @@ export function useAuth() {
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
             return;
           }
+          if(sessionStorage.getItem('wh_google_verify_context')==='signup'&&!user?.identities?.some(identity=>identity.provider==='google')){
+            setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
+            return;
+          }
+          if(sessionStorage.getItem('wh_google_verify_context')==='new_device'){
+            const pendingSession=sessionStorage.getItem('wh_pending_device_session');
+            if(!pendingSession)throw new Error('The pending device confirmation expired. Sign in again.');
+            const confirmed=await confirmCurrentDeviceWithGoogle(pendingSession);
+            if(confirmed.error)throw confirmed.error;
+            sessionStorage.removeItem('wh_google_verify_context');
+            sessionStorage.removeItem('wh_google_verify_email');
+            sessionStorage.removeItem('wh_pending_device_session');
+          }
           const [profileResult, maintenanceEnabled] = await Promise.all([
             getProfileByAuthId(authId, email),
             maintenance(),
@@ -313,6 +330,7 @@ export function useAuth() {
               profile = created.profile;
               sessionStorage.removeItem('wh_google_verify_email');
               sessionStorage.removeItem('wh_google_verify_role');
+              sessionStorage.removeItem('wh_google_verify_context');
               if (role === "property_partner")
                 await ensurePropertyPartnerRecord();
             } else {
@@ -326,6 +344,13 @@ export function useAuth() {
               return;
             }
           }
+          const registration=await registerUserSession(profile.user_id,authId);
+          if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
+            if(registration.sessionId)sessionStorage.setItem('wh_pending_device_session',registration.sessionId);
+            setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
+            return;
+          }
+          sessionStorage.removeItem('wh_login_method');
           if (await allowEntry(profile, maintenanceEnabled)) {
             saveProfileSnapshot(profile);
             syncIdentityNavigation(profile);
@@ -335,6 +360,7 @@ export function useAuth() {
               isLoading: false,
               error: "",
               kickedOut: false,
+              pendingDevice: null,
             });
           }
         } catch (e: any) {
@@ -520,6 +546,13 @@ export function useAuth() {
             await ensurePropertyPartnerRecord();
         }
         if (await allowEntry(p, maintenanceEnabled)) {
+          const registration=await registerUserSession(p.user_id,authId);
+          if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
+            if(registration.sessionId)sessionStorage.setItem('wh_pending_device_session',registration.sessionId);
+            setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
+            return;
+          }
+          sessionStorage.removeItem('wh_login_method');
           saveProfileSnapshot(p);
           syncIdentityNavigation(p);
           setState({
@@ -528,9 +561,9 @@ export function useAuth() {
             isLoading: false,
             error: "",
             kickedOut: false,
+            pendingDevice: null,
           });
           void trackSession(p.user_id, authId);
-          void createUserSession(p.user_id, authId);
         }
       } catch (e: any) {
         setState({

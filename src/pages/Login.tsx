@@ -8,6 +8,7 @@ import {
   runDiagnostics,
   getProfileByAuthId,
 } from "@/lib/supabase";
+import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 
 type PublicRole = "user" | "worker" | "property_partner";
@@ -17,6 +18,7 @@ type Mode =
   | "signin"
   | "signup"
   | "verify_email"
+  | "confirm_device"
   | "google_mismatch"
   | "forgot"
   | "recover";
@@ -25,6 +27,7 @@ interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: PublicRole) => void;
   serverError: string;
   kickedOut?: boolean;
+  pendingDevice?: DeviceRegistration | null;
 }
 
 function recoveryRequested() {
@@ -86,6 +89,7 @@ export default function Login({
   onLoginSuccess,
   serverError,
   kickedOut,
+  pendingDevice,
 }: LoginProps) {
   const [mode, setMode] = useState<Mode>(() =>
       recoveryRequested() ? "recover" : "choose",
@@ -103,6 +107,31 @@ export default function Login({
     [recoveryReady, setRecoveryReady] = useState(false);
   const [googleMismatchEmail,setGoogleMismatchEmail]=useState('');
   const authenticatedIdentityRef = useRef<string | null>(null);
+
+  useEffect(()=>{
+    if(!pendingDevice)return;
+    setMode('confirm_device');
+    void supabase.auth.getUser().then(({data})=>{if(data.user?.email)setEmail(data.user.email)});
+  },[pendingDevice]);
+
+  useEffect(()=>{
+    const sessionId=pendingDevice?.sessionId;
+    if(!sessionId)return;
+    let active=true;
+    async function apply(status:string){
+      if(!active)return;
+      if(status==='trusted'){
+        const{data}=await supabase.auth.getUser();
+        if(data.user)await onLoginSuccess(data.user.id,data.user.email||'');
+      }else if(status==='rejected'){
+        await supabase.auth.signOut({scope:'local'});
+        if(!active)return;
+        setMode('choose');setPassword('');setError('That sign-in was rejected. Your account remains protected.');
+      }
+    }
+    const channel=supabase.channel(`pending-device:${sessionId}`).on('postgres_changes',{event:'UPDATE',schema:'public',table:'user_sessions',filter:`id=eq.${sessionId}`},payload=>void apply(String((payload.new as{trust_status?:string}).trust_status||''))).subscribe();
+    return()=>{active=false;void supabase.removeChannel(channel)};
+  },[onLoginSuccess,pendingDevice?.sessionId]);
 
   useEffect(() => {
     runDiagnostics().then((result) => {
@@ -191,30 +220,40 @@ export default function Login({
     setWorking(true);
     try {
       if (isSignup) {
+        sessionStorage.setItem('wh_google_verify_email',clean.toLowerCase());
+        sessionStorage.setItem('wh_google_verify_role',signupRole);
+        sessionStorage.setItem('wh_google_verify_context','signup');
+        sessionStorage.setItem('wh_login_method','signup');
         const { data, error: err } = await withTimeout(
           signUpWithEmail(clean, password, signupRole),
           15000,
         );
         if (err) {
           if(err.message.toLowerCase().includes('email not confirmed'))setMode('verify_email');
+          else{
+            sessionStorage.removeItem('wh_google_verify_email');
+            sessionStorage.removeItem('wh_google_verify_role');
+            sessionStorage.removeItem('wh_google_verify_context');
+            sessionStorage.removeItem('wh_login_method');
+          }
           return setError(friendlyError(err.message));
         }
         if (data.session?.user) {
-          setInfo("Finishing your WeHouse account…");
+          setMode('verify_email');
           return;
         }
         if (data.user) {
           setMode('verify_email');
-          setInfo("We sent a secure confirmation link to your email.");
           return;
         }
         setError("Signup incomplete. Please try again.");
       } else {
+        sessionStorage.setItem('wh_login_method','password');
         const { data, error: err } = await withTimeout(
           signInWithEmail(clean, password),
           15000,
         );
-        if (err) return setError(friendlyError(err.message));
+        if (err){sessionStorage.removeItem('wh_login_method');return setError(friendlyError(err.message));}
         if (!data.session?.user)
           return setError("Login failed. Please try again.");
         setInfo("Signing you in…");
@@ -227,12 +266,15 @@ export default function Login({
   }
   async function handleGoogle() {
     clearMessages();
-    if(mode==='verify_email'){
+    if(mode==='verify_email'||mode==='confirm_device'){
       sessionStorage.setItem('wh_google_verify_email',email.trim().toLowerCase());
       sessionStorage.setItem('wh_google_verify_role',signupRole);
+      sessionStorage.setItem('wh_google_verify_context',mode==='confirm_device'?'new_device':'signup');
     }else{
       sessionStorage.removeItem('wh_google_verify_email');
       sessionStorage.removeItem('wh_google_verify_role');
+      sessionStorage.removeItem('wh_google_verify_context');
+      sessionStorage.removeItem('wh_login_method');
     }
     setWorking(true);
     const { error: err } = await signInWithGoogle();
@@ -242,20 +284,25 @@ export default function Login({
     }
   }
   async function chooseOriginalGoogleEmail(){
+    const context=sessionStorage.getItem('wh_google_verify_context');
+    const role=(sessionStorage.getItem('wh_google_verify_role') as PublicRole|null)||signupRole;
     setWorking(true);await supabase.auth.signOut({scope:'local'});setWorking(false);
-    setMode('verify_email');setGoogleMismatchEmail('');clearMessages();
+    setMode(context==='new_device'?'confirm_device':'verify_email');setGoogleMismatchEmail('');clearMessages();
     sessionStorage.setItem('wh_google_verify_email',email.trim().toLowerCase());
-    sessionStorage.setItem('wh_google_verify_role',signupRole);
+    sessionStorage.setItem('wh_google_verify_role',role);
+    sessionStorage.setItem('wh_google_verify_context',context||'signup');
     setWorking(true);const{error:googleError}=await signInWithGoogle();
     if(googleError){setWorking(false);setError(friendlyError(googleError.message));}
   }
-  async function continueWithDifferentGoogleEmail(){
-    setWorking(true);clearMessages();
-    const{data,error:userError}=await supabase.auth.getUser();
-    if(userError||!data.user){setWorking(false);return setError('Google session expired. Please choose the account again.');}
-    const role=(sessionStorage.getItem('wh_google_verify_role') as PublicRole|null)||signupRole;
-    sessionStorage.removeItem('wh_google_verify_email');sessionStorage.removeItem('wh_google_verify_role');
-    await onLoginSuccess(data.user.id,data.user.email||googleMismatchEmail,role);setWorking(false);
+  async function cancelDeviceConfirmation(){
+    setWorking(true);
+    await supabase.auth.signOut({scope:'local'});
+    sessionStorage.removeItem('wh_google_verify_email');
+    sessionStorage.removeItem('wh_google_verify_role');
+    sessionStorage.removeItem('wh_google_verify_context');
+    sessionStorage.removeItem('wh_pending_device_session');
+    sessionStorage.removeItem('wh_login_method');
+    setWorking(false);setMode('choose');setPassword('');clearMessages();
   }
   async function chooseRole(role: PublicRole) {
     setSignupRole(role);
@@ -487,9 +534,11 @@ export default function Login({
           </div>
         )}
 
-        {mode === 'verify_email'&&<div className="space-y-4"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/10 text-2xl text-violet-300">✓</div><h2 className="mt-4 text-lg font-semibold">Verify with Google</h2><p className="mt-2 text-xs leading-5 text-[#73798A]">Choose the Google account for <span className="font-semibold text-white">{email.trim()}</span>. Your WeHouse profile stays locked until the emails match.</p></div><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>Continue with Google</button><p className="text-center text-[9px] leading-4 text-[#666C7D]">Google will show its account chooser. If this email is not listed, choose “Use another account” and sign into it. A different email will not verify this signup.</p><button type="button" onClick={()=>{setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Change signup email</button></div>}
+        {mode === 'verify_email'&&<div className="space-y-4"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-violet-400/15 bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><p className="mt-4 text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">CONFIRM YOUR EMAIL</p><h2 className="mt-2 text-xl font-semibold">Prove this email is yours</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span>. WeHouse will confirm ownership and finish this same email-and-password account.</p></div><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>Confirm with Google</button><p className="text-center text-[9px] leading-4 text-[#666C7D]">The Google email must match exactly. After confirmation, either Google or your password opens the same WeHouse account.</p><button type="button" onClick={()=>{setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Change signup email</button></div>}
 
-        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">This is a different Google email</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">You started with <strong className="text-white">{email}</strong>, but Google returned <strong className="text-white">{googleMismatchEmail}</strong>. They cannot be treated as the same identity.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose {email}</button><button type="button" onClick={()=>void continueWithDifferentGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-50">Continue with {googleMismatchEmail}</button><p className="text-center text-[9px] leading-4 text-[#686E7E]">Continuing uses the verified Google email for a new WeHouse signup, or opens its existing WeHouse account if it already has one.</p></div>}
+        {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="overflow-hidden rounded-[28px] border border-white/[.08] bg-gradient-to-b from-[#151925] to-[#10131B] shadow-2xl"><div className="border-b border-white/[.06] p-5"><div className="flex items-start justify-between gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Confirm this sign-in</h2><p className="mt-2 text-[10px] leading-5 text-[#858B9A]">Your password was correct. Confirm the same email with Google before this device can enter WeHouse.</p></div><div className="space-y-3 p-5"><SecurityDetail label="Device" value={pendingDevice.device}/><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/><SecurityDetail label="Approximate location" value={pendingDevice.location}/><SecurityDetail label="Time" value={new Date().toLocaleString()}/></div></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>Confirm with Google</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl border border-red-500/15 bg-red-500/[.04] text-xs font-semibold text-red-300 disabled:opacity-50">This was not me</button></div>}
+
+        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That Google account does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">WeHouse must confirm <strong className="text-white">{email}</strong>, but Google returned <strong className="text-white">{googleMismatchEmail}</strong>. Access remains blocked.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose the correct Google account</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel and return to sign in</button></div>}
 
         {(mode === "signin" || mode === "signup") && (
           <form
@@ -710,6 +759,12 @@ function GoogleIcon() {
       />
     </svg>
   );
+}
+function ShieldCheckIcon(){
+  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>;
+}
+function SecurityDetail({label,value}:{label:string;value:string}){
+  return <div className="flex items-start justify-between gap-5"><span className="text-[9px] text-[#656C7D]">{label}</span><strong className="text-right text-[10px] font-semibold text-[#D7DAE3]">{value}</strong></div>;
 }
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
