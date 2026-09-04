@@ -20,7 +20,7 @@ type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
-  { id: "inbox", label: "Inbox" },
+  { id: "inbox", label: "Job Inbox" },
   { id: "showcase", label: "Showcase" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
@@ -101,7 +101,7 @@ export default function WorkerWorkspaceModern({
 
   const description =
     safeTab === "inbox"
-        ? "Chats and important job, payment, security and official activity."
+        ? "Job conversations and important payment, security and official activity."
         : safeTab === "earnings"
           ? "See available earnings, withdrawals and your verified payout account."
         : safeTab === "showcase"

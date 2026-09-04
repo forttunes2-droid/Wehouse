@@ -23,11 +23,18 @@ export async function signInWithEmail(email: string, password: string) {
   return { data, error };
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(verificationEmail?: string) {
   const redirectUrl = `${window.location.origin}/`;
+  const loginHint = verificationEmail?.trim().toLowerCase();
   return supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: redirectUrl, queryParams: { prompt: 'select_account' } },
+    options: {
+      redirectTo: redirectUrl,
+      queryParams: {
+        prompt: 'select_account',
+        ...(loginHint ? { login_hint: loginHint } : {}),
+      },
+    },
   });
 }
 

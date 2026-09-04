@@ -66,7 +66,7 @@ export default function SecureMessagesPanel() {
         <div>
           <p className="text-sm font-semibold">Private chat encryption</p>
           <p className="mt-1 text-[10px] leading-5 text-[#7B8191]">
-            Roommate and service-worker chats are end-to-end encrypted. Reservation Desk and Support remain available to the authorized WeHouse team.
+            Roommate and service-worker chats are end-to-end encrypted. Conversations with WeHouse remain available to the authorized team.
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[8px] font-semibold ${enabled ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#7D8292]"}`}>

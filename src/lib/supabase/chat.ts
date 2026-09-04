@@ -10,6 +10,11 @@ export async function getConversations(userId:string){
   return{conversations:(data||[]) as Conversation[],error};
 }
 
+export async function getConversationById(conversationId:string){
+  const{data,error}=await supabase.from('conversations').select('*').eq('id',conversationId).maybeSingle();
+  return{conversation:(data||null) as Conversation|null,error};
+}
+
 export async function getRoommateConversationPeople(){
   const{data,error}=await supabase.rpc('get_my_roommate_peer_details');
   const people:Record<string,RoommatePeer>={};

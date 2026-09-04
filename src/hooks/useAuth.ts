@@ -240,6 +240,28 @@ export function useAuth() {
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
   const determinePage = useCallback(pageForProfile, []);
+  useEffect(() => {
+    if (!state.isLoading || state.profile) return;
+    let verificationActive = false;
+    try {
+      verificationActive = Boolean(sessionStorage.getItem("wh_google_verify_context"));
+    } catch {}
+    if (!verificationActive) return;
+    const timer = window.setTimeout(() => {
+      setState((current) =>
+        current.isLoading && !current.profile
+          ? {
+              page: "login",
+              profile: null,
+              isLoading: false,
+              error: "Google verification did not finish. Choose the matching account and try again.",
+              kickedOut: false,
+            }
+          : current,
+      );
+    }, 12000);
+    return () => window.clearTimeout(timer);
+  }, [state.isLoading, state.profile]);
   const allowEntry = useCallback(async (p: Profile, maintenanceEnabled?: boolean) => {
     if (p.banned || p.suspended || p.deleted) {
       explicitSignOutRef.current = true;

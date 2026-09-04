@@ -265,7 +265,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       if (created.error || !created.conversationId) {
         setSending(false);
         toast.error(
-          created.error?.message || "Unable to start WeHouse Support",
+          created.error?.message || "Unable to start this WeHouse conversation",
         );
         return;
       }
@@ -330,7 +330,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
             ←
           </button>
           <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 font-bold">
-            S
+            W
             <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#10141B] bg-emerald-400" />
           </div>
           <div className="min-w-0 flex-1">
@@ -451,8 +451,8 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
           </div>
           <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
             {presentation.operational
-              ? "Operational conversation · visible to you and authorized WeHouse team members"
-              : "Support case · visible to you and the authorized WeHouse team handling it"}
+              ? "Linked to this WeHouse record · visible to you and the authorized team"
+              : "Private WeHouse conversation · visible to you and the authorized team"}
           </p>
         </div>
       </footer>
@@ -539,7 +539,7 @@ function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: Support
         >
           {!mine && (
             <p className="mb-1 text-[9px] font-semibold text-violet-300">
-              {msg.sender_name || "WeHouse Support"}
+              {msg.sender_name || "WeHouse"}
             </p>
           )}
           {(msg.attachments || []).map((path: string, i: number) => (
@@ -679,15 +679,15 @@ function Welcome({presentation}:{presentation:ReturnType<typeof conversationPres
     <div className="grid min-h-[55vh] place-items-center px-5 text-center">
       <div>
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">
-          S
+          W
         </div>
         <h2 className="mt-4 text-base font-semibold">
-          {presentation.operational ? `Start this ${presentation.operator} conversation` : "Message WeHouse Support"}
+          Message WeHouse
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#747A8B]">
           {presentation.operational
-            ? "This thread belongs to the reservation shown above. Its complete history stays with that reservation."
-            : "Send a message to create a genuine help case. Visiting Help alone does not create a conversation."}
+            ? "This conversation stays attached to the record shown above, so its history and next actions remain in one place."
+            : "Send a message when you need the WeHouse team. Opening this screen alone does not create a conversation."}
         </p>
       </div>
     </div>

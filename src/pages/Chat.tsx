@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   deleteRoommateChatAttachment,
+  getConversationById,
   getConversations,
   getMessages,
   getRoommateConversationPeople,
@@ -35,6 +36,8 @@ type Props = {
   onNavigate: (page: string, id?: string) => void;
   conversationId?: string | null;
   initialMode?: "chats" | "activity";
+  chatUnreadCount?: number;
+  activityUnreadCount?: number;
 };
 type Person = Pick<RoommatePeer, "name" | "avatar"> & Partial<RoommatePeer>;
 type RoommateMessage = Message & {
@@ -81,7 +84,7 @@ function SearchIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
 }
 
-export default function Chat({ profile, conversationId, onNavigate, initialMode="chats" }: Props) {
+export default function Chat({ profile, conversationId, onNavigate, initialMode="chats", chatUnreadCount=0, activityUnreadCount=0 }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]),
     [bookingConversations, setBookingConversations] = useState<
       BookingConversation[]
@@ -109,6 +112,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   const [replyingTo,setReplyingTo]=useState<RoommateMessage|null>(null);
   const [messageActions,setMessageActions]=useState<string|null>(null);
   const [inboxMode,setInboxMode]=useState<"chats"|"activity">(initialMode);
+  const inboxAutoSelectedRef=useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
   const voice = useVoiceRecorder();
@@ -129,6 +133,12 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   const peerId = active ? otherId(active) : null;
   const presence = useChatPresence(peerId);
   const presenceText = chatPresenceLabel(presence);
+
+  useEffect(() => {
+    if (inboxAutoSelectedRef.current || conversationId || initialMode === "activity") return;
+    if (chatUnreadCount === 0 && activityUnreadCount > 0) setInboxMode("activity");
+    if (chatUnreadCount > 0 || activityUnreadCount > 0) inboxAutoSelectedRef.current = true;
+  }, [activityUnreadCount, chatUnreadCount, conversationId, initialMode]);
 
   const loadInbox = useCallback(
     async (quiet = false) => {
@@ -206,7 +216,12 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     if (!conversationId) return;
     void (async () => {
       const rows = await loadInbox(true);
-      const found = rows.find((row) => row.id === conversationId);
+      let found = rows.find((row) => row.id === conversationId);
+      if (!found) {
+        const direct = await getConversationById(conversationId);
+        if (!direct.error && direct.conversation?.conversation_type === "roommate")
+          found = direct.conversation;
+      }
       if (found) {
         setActive(found);
         return;
@@ -214,6 +229,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       const bookingResult=await getCommunicationBookingConversations(profile.user_id);
       const booking=((bookingResult.conversations||[]) as BookingConversation[]).find((row)=>row.conversation_id===conversationId);
       if(booking)setActiveBooking({conversationId:booking.conversation_id,bookingId:booking.booking_id});
+      else toast.error("This conversation is not available. Return to Roommates and reconnect.");
     })();
   }, [conversationId, loadInbox, loadRoommateMessages, profile.user_id]);
   useEffect(() => {
@@ -752,7 +768,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       </header>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
         <div className="mb-4 flex border-b border-white/[.07]" aria-label="Inbox views">
-          {([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} type="button" onClick={()=>setInboxMode(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${inboxMode===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
+          {([['chats','Chats',chatUnreadCount],['activity','Activity',activityUnreadCount]] as const).map(([id,label,count])=><button key={id} type="button" onClick={()=>setInboxMode(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${inboxMode===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}{count>0&&<span className={`ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full px-1 text-[8px] font-bold ${inboxMode===id?'bg-violet-500 text-white':'bg-red-500 text-white'}`}>{count>99?'99+':count}</span>}</button>)}
         </div>
         {inboxMode==='activity'?<Notifications profile={profile} embedded onNavigate={onNavigate}/>:
         <section>
@@ -926,7 +942,7 @@ function WorkerInboxRow({
 }
 function SupportInboxRow({thread,onOpen}:{thread:SupportThread;onOpen:()=>void}){
   const p=conversationPresentation(thread);
-  const badge=p.kind==='reservation'?'RESERVATION':p.kind==='property_operations'?'OPERATIONS':'HELP CASE';
+  const badge=p.kind==='reservation'?'RESERVATION':p.kind==='property_operations'?'PROPERTY':'WEHOUSE';
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{p.title}</p><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">{badge}</span></div><p className={`mt-1 truncate text-[11px] ${thread.unread_count?"font-medium text-[#E3E5EB]":"text-[#777C8D]"}`}>{thread.last_message||p.operator}</p><p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{[p.operator,p.meta,formatListTime(thread.last_message_time||thread.created_at)].filter(Boolean).join(' · ')}</p></div>{thread.unread_count>0&&<Unread value={thread.unread_count}/>}</button>
 }
 function SelectableRow({

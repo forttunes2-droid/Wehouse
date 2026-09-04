@@ -114,6 +114,16 @@ export default function Login({
   const [googleMismatchEmail,setGoogleMismatchEmail]=useState('');
   const authenticatedIdentityRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const oauthError = params.get("error_description") || hash.get("error_description");
+    if (!oauthError) return;
+    setWorking(false);
+    setError("Google verification was cancelled or could not be completed. Your WeHouse account was not changed.");
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
   useEffect(()=>{
     if(!pendingDevice)return;
     setInfo('');setError('');setMode('confirm_device');
@@ -314,7 +324,10 @@ export default function Login({
       sessionStorage.removeItem('wh_login_method');
     }
     setWorking(true);
-    const { error: err } = await signInWithGoogle();
+    const verificationEmail = mode === 'verify_email' || mode === 'confirm_device'
+      ? email.trim().toLowerCase()
+      : undefined;
+    const { error: err } = await signInWithGoogle(verificationEmail);
     if (err) {
       setError(friendlyError(err.message));
       setWorking(false);
@@ -329,7 +342,7 @@ export default function Login({
     if(context!=='password_recovery')sessionStorage.setItem('wh_google_verify_role',role);
     else sessionStorage.removeItem('wh_google_verify_role');
     sessionStorage.setItem('wh_google_verify_context',context||'signup');
-    setWorking(true);const{error:googleError}=await signInWithGoogle();
+    setWorking(true);const{error:googleError}=await signInWithGoogle(email.trim().toLowerCase());
     if(googleError){setWorking(false);setError(friendlyError(googleError.message));}
   }
   async function cancelDeviceConfirmation(){
@@ -377,7 +390,7 @@ export default function Login({
       sessionStorage.setItem("wh_google_verify_context", "password_recovery");
       sessionStorage.removeItem("wh_google_verify_role");
       sessionStorage.removeItem("wh_login_method");
-      const { error: err } = await signInWithGoogle();
+      const { error: err } = await signInWithGoogle(email.trim().toLowerCase());
       if (err) {
         sessionStorage.removeItem("wh_google_verify_email");
         sessionStorage.removeItem("wh_google_verify_context");
@@ -590,9 +603,9 @@ export default function Login({
           </div>
         )}
 
-        {mode === 'verify_email'&&<div className="space-y-4"><section className="rounded-[26px] border border-white/[.08] bg-[#12151D] p-5"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">EMAIL VERIFICATION</p><h2 className="mt-2 text-xl font-semibold">Verify your email</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Instead of entering a code from your inbox, continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span>.</p><p className="mt-3 text-[9px] leading-4 text-[#666C7D]">Google confirms access to that exact email. Your Google and password sign-ins will open the same WeHouse account.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Continue with Google'}</button><button type="button" onClick={()=>{setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Use a different email</button></div>}
+        {mode === 'verify_email'&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">CONFIRM EMAIL OWNERSHIP</p><h2 className="mt-2 text-xl font-semibold">Prove this email is yours</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Choose the Google account for <span className="font-semibold text-white">{email.trim()}</span>. This replaces an emailed verification code; it is not another WeHouse sign-in.</p><p className="mt-3 text-[9px] leading-4 text-[#666C7D]">A different Google address will be rejected and will not change the account you created.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Verify email with Google'}</button><button type="button" onClick={()=>{setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Use a different email</button></div>}
 
-        {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="rounded-[26px] border border-white/[.08] bg-[#12151D] p-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Verify this device</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Instead of entering a code sent to <span className="font-semibold text-white">{email.trim()}</span>, continue with that Google account.</p><div className="mt-5 rounded-2xl border border-white/[.06] bg-black/15 p-4"><SecurityDetail label="Device" value={pendingDevice.device}/><div className="mt-3"><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/></div><div className="mt-3"><SecurityDetail label="Location" value={pendingDevice.location}/></div></div></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Continue with Google'}</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50">Cancel sign-in</button></div>}
+        {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Is this device yours?</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Verify ownership of <span className="font-semibold text-white">{email.trim()}</span> with its Google account. This replaces the usual emailed code.</p><div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]"><div className="py-3"><SecurityDetail label="Device" value={pendingDevice.device}/></div><div className="py-3"><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/></div><div className="py-3"><SecurityDetail label="Location" value={pendingDevice.location}/></div></div></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Verify device with Google'}</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50">Cancel sign-in</button></div>}
 
         {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That Google account does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">WeHouse must confirm <strong className="text-white">{email}</strong>, but Google returned <strong className="text-white">{googleMismatchEmail}</strong>. Access remains blocked.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose the correct Google account</button><button type="button" onClick={()=>void (googleRecoveryRequested()?cancelRecovery():cancelDeviceConfirmation())} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel and return to sign in</button></div>}
 
@@ -661,7 +674,7 @@ export default function Login({
             <div className="mb-5">
               <p className="text-lg font-semibold">Create a new password</p>
               <p className="mt-1 text-xs text-[#73788A]">
-                Enter your WeHouse email. Continue with that Google account instead of entering a code from your inbox.
+                Enter your WeHouse email. Google will confirm that you own the same address before you create a new password.
               </p>
             </div>
             <Field label="Email">
@@ -679,7 +692,7 @@ export default function Login({
               disabled={working || !email.trim() || !email.includes("@")}
               className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
             >
-              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Continue with Google"}</span>
+              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Verify account with Google"}</span>
             </button>
             <button
               type="button"
