@@ -119,6 +119,13 @@ function passwordRecoveryRequested() {
     return false;
   }
 }
+function googlePasswordRecoveryRequested() {
+  try {
+    return sessionStorage.getItem("wh_google_verify_context") === "password_recovery";
+  } catch {
+    return false;
+  }
+}
 function roleRoot(p: Profile) {
   return p.role === "creator"
     ? "creator"
@@ -277,6 +284,10 @@ export function useAuth() {
       if (profileLoadRef.current) return profileLoadRef.current;
       profileLoadRef.current = (async () => {
         try {
+          if (googlePasswordRecoveryRequested()) {
+            setState({ page: "login", profile: null, isLoading: false, error: "", kickedOut: false });
+            return;
+          }
           const user = suppliedUser ?? (await supabase.auth.getUser()).data?.user;
           const email = user?.email || "";
           if(user?.email&&!user.email_confirmed_at){
@@ -390,7 +401,7 @@ export function useAuth() {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         if (!alive) return;
-        if (passwordRecoveryRequested()) {
+        if (passwordRecoveryRequested() || googlePasswordRecoveryRequested()) {
           setState({
             page: "login",
             profile: null,
@@ -441,7 +452,7 @@ export function useAuth() {
       (event, session) => {
         if (!alive) return;
         if (
-          (event === "PASSWORD_RECOVERY" || passwordRecoveryRequested()) &&
+          (event === "PASSWORD_RECOVERY" || passwordRecoveryRequested() || googlePasswordRecoveryRequested()) &&
           session?.user
         ) {
           setState({
@@ -487,7 +498,7 @@ export function useAuth() {
     );
     const refresh = () => {
       if (
-        passwordRecoveryRequested() ||
+        passwordRecoveryRequested() || googlePasswordRecoveryRequested() ||
         (document.visibilityState === "hidden" && !navigator.onLine)
       )
         return;

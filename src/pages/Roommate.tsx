@@ -307,7 +307,7 @@ export default function RoommateWorkspace({
     );
     if (response === "declined")
       return toast.success("Passed privately. No conversation was created.");
-    toast.success("Interest accepted. Open Messages when you’re ready.", {
+    toast.success("Interest accepted. Open Inbox when you’re ready.", {
       id: "roommate-match",
     });
     if (conversationId) await refresh();
@@ -486,7 +486,7 @@ export default function RoommateWorkspace({
                 </p>
                 <p className="mx-auto mt-2 max-w-sm text-[10px] leading-5 text-[#686D7E]">
                   People already interested in you remain above, and existing
-                  connections stay in Messages. Resume when you want to discover
+                  connections stay in Inbox. Resume when you want to discover
                   new profiles.
                 </p>
               </section>

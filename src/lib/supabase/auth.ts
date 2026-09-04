@@ -1,4 +1,4 @@
-import { recoveryRequestClient, supabase } from './client';
+import { supabase } from './client';
 import { parseDeviceInfo } from './session';
 
 // ─── AUTH HELPERS ──────────────────────────────────
@@ -28,12 +28,6 @@ export async function signInWithGoogle() {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: redirectUrl, queryParams: { prompt: 'select_account' } },
-  });
-}
-
-export async function resetPassword(email: string) {
-  return recoveryRequestClient.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/?auth=recovery`,
   });
 }
 

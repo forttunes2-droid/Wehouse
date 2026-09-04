@@ -2,7 +2,7 @@ import { useState } from "react";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import WorkerActivationHome from "@/components/WorkerActivationHome";
 import WorkerJobsPanelV2, {
-  WorkerConversationsPanel,
+  WorkerInboxPanel,
 } from "@/components/WorkerJobsPanelV2";
 import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
@@ -16,12 +16,12 @@ import WorkerWallet from "@/pages/WorkerWallet";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import WorkerAvailabilityControl from "@/components/WorkerAvailabilityControl";
 
-type Tab = "home" | "jobs" | "conversations" | "work" | "earnings" | "account";
+type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
-  { id: "conversations", label: "Job Inbox" },
-  { id: "work", label: "Portfolio" },
+  { id: "inbox", label: "Inbox" },
+  { id: "showcase", label: "Showcase" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
 ];
@@ -50,7 +50,7 @@ export default function WorkerWorkspaceModern({
     useState<WorkerBookingConversation | null>(null);
   const [accountView, setAccountView] = useState<"account" | "profile">("account");
   const safeTab =
-    !live && (tab === "jobs" || tab === "conversations" || tab === "work" || tab === "earnings")
+    !live && (tab === "jobs" || tab === "inbox" || tab === "showcase" || tab === "earnings")
       ? "home"
       : tab;
 
@@ -68,14 +68,14 @@ export default function WorkerWorkspaceModern({
           profile={profile}
           onOpenConversation={(row) => {
             setConversation(row);
-            setTab("conversations");
+            setTab("inbox");
           }}
         />
       </div>
     );
-  } else if (live && safeTab === "conversations") {
+  } else if (live && safeTab === "inbox") {
     content = (
-      <WorkerConversationsPanel
+      <WorkerInboxPanel
         profile={profile}
         initialConversation={conversation}
         onConversationClosed={() => setConversation(null)}
@@ -83,12 +83,12 @@ export default function WorkerWorkspaceModern({
         onOpenJobs={()=>setTab('jobs')}
       />
     );
-  } else if (live && safeTab === "work") {
+  } else if (live && safeTab === "showcase") {
     content = <WorkerShowcaseManager profile={profile} />;
   } else if (live && safeTab === "earnings") {
     content = <div className="space-y-5"><WorkerWallet profile={profile}/><PayoutAccountManager profile={profile}/></div>;
   } else if (live) {
-    content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab("conversations"); }}/>
+    content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab("inbox"); }}/>
   } else {
     content = (
       <WorkerActivationHome
@@ -100,12 +100,12 @@ export default function WorkerWorkspaceModern({
   }
 
   const description =
-    safeTab === "conversations"
-        ? "Job conversations and important job, payment, security and official activity."
+    safeTab === "inbox"
+        ? "Chats and important job, payment, security and official activity."
         : safeTab === "earnings"
           ? "See available earnings, withdrawals and your verified payout account."
-        : safeTab === "work"
-          ? "Publish and manage the professional work customers can view."
+        : safeTab === "showcase"
+          ? "Publish and manage the work customers see on your profile."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
             : live

@@ -4,7 +4,6 @@ import {
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
-  resetPassword,
   runDiagnostics,
   getProfileByAuthId,
 } from "@/lib/supabase";
@@ -30,11 +29,18 @@ interface LoginProps {
   pendingDevice?: DeviceRegistration | null;
 }
 
-function recoveryRequested() {
+function legacyRecoveryRequested() {
   try {
     return (
       new URLSearchParams(window.location.search).get("auth") === "recovery"
     );
+  } catch {
+    return false;
+  }
+}
+function googleRecoveryRequested() {
+  try {
+    return sessionStorage.getItem("wh_google_verify_context") === "password_recovery";
   } catch {
     return false;
   }
@@ -71,7 +77,7 @@ function friendlyError(raw: string) {
   )
     return "Password is too weak. Use at least 8 characters.";
   if (msg.includes("expired") || msg.includes("invalid token"))
-    return "This reset link has expired. Request a new password reset link.";
+    return "This verification session has expired. Start again.";
   if (msg.includes("for security"))
     return "Too many attempts. Please wait a moment and try again.";
   return raw.length > 140 ? "Something went wrong. Please try again." : raw;
@@ -92,7 +98,7 @@ export default function Login({
   pendingDevice,
 }: LoginProps) {
   const [mode, setMode] = useState<Mode>(() =>
-      recoveryRequested() ? "recover" : "choose",
+      googleRecoveryRequested() ? "recover" : legacyRecoveryRequested() ? "forgot" : "choose",
     ),
     [signupRole, setSignupRole] = useState<PublicRole>("user"),
     [pendingMethod, setPendingMethod] = useState<PendingMethod>(null),
@@ -147,19 +153,37 @@ export default function Login({
     if (mode !== "recover") return;
     let alive = true;
     async function check() {
-      const { data } = await supabase.auth.getSession();
-      if (alive) setRecoveryReady(Boolean(data.session?.user));
+      setRecoveryReady(false);
+      const expectedEmail = sessionStorage.getItem("wh_google_verify_email")?.trim().toLowerCase() || "";
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (!alive || sessionError || !data.session?.user) return;
+      const returnedEmail = data.session.user.email?.trim().toLowerCase() || "";
+      if (!expectedEmail || returnedEmail !== expectedEmail) {
+        setEmail(expectedEmail);
+        setGoogleMismatchEmail(returnedEmail);
+        setMode("google_mismatch");
+        return;
+      }
+      const { data: verified, error: verifyError } = await supabase.rpc("verify_google_password_recovery");
+      if (!alive) return;
+      if (verifyError || !(verified as { success?: boolean } | null)?.success) {
+        sessionStorage.removeItem("wh_google_verify_email");
+        sessionStorage.removeItem("wh_google_verify_context");
+        await supabase.auth.signOut({ scope: "local" });
+        if (!alive) return;
+        setMode("forgot");
+        setError("That Google account is not connected to an existing WeHouse account.");
+        return;
+      }
+      setEmail(expectedEmail);
+      setRecoveryReady(true);
     }
     void check();
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!alive) return;
-        if (
-          event === "PASSWORD_RECOVERY" ||
-          event === "SIGNED_IN" ||
-          event === "INITIAL_SESSION"
-        )
-          setRecoveryReady(Boolean(session?.user));
+        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user)
+          window.setTimeout(() => { if (alive) void check(); }, 0);
       },
     );
     return () => {
@@ -168,10 +192,23 @@ export default function Login({
     };
   }, [mode]);
 
+  useEffect(() => {
+    if (!legacyRecoveryRequested()) return;
+    let active = true;
+    void (async () => {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      if (!active) return;
+      window.history.replaceState({}, "", window.location.pathname);
+      setMode("forgot");
+      setInfo("Password recovery now uses your matching Google account instead of an emailed code or link.");
+    })();
+    return () => { active = false; };
+  }, []);
+
   // Only unaffiliated authenticated identities need role selection here. Existing
   // WeHouse profiles are routed by useAuth, not by this screen.
   useEffect(() => {
-    if (mode === "recover" || recoveryRequested()) return;
+    if (mode === "recover" || legacyRecoveryRequested() || googleRecoveryRequested()) return;
     let cancelled = false;
     void (async () => {
       const { data } = await supabase.auth.getUser();
@@ -287,9 +324,10 @@ export default function Login({
     const context=sessionStorage.getItem('wh_google_verify_context');
     const role=(sessionStorage.getItem('wh_google_verify_role') as PublicRole|null)||signupRole;
     setWorking(true);await supabase.auth.signOut({scope:'local'});setWorking(false);
-    setMode(context==='new_device'?'confirm_device':'verify_email');setGoogleMismatchEmail('');clearMessages();
+    setMode(context==='new_device'?'confirm_device':context==='password_recovery'?'recover':'verify_email');setGoogleMismatchEmail('');clearMessages();
     sessionStorage.setItem('wh_google_verify_email',email.trim().toLowerCase());
-    sessionStorage.setItem('wh_google_verify_role',role);
+    if(context!=='password_recovery')sessionStorage.setItem('wh_google_verify_role',role);
+    else sessionStorage.removeItem('wh_google_verify_role');
     sessionStorage.setItem('wh_google_verify_context',context||'signup');
     setWorking(true);const{error:googleError}=await signInWithGoogle();
     if(googleError){setWorking(false);setError(friendlyError(googleError.message));}
@@ -335,12 +373,20 @@ export default function Login({
       return setError("Enter a valid email address");
     setWorking(true);
     try {
-      const { error: err } = await resetPassword(email.trim());
-      if (err) setError(friendlyError(err.message));
-      else
-        setInfo(
-          "Reset link sent. Open the link in your email to choose a new password.",
-        );
+      sessionStorage.setItem("wh_google_verify_email", email.trim().toLowerCase());
+      sessionStorage.setItem("wh_google_verify_context", "password_recovery");
+      sessionStorage.removeItem("wh_google_verify_role");
+      sessionStorage.removeItem("wh_login_method");
+      const { error: err } = await signInWithGoogle();
+      if (err) {
+        sessionStorage.removeItem("wh_google_verify_email");
+        sessionStorage.removeItem("wh_google_verify_context");
+        setError(friendlyError(err.message));
+      }
+    } catch (recoveryError: unknown) {
+      sessionStorage.removeItem("wh_google_verify_email");
+      sessionStorage.removeItem("wh_google_verify_context");
+      setError(friendlyError(errorMessage(recoveryError, "Google verification could not start")));
     } finally {
       setWorking(false);
     }
@@ -359,16 +405,25 @@ export default function Login({
       } = await supabase.auth.getSession();
       if (!session?.user)
         return setError(
-          "This reset link is not ready or has expired. Request a new reset link.",
+          "Google verification is not ready. Start password recovery again.",
         );
+      const expectedEmail = sessionStorage.getItem("wh_google_verify_email")?.trim().toLowerCase() || "";
+      if (!expectedEmail || session.user.email?.trim().toLowerCase() !== expectedEmail)
+        return setError("The Google account must match the WeHouse account email exactly.");
+      const { data: verified, error: verifyError } = await supabase.rpc("verify_google_password_recovery");
+      if (verifyError || !(verified as { success?: boolean } | null)?.success)
+        return setError("Google could not verify this WeHouse account. Start recovery again.");
       const { error: err } = await supabase.auth.updateUser({ password });
       if (err) return setError(friendlyError(err.message));
-      setInfo("Password updated. Signing you in…");
+      sessionStorage.removeItem("wh_google_verify_email");
+      sessionStorage.removeItem("wh_google_verify_context");
+      await supabase.auth.signOut({ scope: "local" });
       window.history.replaceState({}, "", window.location.pathname);
-      window.setTimeout(
-        () => window.location.replace(`${window.location.origin}/`),
-        350,
-      );
+      setPassword("");
+      setConfirmPassword("");
+      setRecoveryReady(false);
+      setMode("signin");
+      setInfo("Password changed. Sign in with your new password.");
     } catch (error: unknown) {
       setError(friendlyError(errorMessage(error, "Password reset failed")));
     } finally {
@@ -376,12 +431,15 @@ export default function Login({
     }
   }
   async function cancelRecovery() {
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch (error: unknown) {
-      void error;
-    }
-    window.location.replace(`${window.location.origin}/`);
+    await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    sessionStorage.removeItem("wh_google_verify_email");
+    sessionStorage.removeItem("wh_google_verify_context");
+    window.history.replaceState({}, "", window.location.pathname);
+    setPassword("");
+    setConfirmPassword("");
+    setRecoveryReady(false);
+    setMode("signin");
+    clearMessages();
   }
   function backToChoose() {
     setMode("choose");
@@ -417,16 +475,14 @@ export default function Login({
         {mode === "recover" && (
           <form onSubmit={handleRecovery} className="space-y-4">
             <div className="mb-5">
-              <p className="text-lg font-semibold">Choose a new password</p>
+              <p className="text-lg font-semibold">Create a new password</p>
               <p className="mt-1 text-xs leading-relaxed text-[#73788A]">
-                This screen is only for the secure reset link sent to your
-                email.
+                Google confirmed <span className="font-semibold text-white">{email}</span> as the same email on this WeHouse account.
               </p>
             </div>
             {!recoveryReady && (
               <div className="rounded-xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[10px] text-amber-300">
-                Preparing the secure reset session. If this remains here, the
-                link may have expired.
+                Confirming the Google account and matching WeHouse account…
               </div>
             )}
             <PasswordField
@@ -538,7 +594,7 @@ export default function Login({
 
         {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="overflow-hidden rounded-[28px] border border-white/[.08] bg-gradient-to-b from-[#151925] to-[#10131B] shadow-2xl"><div className="border-b border-white/[.06] p-5"><div className="flex items-start justify-between gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Confirm this sign-in</h2><p className="mt-2 text-[10px] leading-5 text-[#858B9A]">Your password was correct. Confirm the same email with Google before this device can enter WeHouse.</p></div><div className="space-y-3 p-5"><SecurityDetail label="Device" value={pendingDevice.device}/><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/><SecurityDetail label="Approximate location" value={pendingDevice.location}/><SecurityDetail label="Time" value={new Date().toLocaleString()}/></div></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>Confirm with Google</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl border border-red-500/15 bg-red-500/[.04] text-xs font-semibold text-red-300 disabled:opacity-50">This was not me</button></div>}
 
-        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That Google account does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">WeHouse must confirm <strong className="text-white">{email}</strong>, but Google returned <strong className="text-white">{googleMismatchEmail}</strong>. Access remains blocked.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose the correct Google account</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel and return to sign in</button></div>}
+        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That Google account does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">WeHouse must confirm <strong className="text-white">{email}</strong>, but Google returned <strong className="text-white">{googleMismatchEmail}</strong>. Access remains blocked.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose the correct Google account</button><button type="button" onClick={()=>void (googleRecoveryRequested()?cancelRecovery():cancelDeviceConfirmation())} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel and return to sign in</button></div>}
 
         {(mode === "signin" || mode === "signup") && (
           <form
@@ -605,7 +661,7 @@ export default function Login({
             <div className="mb-5">
               <p className="text-lg font-semibold">Reset your password</p>
               <p className="mt-1 text-xs text-[#73788A]">
-                We’ll email you a secure link.
+                Enter your WeHouse email, then use the same Google account to confirm it belongs to you.
               </p>
             </div>
             <Field label="Email">
@@ -621,9 +677,9 @@ export default function Login({
             <button
               type="submit"
               disabled={working || !email.trim() || !email.includes("@")}
-              className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-50"
+              className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
             >
-              {working ? "Sending…" : "Send reset link"}
+              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Continue with Google"}</span>
             </button>
             <button
               type="button"
