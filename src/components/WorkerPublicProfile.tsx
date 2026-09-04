@@ -88,8 +88,8 @@ export default function WorkerPublicProfileV2({
   const skills = workerServiceNames(worker),
     occupation = workerOccupation(worker),
     workPosts = posts.filter((post) => post.kind === "work_post"),
-    rating = Number(trust?.rating ?? worker.rating ?? 0) || 0,
-    reviewCount = Number(trust?.review_count ?? worker.review_count ?? 0) || 0;
+    rating = Number(trust?.rating ?? 0) || 0,
+    reviewCount = Number(trust?.review_count ?? 0) || 0;
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl">
@@ -101,7 +101,7 @@ export default function WorkerPublicProfileV2({
             ←
           </button>
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE SERVICE WORKER <GoldTickBadge size="sm" title="WeHouse reviewed service worker" /></p>
+            <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE SERVICE WORKER</p>
             <p className="truncate text-sm font-semibold">Worker profile</p>
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function WorkerPublicProfileV2({
                 <h1 className="truncate text-xl font-bold">
                   {worker.full_name || worker.username || "Service worker"}
                 </h1>
-                <GoldTickBadge title="Gold Tick · verification payment confirmed" />
+                <GoldTickBadge title="WeHouse reviewed service worker" />
               </div>
               <p className="mt-1 text-xs text-[#A5ABB8]">{occupation}</p>
               <p className="mt-1 text-[10px] text-[#72798A]">

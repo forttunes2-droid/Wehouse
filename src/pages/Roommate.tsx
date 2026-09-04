@@ -6,6 +6,7 @@ import {
   getSavedMatchResults,
   refreshRoommateSearch,
   respondToRoommateInterest,
+  ensureRoommateConversation,
   saveRoommatePreferences,
   startRoommateSearch,
   stopRoommateSearch,
@@ -45,7 +46,7 @@ const EMPTY: Form = {
 const MATCH_PAGE_SIZE = 24;
 
 function isEstablishedMatch(row: RoommateMatchResult) {
-  return Boolean(row.conversation_id || row.mutual_accepted || row.status === "accepted");
+  return Boolean(row.conversation_id || row.mutual_accepted);
 }
 
 function visibleMatches(
@@ -83,7 +84,8 @@ export default function RoommateWorkspace({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [loadingMore, setLoadingMore] = useState(false),
-    [interestBusy, setInterestBusy] = useState<string | null>(null);
+    [interestBusy, setInterestBusy] = useState<string | null>(null),
+    [openingChatId, setOpeningChatId] = useState<string | null>(null);
   const profileReady =
     Boolean(profile.profile_complete) &&
     Boolean(profile.gender) &&
@@ -143,6 +145,7 @@ export default function RoommateWorkspace({
         school_match: Boolean(p.school_match),
       });
     setLoading(false);
+    return rows;
   }, [profile.school, discoveryAllowed]);
   useEffect(() => {
     const task = window.setTimeout(() => void load(), 0);
@@ -285,25 +288,19 @@ export default function RoommateWorkspace({
       return;
     }
     if (conversationId) {
-      setMatches((current) =>
-        current.map((row) =>
-          row.id === match.id
-            ? { ...row, status: "accepted", mutual_accepted: true, conversation_id: conversationId }
-            : row,
-        ),
-      );
+      setMatches((current) => current.map((row) => row.id === match.id
+        ? { ...row, status: "accepted", mutual_accepted: true, conversation_id: conversationId }
+        : row));
       toast.success("It’s a match. Tap Message when you’re ready.", {
         id: "roommate-match",
       });
     } else {
-      setMatches((current) =>
-        current.map((row) =>
-          row.id === match.id ? { ...row, status: "accepted" } : row,
-        ),
-      );
-      toast.success(
-        `${match.matched_profile.full_name || match.matched_profile.username || "This person"} can now accept or pass your interest.`,
-      );
+      const latest = await load();
+      const mutual = latest.find((row) => row.id === match.id)?.mutual_accepted;
+      toast.success(mutual
+        ? "It’s a match. Tap Message when you’re ready."
+        : `${match.matched_profile.full_name || match.matched_profile.username || "This person"} can now accept or pass your interest.`,
+        { id: "roommate-match" });
     }
   }
   async function respond(
@@ -312,7 +309,7 @@ export default function RoommateWorkspace({
   ) {
     if (interestBusy) return;
     setInterestBusy(item.interest_id);
-    const { conversationId, error } = await respondToRoommateInterest(
+    const { error } = await respondToRoommateInterest(
       item.interest_id,
       response,
     );
@@ -326,7 +323,21 @@ export default function RoommateWorkspace({
     toast.success("Interest accepted. Your connection is ready.", {
       id: "roommate-match",
     });
-    if (conversationId) await load();
+    await load();
+  }
+  async function openConversation(match: RoommateMatchResult) {
+    if (!onGoToChat || openingChatId) return;
+    setOpeningChatId(match.id);
+    const result = match.conversation_id
+      ? { conversationId: match.conversation_id, error: null }
+      : await ensureRoommateConversation(match.matched_user_id);
+    setOpeningChatId(null);
+    if (result.error || !result.conversationId)
+      return toast.error(result.error?.message || "Could not open this roommate conversation");
+    setMatches((current) => current.map((row) => row.id === match.id
+      ? { ...row, conversation_id: result.conversationId }
+      : row));
+    onGoToChat(result.conversationId);
   }
   function navigate(page: string) {
     try {
@@ -481,10 +492,10 @@ export default function RoommateWorkspace({
               discoveryActive={matchingActive}
               hasMore={hasMore}
               loadingMore={loadingMore}
-              busyId={interestBusy}
+              busyId={interestBusy || openingChatId}
               showSchool={Boolean(prefs.school_match)}
               onLoadMore={loadMore}
-              onChat={onGoToChat}
+              onChat={openConversation}
               onInterest={interest}
             />
             {!matchingActive && matches.filter(isEstablishedMatch).length === 0 ? (
@@ -565,7 +576,7 @@ function Matches({
   busyId: string | null;
   showSchool: boolean;
   onLoadMore: () => void;
-  onChat?: (id: string) => void;
+  onChat?: (row: RoommateMatchResult) => void;
   onInterest: (row: RoommateMatchResult, status: "accepted" | "declined") => void;
 }) {
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
@@ -622,9 +633,9 @@ function Matches({
   );
 }
 
-function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];busyId:string|null;showSchool:boolean;onOpenProfile:(id:string)=>void;onChat?:(id:string)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"declined")=>void}) {
+function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];busyId:string|null;showSchool:boolean;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"declined")=>void}) {
   return <div className="divide-y divide-white/[.06] border-y border-white/[.07]">{items.map((row)=>{
-    const p=row.matched_profile,score=Number(row.match_score||0),connected=Boolean(row.conversation_id),sent=row.status==="accepted";
+    const p=row.matched_profile,score=Number(row.match_score||0),connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
     const name=p.full_name||`@${p.username||"user"}`;
     return <article key={row.id} className="py-4">
       <div className="flex items-center gap-3">
@@ -638,7 +649,7 @@ function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{it
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[#6D7383]" aria-label={`Open ${name} profile`}>›</button>
       </div>
-      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected&&row.conversation_id?<button type="button" onClick={()=>onChat?.(row.conversation_id!)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold">Message</button>:sent?<div className="flex min-h-10 flex-1 items-center rounded-xl border border-violet-400/15 px-3 text-[9px] font-semibold text-violet-200">Waiting for their response</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"declined")} className="min-h-10 rounded-xl border border-white/[.09] px-4 text-[9px] font-semibold disabled:opacity-40">Pass</button></>}</div>
+      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<div className="flex min-h-10 flex-1 items-center rounded-xl border border-violet-400/15 px-3 text-[9px] font-semibold text-violet-200">Waiting for their response</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"declined")} className="min-h-10 rounded-xl border border-white/[.09] px-4 text-[9px] font-semibold disabled:opacity-40">Pass</button></>}</div>
     </article>;
   })}</div>;
 }
@@ -672,8 +683,8 @@ function ReceivedInterests({
           </p>
           <h2 className="mt-1 text-lg font-bold">Roommate requests</h2>
           <p className="mt-1 text-[9px] text-[#747A8B]">
-            Accept to open a private chat, or pass without starting a
-            conversation.
+            Accept to connect, or pass privately. A chat appears in Inbox only
+            after either person sends the first message.
           </p>
         </div>
         <span className="grid h-7 min-w-7 place-items-center rounded-full bg-violet-500 px-2 text-[9px] font-bold">

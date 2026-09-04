@@ -192,6 +192,13 @@ export async function respondToRoommateInterest(
   return { conversationId: (data as string | null) || null, error };
 }
 
+export async function ensureRoommateConversation(peerUserId: string) {
+  const { data, error } = await supabase.rpc("ensure_my_roommate_conversation", {
+    p_peer_user_id: peerUserId,
+  });
+  return { conversationId: (data as string | null) || null, error };
+}
+
 export async function checkSearchExpiry(
   userId?: string,
 ): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {

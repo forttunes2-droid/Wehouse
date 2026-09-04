@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { BOOKING_STATUS_LABELS, getCommunicationBookingConversations } from '@/lib/supabase/worker-bookings';
 import BookingNegotiationChat from '@/components/BookingNegotiationChat';
 import Notifications from '@/pages/Notifications';
+import InboxTabs from '@/components/InboxTabs';
+import NewLoginAlert from '@/components/NewLoginAlert';
 import type { Profile } from '@/types';
 
 export type WorkerBookingConversation = {
@@ -61,7 +63,7 @@ export function WorkerInboxPanel({profile, initialConversation, onConversationCl
   }
   if (selected) return <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); }}/>;
   const conversationUnread=rows.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
-  return <div className="space-y-5"><div className="flex border-b border-white/[.07]" aria-label="Inbox views">{([['chats','Conversations',conversationUnread],['activity','Activity',activityUnread]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}{count>0&&<span className="ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">{count>99?'99+':count}</span>}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={openActivitySource} onUnreadChange={setActivityUnread}/>:loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="Conversations appear when a customer starts a service request."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</div>;
+  return <div className="space-y-5"><InboxTabs value={view} onChange={setView} chatCount={conversationUnread} activityCount={activityUnread}/>{view==='activity'?<Notifications profile={profile} embedded onNavigate={openActivitySource} onUnreadChange={setActivityUnread}/>:<><NewLoginAlert profile={profile}/>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="Conversations appear when a customer starts a service request."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</>}</div>;
 }
 
 function JobRow({row, onOpen}: {row: WorkerBookingConversation; onOpen: () => void}) {

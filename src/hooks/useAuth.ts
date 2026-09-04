@@ -31,7 +31,8 @@ interface AuthState {
   pendingDevice?: DeviceRegistration | null;
 }
 type PublicRole = "user" | "worker" | "property_partner";
-const PROFILE_SNAPSHOT_KEY = "wh_profile_snapshot_v1";
+const LEGACY_PROFILE_SNAPSHOT_KEY = "wh_profile_snapshot_v1";
+const PROFILE_SNAPSHOT_PREFIX = "wh_profile_snapshot_v2:";
 const PROFILE_SNAPSHOT_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const SNAPSHOT_EXCLUDED_FIELDS = new Set([
   "bank_name",
@@ -58,17 +59,24 @@ function pageForProfile(p: Profile | null): Page {
   return "dashboard";
 }
 
-function readProfileSnapshot(): Profile | null {
+function profileSnapshotKey(authId: string) {
+  return `${PROFILE_SNAPSHOT_PREFIX}${authId}`;
+}
+
+function readProfileSnapshot(authId: string): Profile | null {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PROFILE_SNAPSHOT_KEY) || "null");
+    // A cached role is read only after Supabase has confirmed the active auth id.
+    // Never use the old shared snapshot to decide which workspace to render.
+    localStorage.removeItem(LEGACY_PROFILE_SNAPSHOT_KEY);
+    const parsed = JSON.parse(localStorage.getItem(profileSnapshotKey(authId)) || "null");
     const profile = parsed?.profile as Profile | undefined;
     if (
-      !profile?.auth_id ||
+      profile?.auth_id !== authId ||
       !profile.user_id ||
       !profile.role ||
       Date.now() - Number(parsed.saved_at || 0) > PROFILE_SNAPSHOT_MAX_AGE
     ) {
-      localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
+      localStorage.removeItem(profileSnapshotKey(authId));
       return null;
     }
     return profile;
@@ -83,15 +91,25 @@ function saveProfileSnapshot(profile: Profile) {
       Object.entries(profile).filter(([key]) => !SNAPSHOT_EXCLUDED_FIELDS.has(key)),
     );
     localStorage.setItem(
-      PROFILE_SNAPSHOT_KEY,
+      profileSnapshotKey(profile.auth_id),
       JSON.stringify({ profile: safeProfile, saved_at: Date.now() }),
     );
   } catch {}
 }
 
-function clearProfileSnapshot() {
+function clearProfileSnapshot(authId?: string) {
   try {
-    localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
+    localStorage.removeItem(LEGACY_PROFILE_SNAPSHOT_KEY);
+    if (authId) {
+      localStorage.removeItem(profileSnapshotKey(authId));
+      return;
+    }
+    const cachedKeys: string[] = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(PROFILE_SNAPSHOT_PREFIX)) cachedKeys.push(key);
+    }
+    cachedKeys.forEach((key) => localStorage.removeItem(key));
   } catch {}
 }
 
@@ -249,19 +267,19 @@ async function registrationClosed() {
   return v === "false" || v === "closed" || v === "0";
 }
 export function useAuth() {
-  const initialProfileRef = useRef<Profile | null>(readProfileSnapshot());
-  const initialProfile = initialProfileRef.current;
   const [state, setState] = useState<AuthState>({
-    page: initialProfile ? pageForProfile(initialProfile) : "loading",
-    profile: initialProfile,
-    isLoading: !initialProfile,
+    page: "loading",
+    profile: null,
+    isLoading: true,
     error: "",
     kickedOut: false,
   });
   const handlingLoginRef = useRef(false),
     explicitSignOutRef = useRef(false),
     logoutBusyRef = useRef(false),
-    profileLoadRef = useRef<Promise<void> | null>(null),
+    profileLoadRef = useRef<{ authId: string; promise: Promise<void> } | null>(null),
+    profileRequestRef = useRef(0),
+    confirmedAuthIdRef = useRef<string | null>(null),
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
   const determinePage = useCallback(pageForProfile, []);
@@ -328,8 +346,11 @@ export function useAuth() {
         user: suppliedUser,
       }: { preserveOnFailure?: boolean; user?: User } = {},
     ) => {
-      if (profileLoadRef.current) return profileLoadRef.current;
-      profileLoadRef.current = (async () => {
+      if (profileLoadRef.current?.authId === authId) return profileLoadRef.current.promise;
+      const request = ++profileRequestRef.current;
+      const isCurrentIdentity = () =>
+        confirmedAuthIdRef.current === authId && profileRequestRef.current === request;
+      const task = (async () => {
         try {
           if (googlePasswordRecoveryRequested()) {
             setState({ page: "login", profile: null, isLoading: false, error: "", kickedOut: false });
@@ -343,8 +364,17 @@ export function useAuth() {
           }
           const verification = readGoogleVerification();
           const expectedGoogleEmail=verification?.email;
-          if(expectedGoogleEmail&&email.toLowerCase()!==expectedGoogleEmail){
-            setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
+          if(expectedGoogleEmail&&email.trim().toLowerCase()!==expectedGoogleEmail.trim().toLowerCase()){
+            explicitSignOutRef.current = true;
+            confirmedAuthIdRef.current = null;
+            await supabase.auth.signOut({scope:'local'}).catch(()=>{});
+            setState({
+              page:'login',
+              profile:null,
+              isLoading:false,
+              error:`${email || 'The selected Google account'} cannot verify ${expectedGoogleEmail}. Choose ${expectedGoogleEmail} to continue. No WeHouse account or password was changed.`,
+              kickedOut:false,
+            });
             return;
           }
           if(verification?.context==='signup'&&!user?.identities?.some(identity=>identity.provider==='google')){
@@ -408,7 +438,7 @@ export function useAuth() {
             return;
           }
           sessionStorage.removeItem('wh_login_method');
-          if (await allowEntry(profile, maintenanceEnabled)) {
+          if (isCurrentIdentity() && await allowEntry(profile, maintenanceEnabled)) {
             saveProfileSnapshot(profile);
             syncIdentityNavigation(profile);
             setState({
@@ -421,7 +451,7 @@ export function useAuth() {
             });
           }
         } catch (e: any) {
-          if (!preserveOnFailure)
+          if (!preserveOnFailure && isCurrentIdentity())
             setState((s) => ({
               ...s,
               isLoading: false,
@@ -429,10 +459,12 @@ export function useAuth() {
                 safeAuthMessage(e, "We couldn’t restore your session. Please sign in again."),
             }));
         } finally {
-          profileLoadRef.current = null;
+          if (profileLoadRef.current?.authId === authId && profileRequestRef.current === request)
+            profileLoadRef.current = null;
         }
       })();
-      return profileLoadRef.current;
+      profileLoadRef.current = { authId, promise: task };
+      return task;
     },
     [allowEntry, determinePage],
   );
@@ -441,7 +473,7 @@ export function useAuth() {
     let alive = true;
     let authEventTimer: number | undefined;
     async function restore() {
-      setState((s) => (s.profile ? s : { ...s, isLoading: true }));
+      setState((s) => (s.profile ? s : { ...s, page: "loading", isLoading: true }));
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
@@ -457,11 +489,13 @@ export function useAuth() {
           return;
         }
         if (data.session?.user) {
-          const snapshotMatches =
-            initialProfileRef.current?.auth_id === data.session.user.id;
-          if (!snapshotMatches) {
-            clearProfileSnapshot();
-            initialProfileRef.current = null;
+          const authId = data.session.user.id;
+          confirmedAuthIdRef.current = authId;
+          const snapshot = readProfileSnapshot(authId);
+          const snapshotMatches = Boolean(snapshot);
+          if (snapshot) {
+            setState({profile:snapshot,page:pageForProfile(snapshot),isLoading:false,error:"",kickedOut:false});
+          } else {
             setState((s) => ({ ...s, profile: null, page: "loading", isLoading: true }));
           }
           await loadProfile(data.session.user.id, {
@@ -470,8 +504,8 @@ export function useAuth() {
           });
           return;
         }
+        confirmedAuthIdRef.current = null;
         clearProfileSnapshot();
-        initialProfileRef.current = null;
         setState({
           page: "login",
           profile: null,
@@ -510,6 +544,13 @@ export function useAuth() {
         }
         if (["SIGNED_IN", "USER_UPDATED"].includes(event) && session?.user) {
           if (handlingLoginRef.current && event === "SIGNED_IN") return;
+          const nextAuthId = session.user.id;
+          confirmedAuthIdRef.current = nextAuthId;
+          setState((current) => {
+            if (!current.profile || current.profile.auth_id === nextAuthId) return current;
+            clearProfileSnapshot(current.profile.auth_id);
+            return {page:"loading",profile:null,isLoading:true,error:"",kickedOut:false};
+          });
           // Supabase can deadlock when another client call starts inside this
           // callback. Let the callback return before refreshing the profile.
           if (authEventTimer !== undefined) window.clearTimeout(authEventTimer);
@@ -523,6 +564,7 @@ export function useAuth() {
           return;
         }
         if (event === "SIGNED_OUT") {
+          confirmedAuthIdRef.current = null;
           if (explicitSignOutRef.current) {
             explicitSignOutRef.current = false;
             return;
@@ -575,6 +617,7 @@ export function useAuth() {
       role?: "user" | "worker" | "property_partner",
     ) => {
       handlingLoginRef.current = true;
+      confirmedAuthIdRef.current = authId;
       setState((s) => ({ ...s, isLoading: true, error: "" }));
       try {
         const [profileResult, maintenanceEnabled] = await Promise.all([

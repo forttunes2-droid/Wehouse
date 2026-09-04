@@ -119,6 +119,7 @@ export {
   updateMatchStatus,
   getReceivedRoommateInterests,
   respondToRoommateInterest,
+  ensureRoommateConversation,
   checkSearchExpiry,
 } from "./roommate";
 export type {

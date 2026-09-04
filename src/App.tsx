@@ -25,7 +25,6 @@ import AdminAuthModal from "@/components/AdminAuthModal";
 import SupportChat from "@/components/SupportChat";
 import DesktopLayout from "@/components/DesktopLayout";
 import PrivateCallCenter from "@/components/PrivateCallCenter";
-import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
@@ -1022,7 +1021,6 @@ export default function App() {
       <AdminAuthProvider>
         <Suspense fallback={<PageTransitionFallback />}>
           <PrivateCallCenter />
-          {profile && <NewLoginAlert profile={profile} />}
           <DesktopLayout
             navItems={desktopNavItems}
             activePage={navPage === "notifications" ? "conversation" : navPage}

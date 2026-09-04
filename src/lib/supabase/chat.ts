@@ -48,8 +48,7 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
   return{messages,error};
 }
 
-export async function sendMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],attachmentTypes:string[]=[],replyToId:string|null=null){
-  void attachmentTypes;
+export async function sendMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],replyToId:string|null=null){
   try{
     const encrypted=await encryptPrivateMessage('roommate',conversationId,peerUserId,content);
     const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId});

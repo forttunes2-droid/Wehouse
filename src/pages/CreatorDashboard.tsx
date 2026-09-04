@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
 import CommunicationsWorkspace from '@/components/CommunicationsWorkspace';
+import InboxTabs from '@/components/InboxTabs';
+import NewLoginAlert from '@/components/NewLoginAlert';
 import PropertyPipelineWorkspace from '@/components/PropertyPipelineWorkspace';
 import CreatorWorkerOversight from '@/components/CreatorWorkerOversight';
 import CreatorAuditWorkspace from '@/components/CreatorAuditWorkspace';
@@ -24,7 +26,7 @@ type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: strin
 type OperationTarget = { operation: Operation; id?: string } | null;
 
 const NAV = [
-  { id: 'home', label: 'Overview' },
+  { id: 'home', label: 'Home' },
   { id: 'operations', label: 'Operations' },
   { id: 'inbox', label: 'Inbox' },
 ];
@@ -148,7 +150,7 @@ function CreatorInbox({profile,onNavigate,onGoToChat,initialConversationId,summa
   const[view,setView]=useState<'chats'|'activity'|'compose'>('chats');
   useEffect(()=>{if(initialConversationId)setView('chats')},[initialConversationId]);
   if(view==='compose')return <Nested title="New update" back={()=>setView('activity')}><CommunicationsWorkspace profile={profile} scope="all" forcedView="broadcast" hideViewTabs/></Nested>;
-  return <div className="space-y-4"><div className="grid grid-cols-2 border-b border-white/[.07]">{([['chats','Chats',summary.messageUnread],['activity','Activity',summary.activityUnread]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative min-h-12 text-xs font-semibold ${view===id?'text-white':'text-[#747A8B]'}`}>{label}{count>0?` · ${count>99?'99+':count}`:''}{view===id&&<span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</div>{view==='chats'?<CommunicationsWorkspace profile={profile} scope="all" forcedView="inbox" hideViewTabs initialConversationId={initialConversationId} onOpenConversation={onGoToChat} onUnreadChange={summary.setMessageUnread}/>:<><div className="flex justify-end"><button onClick={()=>setView('compose')} className="rounded-xl border border-violet-500/20 bg-violet-500/[.08] px-3 py-2 text-[10px] font-semibold text-violet-200">Post update</button></div><Notifications profile={profile} embedded onUnreadChange={summary.setActivityUnread} onNavigate={(page,id)=>onNavigate?.(page,id)}/></>}</div>;
+  return <div className="space-y-4"><InboxTabs value={view} onChange={setView} chatCount={summary.messageUnread} activityCount={summary.activityUnread}/>{view==='chats'?<><NewLoginAlert profile={profile}/><CommunicationsWorkspace profile={profile} scope="all" forcedView="inbox" hideViewTabs initialConversationId={initialConversationId} onOpenConversation={onGoToChat} onUnreadChange={summary.setMessageUnread}/></>:<><div className="flex justify-end"><button onClick={()=>setView('compose')} className="rounded-xl border border-violet-500/20 bg-violet-500/[.08] px-3 py-2 text-[10px] font-semibold text-violet-200">Post update</button></div><Notifications profile={profile} embedded onUnreadChange={summary.setActivityUnread} onNavigate={(page,id)=>onNavigate?.(page,id)}/></>}</div>;
 }
 
 function Nested({title,back,children}:{title:string;back:()=>void;children:React.ReactNode}){return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={back} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back">‹</button><h2 className="text-lg font-bold">{title}</h2></header>{children}</div>}

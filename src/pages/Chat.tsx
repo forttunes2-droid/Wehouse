@@ -27,6 +27,8 @@ import { conversationPresentation, getMySupportConversations, type SupportThread
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
+import InboxTabs from "@/components/InboxTabs";
+import NewLoginAlert from "@/components/NewLoginAlert";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
@@ -266,9 +268,16 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   }, [active, loadRoommateMessages, loadInbox]);
   useEffect(()=>{
     if(!active){setSecureChat(null);return}
-    let cancelled=false;setSecureChat(null);
-    void privateConversationReadiness("roommate",active.id,otherId(active)).then(result=>{if(!cancelled)setSecureChat(result)});
-    return()=>{cancelled=true};
+    let cancelled=false;
+    const peer=otherId(active);
+    const refresh=()=>void privateConversationReadiness("roommate",active.id,peer).then(result=>{if(!cancelled)setSecureChat(result)});
+    setSecureChat(null);refresh();
+    const identityChannel=supabase.channel(`roommate-security-${active.id}`)
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"user_encryption_identities",filter:`user_id=eq.${peer}`},refresh)
+      .subscribe();
+    const onVisible=()=>{if(document.visibilityState==="visible")refresh()};
+    document.addEventListener("visibilitychange",onVisible);
+    return()=>{cancelled=true;document.removeEventListener("visibilitychange",onVisible);void supabase.removeChannel(identityChannel)};
   },[active,otherId]);
   useEffect(() => {
     if (active || activeBooking) return;
@@ -334,10 +343,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   }
   async function submit() {
     if (!active || sending || (!input.trim() && !files.length)) return;
-    if (secureChat?.state !== "ready") return toast.error("Secure chat is not ready yet");
+    if (secureChat?.state !== "ready") return toast.error("Encrypted chat must be ready before sending");
     setSending(true);
-    const paths: string[] = [], attachments: Array<{path:string;file_iv:string;metadata_ciphertext:string;metadata_iv:string}> = [],
-      types: string[] = [];
+    const paths: string[] = [], attachments: Array<{path:string;file_iv:string;metadata_ciphertext:string;metadata_iv:string}> = [];
     try {
       for (const file of files) {
         const uploaded = await uploadRoommateChatAttachment(file, active.id, otherId(active));
@@ -346,10 +354,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
             uploaded.error?.message || `Could not upload ${file.name}`,
           );
         paths.push(uploaded.path);
-        attachments.push(uploaded.attachment);
-        types.push(uploaded.type || file.type);
+        if(uploaded.attachment)attachments.push(uploaded.attachment);
       }
-      const result = await sendMessage(active.id, otherId(active), input.trim(), attachments, types, replyingTo?.id||null);
+      const result = await sendMessage(active.id, otherId(active), input.trim(), attachments, replyingTo?.id||null);
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
       setInput("");
@@ -359,9 +366,12 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       void loadInbox(true);
     } catch (error: unknown) {
       for (const path of paths) await deleteRoommateChatAttachment(path);
-      toast.error(
-        error instanceof Error ? error.message : "Message could not be sent",
-      );
+      const message=error instanceof Error ? error.message : "Message could not be sent";
+      if(/encrypted chat is ready/i.test(message)){
+        setSecureChat(null);
+        void privateConversationReadiness("roommate",active.id,otherId(active)).then(setSecureChat);
+        toast.error("Encrypted chat is ready now. Send again to protect this message.");
+      }else toast.error(message);
     } finally {
       setSending(false);
     }
@@ -500,6 +510,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     );
   if (active) {
     const person = people[otherId(active)];
+    const securityGate=!secureChat||secureChat.state==="setup_required"||secureChat.state==="unlock_required"||secureChat.state==="unavailable";
+    const canCompose=secureChat?.state==="ready";
+    const refreshSecurity=()=>{setSecureChat(null);void privateConversationReadiness("roommate",active.id,otherId(active)).then(result=>{setSecureChat(result);if(result.state==="ready"||result.state==="peer_setup_required")void loadRoommateMessages(active.id,true)})};
     const timeline=[
       ...messages.map(message=>({kind:"message" as const,time:message.created_at,id:`message:${message.id}`,message})),
       ...activeCalls.map(call=>({kind:"call" as const,time:call.created_at,id:`call:${call.id}`,call})),
@@ -584,7 +597,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-4 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
-            {loadingMessages && messages.length === 0 ? (
+            {securityGate?<div className="mx-auto max-w-md py-8">{secureChat?<SecureChatOnboarding status={secureChat} personName={person?.name||"This person"} onReady={refreshSecurity}/>:<div className="flex min-h-24 items-center justify-center gap-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Checking private chat…</div>}</div>:loadingMessages && messages.length === 0 ? (
               <MessageSkeleton />
             ) : messages.length === 0 ? (
               <Empty
@@ -592,7 +605,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                 text="You both accepted the roommate match. Share photos, voice notes or a message while you discuss living plans."
               />
             ) : null}
-            {timeline.map((event, index) => (
+            {!securityGate&&timeline.map((event, index) => (
               <div key={event.id}>
                 {index === 0 || dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
                   <DateDivider value={event.time} />
@@ -608,12 +621,12 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                 />}
               </div>
             ))}
-            <div ref={bottomRef} />
+            {!securityGate&&<div ref={bottomRef} />}
           </div>
         </main>
         <footer className="shrink-0 border-t border-white/[.06] bg-[#10131B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
           <div className="mx-auto max-w-3xl">
-            {person?.isBlocked ? <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4"><p className="text-[10px] text-amber-100">This person is blocked. Matching, messages and calls are off.</p><button type="button" onClick={()=>void toggleBlock()} className="shrink-0 text-[10px] font-semibold text-violet-300">Unblock</button></div> : !secureChat?<div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Checking private chat…</div>:secureChat.state!=="ready"?<SecureChatOnboarding status={secureChat} personName={person?.name||"This person"} onReady={()=>{setSecureChat(null);void privateConversationReadiness("roommate",active.id,otherId(active)).then(result=>{setSecureChat(result);if(result.state==="ready")void loadRoommateMessages(active.id,true)})}}/> : <>{files.length > 0 && (
+            {person?.isBlocked ? <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4"><p className="text-[10px] text-amber-100">This person is blocked. Matching, messages and calls are off.</p><button type="button" onClick={()=>void toggleBlock()} className="shrink-0 text-[10px] font-semibold text-violet-300">Unblock</button></div> : !secureChat?<div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Checking private chat…</div>:securityGate?<p className="py-3 text-center text-[10px] text-[#777D8D]">{secureChat.state==="unavailable"?"Private chat could not be checked. Use Try again above.":"Complete private-chat setup above to continue."}</p>:!canCompose?<SecureChatOnboarding status={secureChat} personName={person?.name||"This person"} onReady={refreshSecurity}/> : <><p className="mb-2 text-center text-[8px] font-medium text-emerald-300">⌾ End-to-end encrypted</p>{files.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
                 {files.map((file, index) => (
                   <PendingMedia
@@ -764,11 +777,10 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
-        <div className="mb-4 flex border-b border-white/[.07]" aria-label="Inbox views">
-          {([['chats','Chats',chatUnreadCount],['activity','Activity',activityUnreadCount]] as const).map(([id,label,count])=><button key={id} type="button" onClick={()=>setInboxMode(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${inboxMode===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}{count>0&&<span className={`ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full px-1 text-[8px] font-bold ${inboxMode===id?'bg-violet-500 text-white':'bg-red-500 text-white'}`}>{count>99?'99+':count}</span>}</button>)}
-        </div>
+        <div className="mb-4"><InboxTabs value={inboxMode} onChange={setInboxMode} chatCount={chatUnreadCount} activityCount={activityUnreadCount}/></div>
         {inboxMode==='activity'?<Notifications profile={profile} embedded onNavigate={onNavigate}/>:
         <section>
+          <div className="mb-3"><NewLoginAlert profile={profile}/></div>
           <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
             <SearchIcon />
             <input value={inboxQuery} onChange={(event) => setInboxQuery(event.target.value)} placeholder="Search conversations" className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]" />
