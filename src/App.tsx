@@ -249,6 +249,7 @@ export default function App() {
   useEffect(() => {
     if (!baseProfile?.user_id) return;
     let cancelled = false;
+    setWorkspaceAccess(null);
     void supabase.rpc('get_my_workspace_access').then(({ data, error: accessError }) => {
       if (cancelled || accessError || !data) return;
       const access = data as WorkspaceAccess;
@@ -267,8 +268,12 @@ export default function App() {
   const effectiveRole = useMemo(() => {
     if (!baseProfile) return '';
     if (['worker', 'property_partner'].includes(baseProfile.role)) return baseProfile.role;
+    // Never render the personal/user workspace while privileged workspace access
+    // is still being restored. That caused the user bottom bar and user pages to
+    // flash inside Creator, Admin, Staff and Hotel sessions on refresh.
+    if (workspaceAccess?.identity?.user_id !== baseProfile.user_id) return baseProfile.role;
     return activeWorkspace === 'personal' ? 'user' : activeWorkspace === 'hotel' ? 'hotel_staff' : activeWorkspace;
-  }, [baseProfile, activeWorkspace]);
+  }, [baseProfile, activeWorkspace, workspaceAccess]);
   const profile = useMemo(() => baseProfile ? { ...baseProfile, role: effectiveRole as typeof baseProfile.role } : null, [baseProfile, effectiveRole]);
   const canList = canCreateListings(effectiveRole),
     isCreator = checkCreator(effectiveRole),
@@ -348,6 +353,17 @@ export default function App() {
       window.history.replaceState({ page: safe }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, auth.profile]);
+  useEffect(() => {
+    if (!userRole || auth.isLoading) return;
+    const safe = normalizePageForRole(userRole, navPage);
+    if (safe === navPage) return;
+    setNavPage(safe);
+    navHistoryRef.current = [safe];
+    try {
+      localStorage.setItem(NAV_STORAGE_KEY, safe);
+      window.history.replaceState({ page: safe }, "", `#${safe}`);
+    } catch {}
+  }, [auth.isLoading, navPage, userRole]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
       pageScrollPositionsRef.current.set(navPage,pageScrollRef.current?.scrollTop||0);

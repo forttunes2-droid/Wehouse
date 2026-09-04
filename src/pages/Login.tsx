@@ -191,6 +191,8 @@ export default function Login({
       if (!expectedEmail || returnedEmail !== expectedEmail) {
         setEmail(expectedEmail);
         setGoogleMismatchEmail(returnedEmail);
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        if (!alive) return;
         setMode("google_mismatch");
         return;
       }
@@ -248,7 +250,10 @@ export default function Login({
       const expectedGoogleEmail=sessionStorage.getItem('wh_google_verify_email');
       const pendingGoogleRole=sessionStorage.getItem('wh_google_verify_role') as PublicRole|null;
       if(expectedGoogleEmail&&user.email?.toLowerCase()!==expectedGoogleEmail){
-        setEmail(expectedGoogleEmail);setGoogleMismatchEmail(user.email||'');setMode('google_mismatch');
+        setEmail(expectedGoogleEmail);setGoogleMismatchEmail(user.email||'');
+        await supabase.auth.signOut({scope:'local'}).catch(()=>{});
+        if(cancelled)return;
+        setMode('google_mismatch');
         return;
       }
       if (authenticatedIdentityRef.current === user.id) return;
@@ -357,7 +362,7 @@ export default function Login({
     const context=sessionStorage.getItem('wh_google_verify_context');
     const role=(sessionStorage.getItem('wh_google_verify_role') as PublicRole|null)||signupRole;
     setWorking(true);await supabase.auth.signOut({scope:'local'});setWorking(false);
-    setMode(context==='new_device'?'confirm_device':context==='password_recovery'?'recover':'verify_email');setGoogleMismatchEmail('');clearMessages();
+    setMode(context==='new_device'?'confirm_device':context==='password_recovery'?'forgot':'verify_email');setGoogleMismatchEmail('');clearMessages();
     sessionStorage.setItem('wh_google_verify_email',email.trim().toLowerCase());
     if(context!=='password_recovery')sessionStorage.setItem('wh_google_verify_role',role);
     else sessionStorage.removeItem('wh_google_verify_role');
@@ -637,7 +642,7 @@ export default function Login({
 
         {mode==='confirm_device'&&pendingDevice&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Confirm this new login</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Your password was correct. Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span> to confirm access to the same email before this device enters WeHouse.</p><div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]"><div className="py-3"><SecurityDetail label="Device" value={pendingDevice.device}/></div><div className="py-3"><SecurityDetail label="System" value={`${pendingDevice.os} · ${pendingDevice.browser}`}/></div><div className="py-3"><SecurityDetail label="Approximate location" value={pendingDevice.location}/></div></div><p className="mt-3 text-[9px] leading-4 text-[#666C7D]">After confirmation, your other signed-in devices will receive a security notice about this login.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening Google…':'Continue with Google to confirm'}</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50">Cancel sign-in</button></div>}
 
-        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">Choose the same email</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">You asked WeHouse to confirm <strong className="text-white">{email}</strong>, but selected <strong className="text-white">{googleMismatchEmail||'a different Google account'}</strong>. Nothing was changed.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Try {email} again</button><button type="button" onClick={()=>void returnFromGoogleMismatch()} disabled={working} className="w-full text-center text-xs text-[#73798A]">Back</button></div>}
+        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That account does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">WeHouse is confirming access to <strong className="text-white">{email}</strong>. You selected <strong className="text-white">{googleMismatchEmail||'a different Google account'}</strong>, so it was signed out and cannot confirm, reset or enter this account.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Choose {email}</button><button type="button" onClick={()=>void returnFromGoogleMismatch()} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel and go back</button></div>}
 
         {(mode === "signin" || mode === "signup") && (
           <form

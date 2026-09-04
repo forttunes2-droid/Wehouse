@@ -34,11 +34,22 @@ export type SupportOpenContext = {
   priority?: string;
 };
 
+export function supportContextType(
+  value: Pick<SupportThread, "context_type" | "context_snapshot"> | SupportOpenContext,
+) {
+  const stored = "context_type" in value ? value.context_type : value.contextType || "general";
+  const snapshot = ("context_snapshot" in value ? value.context_snapshot : value.contextSnapshot) || {};
+  const source = String(snapshot.source_type || "");
+  if (stored === "support_case" && source) return source;
+  if (stored === "listing") return "property_listing";
+  return stored;
+}
+
 export function conversationPresentation(
   value: Pick<SupportThread, "subject" | "context_type" | "context_snapshot" | "status"> | SupportOpenContext,
 ): ConversationPresentation {
-  const contextType = "context_type" in value ? value.context_type : value.contextType || "general";
   const snapshot = ("context_snapshot" in value ? value.context_snapshot : value.contextSnapshot) || {};
+  const contextType = supportContextType(value);
   const rawSubject = String("subject" in value ? value.subject || "" : value.subject || "").trim();
   const threadStatus = "status" in value ? value.status : "";
   const status = String(snapshot.status || threadStatus || "").replace(/_/g, " ");
@@ -68,7 +79,7 @@ export function conversationPresentation(
     title: rawSubject || String(snapshot.service_type || "Service booking"),
     operator: "WeHouse",
     meta: ["Service booking", code, status].filter(Boolean).join(" · "),
-    operational: false,
+    operational: true,
   };
   return {
     kind: "support",

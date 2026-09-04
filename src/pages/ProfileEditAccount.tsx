@@ -25,7 +25,6 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [school, setSchool] = useState(profile.school || '');
   const [state, setState] = useState(profile.state || '');
   const [lga, setLga] = useState(profile.local_government || profile.city || '');
-  const [area, setArea] = useState(profile.area || '');
   const [preciseLocation,setPreciseLocation]=useState<PreciseLocation|null>(()=>profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null);
   const [institutions, setInstitutions] = useState<RegisteredInstitution[]>([]);
   const [institutionsLoading, setInstitutionsLoading] = useState(false);
@@ -61,11 +60,11 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     };
     Object.assign(current,{state,lga,preciseLocation});Object.assign(original,{state:profile.state||'',lga:profile.local_government||profile.city||'',preciseLocation:profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null});
     if (isUser) {
-      Object.assign(current, { bio: bio.trim(), gender, is_student: isStudent, school: isStudent ? school.trim() : '', state, lga, area: area.trim() });
-      Object.assign(original, { bio: (profile.bio || '').trim(), gender: profile.gender || '', is_student: Boolean(profile.is_student), school: profile.is_student ? (profile.school || '').trim() : '', state: profile.state || '', lga: profile.local_government || profile.city || '', area: (profile.area || '').trim() });
+      Object.assign(current, { bio: bio.trim(), gender, is_student: isStudent, school: isStudent ? school.trim() : '', state, lga });
+      Object.assign(original, { bio: (profile.bio || '').trim(), gender: profile.gender || '', is_student: Boolean(profile.is_student), school: profile.is_student ? (profile.school || '').trim() : '', state: profile.state || '', lga: profile.local_government || profile.city || '' });
     }
     return JSON.stringify(current) !== JSON.stringify(original);
-  }, [fullName, username, phone, bio, gender, isStudent, school, state, lga, area, preciseLocation, isUser, profile]);
+  }, [fullName, username, phone, bio, gender, isStudent, school, state, lga, preciseLocation, isUser, profile]);
 
   useEffect(() => {
     const value = username.trim().toLowerCase();
@@ -127,7 +126,6 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       updates.state = state;
       updates.local_government = lga;
       updates.city = lga;
-      updates.area = area.trim() || null;
       updates.profile_complete = true;
     }
     const { profile: updated, error } = await updateProfile(profile.user_id, updates);
@@ -146,7 +144,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           <div className="min-w-0 flex-1"><h2 className="truncate text-lg font-bold">{fullName || username || 'WeHouse member'}</h2><p className="mt-1 truncate text-[10px] text-[#737A8B]">@{username || 'username'}</p>{bio && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[#A1A6B3]">{bio}</p>}</div>
         </div>
         <div className="grid grid-cols-2 border-y border-white/[.06] sm:grid-cols-3"><ProfileFact label="Phone" value={phone || 'Not added'} /><ProfileFact label="Role" value={profile.role === 'worker' ? 'WeHouse Service Worker' : profile.role} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
-        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Location" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Area" value={area || 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
+        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Private address" value={preciseLocation?.address || 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
         <div className="p-4"><button type="button" onClick={()=>setEditing(true)} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Edit profile</button></div>
       </section>
     </AccountShell>
@@ -184,11 +182,10 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </>}
           <section className="border-y border-white/[.06] py-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government remain your WeHouse region. A precise address is optional and private.</p>
+            <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Use your phone location below to find and confirm one private street address.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
               <SearchableSelect label="Local Government" value={lga} onChange={setLga} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
-              {isUser&&<div className="sm:col-span-2"><Field label="Area / neighbourhood (optional)" value={area} onChange={setArea} /></div>}
             </div>
             <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={setPreciseLocation}/></div>
           </section>

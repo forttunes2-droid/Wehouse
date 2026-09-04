@@ -10,6 +10,13 @@ Deno.serve(async req=>{
   const url=new URL('https://nominatim.openstreetmap.org/reverse');url.searchParams.set('format','jsonv2');url.searchParams.set('lat',String(latitude));url.searchParams.set('lon',String(longitude));url.searchParams.set('zoom','18');url.searchParams.set('addressdetails','1');
   const response=await fetch(url,{headers:{'User-Agent':'WeHouse/1.0 (https://wehouse.com.ng)','Accept-Language':'en'}});
   if(!response.ok)return json({address:null},200);
-  const data=await response.json();return json({address:typeof data.display_name==='string'?data.display_name:null});
+  const data=await response.json();
+  const details=data&&typeof data.address==='object'?data.address:{};
+  const street=[details.house_number,details.road||details.pedestrian||details.residential].filter(Boolean).join(' ');
+  const area=details.neighbourhood||details.suburb||details.quarter||details.hamlet||details.village||'';
+  const city=details.city||details.town||details.municipality||details.state_district||details.county||'';
+  const state=details.state||'';
+  const parts=[street,area,city,state].map(value=>String(value||'').trim()).filter((value,index,rows)=>value&&rows.findIndex(item=>item.toLowerCase()===value.toLowerCase())===index);
+  return json({address:parts.length?parts.join(', '):typeof data.display_name==='string'?data.display_name:null,city:city||null,state:state||null});
  }catch{return json({address:null},200)}
 });
