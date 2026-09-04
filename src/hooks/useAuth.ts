@@ -17,6 +17,11 @@ import {
 import type { Profile, Page } from "@/types";
 import type { User } from "@supabase/supabase-js";
 import type { DeviceRegistration } from "@/lib/supabase";
+import {
+  clearGoogleVerification,
+  readGoogleVerification,
+  saveGoogleVerification,
+} from "@/lib/googleVerification";
 interface AuthState {
   page: Page;
   profile: Profile | null;
@@ -110,6 +115,17 @@ function publicRole(value: unknown): PublicRole | undefined {
     ? value
     : undefined;
 }
+function safeAuthMessage(error: unknown, fallback = "We couldn’t complete sign-in. Please try again.") {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const value = message.toLowerCase();
+  if (value.includes("maintenance")) return "WeHouse is currently under maintenance. Please check back later.";
+  if (value.includes("registrations") && value.includes("closed")) return "New registrations are currently closed.";
+  if (value.includes("pending device") || value.includes("confirmation expired")) return "This confirmation has expired. Sign in again.";
+  if (value.includes("network") || value.includes("fetch") || value.includes("connection")) return "Check your connection and try again.";
+  if (value.includes("banned")) return "This account is unavailable. Contact WeHouse support.";
+  if (value.includes("suspended")) return "This account is suspended. Contact WeHouse support.";
+  return fallback;
+}
 function passwordRecoveryRequested() {
   try {
     return (
@@ -120,11 +136,7 @@ function passwordRecoveryRequested() {
   }
 }
 function googlePasswordRecoveryRequested() {
-  try {
-    return sessionStorage.getItem("wh_google_verify_context") === "password_recovery";
-  } catch {
-    return false;
-  }
+  return readGoogleVerification()?.context === "password_recovery";
 }
 function googleVerificationCallbackFailed() {
   try {
@@ -136,11 +148,7 @@ function googleVerificationCallbackFailed() {
   }
 }
 function googleVerificationActive() {
-  try {
-    return Boolean(sessionStorage.getItem("wh_google_verify_context"));
-  } catch {
-    return false;
-  }
+  return Boolean(readGoogleVerification());
 }
 function roleRoot(p: Profile) {
   return p.role === "creator"
@@ -261,7 +269,7 @@ export function useAuth() {
     if (!state.isLoading || state.profile) return;
     let verificationActive = false;
     try {
-      verificationActive = Boolean(sessionStorage.getItem("wh_google_verify_context"));
+      verificationActive = Boolean(readGoogleVerification());
     } catch {}
     if (!verificationActive) return;
     const timer = window.setTimeout(() => {
@@ -333,23 +341,22 @@ export function useAuth() {
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
             return;
           }
-          const expectedGoogleEmail=sessionStorage.getItem('wh_google_verify_email');
+          const verification = readGoogleVerification();
+          const expectedGoogleEmail=verification?.email;
           if(expectedGoogleEmail&&email.toLowerCase()!==expectedGoogleEmail){
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
             return;
           }
-          if(sessionStorage.getItem('wh_google_verify_context')==='signup'&&!user?.identities?.some(identity=>identity.provider==='google')){
+          if(verification?.context==='signup'&&!user?.identities?.some(identity=>identity.provider==='google')){
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
             return;
           }
-          if(sessionStorage.getItem('wh_google_verify_context')==='new_device'){
-            const pendingSession=sessionStorage.getItem('wh_pending_device_session');
+          if(verification?.context==='new_device'){
+            const pendingSession=verification.pendingDeviceSessionId;
             if(!pendingSession)throw new Error('The pending device confirmation expired. Sign in again.');
             const confirmed=await confirmCurrentDeviceWithGoogle(pendingSession);
             if(confirmed.error)throw confirmed.error;
-            sessionStorage.removeItem('wh_google_verify_context');
-            sessionStorage.removeItem('wh_google_verify_email');
-            sessionStorage.removeItem('wh_pending_device_session');
+            clearGoogleVerification();
           }
           const [profileResult, maintenanceEnabled] = await Promise.all([
             getProfileByAuthId(authId, email),
@@ -368,7 +375,7 @@ export function useAuth() {
           }
           let profile = existing;
           if (!profile) {
-            const role = publicRole(user?.user_metadata?.signup_role)||publicRole(sessionStorage.getItem('wh_google_verify_role'));
+            const role = publicRole(user?.user_metadata?.signup_role)||publicRole(verification?.role);
             if (role) {
               if (maintenanceEnabled)
                 throw new Error("WeHouse is currently under maintenance.");
@@ -378,9 +385,7 @@ export function useAuth() {
               if (created.error || !created.profile)
                 throw created.error || new Error("Could not create account");
               profile = created.profile;
-              sessionStorage.removeItem('wh_google_verify_email');
-              sessionStorage.removeItem('wh_google_verify_role');
-              sessionStorage.removeItem('wh_google_verify_context');
+              clearGoogleVerification();
               if (role === "property_partner")
                 await ensurePropertyPartnerRecord();
             } else {
@@ -396,7 +401,7 @@ export function useAuth() {
           }
           const registration=await registerUserSession(profile.user_id,authId);
           if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
-            if(registration.sessionId)sessionStorage.setItem('wh_pending_device_session',registration.sessionId);
+            if(registration.sessionId)saveGoogleVerification({context:'new_device',email:profile.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;
           }
@@ -419,8 +424,7 @@ export function useAuth() {
               ...s,
               isLoading: false,
               error:
-                e?.message ||
-                "Connection interrupted. Your session is still being restored.",
+                safeAuthMessage(e, "We couldn’t restore your session. Please sign in again."),
             }));
         } finally {
           profileLoadRef.current = null;
@@ -480,8 +484,7 @@ export function useAuth() {
             profile: null,
             isLoading: false,
             error:
-              e?.message ||
-              "Unable to restore your session. Check your connection and try again.",
+              safeAuthMessage(e, "Unable to restore your session. Please sign in again."),
             kickedOut: false,
           });
       }
@@ -598,7 +601,7 @@ export function useAuth() {
         if (await allowEntry(p, maintenanceEnabled)) {
           const registration=await registerUserSession(p.user_id,authId);
           if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
-            if(registration.sessionId)sessionStorage.setItem('wh_pending_device_session',registration.sessionId);
+            if(registration.sessionId)saveGoogleVerification({context:'new_device',email:p.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;
           }
@@ -620,7 +623,7 @@ export function useAuth() {
           page: "login",
           profile: null,
           isLoading: false,
-          error: e?.message || "Login failed. Please try again.",
+          error: safeAuthMessage(e, "Login failed. Please try again."),
         });
       } finally {
         handlingLoginRef.current = false;

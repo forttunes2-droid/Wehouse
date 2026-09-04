@@ -25,6 +25,7 @@ import AdminAuthModal from "@/components/AdminAuthModal";
 import SupportChat from "@/components/SupportChat";
 import DesktopLayout from "@/components/DesktopLayout";
 import PrivateCallCenter from "@/components/PrivateCallCenter";
+import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
@@ -48,6 +49,7 @@ type IncomingMessageRow = {
 type AnnouncementRecipientRow = { announcement_id?: string };
 
 function isOrdinaryChatNotification(type: string) {
+  if (type === "new_device_login" || type === "device_confirmation_pending") return true;
   return type !== "missed_call" && (type === "new_message" || type === "message" || type === "chat_message" || type.endsWith("_message"));
 }
 
@@ -551,6 +553,7 @@ export default function App() {
             message?: string;
             type?: string;
           };
+          if (["new_device_login", "device_confirmation_pending"].includes(String(notification.type || ""))) return;
           if (
             isUserRole &&
             ["roommate_message", "customer_message", "worker_replied"].includes(
@@ -1021,6 +1024,7 @@ export default function App() {
       <AdminAuthProvider>
         <Suspense fallback={<PageTransitionFallback />}>
           <PrivateCallCenter />
+          {profile && <NewLoginAlert profile={profile} />}
           <DesktopLayout
             navItems={desktopNavItems}
             activePage={navPage === "notifications" ? "conversation" : navPage}

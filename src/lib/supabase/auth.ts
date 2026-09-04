@@ -1,5 +1,7 @@
 import { supabase } from './client';
 import { parseDeviceInfo } from './session';
+import type { GoogleVerificationContext } from '@/lib/googleVerification';
+import { verificationRedirectUrl } from '@/lib/googleVerification';
 
 // ─── AUTH HELPERS ──────────────────────────────────
 
@@ -23,8 +25,8 @@ export async function signInWithEmail(email: string, password: string) {
   return { data, error };
 }
 
-export async function signInWithGoogle(verificationEmail?: string) {
-  const redirectUrl = `${window.location.origin}/`;
+export async function signInWithGoogle(verificationEmail?: string, context?: GoogleVerificationContext) {
+  const redirectUrl = verificationRedirectUrl(context);
   const loginHint = verificationEmail?.trim().toLowerCase();
   return supabase.auth.signInWithOAuth({
     provider: 'google',
