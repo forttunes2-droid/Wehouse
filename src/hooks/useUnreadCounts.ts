@@ -45,8 +45,8 @@ export function useUnreadCounts(userId: string, userRole: string) {
 
       let unreadMessages = 0;
       (convs || []).forEach((c: any) => {
-        if (c.participant_a === userId) unreadMessages += c.unread_a || 0;
-        if (c.participant_b === userId) unreadMessages += c.unread_b || 0;
+        const count = c.participant_a === userId ? c.unread_a : c.participant_b === userId ? c.unread_b : 0;
+        if (Number(count || 0) > 0) unreadMessages += 1;
       });
 
       // 2. Unread notifications
@@ -69,7 +69,7 @@ export function useUnreadCounts(userId: string, userRole: string) {
           .select("unread_partner_count, unread_staff_count")
           .eq("status", "active");
         (supportConvs || []).forEach((c: any) => {
-          supportCount += c.unread_staff_count || 0;
+          if (Number(c.unread_staff_count || 0) > 0) supportCount += 1;
         });
       }
 

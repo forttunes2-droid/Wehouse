@@ -646,7 +646,7 @@ function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{it
 function RoommateProfileSheet({row,showSchool,onClose}:{row:RoommateMatchResult;showSchool:boolean;onClose:()=>void}){
   const p=row.matched_profile,score=Number(row.match_score||0);
   const highlights=Object.entries(p.score_factors||{}).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3).map(([key])=>key==='stay'?'Stay length':key[0].toUpperCase()+key.slice(1));
-  return <RoommatePublicProfile person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:showSchool?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score} matchLabel={`${matchLabel(score)} match`} highlights={highlights} footer={<p className="border-t border-white/[.06] pt-4 text-[9px] leading-5 text-[#666D7E]">Compatibility combines budget, location and living preferences. Eligibility rules are applied before ranking.</p>}/>;
+  return <RoommatePublicProfile context="discovery" person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:showSchool?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score} matchLabel={`${matchLabel(score)} match`} highlights={highlights} footer={<p className="border-t border-white/[.06] pt-4 text-[9px] leading-5 text-[#666D7E]">Compatibility combines budget, location and living preferences. Eligibility rules are applied before ranking.</p>}/>;
 }
 
 function ReceivedInterests({

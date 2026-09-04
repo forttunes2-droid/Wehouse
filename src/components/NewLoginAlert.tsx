@@ -25,6 +25,7 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
       .eq("recipient_id", profile.user_id)
       .eq("type", "new_device_login")
       .eq("read", false)
+      .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order("created_at", { ascending: false })
       .limit(12);
 
@@ -99,8 +100,8 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
         <div className="px-5 pb-4 pt-6 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/12 text-violet-300"><DeviceShieldIcon /></div>
           <p className="mt-4 text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">Security alert</p>
-          <h2 id="new-login-title" className="mt-2 text-xl font-bold">New login to your account</h2>
-          <p id="new-login-description" className="mx-auto mt-2 max-w-xs text-[11px] leading-5 text-[#8B91A0]">A new device signed in. Was this you?</p>
+          <h2 id="new-login-title" className="mt-2 text-xl font-bold">New device logged into your account</h2>
+          <p id="new-login-description" className="mx-auto mt-2 max-w-xs text-[11px] leading-5 text-[#8B91A0]">Was this you?</p>
         </div>
         <div className="mx-5 divide-y divide-white/[.06] border-y border-white/[.06]">
           <Detail label="Device" value={alert.device} />

@@ -399,6 +399,8 @@ export function useAuth() {
               return;
             }
           }
+          if (verification?.context === "signup" && user?.identities?.some(identity => identity.provider === "google"))
+            clearGoogleVerification();
           const registration=await registerUserSession(profile.user_id,authId);
           if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:profile.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});

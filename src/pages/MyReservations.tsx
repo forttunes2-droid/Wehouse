@@ -3,6 +3,7 @@ import { toast, Toaster } from "sonner";
 import {
   cancelReservation,
   getReservationsForUser,
+  initializeReservationPayment,
 } from "@/lib/supabase/reservations";
 import {
   getHotelBookingsForUser,
@@ -18,6 +19,10 @@ type Props = { profile: Profile; initialBookingId?:string|null; onInitialBooking
 type View = "all" | "housing" | "hotels" | "services";
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
+const isUnpaidHousingDraft = (row: any) =>
+  ["cancelled", "expired"].includes(String(row.status || "")) &&
+  !row.paid_at &&
+  !["paid", "completed"].includes(String(row.manual_payment_status || ""));
 const HOUSING_STATUS: Record<string, string> = {
   payment_pending: "Payment pending",
   reserved: "Reserved",
@@ -65,7 +70,8 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
         getHotelBookingsForUser(profile.user_id),
         getMyBookingConversations(profile.user_id),
       ]);
-      if (housingResult.status === "fulfilled" && !housingResult.value.error) setHousing(housingResult.value.reservations || []);
+      if (housingResult.status === "fulfilled" && !housingResult.value.error)
+        setHousing((housingResult.value.reservations || []).filter((row: any) => !isUnpaidHousingDraft(row)));
       if (hotelResult.status === "fulfilled" && !hotelResult.value.error) setHotels(hotelResult.value.bookings || []);
       if (serviceResult.status === "fulfilled" && !serviceResult.value.error) setServices(serviceResult.value.conversations || []);
       const failed = housingResult.status === "rejected" || Boolean(housingResult.value?.error) ||
@@ -151,6 +157,25 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
     if(!result.authorization_url){setBusyId(null);return toast.error("Secure checkout link is missing")}
     window.location.assign(String(result.authorization_url));
   }
+  async function continueHousing(row: any) {
+    if (!row.payment_reference) return toast.error("This reservation attempt cannot be resumed. Start again from the property.");
+    setBusyId(row.id);
+    const { result } = await initializeReservationPayment(String(row.payment_reference));
+    if (!result?.success) {
+      setBusyId(null);
+      return toast.error(result?.error || "Could not reopen payment");
+    }
+    if (result.already_paid) {
+      toast.success("Reservation payment is already confirmed");
+      await load();
+      return;
+    }
+    if (!result.authorization_url) {
+      setBusyId(null);
+      return toast.error("Secure checkout link is missing");
+    }
+    window.location.assign(String(result.authorization_url));
+  }
   async function runPending() {
     const action = pending;
     setPending(null);
@@ -190,7 +215,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
     window.dispatchEvent(new CustomEvent("openSupportChat",{detail:{category:"hotel_booking",subject:`${row.hotels?.name||row.hotel?.name||row.hotel_name||"Hotel stay"}`,contextType:"hotel_booking",contextId:String(row.booking_id),contextSnapshot:{booking_id:row.booking_id,booking_code:row.booking_code,hotel_id:row.hotel_id,hotel_name:row.hotels?.name||row.hotel?.name||row.hotel_name,room_id:row.room_id,room_name:row.hotel_rooms?.name||row.room_name,check_in:row.check_in_date||row.check_in,check_out:row.check_out_date||row.check_out,status:row.status,payment_status:row.payment_status}}}));
   }
   if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
-  if(activeHousing)return <PropertyBookingDetail row={activeHousing} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)}/>;
+  if(activeHousing)return <PropertyBookingDetail row={activeHousing} busy={busyId===activeHousing.id} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)} onResume={()=>void continueHousing(activeHousing)}/>;
   if(activeHotel)return <HotelBookingDetail row={activeHotel} busy={busyId===`hotel-${activeHotel.booking_id}`} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)} onPay={()=>void payHotel(activeHotel)}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
@@ -226,6 +251,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
                   key={item.row.id}
                   row={item.row}
                   onOpen={() => setActiveHousing(item.row)}
+                  onResume={() => void continueHousing(item.row)}
                   busy={busyId === item.row.id}
                   onCancel={() =>
                     setPending({ kind: "cancel_housing", row: item.row })
@@ -274,12 +300,14 @@ function HousingCard({
   row,
   busy,
   onOpen,
+  onResume,
   onCancel,
   onSupport,
 }: {
   row: any;
   busy: boolean;
   onOpen: () => void;
+  onResume: () => void;
   onCancel: () => void;
   onSupport: () => void;
 }) {
@@ -299,7 +327,7 @@ function HousingCard({
         ? `Checkout ${date(row.check_out_date)}`
         : `Ends ${date(row.tenancy_end_date)}`
       : row.status === "payment_pending"
-        ? "Reservation fee required"
+        ? "Finish your reservation"
         : row.status === "inspection_pending"
           ? "WeHouse is reviewing the property"
           : row.status === "ready_for_move_in" && rentPaid
@@ -356,11 +384,12 @@ function HousingCard({
       )}
       {row.status === "payment_pending" && (
         <p className="mt-3 rounded-xl bg-amber-500/[.04] p-3 text-[9px] text-amber-200">
-          Finish the reservation-fee checkout to secure this booking.
+          Complete payment to confirm this reservation. Rent is a separate later payment.
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "Open tenancy" : "Open booking"}</button>
+        {row.status === "payment_pending" ? <button disabled={busy} onClick={onResume} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-50">{busy ? "Opening payment…" : "Continue reservation"}</button> : <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "Open tenancy" : "Open booking"}</button>}
+        {row.status === "payment_pending" && <button onClick={onOpen} className="h-10 rounded-xl border border-white/[.08] px-3 text-[10px] font-semibold text-[#B2B6C2]">Details</button>}
         {row.status === "payment_pending" && (
           <button
             disabled={busy}
@@ -486,11 +515,12 @@ function HotelCard({
     </article>
   );
 }
-function PropertyBookingDetail({row,onBack,onDesk}:{row:any;onBack:()=>void;onDesk:()=>void}) {
+function PropertyBookingDetail({row,busy,onBack,onDesk,onResume}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void}) {
   const short=row.stay_type==='short_let';
   const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
   const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Property stay':'Property booking');
-  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{row.booking_code&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Message WeHouse</button></div></div></section></BookingDetailShell>;
+  const showCode=Boolean(row.booking_code)&&row.status!=="payment_pending"&&!isUnpaidHousingDraft(row);
+  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{showCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}{row.status==="payment_pending"&&<div className="mt-4 border-y border-amber-500/15 py-4"><p className="text-sm font-semibold">Complete your reservation</p><p className="mt-1 text-[10px] leading-5 text-[#858A99]">Payment confirms the reservation process. Rent is handled separately later.</p><button type="button" disabled={busy} onClick={onResume} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Opening payment…':'Continue reservation'}</button></div>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Message WeHouse</button></div></div></section></BookingDetailShell>;
 }
 function HotelBookingDetail({row,busy,onBack,onDesk,onPay}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onPay:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';

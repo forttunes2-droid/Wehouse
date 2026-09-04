@@ -32,6 +32,7 @@ import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import { privateConversationReadiness, type PrivateConversationReadiness } from "@/lib/e2ee";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
+import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 
 type Props = {
   profile: Profile;
@@ -199,8 +200,8 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   );
 
   useEffect(() => {
-    void loadInbox();
-  }, [loadInbox]);
+    if (!conversationId) void loadInbox();
+  }, [conversationId, loadInbox]);
   useEffect(() => {
     if (!conversationId) return;
     void (async () => {
@@ -333,6 +334,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   }
   async function submit() {
     if (!active || sending || (!input.trim() && !files.length)) return;
+    if (secureChat?.state !== "ready") return toast.error("Secure chat is not ready yet");
     setSending(true);
     const paths: string[] = [], attachments: Array<{path:string;file_iv:string;metadata_ciphertext:string;metadata_iv:string}> = [],
       types: string[] = [];
@@ -463,11 +465,11 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
     [conversations, bookingConversations, supportThreads, recentRoommateCalls],
   );
   const totalUnread =
-    conversations.reduce((sum, row) => sum + unread(row), 0) +
+    conversations.reduce((sum, row) => sum + (unread(row) > 0 ? 1 : 0), 0) +
     bookingConversations.reduce(
-      (sum, row) => sum + Number(row.unread_count || 0),
+      (sum, row) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
       0,
-    ) + supportThreads.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
+    ) + supportThreads.reduce((sum,row)=>sum+(Number(row.unread_count||0)>0?1:0),0);
   const visibleInboxItems = useMemo(() => {
     const query = inboxQuery.trim().toLowerCase();
     return inboxItems.filter((item) => {
@@ -611,7 +613,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
         </main>
         <footer className="shrink-0 border-t border-white/[.06] bg-[#10131B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
           <div className="mx-auto max-w-3xl">
-            {person?.isBlocked ? <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4"><p className="text-[10px] text-amber-100">This person is blocked. Matching, messages and calls are off.</p><button type="button" onClick={()=>void toggleBlock()} className="shrink-0 text-[10px] font-semibold text-violet-300">Unblock</button></div> : !secureChat?<div className="min-h-12 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]">Preparing encrypted chat…</div>:secureChat.state!=="ready"?<SecureChatGate status={secureChat} personName={person?.name||"This person"} onAccount={()=>onNavigate("encryption")} onRetry={()=>{setSecureChat(null);void privateConversationReadiness("roommate",active.id,otherId(active)).then(setSecureChat)}}/> : <>{files.length > 0 && (
+            {person?.isBlocked ? <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4"><p className="text-[10px] text-amber-100">This person is blocked. Matching, messages and calls are off.</p><button type="button" onClick={()=>void toggleBlock()} className="shrink-0 text-[10px] font-semibold text-violet-300">Unblock</button></div> : !secureChat?<div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Checking private chat…</div>:secureChat.state!=="ready"?<SecureChatOnboarding status={secureChat} personName={person?.name||"This person"} onReady={()=>{setSecureChat(null);void privateConversationReadiness("roommate",active.id,otherId(active)).then(result=>{setSecureChat(result);if(result.state==="ready")void loadRoommateMessages(active.id,true)})}}/> : <>{files.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
                 {files.map((file, index) => (
                   <PendingMedia
@@ -796,7 +798,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
                     <RoommateInboxRow
                       conv={item.roommate}
                       person={people[otherId(item.roommate)]}
-                      count={unread(item.roommate)}
+                      count={unread(item.roommate) > 0 ? 1 : 0}
                       recentCall={recentRoommateCalls[item.roommate.id]}
                       selected={selected.has(item.id)}
                       selectionMode={selected.size > 0}
@@ -827,11 +829,6 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       </main>
     </div>
   );
-}
-
-function SecureChatGate({status,personName,onAccount,onRetry}:{status:PrivateConversationReadiness;personName:string;onAccount:()=>void;onRetry:()=>void}){
-  const mine=status.state==='setup_required'||status.state==='unlock_required';
-  return <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[.055] p-3"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm">🔒</span><div className="min-w-0 flex-1"><p className="text-[11px] font-semibold">{mine?'Unlock encrypted chat':`Waiting for ${personName}`}</p><p className="mt-1 text-[9px] leading-4 text-[#8D92A2]">{status.message} Messages cannot be sent until both accounts are ready.</p></div></div><div className="mt-3 grid grid-cols-2 gap-2">{mine?<button type="button" onClick={onAccount} className="min-h-10 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">Open encrypted chats</button>:<span className="min-h-10"/>}<button type="button" onClick={onRetry} className="min-h-10 rounded-xl border border-white/[.09] px-3 text-[10px] font-semibold">Check again</button></div></div>
 }
 
 function RoommateInboxRow({
@@ -936,14 +933,14 @@ function WorkerInboxRow({
           <span>{formatListTime(row.last_message_time || row.updated_at)}</span>
         </div>
       </div>
-      {row.unread_count > 0 && <Unread value={row.unread_count} />}
+      {row.unread_count > 0 && <Unread value={1} />}
     </SelectableRow>
   );
 }
 function SupportInboxRow({thread,onOpen}:{thread:SupportThread;onOpen:()=>void}){
   const p=conversationPresentation(thread);
   const badge=p.kind==='reservation'?'RESERVATION':p.kind==='property_operations'?'PROPERTY':'WEHOUSE';
-  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{p.title}</p><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">{badge}</span></div><p className={`mt-1 truncate text-[11px] ${thread.unread_count?"font-medium text-[#E3E5EB]":"text-[#777C8D]"}`}>{thread.last_message||p.operator}</p><p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{[p.operator,p.meta,formatListTime(thread.last_message_time||thread.created_at)].filter(Boolean).join(' · ')}</p></div>{thread.unread_count>0&&<Unread value={thread.unread_count}/>}</button>
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{p.title}</p><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">{badge}</span></div><p className={`mt-1 truncate text-[11px] ${thread.unread_count?"font-medium text-[#E3E5EB]":"text-[#777C8D]"}`}>{thread.last_message||p.operator}</p><p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{[p.operator,p.meta,formatListTime(thread.last_message_time||thread.created_at)].filter(Boolean).join(' · ')}</p></div>{thread.unread_count>0&&<Unread value={1}/>}</button>
 }
 function SelectableRow({
   onOpen,
@@ -1103,7 +1100,7 @@ function PeerProfileSheet({
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
-  return <RoommatePublicProfile person={{name:person?.name||'Roommate',avatar:person?.avatar,location,bio:person?.bio,school:person?.isStudent?person.school:null,occupation:person?.occupation}} presence={presenceText||'Roommate connection'} onClose={onClose} actions={<div className="mx-auto flex max-w-xs justify-center gap-12">
+  return <RoommatePublicProfile context="conversation" person={{name:person?.name||'Roommate',avatar:person?.avatar,location,bio:person?.bio,school:person?.isStudent?person.school:null,occupation:person?.occupation}} presence={presenceText||'Roommate connection'} onClose={onClose} actions={<div className="mx-auto flex max-w-xs justify-center gap-12">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
           </ProfileAction>

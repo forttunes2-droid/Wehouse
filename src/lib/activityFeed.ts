@@ -1,12 +1,18 @@
 export type ActivityFeedRow = {
+  id?: string;
   type?: string | null;
   source_type?: string | null;
+  source_id?: string | null;
   destination_route?: string | null;
   created_at: string;
+  read?: boolean;
   source?: "event" | "announcement";
 };
 
-const IMPORTANT_ACTIVITY = /security|device_login|payment|payout|earning|dispute|refund/i;
+const FINANCIAL_ACTIVITY = /payment|payout|earning|dispute|refund/i;
+const ACCOUNT_ACTIVITY = /security|password|verification/i;
+const BOOKING_ACTIVITY = /booking|reservation|inspection|listing|property|hotel|job|worker|status/i;
+const ROOMMATE_ACTIVITY = /roommate|match|invite|interest/i;
 const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/i;
 
 export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "source_type" | "destination_route">) {
@@ -29,8 +35,27 @@ export function isConversationDestination(row: Pick<ActivityFeedRow, "source_typ
 export function activityIsCurrent(row: ActivityFeedRow, now = Date.now()) {
   const created = new Date(row.created_at).getTime();
   if (!Number.isFinite(created)) return false;
-  const retentionDays = row.source === "announcement" || IMPORTANT_ACTIVITY.test(String(row.type || "")) ? 90 : 30;
+  const type = String(row.type || "");
+  const retentionDays = row.read
+    ? FINANCIAL_ACTIVITY.test(type) ? 30 : ROOMMATE_ACTIVITY.test(type) ? 3 : 7
+    : FINANCIAL_ACTIVITY.test(type) ? 90 : ACCOUNT_ACTIVITY.test(type) || BOOKING_ACTIVITY.test(type) ? 30 : ROOMMATE_ACTIVITY.test(type) ? 14 : row.source === "announcement" ? 30 : 14;
   return created >= now - retentionDays * 86_400_000;
+}
+
+export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = Date.now()) {
+  const seen = new Set<string>();
+  return [...rows]
+    .filter((row) => !isOrdinaryMessageEvent(row) && activityIsCurrent(row, now))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .filter((row) => {
+      const type = String(row.type || "");
+      const isLifecycle = FINANCIAL_ACTIVITY.test(type) || BOOKING_ACTIVITY.test(type) || ROOMMATE_ACTIVITY.test(type);
+      const key = isLifecycle && row.source_type && row.source_id ? `${row.source_type}:${row.source_id}` : "";
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 export function longestActivityCutoff(now = Date.now()) {
