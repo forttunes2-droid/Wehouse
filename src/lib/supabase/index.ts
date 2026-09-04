@@ -46,6 +46,9 @@ export {
   endSession,
   getSessionHistory,
   createUserSession,
+  registerUserSession,
+  confirmCurrentDeviceWithGoogle,
+  approximateDeviceLocation,
   deactivateUserSession,
   isSessionActive,
   getStoredSessionId,
@@ -53,6 +56,7 @@ export {
   getUserSessionState,
   updateSessionLastSeen,
 } from "./session";
+export type { DeviceRegistration } from "./session";
 
 // Listings
 export {

@@ -226,7 +226,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
       <AccountSection title="Preferences & protection">
         <AccountRow title="Notifications" detail="Email and in-app alert preferences" onClick={() => setPanel('notifications')} icon={<BellIcon />} />
-        <AccountRow title="Privacy & Security" detail="Visibility, password, devices and account protection" onClick={() => setPanel('privacy_security')} icon={<ShieldIcon />} />
+        <AccountRow title="Privacy & Security" detail={isUser?'Roommate visibility, password, devices and account ownership':'Password, trusted devices and account ownership'} onClick={() => setPanel('privacy_security')} icon={<ShieldIcon />} />
       </AccountSection>
 
       {(isWorker || isStaff) && (

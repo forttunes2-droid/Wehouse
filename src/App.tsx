@@ -637,6 +637,7 @@ export default function App() {
         onLoginSuccess={auth.handleLoginSuccess}
         serverError={auth.error}
         kickedOut={auth.kickedOut}
+        pendingDevice={auth.pendingDevice}
       />
     );
   if (auth.page === "setup" && profile)
@@ -722,6 +723,7 @@ export default function App() {
         <Login
           onLoginSuccess={auth.handleLoginSuccess}
           serverError={auth.error}
+          pendingDevice={auth.pendingDevice}
         />
       );
     const props = { profile, savedIds, onToggleSave: toggle };

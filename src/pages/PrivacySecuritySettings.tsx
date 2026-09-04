@@ -11,10 +11,11 @@ type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void};
 export default function PrivacySecuritySettings({profile,onUpdate,onBack}:Props){
   const [section,setSection]=useState<'privacy'|'access'|'encryption'|'close'|null>(null);
   const privateMessaging=['user','worker'].includes(profile.role);
+  const hasPrivacyControls=profile.role==='user';
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
   const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='encryption'?'Encrypted chats':section==='close'?'Close account':'Privacy & Security';
-  const description=section==='privacy'?'See what is private and who can contact you.':section==='access'?'Manage your password, devices and account access.':section==='encryption'?'Own, unlock and recover your private-chat encryption key.':section==='close'?'Close this account after active obligations are cleared.':'Privacy, access, encrypted-chat ownership and account closure.';
+  const description=section==='privacy'?'Control roommate discovery and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='encryption'?'Own, unlock and recover your private-chat encryption key.':section==='close'?'Close this account after active obligations are cleared.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
     <Toaster position="top-center" richColors/>
     {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
@@ -22,9 +23,9 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack}:Props)
     section==='encryption'?<SecureMessagesPanel/>:
     section==='close'?<SecuritySettings profile={profile} embedded focus="close"/>:
     <>
-      <AccountSection title="Privacy">
-        <AccountRow title="Privacy" detail={profile.role==='user'?'Roommate discovery and profile visibility':'What people can see and who can contact you'} onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
-      </AccountSection>
+      {hasPrivacyControls&&<AccountSection title="Privacy">
+        <AccountRow title="Roommate visibility" detail="Control profile visibility and participation in roommate discovery" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
+      </AccountSection>}
       <AccountSection title="Account access">
         <AccountRow title="Access & security" detail="Password, trusted devices and active sessions" onClick={()=>setSection('access')} icon={<LockIcon/>}/>
       </AccountSection>

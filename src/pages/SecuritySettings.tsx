@@ -23,8 +23,8 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   useEffect(()=>{if(focus==='all'||focus==='sessions')void load();else setLoading(false)},[focus,load]);
 
   async function savePassword(){if(!currentPassword||!newPassword||!confirmPassword)return toast.error('Complete all password fields');if(newPassword!==confirmPassword)return toast.error('New passwords do not match');if(newPassword.length<8)return toast.error('Password must be at least 8 characters');setChanging(true);const {error}=await changePassword(currentPassword,newPassword,profile.email);setChanging(false);if(error)return toast.error(error.message);await logPasswordChange(profile.user_id,profile.auth_id);setCurrentPassword('');setNewPassword('');setConfirmPassword('');setShowPassword(false);toast.success('Password changed')}
-  async function logoutAll(){await supabase.auth.signOut({scope:'global'});window.location.reload()}
-  async function closeAccount(){if(deleteText!=='DELETE')return;setDeleting(true);const {error}=await supabase.rpc('delete_user_account',{p_user_id:profile.user_id});setDeleting(false);if(error)return toast.error(error.message||'Account could not be closed');await supabase.auth.signOut({scope:'global'});window.location.reload()}
+  async function logoutAll(){await supabase.auth.signOut({scope:'global'})}
+  async function closeAccount(){if(deleteText!=='DELETE')return;setDeleting(true);const {error}=await supabase.rpc('delete_user_account',{p_user_id:profile.user_id});setDeleting(false);if(error)return toast.error(error.message||'Account could not be closed');await supabase.auth.signOut({scope:'global'})}
 
   const content=<>
     {!embedded&&<Toaster position="top-center" richColors/>}
@@ -37,6 +37,6 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
     {canDelete&&(focus==='all'||focus==='close')&&<section className="rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 sm:p-5"><h2 className="text-sm font-semibold text-red-300">Close account</h2><p className="mt-1 text-[10px] leading-relaxed text-[#8C7077]">The server checks active bookings, balances and other obligations before allowing account closure.</p><div className="mt-4 space-y-3"><input value={deleteText} onChange={e=>setDeleteText(e.target.value)} placeholder="Type DELETE" className="h-11 w-full rounded-xl border border-red-500/15 bg-[#181319] px-3 text-xs outline-none"/><button onClick={()=>void closeAccount()} disabled={deleteText!=='DELETE'||deleting} className="w-full rounded-xl bg-red-500 px-4 py-3 text-xs font-semibold disabled:opacity-40">{deleting?'Closing…':'Close account'}</button></div></section>}
   </>;
   if(embedded)return content;
-  return <AccountShell profile={profile} title="Privacy & Security" description="Visibility, sign-ins and account protection in one place." onBack={onBack}>{content}</AccountShell>
+  return <AccountShell profile={profile} title="Access & security" description="Password, trusted devices and active sessions." onBack={onBack}>{content}</AccountShell>
 }
 function Field({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){return <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">{label}</span><input type="password" value={value} onChange={e=>onChange(e.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181A23] px-3 text-xs outline-none focus:border-violet-500/40"/></label>}

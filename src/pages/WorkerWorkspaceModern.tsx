@@ -20,7 +20,7 @@ type Tab = "home" | "jobs" | "conversations" | "work" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
-  { id: "conversations", label: "Messages" },
+  { id: "conversations", label: "Job Inbox" },
   { id: "work", label: "Portfolio" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
@@ -80,6 +80,7 @@ export default function WorkerWorkspaceModern({
         initialConversation={conversation}
         onConversationClosed={() => setConversation(null)}
         onNavigate={onNavigate}
+        onOpenJobs={()=>setTab('jobs')}
       />
     );
   } else if (live && safeTab === "work") {
@@ -100,7 +101,7 @@ export default function WorkerWorkspaceModern({
 
   const description =
     safeTab === "conversations"
-        ? "Customer requests and job updates stay in one continuous conversation."
+        ? "Job conversations and important job, payment, security and official activity."
         : safeTab === "earnings"
           ? "See available earnings, withdrawals and your verified payout account."
         : safeTab === "work"

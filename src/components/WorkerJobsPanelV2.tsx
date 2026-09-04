@@ -44,7 +44,7 @@ export default function WorkerJobsPanelV2({profile, onOpenConversation}: {profil
   </div>;
 }
 
-export function WorkerConversationsPanel({profile, initialConversation, onConversationClosed, onNavigate = () => {}}: {profile: Profile; initialConversation?: WorkerBookingConversation | null; onConversationClosed?: () => void; onNavigate?: (page:string,id?:string)=>void}) {
+export function WorkerConversationsPanel({profile, initialConversation, onConversationClosed, onNavigate = () => {}, onOpenJobs}: {profile: Profile; initialConversation?: WorkerBookingConversation | null; onConversationClosed?: () => void; onNavigate?: (page:string,id?:string)=>void; onOpenJobs?:()=>void}) {
   const [rows, setRows] = useState<WorkerBookingConversation[]>([]);
   const [selected, setSelected] = useState<WorkerBookingConversation | null>(initialConversation || null);
   const [loading, setLoading] = useState(true);
@@ -56,8 +56,14 @@ export function WorkerConversationsPanel({profile, initialConversation, onConver
   }, [profile.user_id]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (initialConversation) setSelected(initialConversation); }, [initialConversation]);
+  function openActivitySource(page:string,id?:string){
+    const linked=id?rows.find(row=>row.booking_id===id||row.conversation_id===id||row.booking_code===id):undefined;
+    if(linked){setSelected(linked);setView('chats');return}
+    if(['worker_dashboard','operations_inbox','my_reservations','my_bookings'].includes(page)){onOpenJobs?.();return}
+    onNavigate(page,id);
+  }
   if (selected) return <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); }}/>;
-  return <div className="space-y-5"><div className="flex border-b border-white/[.07]" aria-label="Inbox views">{([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={onNavigate}/>:<section><div className="mb-4"><h2 className="text-lg font-bold">Job conversations</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Every customer chat stays attached to the same job request from request through completion. Official announcements stay in Activity.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section>}</div>;
+  return <div className="space-y-5"><section className="border-b border-white/[.06] pb-4"><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">JOB INBOX</p><h2 className="mt-2 text-lg font-bold">Work that needs your attention</h2><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Chats stay attached to their job. Activity contains only important job, payment, security and WeHouse updates.</p></section><div className="flex border-b border-white/[.07]" aria-label="Job Inbox views">{([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={openActivitySource}/>:<section><div className="mb-4"><h3 className="text-sm font-bold">Job conversations</h3><p className="mt-1 text-[10px] leading-relaxed text-[#707687]">Open a customer to continue the same request, agreement and completion record.</p></div>{loading ? <Empty text="Loading conversations…"/> : rows.length === 0 ? <Empty text="A conversation appears when a customer requests your service."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</section>}</div>;
 }
 
 function JobRow({row, onOpen}: {row: WorkerBookingConversation; onOpen: () => void}) {
