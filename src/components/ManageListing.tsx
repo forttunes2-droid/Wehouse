@@ -1,15 +1,41 @@
-import { useEffect,useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { ListingMediaImage } from '@/components/ListingCandidateMedia';
 
-export default function ManageListing({listingId,done}:{listingId:string;done:()=>void}){
- const[listing,setListing]=useState<any|null>(null),[editing,setEditing]=useState(false),[preview,setPreview]=useState(false),[confirming,setConfirming]=useState(false),[busy,setBusy]=useState(false),[form,setForm]=useState({title:'',description:'',price:''});
- async function load(){const{data,error}=await supabase.from('listings').select('*').eq('id',listingId).maybeSingle();if(error)return toast.error(error.message);setListing(data);if(data)setForm({title:data.title||'',description:data.description||'',price:String(data.price||'')})}
- useEffect(()=>{void load()},[listingId]);
- async function save(){if(!form.title.trim()||!Number(form.price))return toast.error('Title and a valid price are required');setBusy(true);try{const{data,error}=await supabase.rpc('creator_update_listing',{p_listing_id:listingId,p_changes:{title:form.title.trim(),description:form.description.trim(),price:Number(form.price)}});if(error)throw error;setListing(data);setEditing(false);setPreview(false);toast.success(listing?.status==='draft'?'Draft details saved':'Property details updated')}catch(error:any){toast.error(error.message||'Could not update property')}finally{setBusy(false)}}
- async function remove(){setBusy(true);const{error}=await supabase.rpc('creator_remove_listing',{p_listing_id:listingId,p_reason:'Removed from property management'});setBusy(false);if(error)return toast.error(error.message);toast.success('Property removed from the marketplace');done()}
- if(!listing)return null;
- const photos=listing.images||[];
- if(preview)return <section className="border-t border-white/[.07] pt-5"><button onClick={()=>setPreview(false)} className="text-[10px] font-semibold text-violet-300">← Back to editing</button><div className="mt-3 overflow-hidden rounded-3xl bg-[#11141C]"><div className="aspect-[4/3]">{photos[0]?<img src={photos[0]} alt="Property preview" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-xs text-[#666D7E]">No image</div>}</div><div className="p-4"><p className="text-lg font-bold">{form.title}</p><p className="mt-1 text-sm font-bold text-violet-300">₦{Number(form.price||0).toLocaleString()} / year</p><p className="mt-3 text-[10px] leading-5 text-[#8A90A0]">{form.description||'No description'}</p></div></div><button disabled={busy} onClick={()=>void save()} className="mt-3 min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy?'Saving…':'Save corrected listing'}</button></section>;
- return <section className="border-t border-white/[.07] pt-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Listing details</h3><p className="mt-1 text-[9px] text-[#73798A]">Correct the public text and price. Gallery choices come only from submitted partner and Field Operations photos above.</p></div><button onClick={()=>setEditing(value=>!value)} className="rounded-xl border border-white/[.08] px-3 py-2 text-[9px] font-semibold">{editing?'Close':'Edit'}</button></div>{editing&&<div className="mt-4 space-y-3"><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Property title" className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"/><input type="number" value={form.price} onChange={e=>setForm({...form,price:e.target.value})} placeholder="Annual rent" className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"/><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={4} placeholder="Description" className="w-full resize-none border-b border-white/[.08] bg-transparent py-2 text-sm outline-none"/><div className="grid grid-cols-2 gap-2"><button onClick={()=>setPreview(true)} className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold">Preview changes</button><button onClick={()=>setConfirming(true)} className="min-h-11 rounded-xl border border-red-500/20 text-xs font-semibold text-red-300">Remove property</button></div></div>}{confirming&&<div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/[.05] p-4"><p className="text-sm font-semibold">Remove this property?</p><p className="mt-1 text-[10px] leading-5 text-[#8E8290]">It disappears from discovery. WeHouse keeps reservation and payment history. Active reservations block removal.</p><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>setConfirming(false)} className="min-h-10 rounded-xl border border-white/[.08] text-xs">Keep</button><button disabled={busy} onClick={()=>void remove()} className="min-h-10 rounded-xl bg-red-500 text-xs font-semibold disabled:opacity-40">{busy?'Removing…':'Remove'}</button></div></div>}</section>
+type Props={
+  listingId:string;
+  source:{request_code?:string|null;owner_name?:string|null;owner_email?:string|null;owner_phone?:string|null;property_address?:string|null};
+};
+
+export default function ManageListing({listingId,source}:Props){
+ const[listing,setListing]=useState<any|null>(null),[loading,setLoading]=useState(true);
+ useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.from('listings').select('*').eq('id',listingId).maybeSingle();if(!active)return;if(error)toast.error(error.message);setListing(data);setLoading(false)})();return()=>{active=false}},[listingId]);
+ if(loading)return <div className="grid min-h-48 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>;
+ if(!listing)return <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.04] p-4 text-[10px] text-amber-200">The published listing record could not be loaded.</div>;
+ const photos=Array.isArray(listing.images)?listing.images:[];
+ const location=[listing.address||source.property_address,listing.city,listing.state].filter(Boolean).join(', ');
+ const facts=[
+  ['Type',listing.sub_type||listing.property_type||'Property'],
+  ['Bedrooms',listing.bedrooms??'—'],
+  ['Bathrooms',listing.bathrooms??'—'],
+  ['Reference',source.request_code||listing.listing_code||listing.id],
+ ];
+ return <div className="space-y-4">
+  <section className="overflow-hidden rounded-[26px] border border-white/[.07] bg-[#10131B]">
+   {photos.length?<div className="flex snap-x snap-mandatory overflow-x-auto bg-black scrollbar-hide">{photos.map((photo:string,index:number)=><div key={`${photo}-${index}`} className="relative aspect-[4/3] w-full shrink-0 snap-center sm:aspect-[16/9]"><ListingMediaImage reference={photo} alt={`${listing.title||'Published property'} photo ${index+1}`} className="h-full w-full object-cover"/><span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[8px] font-semibold">{index+1} / {photos.length}</span></div>)}</div>:<div className="grid aspect-[4/3] place-items-center bg-black/30 text-[10px] text-[#666D7E]">No public gallery</div>}
+   <div className="p-4 sm:p-5">
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words text-xl font-bold">{listing.title||source.property_address||'Published property'}</h2><p className="mt-1 text-[10px] text-[#73798A]">{location||'Location not recorded'}</p></div><span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/[.08] px-2.5 py-1 text-[8px] font-semibold text-emerald-300">LIVE</span></div>
+    <p className="mt-4 text-xl font-bold text-violet-200">₦{Number(listing.price||0).toLocaleString('en-NG')} <span className="text-[9px] font-medium text-[#747B8B]">/ year</span></p>
+    <div className="mt-4 grid grid-cols-2 gap-x-4 sm:grid-cols-4">{facts.map(([label,value])=><div key={label} className="border-t border-white/[.06] py-3"><p className="text-[8px] uppercase tracking-wide text-[#5F6677]">{label}</p><p className="mt-1 break-words text-[10px] font-semibold capitalize">{String(value)}</p></div>)}</div>
+    {listing.description&&<p className="border-t border-white/[.06] pt-4 text-[10px] leading-5 text-[#969BA9]">{listing.description}</p>}
+   </div>
+  </section>
+  <section className="rounded-2xl border border-violet-500/12 bg-violet-500/[.035] p-4">
+   <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Property Partner record</p>
+   <p className="mt-2 text-xs font-semibold">{source.owner_name||source.owner_email||'Property Partner'}</p>
+   <p className="mt-1 text-[9px] text-[#747B8B]">{[source.owner_email,source.owner_phone].filter(Boolean).join(' · ')||'Contact details unavailable'}</p>
+   <p className="mt-3 text-[9px] leading-5 text-[#73798A]">Submitted facts stay read-only here. If something is wrong, handle it through the property review record instead of silently rewriting the Partner’s submission.</p>
+  </section>
+ </div>;
 }
