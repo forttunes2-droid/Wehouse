@@ -11,10 +11,17 @@ const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|sched
 
 export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "source_type" | "destination_route">) {
   const type = String(row.type || "").toLowerCase();
+  if (type === "device_confirmation_pending") return true;
   if (type === "missed_call") return true;
   if (MESSAGE_LIFECYCLE.test(type)) return false;
   if (/(^|_)(message|reply|replied|chat)(_|$)/.test(type)) return true;
   return row.destination_route === "conversation" && /conversation|message|chat/.test(String(row.source_type || "").toLowerCase());
+}
+
+export function isConversationDestination(row: Pick<ActivityFeedRow, "source_type" | "destination_route">) {
+  const route = String(row.destination_route || "").toLowerCase();
+  const source = String(row.source_type || "").toLowerCase();
+  return /^(conversation|conversations|message|messages|chat)$/.test(route) || /conversation|message|chat/.test(source);
 }
 
 export function activityIsCurrent(row: ActivityFeedRow, now = Date.now()) {
