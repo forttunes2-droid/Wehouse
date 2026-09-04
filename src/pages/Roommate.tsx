@@ -504,14 +504,6 @@ function matchLabel(score: number) {
   if (score >= 55) return "Good";
   return "Possible";
 }
-const SCORE_FACTORS = [
-  ["Budget", 30],
-  ["Location", 20],
-  ["Cleanliness", 15],
-  ["Noise", 15],
-  ["Visitors", 10],
-  ["Stay length", 10],
-] as const;
 function Matches({
   rows,
   hasMore,
@@ -549,7 +541,7 @@ function Matches({
       </div>
       {rows.length ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
             {rows.map((row) => {
               const p = row.matched_profile,
                 score = Number(row.match_score || 0),
@@ -557,16 +549,16 @@ function Matches({
                 sent = row.status === "accepted",
                 matched = connected || (sent && row.mutual_accepted);
               return (
-                <article key={row.id} className="min-w-0 overflow-hidden rounded-2xl border border-white/[.07] bg-gradient-to-br from-[#151826] to-[#0E1118] p-4">
+                <article key={row.id} className="min-w-0 py-4">
                   <div className="flex items-start gap-3">
                     {p.avatar_url ? (
                       <img
                         src={p.avatar_url}
                         alt={p.full_name || p.username || "Roommate match"}
-                        className="h-14 w-14 shrink-0 rounded-2xl bg-[#11141C] object-cover"
+                        className="h-14 w-14 shrink-0 rounded-full bg-[#11141C] object-cover"
                       />
                     ) : (
-                      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-xl font-bold text-violet-100">
+                      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-[radial-gradient(circle_at_30%_20%,rgba(139,92,246,.45),transparent_35%),linear-gradient(145deg,#191329,#0E1118)] text-xl font-bold text-violet-100">
                         {String(
                           p.full_name || p.username || "W",
                         )[0].toUpperCase()}
@@ -584,9 +576,7 @@ function Matches({
                             {showSchool && p.school ? ` · ${p.school}` : ""}
                           </p>
                         </div>
-                        <div className="shrink-0 rounded-full bg-violet-500/10 px-2.5 py-1 text-right">
-                          <p className="text-[10px] font-bold text-violet-200">{score}% {matchLabel(score)}</p>
-                        </div>
+                        <p className="shrink-0 text-[10px] font-bold text-violet-300">{score}% · {matchLabel(score)}</p>
                       </div>
                       <button
                         type="button"
@@ -598,7 +588,7 @@ function Matches({
                       <p className={`mt-2 text-[8px] font-semibold ${matched?'text-emerald-300':sent?'text-violet-300':'text-[#666D7E]'}`}>{matched?'Connected':sent?'Interest pending':'Available to connect'}</p>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 border-t border-white/[.06] pt-3">
+                  <div className="mt-3 flex items-center gap-2 pl-[4.25rem]">
                     {matched && row.conversation_id ? (
                       <button
                         onClick={() => onChat?.(row.conversation_id!)}
@@ -659,7 +649,8 @@ function Matches({
 
 function RoommateProfileSheet({row,showSchool,onClose}:{row:RoommateMatchResult;showSchool:boolean;onClose:()=>void}){
   const p=row.matched_profile,score=Number(row.match_score||0);
-  return <div className="fixed inset-0 z-[100100] flex items-end bg-black/75 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={onClose}><section className="max-h-[88dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#10131B] p-5 sm:max-w-lg sm:rounded-[28px]" role="dialog" aria-modal="true" aria-label="Roommate profile" onClick={event=>event.stopPropagation()}><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-xl font-bold text-violet-100">{p.avatar_url?<img src={p.avatar_url} alt="" className="h-full w-full object-cover"/>:String(p.full_name||p.username||'W')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><h3 className="truncate text-lg font-bold">{p.full_name||`@${p.username||'user'}`}</h3><p className="mt-1 truncate text-[10px] text-[#737889]">{[p.city,p.state].filter(Boolean).join(', ')||'Nigeria'}</p><p className="mt-2 text-xs font-semibold text-violet-300">{score}% · {matchLabel(score)} match</p></div><button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close profile">×</button></div><div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 border-y border-white/[.06] py-4"><ProfileFact label="Preferred area" value={p.area_preference||'Flexible'}/>{showSchool&&p.school&&<ProfileFact label="School" value={p.school}/>}</div><section className="py-4"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">About</p><p className="mt-2 text-[11px] leading-5 text-[#A2A7B5]">{p.bio||'This person has not added an introduction yet.'}</p></section><section className="border-t border-white/[.06] pt-4"><p className="text-[10px] font-semibold">Why this score</p><div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2">{SCORE_FACTORS.map(([name,weight])=>{const key=name==='Stay length'?'stay':name.toLowerCase();const earned=Number(p.score_factors[key]||0);return <div key={name} className="flex items-center justify-between border-b border-white/[.04] pb-2 text-[9px]"><span className="text-[#666D7E]">{name}</span><span className="font-semibold text-[#AEB3C0]">{earned} / {weight}</span></div>})}</div><p className="mt-3 text-[9px] leading-5 text-[#666D7E]">The score combines budget overlap, location and living preferences. Gender and optional same-school rules decide eligibility first.</p></section></section></div>;
+  const highlights=Object.entries(p.score_factors||{}).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3).map(([key])=>key==='stay'?'Stay length':key[0].toUpperCase()+key.slice(1));
+  return <div className="fixed inset-0 z-[100100] overflow-y-auto bg-[#090B10] text-white" role="dialog" aria-modal="true" aria-label="Roommate profile"><header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-white/[.06] bg-[#090B10]/95 px-3 backdrop-blur-xl"><button type="button" onClick={onClose} className="grid h-11 w-11 place-items-center text-xl text-[#A6ABB9]" aria-label="Close profile">‹</button><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">Roommates</p><h2 className="text-sm font-semibold">Profile</h2></div></header><main className="mx-auto max-w-xl px-5 py-7"><div className="flex items-center gap-4"><div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-2xl font-bold text-violet-100">{p.avatar_url?<img src={p.avatar_url} alt="" className="h-full w-full object-cover"/>:String(p.full_name||p.username||'W')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><h3 className="truncate text-xl font-bold">{p.full_name||`@${p.username||'user'}`}</h3><p className="mt-1 truncate text-[11px] text-[#737889]">{[p.city,p.state].filter(Boolean).join(', ')||'Nigeria'}</p></div></div><section className="mt-7 border-y border-white/[.07] py-5"><div className="flex items-end justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">Compatibility</p><p className="mt-1 text-sm font-semibold">{matchLabel(score)} match</p></div><strong className="text-3xl text-violet-300">{score}%</strong></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-violet-500" style={{width:`${Math.min(100,Math.max(0,score))}%`}}/></div>{highlights.length>0&&<p className="mt-3 text-[10px] text-[#777D8D]">Strongest alignment · {highlights.join(' · ')}</p>}</section><div className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-white/[.06] py-5"><ProfileFact label="Preferred area" value={p.area_preference||'Flexible'}/>{showSchool&&p.school&&<ProfileFact label="School" value={p.school}/>}</div><section className="py-5"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">About</p><p className="mt-2 text-[12px] leading-6 text-[#A2A7B5]">{p.bio||'This person has not added an introduction yet.'}</p></section><p className="border-t border-white/[.06] pt-4 text-[9px] leading-5 text-[#666D7E]">Compatibility combines budget, location and living preferences. Eligibility rules are applied before ranking.</p></main></div>;
 }
 
 function ReceivedInterests({

@@ -47,6 +47,7 @@ export function WorkerInboxPanel({profile, initialConversation, onConversationCl
   const [selected, setSelected] = useState<WorkerBookingConversation | null>(initialConversation || null);
   const [loading, setLoading] = useState(true);
   const [view,setView]=useState<'chats'|'activity'>('chats');
+  const [activityUnread,setActivityUnread]=useState(0);
   const load = useCallback(async () => {
     try { setRows(await loadWorkerConversations(profile.user_id)); }
     catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Conversations could not be loaded'); }
@@ -61,7 +62,8 @@ export function WorkerInboxPanel({profile, initialConversation, onConversationCl
     onNavigate(page,id);
   }
   if (selected) return <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); }}/>;
-  return <div className="space-y-5"><div className="flex border-b border-white/[.07]" aria-label="Inbox views">{([['chats','Chats'],['activity','Activity']] as const).map(([id,label])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={openActivitySource}/>:loading ? <Empty text="Loading chats…"/> : rows.length === 0 ? <Empty text="Chats appear when a customer starts a service request."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</div>;
+  const conversationUnread=rows.reduce((sum,row)=>sum+Number(row.unread_count||0),0);
+  return <div className="space-y-5"><div className="flex border-b border-white/[.07]" aria-label="Job Inbox views">{([['chats','Conversations',conversationUnread],['activity','Activity',activityUnread]] as const).map(([id,label,count])=><button key={id} onClick={()=>setView(id)} className={`relative flex-1 py-3 text-[11px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-10 after:bottom-0 after:h-0.5 after:bg-violet-400':'text-[#74798A]'}`}>{label}{count>0&&<span className="ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">{count>99?'99+':count}</span>}</button>)}</div>{view==='activity'?<Notifications profile={profile} embedded onNavigate={openActivitySource} onUnreadChange={setActivityUnread}/>:loading ? <Empty text="Loading job conversations…"/> : rows.length === 0 ? <Empty text="Conversations appear when a customer starts a service request."/> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <ConversationRow key={row.conversation_id} row={row} onOpen={() => setSelected(row)}/>)}</div>}</div>;
 }
 
 function JobRow({row, onOpen}: {row: WorkerBookingConversation; onOpen: () => void}) {

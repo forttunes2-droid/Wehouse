@@ -780,7 +780,7 @@ export default function App() {
           renderRoleRoot()
         );
       case "notifications":
-        return isUserRole ? <Chat profile={profile} initialMode="activity" onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);if(page==='my_reservations'||page==='my_bookings'){setBookingContextId(id||null);return goTo('my_reservations')}goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
+        return isUserRole ? <Chat profile={profile} initialMode="activity" chatUnreadCount={unreadCount} activityUnreadCount={notificationCount} onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);if(page==='my_reservations'||page==='my_bookings'){setBookingContextId(id||null);return goTo('my_reservations')}goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
       case "profile":
       case "account":
         return (
@@ -836,8 +836,10 @@ export default function App() {
         return isUserRole ? (
           <Chat
             profile={profile}
-            onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);goTo((page==='messages'?'conversation':page) as NavPage)}}
+            onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);if(page==='my_reservations'||page==='my_bookings'){setBookingContextId(id||null);return goTo('my_reservations')}goTo((page==='messages'?'conversation':page) as NavPage)}}
             conversationId={chatConvId}
+            chatUnreadCount={unreadCount}
+            activityUnreadCount={notificationCount}
           />
         ) : (
           renderRoleRoot()
@@ -1042,7 +1044,7 @@ export default function App() {
                       <button
                         key={tab.id}
                         aria-label={tab.label}
-                        onClick={() => goTo(tab.id)}
+                        onClick={() => tab.id === "conversation" && unreadCount === 0 && notificationCount > 0 ? goTo("notifications") : goTo(tab.id)}
                         className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
                       >
                         <tab.icon size={22} active={active} />

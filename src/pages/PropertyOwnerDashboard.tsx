@@ -276,7 +276,7 @@ export function RequestsTab({ profile }: { profile: Profile }) {
                   onClick={() => contact(request)}
                   className="mt-3 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2 text-[10px] font-semibold text-violet-300"
                 >
-                  Ask Support about this property
+                  Message WeHouse
                 </button>
               </section>
             ))}
@@ -449,7 +449,7 @@ function PropertyDetails({
             onClick={contact}
             className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-4 py-3 text-xs font-semibold text-violet-300"
           >
-            Ask Support about this property
+            Message WeHouse
           </button>
         </div>
       </section>
