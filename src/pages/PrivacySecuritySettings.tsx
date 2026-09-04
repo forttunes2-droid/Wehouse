@@ -6,20 +6,22 @@ import SecuritySettings from '@/pages/SecuritySettings';
 import type { Profile } from '@/types';
 import SecureMessagesPanel from '@/components/SecureMessagesPanel';
 
-type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void};
+type Section='privacy'|'access'|'devices'|'encryption'|'close';
+type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;initialSection?:Section};
 
-export default function PrivacySecuritySettings({profile,onUpdate,onBack}:Props){
-  const [section,setSection]=useState<'privacy'|'access'|'encryption'|'close'|null>(null);
+export default function PrivacySecuritySettings({profile,onUpdate,onBack,initialSection}:Props){
+  const [section,setSection]=useState<Section|null>(initialSection||null);
   const privateMessaging=['user','worker'].includes(profile.role);
   const hasPrivacyControls=profile.role==='user';
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
-  const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='encryption'?'Encrypted chats':section==='close'?'Close account':'Privacy & Security';
-  const description=section==='privacy'?'Control roommate discovery and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='encryption'?'Own, unlock and recover your private-chat encryption key.':section==='close'?'Close this account after active obligations are cleared.':'Only settings that directly change or protect this account.';
+  const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='encryption'?'Encrypted chats':section==='close'?'Close account':'Privacy & Security';
+  const description=section==='privacy'?'Control roommate discovery and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='encryption'?'Own, unlock and recover your private-chat encryption key.':section==='close'?'Close this account after active obligations are cleared.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
     <Toaster position="top-center" richColors/>
     {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
     section==='access'?<><SecuritySettings profile={profile} embedded focus="password"/><SecuritySettings profile={profile} embedded focus="sessions"/></>:
+    section==='devices'?<SecuritySettings profile={profile} embedded focus="sessions"/>:
     section==='encryption'?<SecureMessagesPanel/>:
     section==='close'?<SecuritySettings profile={profile} embedded focus="close"/>:
     <>

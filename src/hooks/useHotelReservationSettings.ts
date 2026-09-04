@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // Hotel Reservation Settings — reads canonical platform settings
-// Creator controls hotel reservation via Creator Settings > Hotel
+// Creator controls hotel reservation from Operations > Platform settings.
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';

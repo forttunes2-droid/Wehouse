@@ -125,6 +125,7 @@ const RESTORABLE_PAGES: NavPage[] = [
   "account",
   "privacy",
   "security",
+  "devices",
   "creator",
   "admin",
   "staff_dashboard",
@@ -152,6 +153,7 @@ const ACCOUNT_PAGES = new Set<NavPage>([
   "account",
   "privacy",
   "security",
+  "devices",
   "profile_edit",
 ]);
 const USER_PAGES = new Set<NavPage>([
@@ -798,6 +800,8 @@ export default function App() {
       case "privacy":
       case "security":
         return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} />;
+      case "devices":
+        return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} initialSection="devices" />;
       case "profile_edit":
         return (
           <ProfileEdit
@@ -978,6 +982,7 @@ export default function App() {
     "profile_edit",
     "privacy",
     "security",
+    "devices",
     "new_listing",
     "worker_setup",
     "hotel_detail",

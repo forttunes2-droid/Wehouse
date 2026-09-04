@@ -17,24 +17,22 @@ import { supabase } from '@/lib/supabase';
 import { useCreatorInboxSummary } from '@/hooks/useCreatorInboxSummary';
 import type { Profile } from '@/types';
 
-type Tab = 'home' | 'operations' | 'inbox' | 'settings';
-type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'reports' | 'finance' | 'analytics' | 'audit';
+type Tab = 'home' | 'operations' | 'inbox';
+type Operation = 'people' | 'team' | 'properties' | 'workers' | 'bookings' | 'reports' | 'finance' | 'analytics' | 'audit' | 'platform';
 type PersonRole = 'user' | 'property_partner';
 type Props = { profile: Profile; onLogout: () => void; onNavigate?: (page: string, id?: string) => void; onGoToChat?: (id?: string) => void };
 type OperationTarget = { operation: Operation; id?: string } | null;
 
 const NAV = [
-  { id: 'home', label: 'Home' },
+  { id: 'home', label: 'Overview' },
   { id: 'operations', label: 'Operations' },
   { id: 'inbox', label: 'Inbox' },
-  { id: 'settings', label: 'Settings' },
 ];
 
 const NOTES: Record<Tab, string> = {
   home: 'A single overview of live inventory, people and work needing attention.',
-  operations: 'Open the authoritative record for people, properties, bookings and platform control.',
-  inbox: 'Support conversations and recent Activity.',
-  settings: 'Platform rules, trust and marketplace configuration.',
+  operations: 'People, properties, bookings, finance and platform control in one workspace.',
+  inbox: 'Chats and Activity linked to their authoritative records.',
 };
 
 const OPS: Array<{ id: Operation; label: string; note: string; group: 'Accounts' | 'Marketplace' | 'Platform' }> = [
@@ -47,6 +45,7 @@ const OPS: Array<{ id: Operation; label: string; note: string; group: 'Accounts'
   { id: 'finance', label: 'Finance', note: 'Payout requests and platform settlement records.', group: 'Platform' },
   { id: 'analytics', label: 'Analytics', note: 'Platform trends and lifecycle movement.', group: 'Platform' },
   { id: 'audit', label: 'Change history', note: 'Accountable changes to platform records.', group: 'Platform' },
+  { id: 'platform', label: 'Platform settings', note: 'Product rules, marketplace choices and published legal documents.', group: 'Platform' },
 ];
 const OP_GROUPS = ['Accounts', 'Marketplace', 'Platform'] as const;
 
@@ -103,7 +102,6 @@ export default function CreatorDashboard({ profile, onLogout, onNavigate, onGoTo
         {tab === 'home' && <Overview openOperation={openOperation} openInbox={() => setTab('inbox')} />}
         {tab === 'operations' && <Operations profile={profile} active={operation} target={operationTarget} setActive={(next) => { setOperation(next); if (!next) setOperationTarget(null); }} onView={setViewing} />}
         {tab === 'inbox' && <CreatorInbox profile={profile} onNavigate={openCreatorDestination} onGoToChat={onGoToChat} initialConversationId={inboxTargetId} summary={inboxSummary} />}
-        {tab === 'settings' && <Settings profile={profile} />}
       </WorkspaceFrameV2>
       {viewing && <UserProfileModal user={viewing} adminProfile={profile} onClose={() => setViewing(null)} onNavigate={openCreatorDestination} onGoToChat={onGoToChat} />}
     </>
@@ -130,24 +128,20 @@ function Overview({ openOperation, openInbox }: { openOperation: (tab: Operation
   }, []);
 
   if (loading) return <Loading />;
-  const cards: Array<[string, number, () => void, string]> = [
-    ['Users', stats?.users || 0, () => openOperation('people'), 'Customer accounts'],
-    ['Property Partners', stats?.partners || 0, () => openOperation('people'), 'Property owners'],
-    ['Team', stats?.team || 0, () => openOperation('team'), 'Admins and Operations members'],
-    ['Workers', stats?.workers || 0, () => openOperation('workers'), `${stats?.pending_verifications || 0} under verification`],
-    ['Published apartments', stats?.listings || 0, () => openOperation('properties'), 'Public apartment inventory'],
-    ['Published hotels', stats?.hotels || 0, () => openOperation('properties'), 'Public hotel inventory'],
-    ['Property inspections', stats?.pendingInspections || 0, () => openOperation('properties'), 'Pending or active field work'],
-    ['Payout requests', stats?.pendingPayouts || 0, () => openOperation('finance'), 'Worker and Partner settlements'],
+  const groups: Array<{title:string;note:string;action:()=>void;values:Array<[string,number]>}> = [
+    {title:'Properties',note:`${stats?.pendingInspections || 0} inspections need work`,action:()=>openOperation('properties'),values:[['Apartments',stats?.listings||0],['Hotels',stats?.hotels||0]]},
+    {title:'Accounts',note:'Users and Property Partners',action:()=>openOperation('people'),values:[['Users',stats?.users||0],['Partners',stats?.partners||0]]},
+    {title:'Workforce',note:`${stats?.pending_verifications || 0} Worker reviews pending`,action:()=>openOperation('workers'),values:[['Workers',stats?.workers||0],['Team',stats?.team||0]]},
+    {title:'Finance',note:'Worker and Partner settlements',action:()=>openOperation('finance'),values:[['Payouts',stats?.pendingPayouts||0]]},
   ];
 
-  return <div className="space-y-5"><section className="border-b border-white/[.07] pb-5"><h2 className="text-2xl font-bold sm:text-3xl">What needs your attention</h2><p className="mt-2 max-w-xl text-[10px] leading-5 text-[#73798A]">Counts open the same authoritative records used by Operations. Nothing here creates a second dashboard or a duplicate status.</p><div className="mt-4 flex flex-wrap gap-2"><Quick label="Review properties" onClick={() => openOperation('properties')} primary /><Quick label="Open Inbox" onClick={openInbox} /></div></section><section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">{cards.map(([label,value,action,note]) => <button key={label} onClick={action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-[10px] font-semibold">{label}</p><p className="mt-1 text-[8px] leading-relaxed text-[#5F6677]">{note}</p></button>)}</section></div>;
+  return <div className="space-y-5"><section className="border-b border-white/[.07] pb-5"><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">Current platform</p><h2 className="mt-2 text-2xl font-bold sm:text-3xl">What needs attention</h2><div className="mt-4 flex flex-wrap gap-2"><Quick label="Open property work" onClick={() => openOperation('properties')} primary /><Quick label="Open Inbox" onClick={openInbox} /></div></section><section className="grid gap-2 sm:grid-cols-2">{groups.map(group=><button key={group.title} onClick={group.action} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left transition hover:border-violet-500/25"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{group.title}</p><p className="mt-1 text-[9px] text-[#62697A]">{group.note}</p></div><span className="text-[#697082]">›</span></div><div className="mt-4 flex gap-5">{group.values.map(([label,value])=><div key={label}><p className="text-xl font-bold">{value}</p><p className="mt-0.5 text-[8px] text-[#666D7E]">{label}</p></div>)}</div></button>)}</section></div>;
 }
 
 function Operations({ profile, active, target, setActive, onView }: { profile: Profile; active: Operation | null; target: OperationTarget; setActive: (value: Operation | null) => void; onView: (profile: Profile) => void }) {
   if (!active) return <div className="space-y-5"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose a work area. Each opens its canonical records inside this Operations workspace.</p>{OP_GROUPS.map(group=><section key={group}><h2 className="mb-2 text-[9px] font-bold uppercase tracking-[.16em] text-[#686F80]">{group}</h2><div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">{OPS.filter(item=>item.group===group).map((item,index)=><div key={item.id}>{index>0&&<div className="ml-4 h-px bg-white/[.055]"/>}<button onClick={()=>setActive(item.id)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left"><span><strong className="block text-sm">{item.label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{item.note}</span></span><span className="text-[#697082]">›</span></button></div>)}</div></section>)}</div>;
   const current=OPS.find(item=>item.id===active)!;
-  return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={()=>setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Operations">‹</button><div><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Operations</p><h2 className="mt-0.5 text-lg font-bold">{current.label}</h2><p className="mt-0.5 text-[9px] text-[#707687]">{current.note}</p></div></header>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} initialRecordId={target?.operation === 'properties' ? target.id : undefined} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings initialRecordId={target?.operation === 'bookings' ? target.id : undefined} />}{active === 'reports' && <Reports />}{active === 'finance' && <Finance />}{active === 'analytics' && <CreatorAnalyticsV2 profile={profile} />}{active === 'audit' && <CreatorAuditWorkspace />}</div>;
+  return <div className="space-y-5"><header className="flex items-center gap-3 border-b border-white/[.07] pb-3"><button onClick={()=>setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg" aria-label="Back to Operations">‹</button><div><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Operations</p><h2 className="mt-0.5 text-lg font-bold">{current.label}</h2><p className="mt-0.5 text-[9px] text-[#707687]">{current.note}</p></div></header>{active === 'people' && <People onView={onView} />}{active === 'team' && <StaffListTab profile={profile} />}{active === 'properties' && <PropertyPipelineWorkspace profile={profile} initialRecordId={target?.operation === 'properties' ? target.id : undefined} />}{active === 'workers' && <CreatorWorkerOversight />}{active === 'bookings' && <Bookings initialRecordId={target?.operation === 'bookings' ? target.id : undefined} />}{active === 'reports' && <Reports />}{active === 'finance' && <Finance />}{active === 'analytics' && <CreatorAnalyticsV2 profile={profile} />}{active === 'audit' && <CreatorAuditWorkspace />}{active === 'platform' && <PlatformControl profile={profile} />}</div>;
 }
 
 function CreatorInbox({profile,onNavigate,onGoToChat,initialConversationId,summary}:{profile:Profile;onNavigate?:Props['onNavigate'];onGoToChat?:Props['onGoToChat'];initialConversationId?:string;summary:ReturnType<typeof useCreatorInboxSummary>}){
@@ -241,10 +235,14 @@ function Finance() {
   const [rows,setRows]=useState<any[]>([]);const [loading,setLoading]=useState(true);
   useEffect(()=>{void load()},[view]);
   async function load(){setLoading(true);const result=view==='payouts'?await supabase.from('withdrawals').select('*').order('created_at',{ascending:false}).limit(100):await supabase.from('commission_ledger').select('*').order('created_at',{ascending:false}).limit(100);if(result.error)toast.error(result.error.message);setRows(result.data||[]);setLoading(false)}
-  return <Section title="Platform finance" note="Read-only settlement records. Change commissions, fees and payout limits only from Creator Settings."><div className="flex gap-1 overflow-x-auto scrollbar-hide"><Chip active={view==='payouts'} onClick={()=>setView('payouts')}>Payout requests</Chip><Chip active={view==='commissions'} onClick={()=>setView('commissions')}>Commission ledger</Chip></div>{loading?<Loading/>:rows.length===0?<Empty text={view==='payouts'?'No payout requests.':'No commission records.'}/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id}><Top title={view==='payouts'?(row.snapshot_bank_account_name||'Payout request'):(row.booking_type||'Commission')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={view==='payouts'?row.amount:row.commission_amount}/></Card>)}</div>}</Section>;
+  return <Section title="Platform finance" note="Read-only settlement records. Product rules are managed in Operations → Platform settings."><div className="flex gap-1 overflow-x-auto scrollbar-hide"><Chip active={view==='payouts'} onClick={()=>setView('payouts')}>Payout requests</Chip><Chip active={view==='commissions'} onClick={()=>setView('commissions')}>Commission ledger</Chip></div>{loading?<Loading/>:rows.length===0?<Empty text={view==='payouts'?'No payout requests.':'No commission records.'}/>:<div className="space-y-2">{rows.map((row)=><Card key={row.id}><Top title={view==='payouts'?(row.snapshot_bank_account_name||'Payout request'):(row.booking_type||'Commission')} sub={new Date(row.created_at).toLocaleString()} status={row.status||'recorded'} amount={view==='payouts'?row.amount:row.commission_amount}/></Card>)}</div>}</Section>;
 }
 
-function Settings({profile}:{profile:Profile}){return <div className="space-y-7"><CreatorSettingsTabV2 profile={profile}/><section className="space-y-4"><div><h2 className="text-base font-bold">Marketplace configuration</h2><p className="mt-1 text-[10px] text-[#686C7E]">Choices used by live Worker and property forms.</p></div><div className="grid gap-4 xl:grid-cols-2"><Card><h3 className="mb-3 text-sm font-semibold">Worker service categories</h3><ServiceCategoryManager profile={profile}/></Card><Card><h3 className="mb-3 text-sm font-semibold">Property types</h3><PropertyTypeManager profile={profile}/></Card></div></section></div>}
+function PlatformControl({profile}:{profile:Profile}){
+  const[section,setSection]=useState<'product'|'workers'|'properties'|'legal'>('product');
+  const sections=[['product','Product'],['workers','Workers'],['properties','Properties'],['legal','Legal']] as const;
+  return <div className="space-y-5"><nav className="grid grid-cols-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[#10131B] p-1" aria-label="Platform setting groups">{sections.map(([id,label])=><button key={id} type="button" onClick={()=>setSection(id)} aria-pressed={section===id} className={`min-h-10 rounded-xl px-1 text-[9px] font-semibold ${section===id?'bg-violet-500 text-white':'text-[#72798A]'}`}>{label}</button>)}</nav>{section==='product'&&<CreatorSettingsTabV2 profile={profile} groups={['identity','access']} title="Product controls" description="Public identity and platform-wide access rules."/>}{section==='workers'&&<div className="space-y-5"><CreatorSettingsTabV2 profile={profile} groups={['worker_verification','worker_trust']} title="Worker rules" description="Onboarding and earned marketplace trust."/><Card><h3 className="mb-1 text-sm font-semibold">Worker occupations and services</h3><p className="mb-4 text-[9px] leading-5 text-[#686F80]">Manage the choices Workers use to describe their occupation and the services customers can request.</p><ServiceCategoryManager profile={profile}/></Card></div>}{section==='properties'&&<Card><h3 className="mb-1 text-sm font-semibold">Property types</h3><p className="mb-4 text-[9px] leading-5 text-[#686F80]">Choices used by Property Partner submissions and public discovery.</p><PropertyTypeManager profile={profile}/></Card>}{section==='legal'&&<CreatorSettingsTabV2 profile={profile} groups={['legal']} title="Published legal documents" description="The current documents shown for account consent."/>}</div>;
+}
 
 function Section({title,note,children}:{title:string;note:string;children:React.ReactNode}){return <div className="space-y-4"><div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 text-[10px] text-[#707687]">{note}</p></div>{children}</div>}
 function Quick({label,onClick,primary=false}:{label:string;onClick:()=>void;primary?:boolean}){return <button onClick={onClick} className={`rounded-xl px-4 py-3 text-[10px] font-semibold ${primary?'bg-violet-500':'border border-white/[.08] bg-white/[.03]'}`}>{label}</button>}

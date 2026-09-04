@@ -15,6 +15,7 @@ export type NavPage =
   | 'account'
   | 'privacy'
   | 'security'
+  | 'devices'
   | 'my_bookings'
   | 'my_reservations'
   | 'payment_return'

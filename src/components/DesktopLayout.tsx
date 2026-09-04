@@ -42,6 +42,7 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
   'profile_edit',
   'privacy',
   'security',
+  'devices',
   'detail',
   'hotel_detail',
   'hotel_booking',
