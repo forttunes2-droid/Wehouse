@@ -127,8 +127,8 @@ export default function WorkerShowcaseManager({
     setUploadProgress(0);
     let path = "";
     try {
-      const preserveOriginal = isVideo || (['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024);
-      const uploadBody = preserveOriginal ? file : await compressImageFile(file, 3840, 0.92, 4.5 * 1024 * 1024);
+      const preserveOriginal = isVideo || (['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024);
+      const uploadBody = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);
       const ext = isVideo ? (file.name.split(".").pop() || "mp4").toLowerCase() : preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg';
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");

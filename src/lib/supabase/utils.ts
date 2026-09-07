@@ -1,8 +1,9 @@
 // No external imports needed for utils
 
 // ─── SHARED IMAGE COMPRESSION ──────────────────────
-// Keep property photography sharp while avoiding raw 8–20MB phone uploads.
-// The compressor prefers reducing JPEG weight before reducing dimensions.
+// Keep uploads sharp while avoiding raw multi-megabyte phone images.
+// Callers own the requested dimensions; this helper must never silently enlarge
+// a profile or hotel preset into a 4K listing image.
 
 function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -20,12 +21,8 @@ export function compressImageFile(
     const img = new Image();
     const url = URL.createObjectURL(file);
 
-    // Existing property upload helpers historically requested 1200/1600px.
-    // Preserve their API while upgrading only those property-photo presets to
-    // 4K-class output. Avatar (600px) and chat (1920px) callers stay compact.
-    const propertyPhotoPreset = requestedMaxDim === 1200 || requestedMaxDim === 1600;
-    const maxDim = propertyPhotoPreset ? 3840 : requestedMaxDim;
-    const preferredQuality = propertyPhotoPreset ? Math.max(0.88, requestedQuality) : requestedQuality;
+    const maxDim = requestedMaxDim;
+    const preferredQuality = requestedQuality;
 
     img.onload = async () => {
       URL.revokeObjectURL(url);

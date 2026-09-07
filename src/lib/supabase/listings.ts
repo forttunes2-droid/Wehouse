@@ -1,4 +1,4 @@
-import { supabase } from './client';
+import { supabase, uploadStorageObjectWithProgress } from './client';
 import type { Listing } from '@/types';
 import { compressImageFile } from './utils';
 import { ROLE_RANK } from '@/types';
@@ -135,32 +135,34 @@ function calculateSimilarity(a: string, b: string) {
   return 1 - matrix[b.length][a.length] / Math.max(a.length, b.length);
 }
 
-export async function uploadListingImage(file: File, listingId: string) {
+export async function uploadListingImage(file: File, listingId: string, onProgress: (percent: number) => void = () => {}) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image file' } as any };
   if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
   try {
-    const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024;
-    const body = preserveOriginal ? file : await compressImageFile(file, 3840, 0.92, 4.5 * 1024 * 1024);
+    const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
+    const body = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);
     const extension = preserveOriginal ? ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type] || 'jpg') : 'jpg';
     const contentType = preserveOriginal ? file.type : 'image/jpeg';
     const path = `listings/${listingId}/${crypto.randomUUID()}.${extension}`;
-    const { error } = await supabase.storage.from('listing-images').upload(path, body, { contentType });
-    if (error) return { url: null, error };
+    await uploadStorageObjectWithProgress('listing-images', path, body, contentType, onProgress);
     return { url: supabase.storage.from('listing-images').getPublicUrl(path).data.publicUrl, error: null };
   } catch (error: any) {
     return { url: null, error: { message: error?.message || 'Image upload failed' } };
   }
 }
 
-export async function uploadListingVideo(file: File, listingId: string) {
+export async function uploadListingVideo(file: File, listingId: string, onProgress: (percent: number) => void = () => {}) {
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
   if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   const extension = file.name.split('.').pop() || 'mp4';
   const path = `listings/${listingId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from('listing-videos').upload(path, file, { contentType: file.type });
-  if (error) return { url: null, error };
-  return { url: supabase.storage.from('listing-videos').getPublicUrl(path).data.publicUrl, error: null };
+  try {
+    await uploadStorageObjectWithProgress('listing-videos', path, file, file.type, onProgress);
+    return { url: supabase.storage.from('listing-videos').getPublicUrl(path).data.publicUrl, error: null };
+  } catch (error: any) {
+    return { url: null, error: { message: error?.message || 'Video upload failed' } };
+  }
 }
 
 type CandidateScope =
@@ -176,35 +178,52 @@ export function isPrivateListingMedia(reference: string | null | undefined) {
 }
 
 export async function getListingMediaUrl(reference: string, expiresIn = 3600) {
-  if (!isPrivateListingMedia(reference)) return { url: reference, error: null };
-  const { data, error } = await supabase.storage.from('listing-candidates').createSignedUrl(reference, expiresIn);
-  return { url: data?.signedUrl || null, error };
+  const { urls, error } = await getListingMediaUrls([reference], expiresIn);
+  return { url: urls.get(reference) || null, error };
 }
 
-export async function uploadListingCandidateImage(file: File, scope: CandidateScope) {
+export async function getListingMediaUrls(references: string[], expiresIn = 3600) {
+  const urls = new Map<string, string>();
+  const privateReferences = Array.from(new Set(references.filter(isPrivateListingMedia)));
+  references.filter(reference => !isPrivateListingMedia(reference)).forEach(reference => urls.set(reference, reference));
+  if (!privateReferences.length) return { urls, error: null };
+
+  const { data, error } = await supabase.storage.from('listing-candidates').createSignedUrls(privateReferences, expiresIn);
+  (data || []).forEach((item, index) => {
+    const reference = item.path || privateReferences[index];
+    if (reference && item.signedUrl) urls.set(reference, item.signedUrl);
+  });
+  return { urls, error };
+}
+
+export async function uploadListingCandidateImage(file: File, scope: CandidateScope, onProgress: (percent: number) => void = () => {}) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image file' } as any };
   if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
   try {
-    const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 6 * 1024 * 1024;
-    const body = preserveOriginal ? file : await compressImageFile(file, 3840, 0.92, 4.5 * 1024 * 1024);
+    const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
+    const body = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);
     const extension = preserveOriginal ? ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type] || 'jpg') : 'jpg';
     const contentType = preserveOriginal ? file.type : 'image/jpeg';
     const path = candidatePath(scope, extension);
-    const { error } = await supabase.storage.from('listing-candidates').upload(path, body, { contentType });
-    return { url: error ? null : path, error };
+    await uploadStorageObjectWithProgress('listing-candidates', path, body, contentType, onProgress);
+    return { url: path, error: null };
   } catch (error: any) {
     return { url: null, error: { message: error?.message || 'Image upload failed' } };
   }
 }
 
-export async function uploadListingCandidateVideo(file: File, scope: Extract<CandidateScope, { kind: 'field' }>) {
+export async function uploadListingCandidateVideo(file: File, scope: Extract<CandidateScope, { kind: 'field' }>, onProgress: (percent: number) => void = () => {}) {
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
   if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   const extension = file.name.split('.').pop()?.toLowerCase() || 'mp4';
   const path = candidatePath(scope, extension);
-  const { error } = await supabase.storage.from('listing-candidates').upload(path, file, { contentType: file.type });
-  return { url: error ? null : path, error };
+  try {
+    await uploadStorageObjectWithProgress('listing-candidates', path, file, file.type, onProgress);
+    return { url: path, error: null };
+  } catch (error: any) {
+    return { url: null, error: { message: error?.message || 'Video upload failed' } };
+  }
 }
 
 export type PublishedCandidateSet = { sources: string[]; publicUrls: string[]; createdPaths: string[] };

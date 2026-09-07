@@ -57,7 +57,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
       <p className="text-[9px] leading-4 text-[#77738A]">Those eight payments add up to one full annual rent. {terms.futureYears > 1 ? `For each later year, the same four-month break and eight-payment cycle repeats until Year ${selectedDuration} is funded.` : 'By renewal, Year 2 rent is already funded.'} You can pay an upcoming contribution early if that is more convenient.</p>
     </section>}
 
-    <p className="text-[9px] leading-4 text-[#7B8090]">Your reservation remains a separate record. Saving this choice does not charge rent or change the property hold.</p>
+    <p className="text-[9px] leading-4 text-[#7B8090]">Review your selected rent schedule before continuing. Saving it does not make a payment.</p>
   </div>;
 }
 

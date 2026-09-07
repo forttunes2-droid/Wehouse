@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import LocationSelector from '@/legacy/LocationSelector';
 import { Toaster, toast } from 'sonner';
 import type { Profile } from '@/types';
+import MediaViewer from '@/components/MediaViewer';
 
 interface CreateListingProps { profile: Profile; onBack: () => void; onSuccess?: () => void }
 type PartnerOption = { user_id: string; username: string | null; full_name: string | null };
@@ -15,11 +16,32 @@ const VIDEO_TYPES = new Set(['video/mp4','video/quicktime','video/webm']);
 const MAX_IMAGES = 12;
 const MAX_VIDEOS = 3;
 
+async function mapWithConcurrency<T>(items: T[], limit: number, task: (item: T, index: number) => Promise<void>) {
+  let nextIndex = 0;
+  let failure: unknown = null;
+  const worker = async () => {
+    while (!failure) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      try {
+        await task(items[index], index);
+      } catch (error) {
+        failure = error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failure) throw failure;
+}
+
 export default function CreateListing({ profile, onBack, onSuccess }: CreateListingProps) {
   const imageInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
   const previewRef = useRef<LocalMedia[]>([]);
+  const uploadProgressRef = useRef<number[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [previewMedia, setPreviewMedia] = useState<{ preview: string; kind: 'image' | 'video' } | null>(null);
   const [images, setImages] = useState<LocalMedia[]>([]);
   const [videos, setVideos] = useState<LocalMedia[]>([]);
@@ -95,24 +117,31 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     if (duplicate.recentPost) return toast.error('This owner already has a recent listing in this LGA');
 
     setSaving(true);
+    setUploadProgress(0);
     const batch = `submission-${profile.user_id}-${crypto.randomUUID()}`;
     const uploaded: Array<{ bucket: 'listing-images'|'listing-videos'; path: string }> = [];
     try {
-      const imageUrls: string[] = [];
-      for (const item of images) {
-        const result = await uploadListingImage(item.file, batch);
+      const tasks = [
+        ...images.map((item, index) => ({ ...item, kind: 'image' as const, outputIndex: index })),
+        ...videos.map((item, index) => ({ ...item, kind: 'video' as const, outputIndex: index })),
+      ];
+      const imageUrls = Array<string>(images.length);
+      const videoUrls = Array<string>(videos.length);
+      uploadProgressRef.current = Array(tasks.length).fill(0);
+      const updateProgress = (taskIndex: number, percent: number) => {
+        uploadProgressRef.current[taskIndex] = percent;
+        const total = uploadProgressRef.current.reduce((sum, value) => sum + value, 0);
+        setUploadProgress(Math.round(total / Math.max(1, tasks.length)));
+      };
+      await mapWithConcurrency(tasks, 2, async (item, taskIndex) => {
+        const result = item.kind === 'image'
+          ? await uploadListingImage(item.file, batch, percent => updateProgress(taskIndex, percent))
+          : await uploadListingVideo(item.file, batch, percent => updateProgress(taskIndex, percent));
         if (result.error || !result.url) throw new Error(result.error?.message || `Could not upload ${item.file.name}`);
-        imageUrls.push(result.url);
-        uploaded.push({ bucket: 'listing-images', path: pathFromPublicUrl(result.url,'listing-images') });
-      }
-
-      const videoUrls: string[] = [];
-      for (const item of videos) {
-        const result = await uploadListingVideo(item.file, batch);
-        if (result.error || !result.url) throw new Error(result.error?.message || `Could not upload ${item.file.name}`);
-        videoUrls.push(result.url);
-        uploaded.push({ bucket: 'listing-videos', path: pathFromPublicUrl(result.url,'listing-videos') });
-      }
+        if (item.kind === 'image') imageUrls[item.outputIndex] = result.url;
+        else videoUrls[item.outputIndex] = result.url;
+        uploaded.push({ bucket: item.kind === 'image' ? 'listing-images' : 'listing-videos', path: pathFromPublicUrl(result.url, item.kind === 'image' ? 'listing-images' : 'listing-videos') });
+      });
 
       const { listing, error } = await createListing({
         title:form.title.trim(),description:form.description.trim()||null,price:Number(form.price),currency:form.currency,state:location.state,city:location.city,address:form.address.trim()||location.area||null,images:imageUrls,videos:videoUrls,property_type:form.property_type,sub_type:form.property_type==='apartment'?form.sub_type:null,bedrooms:Number(form.bedrooms)||1,bathrooms:Number(form.bathrooms)||1,availability_status:'pending_approval' as any,status:'pending_approval',owner_id:owner,partner_id:assignedPartnerId||null,chat_agent_id:profile.role==='staff'?profile.user_id:null,reserved_by:null,reservation_expiry:null,reservation_fee_paid:false,chat_unlocked:false,submitted_by_role:profile.role,approved_by:null,approved_at:null,rejection_reason:null,security_deposit_amount:form.property_type==='apartment'&&form.sub_type==='short_let'&&form.security_deposit_amount?Number(form.security_deposit_amount):null,contact_phone:form.contact_phone.trim()||null,amenities:form.amenities
@@ -128,6 +157,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
       toast.error(error?.message || 'Could not create listing');
     } finally {
       setSaving(false);
+      setUploadProgress(null);
     }
   }
 
@@ -138,9 +168,10 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
    <Section title="Property details"><Field label="Title" value={form.title} set={v=>setForm({...form,title:v})}/><label className="block text-xs text-[#9A9CAF]">Description</label><Textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} className="field min-h-28"/><div className="grid grid-cols-2 gap-3"><select value={form.property_type} onChange={e=>setForm({...form,property_type:e.target.value as any})} className="field"><option value="apartment">Apartment</option><option value="hotel">Hotel</option></select>{form.property_type==='apartment'&&<select value={form.sub_type} onChange={e=>setForm({...form,sub_type:e.target.value as any})} className="field"><option value="long_stay">Long Let</option><option value="short_let">Short Let</option></select>}<Field label="Bedrooms" value={form.bedrooms} set={v=>setForm({...form,bedrooms:v})} type="number"/><Field label="Bathrooms" value={form.bathrooms} set={v=>setForm({...form,bathrooms:v})} type="number"/></div></Section>
    <Section title="Price and location"><Field label="Price (NGN)" value={form.price} set={v=>setForm({...form,price:v})} type="number"/><LocationSelector value={location} onChange={setLocation}/><Field label="Address / area" value={form.address} set={v=>setForm({...form,address:v})}/><Field label="Contact phone" value={form.contact_phone} set={v=>setForm({...form,contact_phone:v})}/>{form.property_type==='apartment'&&form.sub_type==='short_let'&&<Field label="Refundable security deposit" value={form.security_deposit_amount} set={v=>setForm({...form,security_deposit_amount:v})} type="number"/>}</Section>
    <Section title="Amenities"><div className="flex flex-wrap gap-2">{amenityOptions.map(a=><button type="button" key={a} onClick={()=>setForm({...form,amenities:form.amenities.includes(a)?form.amenities.filter(x=>x!==a):[...form.amenities,a]})} className={`rounded-xl border px-3 py-2 text-xs ${form.amenities.includes(a)?'border-violet-400 bg-violet-500/15 text-violet-200':'border-white/10 text-[#8A8B9C]'}`}>{a}</button>)}</div></Section>
-   <Section title="Media"><div className="grid grid-cols-2 gap-2"><button type="button" onClick={()=>imageInput.current?.click()} className="h-11 rounded-xl border border-white/[.08] bg-white/[.035] text-xs font-semibold">Add images · {images.length}/{MAX_IMAGES}</button><button type="button" onClick={()=>videoInput.current?.click()} className="h-11 rounded-xl border border-white/[.08] bg-white/[.035] text-xs font-semibold">Add videos · {videos.length}/{MAX_VIDEOS}</button></div><input ref={imageInput} hidden multiple type="file" accept="image/jpeg,image/png,image/webp" onChange={addImages}/><input ref={videoInput} hidden multiple type="file" accept="video/mp4,video/quicktime,video/webm" onChange={addVideos}/><div className="grid grid-cols-3 gap-2">{images.map((item,index)=><div key={item.preview} className="relative aspect-square overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'image'})} className="h-full w-full" aria-label={`Preview property photo ${index+1}`}><img src={item.preview} className="h-full w-full object-cover" alt={`Property preview ${index+1}`}/></button><button type="button" onClick={()=>removeImage(index)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property photo ${index+1}`}>×</button></div>)}</div>{videos.length>0&&<div className="grid gap-2 sm:grid-cols-2">{videos.map((item,index)=><div key={item.preview} className="relative aspect-video overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'video'})} className="relative h-full w-full" aria-label={`Preview property video ${index+1}`}><video src={item.preview} muted playsInline className="h-full w-full object-cover"/><span className="absolute inset-0 grid place-items-center text-2xl">▶</span></button><button type="button" onClick={()=>removeVideo(index)} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property video ${index+1}`}>×</button></div>)}</div>}<p className="text-[9px] leading-4 text-[#6D7282]">Up to {MAX_IMAGES} high-resolution photos and {MAX_VIDEOS} videos. Photos are resized only when necessary and compressed into storage-efficient, 4K-class JPEGs on submit so listings stay sharp without storing oversized raw camera files.</p></Section>
-   <button disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 font-bold text-white disabled:opacity-50">{saving?'Uploading & saving…':profile.role==='creator'?'Create listing':'Submit for approval'}</button>
-  </form>{previewMedia&&<div className="fixed inset-0 z-[100] flex flex-col bg-[#07080C]" role="dialog" aria-modal="true" aria-label="Property media preview"><header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[.07] px-4"><p className="text-sm font-semibold">Media preview</p><button type="button" onClick={()=>setPreviewMedia(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.06]" aria-label="Close preview">×</button></header><div className="flex min-h-0 flex-1 items-center justify-center bg-black">{previewMedia.kind==='video'?<video src={previewMedia.preview} controls autoPlay playsInline className="max-h-full max-w-full"/>:<img src={previewMedia.preview} alt="Full-screen property preview" className="max-h-full max-w-full object-contain"/>}</div></div>}<style>{`.field{width:100%;height:44px;border-radius:12px;background:#15151F;border:1px solid rgba(255,255,255,.08);color:white;padding:0 12px;outline:none}.field:focus{border-color:#8B5CF6}`}</style></div>;
+   <Section title="Media"><div className="grid grid-cols-2 gap-2"><button type="button" onClick={()=>imageInput.current?.click()} className="h-11 rounded-xl border border-white/[.08] bg-white/[.035] text-xs font-semibold">Add images · {images.length}/{MAX_IMAGES}</button><button type="button" onClick={()=>videoInput.current?.click()} className="h-11 rounded-xl border border-white/[.08] bg-white/[.035] text-xs font-semibold">Add videos · {videos.length}/{MAX_VIDEOS}</button></div><input ref={imageInput} hidden multiple type="file" accept="image/jpeg,image/png,image/webp" onChange={addImages}/><input ref={videoInput} hidden multiple type="file" accept="video/mp4,video/quicktime,video/webm" onChange={addVideos}/><div className="grid grid-cols-3 gap-2">{images.map((item,index)=><div key={item.preview} className="relative aspect-square overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'image'})} className="h-full w-full" aria-label={`Preview property photo ${index+1}`}><img src={item.preview} className="h-full w-full object-cover" alt={`Property preview ${index+1}`}/></button><button type="button" onClick={()=>removeImage(index)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property photo ${index+1}`}>×</button></div>)}</div>{videos.length>0&&<div className="grid gap-2 sm:grid-cols-2">{videos.map((item,index)=><div key={item.preview} className="relative aspect-video overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'video'})} className="relative h-full w-full" aria-label={`Preview property video ${index+1}`}><video src={item.preview} muted playsInline className="h-full w-full object-cover"/><span className="absolute inset-0 grid place-items-center text-2xl">▶</span></button><button type="button" onClick={()=>removeVideo(index)} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property video ${index+1}`}>×</button></div>)}</div>}<p className="text-[9px] leading-4 text-[#6D7282]">Up to {MAX_IMAGES} high-resolution photos and {MAX_VIDEOS} videos. Large photos are resized and compressed on submit so listings remain sharp without storing oversized camera files.</p></Section>
+   {uploadProgress != null ? <div className="space-y-2" role="status" aria-live="polite"><div className="h-1.5 overflow-hidden rounded-full bg-white/[.07]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{width:`${uploadProgress}%`}}/></div><p className="text-center text-[9px] text-[#858A99]">Uploading media · {uploadProgress}%</p></div> : null}
+   <button disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 font-bold text-white disabled:opacity-50">{saving?(uploadProgress != null && uploadProgress < 100 ? `Uploading · ${uploadProgress}%` : 'Saving listing…'):profile.role==='creator'?'Create listing':'Submit for approval'}</button>
+  </form>{previewMedia&&<MediaViewer src={previewMedia.preview} kind={previewMedia.kind} title="Listing media preview" onClose={()=>setPreviewMedia(null)}/>}<style>{`.field{width:100%;height:44px;border-radius:12px;background:#15151F;border:1px solid rgba(255,255,255,.08);color:white;padding:0 12px;outline:none}.field:focus{border-color:#8B5CF6}`}</style></div>;
 }
 
 function Section({title,children}:{title:string;children:React.ReactNode}){return <section className="space-y-3 rounded-2xl border border-white/[.06] bg-[#111119] p-4"><h2 className="text-sm font-bold">{title}</h2>{children}</section>}

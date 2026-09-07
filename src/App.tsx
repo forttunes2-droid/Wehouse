@@ -87,7 +87,7 @@ function PageTransitionFallback() {
       aria-label="Loading WeHouse"
     >
       <img
-        src="/app-icon.svg"
+        src="/app-icon.svg?v=3"
         alt=""
         className="h-9 w-9 rounded-[10px] opacity-90"
       />
@@ -586,8 +586,8 @@ export default function App() {
       if (result.error)
         return toast.error(
           removing
-            ? "Could not remove saved property"
-            : "Could not save property",
+            ? "Could not remove saved apartment"
+            : "Could not save apartment",
         );
       setSavedIds((current) => {
         const next = new Set(current);
@@ -595,7 +595,7 @@ export default function App() {
         else next.add(id);
         return next;
       });
-      toast.success(removing ? "Removed from Saved" : "Property saved");
+      toast.success(removing ? "Removed from Saved" : "Apartment saved");
     },
     [profile, savedIds],
   );

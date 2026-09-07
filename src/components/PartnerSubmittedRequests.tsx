@@ -7,6 +7,7 @@ import PropertyMediaCarousel from './PropertyMediaCarousel';
 import PropertyAccessRecorder from './PropertyAccessRecorder';
 import BackButton from '@/components/BackButton';
 import { ListingMediaImage } from './ListingCandidateMedia';
+import PartnerHotelOperations from './PartnerHotelOperations';
 
 export type SubmissionFilter = 'all' | 'submitted' | 'public' | 'rejected';
 
@@ -41,9 +42,10 @@ type RequestRow = {
   authority_relationship: string | null;
   access_evidence_status: string | null;
   lifecycle_stage: string | null;
+  hotel_program: {name?:string;amenities?:string[];room_types?:Array<{name?:string;description?:string|null;nightly_rate?:number;guest_capacity?:number;inventory?:number;bed_type?:string|null;amenities?:string[];media?:string[]}>} | null;
 };
 
-const fields = 'id,request_code,property_address,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage';
+const fields = 'id,request_code,property_address,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program';
 
 export default function PartnerSubmittedRequests({ profile, filter = 'all', onDetailChange }: { profile: Profile; filter?: SubmissionFilter; onDetailChange?: (open:boolean)=>void }) {
   const [requests, setRequests] = useState<RequestRow[]>([]);
@@ -127,6 +129,7 @@ function RequestDetail({profile, request, onBack, onContact, onCorrected }: { pr
   const stopped = ['changes_requested','rejected'].includes(stage);
   const progress = stage === 'live' ? 5 : stage === 'listing_prepared' ? 4 : stage === 'visit_reviewed' ? 3 : stage === 'inspection' ? 2 : 1;
   const steps = ['Received', 'Inspection', 'Visit reviewed', 'Listing prepared', 'Public'];
+  if(stage==='live'&&request.property_type==='hotel'&&request.draft_hotel_id)return <LiveHotel request={request} onBack={onBack}/>;
   return <div className="space-y-5">
     <div className="flex items-center gap-3"><BackButton onClick={onBack}/><span className="text-xs text-[#A1A3B1]">Submitted properties</span></div>
     <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#111119]">
@@ -137,6 +140,7 @@ function RequestDetail({profile, request, onBack, onContact, onCorrected }: { pr
       {request.description && <div className="mt-4"><p className="text-[9px] uppercase tracking-wide text-[#66697A]">Property details</p><p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#A5A7B3]">{request.description}</p></div>}
       </div>
     </section>
+    {request.property_type==='hotel'&&request.hotel_program?.room_types?.length?<section className="space-y-3"><div><h3 className="text-sm font-semibold">Hotel rooms</h3><p className="mt-1 text-[9px] text-[#696D7D]">Each room type keeps its own gallery, description, amenities, rate and inventory.</p></div>{request.hotel_program.room_types.map((room,index)=><article key={`${room.name}-${index}`} className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#111119]">{room.media?.length?<PropertyMediaCarousel images={room.media} title={room.name||`Room ${index+1}`}/>:null}<div className="p-4"><div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold">{room.name||`Room ${index+1}`}</h4><p className="mt-1 text-[9px] text-[#73798A]">Up to {room.guest_capacity||1} guests{room.bed_type?` · ${room.bed_type}`:''} · {room.inventory||1} available</p></div><p className="text-sm font-bold text-violet-200">₦{Number(room.nightly_rate||0).toLocaleString()}<span className="block text-right text-[8px] font-normal text-[#656B7C]">per night</span></p></div>{room.description&&<p className="mt-3 text-[10px] leading-5 text-[#969BA9]">{room.description}</p>}{room.amenities?.length?<div className="mt-3 flex flex-wrap gap-2">{room.amenities.map(item=><span key={item} className="rounded-full border border-white/[.07] px-2.5 py-1 text-[8px] text-[#A0A5B3]">{item}</span>)}</div>:null}</div></article>)}</section>:null}
     <AccessEvidenceSummary status={request.access_evidence_status} />
     {stage === 'changes_requested' && <AccessEvidenceCorrection profile={profile} request={request} onCorrected={onCorrected} />}
     <section className="rounded-3xl border border-white/[.06] bg-[#111119] p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Journey to publication</h3><p className="mt-1 text-[9px] text-[#696D7D]">Access evidence and the independent WeHouse visit must both pass before publication.</p></div><span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${stopped ? 'bg-red-500/10 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{stopped ? friendly(stage) : `${progress} of 5`}</span></div><div className="mt-5 grid grid-cols-5 gap-1">{steps.map((label, index) => <div key={label} className="min-w-0 text-center"><div className={`mx-auto grid h-8 w-8 place-items-center rounded-full text-[9px] font-bold ${progress > index ? (progress === 5 ? 'bg-emerald-500 text-white' : 'bg-violet-500 text-white') : 'bg-white/[.05] text-[#5F6272]'}`}>{progress > index ? '✓' : index + 1}</div><p className={`mt-2 break-words text-[7px] leading-tight sm:text-[8px] ${progress > index ? 'text-[#CFD0D9]' : 'text-[#5F6272]'}`}>{label}</p></div>)}</div>{stage === 'inspection' && request.scheduled_date && <p className="mt-4 rounded-xl bg-violet-500/[.06] p-3 text-[10px] text-violet-200">Inspection visit: {new Date(request.scheduled_date).toLocaleString()}</p>}<p className="mt-3 text-[9px] leading-5 text-[#777C8D]">{journeyNext(stage)}</p></section>
@@ -144,6 +148,14 @@ function RequestDetail({profile, request, onBack, onContact, onCorrected }: { pr
     {(request.gps_latitude != null && request.gps_longitude != null) && <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4"><p className="text-xs font-semibold">Property coordinates supplied</p><p className="mt-1 text-[10px] text-[#777E90]">{request.gps_latitude.toFixed(6)}, {request.gps_longitude.toFixed(6)}{request.location_accuracy_m ? ` · ±${Math.round(request.location_accuracy_m)}m` : ''}</p></section>}
     <button type="button" onClick={onContact} className="h-12 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.08] text-xs font-semibold text-violet-200">Message WeHouse</button>
   </div>;
+}
+
+function LiveHotel({request,onBack}:{request:RequestRow;onBack:()=>void}){
+  const[hotel,setHotel]=useState<any|null>(null),[loading,setLoading]=useState(true);
+  useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.from('hotels').select('*').eq('hotel_id',request.draft_hotel_id).maybeSingle();if(!active)return;if(error)toast.error(error.message);setHotel(data||null);setLoading(false)})();return()=>{active=false}},[request.draft_hotel_id]);
+  if(loading)return <Loader/>;
+  if(!hotel)return <div className="space-y-4"><BackButton onClick={onBack}/><p className="rounded-2xl border border-amber-500/15 p-4 text-[10px] text-amber-200">The live hotel record could not be opened. Refresh and try again.</p></div>;
+  return <PartnerHotelOperations hotel={hotel} accessRole="owner" onBack={onBack}/>;
 }
 
 type AccessChallenge = { id: string; code: string; expires_at: string };

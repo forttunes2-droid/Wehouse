@@ -106,7 +106,7 @@ export async function initializeHotelBookingPayment(bookingId: number) {
 export async function getHotelBookingsForUser(userId: string) {
   const { data, error } = await supabase
     .from('hotel_bookings')
-    .select('*, hotels(name, city, state, images), hotel_rooms(room_type, bed_type)')
+    .select('*, hotels(name, city, state, images), hotel_rooms(room_type, bed_type, description, images, amenities)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   return { bookings: data as (HotelBooking & { hotels: Hotel; hotel_rooms: HotelRoom })[] | null, error };

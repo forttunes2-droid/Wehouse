@@ -112,6 +112,8 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   const [messageActions,setMessageActions]=useState<string|null>(null);
   const [inboxMode,setInboxMode]=useState<"chats"|"activity">(initialMode);
   const inboxAutoSelectedRef=useRef(false);
+  const activeRef=useRef<Conversation|null>(null);
+  const conversationsRef=useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
   const voice = useVoiceRecorder();
@@ -132,6 +134,9 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   const peerId = active ? otherId(active) : null;
   const presence = useChatPresence(peerId);
   const presenceText = chatPresenceLabel(presence);
+
+  useEffect(()=>{activeRef.current=active},[active]);
+  useEffect(()=>{conversationsRef.current=conversations},[conversations]);
 
   useEffect(() => {
     if (inboxAutoSelectedRef.current || conversationId || initialMode === "activity") return;
@@ -174,7 +179,8 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
   const loadRoommateMessages = useCallback(
     async (id: string, quiet = false) => {
       if (!quiet) setLoadingMessages(true);
-      const conversation = conversations.find((row) => row.id === id) || active;
+      const currentActive=activeRef.current;
+      const conversation = (currentActive?.id===id?currentActive:null) || conversationsRef.current.find((row) => row.id === id);
       const peer = conversation ? otherId(conversation) : null;
       const [result,callResult] = await Promise.all([
         getMessages(id, peer),
@@ -198,7 +204,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       ]);
       setLoadingMessages(false);
     },
-    [profile.user_id, conversations, active, otherId],
+    [profile.user_id, otherId],
   );
 
   useEffect(() => {
@@ -223,7 +229,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       if(booking)setActiveBooking({conversationId:booking.conversation_id,bookingId:booking.booking_id});
       else toast.error("This conversation is not available. Return to Roommates and reconnect.");
     })();
-  }, [conversationId, loadInbox, loadRoommateMessages, profile.user_id]);
+  }, [conversationId, loadInbox, profile.user_id]);
   useEffect(() => {
     if (!active) {
       setMessages([]);
