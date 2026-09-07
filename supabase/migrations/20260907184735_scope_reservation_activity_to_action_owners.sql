@@ -1,3 +1,4 @@
+-- Applied migration version: 20260907184735.
 -- Routine customer checkout actions belong in Bookings, not privileged Activity.
 -- Creator sees escalations through its oversight records; branch Admin and Property
 -- Operations receive only reservation transitions that require operational action.

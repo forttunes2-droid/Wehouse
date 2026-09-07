@@ -1,3 +1,4 @@
+-- Applied migration version: 20260907184739.
 -- A Worker can become verified/live only after a server-confirmed onboarding
 -- payment. This trigger covers every approval RPC and any future write path.
 create or replace function public._guard_worker_profile_state()

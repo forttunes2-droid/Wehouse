@@ -127,7 +127,7 @@ export default function WorkerPublicProfileV2({
                 <h1 className="truncate text-xl font-bold">
                   {worker.full_name || worker.username || "Service worker"}
                 </h1>
-                <GoldTickBadge title="WeHouse reviewed service worker" />
+                {trust?.reviewed && <GoldTickBadge title="Gold Tick · WeHouse reviewed service worker" />}
               </div>
               <p className="mt-1 text-xs text-[#A5ABB8]">{occupation}</p>
               <p className="mt-1 text-[10px] text-[#72798A]">
@@ -136,6 +136,7 @@ export default function WorkerPublicProfileV2({
                   .join(", ") || "Location not shown"}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
+                {trust?.reviewed && <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">{trust.trusted ? 'WeHouse Trusted · earned performance tier' : 'WeHouse Reviewed · Gold Tick'}</span>}
                 {worker.worker_price && (
                   <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">
                     From ₦{Number(worker.worker_price).toLocaleString()}
@@ -145,7 +146,8 @@ export default function WorkerPublicProfileV2({
             </div>
           </div>
         </section>
-        <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="Verification" value="WeHouse reviewed"/><ProfileFact label="Rating" value={rating>0?`${rating.toFixed(1)} · ${reviewCount}`:'New'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
+        <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="WeHouse identity" value={trust?.reviewed?'Reviewed':'Not reviewed'}/><ProfileFact label="Completed-job rating" value={rating>0?`${rating.toFixed(1)} · ${reviewCount}`:'New'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
+        {trust?.reviewed&&<p className="-mt-2 text-[9px] leading-5 text-[#73798A]">The Gold Tick means WeHouse approved this service worker’s onboarding and review. “WeHouse Trusted” is an additional performance tier earned from completed jobs; it does not replace the Gold Tick.</p>}
         <section>
           <div className="mb-3">
             <h2 className="text-sm font-bold">Work Posts</h2>

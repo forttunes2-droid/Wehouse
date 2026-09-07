@@ -50,6 +50,8 @@ Every authenticated role has one workspace shell, one account surface, and one a
 - A user's own reversible action, such as abandoning/cancelling an unpaid reservation attempt, stays in Bookings and does not create an Activity item.
 - Privileged roles do not receive customer reservation noise. They receive only work assigned to them, an action they must take, a material exception, or an escalation they own.
 - Every Activity row deep-links to its authoritative record. It never becomes a second editable copy of that record.
+- `read` means the recipient saw an item; it does not mean the underlying action is resolved. Action-required and exception events survive ordinary read pruning until a resolving lifecycle event or the protected retention limit.
+- Deduplication is per source and domain lane (for example payment, inspection, housing, hotel, Worker, roommate), never per source alone. A payment update cannot erase an inspection action for the same booking.
 - Security, money, support, apartment, hotel, roommate, and Worker events retain their domain and audience; category labels do not broaden access.
 - Timestamps come from persisted server timestamps and display in the viewer's locale. Optimistic client time is not authoritative.
 
@@ -70,12 +72,15 @@ Partner hotel submission → hotel/common-area evidence + room-type inventory �
 - A hotel is not rendered as an apartment listing.
 - Room type, rate, capacity, amenities, photos, and inventory remain attached to the hotel program.
 - Hotel review may share operational gates with apartments but retains hotel-specific inventory and booking states.
+- Creating or abandoning an unpaid room hold never creates a customer booking code. One globally unique code is allocated only after verified payment confirms the stay, and check-in accepts it only while that exact paid booking is valid for arrival.
+- Cancellation, expiry, refund, completion, or a payment conflict cannot be used to revive or check in a booking. A previously paid code may remain on the internal audit record while customer and staff actions are disabled.
 
 ### Workers
 
 Account → mandatory onboarding details → mandatory onboarding fee → identity/liveness → professional evidence → Worker Operations review → verified marketplace publication → request → negotiation → secured payment → job → completion approval/dispute → review → payout.
 
-- The gold verification mark requires the complete server-confirmed trust chain, including the required onboarding payment.
+- **WeHouse Service Worker** is the canonical marketplace identity. The **Gold Tick** is its visual reviewed-status mark and requires the complete server-confirmed trust chain, including the required onboarding payment.
+- **WeHouse Trusted** is an optional earned performance tier above a reviewed Gold Tick worker; it is not a competing identity or alternate verification system. Ratings and counts come only from completed WeHouse jobs.
 - Legacy accounts do not bypass missing gates. Rollback returns the worker to the earliest incomplete gate and removes marketplace visibility.
 - Creator/Admin oversight can suspend access or handle exceptions; it does not duplicate Worker Operations review.
 

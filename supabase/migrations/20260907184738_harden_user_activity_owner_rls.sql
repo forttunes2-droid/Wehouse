@@ -1,3 +1,4 @@
+-- Applied migration version: 20260907184738.
 -- Session and password activity is private account-security data. Direct table
 -- access is owner-only; privileged operational access must use a separately
 -- scoped, audited RPC rather than broad profile-read authority.
