@@ -1,3 +1,4 @@
+-- Applied migration version: 20260907202847.
 -- Reading an Activity item is not the same as resolving its underlying work.
 -- Preserve actionable records, use category-specific windows, and deduplicate only
 -- non-actionable events inside the same lifecycle lane.

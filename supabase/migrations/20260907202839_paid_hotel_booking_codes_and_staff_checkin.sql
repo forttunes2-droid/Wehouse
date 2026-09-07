@@ -1,3 +1,4 @@
+-- Applied migration version: 20260907202839.
 -- A customer-facing hotel booking code is proof of a verified paid booking.
 -- Creating a checkout hold must never allocate a code.
 alter table public.hotel_bookings alter column booking_code drop not null;
@@ -176,4 +177,3 @@ $$;
 
 revoke all on function public.confirm_hotel_check_in_by_code(text) from public, anon;
 grant execute on function public.confirm_hotel_check_in_by_code(text) to authenticated, service_role;
-
