@@ -223,7 +223,7 @@ export default function Chat({ profile, conversationId, onNavigate, initialMode=
       if(booking)setActiveBooking({conversationId:booking.conversation_id,bookingId:booking.booking_id});
       else toast.error("This conversation is not available. Return to Roommates and reconnect.");
     })();
-  }, [conversationId, loadInbox, loadRoommateMessages, profile.user_id]);
+  }, [conversationId, loadInbox, profile.user_id]);
   useEffect(() => {
     if (!active) {
       setMessages([]);

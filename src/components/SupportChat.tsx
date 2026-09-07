@@ -594,7 +594,7 @@ function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:S
   const checkOut=String(snapshot.check_out||'');
   return <section className="mb-4 border-y border-white/[.06] bg-white/[.018] py-3">
     <div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">⌂</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{title}</p>{location&&<p className="mt-1 truncate text-[9px] text-[#747B8C]">{location}</p>}<p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">{[status,code].filter(Boolean).join(' · ')}</p></div>
-    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">{actionLabel}</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View property</button>:propertyRequestContext?<span className="shrink-0 text-[8px] font-semibold text-violet-300">Property request</span>:null}</div>
+    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">{actionLabel}</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View apartment</button>:propertyRequestContext?<span className="shrink-0 text-[8px] font-semibold text-violet-300">Property request</span>:null}</div>
     {(checkIn||checkOut)&&<div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[.05] pt-3 text-[9px] text-[#747B8C]">{checkIn&&<p><span className="text-[#555C6D]">Check-in</span><br/>{new Date(checkIn).toLocaleDateString()}</p>}{checkOut&&<p><span className="text-[#555C6D]">Check-out</span><br/>{new Date(checkOut).toLocaleDateString()}</p>}</div>}
   </section>
 }
@@ -622,7 +622,7 @@ function MessageContext({
         <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}
         </p>
-        {listingId && onOpenListing ? <button type="button" onClick={() => onOpenListing(listingId)} className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200">View property →</button> : null}
+        {listingId && onOpenListing ? <button type="button" onClick={() => onOpenListing(listingId)} className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200">View apartment →</button> : null}
       </div>
       {Object.keys(snap).length > 0 && (
         <div className="mt-2 grid gap-1 text-[9px] text-[#8FA0B9] sm:grid-cols-2">

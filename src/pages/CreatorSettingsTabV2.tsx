@@ -16,7 +16,7 @@ const GROUPS:Group[]=[
   {key:'support_phone',label:'Support phone',description:'Primary public support phone number.',kind:'text',defaultValue:''},
  ]},
  {id:'worker_verification',label:'Worker verification',description:'Creator-controlled commercial settings for Worker onboarding.',note:'The private automatic face check is a fixed WeHouse safety requirement: clear live selfie → same-face comparison → automatic head movement/liveness check. No government ID and no liveness video. Payment is only an onboarding fee and never buys approval or trust.',settings:[
-  {key:'worker_verification_fee',label:'Onboarding fee (₦)',description:'Amount Paystack charges when a Worker reaches the payment step. Set 0 to temporarily disable new verification payments.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'worker'},
+  {key:'worker_verification_fee',label:'Onboarding fee (₦)',description:'Required one-time amount charged when a Worker reaches the payment step. It must remain greater than zero for onboarding to proceed.',kind:'number',defaultValue:'5000',min:1,max:10000000,step:1,category:'worker'},
  ]},
  {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, Worker-caused cancellations and unresolved disputes.',settings:[
   {key:'worker_trust_enabled',label:'Enable WeHouse Trusted',description:'Turn on automatic earned marketplace trust only after Worker-booking reputation data is ready.',kind:'toggle',defaultValue:'false',category:'worker_trust'},

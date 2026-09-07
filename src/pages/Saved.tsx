@@ -36,13 +36,13 @@ export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: Sa
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · ACCOUNT</p>
             <h1 className="mt-1 text-xl font-bold">Saved</h1>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Properties you want to find again.</p>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Apartments you want to find again.</p>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-5 sm:px-5 lg:px-8">
-        <div className="mb-3"><h2 className="text-sm font-semibold">Saved properties</h2><p className="mt-1 text-[9px] text-[#707687]">Saving keeps a property here. It does not start a booking.</p></div>
+        <div className="mb-3"><h2 className="text-sm font-semibold">Saved apartments</h2><p className="mt-1 text-[9px] text-[#707687]">Saving keeps an apartment here. It does not start a booking.</p></div>
         {loading ? (
           <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
         ) : listings.length === 0 ? (
@@ -50,9 +50,9 @@ export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: Sa
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/[0.08]">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#66687B" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
             </div>
-            <h2 className="mt-4 text-sm font-semibold">No saved properties yet</h2>
-            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Tap the heart on a property to keep it here for later.</p>
-            <button onClick={() => onNavigate('search')} className="mt-5 rounded-full bg-violet-500 px-5 py-3 text-xs font-semibold">Browse properties</button>
+            <h2 className="mt-4 text-sm font-semibold">No saved apartments yet</h2>
+            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Tap the heart on an apartment to keep it here for later.</p>
+            <button onClick={() => onNavigate('search')} className="mt-5 rounded-full bg-violet-500 px-5 py-3 text-xs font-semibold">Browse apartments</button>
           </section>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

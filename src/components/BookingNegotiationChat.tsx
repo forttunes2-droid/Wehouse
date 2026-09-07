@@ -23,6 +23,7 @@ import useChatPresence from "@/hooks/useChatPresence";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { toast } from "sonner";
+import MediaViewer from "@/components/MediaViewer";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import PrivateCallHistory from "@/components/PrivateCallHistory";
 import BackButton from "@/components/BackButton";
@@ -1174,29 +1175,27 @@ function DeleteSheet({
   );
 }
 function MessageContent({ content }: { content: string }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
   if (isImage(content))
-    return (
-      <img
-        src={content}
-        alt="Shared"
-        className="mb-1 max-h-72 max-w-full cursor-pointer rounded-xl object-contain"
-        onClick={() => window.open(content, "_blank")}
-      />
-    );
+    return <>
+      <button type="button" onClick={() => setViewerOpen(true)} className="mb-1 block max-w-full overflow-hidden rounded-xl bg-black">
+        <img src={content} alt="Shared" loading="lazy" decoding="async" className="max-h-72 max-w-full object-contain"/>
+      </button>
+      {viewerOpen ? <MediaViewer src={content} kind="image" title="Shared image" onClose={() => setViewerOpen(false)}/> : null}
+    </>;
   return (
     <p className="whitespace-pre-wrap text-xs leading-relaxed">{content}</p>
   );
 }
 function BookingAttachment({ url }: { url: string }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
   if (isImage(url))
-    return (
-      <img
-        src={url}
-        alt="Attachment"
-        className="mb-2 max-h-72 max-w-full cursor-pointer rounded-xl object-contain"
-        onClick={() => window.open(url, "_blank")}
-      />
-    );
+    return <>
+      <button type="button" onClick={() => setViewerOpen(true)} className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black">
+        <img src={url} alt="Attachment" loading="lazy" decoding="async" className="max-h-72 max-w-full object-contain"/>
+      </button>
+      {viewerOpen ? <MediaViewer src={url} kind="image" title="Booking attachment" onClose={() => setViewerOpen(false)}/> : null}
+    </>;
   if (isAudio(url)) return <VoiceNotePlayer url={url}/>;
   if (isVideo(url))
     return (
@@ -1210,12 +1209,11 @@ function BookingAttachment({ url }: { url: string }) {
   return (
     <a
       href={url}
-      target="_blank"
-      rel="noreferrer"
+      download
       className="mb-2 flex items-center gap-2 rounded-xl border border-white/[.08] bg-black/10 px-3 py-2 text-[10px] font-semibold text-violet-100"
     >
       <span>📎</span>
-      <span>Open attachment</span>
+      <span>Download attachment</span>
     </a>
   );
 }
@@ -1223,10 +1221,10 @@ function isImage(v: string) {
   return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(v);
 }
 function isAudio(v: string) {
-  return /\.(mp3|wav|webm|m4a|ogg)(\?|$)/i.test(v);
+  return /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(v);
 }
 function isVideo(v: string) {
-  return /\.(mp4|mov)(\?|$)/i.test(v);
+  return /\.(mp4|mov|webm)(\?|$)/i.test(v);
 }
 function Mic() {
   return (
@@ -1273,7 +1271,7 @@ function JobRequestDetails({booking}:{booking:Booking}) {
   return <div className="mb-3 space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
     <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{facts.map(([label,value])=><div key={label}><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">{label}</p><p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">{value}</p></div>)}</div>
     <div className="border-t border-white/[.055] pt-3"><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">Original description</p><p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">{booking.description||booking.customer_message||'No written description was supplied with this request.'}</p></div>
-    {booking.request_attachments?.length?<div className="flex flex-wrap gap-2 border-t border-white/[.055] pt-3">{booking.request_attachments.map((url,index)=><a key={`${url}-${index}`} href={url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/[.07] px-2.5 py-2 text-[9px] font-semibold text-violet-300">Open request attachment {index+1}</a>)}</div>:null}
+    {booking.request_attachments?.length?<div className="grid gap-2 border-t border-white/[.055] pt-3 sm:grid-cols-2">{booking.request_attachments.map((url,index)=><div key={`${url}-${index}`}><p className="mb-1 text-[8px] text-[#6D7383]">Request attachment {index+1}</p><BookingAttachment url={url}/></div>)}</div>:null}
   </div>;
 }
 function getProgressWidth(status: string) {

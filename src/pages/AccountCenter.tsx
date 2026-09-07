@@ -221,7 +221,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       <AccountSection title="Account">
         {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
-        {isUser && <AccountRow title="Saved" detail="Saved properties and alerts for searches you care about" onClick={onGoToSaved} icon={<HeartIcon />} />}
+        {isUser && <AccountRow title="Saved" detail="Saved apartments and search alerts" onClick={onGoToSaved} icon={<HeartIcon />} />}
       </AccountSection>
 
       <AccountSection title="Preferences & protection">

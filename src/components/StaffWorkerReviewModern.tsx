@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { workerOccupation } from "@/lib/workerTaxonomy";
+import MediaViewer from "@/components/MediaViewer";
 
 type Worker = {
   user_id: string;
@@ -381,6 +382,8 @@ function Evidence({
   bucket: string;
 }) {
   const [url, setUrl] = useState("");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const kind = bucket === "worker-verification-videos" ? "video" : "image";
   useEffect(() => {
     let active = true;
     if (!path) {
@@ -405,7 +408,7 @@ function Evidence({
     <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
       <p className="text-[9px] font-semibold">{label}</p>
       {url ? (
-        bucket === "worker-verification-videos" ? (
+        kind === "video" ? (
           <div className="mt-2 space-y-2">
             <video
               src={url}
@@ -414,28 +417,27 @@ function Evidence({
               preload="metadata"
               className="aspect-video w-full rounded-xl bg-black object-contain"
             />
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => setViewerOpen(true)}
               className="text-[10px] font-semibold text-violet-400"
             >
-              Open full video ↗
-            </a>
+              View full-screen
+            </button>
           </div>
         ) : (
-          <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-block text-[10px] font-semibold text-violet-400"
+          <button
+            type="button"
+            onClick={() => setViewerOpen(true)}
+            className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-[10px] font-semibold text-violet-300"
           >
-            Open evidence →
-          </a>
+            View evidence
+          </button>
         )
       ) : (
         <p className="mt-2 text-[10px] text-[#606778]">Not supplied</p>
       )}
+      {viewerOpen && url ? <MediaViewer src={url} kind={kind} title={label} onClose={() => setViewerOpen(false)}/> : null}
     </div>
   );
 }

@@ -158,7 +158,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
     window.location.assign(String(result.authorization_url));
   }
   async function continueHousing(row: any) {
-    if (!row.payment_reference) return toast.error("This reservation attempt cannot be resumed. Start again from the property.");
+    if (!row.payment_reference) return toast.error("This reservation cannot be resumed. Start again from the apartment.");
     setBusyId(row.id);
     const { result } = await initializeReservationPayment(String(row.payment_reference));
     if (!result?.success) {
@@ -192,7 +192,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
             row.rent_payment_status === "payment_pending"
               ? "payment"
               : "apartment_booking",
-          subject: `${row.stay_type === "short_let" ? "Short Let" : "Long Let"} · ${row.booking_code || row.listing_title || "Property"}`,
+          subject: `${row.stay_type === "short_let" ? "Short Let" : "Long Let"} · ${row.booking_code || row.listing_title || "Apartment"}`,
           contextType: "apartment_reservation",
           contextId: row.id,
           contextSnapshot: {
@@ -228,7 +228,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
             </p>
             <h1 className="mt-1 text-xl font-bold">Bookings</h1>
             <p className="mt-1 text-[10px] text-[#74798B]">
-              Property tenancies, hotel stays and service jobs in one place.
+              Apartment tenancies, hotel stays and service jobs in one place.
             </p>
           </div>
         </div>
@@ -236,7 +236,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
         <div className="border-b border-white/[.07]" role="group" aria-label="Filter by booking type">
           <div className="grid grid-cols-4">
-            {([['all','All'],['housing','Properties'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
+            {([['all','All'],['housing','Apartments'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
           </div>
         </div>
         {loading ? (
@@ -329,7 +329,7 @@ function HousingCard({
       : row.status === "payment_pending"
         ? "Finish your reservation"
         : row.status === "inspection_pending"
-          ? "WeHouse is reviewing the property"
+          ? "WeHouse is reviewing the apartment"
           : row.status === "ready_for_move_in" && rentPaid
             ? "Confirm after you move in"
             : row.status === "ready_for_move_in"
@@ -345,7 +345,7 @@ function HousingCard({
             type="button"
             onClick={onOpen}
             className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl"
-            aria-label="View reservation property"
+            aria-label="View reservation apartment"
           >
             <img
               src={row.listing_image}
@@ -366,10 +366,10 @@ function HousingCard({
               {short ? "Short Let" : "Long Let"}
             </p>
             <h2 className="mt-1 truncate text-sm font-semibold">
-              {row.listing_title || "Property reservation"}
+              {row.listing_title || "Apartment reservation"}
             </h2>
             <p className="mt-1 truncate text-[10px] text-[#676C7D]">
-              {row.listing_location || "WeHouse property"}
+              {row.listing_location || "WeHouse apartment"}
             </p>
           </div>
           <span className="shrink-0 rounded-full border border-white/[.08] px-2 py-1 text-[8px] text-[#A2A6B3]">
@@ -384,7 +384,7 @@ function HousingCard({
       )}
       {row.status === "payment_pending" && (
         <p className="mt-3 rounded-xl bg-amber-500/[.04] p-3 text-[9px] text-amber-200">
-          Complete payment to confirm this reservation. Rent is a separate later payment.
+          Complete the reservation payment to submit this booking.
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -518,9 +518,9 @@ function HotelCard({
 function PropertyBookingDetail({row,busy,onBack,onDesk,onResume}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void}) {
   const short=row.stay_type==='short_let';
   const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
-  const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Property stay':'Property booking');
+  const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Apartment stay':'Apartment booking');
   const showCode=Boolean(row.booking_code)&&row.status!=="payment_pending"&&!isUnpaidHousingDraft(row);
-  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Property booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{showCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}{row.status==="payment_pending"&&<div className="mt-4 border-y border-amber-500/15 py-4"><p className="text-sm font-semibold">Complete your reservation</p><p className="mt-1 text-[10px] leading-5 text-[#858A99]">Payment confirms the reservation process. Rent is handled separately later.</p><button type="button" disabled={busy} onClick={onResume} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Opening payment…':'Continue reservation'}</button></div>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Message WeHouse</button></div></div></section></BookingDetailShell>;
+  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" loading="lazy" decoding="async" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Apartment booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{showCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}{row.status==="payment_pending"&&<div className="mt-4 border-y border-amber-500/15 py-4"><p className="text-sm font-semibold">Complete your reservation</p><p className="mt-1 text-[10px] leading-5 text-[#858A99]">Complete the reservation payment to submit this booking.</p><button type="button" disabled={busy} onClick={onResume} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Opening payment…':'Continue reservation'}</button></div>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Message WeHouse</button></div></div></section></BookingDetailShell>;
 }
 function HotelBookingDetail({row,busy,onBack,onDesk,onPay}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onPay:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';
@@ -557,7 +557,7 @@ function Empty() {
     <div className="border-y border-white/[.07] px-5 py-14 text-center">
       <p className="text-sm font-semibold">No bookings yet</p>
       <p className="mt-2 text-[10px] text-[#707788]">
-        Property reservations, hotel stays and service jobs you start will appear here with their current status.
+        Apartment reservations, hotel stays and service jobs you start will appear here with their current status.
       </p>
     </div>
   );

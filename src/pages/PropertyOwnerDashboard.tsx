@@ -9,6 +9,7 @@ import PartnerSubmittedRequests, { type SubmissionFilter } from "@/components/Pa
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
+import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import type { Profile } from "@/types";
 
 type PartnerTab = "properties" | "finance" | "communication";
@@ -328,7 +329,9 @@ function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetail
                   <img
                     src={property.images[0]}
                     alt=""
-                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-contain"
                   />
                 ) : (
                   <div className="grid h-full place-items-center text-[#46485A]">
@@ -394,13 +397,7 @@ function PropertyDetails({
         ← Back to properties
       </button>
       <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#111119]">
-        {property.images?.[0] && (
-          <img
-            src={property.images[0]}
-            alt=""
-            className="h-56 w-full object-cover lg:h-72"
-          />
-        )}
+        {property.images?.length ? <PropertyMediaCarousel images={property.images} title={property.title || "Property"} /> : null}
         <div className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
