@@ -25,6 +25,24 @@ export async function signInWithEmail(email: string, password: string) {
   return { data, error };
 }
 
+export async function signInWithIdentifier(identifier: string, password: string) {
+  const clean = identifier.trim().toLowerCase();
+  if (clean.includes('@')) return signInWithEmail(clean, password);
+  const result = await supabase.functions.invoke('login-with-identifier', {
+    body: { identifier: clean, password },
+  });
+  if (result.error || !result.data?.access_token || !result.data?.refresh_token) {
+    return {
+      data: { user: null, session: null },
+      error: { message: result.data?.error || 'Invalid username, email or password' },
+    };
+  }
+  return supabase.auth.setSession({
+    access_token: String(result.data.access_token),
+    refresh_token: String(result.data.refresh_token),
+  });
+}
+
 export async function signInWithGoogle(verificationEmail?: string, context?: GoogleVerificationContext) {
   const redirectUrl = verificationRedirectUrl(context);
   const loginHint = verificationEmail?.trim().toLowerCase();

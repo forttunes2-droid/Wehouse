@@ -346,16 +346,15 @@ export default function BookingNegotiationChat({
     setMessageMenu(null);
     await loadAll(true);
   }
-  async function startCall(callType: "audio" | "video") {
+  async function startCall() {
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
       conversationId,
     );
     if (error || !capabilities)
-      return toast.error(error?.message || `${callType === "video" ? "Video" : "Audio"} call is not available`);
-    const allowed = callType === "audio" ? capabilities.allow_audio_calls : capabilities.allow_video_calls;
-    if (!allowed) return toast.error(`This person is not accepting ${callType} calls`);
-    launchPrivateCall("worker_booking", conversationId, callType);
+      return toast.error(error?.message || "Audio call is not available");
+    if (!capabilities.allow_audio_calls) return toast.error("This person is not accepting audio calls");
+    launchPrivateCall("worker_booking", conversationId, "audio");
   }
   async function saveReview(){if(reviewRating<1)return toast.error('Choose a star rating');setReviewSaving(true);const{review:next,error}=await submitWorkerBookingReview(bookingId,reviewRating,reviewComment);setReviewSaving(false);if(error||!next)return toast.error(error?.message||'Review could not be saved');setReview(next);setReviewOpen(false);toast.success('Your review was saved')}
   async function handleWorkerAccept() {
@@ -509,15 +508,11 @@ export default function BookingNegotiationChat({
             </div>
           </button>
           {openConversation && <button
-            onClick={() => void startCall("audio")}
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-white/[.07] bg-white/[.035] px-3 text-[10px] font-semibold text-[#D5D8E0] hover:bg-white/[.06]"
+            onClick={() => void startCall()}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
             aria-label="Start audio call"
           >
             <Phone />
-            <span className="hidden min-[360px]:inline">Call</span>
-          </button>}
-          {openConversation && <button onClick={() => void startCall("video")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]" aria-label="Start video call">
-            <VideoCallIcon />
           </button>}
           <button
             onClick={() => setMenuOpen((value) => !value)}
@@ -534,7 +529,7 @@ export default function BookingNegotiationChat({
               className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-violet-300 hover:bg-violet-500/[.06]"
             >
               <span>?</span>
-              <span>WeHouse Support</span>
+              <span>Message WeHouse</span>
             </button>
             <button
               onClick={() => {
@@ -543,8 +538,8 @@ export default function BookingNegotiationChat({
               }}
               className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
             >
-              <span>⌫</span>
-              <span>Delete conversation</span>
+              <TrashIcon />
+              <span>Remove from Inbox</span>
             </button>
           </div>
         )}
@@ -912,7 +907,7 @@ export default function BookingNegotiationChat({
             </>}
           </div>
         ) : (
-          <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Human Support</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>
+          <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Message WeHouse</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>
         )}
       </footer>
       {profileOpen && !isWorker && peerProfile ? (
@@ -951,7 +946,7 @@ export default function BookingNegotiationChat({
               onClick={() => void deleteMessageForMe()}
               className="flex min-h-12 w-full items-center px-3 text-left text-xs font-semibold text-red-300"
             >
-              Delete for me
+              Remove message for me
             </button>
             <button
               onClick={() => setMessageMenu(null)}
@@ -1151,7 +1146,8 @@ function DeleteSheet({
         className="w-full rounded-3xl border border-white/[.08] bg-[#151922] p-5 sm:max-w-sm"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="text-base font-bold">Delete this conversation?</h2>
+        <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300"><TrashIcon /></div>
+        <h2 className="text-base font-bold">Remove this conversation?</h2>
         <p className="mt-2 text-[10px] leading-5 text-[#767C8C]">
           The job and its audit history stay intact, and the other participant
           keeps their copy. A new reply can make this conversation appear again.
@@ -1165,9 +1161,9 @@ function DeleteSheet({
           </button>
           <button
             onClick={onDelete}
-            className="h-11 rounded-xl bg-red-500 text-[11px] font-semibold text-white"
+            className="h-11 rounded-xl border border-red-500/20 bg-red-500/10 text-[11px] font-semibold text-red-200"
           >
-            Delete
+            Remove from Inbox
           </button>
         </div>
       </section>
@@ -1198,14 +1194,13 @@ function BookingAttachment({ url }: { url: string }) {
     </>;
   if (isAudio(url)) return <VoiceNotePlayer url={url}/>;
   if (isVideo(url))
-    return (
-      <video
-        controls
-        preload="metadata"
-        src={url}
-        className="mb-2 max-h-72 max-w-full rounded-xl"
-      />
-    );
+    return <>
+      <button type="button" onClick={() => setViewerOpen(true)} className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black" aria-label="Open video attachment in WeHouse viewer">
+        <video muted playsInline preload="metadata" src={url} className="h-full w-full object-cover" />
+        <span className="absolute inset-0 grid place-items-center bg-black/15"><span className="grid h-12 w-12 place-items-center rounded-full bg-black/65 pl-0.5 text-lg backdrop-blur">▶</span></span>
+      </button>
+      {viewerOpen ? <MediaViewer src={url} kind="video" title="Booking video" onClose={() => setViewerOpen(false)}/> : null}
+    </>;
   return (
     <a
       href={url}
@@ -1255,8 +1250,8 @@ function Phone() {
     </svg>
   );
 }
-function VideoCallIcon() {
-  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="14" height="14" rx="3" /><path d="m17 10 4-2v8l-4-2" /></svg>;
+function TrashIcon() {
+  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="m9 7 .6-2h4.8l.6 2"/><path d="m6.5 7 .8 13h9.4l.8-13"/><path d="M10 11v5M14 11v5"/></svg>;
 }
 function JobRequestDetails({booking}:{booking:Booking}) {
   const amount=Number(booking.negotiated_amount||booking.agreed_amount||0);

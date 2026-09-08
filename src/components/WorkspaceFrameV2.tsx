@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 type Item = { id: string; label: string; badge?: number };
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
   setActive: (id: string) => void;
   onAccount?: () => void;
   onLogout: () => void;
+  compact?: boolean;
   children: React.ReactNode;
 };
 
@@ -24,6 +25,7 @@ export default function WorkspaceFrameV2({
   setActive,
   onAccount,
   onLogout,
+  compact = false,
   children,
 }: Props) {
   // AccountCenter owns sign-out. A role workspace should expose one Account
@@ -45,13 +47,13 @@ export default function WorkspaceFrameV2({
   function go(id: string) {
     setActive(id);
     setMore(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function goAccount() {
     setMore(false);
     onAccount?.();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
@@ -60,16 +62,24 @@ export default function WorkspaceFrameV2({
       className="role-workspace min-h-[100dvh] bg-[#0A0A0F] pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-white sm:pb-0"
     >
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-5 lg:px-8">
+        <div
+          className={`mx-auto max-w-7xl px-4 sm:px-5 lg:px-8 ${compact ? "py-2.5 sm:py-4" : "py-4"}`}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
-                <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">{label}</p>
+                <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
+                  {label}
+                </p>
                 {labelBadge}
               </div>
               <h1 className="mt-1 truncate text-xl font-bold">{title}</h1>
               {description ? (
-                <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p>
+                <p
+                  className={`mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B] ${compact ? "hidden sm:block" : ""}`}
+                >
+                  {description}
+                </p>
               ) : null}
             </div>
             {onAccount && (
@@ -91,13 +101,15 @@ export default function WorkspaceFrameV2({
                 onClick={() => go(item.id)}
                 className={`rounded-xl px-3 py-2 text-[10px] font-semibold transition ${
                   active === item.id
-                    ? 'bg-violet-500 text-white'
-                    : 'text-[#747A8B] hover:bg-white/[.04] hover:text-white'
+                    ? "bg-violet-500 text-white"
+                    : "text-[#747A8B] hover:bg-white/[.04] hover:text-white"
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
                   <span>{item.label}</span>
-                  {Boolean(item.badge) && <CountBadge count={item.badge || 0} />}
+                  {Boolean(item.badge) && (
+                    <CountBadge count={item.badge || 0} />
+                  )}
                 </span>
               </button>
             ))}
@@ -105,7 +117,9 @@ export default function WorkspaceFrameV2({
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 lg:px-8 lg:py-7">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
+        {children}
+      </main>
 
       {more && hasOverflow && (
         <>
@@ -130,7 +144,10 @@ export default function WorkspaceFrameV2({
                 onClick={goAccount}
                 className="flex min-h-12 w-full items-center justify-between rounded-2xl px-4 text-left text-xs font-semibold text-[#D7DAE2] transition hover:bg-white/[.04]"
               >
-                <span className="flex items-center gap-3"><NavIcon id="account" /><span>Account</span></span>
+                <span className="flex items-center gap-3">
+                  <NavIcon id="account" />
+                  <span>Account</span>
+                </span>
                 <span className="text-[#626878]">›</span>
               </button>
             )}
@@ -152,49 +169,85 @@ export default function WorkspaceFrameV2({
           ))}
 
           {hasOverflow && (
-            <BottomTab id="more" label="More" active={more} onClick={() => setMore((value) => !value)} />
+            <BottomTab
+              id="more"
+              label="More"
+              active={more}
+              onClick={() => setMore((value) => !value)}
+            />
           )}
 
-          {accountDirect && <BottomTab id="account" label="Account" active={false} onClick={goAccount} />}
+          {accountDirect && (
+            <BottomTab
+              id="account"
+              label="Account"
+              active={false}
+              onClick={goAccount}
+            />
+          )}
         </div>
       </nav>
     </div>
   );
 }
 
-function BottomTab({ id, label, badge = 0, active, onClick }: { id: string; label: string; badge?: number; active: boolean; onClick: () => void }) {
+function BottomTab({
+  id,
+  label,
+  badge = 0,
+  active,
+  onClick,
+}: {
+  id: string;
+  label: string;
+  badge?: number;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
       className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold transition-colors ${
-        active ? 'text-violet-300' : 'text-[#686F80]'
+        active ? "text-violet-300" : "text-[#686F80]"
       }`}
     >
-      <span className={`grid h-7 w-7 place-items-center rounded-xl ${active ? 'bg-violet-500/12 text-violet-300' : ''}`}>
+      <span
+        className={`grid h-7 w-7 place-items-center rounded-xl ${active ? "bg-violet-500/12 text-violet-300" : ""}`}
+      >
         <NavIcon id={id} />
-        {badge > 0 && <span className="absolute right-[calc(50%-1.2rem)] top-1"><CountBadge count={badge} /></span>}
+        {badge > 0 && (
+          <span className="absolute right-[calc(50%-1.2rem)] top-1">
+            <CountBadge count={badge} />
+          </span>
+        )}
       </span>
       <span className="max-w-full truncate">{label}</span>
-      {active && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-violet-400" />}
+      {active && (
+        <span className="absolute bottom-1 h-1 w-1 rounded-full bg-violet-400" />
+      )}
     </button>
   );
 }
 
 function CountBadge({ count }: { count: number }) {
-  return <span className="grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[7px] font-bold leading-none text-white">{count > 99 ? '99+' : count}</span>;
+  return (
+    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[7px] font-bold leading-none text-white">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 function NavIcon({ id }: { id: string }) {
   const common = {
     width: 17,
     height: 17,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
     strokeWidth: 1.8,
   };
 
-  if (id === 'home' || id === 'overview') {
+  if (id === "home" || id === "overview") {
     return (
       <svg {...common}>
         <path d="M3 11.5 12 4l9 7.5" />
@@ -204,7 +257,14 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'jobs' || id === 'reviews' || id === 'pipeline' || id === 'housing' || id === 'properties' || id === 'showcase') {
+  if (
+    id === "jobs" ||
+    id === "reviews" ||
+    id === "pipeline" ||
+    id === "housing" ||
+    id === "properties" ||
+    id === "showcase"
+  ) {
     return (
       <svg {...common}>
         <rect x="4" y="6" width="16" height="13" rx="2" />
@@ -213,7 +273,13 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'earnings' || id === 'finance' || id === 'payments' || id === 'payouts' || id === 'ledger') {
+  if (
+    id === "earnings" ||
+    id === "finance" ||
+    id === "payments" ||
+    id === "payouts" ||
+    id === "ledger"
+  ) {
     return (
       <svg {...common}>
         <rect x="3" y="6" width="18" height="13" rx="2" />
@@ -222,7 +288,14 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'communication' || id === 'communications' || id === 'conversations' || id === 'messages' || id === 'inbox' || id === 'support') {
+  if (
+    id === "communication" ||
+    id === "communications" ||
+    id === "conversations" ||
+    id === "messages" ||
+    id === "inbox" ||
+    id === "support"
+  ) {
     return (
       <svg {...common}>
         <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 3V7a2 2 0 0 1 2-2Z" />
@@ -230,7 +303,7 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'profile' || id === 'account') {
+  if (id === "profile" || id === "account") {
     return (
       <svg {...common}>
         <circle cx="12" cy="8" r="3.5" />
@@ -239,7 +312,7 @@ function NavIcon({ id }: { id: string }) {
     );
   }
 
-  if (id === 'more') {
+  if (id === "more") {
     return (
       <svg {...common}>
         <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />

@@ -1,212 +1,2204 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
-import { supabase, createHotelRoom, getHotelRooms } from '@/lib/supabase';
-import LocationMap from './LocationMap';
-import ManageListing from './ManageListing';
-import ConfirmDialog from './ConfirmDialog';
-import { useConfirm } from '@/hooks/useConfirm';
-import type { Profile } from '@/types';
-import { ListingMediaImage, ListingMediaVideo } from './ListingCandidateMedia';
-import WeHouseSelect from './WeHouseSelect';
-import { publishListingCandidateImages, removePublishedCandidateCopies } from '@/lib/supabase/listings';
-type Stage = 'all'|'access_required'|'access_review'|'inspection_ready'|'inspection'|'visit_reviewed'|'listing_prepared'|'live'|'changes_requested'|'rejected';
-const STAGES: [
-    Stage,
-    string
-][] = [['all','All statuses'],['access_required','Access required'],['access_review','Access review'],['inspection_ready','Inspection ready'],['inspection','Inspection'],['visit_reviewed','Visit reviewed'],['listing_prepared','Listing prepared'],['live','Live'],['changes_requested','Changes requested'],['rejected','Rejected']];
-function stageLabel(value: string) { return STAGES.find(([stage]) => stage === value)?.[1] || String(value || 'Unknown').replace(/_/g, ' '); }
-export default function PropertyPipelineWorkspace({ profile, initialRecordId }: {
-    profile: Profile;
-    initialRecordId?: string;
-}) { const openedTarget = useRef<string | null>(null); const [stage, setStage] = useState<Stage>('all'); const [rows, setRows] = useState<any[]>([]), [loading, setLoading] = useState(true), [selected, setSelected] = useState<any | null>(null); async function load(quiet = false) { if (!quiet)
-    setLoading(true); const { data, error } = await supabase.rpc('get_my_property_pipeline_v2', { p_stage: 'all' }); if (error) {
-    if (!quiet)
-        toast.error(error.message);
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { toast } from "sonner";
+import { supabase, createHotelRoom, getHotelRooms } from "@/lib/supabase";
+import LocationMap from "./LocationMap";
+import ManageListing from "./ManageListing";
+import ConfirmDialog from "./ConfirmDialog";
+import { useConfirm } from "@/hooks/useConfirm";
+import type { Profile } from "@/types";
+import { ListingMediaImage, ListingMediaVideo } from "./ListingCandidateMedia";
+import WeHouseSelect from "./WeHouseSelect";
+import PropertyMediaCarousel from "./PropertyMediaCarousel";
+import MediaViewer from "./MediaViewer";
+import {
+  publishListingCandidateImages,
+  removePublishedCandidateCopies,
+} from "@/lib/supabase/listings";
+type Stage =
+  | "all"
+  | "access_required"
+  | "access_review"
+  | "inspection_ready"
+  | "inspection"
+  | "visit_reviewed"
+  | "listing_prepared"
+  | "live"
+  | "changes_requested"
+  | "rejected";
+const STAGES: [Stage, string][] = [
+  ["all", "All statuses"],
+  ["access_required", "Access required"],
+  ["access_review", "Access review"],
+  ["inspection_ready", "Inspection ready"],
+  ["inspection", "Inspection"],
+  ["visit_reviewed", "Visit reviewed"],
+  ["listing_prepared", "Listing prepared"],
+  ["live", "Live"],
+  ["changes_requested", "Changes requested"],
+  ["rejected", "Rejected"],
+];
+function stageLabel(value: string) {
+  return (
+    STAGES.find(([stage]) => stage === value)?.[1] ||
+    String(value || "Unknown").replace(/_/g, " ")
+  );
 }
-else {
-    const nextRows = Array.isArray(data) ? data : [];
-    setRows(nextRows);
-    if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
+export default function PropertyPipelineWorkspace({
+  profile,
+  initialRecordId,
+}: {
+  profile: Profile;
+  initialRecordId?: string;
+}) {
+  const openedTarget = useRef<string | null>(null);
+  const [stage, setStage] = useState<Stage>("all");
+  const [rows, setRows] = useState<any[]>([]),
+    [loading, setLoading] = useState(true),
+    [selected, setSelected] = useState<any | null>(null);
+  async function load(quiet = false) {
+    if (!quiet) setLoading(true);
+    const { data, error } = await supabase.rpc("get_my_property_pipeline_v2", {
+      p_stage: "all",
+    });
+    if (error) {
+      if (!quiet) toast.error(error.message);
+    } else {
+      const nextRows = Array.isArray(data) ? data : [];
+      setRows(nextRows);
+      if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
-        const target = nextRows.find((row: any) => [row.id, row.draft_listing_id, row.listing?.id].filter(Boolean).some((value) => String(value) === String(initialRecordId)));
+        const target = nextRows.find((row: any) =>
+          [row.id, row.draft_listing_id, row.listing?.id]
+            .filter(Boolean)
+            .some((value) => String(value) === String(initialRecordId)),
+        );
         if (target) setSelected(target);
-        else if (!quiet) toast.error('The linked property record is no longer available in this workspace.');
+        else if (!quiet)
+          toast.error(
+            "The linked property record is no longer available in this workspace.",
+          );
+      }
     }
-} if (!quiet)
-    setLoading(false); } useEffect(() => { void load(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible')
-    void load(true); }, 15000); const focus = () => void load(true); const visibility = () => { if (document.visibilityState === 'visible')
-    void load(true); }; window.addEventListener('focus', focus); document.addEventListener('visibilitychange', visibility); return () => { window.clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visibility); }; }, [profile.user_id, initialRecordId]); if (selected)
-    return <Case profile={profile} row={selected} back={() => { setSelected(null); void load(); }}/>; const shown=stage==='all'?rows:rows.filter(row=>String(row.lifecycle_stage||'access_required')===stage); return <div className="space-y-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-bold">Property records</h3><p className="mt-1 text-[10px] text-[#707386]">Each property stays in one record from submission through publication.</p></div><button onClick={() => void load()} disabled={loading} className="shrink-0 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[9px] font-semibold text-[#8D92A2] disabled:opacity-40">Refresh</button></div><div className="flex items-center justify-between gap-3 border-y border-white/[0.07] py-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">Show</p><p className="mt-1 text-[9px] text-[#555C6D]">{shown.length} {shown.length===1?'record':'records'}</p></div><WeHouseSelect value={stage} options={STAGES.map(([value,label])=>({value,label}))} onChange={setStage} eyebrow="Properties" title="Choose lifecycle stage" ariaLabel="Filter property records" className="w-44"/></div>{loading ? <Loading /> : shown.length === 0 ? <Empty text="No properties match this stage."/> : <div className="divide-y divide-white/[0.065] border-y border-white/[0.065]">{shown.map(r => <button key={r.id} onClick={() => setSelected(r)} className="flex min-h-20 w-full items-center gap-3 px-1 py-3 text-left active:bg-white/[0.025]"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/[0.08] text-[10px] font-bold text-violet-300">{String(r.property_type || 'P').charAt(0).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{r.property_address || r.request_code}</p><p className="mt-1 truncate text-[9px] text-[#6D7182]">{r.property_city}, {r.property_state} · {String(r.property_type || 'property').replace(/_/g, ' ')}</p><p className="mt-1 truncate text-[8px] text-[#555B6C]">{r.owner_name || r.owner_email || 'Property Partner'} · {r.request_code}</p></div><div className="flex shrink-0 items-center gap-2"><Badge value={String(r.lifecycle_stage||'access_required')}/><span className="text-[#5E6475]">›</span></div></button>)}</div>}</div>; }
-function Case({ profile, row, back }: { profile: Profile; row: any; back: () => void }) {
-    const oversight = ['admin', 'creator'].includes(profile.role);
-    const operationsAccess = profile.role === 'staff' || oversight;
-    const stage = String(row.lifecycle_stage || 'access_required');
-    const listingId = row.draft_listing_id || row.listing?.id;
-    const showAccessEvidence = operationsAccess && ['access_review', 'inspection_ready'].includes(stage);
-    const showPartnerMedia = ['access_required', 'access_review'].includes(stage);
-    const showCreatorException = profile.role === 'creator' && ['visit_reviewed', 'listing_prepared', 'changes_requested'].includes(stage);
-    return createPortal(<div className="fixed inset-0 z-[100020] bg-[#080A0F] text-white" role="dialog" aria-modal="true" aria-label="Property workflow"><main className="absolute inset-0 overflow-y-auto bg-[#0A0D14]"><header className="sticky top-0 z-10 flex min-h-14 items-center gap-3 border-b border-white/[.07] bg-[#0A0D14]/95 px-4 backdrop-blur-xl"><button onClick={back} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[#A0A5B4] active:bg-white/[.05]" aria-label="Close property">‹</button><div className="min-w-0"><p className="truncate text-sm font-semibold">{row.property_address || 'Property workflow'}</p><p className="truncate text-[8px] text-[#666D7E]">{row.request_code} · {stageLabel(stage)}</p></div></header><div className="mx-auto max-w-5xl space-y-4 p-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        {stage==='live'&&listingId?<ManageListing listingId={String(listingId)} source={row}/>:<SubmissionSummary row={row} stage={stage}/>}
-        {stage === 'access_required' && <Empty text="Access evidence is missing. This submission cannot be assigned or prepared."/>}
-        {showAccessEvidence && <AccessReview profile={profile} row={row} done={back}/>}
-        {stage === 'inspection_ready' && operationsAccess && <Assign row={row} done={back}/>}
-        {stage === 'inspection' && <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.04] p-4"><p className="text-xs font-semibold text-violet-300">Inspection in progress</p><p className="mt-1 text-[10px] text-[#7A8091]">{row.field_officer_name || 'The assigned Field Operations member'} handles the independent visit. Completion moves this property to visit review.</p></div>}
-        {stage === 'visit_reviewed' && <><EvidenceReview inspectionId={row.id}/><Prepare row={row} done={back}/></>}
-        {stage === 'listing_prepared' && <Prepared row={row} authority={oversight} done={back}/>}
-        {['changes_requested', 'rejected'].includes(stage) && <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.04] p-4"><p className="text-xs font-semibold text-amber-200">{stageLabel(stage)}</p><p className="mt-1 text-[10px] leading-5 text-[#8B8290]">{row.rejection_reason || row.notes || 'This submission is not moving forward until the recorded issue is resolved.'}</p></div>}
-        {showPartnerMedia && <SubmittedMedia row={row}/>}
-        {row.gps_latitude != null && row.gps_longitude != null && !['listing_prepared', 'live'].includes(stage) && <PropertyLocation row={row}/>}
-        {showCreatorException && <SubmissionDecision row={row} done={back}/>}
-    </div></main></div>, document.body);
+    if (!quiet) setLoading(false);
+  }
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(true);
+    }, 15000);
+    const focus = () => void load(true);
+    const visibility = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+    window.addEventListener("focus", focus);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", focus);
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, [profile.user_id, initialRecordId]);
+  if (selected)
+    return (
+      <Case
+        profile={profile}
+        row={selected}
+        back={() => {
+          setSelected(null);
+          void load();
+        }}
+      />
+    );
+  const shown =
+    stage === "all"
+      ? rows
+      : rows.filter(
+          (row) => String(row.lifecycle_stage || "access_required") === stage,
+        );
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold">Property records</h3>
+          <p className="mt-1 text-[10px] text-[#707386]">
+            Each property stays in one record from submission through
+            publication.
+          </p>
+        </div>
+        <button
+          onClick={() => void load()}
+          disabled={loading}
+          className="shrink-0 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[9px] font-semibold text-[#8D92A2] disabled:opacity-40"
+        >
+          Refresh
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-3 border-y border-white/[0.07] py-3">
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">
+            Show
+          </p>
+          <p className="mt-1 text-[9px] text-[#555C6D]">
+            {shown.length} {shown.length === 1 ? "record" : "records"}
+          </p>
+        </div>
+        <WeHouseSelect
+          value={stage}
+          options={STAGES.map(([value, label]) => ({ value, label }))}
+          onChange={setStage}
+          eyebrow="Properties"
+          title="Choose lifecycle stage"
+          ariaLabel="Filter property records"
+          className="w-44"
+        />
+      </div>
+      {loading ? (
+        <Loading />
+      ) : shown.length === 0 ? (
+        <Empty text="No properties match this stage." />
+      ) : (
+        <div className="divide-y divide-white/[0.065] border-y border-white/[0.065]">
+          {shown.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setSelected(r)}
+              className="flex min-h-20 w-full items-center gap-3 px-1 py-3 text-left active:bg-white/[0.025]"
+            >
+              <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-violet-500/[0.08]">
+                {r.photo_urls?.[0] ? (
+                  <ListingMediaImage
+                    reference={r.photo_urls[0]}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center text-[8px] text-violet-300">
+                    No photo
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {r.property_address || r.request_code}
+                </p>
+                <p className="mt-1 truncate text-[9px] text-[#6D7182]">
+                  {r.property_city}, {r.property_state} ·{" "}
+                  {String(r.property_type || "property").replace(/_/g, " ")}
+                </p>
+                <p className="mt-1 truncate text-[8px] text-[#555B6C]">
+                  {r.owner_name || r.owner_email || "Property Partner"} ·{" "}
+                  {r.request_code}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge value={String(r.lifecycle_stage || "access_required")} />
+                <span className="text-[#5E6475]">›</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function Case({
+  profile,
+  row,
+  back,
+}: {
+  profile: Profile;
+  row: any;
+  back: () => void;
+}) {
+  const oversight = ["admin", "creator"].includes(profile.role);
+  const operationsAccess = profile.role === "staff" || oversight;
+  const stage = String(row.lifecycle_stage || "access_required");
+  const listingId = row.draft_listing_id || row.listing?.id;
+  const hotelId = Number(row.draft_hotel_id || row.hotel?.hotel_id || 0);
+  const showAccessEvidence =
+    operationsAccess && ["access_review", "inspection_ready"].includes(stage);
+  const showPartnerMedia = ["access_required", "access_review"].includes(stage);
+  const showCreatorException =
+    profile.role === "creator" &&
+    ["visit_reviewed", "listing_prepared", "changes_requested"].includes(stage);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100020] bg-[#080A0F] text-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Property workflow"
+    >
+      <main className="absolute inset-0 overflow-y-auto bg-[#0A0D14]">
+        <header className="sticky top-0 z-10 flex min-h-14 items-center gap-3 border-b border-white/[.07] bg-[#0A0D14]/95 px-4 backdrop-blur-xl">
+          <button
+            onClick={back}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[#A0A5B4] active:bg-white/[.05]"
+            aria-label="Close property"
+          >
+            ‹
+          </button>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">
+              {row.property_address || "Property workflow"}
+            </p>
+            <p className="truncate text-[8px] text-[#666D7E]">
+              {row.request_code} · {stageLabel(stage)}
+            </p>
+          </div>
+        </header>
+        <div className="mx-auto max-w-5xl space-y-4 p-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+          {stage === "live" && hotelId ? (
+            <CreatorHotelRecord hotelId={hotelId} fallback={row} />
+          ) : stage === "live" && listingId ? (
+            <ManageListing listingId={String(listingId)} source={row} />
+          ) : (
+            <SubmissionSummary row={row} stage={stage} />
+          )}
+          {stage === "access_required" && (
+            <Empty text="Access evidence is missing. This submission cannot be assigned or prepared." />
+          )}
+          {showAccessEvidence && (
+            <AccessReview profile={profile} row={row} done={back} />
+          )}
+          {stage === "inspection_ready" && operationsAccess && (
+            <Assign row={row} done={back} />
+          )}
+          {stage === "inspection" && (
+            <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.04] p-4">
+              <p className="text-xs font-semibold text-violet-300">
+                Inspection in progress
+              </p>
+              <p className="mt-1 text-[10px] text-[#7A8091]">
+                {row.field_officer_name ||
+                  "The assigned Field Operations member"}{" "}
+                handles the independent visit. Completion moves this property to
+                visit review.
+              </p>
+            </div>
+          )}
+          {stage === "visit_reviewed" && (
+            <>
+              <EvidenceReview inspectionId={row.id} />
+              <Prepare row={row} done={back} />
+            </>
+          )}
+          {stage === "listing_prepared" && (
+            <Prepared row={row} authority={oversight} done={back} />
+          )}
+          {["changes_requested", "rejected"].includes(stage) && (
+            <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
+              <p className="text-xs font-semibold text-amber-200">
+                {stageLabel(stage)}
+              </p>
+              <p className="mt-1 text-[10px] leading-5 text-[#8B8290]">
+                {row.rejection_reason ||
+                  row.notes ||
+                  "This submission is not moving forward until the recorded issue is resolved."}
+              </p>
+            </div>
+          )}
+          {showPartnerMedia && <SubmittedMedia row={row} />}
+          {row.gps_latitude != null &&
+            row.gps_longitude != null &&
+            !["listing_prepared", "live"].includes(stage) && (
+              <PropertyLocation row={row} />
+            )}
+          {showCreatorException && <SubmissionDecision row={row} done={back} />}
+        </div>
+      </main>
+    </div>,
+    document.body,
+  );
 }
 
-function SubmissionSummary({row,stage}:{row:any;stage:string}){const hotel=row.property_type==='hotel',rooms=Array.isArray(row.hotel_program?.room_types)?row.hotel_program.room_types:[];return <section className="rounded-2xl border border-white/[0.065] bg-[#10131B] p-4"><div className="flex flex-wrap justify-between gap-3"><div><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">{hotel?'Hotel programme':'Apartment property'}</p><h3 className="mt-1 text-base font-bold">{hotel?(row.hotel_program?.name||row.property_address):row.property_address}</h3><p className="mt-1 text-[10px] text-[#6D7182]">{row.property_city}, {row.property_state} · {row.request_code}</p><p className="mt-1 text-[10px] text-[#6D7182]">Property Partner: {row.owner_name || row.owner_email} {row.owner_phone ? `· ${row.owner_phone}` : ''}</p></div><Badge value={stage}/></div>{hotel?<><div className="mt-4 grid grid-cols-2 gap-2"><Info label="Hotel rooms" value={rooms.length}/><Info label="Starting rate" value={row.expected_rent?`${money(row.expected_rent)}/night`:'—'}/></div>{rooms.length>0&&<div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rooms.map((room:any,index:number)=><div key={`${room.name}-${index}`} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{room.name||`Room ${index+1}`}</p><p className="mt-1 text-[9px] text-[#707687]">{room.inventory||1} units · up to {room.guest_capacity||1} guests{room.bed_type?` · ${room.bed_type}`:''}</p></div><p className="shrink-0 text-xs font-bold text-violet-200">{money(room.nightly_rate)}/night</p></div>)}</div>}</>:<div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Info label="Type" value={row.property_type || 'Apartment'}/><Info label="Annual rent" value={row.expected_rent ? money(row.expected_rent) : '—'}/><Info label="Bedrooms" value={row.bedrooms ?? '—'}/><Info label="Bathrooms" value={row.bathrooms ?? '—'}/></div>}{row.description && <p className="mt-4 rounded-xl bg-white/[0.025] p-3 text-[10px] leading-relaxed text-[#9699A8]">{row.description}</p>}</section>}
+function CreatorHotelRecord({
+  hotelId,
+  fallback,
+}: {
+  hotelId: number;
+  fallback: any;
+}) {
+  const [hotel, setHotel] = useState<any | null>(fallback.hotel || null),
+    [rooms, setRooms] = useState<any[]>([]),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const [hotelResult, roomResult] = await Promise.all([
+        supabase
+          .from("hotels")
+          .select("*")
+          .eq("hotel_id", hotelId)
+          .maybeSingle(),
+        getHotelRooms(hotelId),
+      ]);
+      if (!active) return;
+      if (hotelResult.error) toast.error(hotelResult.error.message);
+      if (roomResult.error) toast.error(roomResult.error.message);
+      setHotel(hotelResult.data || fallback.hotel || null);
+      setRooms(roomResult.rooms || []);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [hotelId, fallback.hotel]);
+  if (loading) return <Loading />;
+  if (!hotel)
+    return <Empty text="The published hotel record could not be loaded." />;
+  const images = Array.isArray(hotel.images) ? hotel.images : [];
+  return (
+    <div className="space-y-6">
+      <section className="overflow-hidden border-y border-white/[.07]">
+        {images.length ? (
+          <PropertyMediaCarousel
+            images={images}
+            title={hotel.name || "Hotel"}
+          />
+        ) : (
+          <div className="grid aspect-[16/9] place-items-center bg-white/[.025] text-[9px] text-[#686F80]">
+            No hotel gallery
+          </div>
+        )}
+        <div className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+                Published hotel
+              </p>
+              <h2 className="mt-2 text-2xl font-bold">
+                {hotel.name ||
+                  fallback.hotel_program?.name ||
+                  fallback.property_address}
+              </h2>
+              <p className="mt-1 text-[10px] text-[#747A8A]">
+                {[
+                  hotel.address || fallback.property_address,
+                  hotel.city || fallback.property_city,
+                  hotel.state || fallback.property_state,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+            </div>
+            <Badge value={hotel.status || "live"} />
+          </div>
+          {hotel.description && (
+            <p className="mt-4 whitespace-pre-wrap text-[11px] leading-6 text-[#969BA9]">
+              {hotel.description}
+            </p>
+          )}
+          {Array.isArray(hotel.amenities) && hotel.amenities.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {hotel.amenities.map((item: string) => (
+                <span
+                  key={item}
+                  className="rounded-full border border-violet-500/15 px-2.5 py-1 text-[8px] text-violet-200"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden border-y border-white/[.06] bg-white/[.06]">
+            <div className="bg-[#10131B] p-3">
+              <p className="text-xl font-bold">{rooms.length}</p>
+              <p className="mt-1 text-[8px] text-[#686F80]">Room types</p>
+            </div>
+            <div className="bg-[#10131B] p-3">
+              <p className="text-xl font-bold">
+                {rooms.reduce(
+                  (sum, room) => sum + Number(room.total_rooms || 0),
+                  0,
+                )}
+              </p>
+              <p className="mt-1 text-[8px] text-[#686F80]">
+                Rooms in inventory
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div className="mb-3">
+          <h3 className="text-base font-semibold">Room types</h3>
+          <p className="mt-1 text-[9px] text-[#6D7384]">
+            Every room keeps its own public gallery, capacity, amenities, rate
+            and inventory.
+          </p>
+        </div>
+        <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
+          {rooms.map((room: any) => (
+            <article key={room.room_id} className="py-5">
+              {Array.isArray(room.images) && room.images.length ? (
+                <PropertyMediaCarousel
+                  images={room.images}
+                  title={room.room_type || "Hotel room"}
+                />
+              ) : null}
+              <div className="mt-4 flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-base font-semibold">{room.room_type}</h4>
+                  <p className="mt-1 text-[9px] text-[#747A8A]">
+                    {room.total_rooms} unit(s) · up to {room.max_guests} guests
+                    {room.bed_type ? ` · ${room.bed_type}` : ""}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-bold text-violet-200">
+                  {money(room.price_per_night)}
+                  <span className="block text-right text-[8px] font-normal text-[#686F80]">
+                    per night
+                  </span>
+                </p>
+              </div>
+              {room.description && (
+                <p className="mt-3 text-[10px] leading-5 text-[#9297A5]">
+                  {room.description}
+                </p>
+              )}
+              {Array.isArray(room.amenities) && room.amenities.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {room.amenities.map((item: string) => (
+                    <span
+                      key={item}
+                      className="rounded-full border border-white/[.07] px-2.5 py-1 text-[8px] text-[#A0A5B3]"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          ))}
+          {rooms.length === 0 ? (
+            <Empty text="No room types are attached to this published hotel." />
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
 
-function PropertyLocation({row}:{row:any}){const[open,setOpen]=useState(false);return <><section className="flex items-center justify-between gap-4 border-y border-white/[.06] py-4"><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">Verified visit location</p><p className="mt-1 truncate text-xs font-semibold">{row.property_address}</p><p className="mt-1 text-[9px] text-[#6D7383]">{[row.property_city,row.property_state].filter(Boolean).join(', ')}</p></div><button type="button" onClick={()=>setOpen(true)} className="shrink-0 rounded-full border border-white/[.09] px-4 py-2.5 text-[9px] font-semibold text-violet-200">View map</button></section>{open&&<div className="fixed inset-0 z-[100120] flex items-end bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={()=>setOpen(false)}><section className="max-h-[90dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#10131B] p-4 sm:max-w-2xl sm:rounded-[28px]" onClick={event=>event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">Inspection map</p><h3 className="mt-1 text-sm font-semibold">{row.property_address}</h3></div><button type="button" onClick={()=>setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05]" aria-label="Close map">×</button></div><LocationMap latitude={Number(row.gps_latitude)} longitude={Number(row.gps_longitude)} label="Verified property visit location" height={420}/></section></div>}</>}
-function AccessReview({profile,row,done}:{profile:Profile;row:any;done:()=>void}) {
-    const {ask,dialogProps}=useConfirm();
-    const[data,setData]=useState<any|null>(null),[url,setUrl]=useState<string|null>(null),[loadError,setLoadError]=useState<string|null>(null),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[correctionOpen,setCorrectionOpen]=useState(false),[correction,setCorrection]=useState('');
-    useEffect(()=>{let active=true;void(async()=>{setLoadError(null);const review=await supabase.rpc('get_property_access_review_details',{p_request_id:row.id});if(!active)return;if(review.error){setLoadError(review.error.message);setLoading(false);return}setData(review.data);const path=review.data?.video_path as string|undefined;if(!path){setLoadError('The submission record does not contain an access-video reference.');setLoading(false);return}const signed=await supabase.storage.from('property-access-private').createSignedUrl(path,900);if(!active)return;if(signed.error||!signed.data?.signedUrl)setLoadError(signed.error?.message||'WeHouse could not open the private access video.');else setUrl(signed.data.signedUrl);setLoading(false)})();return()=>{active=false}},[row.id]);
-    async function decide(decision:'accept'|'reject'){const note=decision==='reject'?correction.trim():null;if(decision==='reject'&&!note)return;if(decision==='accept'&&!await ask({title:'Approve access evidence?',description:'Confirm the code appears at the entrance and the recording continues inside. A Field Operations visit can then be assigned.',confirmLabel:'Approve evidence',variant:'info'}))return;setBusy(true);const{error}=await supabase.rpc('review_property_access_evidence',{p_request_id:row.id,p_decision:decision,p_note:note});setBusy(false);if(error)return toast.error(error.message);toast.success(decision==='accept'?'Access evidence approved':'New access evidence requested');done()}
-    if(loading)return <Loading/>;
-    const reviewing=row.lifecycle_stage==='access_review', approved=row.lifecycle_stage!=='access_review';
-    return <><section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Private partner access evidence</p><h3 className="mt-2 text-sm font-semibold">{reviewing?'Property Operations review required':'Access evidence record'}</h3><p className="mt-1 text-[10px] text-[#73798A]">{reviewing?<>Confirm that code <span className="font-bold text-white">{data?.code||'unavailable'}</span> appears at the entrance and the recording continues inside.</>:<>This recording was retained for Admin and Creator oversight. The expired one-use code and recording controls are not shown after review.</>} This is separate from the independent Field Operations evidence.</p>{url?<video src={url} controls playsInline preload="metadata" className="mt-4 aspect-video w-full rounded-xl bg-black object-contain"/>:<p className="mt-4 rounded-xl bg-amber-500/[.05] p-3 text-[10px] text-amber-200">{loadError||'The private recording could not be opened.'}</p>}<div className="mt-3 flex gap-2">{reviewing&&<><button disabled={busy||!url} onClick={()=>setCorrectionOpen(true)} className="h-11 flex-1 rounded-xl border border-amber-500/20 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Request correction</button><button disabled={busy||!url} onClick={()=>void decide('accept')} className="h-11 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Approve evidence</button></>}{approved&&row.lifecycle_stage==='inspection_ready'&&['admin','creator'].includes(profile.role)&&<button disabled={busy} onClick={()=>setCorrectionOpen(true)} className="h-11 w-full rounded-xl border border-amber-500/20 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Override decision · Request correction</button>}</div></section><ConfirmDialog {...dialogProps}/>{correctionOpen&&<div className="fixed inset-0 z-[100100] flex items-end bg-black/80 p-3 backdrop-blur-sm sm:items-center sm:justify-center" onClick={()=>setCorrectionOpen(false)}><section className="w-full max-w-sm rounded-[28px] border border-white/[.09] bg-[#11141C] p-5" role="dialog" aria-modal="true" aria-label="Request access evidence correction" onClick={event=>event.stopPropagation()}><p className="text-[8px] font-bold uppercase tracking-[.2em] text-violet-300">PROPERTY OPERATIONS</p><h3 className="mt-2 text-lg font-bold">Request a new recording</h3><p className="mt-2 text-[10px] leading-5 text-[#858B9A]">Tell the Property Partner exactly what must be corrected.</p><textarea autoFocus rows={4} value={correction} onChange={event=>setCorrection(event.target.value)} placeholder="Correction required" className="mt-4 w-full resize-none rounded-2xl border border-white/[.09] bg-black/20 p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-4 flex gap-2"><button onClick={()=>setCorrectionOpen(false)} className="h-12 flex-1 rounded-full border border-white/[.09] text-xs font-semibold text-[#A1A6B3]">Cancel</button><button disabled={busy||!correction.trim()} onClick={()=>void decide('reject')} className="h-12 flex-1 rounded-full bg-amber-500 text-xs font-bold text-black disabled:opacity-40">Send correction</button></div></section></div>}</>;
+function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
+  const hotel = row.property_type === "hotel",
+    rooms = Array.isArray(row.hotel_program?.room_types)
+      ? row.hotel_program.room_types
+      : [];
+  return (
+    <section className="border-y border-white/[0.065] py-4">
+      <div className="flex flex-wrap justify-between gap-3">
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+            {hotel ? "Hotel programme" : "Apartment property"}
+          </p>
+          <h3 className="mt-1 text-base font-bold">
+            {hotel
+              ? row.hotel_program?.name || row.property_address
+              : row.property_address}
+          </h3>
+          <p className="mt-1 text-[10px] text-[#6D7182]">
+            {row.property_city}, {row.property_state} · {row.request_code}
+          </p>
+          <p className="mt-1 text-[10px] text-[#6D7182]">
+            Property Partner: {row.owner_name || row.owner_email}{" "}
+            {row.owner_phone ? `· ${row.owner_phone}` : ""}
+          </p>
+        </div>
+        <Badge value={stage} />
+      </div>
+      {hotel ? (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Info label="Hotel rooms" value={rooms.length} />
+            <Info
+              label="Starting rate"
+              value={
+                row.expected_rent ? `${money(row.expected_rent)}/night` : "—"
+              }
+            />
+          </div>
+          {rooms.length > 0 && (
+            <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
+              {rooms.map((room: any, index: number) => (
+                <div key={`${room.name}-${index}`} className="py-4">
+                  {room.media?.length ? (
+                    <PropertyMediaCarousel
+                      images={room.media}
+                      title={room.name || `Room ${index + 1}`}
+                    />
+                  ) : null}
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold">
+                        {room.name || `Room ${index + 1}`}
+                      </p>
+                      <p className="mt-1 text-[9px] text-[#707687]">
+                        {room.inventory || 1} units · up to{" "}
+                        {room.guest_capacity || 1} guests
+                        {room.bed_type ? ` · ${room.bed_type}` : ""}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-xs font-bold text-violet-200">
+                      {money(room.nightly_rate)}/night
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <Info label="Type" value={row.property_type || "Apartment"} />
+          <Info
+            label="Annual rent"
+            value={row.expected_rent ? money(row.expected_rent) : "—"}
+          />
+          <Info label="Bedrooms" value={row.bedrooms ?? "—"} />
+          <Info label="Bathrooms" value={row.bathrooms ?? "—"} />
+          {row.sub_type === "short_let" && (
+            <Info label="Guests" value={`Up to ${row.max_guests || 1}`} />
+          )}
+        </div>
+      )}
+      {row.description && (
+        <p className="mt-4 rounded-xl bg-white/[0.025] p-3 text-[10px] leading-relaxed text-[#9699A8]">
+          {row.description}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PropertyLocation({ row }: { row: any }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <section className="flex items-center justify-between gap-4 border-y border-white/[.06] py-4">
+        <div className="min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">
+            Verified visit location
+          </p>
+          <p className="mt-1 truncate text-xs font-semibold">
+            {row.property_address}
+          </p>
+          <p className="mt-1 text-[9px] text-[#6D7383]">
+            {[row.property_city, row.property_state].filter(Boolean).join(", ")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="shrink-0 rounded-full border border-white/[.09] px-4 py-2.5 text-[9px] font-semibold text-violet-200"
+        >
+          View map
+        </button>
+      </section>
+      {open && (
+        <div
+          className="fixed inset-0 z-[100120] flex items-end bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+          onClick={() => setOpen(false)}
+        >
+          <section
+            className="max-h-[90dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#10131B] p-4 sm:max-w-2xl sm:rounded-[28px]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">
+                  Inspection map
+                </p>
+                <h3 className="mt-1 text-sm font-semibold">
+                  {row.property_address}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05]"
+                aria-label="Close map"
+              >
+                ×
+              </button>
+            </div>
+            <LocationMap
+              latitude={Number(row.gps_latitude)}
+              longitude={Number(row.gps_longitude)}
+              label="Verified property visit location"
+              height={420}
+            />
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+function AccessReview({
+  profile,
+  row,
+  done,
+}: {
+  profile: Profile;
+  row: any;
+  done: () => void;
+}) {
+  const { ask, dialogProps } = useConfirm();
+  const [data, setData] = useState<any | null>(null),
+    [url, setUrl] = useState<string | null>(null),
+    [loadError, setLoadError] = useState<string | null>(null),
+    [busy, setBusy] = useState(false),
+    [loading, setLoading] = useState(true),
+    [viewerOpen, setViewerOpen] = useState(false),
+    [correctionOpen, setCorrectionOpen] = useState(false),
+    [correction, setCorrection] = useState("");
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoadError(null);
+      const review = await supabase.rpc("get_property_access_review_details", {
+        p_request_id: row.id,
+      });
+      if (!active) return;
+      if (review.error) {
+        setLoadError(review.error.message);
+        setLoading(false);
+        return;
+      }
+      setData(review.data);
+      const path = review.data?.video_path as string | undefined;
+      if (!path) {
+        setLoadError(
+          "The submission record does not contain an access-video reference.",
+        );
+        setLoading(false);
+        return;
+      }
+      const signed = await supabase.storage
+        .from("property-access-private")
+        .createSignedUrl(path, 900);
+      if (!active) return;
+      if (signed.error || !signed.data?.signedUrl)
+        setLoadError(
+          signed.error?.message ||
+            "WeHouse could not open the private access video.",
+        );
+      else setUrl(signed.data.signedUrl);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [row.id]);
+  async function decide(decision: "accept" | "reject") {
+    const note = decision === "reject" ? correction.trim() : null;
+    if (decision === "reject" && !note) return;
+    if (
+      decision === "accept" &&
+      !(await ask({
+        title: "Approve access evidence?",
+        description:
+          "Confirm the code appears at the entrance and the recording continues inside. A Field Operations visit can then be assigned.",
+        confirmLabel: "Approve evidence",
+        variant: "info",
+      }))
+    )
+      return;
+    setBusy(true);
+    const { error } = await supabase.rpc("review_property_access_evidence", {
+      p_request_id: row.id,
+      p_decision: decision,
+      p_note: note,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(
+      decision === "accept"
+        ? "Access evidence approved"
+        : "New access evidence requested",
+    );
+    done();
+  }
+  if (loading) return <Loading />;
+  const reviewing = row.lifecycle_stage === "access_review",
+    approved = row.lifecycle_stage !== "access_review";
+  return (
+    <>
+      <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4">
+        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
+          Private partner access evidence
+        </p>
+        <h3 className="mt-2 text-sm font-semibold">
+          {reviewing
+            ? "Property Operations review required"
+            : "Access evidence record"}
+        </h3>
+        <p className="mt-1 text-[10px] text-[#73798A]">
+          {reviewing ? (
+            <>
+              Confirm that code{" "}
+              <span className="font-bold text-white">
+                {data?.code || "unavailable"}
+              </span>{" "}
+              appears at the entrance and the recording continues inside.
+            </>
+          ) : (
+            <>
+              This recording was retained for Admin and Creator oversight. The
+              expired one-use code and recording controls are not shown after
+              review.
+            </>
+          )}{" "}
+          This is separate from the independent Field Operations evidence.
+        </p>
+        {url ? (
+          <button
+            type="button"
+            onClick={() => setViewerOpen(true)}
+            className="relative mt-4 block aspect-video w-full overflow-hidden rounded-xl bg-black"
+            aria-label="Open access recording in WeHouse viewer"
+          >
+            <video
+              src={url}
+              muted
+              playsInline
+              preload="metadata"
+              className="h-full w-full object-contain"
+            />
+            <span className="absolute inset-0 grid place-items-center bg-black/15">
+              <span className="rounded-full bg-black/70 px-4 py-2 text-[10px] font-semibold backdrop-blur">
+                ▶ Open in WeHouse viewer
+              </span>
+            </span>
+          </button>
+        ) : (
+          <p className="mt-4 rounded-xl bg-amber-500/[.05] p-3 text-[10px] text-amber-200">
+            {loadError || "The private recording could not be opened."}
+          </p>
+        )}
+        <div className="mt-3 flex gap-2">
+          {reviewing && (
+            <>
+              <button
+                disabled={busy || !url}
+                onClick={() => setCorrectionOpen(true)}
+                className="h-11 flex-1 rounded-xl border border-amber-500/20 text-[10px] font-semibold text-amber-200 disabled:opacity-40"
+              >
+                Request correction
+              </button>
+              <button
+                disabled={busy || !url}
+                onClick={() => void decide("accept")}
+                className="h-11 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40"
+              >
+                Approve evidence
+              </button>
+            </>
+          )}
+          {approved &&
+            row.lifecycle_stage === "inspection_ready" &&
+            ["admin", "creator"].includes(profile.role) && (
+              <button
+                disabled={busy}
+                onClick={() => setCorrectionOpen(true)}
+                className="h-11 w-full rounded-xl border border-amber-500/20 text-[10px] font-semibold text-amber-200 disabled:opacity-40"
+              >
+                Override decision · Request correction
+              </button>
+            )}
+        </div>
+      </section>
+      {viewerOpen && url ? (
+        <MediaViewer
+          src={url}
+          kind="video"
+          title="Private property access recording"
+          onClose={() => setViewerOpen(false)}
+        />
+      ) : null}
+      <ConfirmDialog {...dialogProps} />
+      {correctionOpen && (
+        <div
+          className="fixed inset-0 z-[100100] flex items-end bg-black/80 p-3 backdrop-blur-sm sm:items-center sm:justify-center"
+          onClick={() => setCorrectionOpen(false)}
+        >
+          <section
+            className="w-full max-w-sm rounded-[28px] border border-white/[.09] bg-[#11141C] p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Request access evidence correction"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-[8px] font-bold uppercase tracking-[.2em] text-violet-300">
+              PROPERTY OPERATIONS
+            </p>
+            <h3 className="mt-2 text-lg font-bold">Request a new recording</h3>
+            <p className="mt-2 text-[10px] leading-5 text-[#858B9A]">
+              Tell the Property Partner exactly what must be corrected.
+            </p>
+            <textarea
+              autoFocus
+              rows={4}
+              value={correction}
+              onChange={(event) => setCorrection(event.target.value)}
+              placeholder="Correction required"
+              className="mt-4 w-full resize-none rounded-2xl border border-white/[.09] bg-black/20 p-3 text-xs outline-none focus:border-violet-500/40"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setCorrectionOpen(false)}
+                className="h-12 flex-1 rounded-full border border-white/[.09] text-xs font-semibold text-[#A1A6B3]"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={busy || !correction.trim()}
+                onClick={() => void decide("reject")}
+                className="h-12 flex-1 rounded-full bg-amber-500 text-xs font-bold text-black disabled:opacity-40"
+              >
+                Send correction
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
 function Assign({ row, done }: { row: any; done: () => void }) {
-    const [officers, setOfficers] = useState<any[]>([]), [pick, setPick] = useState(''), [date, setDate] = useState(''), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
-    useEffect(() => { void (async () => {
-        const { data, error } = await supabase.rpc('admin_get_field_officers_for_inspection', { p_inspection_id: row.id });
-        if (error) toast.error(error.message);
-        setOfficers(Array.isArray(data) ? data : []);
-        setLoading(false);
-    })(); }, [row.id]);
-    async function assign() {
-        if (!pick) return toast.error('Choose a Field Operations member');
-        setSaving(true);
-        const { error } = await supabase.rpc('admin_assign_field_officer', { p_inspection_id: row.id, p_field_officer_id: pick, p_scheduled_date: date || null });
-        setSaving(false);
-        if (error) return toast.error(error.message);
-        toast.success('Field Operations visit assigned');
-        done();
-    }
-    return <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4"><h3 className="text-sm font-semibold">Assign independent inspection</h3><p className="mt-1 text-[10px] text-[#727789]">The partner access recording is approved. Choose a Field Operations member in this property area.</p>{loading ? <Loading /> : officers.length === 0 ? <Empty text="No Field Operations member is currently assigned to this LGA. Ask the branch Admin or Creator to add capacity."/> : <div className="mt-4 space-y-2">{officers.map(o => <button key={o.user_id} onClick={() => setPick(o.user_id)} className={`w-full rounded-xl border p-3 text-left ${pick === o.user_id ? 'border-violet-500 bg-violet-500/10' : 'border-white/[0.06] bg-[#11151E]'}`}><div className="flex justify-between gap-3"><div><p className="text-xs font-semibold">{o.name}</p><p className="mt-1 text-[9px] text-[#686D7F]">{o.assigned_lga}, {o.assigned_state} · {o.active_inspections} active</p></div><p className="text-[9px] font-semibold text-violet-300">{o.distance_km != null ? `${o.distance_km} km` : 'Distance unavailable'}</p></div></button>)}<input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/><button disabled={saving||!pick} onClick={() => void assign()} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50">{saving ? 'Assigning…' : 'Assign Field Operations visit'}</button></div>}</div>;
+  const [officers, setOfficers] = useState<any[]>([]),
+    [pick, setPick] = useState(""),
+    [date, setDate] = useState(""),
+    [loading, setLoading] = useState(true),
+    [saving, setSaving] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      const { data, error } = await supabase.rpc(
+        "admin_get_field_officers_for_inspection",
+        { p_inspection_id: row.id },
+      );
+      if (error) toast.error(error.message);
+      setOfficers(Array.isArray(data) ? data : []);
+      setLoading(false);
+    })();
+  }, [row.id]);
+  async function assign() {
+    if (!pick) return toast.error("Choose a Field Operations member");
+    setSaving(true);
+    const { error } = await supabase.rpc("admin_assign_field_officer", {
+      p_inspection_id: row.id,
+      p_field_officer_id: pick,
+      p_scheduled_date: date || null,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Field Operations visit assigned");
+    done();
+  }
+  return (
+    <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
+      <h3 className="text-sm font-semibold">Assign independent inspection</h3>
+      <p className="mt-1 text-[10px] text-[#727789]">
+        The partner access recording is approved. Choose a Field Operations
+        member in this property area.
+      </p>
+      {loading ? (
+        <Loading />
+      ) : officers.length === 0 ? (
+        <Empty text="No Field Operations member is currently assigned to this LGA. Ask the branch Admin or Creator to add capacity." />
+      ) : (
+        <div className="mt-4 space-y-2">
+          {officers.map((o) => (
+            <button
+              key={o.user_id}
+              onClick={() => setPick(o.user_id)}
+              className={`w-full rounded-xl border p-3 text-left ${pick === o.user_id ? "border-violet-500 bg-violet-500/10" : "border-white/[0.06] bg-[#11151E]"}`}
+            >
+              <div className="flex justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold">{o.name}</p>
+                  <p className="mt-1 text-[9px] text-[#686D7F]">
+                    {o.assigned_lga}, {o.assigned_state} ·{" "}
+                    {o.active_inspections} active
+                  </p>
+                </div>
+                <p className="text-[9px] font-semibold text-violet-300">
+                  {o.distance_km != null
+                    ? `${o.distance_km} km`
+                    : "Distance unavailable"}
+                </p>
+              </div>
+            </button>
+          ))}
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
+          />
+          <button
+            disabled={saving || !pick}
+            onClick={() => void assign()}
+            className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold disabled:opacity-50"
+          >
+            {saving ? "Assigning…" : "Assign Field Operations visit"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
-function Prepare({ row, done }: {
-    row: any;
-    done: () => void;
-}) {
-    const [title, setTitle] = useState(row.property_type === 'hotel' ? (row.hotel_program?.name || '') : `${String(row.property_type || 'Property').replace(/_/g, ' ')} in ${row.property_city}`), [description, setDescription] = useState(row.description || ''), [price, setPrice] = useState(String(row.expected_rent || '')), [fieldPhotos, setFieldPhotos] = useState<string[]|null>(null), [mediaError, setMediaError] = useState(''), [preview, setPreview] = useState(false), [saving, setSaving] = useState(false);
-    useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.rpc('get_inspection_media_for_review',{p_inspection_id:row.id});if(!active)return;if(error){setMediaError(error.message);setFieldPhotos([]);return}setMediaError('');setFieldPhotos(Array.isArray(data?.photos)?data.photos:[])})();return()=>{active=false}},[row.id]);
-    const photos=Array.from(new Set([...(Array.isArray(row.photo_urls)?row.photo_urls:[]),...(fieldPhotos||[])])) as string[];
-    async function save() { if (!title.trim())
-        return toast.error('Public name/title is required'); if (row.property_type !== 'hotel' && !Number(price))
-        return toast.error('A valid rent is required'); setSaving(true); try {
-        if (row.property_type === 'hotel') {
-            const { error } = await supabase.rpc('admin_prepare_hotel_from_submission_v3', { p_inspection_id: row.id, p_name: title.trim(), p_description: description.trim() || null });
-            if (error)
-                throw error;
-        }
-        else {
-            const { error } = await supabase.rpc('post_property_from_inspection_v2', { p_data: { inspection_id: row.id, title: title.trim(), description: description.trim() || null, price: Number(price), property_type: row.property_type, sub_type: row.sub_type, security_deposit_amount: row.security_deposit_amount, amenities: row.amenities || [], bedrooms: row.bedrooms, bathrooms: row.bathrooms } });
-            if (error)
-                throw error;
-        }
-        toast.success('Draft prepared. It is not public yet.');
-        done();
+function Prepare({ row, done }: { row: any; done: () => void }) {
+  const [title, setTitle] = useState(
+      row.property_type === "hotel"
+        ? row.hotel_program?.name || ""
+        : `${String(row.property_type || "Property").replace(/_/g, " ")} in ${row.property_city}`,
+    ),
+    [description, setDescription] = useState(row.description || ""),
+    [price, setPrice] = useState(String(row.expected_rent || "")),
+    [fieldPhotos, setFieldPhotos] = useState<string[] | null>(null),
+    [mediaError, setMediaError] = useState(""),
+    [preview, setPreview] = useState(false),
+    [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.rpc(
+        "get_inspection_media_for_review",
+        { p_inspection_id: row.id },
+      );
+      if (!active) return;
+      if (error) {
+        setMediaError(error.message);
+        setFieldPhotos([]);
+        return;
+      }
+      setMediaError("");
+      setFieldPhotos(Array.isArray(data?.photos) ? data.photos : []);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [row.id]);
+  const photos = Array.from(
+    new Set([
+      ...(Array.isArray(row.photo_urls) ? row.photo_urls : []),
+      ...(fieldPhotos || []),
+    ]),
+  ) as string[];
+  async function save() {
+    if (!title.trim()) return toast.error("Public name/title is required");
+    if (row.property_type !== "hotel" && !Number(price))
+      return toast.error("A valid rent is required");
+    setSaving(true);
+    try {
+      if (row.property_type === "hotel") {
+        const { error } = await supabase.rpc(
+          "admin_prepare_hotel_from_submission_v3",
+          {
+            p_inspection_id: row.id,
+            p_name: title.trim(),
+            p_description: description.trim() || null,
+          },
+        );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.rpc(
+          "post_property_from_inspection_v2",
+          {
+            p_data: {
+              inspection_id: row.id,
+              title: title.trim(),
+              description: description.trim() || null,
+              price: Number(price),
+              property_type: row.property_type,
+              sub_type: row.sub_type,
+              security_deposit_amount: row.security_deposit_amount,
+              amenities: row.amenities || [],
+              bedrooms: row.bedrooms,
+              bathrooms: row.bathrooms,
+            },
+          },
+        );
+        if (error) throw error;
+      }
+      toast.success("Draft prepared. It is not public yet.");
+      done();
+    } catch (error: any) {
+      toast.error(error.message || "Unable to prepare property");
+    } finally {
+      setSaving(false);
     }
-    catch (error: any) {
-        toast.error(error.message || 'Unable to prepare property');
-    }
-    finally {
-        setSaving(false);
-    } }
-    if (preview)
-        return <section className="space-y-4"><button onClick={() => setPreview(false)} className="text-[10px] font-semibold text-violet-300">← Continue editing</button><div className="overflow-hidden rounded-[24px] bg-[#10131A]"><div className="aspect-[16/10] bg-[#171B24]">{photos[0] ? <ListingMediaImage reference={photos[0]} alt="Listing preview" className="h-full w-full object-cover"/> : <div className="grid h-full place-items-center text-[10px] text-[#687083]">No property photo yet</div>}</div>{photos.length>1&&<div className="flex gap-1 overflow-x-auto p-2">{photos.map((url,index)=><ListingMediaImage key={url} reference={url} alt={`Draft gallery ${index+1}`} className="h-14 w-16 shrink-0 rounded-lg object-cover"/>)}</div>}<div className="p-4"><p className="text-base font-bold">{title || 'Listing title'}</p><p className="mt-1 text-sm font-semibold text-violet-300">{row.property_type === 'hotel' ? 'Hotel' : money(price)}{row.property_type === 'hotel' ? '' : ' / year'}</p><p className="mt-3 whitespace-pre-wrap text-[10px] leading-5 text-[#8A90A0]">{description || 'No public description yet.'}</p><div className="mt-3 flex gap-2 text-[9px] text-[#777D8E]"><span>{row.bedrooms || 0} bedrooms</span><span>·</span><span>{row.bathrooms || 0} bathrooms</span></div></div></div><p className="text-center text-[9px] leading-5 text-amber-300">Private review · {photos.length} submitted photo(s) · the final publisher chooses which photos go live</p><button disabled={saving} onClick={() => void save()} className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold">{saving ? 'Preparing…' : 'Confirm details and prepare draft'}</button></section>;
-    return <section className="space-y-4 border-y border-white/[.06] py-4"><div><h3 className="text-sm font-semibold">Prepare listing details</h3><p className="mt-1 text-[9px] leading-5 text-[#777C8E]">Property Operations prepares the text and price only. Submitted partner and field-visit photos are not attached to the public listing until final Admin/Creator selection.</p></div>{mediaError&&<p className="rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">Field evidence could not be verified. Draft preparation is blocked until it loads correctly.</p>}{row.property_type === 'hotel' && <HotelProgramSummary program={row.hotel_program}/>}<input value={title} onChange={e => setTitle(e.target.value)} placeholder={row.property_type === 'hotel' ? 'Hotel name' : 'Listing title'} className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"/>{row.property_type !== 'hotel' && <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="Annual rent" className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"/>}<textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} placeholder="Public description" className="w-full resize-none border-b border-white/[.08] bg-transparent py-2 text-sm outline-none"/><div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3"><p className="text-[9px] font-semibold">Submitted image pool</p><p className="mt-1 text-[9px] text-[#73798A]">{(row.photo_urls||[]).length} Property Partner · {fieldPhotos===null?'loading…':fieldPhotos.length} Field Operations · Operations cannot add photos</p></div><button disabled={fieldPhotos===null||Boolean(mediaError)} onClick={() => setPreview(true)} className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{fieldPhotos===null?'Loading submitted photos…':mediaError?'Field evidence unavailable':'Preview details before preparing'}</button></section>;
+  }
+  if (preview)
+    return (
+      <section className="space-y-4">
+        <button
+          onClick={() => setPreview(false)}
+          className="text-[10px] font-semibold text-violet-300"
+        >
+          ← Continue editing
+        </button>
+        <div className="overflow-hidden rounded-[24px] bg-[#10131A]">
+          <div className="aspect-[16/10] bg-[#171B24]">
+            {photos[0] ? (
+              <ListingMediaImage
+                reference={photos[0]}
+                alt="Listing preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="grid h-full place-items-center text-[10px] text-[#687083]">
+                No property photo yet
+              </div>
+            )}
+          </div>
+          {photos.length > 1 && (
+            <div className="flex gap-1 overflow-x-auto p-2">
+              {photos.map((url, index) => (
+                <ListingMediaImage
+                  key={url}
+                  reference={url}
+                  alt={`Draft gallery ${index + 1}`}
+                  className="h-14 w-16 shrink-0 rounded-lg object-cover"
+                />
+              ))}
+            </div>
+          )}
+          <div className="p-4">
+            <p className="text-base font-bold">{title || "Listing title"}</p>
+            <p className="mt-1 text-sm font-semibold text-violet-300">
+              {row.property_type === "hotel" ? "Hotel" : money(price)}
+              {row.property_type === "hotel" ? "" : " / year"}
+            </p>
+            <p className="mt-3 whitespace-pre-wrap text-[10px] leading-5 text-[#8A90A0]">
+              {description || "No public description yet."}
+            </p>
+            <div className="mt-3 flex gap-2 text-[9px] text-[#777D8E]">
+              <span>{row.bedrooms || 0} bedrooms</span>
+              <span>·</span>
+              <span>{row.bathrooms || 0} bathrooms</span>
+            </div>
+          </div>
+        </div>
+        <p className="text-center text-[9px] leading-5 text-amber-300">
+          Private review · {photos.length} submitted photo(s) · the final
+          publisher chooses which photos go live
+        </p>
+        <button
+          disabled={saving}
+          onClick={() => void save()}
+          className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold"
+        >
+          {saving ? "Preparing…" : "Confirm details and prepare draft"}
+        </button>
+      </section>
+    );
+  return (
+    <section className="space-y-4 border-y border-white/[.06] py-4">
+      <div>
+        <h3 className="text-sm font-semibold">Prepare listing details</h3>
+        <p className="mt-1 text-[9px] leading-5 text-[#777C8E]">
+          Property Operations prepares the text and price only. Submitted
+          partner and field-visit photos are not attached to the public listing
+          until final Admin/Creator selection.
+        </p>
+      </div>
+      {mediaError && (
+        <p className="rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">
+          Field evidence could not be verified. Draft preparation is blocked
+          until it loads correctly.
+        </p>
+      )}
+      {row.property_type === "hotel" && (
+        <HotelProgramSummary program={row.hotel_program} />
+      )}
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder={
+          row.property_type === "hotel" ? "Hotel name" : "Listing title"
+        }
+        className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"
+      />
+      {row.property_type !== "hotel" && (
+        <input
+          type="number"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          placeholder="Annual rent"
+          className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"
+        />
+      )}
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={5}
+        placeholder="Public description"
+        className="w-full resize-none border-b border-white/[.08] bg-transparent py-2 text-sm outline-none"
+      />
+      <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+        <p className="text-[9px] font-semibold">Submitted image pool</p>
+        <p className="mt-1 text-[9px] text-[#73798A]">
+          {(row.photo_urls || []).length} Property Partner ·{" "}
+          {fieldPhotos === null ? "loading…" : fieldPhotos.length} Field
+          Operations · Operations cannot add photos
+        </p>
+      </div>
+      <button
+        disabled={fieldPhotos === null || Boolean(mediaError)}
+        onClick={() => setPreview(true)}
+        className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
+      >
+        {fieldPhotos === null
+          ? "Loading submitted photos…"
+          : mediaError
+            ? "Field evidence unavailable"
+            : "Preview details before preparing"}
+      </button>
+    </section>
+  );
 }
 function HotelProgramSummary({ program }: { program: any }) {
-    const rooms = Array.isArray(program?.room_types) ? program.room_types : [];
-    return <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3"><p className="text-[10px] font-semibold text-violet-200">Submitted hotel programme</p><p className="mt-1 text-[9px] text-[#7D8393]">{rooms.length} room type(s) · {(program?.amenities || []).length} hotel amenity item(s). Preparing creates these room types automatically.</p><div className="mt-2 divide-y divide-white/[.06]">{rooms.map((room: any, index: number) => <div key={`${room.name}-${index}`} className="flex items-center justify-between gap-3 py-2 text-[9px]"><span className="min-w-0 truncate">{room.name} · {room.bed_type || 'Bed not specified'} · {room.guest_capacity || 2} guests</span><span className="shrink-0 font-semibold text-violet-300">{money(room.nightly_rate)} × {room.inventory || 1}</span></div>)}</div></div>;
+  const rooms = Array.isArray(program?.room_types) ? program.room_types : [];
+  return (
+    <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3">
+      <p className="text-[10px] font-semibold text-violet-200">
+        Submitted hotel programme
+      </p>
+      <p className="mt-1 text-[9px] text-[#7D8393]">
+        {rooms.length} room type(s) · {(program?.amenities || []).length} hotel
+        amenity item(s). Preparing creates these room types automatically.
+      </p>
+      <div className="mt-2 divide-y divide-white/[.06]">
+        {rooms.map((room: any, index: number) => (
+          <div
+            key={`${room.name}-${index}`}
+            className="flex items-center justify-between gap-3 py-2 text-[9px]"
+          >
+            <span className="min-w-0 truncate">
+              {room.name} · {room.bed_type || "Bed not specified"} ·{" "}
+              {room.guest_capacity || 2} guests
+            </span>
+            <span className="shrink-0 font-semibold text-violet-300">
+              {money(room.nightly_rate)} × {room.inventory || 1}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
-function Prepared({ row, authority, done }: {
-    row: any;
-    authority: boolean;
-    done: () => void;
-}) { const{ask,dialogProps}=useConfirm(); const[galleryConfirmed,setGalleryConfirmed]=useState(Boolean(row.final_media_reviewed_at)); if (row.property_type === 'hotel')
-    return <HotelDraft row={row} authority={authority} done={done}/>; const listingId=row.listing?.id||row.draft_listing_id; return <><div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4"><h3 className="text-sm font-semibold">Listing prepared — not public</h3><p className="mt-1 text-[10px] text-[#777C8E]">{row.listing?.title || 'Prepared listing'} · {money(row.listing?.price || 0)}</p><FinalGalleryReview row={row} authority={authority} onSaved={()=>setGalleryConfirmed(true)}/>{authority ? <button disabled={!listingId||!galleryConfirmed} onClick={async () => { if(!listingId||!await ask({title:'Publish this property?',description:'The exact gallery you confirmed will immediately become visible with this property.',confirmLabel:'Publish property',variant:'info'}))return; const { error } = await supabase.rpc('admin_publish_inspected_listing', { p_listing_id: listingId }); if (error)
-    return toast.error(error.message); toast.success('Property is now public'); done(); }} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold disabled:opacity-40">{galleryConfirmed?'Final review passed · Publish now':'Confirm the final gallery first'}</button> : <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-[10px] text-[#8A8E9E]">Awaiting final Admin/Creator review. It is not visible to users.</p>}</div><ConfirmDialog {...dialogProps}/></>; }
-function HotelDraft({ row, authority, done }: {
-    row: any;
-    authority: boolean;
-    done: () => void;
-}) { const{ask,dialogProps}=useConfirm(); const id = Number(row.hotel?.hotel_id || row.draft_hotel_id); const [rooms, setRooms] = useState<any[]>([]), [galleryConfirmed,setGalleryConfirmed]=useState(Boolean(row.final_media_reviewed_at)), [form, setForm] = useState({ room_type: '', price: '', max_guests: '2', total_rooms: '1' }); async function load() { const r = await getHotelRooms(id); if (r.error)
-    toast.error(r.error.message); setRooms(r.rooms || []); } useEffect(() => { if (id)
-    void load(); }, [id]); async function add() { if (!form.room_type.trim() || !Number(form.price))
-    return toast.error('Room type and price are required'); const { error } = await createHotelRoom({ hotel_id: id, room_type: form.room_type.trim(), description: null, price_per_night: Number(form.price), max_guests: Number(form.max_guests) || 2, bed_type: null, images: [], amenities: [], total_rooms: Number(form.total_rooms) || 1 }); if (error)
-    return toast.error(error.message); setForm({ room_type: '', price: '', max_guests: '2', total_rooms: '1' }); setGalleryConfirmed(false); toast.success('Room type added'); void load(); } return <><div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4"><h3 className="text-sm font-semibold">Hotel setup — not public</h3><p className="mt-1 text-[10px] text-[#777C8E]">{row.hotel?.name || 'Hotel draft'} · {rooms.length} room type(s)</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><input value={form.room_type} onChange={e => setForm({ ...form, room_type: e.target.value })} placeholder="Room type" className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/><input type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="Price per night" className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/><input type="number" value={form.max_guests} onChange={e => setForm({ ...form, max_guests: e.target.value })} placeholder="Max guests" className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/><input type="number" value={form.total_rooms} onChange={e => setForm({ ...form, total_rooms: e.target.value })} placeholder="Total rooms" className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"/></div><button onClick={() => void add()} className="mt-2 rounded-xl border border-white/[0.08] px-4 py-2.5 text-[10px] font-semibold">Add room type</button><HotelMediaReview row={row} rooms={rooms} authority={authority} onSaved={()=>setGalleryConfirmed(true)}/>{authority ? <button disabled={!galleryConfirmed} onClick={async () => { if(!await ask({title:'Publish this hotel?',description:'The hotel gallery and every room gallery you confirmed will immediately become visible.',confirmLabel:'Publish hotel',variant:'info'}))return; const { error } = await supabase.rpc('admin_publish_inspected_hotel', { p_hotel_id: id }); if (error)
-    return toast.error(error.message); toast.success('Hotel is now public'); done(); }} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold disabled:opacity-40">{galleryConfirmed?'Hotel and room media reviewed · Publish now':'Review hotel and room galleries first'}</button> : <p className="mt-3 text-[10px] text-[#8A8E9E]">Awaiting final Admin/Creator review of the hotel and each room gallery. It is not visible to users.</p>}</div><ConfirmDialog {...dialogProps}/></>; }
+function Prepared({
+  row,
+  authority,
+  done,
+}: {
+  row: any;
+  authority: boolean;
+  done: () => void;
+}) {
+  const { ask, dialogProps } = useConfirm();
+  const [galleryConfirmed, setGalleryConfirmed] = useState(
+    Boolean(row.final_media_reviewed_at),
+  );
+  if (row.property_type === "hotel")
+    return <HotelDraft row={row} authority={authority} done={done} />;
+  const listingId = row.listing?.id || row.draft_listing_id;
+  return (
+    <>
+      <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
+        <h3 className="text-sm font-semibold">Listing prepared — not public</h3>
+        <p className="mt-1 text-[10px] text-[#777C8E]">
+          {row.listing?.title || "Prepared listing"} ·{" "}
+          {money(row.listing?.price || 0)}
+        </p>
+        <FinalGalleryReview
+          row={row}
+          authority={authority}
+          onSaved={() => setGalleryConfirmed(true)}
+        />
+        {authority ? (
+          <button
+            disabled={!listingId || !galleryConfirmed}
+            onClick={async () => {
+              if (
+                !listingId ||
+                !(await ask({
+                  title: "Publish this property?",
+                  description:
+                    "The exact gallery you confirmed will immediately become visible with this property.",
+                  confirmLabel: "Publish property",
+                  variant: "info",
+                }))
+              )
+                return;
+              const { error } = await supabase.rpc(
+                "admin_publish_inspected_listing",
+                { p_listing_id: listingId },
+              );
+              if (error) return toast.error(error.message);
+              toast.success("Property is now public");
+              done();
+            }}
+            className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold disabled:opacity-40"
+          >
+            {galleryConfirmed
+              ? "Final review passed · Publish now"
+              : "Confirm the final gallery first"}
+          </button>
+        ) : (
+          <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-[10px] text-[#8A8E9E]">
+            Awaiting final Admin/Creator review. It is not visible to users.
+          </p>
+        )}
+      </div>
+      <ConfirmDialog {...dialogProps} />
+    </>
+  );
+}
+function HotelDraft({
+  row,
+  authority,
+  done,
+}: {
+  row: any;
+  authority: boolean;
+  done: () => void;
+}) {
+  const { ask, dialogProps } = useConfirm();
+  const id = Number(row.hotel?.hotel_id || row.draft_hotel_id);
+  const [rooms, setRooms] = useState<any[]>([]),
+    [galleryConfirmed, setGalleryConfirmed] = useState(
+      Boolean(row.final_media_reviewed_at),
+    ),
+    [form, setForm] = useState({
+      room_type: "",
+      price: "",
+      max_guests: "2",
+      total_rooms: "1",
+    });
+  async function load() {
+    const r = await getHotelRooms(id);
+    if (r.error) toast.error(r.error.message);
+    setRooms(r.rooms || []);
+  }
+  useEffect(() => {
+    if (id) void load();
+  }, [id]);
+  async function add() {
+    if (!form.room_type.trim() || !Number(form.price))
+      return toast.error("Room type and price are required");
+    const { error } = await createHotelRoom({
+      hotel_id: id,
+      room_type: form.room_type.trim(),
+      description: null,
+      price_per_night: Number(form.price),
+      max_guests: Number(form.max_guests) || 2,
+      bed_type: null,
+      images: [],
+      amenities: [],
+      total_rooms: Number(form.total_rooms) || 1,
+    });
+    if (error) return toast.error(error.message);
+    setForm({ room_type: "", price: "", max_guests: "2", total_rooms: "1" });
+    setGalleryConfirmed(false);
+    toast.success("Room type added");
+    void load();
+  }
+  return (
+    <>
+      <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
+        <h3 className="text-sm font-semibold">Hotel setup — not public</h3>
+        <p className="mt-1 text-[10px] text-[#777C8E]">
+          {row.hotel?.name || "Hotel draft"} · {rooms.length} room type(s)
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <input
+            value={form.room_type}
+            onChange={(e) => setForm({ ...form, room_type: e.target.value })}
+            placeholder="Room type"
+            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
+          />
+          <input
+            type="number"
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+            placeholder="Price per night"
+            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
+          />
+          <input
+            type="number"
+            value={form.max_guests}
+            onChange={(e) => setForm({ ...form, max_guests: e.target.value })}
+            placeholder="Max guests"
+            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
+          />
+          <input
+            type="number"
+            value={form.total_rooms}
+            onChange={(e) => setForm({ ...form, total_rooms: e.target.value })}
+            placeholder="Total rooms"
+            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
+          />
+        </div>
+        <button
+          onClick={() => void add()}
+          className="mt-2 rounded-xl border border-white/[0.08] px-4 py-2.5 text-[10px] font-semibold"
+        >
+          Add room type
+        </button>
+        <HotelMediaReview
+          row={row}
+          rooms={rooms}
+          authority={authority}
+          onSaved={() => setGalleryConfirmed(true)}
+        />
+        {authority ? (
+          <button
+            disabled={!galleryConfirmed}
+            onClick={async () => {
+              if (
+                !(await ask({
+                  title: "Publish this hotel?",
+                  description:
+                    "The hotel gallery and every room gallery you confirmed will immediately become visible.",
+                  confirmLabel: "Publish hotel",
+                  variant: "info",
+                }))
+              )
+                return;
+              const { error } = await supabase.rpc(
+                "admin_publish_inspected_hotel",
+                { p_hotel_id: id },
+              );
+              if (error) return toast.error(error.message);
+              toast.success("Hotel is now public");
+              done();
+            }}
+            className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold disabled:opacity-40"
+          >
+            {galleryConfirmed
+              ? "Hotel and room media reviewed · Publish now"
+              : "Review hotel and room galleries first"}
+          </button>
+        ) : (
+          <p className="mt-3 text-[10px] text-[#8A8E9E]">
+            Awaiting final Admin/Creator review of the hotel and each room
+            gallery. It is not visible to users.
+          </p>
+        )}
+      </div>
+      <ConfirmDialog {...dialogProps} />
+    </>
+  );
+}
 
-function HotelMediaReview({row,rooms,authority,onSaved}:{row:any;rooms:any[];authority:boolean;onSaved:()=>void}){
- const[fieldPhotos,setFieldPhotos]=useState<string[]|null>(null),[mediaError,setMediaError]=useState(''),[hotelSelected,setHotelSelected]=useState<string[]>([]),[roomSelected,setRoomSelected]=useState<Record<string,string[]>>({}),[saving,setSaving]=useState(false);
- const partner=Array.isArray(row.photo_urls)?row.photo_urls:[];
- const submittedRooms=Array.isArray(row.hotel_program?.room_types)?row.hotel_program.room_types:[];
- const hotelCandidates=fieldPhotos===null?[]:Array.from(new Set([...partner,...fieldPhotos])) as string[];
- useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.rpc('get_inspection_media_for_review',{p_inspection_id:row.id});if(!active)return;if(error){setMediaError(error.message);setFieldPhotos([]);return}setMediaError('');setFieldPhotos(Array.isArray(data?.photos)?data.photos:[])})();return()=>{active=false}},[row.id]);
- useEffect(()=>{if(fieldPhotos===null)return;const reviewed=Boolean(row.final_media_reviewed_at);const storedHotel=Array.isArray(row.final_hotel_media_sources)?row.final_hotel_media_sources:(Array.isArray(row.hotel?.images)?row.hotel.images:[]);setHotelSelected(reviewed?storedHotel.filter((url:string)=>hotelCandidates.includes(url)):[]);setRoomSelected(()=>{const next:Record<string,string[]>={};for(const room of rooms){const candidates=roomCandidates(room,submittedRooms);const stored=Array.isArray(row.final_room_media_sources?.[String(room.room_id)])?row.final_room_media_sources[String(room.room_id)]:(Array.isArray(room.images)?room.images:[]);next[String(room.room_id)]=reviewed?stored.filter((url:string)=>candidates.includes(url)):[]}return next})},[fieldPhotos,rooms,row.hotel?.images,row.final_media_reviewed_at,row.final_hotel_media_sources,row.final_room_media_sources]);
- function toggleHotel(url:string){setHotelSelected(current=>current.includes(url)?current.filter(item=>item!==url):[...current,url])}
- function toggleRoom(roomId:string,url:string){setRoomSelected(current=>{const selected=current[roomId]||[];return{...current,[roomId]:selected.includes(url)?selected.filter(item=>item!==url):[...selected,url]}})}
- async function save(){if(mediaError)return toast.error('Inspection media could not be verified');if(!hotelSelected.length)return toast.error('Choose at least one hotel-level image');for(const room of rooms){const candidates=roomCandidates(room,submittedRooms);if(candidates.length&&!(roomSelected[String(room.room_id)]||[]).length)return toast.error(`Choose at least one image for ${room.room_type}`)}setSaving(true);const created:string[]=[];try{const hotel=await publishListingCandidateImages(hotelSelected,row.id);created.push(...hotel.createdPaths);const publicRooms:Record<string,string[]>={};for(const room of rooms){const roomId=String(room.room_id);const published=await publishListingCandidateImages(roomSelected[roomId]||[],row.id);created.push(...published.createdPaths);publicRooms[roomId]=published.publicUrls}const{error}=await supabase.rpc('admin_set_inspected_hotel_media_v2',{p_inspection_id:row.id,p_hotel_source_images:hotel.sources,p_hotel_public_images:hotel.publicUrls,p_room_source_galleries:roomSelected,p_room_public_galleries:publicRooms});if(error)throw error;toast.success('Hotel and room galleries saved');onSaved()}catch(error:unknown){await removePublishedCandidateCopies(created);toast.error(error instanceof Error?error.message:'Hotel media could not be saved')}finally{setSaving(false)}}
- return <section className="mt-4 border-t border-white/[.07] pt-4"><div><p className="text-[10px] font-semibold">Final hotel media review</p><p className="mt-1 text-[9px] leading-5 text-[#777D8E]">Nothing new is selected automatically. Choose the exact hotel/common-area and room images that should go live.</p></div>{mediaError&&<p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">Inspection media could not be verified. Publishing is blocked until it loads correctly.</p>}<GalleryPicker title="Hotel and common areas" subtitle="Partner hotel-level photos plus Field Operations visit photos" candidates={hotelCandidates} selected={hotelSelected} disabled={!authority||Boolean(mediaError)} source={url=>partner.includes(url)?'PARTNER':'FIELD'} onToggle={toggleHotel}/>{rooms.map(room=>{const candidates=roomCandidates(room,submittedRooms);return <GalleryPicker key={room.room_id} title={room.room_type} subtitle="Only photos submitted for this room type" candidates={candidates} selected={roomSelected[String(room.room_id)]||[]} disabled={!authority||Boolean(mediaError)} source={()=> 'PARTNER ROOM'} onToggle={url=>toggleRoom(String(room.room_id),url)}/>})}{authority&&<button type="button" disabled={saving||fieldPhotos===null||Boolean(mediaError)||!hotelSelected.length} onClick={()=>void save()} className="mt-4 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-[10px] font-semibold text-emerald-300 disabled:opacity-40">{saving?'Saving media…':'Confirm hotel and every room gallery'}</button>}</section>
+function HotelMediaReview({
+  row,
+  rooms,
+  authority,
+  onSaved,
+}: {
+  row: any;
+  rooms: any[];
+  authority: boolean;
+  onSaved: () => void;
+}) {
+  const [fieldPhotos, setFieldPhotos] = useState<string[] | null>(null),
+    [mediaError, setMediaError] = useState(""),
+    [hotelSelected, setHotelSelected] = useState<string[]>([]),
+    [roomSelected, setRoomSelected] = useState<Record<string, string[]>>({}),
+    [saving, setSaving] = useState(false);
+  const partner = Array.isArray(row.photo_urls) ? row.photo_urls : [];
+  const submittedRooms = Array.isArray(row.hotel_program?.room_types)
+    ? row.hotel_program.room_types
+    : [];
+  const hotelCandidates =
+    fieldPhotos === null
+      ? []
+      : (Array.from(new Set([...partner, ...fieldPhotos])) as string[]);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.rpc(
+        "get_inspection_media_for_review",
+        { p_inspection_id: row.id },
+      );
+      if (!active) return;
+      if (error) {
+        setMediaError(error.message);
+        setFieldPhotos([]);
+        return;
+      }
+      setMediaError("");
+      setFieldPhotos(Array.isArray(data?.photos) ? data.photos : []);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [row.id]);
+  useEffect(() => {
+    if (fieldPhotos === null) return;
+    const reviewed = Boolean(row.final_media_reviewed_at);
+    const storedHotel = Array.isArray(row.final_hotel_media_sources)
+      ? row.final_hotel_media_sources
+      : Array.isArray(row.hotel?.images)
+        ? row.hotel.images
+        : [];
+    setHotelSelected(
+      reviewed
+        ? storedHotel.filter((url: string) => hotelCandidates.includes(url))
+        : [],
+    );
+    setRoomSelected(() => {
+      const next: Record<string, string[]> = {};
+      for (const room of rooms) {
+        const candidates = roomCandidates(room, submittedRooms);
+        const stored = Array.isArray(
+          row.final_room_media_sources?.[String(room.room_id)],
+        )
+          ? row.final_room_media_sources[String(room.room_id)]
+          : Array.isArray(room.images)
+            ? room.images
+            : [];
+        next[String(room.room_id)] = reviewed
+          ? stored.filter((url: string) => candidates.includes(url))
+          : [];
+      }
+      return next;
+    });
+  }, [
+    fieldPhotos,
+    rooms,
+    row.hotel?.images,
+    row.final_media_reviewed_at,
+    row.final_hotel_media_sources,
+    row.final_room_media_sources,
+  ]);
+  function toggleHotel(url: string) {
+    setHotelSelected((current) =>
+      current.includes(url)
+        ? current.filter((item) => item !== url)
+        : [...current, url],
+    );
+  }
+  function toggleRoom(roomId: string, url: string) {
+    setRoomSelected((current) => {
+      const selected = current[roomId] || [];
+      return {
+        ...current,
+        [roomId]: selected.includes(url)
+          ? selected.filter((item) => item !== url)
+          : [...selected, url],
+      };
+    });
+  }
+  async function save() {
+    if (mediaError)
+      return toast.error("Inspection media could not be verified");
+    if (!hotelSelected.length)
+      return toast.error("Choose at least one hotel-level image");
+    for (const room of rooms) {
+      const candidates = roomCandidates(room, submittedRooms);
+      if (
+        candidates.length &&
+        !(roomSelected[String(room.room_id)] || []).length
+      )
+        return toast.error(`Choose at least one image for ${room.room_type}`);
+    }
+    setSaving(true);
+    const created: string[] = [];
+    try {
+      const hotel = await publishListingCandidateImages(hotelSelected, row.id);
+      created.push(...hotel.createdPaths);
+      const publicRooms: Record<string, string[]> = {};
+      for (const room of rooms) {
+        const roomId = String(room.room_id);
+        const published = await publishListingCandidateImages(
+          roomSelected[roomId] || [],
+          row.id,
+        );
+        created.push(...published.createdPaths);
+        publicRooms[roomId] = published.publicUrls;
+      }
+      const { error } = await supabase.rpc(
+        "admin_set_inspected_hotel_media_v2",
+        {
+          p_inspection_id: row.id,
+          p_hotel_source_images: hotel.sources,
+          p_hotel_public_images: hotel.publicUrls,
+          p_room_source_galleries: roomSelected,
+          p_room_public_galleries: publicRooms,
+        },
+      );
+      if (error) throw error;
+      toast.success("Hotel and room galleries saved");
+      onSaved();
+    } catch (error: unknown) {
+      await removePublishedCandidateCopies(created);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Hotel media could not be saved",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <section className="mt-4 border-t border-white/[.07] pt-4">
+      <div>
+        <p className="text-[10px] font-semibold">Final hotel media review</p>
+        <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+          Nothing new is selected automatically. Choose the exact
+          hotel/common-area and room images that should go live.
+        </p>
+      </div>
+      {mediaError && (
+        <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">
+          Inspection media could not be verified. Publishing is blocked until it
+          loads correctly.
+        </p>
+      )}
+      <GalleryPicker
+        title="Hotel and common areas"
+        subtitle="Partner hotel-level photos plus Field Operations visit photos"
+        candidates={hotelCandidates}
+        selected={hotelSelected}
+        disabled={!authority || Boolean(mediaError)}
+        source={(url) => (partner.includes(url) ? "PARTNER" : "FIELD")}
+        onToggle={toggleHotel}
+      />
+      {rooms.map((room) => {
+        const candidates = roomCandidates(room, submittedRooms);
+        return (
+          <GalleryPicker
+            key={room.room_id}
+            title={room.room_type}
+            subtitle="Only photos submitted for this room type"
+            candidates={candidates}
+            selected={roomSelected[String(room.room_id)] || []}
+            disabled={!authority || Boolean(mediaError)}
+            source={() => "PARTNER ROOM"}
+            onToggle={(url) => toggleRoom(String(room.room_id), url)}
+          />
+        );
+      })}
+      {authority && (
+        <button
+          type="button"
+          disabled={
+            saving ||
+            fieldPhotos === null ||
+            Boolean(mediaError) ||
+            !hotelSelected.length
+          }
+          onClick={() => void save()}
+          className="mt-4 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-[10px] font-semibold text-emerald-300 disabled:opacity-40"
+        >
+          {saving ? "Saving media…" : "Confirm hotel and every room gallery"}
+        </button>
+      )}
+    </section>
+  );
 }
-function roomCandidates(room:any,submittedRooms:any[]){const submitted=submittedRooms.find(item=>String(item?.name||'').trim().toLowerCase()===String(room?.room_type||'').trim().toLowerCase());return Array.from(new Set(Array.isArray(submitted?.media)?submitted.media:[])) as string[]}
-function GalleryPicker({title,subtitle,candidates,selected,disabled,source,onToggle}:{title:string;subtitle:string;candidates:string[];selected:string[];disabled:boolean;source:(url:string)=>string;onToggle:(url:string)=>void}){return <section className="mt-4 border-y border-white/[.06] py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold">{title}</p><p className="mt-1 text-[8px] text-[#6D7384]">{subtitle}</p></div><span className="shrink-0 text-[8px] text-[#73798A]">{selected.length}/{candidates.length}</span></div>{candidates.length===0?<p className="mt-3 text-[9px] text-amber-200/75">No submitted images are available for this gallery.</p>:<div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">{candidates.map((url,index)=>{const chosen=selected.includes(url);return <button type="button" key={url} disabled={disabled} onClick={()=>onToggle(url)} className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen?'border-emerald-400':'border-white/[.08] opacity-55'}`}><ListingMediaImage reference={url} alt={`${title} option ${index+1}`} className="h-full w-full object-cover"/><span className="absolute bottom-2 left-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">{source(url)}</span><span className="absolute bottom-2 right-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">{index+1} / {candidates.length}</span>{chosen&&<span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-xs font-bold text-black">✓</span>}</button>})}</div>}</section>}
+function roomCandidates(room: any, submittedRooms: any[]) {
+  const submitted = submittedRooms.find(
+    (item) =>
+      String(item?.name || "")
+        .trim()
+        .toLowerCase() ===
+      String(room?.room_type || "")
+        .trim()
+        .toLowerCase(),
+  );
+  return Array.from(
+    new Set(Array.isArray(submitted?.media) ? submitted.media : []),
+  ) as string[];
+}
+function GalleryPicker({
+  title,
+  subtitle,
+  candidates,
+  selected,
+  disabled,
+  source,
+  onToggle,
+}: {
+  title: string;
+  subtitle: string;
+  candidates: string[];
+  selected: string[];
+  disabled: boolean;
+  source: (url: string) => string;
+  onToggle: (url: string) => void;
+}) {
+  return (
+    <section className="mt-4 border-y border-white/[.06] py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold">{title}</p>
+          <p className="mt-1 text-[8px] text-[#6D7384]">{subtitle}</p>
+        </div>
+        <span className="shrink-0 text-[8px] text-[#73798A]">
+          {selected.length}/{candidates.length}
+        </span>
+      </div>
+      {candidates.length === 0 ? (
+        <p className="mt-3 text-[9px] text-amber-200/75">
+          No submitted images are available for this gallery.
+        </p>
+      ) : (
+        <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+          {candidates.map((url, index) => {
+            const chosen = selected.includes(url);
+            return (
+              <button
+                type="button"
+                key={url}
+                disabled={disabled}
+                onClick={() => onToggle(url)}
+                className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen ? "border-emerald-400" : "border-white/[.08] opacity-55"}`}
+              >
+                <ListingMediaImage
+                  reference={url}
+                  alt={`${title} option ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute bottom-2 left-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
+                  {source(url)}
+                </span>
+                <span className="absolute bottom-2 right-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
+                  {index + 1} / {candidates.length}
+                </span>
+                {chosen && (
+                  <span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-xs font-bold text-black">
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
 
-function FinalGalleryReview({row,authority,onSaved}:{row:any;authority:boolean;onSaved:()=>void}){
- const[fieldPhotos,setFieldPhotos]=useState<string[]|null>(null),[mediaError,setMediaError]=useState(''),[selected,setSelected]=useState<string[]>([]),[saving,setSaving]=useState(false);
- useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.rpc('get_inspection_media_for_review',{p_inspection_id:row.id});if(!active)return;if(error){setMediaError(error.message);setFieldPhotos([]);return}setMediaError('');setFieldPhotos(Array.isArray(data?.photos)?data.photos:[])})();return()=>{active=false}},[row.id]);
- const partner=Array.isArray(row.photo_urls)?row.photo_urls:[],candidates=fieldPhotos===null?[]:Array.from(new Set([...partner,...fieldPhotos])) as string[],candidateKey=candidates.join('|');
- useEffect(()=>{if(fieldPhotos===null)return;const stored=Array.isArray(row.final_media_sources)?row.final_media_sources:(Array.isArray(row.listing?.images)?row.listing.images:[]);const saved=row.final_media_reviewed_at?stored:[];setSelected(saved.filter((item:string)=>candidates.includes(item)))},[candidateKey,fieldPhotos===null,row.final_media_reviewed_at,row.final_media_sources,row.listing?.images]);
- function toggle(url:string){setSelected(current=>current.includes(url)?current.filter(item=>item!==url):[...current,url])}
- async function save(){if(mediaError)return toast.error('Inspection media could not be verified');if(!selected.length)return toast.error('Choose at least one public image');setSaving(true);let created:string[]=[];try{const published=await publishListingCandidateImages(selected,row.id);created=published.createdPaths;const{error}=await supabase.rpc('admin_set_inspected_public_gallery_v2',{p_inspection_id:row.id,p_source_images:published.sources,p_public_images:published.publicUrls});if(error)throw error;toast.success('Final public gallery saved');onSaved()}catch(error:unknown){await removePublishedCandidateCopies(created);toast.error(error instanceof Error?error.message:'Final gallery could not be saved')}finally{setSaving(false)}}
- return <section className="mt-4 border-t border-white/[.07] pt-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold">Final public gallery</p><p className="mt-1 text-[9px] leading-5 text-[#777D8E]">{authority?'Nothing new is selected automatically. Choose the exact partner and Field Operations photos users should see.':'Only Admin or Creator can select which submitted photos go live.'}</p></div><span className="shrink-0 rounded-full bg-white/[.05] px-2 py-1 text-[8px]">{selected.length}/{fieldPhotos===null?'…':candidates.length}</span></div>{mediaError?<p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">Inspection media could not be verified. Publishing is blocked until it loads correctly.</p>:fieldPhotos===null?<p className="mt-3 text-[9px] text-[#747A8B]">Loading submitted photos…</p>:candidates.length===0?<p className="mt-3 text-[9px] text-amber-300">No eligible submitted photos are available.</p>:<div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">{candidates.map((url,index)=>{const chosen=selected.includes(url),source=partner.includes(url)?'PARTNER':'FIELD';return <button type="button" key={url} disabled={!authority} onClick={()=>toggle(url)} className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen?'border-emerald-400':'border-white/[.08] opacity-55'}`}><ListingMediaImage reference={url} alt={`${source==='PARTNER'?'Property Partner':'Field Operations'} photo ${index+1}`} className="h-full w-full object-cover"/><span className="absolute bottom-2 left-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">{source}</span><span className="absolute bottom-2 right-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">{index+1} / {candidates.length}</span>{chosen&&<span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-xs font-bold text-black">✓</span>}</button>})}</div>}{authority&&<button type="button" disabled={saving||fieldPhotos===null||Boolean(mediaError)||!selected.length} onClick={()=>void save()} className="mt-3 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-[10px] font-semibold text-emerald-300 disabled:opacity-40">{saving?'Saving gallery…':'Confirm this exact gallery'}</button>}</section>
+function FinalGalleryReview({
+  row,
+  authority,
+  onSaved,
+}: {
+  row: any;
+  authority: boolean;
+  onSaved: () => void;
+}) {
+  const [fieldPhotos, setFieldPhotos] = useState<string[] | null>(null),
+    [mediaError, setMediaError] = useState(""),
+    [selected, setSelected] = useState<string[]>([]),
+    [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.rpc(
+        "get_inspection_media_for_review",
+        { p_inspection_id: row.id },
+      );
+      if (!active) return;
+      if (error) {
+        setMediaError(error.message);
+        setFieldPhotos([]);
+        return;
+      }
+      setMediaError("");
+      setFieldPhotos(Array.isArray(data?.photos) ? data.photos : []);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [row.id]);
+  const partner = Array.isArray(row.photo_urls) ? row.photo_urls : [],
+    candidates =
+      fieldPhotos === null
+        ? []
+        : (Array.from(new Set([...partner, ...fieldPhotos])) as string[]),
+    candidateKey = candidates.join("|");
+  useEffect(() => {
+    if (fieldPhotos === null) return;
+    const stored = Array.isArray(row.final_media_sources)
+      ? row.final_media_sources
+      : Array.isArray(row.listing?.images)
+        ? row.listing.images
+        : [];
+    const saved = row.final_media_reviewed_at ? stored : [];
+    setSelected(saved.filter((item: string) => candidates.includes(item)));
+  }, [
+    candidateKey,
+    fieldPhotos === null,
+    row.final_media_reviewed_at,
+    row.final_media_sources,
+    row.listing?.images,
+  ]);
+  function toggle(url: string) {
+    setSelected((current) =>
+      current.includes(url)
+        ? current.filter((item) => item !== url)
+        : [...current, url],
+    );
+  }
+  async function save() {
+    if (mediaError)
+      return toast.error("Inspection media could not be verified");
+    if (!selected.length)
+      return toast.error("Choose at least one public image");
+    setSaving(true);
+    let created: string[] = [];
+    try {
+      const published = await publishListingCandidateImages(selected, row.id);
+      created = published.createdPaths;
+      const { error } = await supabase.rpc(
+        "admin_set_inspected_public_gallery_v2",
+        {
+          p_inspection_id: row.id,
+          p_source_images: published.sources,
+          p_public_images: published.publicUrls,
+        },
+      );
+      if (error) throw error;
+      toast.success("Final public gallery saved");
+      onSaved();
+    } catch (error: unknown) {
+      await removePublishedCandidateCopies(created);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Final gallery could not be saved",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <section className="mt-4 border-t border-white/[.07] pt-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold">Final public gallery</p>
+          <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+            {authority
+              ? "Nothing new is selected automatically. Choose the exact partner and Field Operations photos users should see."
+              : "Only Admin or Creator can select which submitted photos go live."}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-white/[.05] px-2 py-1 text-[8px]">
+          {selected.length}/{fieldPhotos === null ? "…" : candidates.length}
+        </span>
+      </div>
+      {mediaError ? (
+        <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">
+          Inspection media could not be verified. Publishing is blocked until it
+          loads correctly.
+        </p>
+      ) : fieldPhotos === null ? (
+        <p className="mt-3 text-[9px] text-[#747A8B]">
+          Loading submitted photos…
+        </p>
+      ) : candidates.length === 0 ? (
+        <p className="mt-3 text-[9px] text-amber-300">
+          No eligible submitted photos are available.
+        </p>
+      ) : (
+        <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+          {candidates.map((url, index) => {
+            const chosen = selected.includes(url),
+              source = partner.includes(url) ? "PARTNER" : "FIELD";
+            return (
+              <button
+                type="button"
+                key={url}
+                disabled={!authority}
+                onClick={() => toggle(url)}
+                className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen ? "border-emerald-400" : "border-white/[.08] opacity-55"}`}
+              >
+                <ListingMediaImage
+                  reference={url}
+                  alt={`${source === "PARTNER" ? "Property Partner" : "Field Operations"} photo ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute bottom-2 left-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
+                  {source}
+                </span>
+                <span className="absolute bottom-2 right-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
+                  {index + 1} / {candidates.length}
+                </span>
+                {chosen && (
+                  <span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-xs font-bold text-black">
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {authority && (
+        <button
+          type="button"
+          disabled={
+            saving ||
+            fieldPhotos === null ||
+            Boolean(mediaError) ||
+            !selected.length
+          }
+          onClick={() => void save()}
+          className="mt-3 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-[10px] font-semibold text-emerald-300 disabled:opacity-40"
+        >
+          {saving ? "Saving gallery…" : "Confirm this exact gallery"}
+        </button>
+      )}
+    </section>
+  );
 }
-function SubmittedMedia({ row }: {
-    row: any;
-}) { const [active, setActive] = useState<{
+function SubmittedMedia({ row }: { row: any }) {
+  const [active, setActive] = useState<{
     url: string;
     video: boolean;
-} | null>(null); const photos = Array.isArray(row.photo_urls) ? row.photo_urls : []; const videos = Array.isArray(row.video_urls) ? row.video_urls : []; const items = [...photos.map((url:string) => ({ url, video: false })), ...videos.map((url:string) => ({ url, video: true }))]; return <section className="border-b border-white/[.06] py-4"><div className="flex items-end justify-between gap-3"><div><p className="text-[8px] font-bold uppercase tracking-[.14em] text-emerald-300">Property Partner source</p><h4 className="mt-1 text-sm font-semibold">Partner-submitted property media</h4><p className="mt-1 text-[9px] text-[#717789]">Original property photos supplied with the listing request. Photos become final gallery options, not automatically public.</p></div><span className="shrink-0 text-[9px] text-[#656B7D]">{items.length} file(s)</span></div>{items.length === 0 ? <p className="mt-3 text-[10px] text-amber-200/75">No original property media was attached.</p> : <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{items.map((item, index) => <button type="button" key={`${item.url}-${index}`} onClick={() => setActive(item)} className="relative h-28 w-36 shrink-0 overflow-hidden rounded-xl bg-black">{item.video ? <ListingMediaVideo reference={item.url} muted playsInline preload="metadata" className="h-full w-full object-cover"/> : <ListingMediaImage reference={item.url} alt={`Property Partner media ${index + 1}`} className="h-full w-full object-cover"/>}{item.video && <span className="absolute inset-0 grid place-items-center text-xl">▶</span>}<span className="absolute bottom-1 left-1 rounded-full bg-black/75 px-1.5 py-0.5 text-[7px] font-semibold">PARTNER</span></button>)}</div>}{active && <div className="fixed inset-0 z-[100000] flex flex-col bg-[#050609]" role="dialog" aria-modal="true" aria-label="Property Partner media preview"><header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[.07] px-4"><p className="text-sm font-semibold">Property Partner submission</p><button type="button" onClick={() => setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.07]" aria-label="Close media preview">×</button></header><div className="flex min-h-0 flex-1 items-center justify-center bg-black">{active.video ? <ListingMediaVideo reference={active.url} controls autoPlay playsInline className="max-h-full max-w-full"/> : <ListingMediaImage reference={active.url} alt="Full Property Partner media preview" className="max-h-full max-w-full object-contain"/>}</div></div>}</section>; }
-function EvidenceReview({ inspectionId }: {
-    inspectionId: string;
-}) { const [data, setData] = useState<{
-    photos: string[];
-    videos: string[];
-} | null>(null), [active, setActive] = useState<{
-    url: string;
-    video: boolean;
-} | null>(null), [loading, setLoading] = useState(true); useEffect(() => { let live = true; void (async () => { const { data: result, error } = await supabase.rpc('get_inspection_media_for_review', { p_inspection_id: inspectionId }); if (!live)
-    return; if (error) {
-    toast.error(error.message);
-    setData({ photos: [], videos: [] });
+  } | null>(null);
+  const photos = Array.isArray(row.photo_urls) ? row.photo_urls : [];
+  const videos = Array.isArray(row.video_urls) ? row.video_urls : [];
+  const items = [
+    ...photos.map((url: string) => ({ url, video: false })),
+    ...videos.map((url: string) => ({ url, video: true })),
+  ];
+  return (
+    <section className="border-b border-white/[.06] py-4">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-emerald-300">
+            Property Partner source
+          </p>
+          <h4 className="mt-1 text-sm font-semibold">
+            Partner-submitted property media
+          </h4>
+          <p className="mt-1 text-[9px] text-[#717789]">
+            Original property photos supplied with the listing request. Photos
+            become final gallery options, not automatically public.
+          </p>
+        </div>
+        <span className="shrink-0 text-[9px] text-[#656B7D]">
+          {items.length} file(s)
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-3 text-[10px] text-amber-200/75">
+          No original property media was attached.
+        </p>
+      ) : (
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {items.map((item, index) => (
+            <button
+              type="button"
+              key={`${item.url}-${index}`}
+              onClick={() => setActive(item)}
+              className="relative h-28 w-36 shrink-0 overflow-hidden rounded-xl bg-black"
+            >
+              {item.video ? (
+                <ListingMediaVideo
+                  reference={item.url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <ListingMediaImage
+                  reference={item.url}
+                  alt={`Property Partner media ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+              )}
+              {item.video && (
+                <span className="absolute inset-0 grid place-items-center text-xl">
+                  ▶
+                </span>
+              )}
+              <span className="absolute bottom-1 left-1 rounded-full bg-black/75 px-1.5 py-0.5 text-[7px] font-semibold">
+                PARTNER
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {active && (
+        <div
+          className="fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Property Partner media preview"
+        >
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[.07] px-4">
+            <p className="text-sm font-semibold">Property Partner submission</p>
+            <button
+              type="button"
+              onClick={() => setActive(null)}
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/[.07]"
+              aria-label="Close media preview"
+            >
+              ×
+            </button>
+          </header>
+          <div className="flex min-h-0 flex-1 items-center justify-center bg-black">
+            {active.video ? (
+              <ListingMediaVideo
+                reference={active.url}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-full max-w-full"
+              />
+            ) : (
+              <ListingMediaImage
+                reference={active.url}
+                alt="Full Property Partner media preview"
+                className="max-h-full max-w-full object-contain"
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
-else
-    setData({ photos: Array.isArray(result?.photos) ? result.photos : [], videos: Array.isArray(result?.videos) ? result.videos : [] }); setLoading(false); })(); return () => { live = false; }; }, [inspectionId]); if (loading)
-    return <div className="border-y border-white/[.06] py-4 text-[10px] text-[#707687]">Loading inspection evidence…</div>; const items = [...(data?.photos || []).map(url => ({ url, video: false })), ...(data?.videos || []).map(url => ({ url, video: true }))]; return <section className="border-y border-white/[.06] py-4"><div className="flex items-end justify-between"><div><p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">Field Operations source</p><h4 className="mt-1 text-xs font-semibold">Independent field-visit evidence</h4><p className="mt-1 text-[9px] text-[#717789]">Captured by the assigned visitor. Field photos become final gallery options; field videos remain inspection evidence.</p></div><span className="text-[9px] text-[#656B7D]">{items.length} file(s)</span></div>{items.length === 0 ? <p className="mt-3 text-[10px] text-amber-200/75">No independent field media was submitted.</p> : <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-5">{items.map((item, index) => <button type="button" key={`${item.url}-${index}`} onClick={() => setActive(item)} className="relative aspect-square overflow-hidden rounded-xl bg-black">{item.video ? <ListingMediaVideo reference={item.url} muted playsInline preload="metadata" className="h-full w-full object-cover"/> : <ListingMediaImage reference={item.url} alt={`Field Operations evidence ${index + 1}`} className="h-full w-full object-cover"/>}{item.video && <span className="absolute inset-0 grid place-items-center text-xl">▶</span>}<span className="absolute bottom-1 left-1 rounded-full bg-black/75 px-1.5 py-0.5 text-[7px] font-semibold">FIELD</span></button>)}</div>}{active && <div className="fixed inset-0 z-[100000] grid place-items-center bg-black/90 p-3" onClick={() => setActive(null)}><button type="button" aria-label="Close evidence preview" className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl">×</button><div className="max-h-[90vh] max-w-5xl" onClick={e => e.stopPropagation()}>{active.video ? <ListingMediaVideo reference={active.url} controls autoPlay playsInline className="max-h-[88vh] max-w-full"/> : <ListingMediaImage reference={active.url} alt="Full Field Operations evidence" className="max-h-[88vh] max-w-full object-contain"/>}</div></div>}</section>; }
-function SubmissionDecision({ row, done }: {
-    row: any;
-    done: () => void;
-}) { const{ask,dialogProps}=useConfirm(); const [busy,setBusy]=useState(false),[reason,setReason]=useState(''); async function reject() { if(!reason.trim())return toast.error('Enter the reason the Property Partner should receive');if(!await ask({title:'Reject this submission?',description:'This stops the publication journey and sends the written reason to the Property Partner.',confirmLabel:'Reject submission',variant:'danger'}))return; setBusy(true); const { error } = await supabase.rpc('creator_reject_property_submission', { p_inspection_id: row.id, p_reason: reason.trim() }); setBusy(false); if (error)
-    return toast.error(error.message); toast.success('Submission rejected and removed from the publication workflow'); done(); } return <><section className="rounded-2xl border border-red-500/15 bg-red-500/[.035] p-4"><p className="text-xs font-semibold">Creator decision</p><p className="mt-1 text-[9px] leading-5 text-[#7E8493]">Rejecting stops this submission before publication. Any unpublished draft is removed; published or actively reserved property cannot be deleted here.</p><textarea rows={3} value={reason} onChange={event=>setReason(event.target.value)} placeholder="Reason shown to the Property Partner" className="mt-3 w-full resize-none rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none focus:border-red-500/30"/><button type="button" disabled={busy||!reason.trim()} onClick={() => void reject()} className="mt-3 min-h-11 w-full rounded-xl border border-red-500/20 text-[10px] font-semibold text-red-300 disabled:opacity-40">{busy ? 'Removing submission…' : 'Reject and remove submission'}</button></section><ConfirmDialog {...dialogProps}/></>; }
-function Badge({ value }: {
-    value: string;
-}) { return <span className="h-fit rounded-full bg-white/[0.06] px-2 py-1 text-[8px] font-semibold text-[#A6A9B7]">{stageLabel(value)}</span>; }
-function Info({ label, value }: {
-    label: string;
-    value: any;
-}) { return <div className="border-b border-white/[.055] py-2.5"><p className="text-[8px] uppercase tracking-wide text-[#5D6274]">{label}</p><p className="mt-1 text-[11px] font-semibold">{String(value)}</p></div>; }
-function Empty({ text }: {
-    text: string;
-}) { return <div className="rounded-2xl border border-dashed border-white/[0.08] p-9 text-center text-[10px] text-[#686D7F]">{text}</div>; }
-function Loading() { return <div className="grid min-h-32 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>; }
-function money(v: any) { return `₦${Number(v || 0).toLocaleString('en-NG')}`; }
+function EvidenceReview({ inspectionId }: { inspectionId: string }) {
+  const [data, setData] = useState<{
+      photos: string[];
+      videos: string[];
+    } | null>(null),
+    [active, setActive] = useState<{
+      url: string;
+      video: boolean;
+    } | null>(null),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const { data: result, error } = await supabase.rpc(
+        "get_inspection_media_for_review",
+        { p_inspection_id: inspectionId },
+      );
+      if (!live) return;
+      if (error) {
+        toast.error(error.message);
+        setData({ photos: [], videos: [] });
+      } else
+        setData({
+          photos: Array.isArray(result?.photos) ? result.photos : [],
+          videos: Array.isArray(result?.videos) ? result.videos : [],
+        });
+      setLoading(false);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [inspectionId]);
+  if (loading)
+    return (
+      <div className="border-y border-white/[.06] py-4 text-[10px] text-[#707687]">
+        Loading inspection evidence…
+      </div>
+    );
+  const items = [
+    ...(data?.photos || []).map((url) => ({ url, video: false })),
+    ...(data?.videos || []).map((url) => ({ url, video: true })),
+  ];
+  return (
+    <section className="border-y border-white/[.06] py-4">
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
+            Field Operations source
+          </p>
+          <h4 className="mt-1 text-xs font-semibold">
+            Independent field-visit evidence
+          </h4>
+          <p className="mt-1 text-[9px] text-[#717789]">
+            Captured by the assigned visitor. Field photos become final gallery
+            options; field videos remain inspection evidence.
+          </p>
+        </div>
+        <span className="text-[9px] text-[#656B7D]">
+          {items.length} file(s)
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-3 text-[10px] text-amber-200/75">
+          No independent field media was submitted.
+        </p>
+      ) : (
+        <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+          {items.map((item, index) => (
+            <button
+              type="button"
+              key={`${item.url}-${index}`}
+              onClick={() => setActive(item)}
+              className="relative aspect-square overflow-hidden rounded-xl bg-black"
+            >
+              {item.video ? (
+                <ListingMediaVideo
+                  reference={item.url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <ListingMediaImage
+                  reference={item.url}
+                  alt={`Field Operations evidence ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+              )}
+              {item.video && (
+                <span className="absolute inset-0 grid place-items-center text-xl">
+                  ▶
+                </span>
+              )}
+              <span className="absolute bottom-1 left-1 rounded-full bg-black/75 px-1.5 py-0.5 text-[7px] font-semibold">
+                FIELD
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {active && (
+        <div
+          className="fixed inset-0 z-[100000] grid place-items-center bg-black/90 p-3"
+          onClick={() => setActive(null)}
+        >
+          <button
+            type="button"
+            aria-label="Close evidence preview"
+            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl"
+          >
+            ×
+          </button>
+          <div
+            className="max-h-[90vh] max-w-5xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {active.video ? (
+              <ListingMediaVideo
+                reference={active.url}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[88vh] max-w-full"
+              />
+            ) : (
+              <ListingMediaImage
+                reference={active.url}
+                alt="Full Field Operations evidence"
+                className="max-h-[88vh] max-w-full object-contain"
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
+  const { ask, dialogProps } = useConfirm();
+  const [busy, setBusy] = useState(false),
+    [reason, setReason] = useState("");
+  async function reject() {
+    if (!reason.trim())
+      return toast.error(
+        "Enter the reason the Property Partner should receive",
+      );
+    if (
+      !(await ask({
+        title: "Reject this submission?",
+        description:
+          "This stops the publication journey and sends the written reason to the Property Partner.",
+        confirmLabel: "Reject submission",
+        variant: "danger",
+      }))
+    )
+      return;
+    setBusy(true);
+    const { error } = await supabase.rpc("creator_reject_property_submission", {
+      p_inspection_id: row.id,
+      p_reason: reason.trim(),
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(
+      "Submission rejected and removed from the publication workflow",
+    );
+    done();
+  }
+  return (
+    <>
+      <section className="rounded-2xl border border-red-500/15 bg-red-500/[.035] p-4">
+        <p className="text-xs font-semibold">Creator decision</p>
+        <p className="mt-1 text-[9px] leading-5 text-[#7E8493]">
+          Rejecting stops this submission before publication. Any unpublished
+          draft is removed; published or actively reserved property cannot be
+          deleted here.
+        </p>
+        <textarea
+          rows={3}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Reason shown to the Property Partner"
+          className="mt-3 w-full resize-none rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none focus:border-red-500/30"
+        />
+        <button
+          type="button"
+          disabled={busy || !reason.trim()}
+          onClick={() => void reject()}
+          className="mt-3 min-h-11 w-full rounded-xl border border-red-500/20 text-[10px] font-semibold text-red-300 disabled:opacity-40"
+        >
+          {busy ? "Removing submission…" : "Reject and remove submission"}
+        </button>
+      </section>
+      <ConfirmDialog {...dialogProps} />
+    </>
+  );
+}
+function Badge({ value }: { value: string }) {
+  return (
+    <span className="h-fit rounded-full bg-white/[0.06] px-2 py-1 text-[8px] font-semibold text-[#A6A9B7]">
+      {stageLabel(value)}
+    </span>
+  );
+}
+function Info({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="border-b border-white/[.055] py-2.5">
+      <p className="text-[8px] uppercase tracking-wide text-[#5D6274]">
+        {label}
+      </p>
+      <p className="mt-1 text-[11px] font-semibold">{String(value)}</p>
+    </div>
+  );
+}
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-white/[0.08] p-9 text-center text-[10px] text-[#686D7F]">
+      {text}
+    </div>
+  );
+}
+function Loading() {
+  return (
+    <div className="grid min-h-32 place-items-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+    </div>
+  );
+}
+function money(v: any) {
+  return `₦${Number(v || 0).toLocaleString("en-NG")}`;
+}

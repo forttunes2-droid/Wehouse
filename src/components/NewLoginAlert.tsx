@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { getStoredSessionId, supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
@@ -93,9 +94,10 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
     void load();
   }
 
-  if (!alert) return null;
-  return (
-    <section className="overflow-hidden rounded-2xl border border-amber-400/15 bg-amber-300/[.055] text-white" role="alert" aria-labelledby="new-login-title" aria-describedby="new-login-description">
+  if (!alert || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100200] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+    <section className="w-full max-w-md overflow-hidden rounded-t-[28px] border border-amber-400/15 bg-[#11141C] text-white shadow-2xl shadow-black/70 sm:rounded-[28px]" role="alertdialog" aria-modal="true" aria-labelledby="new-login-title" aria-describedby="new-login-description">
       <div className="flex items-start gap-3 px-4 pb-3 pt-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-300/10 text-amber-200"><DeviceShieldIcon /></div>
         <div className="min-w-0 flex-1">
@@ -112,6 +114,8 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
         <button onClick={() => void answer(false)} disabled={busy} className="min-h-11 border-l border-white/[.06] text-[11px] font-semibold text-red-300 disabled:opacity-40">No, it’s not me</button>
       </div>
     </section>
+    </div>,
+    document.body,
   );
 }
 

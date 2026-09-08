@@ -205,20 +205,21 @@ async function checkPrivateConversationReadiness(
   conversationId: string,
   peerUserId: string,
 ): Promise<PrivateConversationReadiness> {
-  const mine = await encryptionIdentityStatus();
+  const [mine, peerResult] = await Promise.all([
+    encryptionIdentityStatus(),
+    peerPublicKey(kind, conversationId, peerUserId)
+      .then(() => ({ ready: true, error: null as unknown }))
+      .catch((error: unknown) => ({ ready: false, error })),
+  ]);
   if (mine.error) return { state: "unavailable", message: mine.error.message || "Secure chat could not be checked" };
   if (!mine.enabled) return { state: "setup_required", message: "Create your Recovery PIN before sending private messages." };
   if (!mine.unlocked) return { state: "unlock_required", message: "Unlock private messages with your Recovery PIN on this device." };
-  try {
-    await peerPublicKey(kind, conversationId, peerUserId);
-    return { state: "ready", message: "End-to-end encrypted" };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Secure chat is not ready";
-    if (/other person.*enable secure messages/i.test(message)) {
-      return { state: "peer_setup_required", message: "This person has not activated encrypted chats yet." };
-    }
-    return { state: "unavailable", message };
+  if (peerResult.ready) return { state: "ready", message: "End-to-end encrypted" };
+  const message = peerResult.error instanceof Error ? peerResult.error.message : "Secure chat is not ready";
+  if (/other person.*enable secure messages/i.test(message)) {
+    return { state: "peer_setup_required", message: "This person has not activated encrypted chats yet." };
   }
+  return { state: "unavailable", message };
 }
 
 async function unlockedPrivateKey() {

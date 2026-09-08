@@ -7,6 +7,8 @@ import './chat-mobile.css'
 import App from './App.tsx'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
+import NativeSelectBridge from '@/components/NativeSelectBridge'
+import NativeDateBridge from '@/components/NativeDateBridge'
 
 function NativeInit() {
   useEffect(() => {
@@ -26,6 +28,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <NativeInit />
+      <NativeSelectBridge />
+      <NativeDateBridge />
       <App />
     </ErrorBoundary>
   </StrictMode>,

@@ -6,8 +6,7 @@
     <meta name="theme-color" content="#0A0A0F" />
     <meta name="background-color" content="#0A0A0F" />
     <meta name="description" content="WeHouse - Find houses, connect with roommates, hire verified workers" />
-    <!-- Phase 5 Housing-system build marker -->
-    <script>window.WH_VERSION='20260818-housing-roommate-creator-4';</script>
+    <script>window.WH_VERSION='__WH_VERSION__';</script>
     <script>
       (function() {
         // One-time compatibility cleanup: Property Partner is the only
@@ -25,8 +24,8 @@
     <script>
       (function() {
         if (!('serviceWorker' in navigator)) return;
-        // Installing this cleanup worker allows devices controlled by the old
-        // offline shell to delete its cached HTML, then unregister cleanly.
+        // The build emits a new worker body for every Git commit. Existing
+        // installations therefore receive the current application shell.
         navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
           .then(function(registration) { return registration.update(); })
           .catch(function() {});

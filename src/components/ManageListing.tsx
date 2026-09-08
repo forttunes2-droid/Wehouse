@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { ListingMediaImage } from '@/components/ListingCandidateMedia';
+import PropertyMediaCarousel from '@/components/PropertyMediaCarousel';
 
 type Props={
   listingId:string;
@@ -14,6 +14,7 @@ export default function ManageListing({listingId,source}:Props){
  if(loading)return <div className="grid min-h-48 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>;
  if(!listing)return <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.04] p-4 text-[10px] text-amber-200">The published listing record could not be loaded.</div>;
  const photos=Array.isArray(listing.images)?listing.images:[];
+ const videos=Array.isArray(listing.videos)?listing.videos:[];
  const location=[listing.address||source.property_address,listing.city,listing.state].filter(Boolean).join(', ');
  const facts=[
   ['Type',listing.sub_type||listing.property_type||'Property'],
@@ -22,8 +23,8 @@ export default function ManageListing({listingId,source}:Props){
   ['Reference',source.request_code||listing.listing_code||listing.id],
  ];
  return <div className="space-y-4">
-  <section className="overflow-hidden rounded-[26px] border border-white/[.07] bg-[#10131B]">
-   {photos.length?<div className="flex snap-x snap-mandatory overflow-x-auto bg-black scrollbar-hide">{photos.map((photo:string,index:number)=><div key={`${photo}-${index}`} className="relative aspect-[4/3] w-full shrink-0 snap-center sm:aspect-[16/9]"><ListingMediaImage reference={photo} alt={`${listing.title||'Published property'} photo ${index+1}`} className="h-full w-full object-cover"/><span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[8px] font-semibold">{index+1} / {photos.length}</span></div>)}</div>:<div className="grid aspect-[4/3] place-items-center bg-black/30 text-[10px] text-[#666D7E]">No public gallery</div>}
+  <section className="overflow-hidden border-y border-white/[.07]">
+   {photos.length||videos.length?<PropertyMediaCarousel images={photos} videos={videos} title={listing.title||'Published property'}/>:<div className="grid aspect-[4/3] place-items-center bg-black/30 text-[10px] text-[#666D7E]">No public gallery</div>}
    <div className="p-4 sm:p-5">
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words text-xl font-bold">{listing.title||source.property_address||'Published property'}</h2><p className="mt-1 text-[10px] text-[#73798A]">{location||'Location not recorded'}</p></div><span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/[.08] px-2.5 py-1 text-[8px] font-semibold text-emerald-300">LIVE</span></div>
     <p className="mt-4 text-xl font-bold text-violet-200">₦{Number(listing.price||0).toLocaleString('en-NG')} <span className="text-[9px] font-medium text-[#747B8B]">/ year</span></p>
@@ -31,7 +32,7 @@ export default function ManageListing({listingId,source}:Props){
     {listing.description&&<p className="border-t border-white/[.06] pt-4 text-[10px] leading-5 text-[#969BA9]">{listing.description}</p>}
    </div>
   </section>
-  <section className="rounded-2xl border border-violet-500/12 bg-violet-500/[.035] p-4">
+  <section className="border-y border-white/[.07] py-4">
    <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Property Partner record</p>
    <p className="mt-2 text-xs font-semibold">{source.owner_name||source.owner_email||'Property Partner'}</p>
    <p className="mt-1 text-[9px] text-[#747B8B]">{[source.owner_email,source.owner_phone].filter(Boolean).join(' · ')||'Contact details unavailable'}</p>

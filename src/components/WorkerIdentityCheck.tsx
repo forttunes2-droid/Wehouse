@@ -508,7 +508,7 @@ function CameraFrame({ videoRef, prompt }: { videoRef: React.RefObject<HTMLVideo
 
 function identityFailureMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String((error as any)?.message || '');
-  if (/permission denied|row-level security|violates.*policy|function .*conversation/i.test(message)) return 'We could not securely save this check. Please try again. If it continues, contact WeHouse Support.';
+  if (/permission denied|row-level security|violates.*policy|function .*conversation/i.test(message)) return 'We could not securely save this check. Please try again. If it continues, message WeHouse from Inbox.';
   if (/network|fetch|load failed/i.test(message)) return 'The connection was interrupted. Check your connection and try again.';
   return message || 'Live face check failed. Try again.';
 }

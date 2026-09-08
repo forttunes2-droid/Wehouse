@@ -13,7 +13,6 @@ import {
   isCreator as checkCreator,
 } from "@/hooks/useAuth";
 import { CreatorAuthProvider } from "@/hooks/useCreatorAuth";
-import { AdminAuthProvider } from "@/hooks/useAdminAuth";
 import {
   getSavedListings,
   saveListing,
@@ -21,10 +20,10 @@ import {
   supabase,
 } from "@/lib/supabase";
 import CreatorAuthModal from "@/components/CreatorAuthModal";
-import AdminAuthModal from "@/components/AdminAuthModal";
 import SupportChat from "@/components/SupportChat";
 import DesktopLayout from "@/components/DesktopLayout";
 import PrivateCallCenter from "@/components/PrivateCallCenter";
+import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
@@ -58,7 +57,9 @@ const Roommate = lazy(() => import("@/pages/Roommate"));
 const Chat = lazy(() => import("@/pages/Chat"));
 const ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));
 const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
-const PrivacySecuritySettings = lazy(() => import("@/pages/PrivacySecuritySettings"));
+const PrivacySecuritySettings = lazy(
+  () => import("@/pages/PrivacySecuritySettings"),
+);
 const CreateListing = lazy(() => import("@/pages/CreateListing"));
 const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
 const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
@@ -188,7 +189,7 @@ function roleRootFor(role: string): NavPage {
             ? "property_partner"
             : role === "hotel_staff"
               ? "hotel_operations"
-            : "search";
+              : "search";
 }
 function normalizePageForRole(role: string, page: NavPage): NavPage {
   if (page === "messages") page = "conversation";
@@ -214,7 +215,8 @@ function normalizePageForRole(role: string, page: NavPage): NavPage {
       : "worker_dashboard";
   if (role === "property_partner")
     return page === "property_partner" ? page : "property_partner";
-  if (role === "hotel_staff") return page === "hotel_operations" ? page : "hotel_operations";
+  if (role === "hotel_staff")
+    return page === "hotel_operations" ? page : "hotel_operations";
   if (role === "user") return USER_PAGES.has(page) ? page : "search";
   return "search";
 }
@@ -236,43 +238,77 @@ export default function App() {
     [notificationCount, setNotificationCount] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null),
-    [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess | null>(null),
-    [activeWorkspace, setActiveWorkspace] = useState<WorkspaceChoice>('personal');
+    [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess | null>(
+      null,
+    ),
+    [activeWorkspace, setActiveWorkspace] =
+      useState<WorkspaceChoice>("personal");
   const baseProfile = auth.profile;
   useEffect(() => {
-    const update = (event: Event) => setNestedScreen(Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open));
-    window.addEventListener('wehouse:nested-screen', update);
-    return () => window.removeEventListener('wehouse:nested-screen', update);
+    const update = (event: Event) =>
+      setNestedScreen(
+        Boolean((event as CustomEvent<{ open?: boolean }>).detail?.open),
+      );
+    window.addEventListener("wehouse:nested-screen", update);
+    return () => window.removeEventListener("wehouse:nested-screen", update);
   }, []);
   useEffect(() => {
     if (!baseProfile?.user_id) return;
     let cancelled = false;
     setWorkspaceAccess(null);
-    void supabase.rpc('get_my_workspace_access').then(({ data, error: accessError }) => {
-      if (cancelled || accessError || !data) return;
-      const access = data as WorkspaceAccess;
-      setWorkspaceAccess(access);
-      const allowed = new Set<WorkspaceChoice>([
-        ...(access.personal_workspace ? ['personal' as const] : []),
-        ...((access.privileged_workspaces || []).map((item) => item.role)),
-      ]);
-      let preferred: WorkspaceChoice | null = null;
-      try { preferred = localStorage.getItem(`wh_workspace_${baseProfile.user_id}`) as WorkspaceChoice | null; } catch {}
-      const legacy = ['staff', 'admin', 'creator'].includes(baseProfile.role) ? baseProfile.role as WorkspaceChoice : 'personal';
-      setActiveWorkspace(preferred && allowed.has(preferred) ? preferred : allowed.has(legacy) ? legacy : allowed.values().next().value || 'personal');
-    });
-    return () => { cancelled = true; };
+    void supabase
+      .rpc("get_my_workspace_access")
+      .then(({ data, error: accessError }) => {
+        if (cancelled || accessError || !data) return;
+        const access = data as WorkspaceAccess;
+        setWorkspaceAccess(access);
+        const allowed = new Set<WorkspaceChoice>([
+          ...(access.personal_workspace ? ["personal" as const] : []),
+          ...(access.privileged_workspaces || []).map((item) => item.role),
+        ]);
+        let preferred: WorkspaceChoice | null = null;
+        try {
+          preferred = localStorage.getItem(
+            `wh_workspace_${baseProfile.user_id}`,
+          ) as WorkspaceChoice | null;
+        } catch {}
+        const legacy = ["staff", "admin", "creator"].includes(baseProfile.role)
+          ? (baseProfile.role as WorkspaceChoice)
+          : "personal";
+        setActiveWorkspace(
+          preferred && allowed.has(preferred)
+            ? preferred
+            : allowed.has(legacy)
+              ? legacy
+              : allowed.values().next().value || "personal",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [baseProfile?.user_id, baseProfile?.role]);
   const effectiveRole = useMemo(() => {
-    if (!baseProfile) return '';
-    if (['worker', 'property_partner'].includes(baseProfile.role)) return baseProfile.role;
+    if (!baseProfile) return "";
+    if (["worker", "property_partner"].includes(baseProfile.role))
+      return baseProfile.role;
     // Never render the personal/user workspace while privileged workspace access
     // is still being restored. That caused the user bottom bar and user pages to
     // flash inside Creator, Admin, Staff and Hotel sessions on refresh.
-    if (workspaceAccess?.identity?.user_id !== baseProfile.user_id) return baseProfile.role;
-    return activeWorkspace === 'personal' ? 'user' : activeWorkspace === 'hotel' ? 'hotel_staff' : activeWorkspace;
+    if (workspaceAccess?.identity?.user_id !== baseProfile.user_id)
+      return baseProfile.role;
+    return activeWorkspace === "personal"
+      ? "user"
+      : activeWorkspace === "hotel"
+        ? "hotel_staff"
+        : activeWorkspace;
   }, [baseProfile, activeWorkspace, workspaceAccess]);
-  const profile = useMemo(() => baseProfile ? { ...baseProfile, role: effectiveRole as typeof baseProfile.role } : null, [baseProfile, effectiveRole]);
+  const profile = useMemo(
+    () =>
+      baseProfile
+        ? { ...baseProfile, role: effectiveRole as typeof baseProfile.role }
+        : null,
+    [baseProfile, effectiveRole],
+  );
   const canList = canCreateListings(effectiveRole),
     isCreator = checkCreator(effectiveRole),
     userRole = effectiveRole,
@@ -293,7 +329,11 @@ export default function App() {
               label: "Bookings",
               icon: ReservationSvg,
             },
-            { id: "conversation" as NavPage, label: "Inbox", icon: MessagesSvg },
+            {
+              id: "conversation" as NavPage,
+              label: "Inbox",
+              icon: MessagesSvg,
+            },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
         : [],
@@ -303,27 +343,47 @@ export default function App() {
     restoredRef = useRef(false),
     seenMessagesRef = useRef(new Map<string, string>()),
     pageScrollRef = useRef<HTMLDivElement>(null),
-    pageScrollPositionsRef = useRef(new Map<NavPage,number>());
+    pageScrollPositionsRef = useRef(new Map<NavPage, number>());
   const roleRoot = useCallback(
     (): NavPage => roleRootFor(userRole),
     [userRole],
   );
 
-  const switchWorkspace = useCallback((workspace: WorkspaceChoice) => {
-    if (!baseProfile) return;
-    const allowed = workspace === 'personal'
-      ? Boolean(workspaceAccess?.personal_workspace)
-      : Boolean(workspaceAccess?.privileged_workspaces?.some((item) => item.role === workspace));
-    if (!allowed) return void toast.error('That workspace is not available for this account.');
-    setActiveWorkspace(workspace);
-    try { localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace); } catch {}
-    const destination = workspace === 'personal' ? 'search' : roleRootFor(workspace);
-    setNavPage(destination);
-    navHistoryRef.current = [destination];
-    window.history.replaceState({ page: destination }, '', `#${destination}`);
-    try { localStorage.setItem(NAV_STORAGE_KEY, destination); } catch {}
-    toast.success(workspace === 'personal' ? 'Personal WeHouse opened' : `${workspace[0].toUpperCase()}${workspace.slice(1)} workspace opened`);
-  }, [baseProfile, workspaceAccess]);
+  const switchWorkspace = useCallback(
+    (workspace: WorkspaceChoice) => {
+      if (!baseProfile) return;
+      const allowed =
+        workspace === "personal"
+          ? Boolean(workspaceAccess?.personal_workspace)
+          : Boolean(
+              workspaceAccess?.privileged_workspaces?.some(
+                (item) => item.role === workspace,
+              ),
+            );
+      if (!allowed)
+        return void toast.error(
+          "That workspace is not available for this account.",
+        );
+      setActiveWorkspace(workspace);
+      try {
+        localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
+      } catch {}
+      const destination =
+        workspace === "personal" ? "search" : roleRootFor(workspace);
+      setNavPage(destination);
+      navHistoryRef.current = [destination];
+      window.history.replaceState({ page: destination }, "", `#${destination}`);
+      try {
+        localStorage.setItem(NAV_STORAGE_KEY, destination);
+      } catch {}
+      toast.success(
+        workspace === "personal"
+          ? "Personal WeHouse opened"
+          : `${workspace[0].toUpperCase()}${workspace.slice(1)} workspace opened`,
+      );
+    },
+    [baseProfile, workspaceAccess],
+  );
 
   useEffect(() => {
     if (auth.isLoading || restoredRef.current) return;
@@ -364,7 +424,10 @@ export default function App() {
   }, [auth.isLoading, navPage, userRole]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
-      pageScrollPositionsRef.current.set(navPage,pageScrollRef.current?.scrollTop||0);
+      pageScrollPositionsRef.current.set(
+        navPage,
+        pageScrollRef.current?.scrollTop || 0,
+      );
       const safe = normalizePageForRole(userRole, page),
         current = navHistoryRef.current.at(-1);
       if (safe !== current) {
@@ -374,14 +437,17 @@ export default function App() {
       setNavPage(safe);
       if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
     },
-    [userRole,navPage],
+    [userRole, navPage],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
       const s = e.state as { page?: NavPage } | null;
       if (!s?.page) return;
       const safe = normalizePageForRole(userRole, s.page);
-      pageScrollPositionsRef.current.set(navPage,pageScrollRef.current?.scrollTop||0);
+      pageScrollPositionsRef.current.set(
+        navPage,
+        pageScrollRef.current?.scrollTop || 0,
+      );
       if (safe !== s.page)
         window.history.replaceState({ page: safe }, "", `#${safe}`);
       setNavPage(safe);
@@ -393,8 +459,15 @@ export default function App() {
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [userRole,navPage]);
-  useEffect(()=>{const frame=requestAnimationFrame(()=>{if(pageScrollRef.current)pageScrollRef.current.scrollTop=pageScrollPositionsRef.current.get(navPage)||0});return()=>cancelAnimationFrame(frame)},[navPage]);
+  }, [userRole, navPage]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (pageScrollRef.current)
+        pageScrollRef.current.scrollTop =
+          pageScrollPositionsRef.current.get(navPage) || 0;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [navPage]);
   useEffect(() => {
     const h = (e: ErrorEvent) => {
       setError(e.error);
@@ -428,25 +501,60 @@ export default function App() {
     }
     const uid = profile.user_id;
     async function count() {
-      const [{ data }, bookingResult, supportResult, { data: activityRows }, { count: announcements }] = await Promise.all([
+      const [
+        { data },
+        bookingResult,
+        supportResult,
+        { data: activityRows },
+        { count: announcements },
+      ] = await Promise.all([
         supabase
           .from("conversations")
           .select("id,participant_a,unread_a,unread_b,last_message_at")
           .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
         getCommunicationBookingConversations(uid),
         getMySupportConversations(),
-        supabase.from('notifications').select('id,type,read,created_at,source_type,source_id,destination_route').eq('recipient_id',uid).eq('read',false),
-        supabase.from('announcement_recipients').select('id',{count:'exact',head:true}).eq('user_id',uid).eq('read_status',false),
+        supabase
+          .from("notifications")
+          .select(
+            "id,type,read,created_at,source_type,source_id,destination_route",
+          )
+          .eq("recipient_id", uid)
+          .eq("read", false),
+        supabase
+          .from("announcement_recipients")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", uid)
+          .eq("read_status", false),
       ]);
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
-        if (Number(c.participant_a === uid ? c.unread_a : c.unread_b) > 0) roommate += 1;
+        if (Number(c.participant_a === uid ? c.unread_a : c.unread_b) > 0)
+          roommate += 1;
         if (!seenMessagesRef.current.has(c.id))
           seenMessagesRef.current.set(c.id, String(c.last_message_at || ""));
       });
-      const worker = (bookingResult.conversations || []).reduce((sum: number, row: { unread_count?: number }) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0), 0);
-      const support = (supportResult.conversations || []).reduce((sum: number, row: { unread_count?: number }) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0), 0);
-      const activity = currentActivityRows((activityRows || []) as Array<{id:string;type:string;read:boolean;created_at:string;source_type?:string|null;source_id?:string|null;destination_route?:string|null}>).length;
+      const worker = (bookingResult.conversations || []).reduce(
+        (sum: number, row: { unread_count?: number }) =>
+          sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
+        0,
+      );
+      const support = (supportResult.conversations || []).reduce(
+        (sum: number, row: { unread_count?: number }) =>
+          sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
+        0,
+      );
+      const activity = currentActivityRows(
+        (activityRows || []) as Array<{
+          id: string;
+          type: string;
+          read: boolean;
+          created_at: string;
+          source_type?: string | null;
+          source_id?: string | null;
+          destination_route?: string | null;
+        }>,
+      ).length;
       setUnreadCount(roommate + worker + support);
       setNotificationCount(activity + Number(announcements || 0));
     }
@@ -550,7 +658,12 @@ export default function App() {
             message?: string;
             type?: string;
           };
-          if (["new_device_login", "device_confirmation_pending"].includes(String(notification.type || ""))) return;
+          if (
+            ["new_device_login", "device_confirmation_pending"].includes(
+              String(notification.type || ""),
+            )
+          )
+            return;
           if (
             isUserRole &&
             ["roommate_message", "customer_message", "worker_replied"].includes(
@@ -607,7 +720,10 @@ export default function App() {
     },
     [handleSetNavPage],
   );
-  const consumeBookingContext = useCallback(() => setBookingContextId(null), []);
+  const consumeBookingContext = useCallback(
+    () => setBookingContextId(null),
+    [],
+  );
   const goToDetail = useCallback(
     (id: string) => {
       setDetailId(id);
@@ -687,8 +803,13 @@ export default function App() {
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => {
-            if (id && (p === 'detail' || p === 'listing_detail')) return goToDetail(id);
-            if (id && (p === 'conversation' || p === 'messages' || p === 'chat')) return goToChat(id);
+            if (id && (p === "detail" || p === "listing_detail"))
+              return goToDetail(id);
+            if (
+              id &&
+              (p === "conversation" || p === "messages" || p === "chat")
+            )
+              return goToChat(id);
             goTo(p as NavPage);
           }}
           onGoToChat={goToChat}
@@ -730,7 +851,13 @@ export default function App() {
         />
       );
     if (isHotelTeamRole)
-      return <HotelTeamDashboard profile={profile} onLogout={auth.logout} onNavigate={(p) => goTo(p as NavPage)} />;
+      return (
+        <HotelTeamDashboard
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p) => goTo(p as NavPage)}
+        />
+      );
     return null;
   };
   const renderPage = () => {
@@ -796,7 +923,27 @@ export default function App() {
           renderRoleRoot()
         );
       case "notifications":
-        return isUserRole ? <Chat profile={profile} initialMode="activity" chatUnreadCount={unreadCount} activityUnreadCount={notificationCount} onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);if(page==='my_reservations'||page==='my_bookings'){setBookingContextId(id||null);return goTo('my_reservations')}goTo((page==='messages'?'conversation':page) as NavPage)}}/> : renderRoleRoot();
+        return isUserRole ? (
+          <Chat
+            profile={profile}
+            initialMode="activity"
+            chatUnreadCount={unreadCount}
+            activityUnreadCount={notificationCount}
+            onNavigate={(page, id) => {
+              if (id && (page === "detail" || page === "listing_detail"))
+                return goToDetail(id);
+              if (id && (page === "messages" || page === "conversation"))
+                return goToChat(id);
+              if (page === "my_reservations" || page === "my_bookings") {
+                setBookingContextId(id || null);
+                return goTo("my_reservations");
+              }
+              goTo((page === "messages" ? "conversation" : page) as NavPage);
+            }}
+          />
+        ) : (
+          renderRoleRoot()
+        );
       case "profile":
       case "account":
         return (
@@ -815,11 +962,31 @@ export default function App() {
         );
       case "privacy":
       case "security":
-        return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} />;
+        return (
+          <PrivacySecuritySettings
+            profile={profile}
+            onUpdate={(u) => auth.handleSetupComplete(u)}
+            onBack={subpageBack}
+          />
+        );
       case "devices":
-        return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} initialSection="devices" />;
+        return (
+          <PrivacySecuritySettings
+            profile={profile}
+            onUpdate={(u) => auth.handleSetupComplete(u)}
+            onBack={subpageBack}
+            initialSection="devices"
+          />
+        );
       case "encryption":
-        return <PrivacySecuritySettings profile={profile} onUpdate={(u) => auth.handleSetupComplete(u)} onBack={subpageBack} initialSection="encryption" />;
+        return (
+          <PrivacySecuritySettings
+            profile={profile}
+            onUpdate={(u) => auth.handleSetupComplete(u)}
+            onBack={subpageBack}
+            initialSection="encryption"
+          />
+        );
       case "profile_edit":
         return (
           <ProfileEdit
@@ -854,7 +1021,17 @@ export default function App() {
         return isUserRole ? (
           <Chat
             profile={profile}
-            onNavigate={(page,id)=>{if(id&&(page==='detail'||page==='listing_detail'))return goToDetail(id);if(id&&(page==='messages'||page==='conversation'))return goToChat(id);if(page==='my_reservations'||page==='my_bookings'){setBookingContextId(id||null);return goTo('my_reservations')}goTo((page==='messages'?'conversation':page) as NavPage)}}
+            onNavigate={(page, id) => {
+              if (id && (page === "detail" || page === "listing_detail"))
+                return goToDetail(id);
+              if (id && (page === "messages" || page === "conversation"))
+                return goToChat(id);
+              if (page === "my_reservations" || page === "my_bookings") {
+                setBookingContextId(id || null);
+                return goTo("my_reservations");
+              }
+              goTo((page === "messages" ? "conversation" : page) as NavPage);
+            }}
             conversationId={chatConvId}
             chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
@@ -886,7 +1063,11 @@ export default function App() {
         );
       case "worker_verification":
         return isWorkerRole ? (
-          <WorkerVerification profile={profile} onBack={subpageBack} onEditProfile={() => goTo("worker_setup")} />
+          <WorkerVerification
+            profile={profile}
+            onBack={subpageBack}
+            onEditProfile={() => goTo("worker_setup")}
+          />
         ) : (
           renderRoleRoot()
         );
@@ -1012,82 +1193,101 @@ export default function App() {
     "payment_return",
   ] as NavPage[];
   const showBottomNav =
-      isUserRole && !conversationOpen && !nestedScreen && !hide.includes(navPage),
+      isUserRole &&
+      !conversationOpen &&
+      !nestedScreen &&
+      !hide.includes(navPage),
     supportRole = ["user", "worker", "property_partner"].includes(
       profile?.role || "",
     );
   return (
     <CreatorAuthProvider>
-      <AdminAuthProvider>
-        <Suspense fallback={<PageTransitionFallback />}>
-          <PrivateCallCenter />
-          <DesktopLayout
-            navItems={desktopNavItems}
-            activePage={navPage === "notifications" ? "conversation" : navPage}
-            onNavigate={goTo}
-            userName={profile?.full_name || profile?.username || undefined}
-            userRole={profile?.role || undefined}
-            userAvatar={profile?.avatar_url || undefined}
-            onLogout={auth.logout}
+      <Suspense fallback={<PageTransitionFallback />}>
+        <PrivateCallCenter />
+        {profile && <NewLoginAlert profile={profile} />}
+        <DesktopLayout
+          navItems={desktopNavItems}
+          activePage={navPage === "notifications" ? "conversation" : navPage}
+          onNavigate={goTo}
+          userName={profile?.full_name || profile?.username || undefined}
+          userRole={profile?.role || undefined}
+          userAvatar={profile?.avatar_url || undefined}
+          onLogout={auth.logout}
+        >
+          <div
+            ref={pageScrollRef}
+            className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
           >
-            <div ref={pageScrollRef} className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content">
-              {renderPage()}
-            </div>
-          </DesktopLayout>
-          {isCreator && <CreatorAuthModal />}
-          {(isAdminRole || isStaffRole) && <AdminAuthModal />}
-          {supportRole && profile && (
-            <SupportChat
-              onOpenListing={goToDetail}
-              onOpenBooking={isUserRole ? (id) => {
-                setBookingContextId(null);
-                goTo("my_reservations");
-                window.setTimeout(() => setBookingContextId(id), 0);
-              } : undefined}
-              profile={{
-                user_id: profile.user_id,
-                username: profile.username,
-                email: profile.email,
-                role: profile.role,
-              }}
-            />
-          )}
-          <div className="lg:hidden">
-            {showBottomNav && (
-              <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
-                <div className="mx-auto flex max-w-lg items-center justify-around py-1">
-                  {tabs.map((tab) => {
-                    const active = navPage === tab.id || (navPage === "notifications" && tab.id === "conversation");
-                    return (
-                      <button
-                        key={tab.id}
-                        aria-label={tab.label}
-                        onClick={() => tab.id === "conversation" && unreadCount === 0 && notificationCount > 0 ? goTo("notifications") : goTo(tab.id)}
-                        className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
-                      >
-                        <tab.icon size={22} active={active} />
-                        {
-                          <span className="text-[9px] font-medium">
-                            {tab.label}
-                          </span>
-                        }
-                        {active && (
-                          <span className="h-1 w-1 rounded-full bg-violet-400" />
-                        )}
-                        {tab.id === "conversation" && unreadCount + notificationCount > 0 && (
-                          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
-                            {unreadCount + notificationCount > 9 ? "9+" : unreadCount + notificationCount}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </nav>
-            )}
+            {renderPage()}
           </div>
-        </Suspense>
-      </AdminAuthProvider>
+        </DesktopLayout>
+        {isCreator && <CreatorAuthModal />}
+        {supportRole && profile && (
+          <SupportChat
+            onOpenListing={goToDetail}
+            onOpenBooking={
+              isUserRole
+                ? (id) => {
+                    setBookingContextId(null);
+                    goTo("my_reservations");
+                    window.setTimeout(() => setBookingContextId(id), 0);
+                  }
+                : undefined
+            }
+            profile={{
+              user_id: profile.user_id,
+              username: profile.username,
+              email: profile.email,
+              role: profile.role,
+            }}
+          />
+        )}
+        <div className="lg:hidden">
+          {showBottomNav && (
+            <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
+              <div className="mx-auto flex max-w-lg items-center justify-around py-1">
+                {tabs.map((tab) => {
+                  const active =
+                    navPage === tab.id ||
+                    (navPage === "notifications" && tab.id === "conversation");
+                  return (
+                    <button
+                      key={tab.id}
+                      aria-label={tab.label}
+                      onClick={() =>
+                        tab.id === "conversation" &&
+                        unreadCount === 0 &&
+                        notificationCount > 0
+                          ? goTo("notifications")
+                          : goTo(tab.id)
+                      }
+                      className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
+                    >
+                      <tab.icon size={22} active={active} />
+                      {
+                        <span className="text-[9px] font-medium">
+                          {tab.label}
+                        </span>
+                      }
+                      {active && (
+                        <span className="h-1 w-1 rounded-full bg-violet-400" />
+                      )}
+                      {tab.id === "conversation" &&
+                        unreadCount + notificationCount > 0 && (
+                          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
+                            {unreadCount + notificationCount > 9
+                              ? "9+"
+                              : unreadCount + notificationCount}
+                          </span>
+                        )}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
+        </div>
+      </Suspense>
     </CreatorAuthProvider>
   );
 }

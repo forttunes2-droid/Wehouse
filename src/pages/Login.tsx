@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   supabase,
   signUpWithEmail,
-  signInWithEmail,
+  signInWithIdentifier,
   signInWithGoogle,
   getProfileByAuthId,
   deactivateUserSession,
@@ -29,6 +29,7 @@ type Mode =
   | "recover";
 type PendingMethod = "authenticated" | "email" | null;
 type VerificationContext = "signup" | "password_recovery" | "new_device";
+const GOOGLE_RECOVERY_RETRY_KEY = "wh_google_recovery_callback_retry";
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: PublicRole) => void;
   serverError: string;
@@ -51,10 +52,31 @@ function googleRecoveryRequested() {
 function googleVerificationContext(): VerificationContext | null {
   return readGoogleVerification()?.context || googleVerificationReturnContext();
 }
+function oauthCallbackCode() {
+  try {
+    return new URLSearchParams(window.location.search).get("code") || "";
+  } catch {
+    return "";
+  }
+}
+function clearOauthCallbackCode() {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("code");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  } catch {}
+}
 function cancelledGoogleMessage(context: VerificationContext | null) {
-  if (context === "signup") return "Email confirmation was cancelled. Try again when you’re ready.";
-  if (context === "password_recovery") return "Confirmation was cancelled. Your password was not changed.";
-  if (context === "new_device") return "Confirmation was cancelled. This login was not completed.";
+  if (context === "signup")
+    return "Email confirmation was cancelled. Try again when you’re ready.";
+  if (context === "password_recovery")
+    return "Confirmation was cancelled. Your password was not changed.";
+  if (context === "new_device")
+    return "Confirmation was cancelled. This login was not completed.";
   return "Google confirmation was cancelled.";
 }
 function friendlyError(raw: string) {
@@ -111,14 +133,22 @@ export default function Login({
 }: LoginProps) {
   const [storedVerification] = useState(() => readGoogleVerification());
   const [mode, setMode] = useState<Mode>(() =>
-      storedVerification?.context === "password_recovery" ? "recover"
-        : storedVerification?.context === "signup" ? "verify_email"
-          : storedVerification?.context === "new_device" ? "confirm_device"
-            : legacyRecoveryRequested() ? "forgot" : "choose",
+      storedVerification?.context === "password_recovery"
+        ? "recover"
+        : storedVerification?.context === "signup"
+          ? "verify_email"
+          : storedVerification?.context === "new_device"
+            ? "confirm_device"
+            : legacyRecoveryRequested()
+              ? "forgot"
+              : "choose",
     ),
     [signupRole, setSignupRole] = useState<PublicRole>("user"),
     [pendingMethod, setPendingMethod] = useState<PendingMethod>(null),
     [email, setEmail] = useState(storedVerification?.email || ""),
+    [loginIdentifier, setLoginIdentifier] = useState(
+      storedVerification?.identifier || storedVerification?.email || "",
+    ),
     [password, setPassword] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
     [showPassword, setShowPassword] = useState(false),
@@ -126,25 +156,33 @@ export default function Login({
     [error, setError] = useState(""),
     [info, setInfo] = useState(""),
     [recoveryReady, setRecoveryReady] = useState(false);
-  const [googleMismatchEmail,setGoogleMismatchEmail]=useState('');
-  const [deviceDetails,setDeviceDetails]=useState<DeviceRegistration|null>(() => {
-    if (!storedVerification || storedVerification.context !== 'new_device' || !storedVerification.pendingDeviceSessionId) return null;
-    return {
-      sessionId: storedVerification.pendingDeviceSessionId,
-      newDevice: true,
-      trustStatus: 'pending',
-      device: storedVerification.device || 'Unknown device',
-      os: storedVerification.os || 'Unknown system',
-      browser: storedVerification.browser || 'Unknown browser',
-      location: storedVerification.location || 'Location unavailable',
-    };
-  });
+  const [googleMismatchEmail, setGoogleMismatchEmail] = useState("");
+  const [deviceDetails, setDeviceDetails] = useState<DeviceRegistration | null>(
+    () => {
+      if (
+        !storedVerification ||
+        storedVerification.context !== "new_device" ||
+        !storedVerification.pendingDeviceSessionId
+      )
+        return null;
+      return {
+        sessionId: storedVerification.pendingDeviceSessionId,
+        newDevice: true,
+        trustStatus: "pending",
+        device: storedVerification.device || "Unknown device",
+        os: storedVerification.os || "Unknown system",
+        browser: storedVerification.browser || "Unknown browser",
+        location: storedVerification.location || "Location unavailable",
+      };
+    },
+  );
   const authenticatedIdentityRef = useRef<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const oauthError = params.get("error_description") || hash.get("error_description");
+    const oauthError =
+      params.get("error_description") || hash.get("error_description");
     if (!oauthError) return;
     const context = googleVerificationContext();
     setWorking(false);
@@ -156,52 +194,145 @@ export default function Login({
     window.history.replaceState({}, "", window.location.pathname);
   }, [pendingDevice]);
 
-  useEffect(()=>{
-    if(!pendingDevice)return;
-    setDeviceDetails(pendingDevice);setInfo('');setError('');setMode('confirm_device');
-    void supabase.auth.getUser().then(({data})=>{
-      const accountEmail=(data.user?.email||email).trim().toLowerCase();
-      if(data.user?.email)setEmail(data.user.email);
-      if(accountEmail)saveGoogleVerification({context:'new_device',email:accountEmail,pendingDeviceSessionId:pendingDevice.sessionId||undefined,device:pendingDevice.device,os:pendingDevice.os,browser:pendingDevice.browser,location:pendingDevice.location});
+  useEffect(() => {
+    if (!pendingDevice) return;
+    setDeviceDetails(pendingDevice);
+    setInfo("");
+    setError("");
+    setMode("confirm_device");
+    void supabase.auth.getUser().then(({ data }) => {
+      const accountEmail = (data.user?.email || email).trim().toLowerCase();
+      if (data.user?.email) setEmail(data.user.email);
+      if (accountEmail)
+        saveGoogleVerification({
+          context: "new_device",
+          email: accountEmail,
+          pendingDeviceSessionId: pendingDevice.sessionId || undefined,
+          device: pendingDevice.device,
+          os: pendingDevice.os,
+          browser: pendingDevice.browser,
+          location: pendingDevice.location,
+        });
     });
-  },[pendingDevice]);
+  }, [pendingDevice]);
 
   useEffect(() => {
     if (mode !== "recover") return;
     let alive = true;
     async function check() {
       setRecoveryReady(false);
-      const expectedEmail = readGoogleVerification()?.email || "";
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (!alive || sessionError || !data.session?.user) return;
+      const transaction = readGoogleVerification();
+      const expectedEmail = transaction?.email || "";
+      const expectedIdentifier = transaction?.identifier || expectedEmail;
+      let sessionResult;
+      try {
+        sessionResult = await withTimeout(supabase.auth.getSession(), 12000);
+      } catch {
+        if (!alive) return;
+        setMode("forgot");
+        setError(
+          "Google confirmation took too long. Tap Confirm with Google to try again.",
+        );
+        return;
+      }
+      let { data, error: sessionError } = sessionResult;
+      if (!alive) return;
+      if (sessionError) {
+        setMode("forgot");
+        setError(
+          "Google confirmation could not be completed in this browser. Please confirm the account again.",
+        );
+        return;
+      }
+      if (!data.session?.user) {
+        const callbackCode = oauthCallbackCode();
+        if (callbackCode) {
+          try {
+            const exchanged = await withTimeout(
+              supabase.auth.exchangeCodeForSession(callbackCode),
+              12000,
+            );
+            clearOauthCallbackCode();
+            data = exchanged.data;
+            sessionError = exchanged.error;
+          } catch {
+            clearOauthCallbackCode();
+            setMode("forgot");
+            setError(
+              "Google confirmation expired before it could finish. Confirm the account again.",
+            );
+            return;
+          }
+        }
+        if (sessionError || !data.session?.user) {
+          sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
+          clearOauthCallbackCode();
+          setMode("forgot");
+          setError(
+            "Google returned without a usable confirmation session. Tap Confirm with Google to try again.",
+          );
+          return;
+        }
+      }
+      sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
       const returnedEmail = data.session.user.email?.trim().toLowerCase() || "";
-      if (!expectedEmail || returnedEmail !== expectedEmail) {
+      let identityMatches = Boolean(expectedEmail && returnedEmail === expectedEmail);
+      if (!expectedEmail && expectedIdentifier) {
+        const { profile } = await getProfileByAuthId(data.session.user.id);
+        identityMatches =
+          profile?.username?.trim().toLowerCase() === expectedIdentifier;
+      }
+      if (!expectedIdentifier || !identityMatches) {
         setEmail(expectedEmail);
+        setLoginIdentifier(expectedIdentifier);
         setGoogleMismatchEmail(returnedEmail);
         await supabase.auth.signOut({ scope: "local" }).catch(() => {});
         if (!alive) return;
         setMode("google_mismatch");
         return;
       }
-      const { data: verified, error: verifyError } = await supabase.rpc("verify_google_password_recovery");
+      let verified: unknown = null;
+      let verifyError: { message?: string } | null = null;
+      try {
+        const verification = await withTimeout(
+          Promise.resolve(supabase.rpc("verify_google_password_recovery")),
+          12000,
+        );
+        verified = verification.data;
+        verifyError = verification.error;
+      } catch {
+        setMode("forgot");
+        setError(
+          "WeHouse could not finish the Google confirmation. Please try again.",
+        );
+        return;
+      }
       if (!alive) return;
       if (verifyError || !(verified as { success?: boolean } | null)?.success) {
         clearGoogleVerification();
         await supabase.auth.signOut({ scope: "local" });
         if (!alive) return;
         setMode("forgot");
-        setError("That Google account is not connected to an existing WeHouse account.");
+        setError(
+          "That Google account is not connected to an existing WeHouse account.",
+        );
         return;
       }
-      setEmail(expectedEmail);
+      setEmail(returnedEmail);
+      setLoginIdentifier(expectedIdentifier || returnedEmail);
       setRecoveryReady(true);
     }
     void check();
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!alive) return;
-        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user)
-          window.setTimeout(() => { if (alive) void check(); }, 0);
+        if (
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+          session?.user
+        )
+          window.setTimeout(() => {
+            if (alive) void check();
+          }, 0);
       },
     );
     return () => {
@@ -218,36 +349,54 @@ export default function Login({
       if (!active) return;
       window.history.replaceState({}, "", window.location.pathname);
       setMode("forgot");
-      setInfo("Password recovery now uses your matching Google account instead of an emailed code or link.");
+      setInfo(
+        "Password recovery now uses your matching Google account instead of an emailed code or link.",
+      );
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Only unaffiliated authenticated identities need role selection here. Existing
   // WeHouse profiles are routed by useAuth, not by this screen.
   useEffect(() => {
-    if (mode === "recover" || legacyRecoveryRequested() || googleRecoveryRequested()) return;
+    if (
+      mode === "recover" ||
+      legacyRecoveryRequested() ||
+      googleRecoveryRequested()
+    )
+      return;
     let cancelled = false;
     void (async () => {
       const { data } = await supabase.auth.getUser();
       const user = data.user;
       if (cancelled || !user) return;
-      if(user.email&&!user.email_confirmed_at){setEmail(user.email);setMode('verify_email');return;}
-      const verification=readGoogleVerification();
-      const expectedGoogleEmail=verification?.email;
-      const pendingGoogleRole=verification?.role as PublicRole|null;
-      if(expectedGoogleEmail&&user.email?.toLowerCase()!==expectedGoogleEmail){
-        setEmail(expectedGoogleEmail);setGoogleMismatchEmail(user.email||'');
-        await supabase.auth.signOut({scope:'local'}).catch(()=>{});
-        if(cancelled)return;
-        setMode('google_mismatch');
+      if (user.email && !user.email_confirmed_at) {
+        setEmail(user.email);
+        setMode("verify_email");
+        return;
+      }
+      const verification = readGoogleVerification();
+      const expectedGoogleEmail = verification?.email;
+      const pendingGoogleRole = verification?.role as PublicRole | null;
+      if (
+        expectedGoogleEmail &&
+        user.email?.toLowerCase() !== expectedGoogleEmail
+      ) {
+        setEmail(expectedGoogleEmail);
+        setGoogleMismatchEmail(user.email || "");
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        if (cancelled) return;
+        setMode("google_mismatch");
         return;
       }
       if (authenticatedIdentityRef.current === user.id) return;
       const { profile } = await getProfileByAuthId(user.id);
       if (cancelled || profile) return;
       authenticatedIdentityRef.current = user.id;
-      const metadataRole = (user.user_metadata?.signup_role||pendingGoogleRole) as PublicRole|undefined;
+      const metadataRole = (user.user_metadata?.signup_role ||
+        pendingGoogleRole) as PublicRole | undefined;
       if (
         metadataRole &&
         ["user", "worker", "property_partner"].includes(metadataRole)
@@ -272,43 +421,54 @@ export default function Login({
   async function handleEmail(e: React.FormEvent, isSignup: boolean) {
     e.preventDefault();
     clearMessages();
-    const clean = email.trim();
-    if (!clean.includes("@")) return setError("Enter a valid email address");
+    const clean = (isSignup ? email : loginIdentifier).trim().toLowerCase();
+    if (isSignup && !clean.includes("@"))
+      return setError("Enter a valid email address");
+    if (!isSignup && !clean)
+      return setError("Enter your username or email address");
     if (password.length < 8)
       return setError("Password must be at least 8 characters");
     setWorking(true);
     try {
       if (isSignup) {
-        saveGoogleVerification({context:'signup',email:clean,role:signupRole});
-        sessionStorage.setItem('wh_login_method','signup');
+        saveGoogleVerification({
+          context: "signup",
+          email: clean,
+          role: signupRole,
+        });
+        sessionStorage.setItem("wh_login_method", "signup");
         const { data, error: err } = await withTimeout(
           signUpWithEmail(clean, password, signupRole),
           15000,
         );
         if (err) {
-          if(err.message.toLowerCase().includes('email not confirmed'))setMode('verify_email');
-          else{
+          if (err.message.toLowerCase().includes("email not confirmed"))
+            setMode("verify_email");
+          else {
             clearGoogleVerification();
-            sessionStorage.removeItem('wh_login_method');
+            sessionStorage.removeItem("wh_login_method");
           }
           return setError(friendlyError(err.message));
         }
         if (data.session?.user) {
-          setMode('verify_email');
+          setMode("verify_email");
           return;
         }
         if (data.user) {
-          setMode('verify_email');
+          setMode("verify_email");
           return;
         }
         setError("Signup incomplete. Please try again.");
       } else {
-        sessionStorage.setItem('wh_login_method','password');
+        sessionStorage.setItem("wh_login_method", "password");
         const { data, error: err } = await withTimeout(
-          signInWithEmail(clean, password),
+          signInWithIdentifier(clean, password),
           15000,
         );
-        if (err){sessionStorage.removeItem('wh_login_method');return setError(friendlyError(err.message));}
+        if (err) {
+          sessionStorage.removeItem("wh_login_method");
+          return setError(friendlyError(err.message));
+        }
         if (!data.session?.user)
           return setError("Login failed. Please try again.");
         setInfo("Signing you in…");
@@ -322,70 +482,110 @@ export default function Login({
   async function handleGoogle() {
     clearMessages();
     let verificationContext: VerificationContext | undefined;
-    if(mode==='verify_email'||mode==='confirm_device'){
-      verificationContext=mode==='confirm_device'?'new_device':'signup';
+    if (mode === "verify_email" || mode === "confirm_device") {
+      verificationContext = mode === "confirm_device" ? "new_device" : "signup";
       saveGoogleVerification({
         context: verificationContext,
         email,
-        role: verificationContext==='signup'?signupRole:undefined,
-        pendingDeviceSessionId: verificationContext==='new_device'?(deviceDetails?.sessionId||undefined):undefined,
+        role: verificationContext === "signup" ? signupRole : undefined,
+        pendingDeviceSessionId:
+          verificationContext === "new_device"
+            ? deviceDetails?.sessionId || undefined
+            : undefined,
         device: deviceDetails?.device,
         os: deviceDetails?.os,
         browser: deviceDetails?.browser,
         location: deviceDetails?.location,
       });
-    }else{
+    } else {
       clearGoogleVerification();
-      sessionStorage.removeItem('wh_login_method');
+      sessionStorage.removeItem("wh_login_method");
     }
     setWorking(true);
-    const verificationEmail = mode === 'verify_email' || mode === 'confirm_device'
-      ? email.trim().toLowerCase()
-      : undefined;
-    const { error: err } = await signInWithGoogle(verificationEmail, verificationContext);
+    const verificationEmail =
+      mode === "verify_email" || mode === "confirm_device"
+        ? email.trim().toLowerCase()
+        : undefined;
+    const { error: err } = await signInWithGoogle(
+      verificationEmail,
+      verificationContext,
+    );
     if (err) {
       setError(friendlyError(err.message));
       setWorking(false);
     }
   }
-  async function chooseOriginalGoogleEmail(){
-    const transaction=readGoogleVerification();
-    const context=transaction?.context||'signup';
-    const role=(transaction?.role as PublicRole|null)||signupRole;
-    setWorking(true);await supabase.auth.signOut({scope:'local'});setWorking(false);
-    setMode(context==='new_device'?'confirm_device':context==='password_recovery'?'forgot':'verify_email');setGoogleMismatchEmail('');clearMessages();
-    saveGoogleVerification({...transaction,context,email,role:context==='password_recovery'?undefined:role});
-    setWorking(true);const{error:googleError}=await signInWithGoogle(email.trim().toLowerCase(),context);
-    if(googleError){setWorking(false);setError(friendlyError(googleError.message));}
-  }
-  async function returnFromGoogleMismatch(){
-    const transaction=readGoogleVerification();
-    const context=transaction?.context||googleVerificationContext();
+  async function chooseOriginalGoogleEmail() {
+    const transaction = readGoogleVerification();
+    const context = transaction?.context || "signup";
+    const role = (transaction?.role as PublicRole | null) || signupRole;
     setWorking(true);
-    await supabase.auth.signOut({scope:'local'}).catch(()=>{});
-    setWorking(false);setGoogleMismatchEmail('');setPassword('');clearMessages();
-    if(context==='new_device'){
-      if(deviceDetails?.sessionId)await deactivateUserSession(deviceDetails.sessionId).catch(()=>{});
+    await supabase.auth.signOut({ scope: "local" });
+    setWorking(false);
+    setMode(
+      context === "new_device"
+        ? "confirm_device"
+        : context === "password_recovery"
+          ? "forgot"
+          : "verify_email",
+    );
+    setGoogleMismatchEmail("");
+    clearMessages();
+    saveGoogleVerification({
+      ...transaction,
+      context,
+      email,
+      role: context === "password_recovery" ? undefined : role,
+    });
+    setWorking(true);
+    const { error: googleError } = await signInWithGoogle(
+      email.trim().toLowerCase() || undefined,
+      context,
+    );
+    if (googleError) {
+      setWorking(false);
+      setError(friendlyError(googleError.message));
+    }
+  }
+  async function returnFromGoogleMismatch() {
+    const transaction = readGoogleVerification();
+    const context = transaction?.context || googleVerificationContext();
+    setWorking(true);
+    await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    setWorking(false);
+    setGoogleMismatchEmail("");
+    setPassword("");
+    clearMessages();
+    if (context === "new_device") {
+      if (deviceDetails?.sessionId)
+        await deactivateUserSession(deviceDetails.sessionId).catch(() => {});
       clearGoogleVerification();
       setDeviceDetails(null);
-      setMode('signin');
-      setInfo('That device login was cancelled. Sign in again when you are ready.');
+      setMode("signin");
+      setInfo(
+        "That device login was cancelled. Sign in again when you are ready.",
+      );
       return;
     }
-    if(transaction){
+    if (transaction) {
       saveGoogleVerification(transaction);
       setEmail(transaction.email);
-      if(transaction.role)setSignupRole(transaction.role);
+      setLoginIdentifier(transaction.identifier || transaction.email);
+      if (transaction.role) setSignupRole(transaction.role);
     }
-    setMode(context==='password_recovery'?'forgot':'verify_email');
+    setMode(context === "password_recovery" ? "forgot" : "verify_email");
   }
-  async function cancelDeviceConfirmation(){
+  async function cancelDeviceConfirmation() {
     setWorking(true);
-    if(deviceDetails?.sessionId)await deactivateUserSession(deviceDetails.sessionId).catch(()=>{});
-    await supabase.auth.signOut({scope:'local'});
+    if (deviceDetails?.sessionId)
+      await deactivateUserSession(deviceDetails.sessionId).catch(() => {});
+    await supabase.auth.signOut({ scope: "local" });
     clearGoogleVerification();
-    sessionStorage.removeItem('wh_login_method');
-    setWorking(false);setMode('choose');setPassword('');clearMessages();
+    sessionStorage.removeItem("wh_login_method");
+    setWorking(false);
+    setMode("choose");
+    setPassword("");
+    clearMessages();
   }
   async function chooseRole(role: PublicRole) {
     setSignupRole(role);
@@ -414,20 +614,33 @@ export default function Login({
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
     clearMessages();
-    if (!email.trim().includes("@"))
-      return setError("Enter a valid email address");
+    const clean = loginIdentifier.trim().toLowerCase();
+    const isEmail = clean.includes("@");
+    if (!clean || (!isEmail && !/^[a-z0-9_]{3,20}$/.test(clean)))
+      return setError("Enter your WeHouse username or email address");
     setWorking(true);
     try {
-      saveGoogleVerification({context:"password_recovery",email});
+      saveGoogleVerification({
+        context: "password_recovery",
+        email: isEmail ? clean : "",
+        identifier: clean,
+      });
       sessionStorage.removeItem("wh_login_method");
-      const { error: err } = await signInWithGoogle(email.trim().toLowerCase(),"password_recovery");
+      const { error: err } = await signInWithGoogle(
+        isEmail ? clean : undefined,
+        "password_recovery",
+      );
       if (err) {
         clearGoogleVerification();
         setError(friendlyError(err.message));
       }
     } catch (recoveryError: unknown) {
       clearGoogleVerification();
-      setError(friendlyError(errorMessage(recoveryError, "Google verification could not start")));
+      setError(
+        friendlyError(
+          errorMessage(recoveryError, "Google verification could not start"),
+        ),
+      );
     } finally {
       setWorking(false);
     }
@@ -448,19 +661,37 @@ export default function Login({
         return setError(
           "Google verification is not ready. Start password recovery again.",
         );
-      const expectedEmail = readGoogleVerification()?.email || "";
-      if (!expectedEmail || session.user.email?.trim().toLowerCase() !== expectedEmail)
-        return setError("The Google account must match the WeHouse account email exactly.");
-      const { data: verified, error: verifyError } = await supabase.rpc("verify_google_password_recovery");
+      const transaction = readGoogleVerification();
+      const expectedEmail = transaction?.email || "";
+      const expectedIdentifier = transaction?.identifier || expectedEmail;
+      let identityMatches = Boolean(
+        expectedEmail && session.user.email?.trim().toLowerCase() === expectedEmail,
+      );
+      if (!expectedEmail && expectedIdentifier) {
+        const { profile } = await getProfileByAuthId(session.user.id);
+        identityMatches =
+          profile?.username?.trim().toLowerCase() === expectedIdentifier;
+      }
+      if (!expectedIdentifier || !identityMatches)
+        return setError(
+          "The selected Google account does not belong to that WeHouse username or email.",
+        );
+      const { data: verified, error: verifyError } = await supabase.rpc(
+        "verify_google_password_recovery",
+      );
       if (verifyError || !(verified as { success?: boolean } | null)?.success)
-        return setError("Google could not verify this WeHouse account. Start recovery again.");
+        return setError(
+          "Google could not verify this WeHouse account. Start recovery again.",
+        );
       const { error: err } = await supabase.auth.updateUser({ password });
       if (err) return setError(friendlyError(err.message));
       clearGoogleVerification();
+      sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
       await supabase.auth.signOut({ scope: "local" });
       window.history.replaceState({}, "", window.location.pathname);
       setPassword("");
       setConfirmPassword("");
+      setLoginIdentifier(expectedIdentifier);
       setRecoveryReady(false);
       setMode("signin");
       setInfo("Password changed. Sign in with your new password.");
@@ -473,6 +704,7 @@ export default function Login({
   async function cancelRecovery() {
     await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     clearGoogleVerification();
+    sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
     window.history.replaceState({}, "", window.location.pathname);
     setPassword("");
     setConfirmPassword("");
@@ -491,7 +723,15 @@ export default function Login({
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent px-5 text-white">
       <div className="w-full max-w-[380px]">
-        <Brand compact={['verify_email','confirm_device','forgot','recover','google_mismatch'].includes(mode)} />
+        <Brand
+          compact={[
+            "verify_email",
+            "confirm_device",
+            "forgot",
+            "recover",
+            "google_mismatch",
+          ].includes(mode)}
+        />
         {kickedOut && (
           <Notice tone="warning" title="This device was signed out">
             This device's WeHouse session is no longer active. Sign in again to
@@ -506,7 +746,9 @@ export default function Login({
             <div className="mb-5">
               <p className="text-lg font-semibold">Create a new password</p>
               <p className="mt-1 text-xs leading-relaxed text-[#73788A]">
-                Confirmed as <span className="font-semibold text-white">{email}</span>. Choose a new password.
+                Confirmed as{" "}
+                <span className="font-semibold text-white">{loginIdentifier || email}</span>.
+                Choose a new password.
               </p>
             </div>
             {!recoveryReady && (
@@ -619,23 +861,158 @@ export default function Login({
           </div>
         )}
 
-        {mode === 'verify_email'&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">VERIFY EMAIL OWNERSHIP</p><h2 className="mt-2 text-xl font-semibold">Confirm you own this email</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span>. A different address will be rejected.</p><p className="mt-3 text-[10px] leading-4 text-[#666C7D]">This verifies the email; it does not replace your email-and-password sign-in.</p></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening verification…':'Verify with Google'}</button><button type="button" onClick={()=>{clearGoogleVerification();setMode('signup');setPassword('');clearMessages()}} disabled={working} className="w-full text-center text-xs text-[#73798A]">Change email</button></div>}
+        {mode === "verify_email" && (
+          <div className="space-y-4">
+            <section className="border-y border-white/[.08] py-5">
+              <div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300">
+                <ShieldCheckIcon />
+              </div>
+              <p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
+                VERIFY EMAIL OWNERSHIP
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">
+                Confirm you own this email
+              </h2>
+              <p className="mt-2 text-xs leading-5 text-[#858B9A]">
+                Continue with the Google account for{" "}
+                <span className="font-semibold text-white">{email.trim()}</span>
+                . A different address will be rejected.
+              </p>
+              <p className="mt-3 text-[10px] leading-4 text-[#666C7D]">
+                This verifies the email; it does not replace your
+                email-and-password sign-in.
+              </p>
+            </section>
+            <button
+              type="button"
+              onClick={() => void handleGoogle()}
+              disabled={working}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
+            >
+              <GoogleIcon />
+              {working ? "Opening verification…" : "Verify with Google"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                clearGoogleVerification();
+                setMode("signup");
+                setPassword("");
+                clearMessages();
+              }}
+              disabled={working}
+              className="w-full text-center text-xs text-[#73798A]"
+            >
+              Change email
+            </button>
+          </div>
+        )}
 
-        {mode==='confirm_device'&&deviceDetails&&<div className="space-y-4"><section className="border-y border-white/[.08] py-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon/></div><span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span></div><h2 className="mt-5 text-xl font-bold">Verify this device login</h2><p className="mt-2 text-xs leading-5 text-[#858B9A]">Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span>. This confirms this device only.</p><div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]"><div className="py-3"><SecurityDetail label="Device" value={deviceDetails.device}/></div><div className="py-3"><SecurityDetail label="System" value={`${deviceDetails.os} · ${deviceDetails.browser}`}/></div><div className="py-3"><SecurityDetail label="Near" value={deviceDetails.location}/></div></div></section><button type="button" onClick={()=>void handleGoogle()} disabled={working} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"><GoogleIcon/>{working?'Opening verification…':'Verify with Google'}</button><button type="button" onClick={()=>void cancelDeviceConfirmation()} disabled={working} className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50">Cancel this login</button></div>}
+        {mode === "confirm_device" && deviceDetails && (
+          <div className="space-y-4">
+            <section className="border-y border-white/[.08] py-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300">
+                  <ShieldCheckIcon />
+                </div>
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">
+                  NEW DEVICE
+                </span>
+              </div>
+              <h2 className="mt-5 text-xl font-bold">
+                Verify this device login
+              </h2>
+              <p className="mt-2 text-xs leading-5 text-[#858B9A]">
+                Continue with the Google account for{" "}
+                <span className="font-semibold text-white">{email.trim()}</span>
+                . This confirms this device only.
+              </p>
+              <div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]">
+                <div className="py-3">
+                  <SecurityDetail label="Device" value={deviceDetails.device} />
+                </div>
+                <div className="py-3">
+                  <SecurityDetail
+                    label="System"
+                    value={`${deviceDetails.os} · ${deviceDetails.browser}`}
+                  />
+                </div>
+                <div className="py-3">
+                  <SecurityDetail label="Near" value={deviceDetails.location} />
+                </div>
+              </div>
+            </section>
+            <button
+              type="button"
+              onClick={() => void handleGoogle()}
+              disabled={working}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
+            >
+              <GoogleIcon />
+              {working ? "Opening verification…" : "Verify with Google"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void cancelDeviceConfirmation()}
+              disabled={working}
+              className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50"
+            >
+              Cancel this login
+            </button>
+          </div>
+        )}
 
-        {mode==='google_mismatch'&&<div className="space-y-4"><div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-sm font-semibold text-amber-200">That email does not match</p><p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">This step can verify only <strong className="text-white">{email}</strong>. <strong className="text-white">{googleMismatchEmail||'The selected Google account'}</strong> was not accepted and no account details were changed.</p></div><button type="button" onClick={()=>void chooseOriginalGoogleEmail()} disabled={working} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50">Try {email} again</button><button type="button" onClick={()=>void returnFromGoogleMismatch()} disabled={working} className="w-full text-center text-xs text-[#73798A]">Cancel verification</button></div>}
+        {mode === "google_mismatch" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
+              <p className="text-sm font-semibold text-amber-200">
+                That email does not match
+              </p>
+              <p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">
+                This step can verify only{" "}
+                <strong className="text-white">{loginIdentifier || email}</strong>.{" "}
+                <strong className="text-white">
+                  {googleMismatchEmail || "The selected Google account"}
+                </strong>{" "}
+                was not accepted and no account details were changed.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void chooseOriginalGoogleEmail()}
+              disabled={working}
+              className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
+            >
+              Choose the matching Google account
+            </button>
+            <button
+              type="button"
+              onClick={() => void returnFromGoogleMismatch()}
+              disabled={working}
+              className="w-full text-center text-xs text-[#73798A]"
+            >
+              Cancel verification
+            </button>
+          </div>
+        )}
 
         {(mode === "signin" || mode === "signup") && (
           <form
             onSubmit={(e) => handleEmail(e, mode === "signup")}
             className="space-y-4"
           >
-            <Field label="Email">
+            <Field label={mode === "signup" ? "Email" : "Username or email"}>
               <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                type={mode === "signup" ? "email" : "text"}
+                value={mode === "signup" ? email : loginIdentifier}
+                onChange={(e) =>
+                  mode === "signup"
+                    ? setEmail(e.target.value)
+                    : setLoginIdentifier(e.target.value)
+                }
+                placeholder={mode === "signup" ? "you@example.com" : "Username or email"}
+                autoCapitalize="none"
+                autoCorrect="off"
                 required
                 className="h-12 rounded-xl border-white/[.08] bg-[#171A23] text-white"
               />
@@ -651,8 +1028,8 @@ export default function Login({
               type="submit"
               disabled={
                 working ||
-                !email.trim() ||
-                !email.includes("@") ||
+                !(mode === "signup" ? email : loginIdentifier).trim() ||
+                (mode === "signup" && !email.includes("@")) ||
                 password.length < 8
               }
               className={`h-12 w-full rounded-xl text-sm font-semibold disabled:opacity-50 ${mode === "signup" ? "bg-violet-500" : "border border-white/[.08] bg-[#171A23]"}`}
@@ -690,25 +1067,31 @@ export default function Login({
             <div className="mb-5">
               <p className="text-lg font-semibold">Create a new password</p>
               <p className="mt-1 text-xs text-[#73788A]">
-                Enter your WeHouse email, then confirm the same address with Google.
+                Enter your username or email. Google will confirm that the
+                account belongs to you before a password can be changed.
               </p>
             </div>
-            <Field label="Email">
+            <Field label="Username or email">
               <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                type="text"
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
+                placeholder="Username or email"
+                autoCapitalize="none"
+                autoCorrect="off"
                 required
                 className="h-12 rounded-xl border-white/[.08] bg-[#171A23] text-white"
               />
             </Field>
             <button
               type="submit"
-              disabled={working || !email.trim() || !email.includes("@")}
+              disabled={working || !loginIdentifier.trim()}
               className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-[#0A0A0F] disabled:opacity-50"
             >
-              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Confirm with Google"}</span>
+              <span className="inline-flex items-center justify-center gap-2">
+                <GoogleIcon />
+                {working ? "Opening Google…" : "Confirm with Google"}
+              </span>
             </button>
             <button
               type="button"
@@ -727,13 +1110,13 @@ export default function Login({
   );
 }
 
-function Brand({compact=false}:{compact?:boolean}) {
+function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={compact?'mb-5 text-center':'mb-7 text-center'}>
+    <div className={compact ? "mb-5 text-center" : "mb-7 text-center"}>
       <img
         src="/brand-lockup-dark.svg?v=2"
         alt="WeHouse — Find. Connect. Live better."
-        className={`mx-auto h-auto max-w-full ${compact?'w-40':'w-64'}`}
+        className={`mx-auto h-auto max-w-full ${compact ? "w-40" : "w-64"}`}
       />
     </div>
   );
@@ -845,11 +1228,30 @@ function GoogleIcon() {
     </svg>
   );
 }
-function ShieldCheckIcon(){
-  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>;
+function ShieldCheckIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
 }
-function SecurityDetail({label,value}:{label:string;value:string}){
-  return <div className="flex items-start justify-between gap-5"><span className="text-[9px] text-[#656C7D]">{label}</span><strong className="text-right text-[10px] font-semibold text-[#D7DAE3]">{value}</strong></div>;
+function SecurityDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-5">
+      <span className="text-[9px] text-[#656C7D]">{label}</span>
+      <strong className="text-right text-[10px] font-semibold text-[#D7DAE3]">
+        {value}
+      </strong>
+    </div>
+  );
 }
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;

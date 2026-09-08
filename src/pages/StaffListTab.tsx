@@ -6,7 +6,7 @@ import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
 
-const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance',support:'Human Support',security:'Security Operations',verification:'Worker Operations',field_officer:'Field Operations'};
+const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance',support:'Communications',security:'Security Operations',verification:'Worker Operations',field_officer:'Field Operations'};
 type RoleFilter='all'|'admin'|'staff';
 
 export default function StaffListTab({profile}:{profile:Profile}){

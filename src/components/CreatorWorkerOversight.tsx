@@ -1,39 +1,500 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { reactivateUser, suspendUser } from '@/lib/supabase/admin';
-import { supabase } from '@/lib/supabase';
-import InlineFilterChips from '@/components/InlineFilterChips';
-import { canonicalStatusOptions } from '@/lib/status';
-import { workerOccupation } from '@/lib/workerTaxonomy';
-import MediaViewer from '@/components/MediaViewer';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { reactivateUser, suspendUser } from "@/lib/supabase/admin";
+import { supabase } from "@/lib/supabase";
+import InlineFilterChips from "@/components/InlineFilterChips";
+import { canonicalStatusOptions } from "@/lib/status";
+import { workerOccupation } from "@/lib/workerTaxonomy";
+import MediaViewer from "@/components/MediaViewer";
 
-type Worker={user_id:string;full_name?:string|null;username?:string|null;email?:string|null;worker_occupation?:string|null;worker_status?:string|null;worker_verified?:boolean;available?:boolean;suspended?:boolean;state?:string|null;local_government?:string|null;city?:string|null;rating?:number|null;review_count?:number|null};
-type Checks={payment_confirmed?:boolean;identity_captured?:boolean;identity_passed?:boolean;readiness_passed?:boolean;readiness_percent?:number|null;evidence_saved?:boolean;certificate_path?:string|null;verification_video_url?:string|null;submitted?:boolean;review_status?:string|null};
+type Worker = {
+  user_id: string;
+  full_name?: string | null;
+  username?: string | null;
+  email?: string | null;
+  worker_occupation?: string | null;
+  worker_status?: string | null;
+  worker_verified?: boolean;
+  available?: boolean;
+  suspended?: boolean;
+  state?: string | null;
+  local_government?: string | null;
+  city?: string | null;
+  rating?: number | null;
+  review_count?: number | null;
+};
+type Checks = {
+  payment_confirmed?: boolean;
+  identity_captured?: boolean;
+  identity_passed?: boolean;
+  readiness_passed?: boolean;
+  readiness_percent?: number | null;
+  evidence_saved?: boolean;
+  certificate_path?: string | null;
+  verification_video_url?: string | null;
+  submitted?: boolean;
+  review_status?: string | null;
+};
 
-export default function CreatorWorkerOversight({actorLabel='Creator'}:{actorLabel?:'Creator'|'Admin'}){
- const[rows,setRows]=useState<Worker[]>([]),[selected,setSelected]=useState<Worker|null>(null),[checks,setChecks]=useState<Checks|null>(null),[loading,setLoading]=useState(true),[loadingChecks,setLoadingChecks]=useState(false),[search,setSearch]=useState(''),[filter,setFilter]=useState('all'),[reason,setReason]=useState(''),[acting,setActing]=useState(false);
- const load=useCallback(async()=>{setLoading(true);const{data,error}=await supabase.rpc('admin_get_my_branch_profiles',{p_role:'worker'});if(error)toast.error(error.message);setRows(Array.isArray(data)?data:[]);setLoading(false)},[]);
- useEffect(()=>{void load()},[load]);
- async function open(worker:Worker){setSelected(worker);setReason('');setChecks(null);setLoadingChecks(true);const{data,error}=await supabase.rpc('admin_get_worker_review_trust_status',{p_worker_id:worker.user_id});if(error)toast.error(error.message);else setChecks((data||null) as Checks|null);setLoadingChecks(false)}
- async function changeAccess(){if(!selected)return;setActing(true);const result=selected.suspended?await reactivateUser(selected.user_id):await suspendUser(selected.user_id,reason.trim()||'Worker access paused by Creator oversight');setActing(false);if(result.error)return toast.error(result.error.message);toast.success(selected.suspended?'Worker access restored':'Worker access suspended');setSelected(null);await load()}
- const statusOptions=useMemo(()=>canonicalStatusOptions(rows.map(worker=>worker.suspended?'suspended':worker.worker_status||'pending')),[rows]);
- useEffect(()=>{if(!statusOptions.some(option=>option.value===filter))setFilter('all')},[filter,statusOptions]);
- const shown=useMemo(()=>{const q=search.trim().toLowerCase();return rows.filter(worker=>{const status=worker.suspended?'suspended':worker.worker_status||'pending';if(filter!=='all'&&status!==filter)return false;if(!q)return true;return[worker.full_name,worker.username,worker.email,workerOccupation(worker),worker.worker_occupation,status,worker.state,worker.local_government,worker.city].filter(Boolean).join(' ').toLowerCase().includes(q)})},[rows,search,filter]);
- if(selected)return <div className="space-y-4">
-  <button onClick={()=>setSelected(null)} className="text-[10px] font-semibold text-violet-400">← Worker oversight</button>
-  <section className="rounded-3xl border border-white/[.06] bg-[#10131B] p-5"><div className="flex items-start gap-3"><Avatar worker={selected}/><div className="min-w-0 flex-1"><p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICE WORKER</p><h2 className="mt-1 truncate text-lg font-bold">{selected.full_name||selected.username||'Worker'}</h2><p className="mt-1 truncate text-[10px] text-[#707687]">{workerOccupation(selected)} · {[selected.local_government||selected.city,selected.state].filter(Boolean).join(', ')||'Location not set'}</p></div><Status value={selected.suspended?'suspended':selected.worker_status||'pending'}/></div>
-   {loadingChecks?<Loading/>:<div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"><Check label="Identity" value={checks?.identity_passed?'Current':checks?.identity_captured?'Captured':'Incomplete'} good={!!checks?.identity_passed}/><Check label="Payment" value={checks?.payment_confirmed?'Confirmed':'Incomplete'} good={!!checks?.payment_confirmed}/><Check label="Profile" value={checks?.readiness_passed?`Ready · ${checks.readiness_percent||100}%`:'Incomplete'} good={!!checks?.readiness_passed}/><Check label="Work evidence" value={checks?.evidence_saved?'Submitted':'Missing'} good={!!checks?.evidence_saved}/></div>}
-   <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Info label="Marketplace" value={selected.worker_verified?'Published':'Private'}/><Info label="Discovery" value={selected.available?'Visible':'Hidden by Worker'}/><Info label="Rating" value={Number(selected.rating||0)?Number(selected.rating).toFixed(1):'New'}/><Info label="Reviews" value={Number(selected.review_count||0)}/></div>
-   <section className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 p-4"><h3 className="text-xs font-semibold">Professional evidence</h3><p className="mt-1 text-[9px] leading-5 text-[#737A8B]">Read-only evidence uploaded by this Worker. Worker Operations make the review decision; Creator can inspect what WeHouse received.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><EvidenceLink key={checks?.certificate_path||'no-certificate'} label="Certificate · optional" path={checks?.certificate_path} bucket="worker-certificates"/><EvidenceLink key={checks?.verification_video_url||'no-video'} label="Skill/work video · required" path={checks?.verification_video_url} bucket="worker-verification-videos"/></div></section>
-  </section>
-  <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4"><h3 className="text-sm font-semibold">Creator oversight</h3><p className="mt-1 text-[9px] leading-5 text-[#737A8B]">Worker Operations review identity and professional evidence. {actorLabel} controls platform access and handles exceptions without duplicating their approval queue.</p>{!selected.suspended&&<textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} placeholder="Reason for suspending access" className="mt-3 w-full rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none"/>}<button onClick={()=>void changeAccess()} disabled={acting||(!selected.suspended&&!reason.trim())} className={`mt-3 h-11 w-full rounded-xl text-xs font-semibold disabled:opacity-35 ${selected.suspended?'bg-emerald-500 text-[#04120A]':'bg-red-500/15 text-red-300'}`}>{acting?'Updating access…':selected.suspended?'Restore Worker access':'Suspend Worker access'}</button></section>
- </div>;
- return <div className="space-y-4"><div><h2 className="text-lg font-bold">Worker oversight</h2><p className="mt-1 text-[10px] text-[#707687]">Lifecycle, marketplace access and exceptions. Worker Operations handle professional review.</p></div><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search Worker, occupation, service or location" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none"/><InlineFilterChips value={filter} options={statusOptions} onChange={setFilter} ariaLabel="Show workers by lifecycle"/>{loading?<Loading/>:shown.length===0?<Empty/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]">{shown.map(worker=><button key={worker.user_id} onClick={()=>void open(worker)} className="flex w-full items-center gap-3 py-4 text-left"><Avatar worker={worker}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{worker.full_name||worker.username||'Worker'}</p><p className="mt-1 truncate text-[9px] text-[#686F7F]">{workerOccupation(worker)} · {[worker.local_government||worker.city,worker.state].filter(Boolean).join(', ')||'Location not set'}</p></div><Status value={worker.suspended?'suspended':worker.worker_status||'pending'}/><span className="text-[#555C6D]">›</span></button>)}</div>}</div>
+export default function CreatorWorkerOversight() {
+  const [rows, setRows] = useState<Worker[]>([]),
+    [selected, setSelected] = useState<Worker | null>(null),
+    [checks, setChecks] = useState<Checks | null>(null),
+    [loading, setLoading] = useState(true),
+    [loadingChecks, setLoadingChecks] = useState(false),
+    [search, setSearch] = useState(""),
+    [filter, setFilter] = useState("all"),
+    [reason, setReason] = useState(""),
+    [acting, setActing] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("admin_get_my_branch_profiles", {
+      p_role: "worker",
+    });
+    if (error) toast.error(error.message);
+    setRows(Array.isArray(data) ? data : []);
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  async function open(worker: Worker) {
+    setSelected(worker);
+    setReason("");
+    setChecks(null);
+    setLoadingChecks(true);
+    const { data, error } = await supabase.rpc(
+      "admin_get_worker_review_trust_status",
+      { p_worker_id: worker.user_id },
+    );
+    if (error) toast.error(error.message);
+    else setChecks((data || null) as Checks | null);
+    setLoadingChecks(false);
+  }
+  async function changeAccess() {
+    if (!selected) return;
+    setActing(true);
+    const result = selected.suspended
+      ? await reactivateUser(selected.user_id)
+      : await suspendUser(
+          selected.user_id,
+          reason.trim() || "Worker access paused by Creator oversight",
+        );
+    setActing(false);
+    if (result.error) return toast.error(result.error.message);
+    toast.success(
+      selected.suspended ? "Worker access restored" : "Worker access suspended",
+    );
+    setSelected(null);
+    await load();
+  }
+  async function review(decision: "approve" | "reject") {
+    if (!selected) return;
+    if (decision === "reject" && !reason.trim())
+      return toast.error("Enter a rejection reason");
+    setActing(true);
+    const { error } = await supabase.rpc("admin_review_my_branch_worker", {
+      p_worker_id: selected.user_id,
+      p_decision: decision,
+      p_reason: decision === "reject" ? reason.trim() : null,
+    });
+    setActing(false);
+    if (error) return toast.error(error.message);
+    toast.success(
+      decision === "approve" ? "Worker approved" : "Worker rejected",
+    );
+    setSelected(null);
+    setReason("");
+    await load();
+  }
+  const statusOptions = useMemo(
+    () =>
+      canonicalStatusOptions(
+        rows.map((worker) =>
+          worker.suspended ? "suspended" : worker.worker_status || "pending",
+        ),
+      ),
+    [rows],
+  );
+  useEffect(() => {
+    if (!statusOptions.some((option) => option.value === filter))
+      setFilter("all");
+  }, [filter, statusOptions]);
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((worker) => {
+      const status = worker.suspended
+        ? "suspended"
+        : worker.worker_status || "pending";
+      if (filter !== "all" && status !== filter) return false;
+      if (!q) return true;
+      return [
+        worker.full_name,
+        worker.username,
+        worker.email,
+        workerOccupation(worker),
+        worker.worker_occupation,
+        status,
+        worker.state,
+        worker.local_government,
+        worker.city,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [rows, search, filter]);
+  if (selected)
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => setSelected(null)}
+          className="text-[10px] font-semibold text-violet-400"
+        >
+          ← Worker oversight
+        </button>
+        <section className="rounded-3xl border border-white/[.06] bg-[#10131B] p-5">
+          <div className="flex items-start gap-3">
+            <Avatar worker={selected} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+                WEHOUSE SERVICE WORKER
+              </p>
+              <h2 className="mt-1 truncate text-lg font-bold">
+                {selected.full_name || selected.username || "Worker"}
+              </h2>
+              <p className="mt-1 truncate text-[10px] text-[#707687]">
+                {workerOccupation(selected)} ·{" "}
+                {[selected.local_government || selected.city, selected.state]
+                  .filter(Boolean)
+                  .join(", ") || "Location not set"}
+              </p>
+            </div>
+            <Status
+              value={
+                selected.suspended
+                  ? "suspended"
+                  : selected.worker_status || "pending"
+              }
+            />
+          </div>
+          {loadingChecks ? (
+            <Loading />
+          ) : (
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Check
+                label="Identity"
+                value={
+                  checks?.identity_passed
+                    ? "Current"
+                    : checks?.identity_captured
+                      ? "Captured"
+                      : "Incomplete"
+                }
+                good={!!checks?.identity_passed}
+              />
+              <Check
+                label="Payment"
+                value={checks?.payment_confirmed ? "Confirmed" : "Incomplete"}
+                good={!!checks?.payment_confirmed}
+              />
+              <Check
+                label="Profile"
+                value={
+                  checks?.readiness_passed
+                    ? `Ready · ${checks.readiness_percent || 100}%`
+                    : "Incomplete"
+                }
+                good={!!checks?.readiness_passed}
+              />
+              <Check
+                label="Work evidence"
+                value={checks?.evidence_saved ? "Submitted" : "Missing"}
+                good={!!checks?.evidence_saved}
+              />
+            </div>
+          )}
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Info
+              label="Marketplace"
+              value={selected.worker_verified ? "Published" : "Private"}
+            />
+            <Info
+              label="Discovery"
+              value={selected.available ? "Visible" : "Hidden by Worker"}
+            />
+            <Info
+              label="Rating"
+              value={
+                Number(selected.rating || 0)
+                  ? Number(selected.rating).toFixed(1)
+                  : "New"
+              }
+            />
+            <Info label="Reviews" value={Number(selected.review_count || 0)} />
+          </div>
+          <section className="mt-4 border-y border-white/[.06] py-4">
+            <h3 className="text-xs font-semibold">Professional evidence</h3>
+            <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
+              Review the identity result, readiness and work evidence before
+              making the account decision.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <EvidenceLink
+                key={checks?.certificate_path || "no-certificate"}
+                label="Certificate · optional"
+                path={checks?.certificate_path}
+                bucket="worker-certificates"
+              />
+              <EvidenceLink
+                key={checks?.verification_video_url || "no-video"}
+                label="Skill/work video · required"
+                path={checks?.verification_video_url}
+                bucket="worker-verification-videos"
+              />
+            </div>
+          </section>
+        </section>
+        {selected.worker_status === "profile_under_review" && (
+          <section className="border-y border-white/[.06] py-4">
+            <h3 className="text-sm font-semibold">Account decision</h3>
+            <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
+              Creator and the worker's branch Admin can approve a complete
+              review. The server still blocks approval when identity or evidence
+              is incomplete.
+            </p>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              placeholder="Reason required only when rejecting"
+              className="mt-3 w-full rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none"
+            />
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => void review("reject")}
+                disabled={acting || !reason.trim()}
+                className="h-11 rounded-xl border border-red-500/20 text-xs font-semibold text-red-300 disabled:opacity-35"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => void review("approve")}
+                disabled={acting}
+                className="h-11 rounded-xl bg-emerald-500 text-xs font-semibold text-[#04120A] disabled:opacity-35"
+              >
+                Approve Worker
+              </button>
+            </div>
+          </section>
+        )}
+        <section className="border-y border-white/[.06] py-4">
+          <h3 className="text-sm font-semibold">Platform access</h3>
+          <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
+            Use this only to suspend or restore an existing Worker account.
+          </p>
+          {!selected.suspended && (
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              placeholder="Reason for suspending access"
+              className="mt-3 w-full rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none"
+            />
+          )}
+          <button
+            onClick={() => void changeAccess()}
+            disabled={acting || (!selected.suspended && !reason.trim())}
+            className={`mt-3 h-11 w-full rounded-xl text-xs font-semibold disabled:opacity-35 ${selected.suspended ? "bg-emerald-500 text-[#04120A]" : "bg-red-500/15 text-red-300"}`}
+          >
+            {acting
+              ? "Updating access…"
+              : selected.suspended
+                ? "Restore Worker access"
+                : "Suspend Worker access"}
+          </button>
+        </section>
+      </div>
+    );
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold">Worker oversight</h2>
+        <p className="mt-1 text-[10px] text-[#707687]">
+          Lifecycle, marketplace access and exceptions. Worker Operations handle
+          professional review.
+        </p>
+      </div>
+      <input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search Worker, occupation, service or location"
+        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none"
+      />
+      <InlineFilterChips
+        value={filter}
+        options={statusOptions}
+        onChange={setFilter}
+        ariaLabel="Show workers by lifecycle"
+      />
+      {loading ? (
+        <Loading />
+      ) : shown.length === 0 ? (
+        <Empty />
+      ) : (
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          {shown.map((worker) => (
+            <button
+              key={worker.user_id}
+              onClick={() => void open(worker)}
+              className="flex w-full items-center gap-3 py-4 text-left"
+            >
+              <Avatar worker={worker} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {worker.full_name || worker.username || "Worker"}
+                </p>
+                <p className="mt-1 truncate text-[9px] text-[#686F7F]">
+                  {workerOccupation(worker)} ·{" "}
+                  {[worker.local_government || worker.city, worker.state]
+                    .filter(Boolean)
+                    .join(", ") || "Location not set"}
+                </p>
+              </div>
+              <Status
+                value={
+                  worker.suspended
+                    ? "suspended"
+                    : worker.worker_status || "pending"
+                }
+              />
+              <span className="text-[#555C6D]">›</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
-function Avatar({worker}:{worker:Worker}){return <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/12 text-sm font-bold text-violet-300">{String(worker.full_name||worker.username||'W')[0].toUpperCase()}</div>}
-function Check({label,value,good}:{label:string;value:string;good:boolean}){return <div className={`rounded-xl border p-3 ${good?'border-emerald-500/12 bg-emerald-500/[.035]':'border-white/[.06] bg-black/10'}`}><p className="text-[8px] uppercase text-[#62697A]">{label}</p><p className={`mt-1 text-[10px] font-semibold ${good?'text-emerald-300':'text-[#A0A6B4]'}`}>{value}</p></div>}
-function Info({label,value}:{label:string;value:string|number}){return <div className="rounded-xl border border-white/[.06] bg-black/10 p-3"><p className="text-[8px] uppercase text-[#62697A]">{label}</p><p className="mt-1 text-[10px] font-semibold text-[#A0A6B4]">{value}</p></div>}
-function Status({value}:{value:string}){const good=value==='verified',bad=['rejected','suspended'].includes(value);return <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${good?'bg-emerald-500/10 text-emerald-300':bad?'bg-red-500/10 text-red-300':'bg-amber-500/10 text-amber-300'}`}>{value.replace(/_/g,' ')}</span>}
-function Loading(){return <div className="grid min-h-32 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
-function Empty(){return <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">No Workers match this view.</div>}
-function EvidenceLink({label,path,bucket}:{label:string;path?:string|null;bucket:string}){const directUrl=path?.startsWith('http')?path:'';const[url,setUrl]=useState(directUrl),[open,setOpen]=useState(false);useEffect(()=>{let active=true;if(!path||directUrl)return;if(path.startsWith('http'))return;void supabase.storage.from(bucket).createSignedUrl(path,3600).then(({data,error})=>{if(!active)return;setUrl(data?.signedUrl||'');if(error)toast.error(`Unable to open ${label.toLowerCase()}`)});return()=>{active=false}},[path,bucket,label,directUrl]);const loading=!!path&&!url,kind=bucket==='worker-verification-videos'?'video':'image';return <div className="rounded-xl border border-white/[.06] bg-[#11141C] p-3"><p className="text-[9px] font-semibold">{label}</p>{loading?<p className="mt-2 text-[10px] text-[#777E8E]">Preparing secure link…</p>:url?<button type="button" onClick={()=>setOpen(true)} className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-[10px] font-semibold text-violet-300">View evidence</button>:<p className="mt-2 text-[10px] text-[#606778]">Not supplied</p>}{open&&url?<MediaViewer src={url} kind={kind} title={label} onClose={()=>setOpen(false)}/>:null}</div>}
+function Avatar({ worker }: { worker: Worker }) {
+  return (
+    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/12 text-sm font-bold text-violet-300">
+      {String(worker.full_name || worker.username || "W")[0].toUpperCase()}
+    </div>
+  );
+}
+function Check({
+  label,
+  value,
+  good,
+}: {
+  label: string;
+  value: string;
+  good: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-3 ${good ? "border-emerald-500/12 bg-emerald-500/[.035]" : "border-white/[.06] bg-black/10"}`}
+    >
+      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
+      <p
+        className={`mt-1 text-[10px] font-semibold ${good ? "text-emerald-300" : "text-[#A0A6B4]"}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+function Info({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
+      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
+      <p className="mt-1 text-[10px] font-semibold text-[#A0A6B4]">{value}</p>
+    </div>
+  );
+}
+function Status({ value }: { value: string }) {
+  const good = value === "verified",
+    bad = ["rejected", "suspended"].includes(value);
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${good ? "bg-emerald-500/10 text-emerald-300" : bad ? "bg-red-500/10 text-red-300" : "bg-amber-500/10 text-amber-300"}`}
+    >
+      {value.replace(/_/g, " ")}
+    </span>
+  );
+}
+function Loading() {
+  return (
+    <div className="grid min-h-32 place-items-center">
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+    </div>
+  );
+}
+function Empty() {
+  return (
+    <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">
+      No Workers match this view.
+    </div>
+  );
+}
+function EvidenceLink({
+  label,
+  path,
+  bucket,
+}: {
+  label: string;
+  path?: string | null;
+  bucket: string;
+}) {
+  const directUrl = path?.startsWith("http") ? path : "";
+  const [url, setUrl] = useState(directUrl),
+    [open, setOpen] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!path || directUrl) return;
+    if (path.startsWith("http")) return;
+    void supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, 3600)
+      .then(({ data, error }) => {
+        if (!active) return;
+        setUrl(data?.signedUrl || "");
+        if (error) toast.error(`Unable to open ${label.toLowerCase()}`);
+      });
+    return () => {
+      active = false;
+    };
+  }, [path, bucket, label, directUrl]);
+  const loading = !!path && !url,
+    kind = bucket === "worker-verification-videos" ? "video" : "image";
+  return (
+    <div className="rounded-xl border border-white/[.06] bg-[#11141C] p-3">
+      <p className="text-[9px] font-semibold">{label}</p>
+      {loading ? (
+        <p className="mt-2 text-[10px] text-[#777E8E]">
+          Preparing secure link…
+        </p>
+      ) : url ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-[10px] font-semibold text-violet-300"
+        >
+          View evidence
+        </button>
+      ) : (
+        <p className="mt-2 text-[10px] text-[#606778]">Not supplied</p>
+      )}
+      {open && url ? (
+        <MediaViewer
+          src={url}
+          kind={kind}
+          title={label}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}

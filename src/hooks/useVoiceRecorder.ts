@@ -59,12 +59,12 @@ export default function useVoiceRecorder() {
     recorderRef.current = recorder;
     chunksRef.current = [];
     cancelRef.current = false;
-    startedRef.current = Date.now();
+    startedRef.current = performance.now();
     recorder.ondataavailable = (event) => {
       if (event.data.size) chunksRef.current.push(event.data);
     };
     recorder.onstop = () => {
-      const duration = Math.max(1, Math.round((Date.now() - startedRef.current) / 1000));
+      const duration = Math.max(1, Math.round((performance.now() - startedRef.current) / 1000));
       if (!cancelRef.current && chunksRef.current.length) {
         const type = recorder.mimeType || "audio/webm";
         const extension = type.includes("mp4") ? "m4a" : "webm";
@@ -98,7 +98,7 @@ export default function useVoiceRecorder() {
   useEffect(() => {
     if (!recording) return;
     const timer = window.setInterval(
-      () => setSeconds(Math.max(0, Math.floor((Date.now() - startedRef.current) / 1000))),
+      () => setSeconds(Math.max(0, Math.floor((performance.now() - startedRef.current) / 1000))),
       250,
     );
     return () => window.clearInterval(timer);

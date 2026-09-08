@@ -4,6 +4,7 @@ export type GoogleVerificationRole = "user" | "worker" | "property_partner";
 export type GoogleVerificationTransaction = {
   context: GoogleVerificationContext;
   email: string;
+  identifier?: string;
   role?: GoogleVerificationRole;
   pendingDeviceSessionId?: string;
   device?: string;
@@ -44,6 +45,7 @@ export function saveGoogleVerification(
   const transaction: GoogleVerificationTransaction = {
     ...input,
     email: input.email.trim().toLowerCase(),
+    identifier: input.identifier?.trim().toLowerCase(),
     createdAt: input.createdAt || Date.now(),
   };
   try { localStorage.setItem(TRANSACTION_KEY, JSON.stringify(transaction)); } catch {}

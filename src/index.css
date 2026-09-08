@@ -329,3 +329,48 @@ article:has(button[aria-label="Preview reservation property photos"]) button[ari
 article:has(button[aria-label="Preview reservation property photos"]) button {
   border-radius: 16px;
 }
+
+/* Keep maps inside the same visual system as the rest of WeHouse. */
+.leaflet-container {
+  background: #11151d;
+  color: #e7e9ef;
+  font-family: inherit;
+}
+.leaflet-control-zoom {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 15px !important;
+  background: rgba(11,13,20,.92) !important;
+  box-shadow: 0 16px 38px rgba(0,0,0,.36) !important;
+  backdrop-filter: blur(16px);
+}
+.leaflet-control-zoom a {
+  display: grid !important;
+  width: 42px !important;
+  height: 42px !important;
+  place-items: center;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(255,255,255,.08) !important;
+  background: transparent !important;
+  color: #eceef4 !important;
+  font-size: 19px !important;
+  line-height: 1 !important;
+}
+.leaflet-control-zoom a:last-child { border-bottom: 0 !important; }
+.leaflet-control-zoom a:active { background: rgba(139,92,246,.2) !important; }
+.leaflet-control-attribution {
+  border-radius: 9px 0 0 0;
+  background: rgba(8,10,15,.78) !important;
+  color: #777e8e !important;
+  font-size: 8px !important;
+}
+.leaflet-control-attribution a { color: #b7a5ff !important; }
+.leaflet-tooltip {
+  border: 1px solid rgba(255,255,255,.1) !important;
+  border-radius: 10px !important;
+  background: rgba(11,13,20,.94) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.3) !important;
+  font-size: 10px !important;
+}
+.leaflet-tooltip::before { display: none; }

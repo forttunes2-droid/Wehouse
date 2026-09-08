@@ -67,7 +67,11 @@ type ReservationAttachmentRow = {
   created_at?: string | null;
 };
 
-export default function SupportChat({ profile, onOpenListing, onOpenBooking }: Props) {
+export default function SupportChat({
+  profile,
+  onOpenListing,
+  onOpenBooking,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<SupportThread | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -84,7 +88,9 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const presentation = conversationPresentation(thread || pendingContext || {});
-  const visibleMessages = messages.filter(message => message.sender_role !== "system");
+  const visibleMessages = messages.filter(
+    (message) => message.sender_role !== "system",
+  );
 
   async function openWeHouseItems() {
     setAttachOpen(true);
@@ -123,7 +129,8 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
     const stayItems = ((stays.data || []) as ReservationAttachmentRow[]).map(
       (row) => ({
         category: "reservation_support",
-        subject: `Help with reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
+        subject:
+          `Help with reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
         contextType: "apartment_reservation",
         contextId: row.id,
         contextSnapshot: {
@@ -192,16 +199,17 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       if (!profile) return;
       setOpen(true);
       setLoadError("");
-      const cached = context?.conversationId ? messageCache.get(context.conversationId) : undefined;
+      const cached = context?.conversationId
+        ? messageCache.get(context.conversationId)
+        : undefined;
       setMessages(cached || []);
       setLoading(!cached);
 
       const preferredId = context?.conversationId || null;
-      const current = await refreshThread(
-        context,
-        preferredId,
+      const current = await refreshThread(context, preferredId);
+      setPendingContext(
+        current ? null : context && hasContext(context) ? context : null,
       );
-      setPendingContext(current ? null : context && hasContext(context) ? context : null);
       if (current?.conversation_id)
         await loadMessages(current.conversation_id, Boolean(cached));
       else setMessages([]);
@@ -321,7 +329,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
               setFiles([]);
               setPendingContext(null);
             }}
-            aria-label="Close support"
+            aria-label="Close WeHouse conversation"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9DA3B2] hover:bg-white/[.05]"
           >
             ←
@@ -332,13 +340,21 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[14px] font-semibold">{presentation.title}</p>
+              <p className="truncate text-[14px] font-semibold">
+                {presentation.title}
+              </p>
               <span className="grid h-4 w-4 place-items-center rounded-full bg-violet-400 text-[9px] font-bold">
                 ✓
               </span>
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
-              {[presentation.operator, presentation.meta, thread?.assigned_staff_name].filter(Boolean).join(" · ")}
+              {[
+                presentation.operator,
+                presentation.meta,
+                thread?.assigned_staff_name,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </div>
         </div>
@@ -347,12 +363,36 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
       <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.05),transparent_34%)] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-4xl">
           {presentation.operational && thread && (
-            <LinkedOperationalContext thread={thread} onOpenBooking={onOpenBooking ? (id) => { setOpen(false); onOpenBooking(id); } : undefined} onOpenListing={onOpenListing ? (id) => { setOpen(false); onOpenListing(id); } : undefined} />
+            <LinkedOperationalContext
+              thread={thread}
+              onOpenBooking={
+                onOpenBooking
+                  ? (id) => {
+                      setOpen(false);
+                      onOpenBooking(id);
+                    }
+                  : undefined
+              }
+              onOpenListing={
+                onOpenListing
+                  ? (id) => {
+                      setOpen(false);
+                      onOpenListing(id);
+                    }
+                  : undefined
+              }
+            />
           )}
           {loading ? (
             <ConversationSkeleton />
           ) : loadError ? (
-            <ConversationLoadError text={loadError} retry={() => thread?.conversation_id && void loadMessages(thread.conversation_id)} />
+            <ConversationLoadError
+              text={loadError}
+              retry={() =>
+                thread?.conversation_id &&
+                void loadMessages(thread.conversation_id)
+              }
+            />
           ) : visibleMessages.length === 0 ? (
             <Welcome presentation={presentation} />
           ) : (
@@ -360,7 +400,9 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
               {visibleMessages.map((msg, index) => (
                 <div key={msg.id}>
                   {(!visibleMessages[index - 1] ||
-                    new Date(visibleMessages[index - 1].created_at).toDateString() !==
+                    new Date(
+                      visibleMessages[index - 1].created_at,
+                    ).toDateString() !==
                       new Date(msg.created_at).toDateString()) && (
                     <DaySeparator value={msg.created_at} />
                   )}
@@ -368,7 +410,10 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
                     msg={msg}
                     mine={msg.sender_id === profile.user_id}
                     showContext={!presentation.operational}
-                    onOpenListing={(listingId) => { setOpen(false); onOpenListing?.(listingId); }}
+                    onOpenListing={(listingId) => {
+                      setOpen(false);
+                      onOpenListing?.(listingId);
+                    }}
                   />
                 </div>
               ))}
@@ -467,7 +512,7 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
               <div>
                 <h2 className="text-base font-bold">Attach from WeHouse</h2>
                 <p className="mt-1 text-[9px] text-[#747B8B]">
-                  Choose a real booking or reservation. Support receives its
+                  Choose a real booking or reservation. WeHouse receives its
                   current reference and status.
                 </p>
               </div>
@@ -521,7 +566,17 @@ export default function SupportChat({ profile, onOpenListing, onOpenBooking }: P
   );
 }
 
-function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: SupportMessage; mine: boolean; showContext: boolean; onOpenListing?: (listingId: string) => void }) {
+function MessageBubble({
+  msg,
+  mine,
+  showContext,
+  onOpenListing,
+}: {
+  msg: SupportMessage;
+  mine: boolean;
+  showContext: boolean;
+  onOpenListing?: (listingId: string) => void;
+}) {
   const meta = msg.action_metadata || {};
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -529,7 +584,11 @@ function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: Support
         className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${mine ? "items-end" : "items-start"}`}
       >
         {showContext && meta && Object.keys(meta).length > 0 && (
-          <MessageContext meta={meta} type={msg.action_type} onOpenListing={onOpenListing} />
+          <MessageContext
+            meta={meta}
+            type={msg.action_type}
+            onOpenListing={onOpenListing}
+          />
         )}
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]"}`}
@@ -573,30 +632,129 @@ function MessageBubble({ msg, mine, showContext, onOpenListing }: { msg: Support
   );
 }
 
-function LinkedOperationalContext({thread,onOpenBooking,onOpenListing}:{thread:SupportThread;onOpenBooking?:(id:string)=>void;onOpenListing?:(id:string)=>void}){
-  const snapshot=thread.context_snapshot||{};
-  const presentation=conversationPresentation(thread);
-  const contextType=supportContextType(thread);
-  const reservationContext=['apartment_reservation','apartment_payment','reservation','hotel_booking'].includes(contextType);
-  const serviceContext=contextType==='worker_booking';
-  const listingContext=contextType==='property_listing';
-  const propertyRequestContext=contextType==='property_inspection';
-  const bookingId=reservationContext||serviceContext?String(thread.context_id||snapshot.reservation_id||snapshot.source_id||''):'';
-  const listingId=String(listingContext?thread.context_id||'':snapshot.listing_id||'');
-  const rawStatus=String(snapshot.status||'').replace(/_/g,' ');
-  const status=rawStatus==='occupied'?'Tenancy active':rawStatus==='checked in'?'Checked in':rawStatus==='checked out'?'Checked out':rawStatus;
-  const code=String(snapshot.booking_code||snapshot.reference||'');
-  const title=String(snapshot.listing_title||snapshot.hotel_name||presentation.title||'Reservation').replace(/\s*·\s*Reservation Desk$/i,'');
-  const stayType=String(snapshot.stay_type||'');
-  const actionLabel=serviceContext?'Open service job':contextType==='hotel_booking'?'Open stay':(stayType==='long_stay'||stayType==='long_let'||String(snapshot.status||'')==='occupied')?'Open tenancy':'Open reservation';
-  const location=String(snapshot.listing_location||snapshot.room_name||'');
-  const checkIn=String(snapshot.check_in||'');
-  const checkOut=String(snapshot.check_out||'');
-  return <section className="mb-4 border-y border-white/[.06] bg-white/[.018] py-3">
-    <div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">⌂</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{title}</p>{location&&<p className="mt-1 truncate text-[9px] text-[#747B8C]">{location}</p>}<p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">{[status,code].filter(Boolean).join(' · ')}</p></div>
-    {bookingId&&onOpenBooking?<button type="button" onClick={()=>onOpenBooking(bookingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">{actionLabel}</button>:listingId&&onOpenListing?<button type="button" onClick={()=>onOpenListing(listingId)} className="shrink-0 text-[9px] font-semibold text-violet-300">View apartment</button>:propertyRequestContext?<span className="shrink-0 text-[8px] font-semibold text-violet-300">Property request</span>:null}</div>
-    {(checkIn||checkOut)&&<div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[.05] pt-3 text-[9px] text-[#747B8C]">{checkIn&&<p><span className="text-[#555C6D]">Check-in</span><br/>{new Date(checkIn).toLocaleDateString()}</p>}{checkOut&&<p><span className="text-[#555C6D]">Check-out</span><br/>{new Date(checkOut).toLocaleDateString()}</p>}</div>}
-  </section>
+function LinkedOperationalContext({
+  thread,
+  onOpenBooking,
+  onOpenListing,
+}: {
+  thread: SupportThread;
+  onOpenBooking?: (id: string) => void;
+  onOpenListing?: (id: string) => void;
+}) {
+  const snapshot = thread.context_snapshot || {};
+  const presentation = conversationPresentation(thread);
+  const contextType = supportContextType(thread);
+  const reservationContext = [
+    "apartment_reservation",
+    "apartment_payment",
+    "reservation",
+    "hotel_booking",
+  ].includes(contextType);
+  const serviceContext = contextType === "worker_booking";
+  const listingContext = contextType === "property_listing";
+  const propertyRequestContext = contextType === "property_inspection";
+  const bookingId =
+    reservationContext || serviceContext
+      ? String(
+          thread.context_id ||
+            snapshot.reservation_id ||
+            snapshot.source_id ||
+            "",
+        )
+      : "";
+  const listingId = String(
+    listingContext ? thread.context_id || "" : snapshot.listing_id || "",
+  );
+  const rawStatus = String(snapshot.status || "").replace(/_/g, " ");
+  const status =
+    rawStatus === "occupied"
+      ? "Tenancy active"
+      : rawStatus === "checked in"
+        ? "Checked in"
+        : rawStatus === "checked out"
+          ? "Checked out"
+          : rawStatus;
+  const code = String(snapshot.booking_code || snapshot.reference || "");
+  const title = String(
+    snapshot.listing_title ||
+      snapshot.hotel_name ||
+      presentation.title ||
+      "Reservation",
+  ).replace(/\s*·\s*Reservation Desk$/i, "");
+  const stayType = String(snapshot.stay_type || "");
+  const actionLabel = serviceContext
+    ? "Open service job"
+    : contextType === "hotel_booking"
+      ? "Open stay"
+      : stayType === "long_stay" ||
+          stayType === "long_let" ||
+          String(snapshot.status || "") === "occupied"
+        ? "Open tenancy"
+        : "Open reservation";
+  const location = String(
+    snapshot.listing_location || snapshot.room_name || "",
+  );
+  const checkIn = String(snapshot.check_in || "");
+  const checkOut = String(snapshot.check_out || "");
+  return (
+    <section className="mb-4 border-y border-white/[.06] bg-white/[.018] py-3">
+      <div className="flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">
+          ⌂
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] font-semibold">{title}</p>
+          {location && (
+            <p className="mt-1 truncate text-[9px] text-[#747B8C]">
+              {location}
+            </p>
+          )}
+          <p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">
+            {[status, code].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+        {bookingId && onOpenBooking ? (
+          <button
+            type="button"
+            onClick={() => onOpenBooking(bookingId)}
+            className="shrink-0 text-[9px] font-semibold text-violet-300"
+          >
+            {actionLabel}
+          </button>
+        ) : listingId && onOpenListing ? (
+          <button
+            type="button"
+            onClick={() => onOpenListing(listingId)}
+            className="shrink-0 text-[9px] font-semibold text-violet-300"
+          >
+            View apartment
+          </button>
+        ) : propertyRequestContext ? (
+          <span className="shrink-0 text-[8px] font-semibold text-violet-300">
+            Property request
+          </span>
+        ) : null}
+      </div>
+      {(checkIn || checkOut) && (
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[.05] pt-3 text-[9px] text-[#747B8C]">
+          {checkIn && (
+            <p>
+              <span className="text-[#555C6D]">Check-in</span>
+              <br />
+              {new Date(checkIn).toLocaleDateString()}
+            </p>
+          )}
+          {checkOut && (
+            <p>
+              <span className="text-[#555C6D]">Check-out</span>
+              <br />
+              {new Date(checkOut).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function MessageContext({
@@ -622,11 +780,23 @@ function MessageContext({
         <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}
         </p>
-        {listingId && onOpenListing ? <button type="button" onClick={() => onOpenListing(listingId)} className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200">View apartment →</button> : null}
+        {listingId && onOpenListing ? (
+          <button
+            type="button"
+            onClick={() => onOpenListing(listingId)}
+            className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200"
+          >
+            View apartment →
+          </button>
+        ) : null}
       </div>
       {Object.keys(snap).length > 0 && (
         <div className="mt-2 grid gap-1 text-[9px] text-[#8FA0B9] sm:grid-cols-2">
-          {Object.entries(snap).filter(([key]) => !['id','listing_id','user_id','auth_id'].includes(key))
+          {Object.entries(snap)
+            .filter(
+              ([key]) =>
+                !["id", "listing_id", "user_id", "auth_id"].includes(key),
+            )
             .slice(0, 6)
             .map(([key, value]) => (
               <p key={key} className="truncate">
@@ -663,7 +833,7 @@ function PendingContext({
             )}
         </p>
         <p className="mt-1 truncate text-[9px] text-[#6F7F97]">
-          This support case will stay linked to the selected WeHouse item.
+          This conversation will stay linked to the selected WeHouse item.
         </p>
       </div>
       <button onClick={onRemove} className="text-[#758096]">
@@ -673,16 +843,18 @@ function PendingContext({
   );
 }
 
-function Welcome({presentation}:{presentation:ReturnType<typeof conversationPresentation>}) {
+function Welcome({
+  presentation,
+}: {
+  presentation: ReturnType<typeof conversationPresentation>;
+}) {
   return (
     <div className="grid min-h-[55vh] place-items-center px-5 text-center">
       <div>
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">
           W
         </div>
-        <h2 className="mt-4 text-base font-semibold">
-          Message WeHouse
-        </h2>
+        <h2 className="mt-4 text-base font-semibold">Message WeHouse</h2>
         <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#747A8B]">
           {presentation.operational
             ? "This conversation stays attached to the record shown above, so its history and next actions remain in one place."
@@ -693,8 +865,32 @@ function Welcome({presentation}:{presentation:ReturnType<typeof conversationPres
   );
 }
 
-function ConversationSkeleton(){return <div className="min-h-24" role="status" aria-label="Loading conversation"/>}
-function ConversationLoadError({text,retry}:{text:string;retry:()=>void}){return <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-red-500/15 bg-red-500/[.04] p-5 text-center"><p className="text-xs font-semibold">Conversation could not be loaded</p><p className="mt-2 text-[9px] leading-4 text-[#858A98]">{text}</p><button type="button" onClick={retry} className="mt-4 text-[10px] font-semibold text-violet-300">Try again</button></div>}
+function ConversationSkeleton() {
+  return (
+    <div className="min-h-24" role="status" aria-label="Loading conversation" />
+  );
+}
+function ConversationLoadError({
+  text,
+  retry,
+}: {
+  text: string;
+  retry: () => void;
+}) {
+  return (
+    <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-red-500/15 bg-red-500/[.04] p-5 text-center">
+      <p className="text-xs font-semibold">Conversation could not be loaded</p>
+      <p className="mt-2 text-[9px] leading-4 text-[#858A98]">{text}</p>
+      <button
+        type="button"
+        onClick={retry}
+        className="mt-4 text-[10px] font-semibold text-violet-300"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
 
 function hasContext(value: SupportOpenContext) {
   return Boolean(

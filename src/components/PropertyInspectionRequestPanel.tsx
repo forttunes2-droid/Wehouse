@@ -1,124 +1,1453 @@
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { supabase, uploadStorageObjectWithProgress } from '@/lib/supabase';
-import { uploadListingCandidateImage } from '@/lib/supabase/listings';
-import PropertyAccessRecorder from './PropertyAccessRecorder';
-import PreciseLocationPicker, { type PreciseLocation } from './PreciseLocationPicker';
-import WeHouseSelect from './WeHouseSelect';
-import { loadPropertyDraftFiles, removePropertyDraftBatch, removePropertyDraftFiles, savePropertyDraftFiles } from '@/lib/propertyDraftFiles';
-import { BED_TYPES, HOTEL_AMENITIES, ROOM_AMENITIES, type Profile } from '@/types';
-import MediaViewer from './MediaViewer';
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
+import { uploadListingCandidateImage } from "@/lib/supabase/listings";
+import PropertyAccessRecorder from "./PropertyAccessRecorder";
+import PreciseLocationPicker, {
+  type PreciseLocation,
+} from "./PreciseLocationPicker";
+import WeHouseSelect from "./WeHouseSelect";
+import {
+  loadPropertyDraftFiles,
+  removePropertyDraftBatch,
+  removePropertyDraftFiles,
+  savePropertyDraftFiles,
+} from "@/lib/propertyDraftFiles";
+import {
+  BED_TYPES,
+  HOTEL_AMENITIES,
+  ROOM_AMENITIES,
+  type Profile,
+} from "@/types";
+import MediaViewer from "./MediaViewer";
 
-type Location={lat:number;lon:number;accuracy:number|null;source:'gps'|'manual';address?:string};
-type StayType='long_stay'|'short_let';
-type AuthorityRelationship='owner'|'property_manager'|'agent'|'authorized_representative';
-type AccessChallenge={id:string;code:string;expires_at:string};
-type HotelRoomDraft={id:string;name:string;description:string;rate:string;maxGuests:string;inventory:string;bedType:string;amenities:string;files:File[]};
-type HotelProgramRoom={name:string;description:string|null;nightly_rate:number;guest_capacity:number;inventory:number;bed_type:string|null;amenities:string[];media:string[]};
-type Draft={id:string;propertyAddress:string;propertyCity:string;propertyState:string;propertyType:string;subType:StayType;relationship:AuthorityRelationship;bedrooms:string;bathrooms:string;expectedRent:string;securityDeposit:string;description:string;ownerPhone:string;files:File[];latitude:string;longitude:string;location:Location|null;accessChallenge:AccessChallenge|null;accessVideo:File|null;hotelName:string;hotelAmenities:string;hotelRooms:HotelRoomDraft[]};
-type InspectionRequestItem={property_address:string;property_city:string;property_state:string;property_type:string;sub_type:StayType|null;authority_relationship:AuthorityRelationship;bedrooms:number|null;bathrooms:number|null;expected_rent:number|null;security_deposit_amount:number|null;amenities:string[];description:string|null;owner_phone:string|null;photo_urls:string[];gps_latitude:number|null;gps_longitude:number|null;location_accuracy_m:number|null;access_challenge_id:string;hotel_program?:{name:string;amenities:string[];room_types:HotelProgramRoom[]}};
-const MIN_PROPERTY_PHOTOS=4,MIN_ROOM_PHOTOS=1;
-const id=()=>`${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-function newRoom():HotelRoomDraft{return{id:id(),name:'',description:'',rate:'',maxGuests:'2',inventory:'1',bedType:'',amenities:'',files:[]}}
-function fresh(profile:Profile,copy?:Draft):Draft{return{id:id(),propertyAddress:'',propertyCity:copy?.propertyCity||profile.city||profile.local_government||'',propertyState:copy?.propertyState||profile.state||'',propertyType:copy?.propertyType||'apartment',subType:copy?.subType||'long_stay',relationship:copy?.relationship||'owner',bedrooms:'1',bathrooms:'1',expectedRent:'',securityDeposit:copy?.subType==='short_let'?copy.securityDeposit:'',description:'',ownerPhone:copy?.ownerPhone||profile.phone||'',files:[],latitude:'',longitude:'',location:null,accessChallenge:null,accessVideo:null,hotelName:'',hotelAmenities:'',hotelRooms:[newRoom()]}}
-const words=(value:string)=>value.split(',').map(item=>item.trim()).filter(Boolean);
-async function uploadInParallel(files:File[],task:(file:File)=>Promise<string>){const results=Array<string>(files.length);let next=0,failure:unknown=null;const worker=async()=>{while(!failure){const index=next;next+=1;if(index>=files.length)return;try{results[index]=await task(files[index])}catch(error){failure=error}}};await Promise.all(Array.from({length:Math.min(2,files.length)},worker));if(failure)throw failure;return results}
-function useObjectUrl(file:File|null){const[url,setUrl]=useState('');useEffect(()=>{if(!file){setUrl('');return}const next=URL.createObjectURL(file);setUrl(next);return()=>URL.revokeObjectURL(next)},[file]);return url}
-
-export default function PropertyInspectionRequestPanel({profile,onOpenChange}:{profile:Profile;onOpenChange?:(open:boolean)=>void}){
- const[open,setOpen]=useState(false),[previewFile,setPreviewFile]=useState<File|null>(null),[submitting,setSubmitting]=useState(false),[uploadProgress,setUploadProgress]=useState<number|null>(null),[drafts,setDrafts]=useState<Draft[]>([fresh(profile)]),[active,setActive]=useState(0),[batchId,setBatchId]=useState<string|null>(null),[hydrated,setHydrated]=useState(false),[saveState,setSaveState]=useState<'loading'|'idle'|'saving'|'saved'|'error'>('loading'),[saveRevision,setSaveRevision]=useState(0);
- const revisionRef=useRef(0);
- const current=drafts[active]||drafts[0];
- const previewUrl=useObjectUrl(previewFile);
- useEffect(()=>{onOpenChange?.(open);return()=>onOpenChange?.(false)},[open,onOpenChange]);
- const draftIsComplete=(draft:Draft)=>Boolean(
-  draft.propertyAddress.trim()&&
-  draft.propertyState.trim()&&
-  draft.propertyCity.trim()&&
-  draft.propertyType.trim()&&
-  draft.files.length>=MIN_PROPERTY_PHOTOS&&
-  (draft.propertyType!=='apartment'||Number(draft.expectedRent)>0)&&
-  (draft.propertyType!=='apartment'||draft.subType!=='short_let'||Number(draft.securityDeposit)>0)
-  &&(draft.propertyType!=='hotel'||(draft.hotelName.trim()&&draft.hotelRooms.length&&draft.hotelRooms.every(room=>room.name.trim()&&Number(room.rate)>0&&Number(room.inventory)>0&&room.files.length>=MIN_ROOM_PHOTOS)))
- );
- const canSubmit=drafts.length>0&&drafts.every(draft=>draftIsComplete(draft)&&draft.accessChallenge&&draft.accessVideo);
- useEffect(()=>{void(async()=>{const auth=await supabase.auth.getUser();if(!auth.data.user){setHydrated(true);setSaveState('idle');return}const existing=await supabase.from('property_submission_batches').select('id,active_item,property_submission_items(position,draft_payload)').eq('partner_user_id',auth.data.user.id).eq('status','draft').order('updated_at',{ascending:false}).limit(1).maybeSingle();if(existing.data){const savedBatchId=existing.data.id;setBatchId(savedBatchId);setActive(Number(existing.data.active_item||0));const items=(existing.data.property_submission_items||[]).sort((a:any,b:any)=>a.position-b.position);if(items.length){let mediaRestoreFailed=false;const restored=await Promise.all(items.map(async(item:any)=>{const base={...fresh(profile),...item.draft_payload,id:item.draft_payload?.id||id(),files:[],accessVideo:null,hotelRooms:(item.draft_payload?.hotelRooms||[newRoom()]).map((room:any)=>({...room,files:[]}))} as Draft;try{const saved=await loadPropertyDraftFiles(savedBatchId,base.id);if(!saved)return base;return{...base,files:saved.property||[],accessVideo:saved.accessVideo||null,hotelRooms:base.hotelRooms.map(room=>({...room,files:saved.rooms?.[room.id]||[]}))}}catch{mediaRestoreFailed=true;return base}}));setDrafts(restored);setSaveState(mediaRestoreFailed?'error':'saved')}else setSaveState('idle')}else{const created=await supabase.from('property_submission_batches').insert({partner_user_id:auth.data.user.id}).select('id').single();if(created.data)setBatchId(created.data.id);setSaveState('idle')}setHydrated(true)})()},[profile]);
- useEffect(()=>{if(!hydrated||!batchId||saveRevision===0)return;const revision=saveRevision;setSaveState('saving');const timer=window.setTimeout(()=>{void(async()=>{try{await Promise.all(drafts.map(draft=>savePropertyDraftFiles(batchId,draft.id,{property:draft.files,accessVideo:draft.accessVideo,rooms:Object.fromEntries(draft.hotelRooms.map(room=>[room.id,room.files]))})));const payloads=drafts.map((draft,position)=>{const payload={...draft,files:[],accessVideo:null,hotelRooms:draft.hotelRooms.map(room=>({...room,files:[]}))};return{batch_id:batchId,position,property_type:draft.propertyType,draft_payload:payload,status:draftIsComplete(draft)?'ready':'draft',updated_at:new Date().toISOString()}});const itemsResult=await supabase.from('property_submission_items').upsert(payloads,{onConflict:'batch_id,position'});if(itemsResult.error)throw itemsResult.error;const batchResult=await supabase.from('property_submission_batches').update({active_item:active,updated_at:new Date().toISOString()}).eq('id',batchId);if(batchResult.error)throw batchResult.error;if(revisionRef.current===revision)setSaveState('saved')}catch(error){if(revisionRef.current===revision){setSaveState('error');toast.error(error instanceof Error?error.message:'Draft could not be saved')}}})()},700);return()=>window.clearTimeout(timer)},[active,batchId,drafts,hydrated,saveRevision]);
- useEffect(()=>{if(saveState!=='saved')return;const timer=window.setTimeout(()=>setSaveState('idle'),1800);return()=>window.clearTimeout(timer)},[saveState]);
- function changed(){revisionRef.current+=1;setSaveRevision(revisionRef.current)}
- function patch(index:number,next:Partial<Draft>){changed();setDrafts(rows=>rows.map((row,i)=>i===index?{...row,...next}:row))}
- function addPhotos(index:number,incoming:File[]){changed();setDrafts(rows=>rows.map((row,i)=>{if(i!==index)return row;const seen=new Set(row.files.map(file=>`${file.name}:${file.size}:${file.lastModified}`));const additions=incoming.filter(file=>{const key=`${file.name}:${file.size}:${file.lastModified}`;if(seen.has(key))return false;seen.add(key);return true});return{...row,files:[...row.files,...additions]}}))}
- async function prepareChallenge(index:number){const{data,error}=await supabase.rpc('create_my_property_access_challenge');if(error)return toast.error(error.message||'Unable to create the private access code');const challenge=data as AccessChallenge;patch(index,{accessChallenge:challenge,accessVideo:null})}
- async function openForm(){if(!batchId){const auth=await supabase.auth.getUser();if(!auth.data.user)return toast.error('Authentication required');const created=await supabase.from('property_submission_batches').insert({partner_user_id:auth.data.user.id}).select('id').single();if(created.error)return toast.error(created.error.message);setBatchId(created.data.id)}setOpen(value=>!value)}
- function add(){changed();setDrafts(rows=>{const next=[...rows,fresh(profile,rows[rows.length-1])];setActive(next.length-1);return next})}
- function remove(index:number){changed();setDrafts(rows=>{const removed=rows[index];if(batchId&&removed)void removePropertyDraftFiles(batchId,removed.id);if(rows.length===1)return[fresh(profile)];const next=rows.filter((_,i)=>i!==index);setActive(Math.max(0,Math.min(active>index?active-1:active,next.length-1)));return next})}
- function setPreciseLocation(index:number,value:PreciseLocation|null){
-  if(!value){patch(index,{latitude:'',longitude:'',location:null});return}
-  patch(index,{latitude:String(value.latitude),longitude:String(value.longitude),propertyAddress:value.address||drafts[index]?.propertyAddress||'',propertyCity:value.city||drafts[index]?.propertyCity||'',propertyState:value.state||drafts[index]?.propertyState||'',location:{lat:value.latitude,lon:value.longitude,accuracy:value.accuracy,source:'gps',address:value.address}})
- }
- async function submit(e:React.FormEvent){
-  e.preventDefault();
-  const invalid=drafts.findIndex(d=>!draftIsComplete(d));
-  if(invalid>=0){setActive(invalid);const d=drafts[invalid];return toast.error(d.files.length<4?`Property ${invalid+1}: add at least 4 ${d.propertyType==='hotel'?'hotel/common-area':'property'} photos`:d.propertyType==='hotel'&&d.hotelRooms.some(room=>!room.files.length)?`Property ${invalid+1}: add a photo for every room type`:d.propertyType==='apartment'&&d.subType==='short_let'&&!Number(d.securityDeposit)?`Property ${invalid+1}: add the refundable security deposit`:`Complete the required details for property ${invalid+1}`)}
-  if(!batchId)return toast.error('Submission draft is still loading');
-  setSubmitting(true);
-  const uploadedCandidates:string[]=[];
-  try{
-   const items:InspectionRequestItem[]=[];
-   for(let i=0;i<drafts.length;i++){
-    const d=drafts[i];const urls:string[]=[];
-    if(!d.accessChallenge||!d.accessVideo)throw new Error(`Property ${i+1}: complete the live property access recording`);
-    if(d.accessVideo.size>100*1024*1024)throw new Error(`Property ${i+1}: access recording must be under 100MB`);
-    const accessPath=`${profile.user_id}/${d.accessChallenge.id}/${crypto.randomUUID()}.webm`;
-    try{await uploadStorageObjectWithProgress('property-access-private',accessPath,d.accessVideo,d.accessVideo.type||'video/webm',setUploadProgress)}catch(error){throw new Error(`Property ${i+1}: ${error instanceof Error?error.message:'private access recording upload failed'}`)}
-    const registered=await supabase.rpc('submit_my_property_access_challenge',{p_challenge_id:d.accessChallenge.id,p_video_path:accessPath});
-    if(registered.error){await supabase.storage.from('property-access-private').remove([accessPath]);throw new Error(`Property ${i+1}: ${registered.error.message}`)}
-    if(registered.data?.already_submitted)await supabase.storage.from('property-access-private').remove([accessPath]);
-    const propertyUrls=await uploadInParallel(d.files,async file=>{const r=await uploadListingCandidateImage(file,{kind:'partner',ownerId:profile.user_id,batchId:`${batchId}-${i+1}`},setUploadProgress);if(r.error||!r.url)throw new Error(`Property ${i+1}: ${r.error?.message||'image upload failed'}`);uploadedCandidates.push(r.url);return r.url});urls.push(...propertyUrls)
-    const hotelRooms:HotelProgramRoom[]=[];
-    if(d.propertyType==='hotel')for(let roomIndex=0;roomIndex<d.hotelRooms.length;roomIndex++){const room=d.hotelRooms[roomIndex];const media=await uploadInParallel(room.files,async file=>{const r=await uploadListingCandidateImage(file,{kind:'partner',ownerId:profile.user_id,batchId:`${batchId}-${i+1}-room-${roomIndex+1}`},setUploadProgress);if(r.error||!r.url)throw new Error(`Property ${i+1}, room ${roomIndex+1}: ${r.error?.message||'image upload failed'}`);uploadedCandidates.push(r.url);return r.url});hotelRooms.push({name:room.name.trim(),description:room.description.trim()||null,nightly_rate:Number(room.rate),guest_capacity:Number(room.maxGuests)||1,inventory:Number(room.inventory)||1,bed_type:room.bedType.trim()||null,amenities:words(room.amenities),media})}
-    items.push({property_address:d.propertyAddress.trim(),property_city:d.propertyCity.trim(),property_state:d.propertyState.trim(),property_type:d.propertyType,sub_type:d.propertyType==='apartment'?d.subType:null,authority_relationship:d.relationship,bedrooms:d.propertyType==='hotel'?null:Number(d.bedrooms||0),bathrooms:d.propertyType==='hotel'?null:Number(d.bathrooms||0),expected_rent:d.propertyType==='hotel'?Math.min(...d.hotelRooms.map(room=>Number(room.rate))):d.expectedRent?Number(d.expectedRent):null,security_deposit_amount:d.propertyType==='apartment'&&d.subType==='short_let'?Number(d.securityDeposit):null,amenities:d.propertyType==='hotel'?words(d.hotelAmenities):d.propertyType==='apartment'&&d.subType==='short_let'?['Furnished']:[],description:d.description.trim()||null,owner_phone:d.ownerPhone.trim()||null,photo_urls:urls,gps_latitude:d.location?.lat??null,gps_longitude:d.location?.lon??null,location_accuracy_m:d.location?.accuracy??null,access_challenge_id:d.accessChallenge.id,...(d.propertyType==='hotel'?{hotel_program:{name:d.hotelName.trim(),amenities:words(d.hotelAmenities),room_types:hotelRooms}}:{})});
-   }
-   const submittedBatchId=batchId;const{data,error}=await supabase.rpc('create_my_property_inspection_batch_v4',{p_batch_id:batchId,p_items:items});if(error)throw error;uploadedCandidates.length=0;const result=data as {count?:number}|null;const count=Number(result?.count||drafts.length);await removePropertyDraftBatch(submittedBatchId).catch(()=>undefined);toast.success(`${count} ${count===1?'property':'properties'} sent to WeHouse`);setDrafts([fresh(profile)]);setBatchId(null);setActive(0);setOpen(false)
-  }catch(err:unknown){if(uploadedCandidates.length)await supabase.storage.from('listing-candidates').remove(uploadedCandidates);const message=err instanceof Error?err.message:typeof err==='object'&&err&&'message'in err?String((err as {message:unknown}).message):'Unable to submit property batch';toast.error(message)}finally{setSubmitting(false);setUploadProgress(null)}
- }
- return <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-[#11121A]">
-  <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between lg:p-5"><div><div className="flex items-center gap-2"><p className="text-sm font-semibold">Add a property</p>{drafts.length>1&&<span className="rounded-full bg-violet-500/10 px-2 py-1 text-[9px] font-semibold text-violet-300">{drafts.length} properties</span>}{saveState!=='idle'&&<span className={`text-[8px] font-semibold ${saveState==='error'?'text-red-300':'text-[#686E7E]'}`}>{saveState==='loading'?'Loading…':saveState==='saving'?'Saving…':saveState==='saved'?'Saved':'Save failed'}</span>}</div><p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#7D8091]">Choose Apartment or Hotel and complete the steps shown.</p></div><button type="button" disabled={!hydrated} onClick={()=>void openForm()} className="rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold disabled:opacity-40">{open?'Close':'Add property'}</button></div>
-  {open&&<form onSubmit={submit} className="border-t border-white/[.05]">
-   <div className="border-b border-white/[.05] p-3 sm:p-4"><SubmissionSteps draft={current}/><div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{drafts.length>1&&drafts.map((d,i)=><button key={d.id} type="button" onClick={()=>setActive(i)} className={`shrink-0 rounded-xl border px-3 py-2 text-left ${active===i?'border-violet-500/35 bg-violet-500/10':'border-white/[.06] bg-white/[.02]'}`}><span className="block text-[10px] font-semibold">{d.propertyType==='hotel'?'Hotel':'Apartment'} {i+1}</span><span className="mt-0.5 block max-w-32 truncate text-[8px] text-[#666A7B]">{d.hotelName||d.propertyAddress||'Not named yet'}</span></button>)}<button type="button" onClick={add} className="shrink-0 rounded-xl border border-dashed border-violet-500/25 px-4 py-2 text-[10px] font-semibold text-violet-300">＋ Add another property</button></div></div>
-   {current&&<div className="space-y-5 p-4 lg:p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">Property {active+1}</p><p className="mt-1 text-[9px] text-[#686C7D]">Complete one property at a time.</p></div><div className="flex gap-2">{drafts.length>1&&<button type="button" onClick={()=>remove(active)} className="rounded-lg border border-red-500/15 px-2.5 py-2 text-[9px] text-red-300">Remove</button>}</div></div>
-    <div className="grid gap-3 md:grid-cols-2"><Field label="Street address *" value={current.propertyAddress} set={v=>patch(active,{propertyAddress:v})} span/><Field label="State *" value={current.propertyState} set={v=>patch(active,{propertyState:v})}/><Field label="LGA / city *" value={current.propertyCity} set={v=>patch(active,{propertyCity:v})}/><label className="space-y-1"><span className="text-[10px] text-[#8A8B9C]">Your relationship to this property *</span><WeHouseSelect value={current.relationship} onChange={value=>patch(active,{relationship:value})} options={[{value:'owner',label:'Owner'},{value:'property_manager',label:'Property manager'},{value:'agent',label:'Agent'},{value:'authorized_representative',label:'Authorized representative'}]} title="Your relationship to this property" ariaLabel="Choose your relationship to this property" className="h-11 w-full text-sm"/></label><section className="space-y-1"><p className="text-[10px] text-[#8A8B9C]">Property group *</p><div className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[#2A2A3A] bg-[#14151D] p-1" role="group" aria-label="Property group"><button type="button" aria-pressed={current.propertyType==='apartment'} onClick={()=>patch(active,{propertyType:'apartment'})} className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType==='apartment'?'bg-violet-500 text-white':'text-[#7D8090]'}`}>Apartment</button><button type="button" aria-pressed={current.propertyType==='hotel'} onClick={()=>patch(active,{propertyType:'hotel'})} className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType==='hotel'?'bg-violet-500 text-white':'text-[#7D8090]'}`}>Hotel</button></div></section><Field label="Phone for visit" value={current.ownerPhone} set={v=>patch(active,{ownerPhone:v})}/>
-     {current.propertyType==='apartment'&&<><section className="md:col-span-2"><p className="mb-2 text-[10px] text-[#8A8B9C]">Stay type *</p><div className="grid grid-cols-2 gap-2"><button type="button" onClick={()=>patch(active,{subType:'long_stay',securityDeposit:''})} className={`rounded-xl border p-3 text-left ${current.subType==='long_stay'?'border-violet-500/35 bg-violet-500/10':'border-white/[.07] bg-[#171821]'}`}><span className="block text-xs font-semibold">Long Let</span><span className="mt-1 block text-[8px] text-[#777C8D]">Annual rent</span></button><button type="button" onClick={()=>patch(active,{subType:'short_let'})} className={`rounded-xl border p-3 text-left ${current.subType==='short_let'?'border-violet-500/35 bg-violet-500/10':'border-white/[.07] bg-[#171821]'}`}><span className="block text-xs font-semibold">Short Let</span><span className="mt-1 block text-[8px] text-[#777C8D]">Nightly · furnished</span></button></div></section><Field label="Bedrooms" inputMode="numeric" value={current.bedrooms} set={v=>patch(active,{bedrooms:digits(v)})}/><Field label="Bathrooms" inputMode="numeric" value={current.bathrooms} set={v=>patch(active,{bathrooms:digits(v)})}/><Field label={current.subType==='short_let'?'Nightly rate *':'Annual rent *'} inputMode="numeric" value={current.expectedRent} set={v=>patch(active,{expectedRent:digits(v)})}/>{current.subType==='short_let'&&<Field label="Refundable security deposit *" inputMode="numeric" value={current.securityDeposit} set={v=>patch(active,{securityDeposit:digits(v)})}/>}</>}
-     {current.propertyType==='hotel'&&<HotelProgramEditor draft={current} onChange={next=>patch(active,next)}/>}<label className="space-y-2 md:col-span-2"><span className="text-[10px] text-[#8A8B9C]">{current.propertyType==='hotel'?'Hotel and common-area photos *':'Apartment photos *'}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>{addPhotos(active,Array.from(e.target.files||[]));e.target.value=''}} className="sr-only"/><span className="flex min-h-12 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-4 text-xs font-semibold text-violet-200"><span>Add photos</span><span className="text-[10px] font-normal text-[#858A9A]">{current.files.length?`${current.files.length} selected`:'At least 4'}</span></span><span className="block text-[9px] text-[#666A7B]">{current.propertyType==='hotel'?'These photos are for the hotel and common areas. Add each room’s photos inside that room type.':'Add at least four clear photos. WeHouse will choose the final public gallery after the visit.'}</span>{current.files.length>0&&<div className="grid grid-cols-3 gap-2">{current.files.map((file,index)=><div key={`${file.name}-${file.size}-${file.lastModified}`} className="relative aspect-square overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewFile(file)} className="h-full w-full" aria-label={`Preview property photo ${index+1}`}><FilePreviewImage file={file} alt={`Property photo ${index+1}`} className="h-full w-full object-cover"/></button><button type="button" onClick={()=>patch(active,{files:current.files.filter((_,i)=>i!==index)})} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property photo ${index+1}`}>×</button></div>)}</div>}</label><label className="space-y-1 md:col-span-2"><span className="text-[10px] text-[#8A8B9C]">{current.propertyType==='hotel'?'Hotel description':'Property details'}</span><textarea rows={4} value={current.description} onChange={e=>patch(active,{description:e.target.value})} placeholder={current.propertyType==='hotel'?'Describe check-in, policies and what makes this hotel useful to guests':'Useful details about this property'} className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"/></label>{current.accessChallenge?<PropertyAccessRecorder code={current.accessChallenge.code} expiresAt={current.accessChallenge.expires_at} recordedFile={current.accessVideo} onRecorded={file=>patch(active,{accessVideo:file})}/>:<section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4 md:col-span-2"><p className="text-xs font-semibold">Access video</p><p className="mt-1 text-[9px] leading-5 text-[#777D8E]">When you are at the property, create the code and record the entrance in one video.</p><button type="button" onClick={()=>void prepareChallenge(active)} className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold">Start access video</button></section>}</div>
-    {current.propertyType==='apartment'&&current.subType==='short_let'&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3"><p className="text-[10px] font-semibold text-violet-200">Short Let rule</p><p className="mt-1 text-[9px] text-[#85899A]">Short Let apartments are furnished, priced per night and require a refundable property-specific security deposit.</p></div>}
-    <PreciseLocationPicker subject="property" title="Confirm property address" description="While you are at the property, use this phone to place the pin and confirm the exact street address." value={current.location?{latitude:current.location.lat,longitude:current.location.lon,accuracy:current.location.accuracy,address:current.location.address||current.propertyAddress}:null} onChange={value=>setPreciseLocation(active,value)}/>
-    {canSubmit&&<button disabled={submitting} className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">{submitting?`Uploading · ${uploadProgress??0}%`:`Send ${drafts.length===1?'property':`${drafts.length} properties`}`}</button>}
-   </div>}
-  </form>}
- {previewFile&&previewUrl?<MediaViewer src={previewUrl} kind="image" title="Property photo" onClose={()=>setPreviewFile(null)}/>:null}
- </section>
+type Location = {
+  lat: number;
+  lon: number;
+  accuracy: number | null;
+  source: "gps" | "manual";
+  address?: string;
+};
+type StayType = "long_stay" | "short_let";
+type AuthorityRelationship =
+  "owner" | "property_manager" | "agent" | "authorized_representative";
+type AccessChallenge = { id: string; code: string; expires_at: string };
+type HotelRoomDraft = {
+  id: string;
+  name: string;
+  description: string;
+  rate: string;
+  maxGuests: string;
+  inventory: string;
+  bedType: string;
+  amenities: string;
+  files: File[];
+};
+type HotelProgramRoom = {
+  name: string;
+  description: string | null;
+  nightly_rate: number;
+  guest_capacity: number;
+  inventory: number;
+  bed_type: string | null;
+  amenities: string[];
+  media: string[];
+};
+type Draft = {
+  id: string;
+  propertyAddress: string;
+  propertyCity: string;
+  propertyState: string;
+  propertyType: string;
+  subType: StayType;
+  relationship: AuthorityRelationship;
+  bedrooms: string;
+  bathrooms: string;
+  expectedRent: string;
+  securityDeposit: string;
+  maxGuests: string;
+  description: string;
+  ownerPhone: string;
+  files: File[];
+  latitude: string;
+  longitude: string;
+  location: Location | null;
+  accessChallenge: AccessChallenge | null;
+  accessVideo: File | null;
+  hotelName: string;
+  hotelAmenities: string;
+  hotelRooms: HotelRoomDraft[];
+};
+type InspectionRequestItem = {
+  property_address: string;
+  property_city: string;
+  property_state: string;
+  property_type: string;
+  sub_type: StayType | null;
+  authority_relationship: AuthorityRelationship;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  expected_rent: number | null;
+  security_deposit_amount: number | null;
+  max_guests: number | null;
+  amenities: string[];
+  description: string | null;
+  owner_phone: string | null;
+  photo_urls: string[];
+  gps_latitude: number | null;
+  gps_longitude: number | null;
+  location_accuracy_m: number | null;
+  access_challenge_id: string;
+  hotel_program?: {
+    name: string;
+    amenities: string[];
+    room_types: HotelProgramRoom[];
+  };
+};
+const MIN_PROPERTY_PHOTOS = 4,
+  MIN_ROOM_PHOTOS = 1;
+const id = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function newRoom(): HotelRoomDraft {
+  return {
+    id: id(),
+    name: "",
+    description: "",
+    rate: "",
+    maxGuests: "2",
+    inventory: "1",
+    bedType: "",
+    amenities: "",
+    files: [],
+  };
 }
-function FilePreviewImage({file,alt,className}:{file:File;alt:string;className?:string}){const url=useObjectUrl(file);return url?<img src={url} alt={alt} loading="lazy" decoding="async" className={className}/>:<span className={`${className||''} block animate-pulse bg-white/[.04]`} role="status" aria-label="Preparing preview"/>}
-function digits(v:string){return v.replace(/[^0-9]/g,'')}
-function SubmissionSteps({draft}:{draft?:Draft}){if(!draft)return null;const hotel=draft.propertyType==='hotel';const steps=hotel?[['Hotel',Boolean(draft.hotelName&&draft.propertyAddress)],['Hotel photos',draft.files.length>=MIN_PROPERTY_PHOTOS],['Rooms',Boolean(draft.hotelRooms.length&&draft.hotelRooms.every(room=>room.name&&room.rate&&room.files.length>=MIN_ROOM_PHOTOS))],['Access video',Boolean(draft.accessVideo)]]:[['Details',Boolean(draft.propertyAddress&&draft.expectedRent)],['Photos',draft.files.length>=MIN_PROPERTY_PHOTOS],['Access video',Boolean(draft.accessVideo)]];return <div><p className="text-[9px] font-semibold text-[#8B90A0]">{hotel?'Hotel setup':'Apartment setup'}</p><div className={`mt-2 grid ${hotel?'grid-cols-4':'grid-cols-3'} gap-1 text-center text-[8px] font-semibold text-[#686D7E]`}>{steps.map(([label,done])=><span key={String(label)} className={done?'text-emerald-300':''}>{done?'✓ ':''}{label}</span>)}</div></div>}
-function Field({label,value,set,inputMode='text',span=false}:{label:string;value:string;set:(v:string)=>void;inputMode?:'text'|'numeric'|'decimal'|'tel';span?:boolean}){return <label className={`space-y-1 ${span?'md:col-span-2':''}`}><span className="text-[10px] text-[#8A8B9C]">{label}</span><input inputMode={inputMode} value={value} onChange={e=>set(e.target.value)} className="h-11 w-full rounded-xl border border-[#2A2A3A] bg-[#1A1A24] px-3 text-sm outline-none focus:border-violet-500/40"/></label>}
-function ChoiceChips({label,options,value,onChange}:{label:string;options:readonly string[];value:string;onChange:(value:string)=>void}){const selected=words(value);return <section><p className="mb-2 text-[10px] text-[#8A8B9C]">{label}</p><div className="flex flex-wrap gap-2">{options.map(option=>{const active=selected.includes(option);return <button key={option} type="button" aria-pressed={active} onClick={()=>onChange((active?selected.filter(item=>item!==option):[...selected,option]).join(', '))} className={`min-h-9 rounded-full border px-3 py-2 text-[9px] font-semibold ${active?'border-violet-500/35 bg-violet-500/15 text-violet-100':'border-white/[.08] bg-white/[.025] text-[#858B9A]'}`}>{option}</button>})}</div><label className="mt-2 block"><span className="sr-only">{label} including custom items</span><input value={value} onChange={event=>onChange(event.target.value)} placeholder="Add anything else, separated by commas" className="h-10 w-full rounded-xl border border-white/[.07] bg-black/15 px-3 text-[10px] outline-none focus:border-violet-500/35"/></label></section>}
-function HotelProgramEditor({draft,onChange}:{draft:Draft;onChange:(next:Partial<Draft>)=>void}){
- function updateRoom(index:number,next:Partial<HotelRoomDraft>){onChange({hotelRooms:draft.hotelRooms.map((room,i)=>i===index?{...room,...next}:room)})}
- function addRoomPhotos(index:number,incoming:File[]){const room=draft.hotelRooms[index];updateRoom(index,{files:[...room.files,...incoming]})}
- function addRoom(){onChange({hotelRooms:[...draft.hotelRooms,newRoom()]})}
- function removeRoom(index:number){if(draft.hotelRooms.length===1)return;onChange({hotelRooms:draft.hotelRooms.filter((_,i)=>i!==index)})}
- return <section className="space-y-4 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 md:col-span-2">
-  <div><p className="text-sm font-semibold">Hotel setup</p><p className="mt-1 text-[9px] leading-5 text-[#777D8E]">Add hotel facilities once, then configure each bookable room type.</p></div>
-  <Field label="Hotel name *" value={draft.hotelName} set={value=>onChange({hotelName:value})}/>
-  <ChoiceChips label="Hotel amenities" options={HOTEL_AMENITIES} value={draft.hotelAmenities} onChange={value=>onChange({hotelAmenities:value})}/>
-  <div className="space-y-3">{draft.hotelRooms.map((room,index)=><article key={room.id} className="rounded-2xl border border-white/[.07] bg-[#12151E] p-3">
-   <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-semibold">Room type {index+1}</p><p className="mt-0.5 text-[8px] text-[#676D7E]">Guests book this inventory and rate.</p></div>{draft.hotelRooms.length>1&&<button type="button" onClick={()=>removeRoom(index)} className="text-[9px] font-semibold text-red-300">Remove</button>}</div>
-   <div className="grid gap-3 sm:grid-cols-2"><Field label="Room name *" value={room.name} set={value=>updateRoom(index,{name:value})}/><Field label="Nightly rate *" inputMode="numeric" value={room.rate} set={value=>updateRoom(index,{rate:digits(value)})}/><Field label="Available rooms *" inputMode="numeric" value={room.inventory} set={value=>updateRoom(index,{inventory:digits(value)})}/><Field label="Maximum guests" inputMode="numeric" value={room.maxGuests} set={value=>updateRoom(index,{maxGuests:digits(value)})}/><label className="space-y-1 sm:col-span-2"><span className="text-[10px] text-[#8A8B9C]">Bed type</span><WeHouseSelect value={room.bedType} onChange={value=>updateRoom(index,{bedType:value})} options={[{value:'',label:'Choose bed type'},...BED_TYPES.map(value=>({value,label:value}))]} title="Choose bed type" ariaLabel="Choose bed type" className="h-11 w-full text-sm"/></label><label className="space-y-1 sm:col-span-2"><span className="text-[10px] text-[#8A8B9C]">Room description</span><textarea value={room.description} onChange={event=>updateRoom(index,{description:event.target.value})} rows={3} placeholder="Describe the room, its layout, view and what is included" className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"/></label></div>
-   <div className="mt-3"><ChoiceChips label="Room amenities" options={ROOM_AMENITIES} value={room.amenities} onChange={value=>updateRoom(index,{amenities:value})}/></div>
-   <label className="mt-3 block"><span className="mb-2 block text-[9px] text-[#7C8292]">Room photos *</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event=>{addRoomPhotos(index,Array.from(event.target.files||[]));event.target.value=''}} className="sr-only"/><span className="flex min-h-11 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-3 text-[10px] font-semibold text-violet-200"><span>Add room photos</span><span className="font-normal text-[#858A9A]">{room.files.length?`${room.files.length} selected`:'At least 1 for this room'}</span></span></label>
-   {room.files.length>0&&<div className="mt-2 flex gap-2 overflow-x-auto">{room.files.map((file,fileIndex)=><div key={`${file.name}-${file.lastModified}`} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl"><FilePreviewImage file={file} alt={`${room.name||'Room'} photo ${fileIndex+1}`} className="h-full w-full object-cover"/><button type="button" aria-label="Remove room photo" onClick={()=>updateRoom(index,{files:room.files.filter((_,i)=>i!==fileIndex)})} className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/75 text-xs">×</button></div>)}</div>}
-  </article>)}</div>
-  <button type="button" onClick={addRoom} className="min-h-11 w-full rounded-xl border border-dashed border-violet-500/25 text-[10px] font-semibold text-violet-300">＋ Add another room type</button>
- </section>
+function fresh(profile: Profile, copy?: Draft): Draft {
+  return {
+    id: id(),
+    propertyAddress: "",
+    propertyCity:
+      copy?.propertyCity || profile.city || profile.local_government || "",
+    propertyState: copy?.propertyState || profile.state || "",
+    propertyType: copy?.propertyType || "apartment",
+    subType: copy?.subType || "long_stay",
+    relationship: copy?.relationship || "owner",
+    bedrooms: "1",
+    bathrooms: "1",
+    expectedRent: "",
+    securityDeposit: copy?.subType === "short_let" ? copy.securityDeposit : "",
+    maxGuests: copy?.subType === "short_let" ? copy.maxGuests || "2" : "2",
+    description: "",
+    ownerPhone: copy?.ownerPhone || profile.phone || "",
+    files: [],
+    latitude: "",
+    longitude: "",
+    location: null,
+    accessChallenge: null,
+    accessVideo: null,
+    hotelName: "",
+    hotelAmenities: "",
+    hotelRooms: [newRoom()],
+  };
+}
+function mediaExtension(file: File) {
+  if (file.type.includes("mp4")) return "mp4";
+  if (file.type.includes("quicktime")) return "mov";
+  return "webm";
+}
+const words = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+async function uploadInParallel(
+  files: File[],
+  task: (file: File) => Promise<string>,
+) {
+  const results = Array<string>(files.length);
+  let next = 0,
+    failure: unknown = null;
+  const worker = async () => {
+    while (!failure) {
+      const index = next;
+      next += 1;
+      if (index >= files.length) return;
+      try {
+        results[index] = await task(files[index]);
+      } catch (error) {
+        failure = error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(2, files.length) }, worker));
+  if (failure) throw failure;
+  return results;
+}
+function useObjectUrl(file: File | null) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    if (!file) {
+      setUrl("");
+      return;
+    }
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return url;
+}
+
+export default function PropertyInspectionRequestPanel({
+  profile,
+  onOpenChange,
+}: {
+  profile: Profile;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false),
+    [previewFile, setPreviewFile] = useState<File | null>(null),
+    [submitting, setSubmitting] = useState(false),
+    [uploadProgress, setUploadProgress] = useState<number | null>(null),
+    [drafts, setDrafts] = useState<Draft[]>([fresh(profile)]),
+    [active, setActive] = useState(0),
+    [batchId, setBatchId] = useState<string | null>(null),
+    [hydrated, setHydrated] = useState(false),
+    [saveState, setSaveState] = useState<
+      "loading" | "idle" | "saving" | "saved" | "error"
+    >("loading"),
+    [saveRevision, setSaveRevision] = useState(0);
+  const revisionRef = useRef(0);
+  const current = drafts[active] || drafts[0];
+  const previewUrl = useObjectUrl(previewFile);
+  useEffect(() => {
+    onOpenChange?.(open);
+    return () => onOpenChange?.(false);
+  }, [open, onOpenChange]);
+  const draftIsComplete = (draft: Draft) =>
+    Boolean(
+      draft.propertyAddress.trim() &&
+      draft.propertyState.trim() &&
+      draft.propertyCity.trim() &&
+      draft.propertyType.trim() &&
+      draft.files.length >= MIN_PROPERTY_PHOTOS &&
+      (draft.propertyType !== "apartment" || Number(draft.expectedRent) > 0) &&
+      (draft.propertyType !== "apartment" ||
+        draft.subType !== "short_let" ||
+        (Number(draft.securityDeposit) > 0 &&
+          Number.isInteger(Number(draft.maxGuests)) &&
+          Number(draft.maxGuests) >= 1)) &&
+      (draft.propertyType !== "hotel" ||
+        (draft.hotelName.trim() &&
+          draft.hotelRooms.length &&
+          draft.hotelRooms.every(
+            (room) =>
+              room.name.trim() &&
+              Number(room.rate) > 0 &&
+              Number(room.inventory) > 0 &&
+              room.files.length >= MIN_ROOM_PHOTOS,
+          ))),
+    );
+  const canSubmit =
+    drafts.length > 0 &&
+    drafts.every(
+      (draft) =>
+        draftIsComplete(draft) && draft.accessChallenge && draft.accessVideo,
+    );
+  useEffect(() => {
+    void (async () => {
+      const auth = await supabase.auth.getUser();
+      if (!auth.data.user) {
+        setHydrated(true);
+        setSaveState("idle");
+        return;
+      }
+      const existing = await supabase
+        .from("property_submission_batches")
+        .select(
+          "id,active_item,property_submission_items(position,draft_payload)",
+        )
+        .eq("partner_user_id", auth.data.user.id)
+        .eq("status", "draft")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing.data) {
+        const savedBatchId = existing.data.id;
+        setBatchId(savedBatchId);
+        setActive(Number(existing.data.active_item || 0));
+        const items = (existing.data.property_submission_items || []).sort(
+          (a: any, b: any) => a.position - b.position,
+        );
+        if (items.length) {
+          let mediaRestoreFailed = false;
+          const restored = await Promise.all(
+            items.map(async (item: any) => {
+              const base = {
+                ...fresh(profile),
+                ...item.draft_payload,
+                id: item.draft_payload?.id || id(),
+                files: [],
+                accessVideo: null,
+                hotelRooms: (item.draft_payload?.hotelRooms || [newRoom()]).map(
+                  (room: any) => ({ ...room, files: [] }),
+                ),
+              } as Draft;
+              try {
+                const saved = await loadPropertyDraftFiles(
+                  savedBatchId,
+                  base.id,
+                );
+                if (!saved) return base;
+                return {
+                  ...base,
+                  files: saved.property || [],
+                  accessVideo: saved.accessVideo || null,
+                  hotelRooms: base.hotelRooms.map((room) => ({
+                    ...room,
+                    files: saved.rooms?.[room.id] || [],
+                  })),
+                };
+              } catch {
+                mediaRestoreFailed = true;
+                return base;
+              }
+            }),
+          );
+          setDrafts(restored);
+          setSaveState(mediaRestoreFailed ? "error" : "saved");
+        } else setSaveState("idle");
+      } else {
+        const created = await supabase
+          .from("property_submission_batches")
+          .insert({ partner_user_id: auth.data.user.id })
+          .select("id")
+          .single();
+        if (created.data) setBatchId(created.data.id);
+        setSaveState("idle");
+      }
+      setHydrated(true);
+    })();
+  }, [profile]);
+  useEffect(() => {
+    if (!hydrated || !batchId || saveRevision === 0) return;
+    const revision = saveRevision;
+    setSaveState("saving");
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await Promise.all(
+            drafts.map((draft) =>
+              savePropertyDraftFiles(batchId, draft.id, {
+                property: draft.files,
+                accessVideo: draft.accessVideo,
+                rooms: Object.fromEntries(
+                  draft.hotelRooms.map((room) => [room.id, room.files]),
+                ),
+              }),
+            ),
+          );
+          const payloads = drafts.map((draft, position) => {
+            const payload = {
+              ...draft,
+              files: [],
+              accessVideo: null,
+              hotelRooms: draft.hotelRooms.map((room) => ({
+                ...room,
+                files: [],
+              })),
+            };
+            return {
+              batch_id: batchId,
+              position,
+              property_type: draft.propertyType,
+              draft_payload: payload,
+              status: draftIsComplete(draft) ? "ready" : "draft",
+              updated_at: new Date().toISOString(),
+            };
+          });
+          const itemsResult = await supabase
+            .from("property_submission_items")
+            .upsert(payloads, { onConflict: "batch_id,position" });
+          if (itemsResult.error) throw itemsResult.error;
+          const batchResult = await supabase
+            .from("property_submission_batches")
+            .update({
+              active_item: active,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", batchId);
+          if (batchResult.error) throw batchResult.error;
+          if (revisionRef.current === revision) setSaveState("saved");
+        } catch (error) {
+          if (revisionRef.current === revision) {
+            setSaveState("error");
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Draft could not be saved",
+            );
+          }
+        }
+      })();
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [active, batchId, drafts, hydrated, saveRevision]);
+  useEffect(() => {
+    if (saveState !== "saved") return;
+    const timer = window.setTimeout(() => setSaveState("idle"), 1800);
+    return () => window.clearTimeout(timer);
+  }, [saveState]);
+  function changed() {
+    revisionRef.current += 1;
+    setSaveRevision(revisionRef.current);
+  }
+  function patch(index: number, next: Partial<Draft>) {
+    changed();
+    setDrafts((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, ...next } : row)),
+    );
+  }
+  function addPhotos(index: number, incoming: File[]) {
+    changed();
+    setDrafts((rows) =>
+      rows.map((row, i) => {
+        if (i !== index) return row;
+        const seen = new Set(
+          row.files.map(
+            (file) => `${file.name}:${file.size}:${file.lastModified}`,
+          ),
+        );
+        const additions = incoming.filter((file) => {
+          const key = `${file.name}:${file.size}:${file.lastModified}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        return { ...row, files: [...row.files, ...additions] };
+      }),
+    );
+  }
+  async function prepareChallenge(index: number) {
+    const { data, error } = await supabase.rpc(
+      "create_my_property_access_challenge",
+    );
+    if (error)
+      return toast.error(
+        error.message || "Unable to create the private access code",
+      );
+    const challenge = data as AccessChallenge;
+    patch(index, { accessChallenge: challenge, accessVideo: null });
+  }
+  async function openForm() {
+    if (!batchId) {
+      const auth = await supabase.auth.getUser();
+      if (!auth.data.user) return toast.error("Authentication required");
+      const created = await supabase
+        .from("property_submission_batches")
+        .insert({ partner_user_id: auth.data.user.id })
+        .select("id")
+        .single();
+      if (created.error) return toast.error(created.error.message);
+      setBatchId(created.data.id);
+    }
+    setOpen((value) => !value);
+  }
+  function add() {
+    changed();
+    setDrafts((rows) => {
+      const next = [...rows, fresh(profile, rows[rows.length - 1])];
+      setActive(next.length - 1);
+      return next;
+    });
+  }
+  function remove(index: number) {
+    changed();
+    setDrafts((rows) => {
+      const removed = rows[index];
+      if (batchId && removed)
+        void removePropertyDraftFiles(batchId, removed.id);
+      if (rows.length === 1) return [fresh(profile)];
+      const next = rows.filter((_, i) => i !== index);
+      setActive(
+        Math.max(
+          0,
+          Math.min(active > index ? active - 1 : active, next.length - 1),
+        ),
+      );
+      return next;
+    });
+  }
+  function setPreciseLocation(index: number, value: PreciseLocation | null) {
+    if (!value) {
+      patch(index, { latitude: "", longitude: "", location: null });
+      return;
+    }
+    patch(index, {
+      latitude: String(value.latitude),
+      longitude: String(value.longitude),
+      propertyAddress: value.address || drafts[index]?.propertyAddress || "",
+      propertyCity: value.city || drafts[index]?.propertyCity || "",
+      propertyState: value.state || drafts[index]?.propertyState || "",
+      location: {
+        lat: value.latitude,
+        lon: value.longitude,
+        accuracy: value.accuracy,
+        source: "gps",
+        address: value.address,
+      },
+    });
+  }
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const invalid = drafts.findIndex((d) => !draftIsComplete(d));
+    if (invalid >= 0) {
+      setActive(invalid);
+      const d = drafts[invalid];
+      return toast.error(
+        d.files.length < 4
+          ? `Property ${invalid + 1}: add at least 4 ${d.propertyType === "hotel" ? "hotel/common-area" : "property"} photos`
+          : d.propertyType === "hotel" &&
+              d.hotelRooms.some((room) => !room.files.length)
+            ? `Property ${invalid + 1}: add a photo for every room type`
+            : d.propertyType === "apartment" &&
+                d.subType === "short_let" &&
+                !Number(d.securityDeposit)
+              ? `Property ${invalid + 1}: add the refundable security deposit`
+              : d.propertyType === "apartment" &&
+                  d.subType === "short_let" &&
+                  Number(d.maxGuests) < 1
+                ? `Property ${invalid + 1}: maximum guests must be at least 1`
+                : `Complete the required details for property ${invalid + 1}`,
+      );
+    }
+    if (!batchId) return toast.error("Submission draft is still loading");
+    setSubmitting(true);
+    const uploadedCandidates: string[] = [];
+    try {
+      const items: InspectionRequestItem[] = [];
+      for (let i = 0; i < drafts.length; i++) {
+        const d = drafts[i];
+        const urls: string[] = [];
+        if (!d.accessChallenge || !d.accessVideo)
+          throw new Error(
+            `Property ${i + 1}: complete the live property access recording`,
+          );
+        if (d.accessVideo.size > 100 * 1024 * 1024)
+          throw new Error(
+            `Property ${i + 1}: access recording must be under 100MB`,
+          );
+        const accessPath = `${profile.user_id}/${d.accessChallenge.id}/${crypto.randomUUID()}.${mediaExtension(d.accessVideo)}`;
+        try {
+          await uploadStorageObjectWithProgress(
+            "property-access-private",
+            accessPath,
+            d.accessVideo,
+            d.accessVideo.type || "video/webm",
+            setUploadProgress,
+          );
+        } catch (error) {
+          throw new Error(
+            `Property ${i + 1}: ${error instanceof Error ? error.message : "private access recording upload failed"}`,
+          );
+        }
+        const registered = await supabase.rpc(
+          "submit_my_property_access_challenge",
+          { p_challenge_id: d.accessChallenge.id, p_video_path: accessPath },
+        );
+        if (registered.error) {
+          await supabase.storage
+            .from("property-access-private")
+            .remove([accessPath]);
+          throw new Error(`Property ${i + 1}: ${registered.error.message}`);
+        }
+        if (registered.data?.already_submitted)
+          await supabase.storage
+            .from("property-access-private")
+            .remove([accessPath]);
+        const propertyUrls = await uploadInParallel(d.files, async (file) => {
+          const r = await uploadListingCandidateImage(
+            file,
+            {
+              kind: "partner",
+              ownerId: profile.user_id,
+              batchId: `${batchId}-${i + 1}`,
+            },
+            setUploadProgress,
+          );
+          if (r.error || !r.url)
+            throw new Error(
+              `Property ${i + 1}: ${r.error?.message || "image upload failed"}`,
+            );
+          uploadedCandidates.push(r.url);
+          return r.url;
+        });
+        urls.push(...propertyUrls);
+        const hotelRooms: HotelProgramRoom[] = [];
+        if (d.propertyType === "hotel")
+          for (
+            let roomIndex = 0;
+            roomIndex < d.hotelRooms.length;
+            roomIndex++
+          ) {
+            const room = d.hotelRooms[roomIndex];
+            const media = await uploadInParallel(room.files, async (file) => {
+              const r = await uploadListingCandidateImage(
+                file,
+                {
+                  kind: "partner",
+                  ownerId: profile.user_id,
+                  batchId: `${batchId}-${i + 1}-room-${roomIndex + 1}`,
+                },
+                setUploadProgress,
+              );
+              if (r.error || !r.url)
+                throw new Error(
+                  `Property ${i + 1}, room ${roomIndex + 1}: ${r.error?.message || "image upload failed"}`,
+                );
+              uploadedCandidates.push(r.url);
+              return r.url;
+            });
+            hotelRooms.push({
+              name: room.name.trim(),
+              description: room.description.trim() || null,
+              nightly_rate: Number(room.rate),
+              guest_capacity: Number(room.maxGuests) || 1,
+              inventory: Number(room.inventory) || 1,
+              bed_type: room.bedType.trim() || null,
+              amenities: words(room.amenities),
+              media,
+            });
+          }
+        items.push({
+          property_address: d.propertyAddress.trim(),
+          property_city: d.propertyCity.trim(),
+          property_state: d.propertyState.trim(),
+          property_type: d.propertyType,
+          sub_type: d.propertyType === "apartment" ? d.subType : null,
+          authority_relationship: d.relationship,
+          bedrooms: d.propertyType === "hotel" ? null : Number(d.bedrooms || 0),
+          bathrooms:
+            d.propertyType === "hotel" ? null : Number(d.bathrooms || 0),
+          expected_rent:
+            d.propertyType === "hotel"
+              ? Math.min(...d.hotelRooms.map((room) => Number(room.rate)))
+              : d.expectedRent
+                ? Number(d.expectedRent)
+                : null,
+          security_deposit_amount:
+            d.propertyType === "apartment" && d.subType === "short_let"
+              ? Number(d.securityDeposit)
+              : null,
+          max_guests:
+            d.propertyType === "apartment" && d.subType === "short_let"
+              ? Number(d.maxGuests)
+              : null,
+          amenities:
+            d.propertyType === "hotel"
+              ? words(d.hotelAmenities)
+              : d.propertyType === "apartment" && d.subType === "short_let"
+                ? ["Furnished"]
+                : [],
+          description: d.description.trim() || null,
+          owner_phone: d.ownerPhone.trim() || null,
+          photo_urls: urls,
+          gps_latitude: d.location?.lat ?? null,
+          gps_longitude: d.location?.lon ?? null,
+          location_accuracy_m: d.location?.accuracy ?? null,
+          access_challenge_id: d.accessChallenge.id,
+          ...(d.propertyType === "hotel"
+            ? {
+                hotel_program: {
+                  name: d.hotelName.trim(),
+                  amenities: words(d.hotelAmenities),
+                  room_types: hotelRooms,
+                },
+              }
+            : {}),
+        });
+      }
+      const submittedBatchId = batchId;
+      const { data, error } = await supabase.rpc(
+        "create_my_property_inspection_batch_v4",
+        { p_batch_id: batchId, p_items: items },
+      );
+      if (error) throw error;
+      uploadedCandidates.length = 0;
+      const result = data as { count?: number } | null;
+      const count = Number(result?.count || drafts.length);
+      await removePropertyDraftBatch(submittedBatchId).catch(() => undefined);
+      toast.success(
+        `${count} ${count === 1 ? "property" : "properties"} sent to WeHouse`,
+      );
+      setDrafts([fresh(profile)]);
+      setBatchId(null);
+      setActive(0);
+      setOpen(false);
+    } catch (err: unknown) {
+      if (uploadedCandidates.length)
+        await supabase.storage
+          .from("listing-candidates")
+          .remove(uploadedCandidates);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err && "message" in err
+            ? String((err as { message: unknown }).message)
+            : "Unable to submit property batch";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+      setUploadProgress(null);
+    }
+  }
+  return (
+    <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-[#11121A]">
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between lg:p-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold">Add a property</p>
+            {drafts.length > 1 && (
+              <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[9px] font-semibold text-violet-300">
+                {drafts.length} properties
+              </span>
+            )}
+            {saveState !== "idle" && (
+              <span
+                className={`text-[8px] font-semibold ${saveState === "error" ? "text-red-300" : "text-[#686E7E]"}`}
+              >
+                {saveState === "loading"
+                  ? "Loading…"
+                  : saveState === "saving"
+                    ? "Saving…"
+                    : saveState === "saved"
+                      ? "Saved"
+                      : "Save failed"}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#7D8091]">
+            Choose Apartment or Hotel and complete the steps shown.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!hydrated}
+          onClick={() => void openForm()}
+          className="rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold disabled:opacity-40"
+        >
+          {open ? "Close" : "Add property"}
+        </button>
+      </div>
+      {open && (
+        <form onSubmit={submit} className="border-t border-white/[.05]">
+          <div className="border-b border-white/[.05] p-3 sm:p-4">
+            <SubmissionSteps draft={current} />
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {drafts.length > 1 &&
+                drafts.map((d, i) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setActive(i)}
+                    className={`shrink-0 rounded-xl border px-3 py-2 text-left ${active === i ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.06] bg-white/[.02]"}`}
+                  >
+                    <span className="block text-[10px] font-semibold">
+                      {d.propertyType === "hotel" ? "Hotel" : "Apartment"}{" "}
+                      {i + 1}
+                    </span>
+                    <span className="mt-0.5 block max-w-32 truncate text-[8px] text-[#666A7B]">
+                      {d.hotelName || d.propertyAddress || "Not named yet"}
+                    </span>
+                  </button>
+                ))}
+              <button
+                type="button"
+                onClick={add}
+                className="shrink-0 rounded-xl border border-dashed border-violet-500/25 px-4 py-2 text-[10px] font-semibold text-violet-300"
+              >
+                ＋ Add another property
+              </button>
+            </div>
+          </div>
+          {current && (
+            <div className="space-y-5 p-4 lg:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold">Property {active + 1}</p>
+                  <p className="mt-1 text-[9px] text-[#686C7D]">
+                    Complete one property at a time.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {drafts.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => remove(active)}
+                      className="rounded-lg border border-red-500/15 px-2.5 py-2 text-[9px] text-red-300"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field
+                  label="Street address *"
+                  value={current.propertyAddress}
+                  set={(v) => patch(active, { propertyAddress: v })}
+                  span
+                />
+                <Field
+                  label="State *"
+                  value={current.propertyState}
+                  set={(v) => patch(active, { propertyState: v })}
+                />
+                <Field
+                  label="LGA / city *"
+                  value={current.propertyCity}
+                  set={(v) => patch(active, { propertyCity: v })}
+                />
+                <label className="space-y-1">
+                  <span className="text-[10px] text-[#8A8B9C]">
+                    Your relationship to this property *
+                  </span>
+                  <WeHouseSelect
+                    value={current.relationship}
+                    onChange={(value) => patch(active, { relationship: value })}
+                    options={[
+                      { value: "owner", label: "Owner" },
+                      { value: "property_manager", label: "Property manager" },
+                      { value: "agent", label: "Agent" },
+                      {
+                        value: "authorized_representative",
+                        label: "Authorized representative",
+                      },
+                    ]}
+                    title="Your relationship to this property"
+                    ariaLabel="Choose your relationship to this property"
+                    className="h-11 w-full text-sm"
+                  />
+                </label>
+                <section className="space-y-1">
+                  <p className="text-[10px] text-[#8A8B9C]">Property group *</p>
+                  <div
+                    className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[#2A2A3A] bg-[#14151D] p-1"
+                    role="group"
+                    aria-label="Property group"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={current.propertyType === "apartment"}
+                      onClick={() =>
+                        patch(active, { propertyType: "apartment" })
+                      }
+                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "apartment" ? "bg-violet-500 text-white" : "text-[#7D8090]"}`}
+                    >
+                      Apartment
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={current.propertyType === "hotel"}
+                      onClick={() => patch(active, { propertyType: "hotel" })}
+                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "hotel" ? "bg-violet-500 text-white" : "text-[#7D8090]"}`}
+                    >
+                      Hotel
+                    </button>
+                  </div>
+                </section>
+                <Field
+                  label="Phone for visit"
+                  value={current.ownerPhone}
+                  set={(v) => patch(active, { ownerPhone: v })}
+                />
+                {current.propertyType === "apartment" && (
+                  <>
+                    <section className="md:col-span-2">
+                      <p className="mb-2 text-[10px] text-[#8A8B9C]">
+                        Stay type *
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            patch(active, {
+                              subType: "long_stay",
+                              securityDeposit: "",
+                            })
+                          }
+                          className={`rounded-xl border p-3 text-left ${current.subType === "long_stay" ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                        >
+                          <span className="block text-xs font-semibold">
+                            Long Let
+                          </span>
+                          <span className="mt-1 block text-[8px] text-[#777C8D]">
+                            Annual rent
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            patch(active, { subType: "short_let" })
+                          }
+                          className={`rounded-xl border p-3 text-left ${current.subType === "short_let" ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                        >
+                          <span className="block text-xs font-semibold">
+                            Short Let
+                          </span>
+                          <span className="mt-1 block text-[8px] text-[#777C8D]">
+                            Nightly · furnished
+                          </span>
+                        </button>
+                      </div>
+                    </section>
+                    <Field
+                      label="Bedrooms"
+                      inputMode="numeric"
+                      value={current.bedrooms}
+                      set={(v) => patch(active, { bedrooms: digits(v) })}
+                    />
+                    <Field
+                      label="Bathrooms"
+                      inputMode="numeric"
+                      value={current.bathrooms}
+                      set={(v) => patch(active, { bathrooms: digits(v) })}
+                    />
+                    <Field
+                      label={
+                        current.subType === "short_let"
+                          ? "Nightly rate *"
+                          : "Annual rent *"
+                      }
+                      inputMode="numeric"
+                      value={current.expectedRent}
+                      set={(v) => patch(active, { expectedRent: digits(v) })}
+                    />
+                    {current.subType === "short_let" && (
+                      <>
+                        <Field
+                          label="Refundable security deposit *"
+                          inputMode="numeric"
+                          value={current.securityDeposit}
+                          set={(v) =>
+                            patch(active, { securityDeposit: digits(v) })
+                          }
+                        />
+                        <Field
+                          label="Maximum guests *"
+                          inputMode="numeric"
+                          value={current.maxGuests}
+                          set={(v) => patch(active, { maxGuests: digits(v) })}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+                {current.propertyType === "hotel" && (
+                  <HotelProgramEditor
+                    draft={current}
+                    onChange={(next) => patch(active, next)}
+                  />
+                )}
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-[10px] text-[#8A8B9C]">
+                    {current.propertyType === "hotel"
+                      ? "Hotel and common-area photos *"
+                      : "Apartment photos *"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={(e) => {
+                      addPhotos(active, Array.from(e.target.files || []));
+                      e.target.value = "";
+                    }}
+                    className="sr-only"
+                  />
+                  <span className="flex min-h-12 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-4 text-xs font-semibold text-violet-200">
+                    <span>Add photos</span>
+                    <span className="text-[10px] font-normal text-[#858A9A]">
+                      {current.files.length
+                        ? `${current.files.length} selected`
+                        : "At least 4"}
+                    </span>
+                  </span>
+                  <span className="block text-[9px] text-[#666A7B]">
+                    {current.propertyType === "hotel"
+                      ? "These photos are for the hotel and common areas. Add each room’s photos inside that room type."
+                      : "Add at least four clear photos. WeHouse will choose the final public gallery after the visit."}
+                  </span>
+                  {current.files.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {current.files.map((file, index) => (
+                        <div
+                          key={`${file.name}-${file.size}-${file.lastModified}`}
+                          className="relative aspect-square overflow-hidden rounded-xl bg-black"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPreviewFile(file)}
+                            className="h-full w-full"
+                            aria-label={`Preview property photo ${index + 1}`}
+                          >
+                            <FilePreviewImage
+                              file={file}
+                              alt={`Property photo ${index + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              patch(active, {
+                                files: current.files.filter(
+                                  (_, i) => i !== index,
+                                ),
+                              })
+                            }
+                            className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white"
+                            aria-label={`Remove property photo ${index + 1}`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="text-[10px] text-[#8A8B9C]">
+                    {current.propertyType === "hotel"
+                      ? "Hotel description"
+                      : "Property details"}
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={current.description}
+                    onChange={(e) =>
+                      patch(active, { description: e.target.value })
+                    }
+                    placeholder={
+                      current.propertyType === "hotel"
+                        ? "Describe check-in, policies and what makes this hotel useful to guests"
+                        : "Useful details about this property"
+                    }
+                    className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"
+                  />
+                </label>
+                {current.accessChallenge ? (
+                  <PropertyAccessRecorder
+                    code={current.accessChallenge.code}
+                    expiresAt={current.accessChallenge.expires_at}
+                    recordedFile={current.accessVideo}
+                    onRecorded={(file) => patch(active, { accessVideo: file })}
+                  />
+                ) : (
+                  <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4 md:col-span-2">
+                    <p className="text-xs font-semibold">Access video</p>
+                    <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+                      When you are at the property, create the code and record
+                      the entrance in one video.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void prepareChallenge(active)}
+                      className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold"
+                    >
+                      Start access video
+                    </button>
+                  </section>
+                )}
+              </div>
+              {current.propertyType === "apartment" &&
+                current.subType === "short_let" && (
+                  <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3">
+                    <p className="text-[10px] font-semibold text-violet-200">
+                      Short Let rule
+                    </p>
+                    <p className="mt-1 text-[9px] text-[#85899A]">
+                      Short Let apartments are furnished, priced per night and
+                      require a refundable property-specific security deposit.
+                      Set the maximum number of guests the apartment safely
+                      allows.
+                    </p>
+                  </div>
+                )}
+              <PreciseLocationPicker
+                subject="property"
+                title="Confirm property address"
+                description="While you are at the property, use this phone to place the pin and confirm the exact street address."
+                value={
+                  current.location
+                    ? {
+                        latitude: current.location.lat,
+                        longitude: current.location.lon,
+                        accuracy: current.location.accuracy,
+                        address:
+                          current.location.address || current.propertyAddress,
+                      }
+                    : null
+                }
+                onChange={(value) => setPreciseLocation(active, value)}
+              />
+              {canSubmit && (
+                <button
+                  disabled={submitting}
+                  className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40"
+                >
+                  {submitting
+                    ? `Uploading · ${uploadProgress ?? 0}%`
+                    : `Send ${drafts.length === 1 ? "property" : `${drafts.length} properties`}`}
+                </button>
+              )}
+            </div>
+          )}
+        </form>
+      )}
+      {previewFile && previewUrl ? (
+        <MediaViewer
+          src={previewUrl}
+          kind="image"
+          title="Property photo"
+          onClose={() => setPreviewFile(null)}
+        />
+      ) : null}
+    </section>
+  );
+}
+function FilePreviewImage({
+  file,
+  alt,
+  className,
+}: {
+  file: File;
+  alt: string;
+  className?: string;
+}) {
+  const url = useObjectUrl(file);
+  return url ? (
+    <img
+      src={url}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={className}
+    />
+  ) : (
+    <span
+      className={`${className || ""} block animate-pulse bg-white/[.04]`}
+      role="status"
+      aria-label="Preparing preview"
+    />
+  );
+}
+function digits(v: string) {
+  return v.replace(/[^0-9]/g, "");
+}
+function SubmissionSteps({ draft }: { draft?: Draft }) {
+  if (!draft) return null;
+  const hotel = draft.propertyType === "hotel";
+  const steps = hotel
+    ? [
+        ["Hotel", Boolean(draft.hotelName && draft.propertyAddress)],
+        ["Hotel photos", draft.files.length >= MIN_PROPERTY_PHOTOS],
+        [
+          "Rooms",
+          Boolean(
+            draft.hotelRooms.length &&
+            draft.hotelRooms.every(
+              (room) =>
+                room.name && room.rate && room.files.length >= MIN_ROOM_PHOTOS,
+            ),
+          ),
+        ],
+        ["Access video", Boolean(draft.accessVideo)],
+      ]
+    : [
+        ["Details", Boolean(draft.propertyAddress && draft.expectedRent)],
+        ["Photos", draft.files.length >= MIN_PROPERTY_PHOTOS],
+        ["Access video", Boolean(draft.accessVideo)],
+      ];
+  return (
+    <div>
+      <p className="text-[9px] font-semibold text-[#8B90A0]">
+        {hotel ? "Hotel setup" : "Apartment setup"}
+      </p>
+      <div
+        className={`mt-2 grid ${hotel ? "grid-cols-4" : "grid-cols-3"} gap-1 text-center text-[8px] font-semibold text-[#686D7E]`}
+      >
+        {steps.map(([label, done]) => (
+          <span key={String(label)} className={done ? "text-emerald-300" : ""}>
+            {done ? "✓ " : ""}
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+function Field({
+  label,
+  value,
+  set,
+  inputMode = "text",
+  span = false,
+}: {
+  label: string;
+  value: string;
+  set: (v: string) => void;
+  inputMode?: "text" | "numeric" | "decimal" | "tel";
+  span?: boolean;
+}) {
+  return (
+    <label className={`space-y-1 ${span ? "md:col-span-2" : ""}`}>
+      <span className="text-[10px] text-[#8A8B9C]">{label}</span>
+      <input
+        inputMode={inputMode}
+        value={value}
+        onChange={(e) => set(e.target.value)}
+        className="h-11 w-full rounded-xl border border-[#2A2A3A] bg-[#1A1A24] px-3 text-sm outline-none focus:border-violet-500/40"
+      />
+    </label>
+  );
+}
+function ChoiceChips({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const selected = words(value);
+  return (
+    <section>
+      <p className="mb-2 text-[10px] text-[#8A8B9C]">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const active = selected.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={active}
+              onClick={() =>
+                onChange(
+                  (active
+                    ? selected.filter((item) => item !== option)
+                    : [...selected, option]
+                  ).join(", "),
+                )
+              }
+              className={`min-h-9 rounded-full border px-3 py-2 text-[9px] font-semibold ${active ? "border-violet-500/35 bg-violet-500/15 text-violet-100" : "border-white/[.08] bg-white/[.025] text-[#858B9A]"}`}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+      <label className="mt-2 block">
+        <span className="sr-only">{label} including custom items</span>
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Add anything else, separated by commas"
+          className="h-10 w-full rounded-xl border border-white/[.07] bg-black/15 px-3 text-[10px] outline-none focus:border-violet-500/35"
+        />
+      </label>
+    </section>
+  );
+}
+function HotelProgramEditor({
+  draft,
+  onChange,
+}: {
+  draft: Draft;
+  onChange: (next: Partial<Draft>) => void;
+}) {
+  function updateRoom(index: number, next: Partial<HotelRoomDraft>) {
+    onChange({
+      hotelRooms: draft.hotelRooms.map((room, i) =>
+        i === index ? { ...room, ...next } : room,
+      ),
+    });
+  }
+  function addRoomPhotos(index: number, incoming: File[]) {
+    const room = draft.hotelRooms[index];
+    updateRoom(index, { files: [...room.files, ...incoming] });
+  }
+  function addRoom() {
+    onChange({ hotelRooms: [...draft.hotelRooms, newRoom()] });
+  }
+  function removeRoom(index: number) {
+    if (draft.hotelRooms.length === 1) return;
+    onChange({ hotelRooms: draft.hotelRooms.filter((_, i) => i !== index) });
+  }
+  return (
+    <section className="space-y-4 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 md:col-span-2">
+      <div>
+        <p className="text-sm font-semibold">Hotel setup</p>
+        <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+          Add hotel facilities once, then configure each bookable room type.
+        </p>
+      </div>
+      <Field
+        label="Hotel name *"
+        value={draft.hotelName}
+        set={(value) => onChange({ hotelName: value })}
+      />
+      <ChoiceChips
+        label="Hotel amenities"
+        options={HOTEL_AMENITIES}
+        value={draft.hotelAmenities}
+        onChange={(value) => onChange({ hotelAmenities: value })}
+      />
+      <div className="space-y-3">
+        {draft.hotelRooms.map((room, index) => (
+          <article
+            key={room.id}
+            className="rounded-2xl border border-white/[.07] bg-[#12151E] p-3"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold">Room type {index + 1}</p>
+                <p className="mt-0.5 text-[8px] text-[#676D7E]">
+                  Guests book this inventory and rate.
+                </p>
+              </div>
+              {draft.hotelRooms.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRoom(index)}
+                  className="text-[9px] font-semibold text-red-300"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Room name *"
+                value={room.name}
+                set={(value) => updateRoom(index, { name: value })}
+              />
+              <Field
+                label="Nightly rate *"
+                inputMode="numeric"
+                value={room.rate}
+                set={(value) => updateRoom(index, { rate: digits(value) })}
+              />
+              <Field
+                label="Available rooms *"
+                inputMode="numeric"
+                value={room.inventory}
+                set={(value) => updateRoom(index, { inventory: digits(value) })}
+              />
+              <Field
+                label="Maximum guests"
+                inputMode="numeric"
+                value={room.maxGuests}
+                set={(value) => updateRoom(index, { maxGuests: digits(value) })}
+              />
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-[10px] text-[#8A8B9C]">Bed type</span>
+                <WeHouseSelect
+                  value={room.bedType}
+                  onChange={(value) => updateRoom(index, { bedType: value })}
+                  options={[
+                    { value: "", label: "Choose bed type" },
+                    ...BED_TYPES.map((value) => ({ value, label: value })),
+                  ]}
+                  title="Choose bed type"
+                  ariaLabel="Choose bed type"
+                  className="h-11 w-full text-sm"
+                />
+              </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-[10px] text-[#8A8B9C]">
+                  Room description
+                </span>
+                <textarea
+                  value={room.description}
+                  onChange={(event) =>
+                    updateRoom(index, { description: event.target.value })
+                  }
+                  rows={3}
+                  placeholder="Describe the room, its layout, view and what is included"
+                  className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"
+                />
+              </label>
+            </div>
+            <div className="mt-3">
+              <ChoiceChips
+                label="Room amenities"
+                options={ROOM_AMENITIES}
+                value={room.amenities}
+                onChange={(value) => updateRoom(index, { amenities: value })}
+              />
+            </div>
+            <label className="mt-3 block">
+              <span className="mb-2 block text-[9px] text-[#7C8292]">
+                Room photos *
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={(event) => {
+                  addRoomPhotos(index, Array.from(event.target.files || []));
+                  event.target.value = "";
+                }}
+                className="sr-only"
+              />
+              <span className="flex min-h-11 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-3 text-[10px] font-semibold text-violet-200">
+                <span>Add room photos</span>
+                <span className="font-normal text-[#858A9A]">
+                  {room.files.length
+                    ? `${room.files.length} selected`
+                    : "At least 1 for this room"}
+                </span>
+              </span>
+            </label>
+            {room.files.length > 0 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto">
+                {room.files.map((file, fileIndex) => (
+                  <div
+                    key={`${file.name}-${file.lastModified}`}
+                    className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl"
+                  >
+                    <FilePreviewImage
+                      file={file}
+                      alt={`${room.name || "Room"} photo ${fileIndex + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Remove room photo"
+                      onClick={() =>
+                        updateRoom(index, {
+                          files: room.files.filter((_, i) => i !== fileIndex),
+                        })
+                      }
+                      className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/75 text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addRoom}
+        className="min-h-11 w-full rounded-xl border border-dashed border-violet-500/25 text-[10px] font-semibold text-violet-300"
+      >
+        ＋ Add another room type
+      </button>
+    </section>
+  );
 }

@@ -112,6 +112,11 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
   async function handleBook() {
     if (!room || !totals) return;
     if (!checkIn || !checkOut) { toast.error('Select check-in and check-out dates'); return; }
+    const roomGuestCapacity = Math.max(1, Number(room.max_guests || 1));
+    if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > roomGuestCapacity) {
+      toast.error(`Choose 1 to ${roomGuestCapacity} guest${roomGuestCapacity === 1 ? '' : 's'} for this room`);
+      return;
+    }
     if (!guestName.trim()) { toast.error('Guest name is required'); return; }
     if (!guestPhone.trim()) { toast.error('Phone number is required'); return; }
 
@@ -419,8 +424,9 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
             className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#8B5CF6]"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
           >
-            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>)}
+            {Array.from({ length: Math.max(1, Number(room.max_guests || 1)) }, (_, index) => index + 1).map(n => <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>)}
           </select>
+          <p className="mt-1.5 text-[9px] text-[#666B7B]">This room allows up to {Math.max(1, Number(room.max_guests || 1))} guest{Math.max(1, Number(room.max_guests || 1)) === 1 ? '' : 's'}.</p>
         </div>
 
         {/* Guest details */}

@@ -13,6 +13,7 @@ export { compressImageFile } from "./utils";
 export {
   signUpWithEmail,
   signInWithEmail,
+  signInWithIdentifier,
   signInWithGoogle,
   getSession,
   isUsernameTaken,

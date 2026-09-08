@@ -5,7 +5,9 @@ import PropertyInspectionRequestPanel from "@/components/PropertyInspectionReque
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
-import PartnerSubmittedRequests, { type SubmissionFilter } from "@/components/PartnerSubmittedRequests";
+import PartnerSubmittedRequests, {
+  type SubmissionFilter,
+} from "@/components/PartnerSubmittedRequests";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
@@ -36,7 +38,7 @@ const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {
     key: "communication",
     label: "Inbox",
-    description: "Official updates and Human Support",
+    description: "Your conversations and official activity in one place",
   },
   {
     key: "finance",
@@ -48,7 +50,11 @@ const money = (value: number) =>
   `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const hidden = "₦••••••";
 
-export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }: Props) {
+export default function PropertyOwnerDashboard({
+  profile,
+  onLogout,
+  onNavigate,
+}: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
   return (
@@ -63,13 +69,11 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
         setActive={(id) => setTab(id as PartnerTab)}
         onAccount={() => onNavigate("profile")}
         onLogout={onLogout}
+        compact={tab === "communication"}
       >
         {tab === "properties" && <PropertiesWorkspace profile={profile} />}{" "}
         {tab === "communication" && (
-          <CommunicationInbox
-            profile={profile}
-            onNavigate={onNavigate}
-          />
+          <CommunicationInbox profile={profile} onNavigate={onNavigate} />
         )}{" "}
         {tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
@@ -79,22 +83,59 @@ export default function PropertyOwnerDashboard({ profile, onLogout, onNavigate }
 function PropertiesWorkspace({ profile }: { profile: Profile }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [viewingDetail, setViewingDetail] = useState(false);
-  const filters: Array<{value:SubmissionFilter;label:string;description:string}> = [
-    {value:"all",label:"All submissions",description:"Every submitted property"},
-    {value:"submitted",label:"In progress",description:"Currently moving through review"},
-    {value:"public",label:"Live",description:"Published properties"},
-    {value:"rejected",label:"Changes requested",description:"Properties needing correction"},
+  const [creating, setCreating] = useState(false);
+  const filters: Array<{
+    value: SubmissionFilter;
+    label: string;
+    description: string;
+  }> = [
+    {
+      value: "all",
+      label: "All submissions",
+      description: "Every submitted property",
+    },
+    {
+      value: "submitted",
+      label: "In progress",
+      description: "Currently moving through review",
+    },
+    { value: "public", label: "Live", description: "Published properties" },
+    {
+      value: "rejected",
+      label: "Changes requested",
+      description: "Properties needing correction",
+    },
   ];
   return (
     <div className="space-y-5">
-      {!viewingDetail && <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
-        <div><h2 className="text-sm font-semibold">Your properties</h2><p className="mt-1 text-[9px] text-[#686B7D]">The selection filters one property workspace; lifecycle states stay on each property.</p></div>
-        <WeHouseSelect value={filter} options={filters} onChange={setFilter} eyebrow="Properties" title="Choose what to show" ariaLabel="Filter property submissions" />
-      </div>}
+      {!viewingDetail && !creating && (
+        <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+          <div>
+            <h2 className="text-sm font-semibold">Your properties</h2>
+            <p className="mt-1 text-[9px] text-[#686B7D]">
+              The selection filters one property workspace; lifecycle states
+              stay on each property.
+            </p>
+          </div>
+          <WeHouseSelect
+            value={filter}
+            options={filters}
+            onChange={setFilter}
+            eyebrow="Properties"
+            title="Choose what to show"
+            ariaLabel="Filter property submissions"
+          />
+        </div>
+      )}
       {filter === "public" ? (
         <PropertiesTab profile={profile} onDetailChange={setViewingDetail} />
       ) : (
-        <PartnerSubmittedRequests profile={profile} filter={filter} onDetailChange={setViewingDetail} />
+        <PartnerSubmittedRequests
+          profile={profile}
+          filter={filter}
+          onDetailChange={setViewingDetail}
+          onCreationChange={setCreating}
+        />
       )}
     </div>
   );
@@ -267,31 +308,73 @@ export function RequestsTab({ profile }: { profile: Profile }) {
     </div>
   );
 }
-function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetailChange?: (open:boolean)=>void }) {
+function PropertiesTab({
+  profile,
+  onDetailChange,
+}: {
+  profile: Profile;
+  onDetailChange?: (open: boolean) => void;
+}) {
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     (async () => {
-      const [propertyResult,hotelResult]=await Promise.all([
-        supabase.from("listings").select("*").or(`owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`).order("created_at",{ascending:false}),
-        supabase.from("hotels").select("*").eq("owner_id",profile.user_id).order("created_at",{ascending:false}),
+      const [propertyResult, hotelResult] = await Promise.all([
+        supabase
+          .from("listings")
+          .select("*")
+          .or(`owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`)
+          .eq("status", "available")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("hotels")
+          .select("*")
+          .eq("owner_id", profile.user_id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false }),
       ]);
       if (!active) return;
-      if (propertyResult.error||hotelResult.error) toast.error("Unable to load all of your properties and hotels");
-      setAssets([
-        ...(propertyResult.data||[]).map(row=>({...row,_assetKind:"property"})),
-        ...(hotelResult.data||[]).map(row=>({...row,_assetKind:"hotel",id:`hotel:${row.hotel_id}`,title:row.name})),
-      ].sort((a,b)=>new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime()));
+      if (propertyResult.error || hotelResult.error)
+        toast.error("Unable to load all of your properties and hotels");
+      setAssets(
+        [
+          ...(propertyResult.data || []).map((row) => ({
+            ...row,
+            _assetKind: "property",
+          })),
+          ...(hotelResult.data || []).map((row) => ({
+            ...row,
+            _assetKind: "hotel",
+            id: `hotel:${row.hotel_id}`,
+            title: row.name,
+          })),
+        ].sort(
+          (a, b) =>
+            new Date(b.created_at || 0).getTime() -
+            new Date(a.created_at || 0).getTime(),
+        ),
+      );
       setLoading(false);
     })();
     return () => {
       active = false;
     };
   }, [profile.user_id]);
-  useEffect(()=>{onDetailChange?.(Boolean(selected));return()=>onDetailChange?.(false)},[selected,onDetailChange]);
-  if (selected?._assetKind==="hotel") return <PartnerHotelOperations hotel={selected} accessRole="owner" onBack={()=>setSelected(null)}/>;
+  useEffect(() => {
+    onDetailChange?.(Boolean(selected));
+    return () => onDetailChange?.(false);
+  }, [selected, onDetailChange]);
+  if (selected?._assetKind === "hotel")
+    return (
+      <PartnerHotelOperations
+        hotel={selected}
+        accessRole="owner"
+        onBack={() => setSelected(null)}
+      />
+    );
   if (selected)
     return (
       <PropertyDetails property={selected} onBack={() => setSelected(null)} />
@@ -300,7 +383,9 @@ function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetail
     <section>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Published properties and hotels</h2>
+          <h2 className="text-sm font-semibold">
+            Published properties and hotels
+          </h2>
           <p className="mt-1 text-[10px] text-[#66687B]">
             Open an asset to manage it at the depth it needs.
           </p>
@@ -317,21 +402,21 @@ function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetail
           text="A property appears here after it is ready and published by WeHouse."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {assets.map((property) => (
             <button
               key={property.id}
               onClick={() => setSelected(property)}
-              className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#111119] text-left transition hover:-translate-y-0.5 hover:border-violet-500/25"
+              className="flex w-full items-center gap-3 py-4 text-left transition hover:bg-white/[.02]"
             >
-              <div className="h-40 bg-[#171722]">
+              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#171722]">
                 {property.images?.[0] ? (
                   <img
                     src={property.images[0]}
                     alt=""
                     loading="lazy"
                     decoding="async"
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-cover"
                   />
                 ) : (
                   <div className="grid h-full place-items-center text-[#46485A]">
@@ -339,7 +424,7 @@ function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetail
                   </div>
                 )}
               </div>
-              <div className="p-4">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
@@ -351,9 +436,13 @@ function PropertiesTab({ profile, onDetailChange }: { profile: Profile; onDetail
                         .join(", ")}
                     </p>
                   </div>
-                  <Status value={property.status || property.availability_status || "pending"}/>
+                  <Status value={"live"} />
                 </div>
-                <p className="mt-3 text-xs font-bold">{property._assetKind==="hotel"?"Hotel operation":money(Number(property.price||0))}</p>
+                <p className="mt-2 text-xs font-bold">
+                  {property._assetKind === "hotel"
+                    ? "Hotel operation"
+                    : money(Number(property.price || 0))}
+                </p>
               </div>
             </button>
           ))}
@@ -397,7 +486,13 @@ function PropertyDetails({
         ← Back to properties
       </button>
       <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#111119]">
-        {property.images?.length ? <PropertyMediaCarousel images={property.images} title={property.title || "Property"} /> : null}
+        {property.images?.length || property.videos?.length ? (
+          <PropertyMediaCarousel
+            images={property.images}
+            videos={property.videos || []}
+            title={property.title || "Property"}
+          />
+        ) : null}
         <div className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -436,27 +531,54 @@ function PropertyDetails({
 function FinanceTab({ profile }: { profile: Profile }) {
   const key = `wh_finance_amounts_visible_${profile.user_id}`;
   const [showAmounts, setShowAmounts] = useState(() => {
-    try { return localStorage.getItem(key) !== "false"; } catch { return true; }
+    try {
+      return localStorage.getItem(key) !== "false";
+    } catch {
+      return true;
+    }
   });
   function toggleAmounts() {
     setShowAmounts((current) => {
       const next = !current;
-      try { localStorage.setItem(key, String(next)); } catch {}
+      try {
+        localStorage.setItem(key, String(next));
+      } catch {}
       return next;
     });
   }
   return (
     <div className="space-y-5">
-      <PropertyPartnerFinancePanel profile={profile} showAmounts={showAmounts} onToggleAmounts={toggleAmounts}/>
+      <PropertyPartnerFinancePanel
+        profile={profile}
+        showAmounts={showAmounts}
+        onToggleAmounts={toggleAmounts}
+      />
       <PayoutAccountManager profile={profile} />
       <section className="border-t border-white/[.07] pt-5">
-        <div className="mb-4"><h2 className="text-sm font-bold">Property earnings</h2><p className="mt-1 text-[9px] text-[#66687B]">Every property-income release in the same Finance workspace.</p></div>
-        <EarningsTab profile={profile} showAmounts={showAmounts} toggleAmounts={toggleAmounts}/>
+        <div className="mb-4">
+          <h2 className="text-sm font-bold">Property earnings</h2>
+          <p className="mt-1 text-[9px] text-[#66687B]">
+            Every property-income release in the same Finance workspace.
+          </p>
+        </div>
+        <EarningsTab
+          profile={profile}
+          showAmounts={showAmounts}
+          toggleAmounts={toggleAmounts}
+        />
       </section>
     </div>
   );
 }
-function EarningsTab({ profile, showAmounts, toggleAmounts }: { profile: Profile; showAmounts: boolean; toggleAmounts: () => void }) {
+function EarningsTab({
+  profile,
+  showAmounts,
+  toggleAmounts,
+}: {
+  profile: Profile;
+  showAmounts: boolean;
+  toggleAmounts: () => void;
+}) {
   const [rows, setRows] = useState<EarningRelease[]>([]),
     [loading, setLoading] = useState(true),
     [filter, setFilter] = useState<"all" | EarningRelease["status"]>("all");
