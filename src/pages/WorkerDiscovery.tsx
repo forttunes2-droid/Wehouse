@@ -19,6 +19,7 @@ import DiscoveryShell, {
 } from "@/components/DiscoveryShell";
 import { workerOccupation, workerServiceNames } from "@/lib/workerTaxonomy";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
 type ActiveBooking = { worker_id?: string | null };
@@ -455,23 +456,23 @@ export default function WorkerDiscovery({
         >
           <div className="grid grid-cols-2 gap-3">
             <SearchableSelect
-              label="Service"
+              label="Work category"
               value={category}
               onChange={(value) => {
                 setCategory(value);
                 setSpecialty("");
               }}
               options={categoryOptions}
-              placeholder="Any service"
-              searchPlaceholder="Search service"
+              placeholder="Any category"
+              searchPlaceholder="Search categories"
             />
             <SearchableSelect
-              label="Specialty"
+              label="Service"
               value={specialty}
               onChange={setSpecialty}
               options={specialtyOptions}
-              placeholder={category ? "Any specialty" : "Choose service"}
-              searchPlaceholder="Search specialty"
+              placeholder={category ? "Any service" : "Choose category"}
+              searchPlaceholder="Search services"
               disabled={!category}
             />
           </div>
@@ -700,13 +701,7 @@ function StatusMedia({
   controls?: boolean;
 }) {
   return status.media_type === "video" ? (
-    <video
-      src={status.url}
-      className={className}
-      controls={controls}
-      playsInline
-      muted={!controls}
-    />
+    controls ? <VideoPlayer src={status.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]`} role="img" aria-label="Worker video"><span className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">▶</span></div>
   ) : (
     <img src={status.url} alt="Work Status" className={className} />
   );

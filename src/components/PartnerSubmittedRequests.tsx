@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
+import { propertyLifecycleLabel } from "@/lib/status";
 import PropertyInspectionRequestPanel from "./PropertyInspectionRequestPanel";
 import PropertyMediaCarousel from "./PropertyMediaCarousel";
-import PropertyAccessRecorder from "./PropertyAccessRecorder";
+import PropertyAccessRecorder, {
+  MIN_PROPERTY_ACCESS_SECONDS,
+  propertyAccessDuration,
+} from "./PropertyAccessRecorder";
 import BackButton from "@/components/BackButton";
 import { ListingMediaImage } from "./ListingCandidateMedia";
 import PartnerHotelOperations from "./PartnerHotelOperations";
@@ -314,7 +318,7 @@ function RequestDetail({
     request.property_type === "hotel" &&
     request.draft_hotel_id
   )
-    return <LiveHotel request={request} onBack={onBack} />;
+    return <LiveHotel profile={profile} request={request} onBack={onBack} />;
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -521,9 +525,11 @@ function RequestDetail({
 }
 
 function LiveHotel({
+  profile,
   request,
   onBack,
 }: {
+  profile: Profile;
   request: RequestRow;
   onBack: () => void;
 }) {
@@ -557,7 +563,7 @@ function LiveHotel({
       </div>
     );
   return (
-    <PartnerHotelOperations hotel={hotel} accessRole="owner" onBack={onBack} />
+    <PartnerHotelOperations hotel={hotel} accessRole="owner" profile={profile} onBack={onBack} />
   );
 }
 
@@ -592,13 +598,18 @@ function AccessEvidenceCorrection({
     if (!challenge || !recording) return;
     if (recording.size > 100 * 1024 * 1024)
       return toast.error("Access recording must be under 100MB");
+    const duration = propertyAccessDuration(recording);
+    if (duration < MIN_PROPERTY_ACCESS_SECONDS)
+      return toast.error(
+        `Record at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds of continuous access evidence`,
+      );
     setBusy(true);
     const extension = recording.type.includes("mp4")
       ? "mp4"
       : recording.type.includes("quicktime")
         ? "mov"
         : "webm";
-    const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}.${extension}`;
+    const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${extension}`;
     const uploaded = await supabase.storage
       .from("property-access-private")
       .upload(path, recording, {
@@ -748,21 +759,15 @@ function Status({ request }: { request: RequestRow }) {
 }
 function partnerState(request: RequestRow) {
   const stage = request.lifecycle_stage || "access_required";
-  const value =
-    stage === "live"
-      ? "live"
-      : ["changes_requested", "rejected"].includes(stage)
-        ? stage
-        : String(request.status || "pending");
   const tone =
-    value === "live" || value === "completed" || value === "approved"
+    stage === "live"
       ? "bg-emerald-500/10 text-emerald-300"
-      : value === "rejected"
+      : stage === "rejected"
         ? "bg-red-500/10 text-red-300"
-        : ["changes_requested", "pending"].includes(value)
+        : stage === "changes_requested"
           ? "bg-amber-500/10 text-amber-300"
           : "bg-violet-500/10 text-violet-300";
-  return { label: friendly(value), tone };
+  return { label: propertyLifecycleLabel(stage), tone };
 }
 function Loader() {
   return (

@@ -55,6 +55,20 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
   return{messages,error};
 }
 
+export async function reactToBookingMessage(
+  conversationId: string,
+  messageId: string,
+  emoji: string | null,
+) {
+  const { data, error } = await supabase.rpc("set_private_message_reaction", {
+    p_conversation_kind: "worker",
+    p_conversation_id: conversationId,
+    p_message_id: messageId,
+    p_emoji: emoji,
+  });
+  return { reactions: (data || {}) as Record<string, string>, error };
+}
+
 export async function sendBookingMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[]){
   try{
     const encrypted=await encryptPrivateMessage('worker',conversationId,peerUserId,content);

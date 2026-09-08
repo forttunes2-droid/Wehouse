@@ -15,6 +15,7 @@ import {
   publishListingCandidateImages,
   removePublishedCandidateCopies,
 } from "@/lib/supabase/listings";
+import { propertyLifecycleLabel } from "@/lib/status";
 type Stage =
   | "all"
   | "access_required"
@@ -39,10 +40,7 @@ const STAGES: [Stage, string][] = [
   ["rejected", "Rejected"],
 ];
 function stageLabel(value: string) {
-  return (
-    STAGES.find(([stage]) => stage === value)?.[1] ||
-    String(value || "Unknown").replace(/_/g, " ")
-  );
+  return propertyLifecycleLabel(value);
 }
 export default function PropertyPipelineWorkspace({
   profile,
@@ -758,13 +756,7 @@ function AccessReview({
             className="relative mt-4 block aspect-video w-full overflow-hidden rounded-xl bg-black"
             aria-label="Open access recording in WeHouse viewer"
           >
-            <video
-              src={url}
-              muted
-              playsInline
-              preload="metadata"
-              className="h-full w-full object-contain"
-            />
+            <span className="grid h-full w-full place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]" />
             <span className="absolute inset-0 grid place-items-center bg-black/15">
               <span className="rounded-full bg-black/70 px-4 py-2 text-[10px] font-semibold backdrop-blur">
                 ▶ Open in WeHouse viewer

@@ -12,6 +12,7 @@ type Props = {
   onAccount?: () => void;
   onLogout: () => void;
   compact?: boolean;
+  immersive?: boolean;
   children: React.ReactNode;
 };
 
@@ -26,6 +27,7 @@ export default function WorkspaceFrameV2({
   onAccount,
   onLogout,
   compact = false,
+  immersive = false,
   children,
 }: Props) {
   // AccountCenter owns sign-out. A role workspace should expose one Account
@@ -59,9 +61,9 @@ export default function WorkspaceFrameV2({
   return (
     <div
       data-workspace-frame="v2"
-      className="role-workspace min-h-[100dvh] bg-[#0A0A0F] pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-white sm:pb-0"
+      className={`role-workspace min-h-[100dvh] bg-[#0A0A0F] text-white ${immersive ? "pb-0" : "pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:pb-0"}`}
     >
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 backdrop-blur-xl">
+      {!immersive && <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 backdrop-blur-xl">
         <div
           className={`mx-auto max-w-7xl px-4 sm:px-5 lg:px-8 ${compact ? "py-2.5 sm:py-4" : "py-4"}`}
         >
@@ -115,13 +117,13 @@ export default function WorkspaceFrameV2({
             ))}
           </div>
         </div>
-      </header>
+      </header>}
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
+      <main className={`mx-auto max-w-7xl ${immersive ? "px-4 py-4 sm:px-5 lg:px-8" : "px-4 py-5 sm:px-5 lg:px-8 lg:py-7"}`}>
         {children}
       </main>
 
-      {more && hasOverflow && (
+      {!immersive && more && hasOverflow && (
         <>
           <button
             aria-label="Close more navigation"
@@ -155,7 +157,7 @@ export default function WorkspaceFrameV2({
         </>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-[67] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
+      {!immersive && <nav className="fixed inset-x-0 bottom-0 z-[67] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
         <div className="mx-auto flex min-h-[4.5rem] max-w-lg items-stretch px-1">
           {direct.map((item) => (
             <BottomTab
@@ -186,7 +188,7 @@ export default function WorkspaceFrameV2({
             />
           )}
         </div>
-      </nav>
+      </nav>}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type Props = {
   code: string;
@@ -7,6 +8,14 @@ type Props = {
   recordedFile: File | null;
   onRecorded: (file: File | null) => void;
 };
+
+export const MIN_PROPERTY_ACCESS_SECONDS = 20;
+
+export function propertyAccessDuration(file: File | null) {
+  if (!file) return 0;
+  const match = file.name.match(/property-access-\d+-(\d+)s\./i);
+  return match ? Number(match[1]) : 0;
+}
 
 export default function PropertyAccessRecorder({
   code,
@@ -49,6 +58,8 @@ export default function PropertyAccessRecorder({
     }
     const url = URL.createObjectURL(recordedFile);
     setPreview(url);
+    const storedDuration = propertyAccessDuration(recordedFile);
+    if (storedDuration) setRecordedDuration(storedDuration);
     return () => URL.revokeObjectURL(url);
   }, [recordedFile]);
   useEffect(
@@ -102,12 +113,16 @@ export default function PropertyAccessRecorder({
   function start() {
     const stream = streamRef.current;
     if (!stream) return;
+    const probe = document.createElement("video");
     const mimeType = [
       "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-      "video/mp4",
       "video/webm;codecs=vp8,opus",
+      "video/mp4",
       "video/webm",
-    ].find((type) => MediaRecorder.isTypeSupported(type));
+    ].find(
+      (type) =>
+        MediaRecorder.isTypeSupported(type) && probe.canPlayType(type) !== "",
+    );
     const recorder = new MediaRecorder(
       stream,
       mimeType
@@ -132,7 +147,7 @@ export default function PropertyAccessRecorder({
         blob = new Blob(chunksRef.current, { type });
       if (blob.size)
         onRecorded(
-          new File([blob], `property-access-${Date.now()}.${extension}`, {
+          new File([blob], `property-access-${Date.now()}-${actualDuration}s.${extension}`, {
             type,
           }),
         );
@@ -175,9 +190,9 @@ export default function PropertyAccessRecorder({
     );
   }
   function stop() {
-    if (elapsedRef.current < 8)
+    if (elapsedRef.current < MIN_PROPERTY_ACCESS_SECONDS)
       return toast.error(
-        "Continue from the entrance into the property before stopping",
+        `Continue the entrance-to-interior walkthrough for at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds`,
       );
     if (recorderRef.current?.state === "recording") {
       setFinalizing(true);
@@ -216,16 +231,13 @@ export default function PropertyAccessRecorder({
         </button>
       ) : (
         <div className="mt-3 overflow-hidden rounded-2xl border border-emerald-500/15 bg-emerald-500/[.05]">
-          <video
+          <VideoPlayer
             src={preview}
-            controls
-            playsInline
-            preload="metadata"
-            onLoadedMetadata={(event) => {
-              const duration = event.currentTarget.duration;
-              if (Number.isFinite(duration)) setRecordedDuration(duration);
+            durationHint={recordedDuration || propertyAccessDuration(recordedFile)}
+            onDuration={setRecordedDuration}
+            onPlaybackError={() => {
+              toast.error("This recording cannot play on this device. Please retake it.");
             }}
-            className="aspect-video w-full bg-black object-contain"
           />
           <div className="flex items-center justify-between gap-3 p-3">
             <div>
@@ -325,8 +337,8 @@ export default function PropertyAccessRecorder({
                 ? "Finishing your recording…"
                 : !ready
                 ? "Opening camera…"
-                : recording && seconds < 8
-                  ? "Record at least 8 seconds"
+                : recording && seconds < MIN_PROPERTY_ACCESS_SECONDS
+                  ? `Record at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds`
                   : "Tap once—do not pause during the walkthrough"}
             </p>
           </div>

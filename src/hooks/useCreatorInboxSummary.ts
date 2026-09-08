@@ -18,7 +18,7 @@ export function useCreatorInboxSummary(
   const refresh = useCallback(async () => {
     if (!userId) return;
     const [support, events, announcements] = await Promise.all([
-      getSupportInbox("support"),
+      getSupportInbox("all"),
       supabase
         .from("notifications")
         .select("type,source_type,destination_route,created_at,read")

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import MediaViewer from "@/components/MediaViewer";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type Worker = {
   user_id: string;
@@ -410,13 +411,7 @@ function Evidence({
       {url ? (
         kind === "video" ? (
           <div className="mt-2 space-y-2">
-            <video
-              src={url}
-              controls
-              playsInline
-              preload="metadata"
-              className="aspect-video w-full rounded-xl bg-black object-contain"
-            />
+            <VideoPlayer src={url} className="aspect-video w-full rounded-xl bg-black object-contain" />
             <button
               type="button"
               onClick={() => setViewerOpen(true)}

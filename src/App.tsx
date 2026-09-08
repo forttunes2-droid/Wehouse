@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
+import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
 import { currentActivityRows } from "@/lib/activityFeed";
 
 type ConversationUnreadRow = {
@@ -505,6 +506,7 @@ export default function App() {
         { data },
         bookingResult,
         supportResult,
+        hotelChatResult,
         { data: activityRows },
         { count: announcements },
       ] = await Promise.all([
@@ -514,6 +516,7 @@ export default function App() {
           .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
         getCommunicationBookingConversations(uid),
         getMySupportConversations(),
+        getMyHotelConversations(),
         supabase
           .from("notifications")
           .select(
@@ -544,6 +547,11 @@ export default function App() {
           sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
         0,
       );
+      const hotel = (hotelChatResult.conversations || []).reduce(
+        (sum: number, row: { unread_count?: number }) =>
+          sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
+        0,
+      );
       const activity = currentActivityRows(
         (activityRows || []) as Array<{
           id: string;
@@ -555,7 +563,7 @@ export default function App() {
           destination_route?: string | null;
         }>,
       ).length;
-      setUnreadCount(roommate + worker + support);
+      setUnreadCount(roommate + worker + hotel + support);
       setNotificationCount(activity + Number(announcements || 0));
     }
     void count();
@@ -587,6 +595,20 @@ export default function App() {
               actionButton:
                 "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
             },
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
+        (payload) => {
+          const message = payload.new as IncomingMessageRow;
+          if (String(message.sender_id || "") === uid) return;
+          void count();
+          if (profile.pref_push_notif === false) return;
+          toast("New hotel message", {
+            description: String(message.content || "Open Inbox to read it.").slice(0, 110),
+            action: { label: "View", onClick: openMessages },
           });
         },
       )
@@ -1197,7 +1219,7 @@ export default function App() {
       !conversationOpen &&
       !nestedScreen &&
       !hide.includes(navPage),
-    supportRole = ["user", "worker", "property_partner"].includes(
+    supportRole = ["user", "worker", "property_partner", "hotel_staff"].includes(
       profile?.role || "",
     );
   return (

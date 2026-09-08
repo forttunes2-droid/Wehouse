@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ListingMediaImage, ListingMediaVideo } from './ListingCandidateMedia';
+import { ListingMediaImage, useListingMediaUrl } from './ListingCandidateMedia';
+import VideoPlayer from './VideoPlayer';
 
 type Props = {
   images: string[];
@@ -66,7 +67,7 @@ export default function PropertyMediaCarousel({ images, videos = [], title, chil
           className="min-w-full snap-center"
           aria-label={`View ${item.kind} ${index + 1} of ${items.length} full screen`}
         >
-          {item.kind === 'video' ? <div className="relative aspect-[4/3] w-full bg-black sm:aspect-[16/9]"><ListingMediaVideo reference={item.reference} muted playsInline preload="metadata" className="h-full w-full object-cover"/><span className="absolute inset-0 grid place-items-center"><span className="grid h-14 w-14 place-items-center rounded-full bg-black/60 pl-1 text-xl backdrop-blur">▶</span></span></div> : <ListingMediaImage reference={item.reference} alt={`${title} · photo ${index + 1}`} loading={index === 0 ? 'eager' : 'lazy'} fetchPriority={index === 0 ? 'high' : 'auto'} draggable={false} className="aspect-[4/3] w-full select-none object-cover sm:aspect-[16/9]" />}
+          {item.kind === 'video' ? <div className="relative aspect-[4/3] w-full bg-black sm:aspect-[16/9]"><div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#141824] to-black"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/10 pl-1 text-xl backdrop-blur">▶</span></div></div> : <ListingMediaImage reference={item.reference} alt={`${title} · photo ${index + 1}`} loading={index === 0 ? 'eager' : 'lazy'} fetchPriority={index === 0 ? 'high' : 'auto'} draggable={false} className="aspect-[4/3] w-full select-none object-cover sm:aspect-[16/9]" />}
         </button>)}
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
@@ -80,9 +81,15 @@ export default function PropertyMediaCarousel({ images, videos = [], title, chil
     </section>
     {fullscreen && <div className="fixed inset-0 z-[100200] flex h-[100dvh] flex-col bg-black" role="dialog" aria-modal="true" aria-label={`${title} WeHouse media viewer`}>
       <header className="flex min-h-14 shrink-0 items-center justify-between px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]"><span className="text-xs text-white/70">{activeIndex + 1} of {items.length} · {items[activeIndex]?.kind}</span><button type="button" onClick={() => setFullscreen(false)} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-xl" aria-label="Close media viewer">×</button></header>
-      <div ref={fullscreenRailRef} onScroll={(event) => { const rail=event.currentTarget; if(rail.clientWidth)setActiveIndex(Math.min(items.length-1,Math.max(0,Math.round(rail.scrollLeft/rail.clientWidth)))) }} className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain scrollbar-hide">{items.map((item,index)=><div key={`${item.reference}-full-${index}`} className="flex h-full min-w-full snap-center items-center justify-center overflow-hidden">{item.kind === 'video' ? <ListingMediaVideo reference={item.reference} controls autoPlay={index === activeIndex} playsInline preload="metadata" className="block max-h-full max-w-full object-contain"/> : <ListingMediaImage reference={item.reference} alt={`${title} · photo ${index + 1}`} className="block h-full w-full object-contain" />}</div>)}</div>
-      {items.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 scrollbar-hide">{items.map((item, index) => <button key={`${item.reference}-thumb-${index}`} type="button" onClick={() => moveFullscreenTo(index)} aria-label={`Open ${item.kind} ${index + 1}`} className={`relative h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-violet-400' : 'border-transparent opacity-60'}`}>{item.kind === 'video' ? <><ListingMediaVideo reference={item.reference} muted playsInline preload="metadata" className="h-full w-full object-cover"/><span className="absolute inset-0 grid place-items-center text-xs">▶</span></> : <ListingMediaImage reference={item.reference} alt="" className="h-full w-full object-cover" />}</button>)}</div>}
+      <div ref={fullscreenRailRef} onScroll={(event) => { const rail=event.currentTarget; if(rail.clientWidth)setActiveIndex(Math.min(items.length-1,Math.max(0,Math.round(rail.scrollLeft/rail.clientWidth)))) }} className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain scrollbar-hide">{items.map((item,index)=><div key={`${item.reference}-full-${index}`} className="flex h-full min-w-full snap-center items-center justify-center overflow-hidden">{item.kind === 'video' ? <ResolvedVideo reference={item.reference} active={index === activeIndex}/> : <ListingMediaImage reference={item.reference} alt={`${title} · photo ${index + 1}`} className="block h-full w-full object-contain" />}</div>)}</div>
+      {items.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 scrollbar-hide">{items.map((item, index) => <button key={`${item.reference}-thumb-${index}`} type="button" onClick={() => moveFullscreenTo(index)} aria-label={`Open ${item.kind} ${index + 1}`} className={`relative h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-violet-400' : 'border-transparent opacity-60'}`}>{item.kind === 'video' ? <span className="absolute inset-0 grid place-items-center bg-[#171B24] text-xs">▶</span> : <ListingMediaImage reference={item.reference} alt="" className="h-full w-full object-cover" />}</button>)}</div>}
       {items.length === 1 ? <div className="h-[env(safe-area-inset-bottom)] shrink-0"/> : null}
     </div>}
   </>;
+}
+
+function ResolvedVideo({reference,active}:{reference:string;active:boolean}){
+  const url=useListingMediaUrl(reference);
+  if(!url)return <div className="h-full w-full animate-pulse bg-white/[.04]" role="status" aria-label="Loading video"/>;
+  return <div className="w-full max-w-5xl"><VideoPlayer src={url} autoPlay={active} className="max-h-[78dvh] w-full bg-black object-contain"/></div>;
 }

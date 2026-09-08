@@ -3,6 +3,8 @@ import GoldTickBadge from "@/components/GoldTickBadge";
 import { supabase } from "@/lib/supabase";
 import { workerOccupation, workerServiceNames } from "@/lib/workerTaxonomy";
 import type { Profile } from "@/types";
+import VideoPlayer from "@/components/VideoPlayer";
+import { toast } from "sonner";
 
 type Post = {
   id: string;
@@ -27,6 +29,7 @@ type Trust = {
   label?: string;
 };
 type PublicReview={id:string;rating:number;comment:string|null;created_at:string;reviewer_name:string;service_name:string};
+type PostReaction = { post_id: string; emoji: string; reaction_count: number; mine: boolean };
 type Props = {
   worker: Profile;
   onBack: () => void;
@@ -46,12 +49,13 @@ export default function WorkerPublicProfileV2({
     [viewer, setViewer] = useState<Post | null>(null),
     [loading, setLoading] = useState(true),
     [trust, setTrust] = useState<Trust | null>(null),
-    [reviews,setReviews]=useState<PublicReview[]>([]);
+    [reviews,setReviews]=useState<PublicReview[]>([]),
+    [postReactions,setPostReactions]=useState<Record<string,{counts:Record<string,number>;mine:string|null}>>({});
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: true } }));
     let active = true;
     void (async () => {
-      const [{ data: rows }, { data: trustData },{data:reviewRows}] = await Promise.all([
+      const [{ data: rows }, { data: trustData },{data:reviewRows},{data:reactionRows}] = await Promise.all([
         supabase
           .from("worker_showcase_posts")
           .select(
@@ -59,11 +63,13 @@ export default function WorkerPublicProfileV2({
           )
           .eq("worker_id", worker.user_id)
           .is("deleted_at", null)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(30),
         supabase.rpc("get_worker_marketplace_trust", {
           p_worker_id: worker.user_id,
         }),
         supabase.rpc("get_public_worker_reviews",{p_worker_id:worker.user_id,p_limit:20}),
+        supabase.rpc("get_worker_showcase_reactions",{p_worker_id:worker.user_id}),
       ]);
       const enriched = await Promise.all(
         ((rows || []) as Post[]).map(async (row) => {
@@ -77,6 +83,13 @@ export default function WorkerPublicProfileV2({
         setPosts(enriched);
         setTrust((trustData || null) as Trust | null);
         setReviews((reviewRows||[]) as PublicReview[]);
+        const grouped: Record<string,{counts:Record<string,number>;mine:string|null}> = {};
+        for (const reaction of (reactionRows || []) as PostReaction[]) {
+          grouped[reaction.post_id] ||= { counts: {}, mine: null };
+          grouped[reaction.post_id].counts[reaction.emoji] = Number(reaction.reaction_count || 0);
+          if (reaction.mine) grouped[reaction.post_id].mine = reaction.emoji;
+        }
+        setPostReactions(grouped);
         setLoading(false);
       }
     })();
@@ -146,7 +159,7 @@ export default function WorkerPublicProfileV2({
             </div>
           </div>
         </section>
-        <section className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/[.06] bg-[#0F1219]"><ProfileFact label="WeHouse identity" value={trust?.reviewed?'Reviewed':'Not reviewed'}/><ProfileFact label="Completed-job rating" value={rating>0?`${rating.toFixed(1)} · ${reviewCount}`:'New'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
+        <section className="grid grid-cols-3 border-y border-white/[.06]"><ProfileFact label="WeHouse identity" value={trust?.reviewed?'Reviewed':'Not reviewed'}/><ProfileFact label="Completed-job rating" value={rating>0?`${rating.toFixed(1)} · ${reviewCount}`:'New'}/><ProfileFact label="Completed jobs" value={String(Number(trust?.completed_jobs||0))}/></section>
         {trust?.reviewed&&<p className="-mt-2 text-[9px] leading-5 text-[#73798A]">The Gold Tick means WeHouse approved this service worker’s onboarding and review. “WeHouse Trusted” is an additional performance tier earned from completed jobs; it does not replace the Gold Tick.</p>}
         <section>
           <div className="mb-3">
@@ -160,25 +173,24 @@ export default function WorkerPublicProfileV2({
           ) : workPosts.length === 0 ? (
             <Empty text="This worker has not published any work posts yet." />
           ) : (
-            <div className="-mx-4 grid grid-cols-3 gap-px bg-white/[.04] sm:mx-0">
+            <div className="-mx-4 divide-y divide-white/[.06] border-y border-white/[.06] sm:mx-0">
               {workPosts.map((post) => (
-                <button
-                  key={post.id}
-                  onClick={() => setViewer(post)}
-                  className="group relative overflow-hidden bg-[#0D1118] text-left"
-                >
-                  <Media
-                    post={post}
-                    className="aspect-[3/4] w-full object-cover transition duration-300 group-active:scale-[.98]"
-                  />
-                  {post.verified_job && (
-                    <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">
-                      WEHOUSE JOB ✓
-                    </span>
-                  )}
-                  {post.media_type==='video'&&<span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-[10px]">▶</span>}
-                  {post.caption&&<span className="absolute inset-x-0 bottom-0 line-clamp-2 bg-gradient-to-t from-black/90 to-transparent px-2 pb-2 pt-7 text-[8px] text-white">{post.caption}</span>}
-                </button>
+                <article key={post.id} className="py-4 first:pt-0">
+                  <button onClick={() => setViewer(post)} className="group relative block w-full overflow-hidden bg-[#0D1118] text-left">
+                    <Media post={post} className="aspect-[16/11] w-full object-cover transition duration-300 group-active:scale-[.99]" />
+                    {post.verified_job && <span className="absolute left-3 top-3 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">WEHOUSE JOB ✓</span>}
+                  </button>
+                  {post.caption&&<p className="px-4 pt-3 text-[11px] leading-5 text-[#C7CBD4] sm:px-0">{post.caption}</p>}
+                  <div className="flex items-center gap-1 px-3 pt-2 sm:px-0">
+                    {["👍","❤️","👏"].map(emoji=><button key={emoji} type="button" onClick={async()=>{
+                      const previous=postReactions[post.id]?.mine;
+                      const next=previous===emoji?null:emoji;
+                      const {data,error}=await supabase.rpc('set_my_worker_showcase_reaction',{p_post_id:post.id,p_emoji:next});
+                      if(error)return toast.error(error.message||'Reaction could not be saved');
+                      setPostReactions(current=>({...current,[post.id]:{counts:(data||{}) as Record<string,number>,mine:next}}));
+                    }} className={`rounded-full px-2.5 py-1.5 text-[10px] ${postReactions[post.id]?.mine===emoji?'bg-violet-500/20 ring-1 ring-violet-400/30':'bg-white/[.04]'}`}>{emoji}{postReactions[post.id]?.counts[emoji]?` ${postReactions[post.id].counts[emoji]}`:''}</button>)}
+                  </div>
+                </article>
               ))}
             </div>
           )}
@@ -225,11 +237,7 @@ export default function WorkerPublicProfileV2({
                 ×
               </button>
             </div>
-            <Media
-              post={viewer}
-              className="max-h-[72dvh] w-full rounded-3xl bg-black object-contain"
-              controls
-            />
+            {viewer.media_type === 'video' ? <VideoPlayer src={viewer.url || ''} className="max-h-[72dvh] w-full bg-black object-contain" autoPlay /> : <img src={viewer.url} alt="Worker work" className="max-h-[72dvh] w-full bg-black object-contain" />}
             {viewer.caption && (
               <p className="mt-3 rounded-2xl bg-white/[.06] p-4 text-[11px] leading-relaxed text-[#D0D3DA]">
                 {viewer.caption}
@@ -251,16 +259,9 @@ function Media({
   controls?: boolean;
 }) {
   return post.media_type === "video" ? (
-    <video
-      src={post.url}
-      className={className}
-      controls={controls}
-      playsInline
-      preload="metadata"
-      muted={!controls}
-    />
+    controls ? <VideoPlayer src={post.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]`} role="img" aria-label="Video post"><span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">▶</span></div>
   ) : (
-    <img src={post.url} alt="Worker work" className={className} />
+    <img src={post.url} alt="Worker work" className={className} loading="lazy" decoding="async" />
   );
 }
 function Empty({ text }: { text: string }) {

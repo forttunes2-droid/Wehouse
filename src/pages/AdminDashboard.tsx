@@ -15,6 +15,7 @@ import Notifications from "./Notifications";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import HousingOperationsWorkspace from "@/components/HousingOperationsWorkspace";
 import type { Profile } from "@/types";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type AdminTab = "home" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings";
@@ -58,7 +59,7 @@ export default function AdminDashboard({
   onGoToChat,
 }: Props) {
   const [tab, setTab] = useState<AdminTab>("home"),
-    [operation, setOperation] = useState<Operation>("people"),
+    [operation, setOperation] = useState<Operation | null>(null),
     [stats, setStats] = useState<any>({
       users: 0,
       workers: 0,
@@ -103,16 +104,23 @@ export default function AdminDashboard({
   const nav = NAV.map((item) =>
     item.id === "inbox" ? { ...item, badge: inboxSummary.totalUnread } : item,
   );
+  const currentOperation = operation ? OPS.find(([id]) => id === operation) : null;
+  const workspaceTitle = tab === "operations" && currentOperation ? currentOperation[1] : NAV.find((item) => item.id === tab)?.label || "Admin";
+  const workspaceDescription = tab === "operations" && currentOperation ? currentOperation[2] : NOTES[tab];
   return (
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
         label={`WEHOUSE · ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
-        title={NAV.find((item) => item.id === tab)?.label || "Admin"}
-        description={`${NOTES[tab]}${branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : " · Branch assignment required"}`}
+        title={workspaceTitle}
+        description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : " · Branch assignment required"}`}
         items={nav}
         active={tab}
-        setActive={(id) => setTab(id as AdminTab)}
+        setActive={(id) => {
+          const next = id as AdminTab;
+          setTab(next);
+          if (next === "operations") setOperation(null);
+        }}
         onAccount={onNavigate ? () => onNavigate("profile") : undefined}
         onLogout={onLogout}
         compact={tab === "inbox"}
@@ -190,6 +198,7 @@ function AdminInbox({
           scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }}
           forcedView="inbox"
           hideViewTabs
+          queue="all"
           onUnreadChange={summary.setMessageUnread}
         />
       ) : (
@@ -234,11 +243,9 @@ function Overview({
   ];
   return (
     <div className="space-y-5">
-      <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[0.13] via-[#111522] to-[#0D1018] p-5 sm:p-6 lg:p-8">
-        <span className="rounded-full bg-violet-500/10 px-3 py-1 text-[9px] font-semibold text-violet-300">
-          BRANCH AUTHORITY
-        </span>
-        <h2 className="mt-4 text-2xl font-bold lg:text-3xl">
+      <section className="border-b border-white/[.07] pb-5">
+        <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-violet-300">Branch workspace</p>
+        <h2 className="mt-2 text-2xl font-bold lg:text-3xl">
           {profile.assigned_lga}, {profile.assigned_state}
         </h2>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">
@@ -246,28 +253,26 @@ function Overview({
           GPS improves maps and distance but never expands branch permissions.
         </p>
       </section>
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
         {cards.map(([label, value, target, note]) => (
           <button
             key={label}
             onClick={() => openOperation(target)}
-            className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left hover:border-violet-500/25"
+            className="flex min-h-16 w-full items-center gap-4 py-3 text-left"
           >
-            <p className="text-2xl font-bold">{value}</p>
-            <p className="mt-1 text-[10px] font-semibold">{label}</p>
-            <p className="mt-1 text-[9px] text-[#626678]">{note}</p>
+            <p className="w-12 shrink-0 text-xl font-bold">{value}</p>
+            <span className="min-w-0 flex-1"><strong className="block text-xs">{label}</strong><span className="mt-1 block text-[9px] text-[#626678]">{note}</span></span>
+            <span className="text-[#666D7E]">›</span>
           </button>
         ))}
       </section>
-      <section>
+      <section className="border-y border-white/[.06]">
         <button
           onClick={openCommunications}
-          className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left"
+          className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"
         >
-          <p className="text-sm font-semibold">Communications</p>
-          <p className="mt-1 text-[10px] text-[#727587]">
-            Branch conversations, listing complaints and official updates.
-          </p>
+          <span><strong className="block text-sm">Inbox</strong><span className="mt-1 block text-[10px] text-[#727587]">Contextual branch conversations and official Activity.</span></span>
+          <span className="text-[#666D7E]">›</span>
         </button>
       </section>
     </div>
@@ -281,37 +286,15 @@ function Operations({
   onRefreshStats,
 }: {
   profile: Profile;
-  active: Operation;
-  setActive: (t: Operation) => void;
+  active: Operation | null;
+  setActive: (t: Operation | null) => void;
   onView: (p: Profile) => void;
   onRefreshStats: () => Promise<void> | void;
 }) {
-  const current = OPS.find((x) => x[0] === active)!;
+  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose a branch work area. Each opens its canonical records here.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-bold">Branch operations</h2>
-        <p className="mt-1 text-[10px] text-[#707386]">
-          Each responsibility has one clear home.
-        </p>
-      </div>
-      <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex min-w-max gap-1 rounded-2xl border border-white/[0.05] bg-[#0D1017] p-1">
-          {OPS.map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setActive(id)}
-              className={`rounded-xl px-3 py-2 text-[10px] font-semibold ${active === id ? "bg-violet-500 text-white" : "text-[#777A8C]"}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.03] p-3">
-        <p className="text-xs font-semibold">{current[1]}</p>
-        <p className="mt-1 text-[9px] text-[#6E7183]">{current[2]}</p>
-      </div>
+      <button onClick={() => setActive(null)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/[.07] px-3 text-[10px] font-semibold text-[#A2A7B5]" aria-label="Back to all branch work areas"><span className="text-lg">‹</span><span>All work areas</span></button>
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
@@ -383,16 +366,16 @@ function People({ onView }: { onView: (p: Profile) => void }) {
           text="Nothing in this branch matches the filter."
         />
       ) : (
-        <Grid>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {filtered.map((p) => (
             <button
               key={p.user_id}
               onClick={() => onView(p)}
-              className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left"
+              className="flex w-full items-center gap-3 py-3 text-left"
             >
               <div className="flex gap-3">
                 <Avatar text={p.full_name || p.username || p.email} />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
                     {p.full_name || p.username || "WeHouse account"}
                   </p>
@@ -402,11 +385,11 @@ function People({ onView }: { onView: (p: Profile) => void }) {
                   <p className="mt-1 text-[9px] capitalize text-[#535667]">
                     {p.role?.replace(/_/g, " ")}
                   </p>
-                </div>
+                </div><span className="text-[#62697A]">›</span>
               </div>
             </button>
           ))}
-        </Grid>
+        </div>
       )}
     </Section>
   );
@@ -472,7 +455,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
     return (
       <Section
         title="Worker review"
-        note="Service details, professional evidence and external identity status."
+        note="Service details, professional evidence and private identity screening."
       >
         <button
           onClick={() => {
@@ -501,7 +484,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
             <div className="mt-4 space-y-2">
               <p className="text-[9px] leading-relaxed text-[#6D7284]">
                 Approval is enforced by the server and remains blocked until the
-                external identity result is verified.
+                identity screening evidence is ready for WeHouse review.
               </p>
               <input
                 value={reason}
@@ -850,11 +833,7 @@ function Video({ title, url }: { title: string; url: string }) {
   return (
     <div>
       <p className="mb-2 text-[9px] text-[#6E7183]">{title}</p>
-      <video
-        src={url}
-        controls
-        className="max-h-60 w-full rounded-xl bg-[#161922]"
-      />
+      <VideoPlayer src={url} className="max-h-60 w-full rounded-xl bg-[#161922] object-contain" />
     </div>
   );
 }

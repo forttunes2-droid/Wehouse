@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import VideoPlayer from '@/components/VideoPlayer';
 
 type MediaViewerProps = {
   src: string;
@@ -9,7 +10,7 @@ type MediaViewerProps = {
 };
 
 export default function MediaViewer({ src, kind, title = 'Media preview', onClose }: MediaViewerProps) {
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(kind === 'video');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -38,7 +39,7 @@ export default function MediaViewer({ src, kind, title = 'Media preview', onClos
       <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
         {!ready ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" role="status" aria-label="Loading media"/> : null}
         {kind === 'video'
-          ? <video src={src} controls autoPlay playsInline preload="metadata" onLoadedMetadata={(event) => { setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0); setReady(true); }} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onEnded={() => setCurrentTime(0)} className={`max-h-full max-w-full object-contain transition-opacity ${ready ? 'opacity-100' : 'opacity-0'}`}/>
+          ? <VideoPlayer src={src} autoPlay onTime={setCurrentTime} onDuration={(value) => { setDuration(value); setReady(true); }} className="max-h-full max-w-full object-contain" />
           : <img src={src} alt={title} decoding="async" onLoad={() => setReady(true)} className={`max-h-full max-w-full object-contain transition-opacity ${ready ? 'opacity-100' : 'opacity-0'}`}/>
         }
       </main>

@@ -46,6 +46,11 @@ import {
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import MediaViewer from "@/components/MediaViewer";
+import HotelBookingChat from "@/components/HotelBookingChat";
+import {
+  getMyHotelConversations,
+  type HotelConversation,
+} from "@/lib/supabase/hotel-chat";
 
 type Props = {
   profile: Profile;
@@ -78,9 +83,11 @@ type BookingConversation = {
   updated_at: string;
 };
 type ActiveBooking = { conversationId: string; bookingId: string } | null;
+type ActiveHotel = { conversation: HotelConversation } | null;
 type InboxItem =
   | { kind: "roommate"; id: string; time: string; roommate: Conversation }
   | { kind: "worker"; id: string; time: string; booking: BookingConversation }
+  | { kind: "hotel"; id: string; time: string; hotel: HotelConversation }
   | { kind: "support"; id: string; time: string; support: SupportThread };
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -123,8 +130,10 @@ export default function Chat({
       BookingConversation[]
     >([]),
     [supportThreads, setSupportThreads] = useState<SupportThread[]>([]),
+    [hotelConversations, setHotelConversations] = useState<HotelConversation[]>([]),
     [active, setActive] = useState<Conversation | null>(null),
     [activeBooking, setActiveBooking] = useState<ActiveBooking>(null),
+    [activeHotel, setActiveHotel] = useState<ActiveHotel>(null),
     [messages, setMessages] = useState<RoommateMessage[]>([]),
     [people, setPeople] = useState<Record<string, Person>>({}),
     [input, setInput] = useState(""),
@@ -203,7 +212,8 @@ export default function Chat({
       const bookingRequest = getCommunicationBookingConversations(
           profile.user_id,
         ),
-        supportRequest = getMySupportConversations();
+        supportRequest = getMySupportConversations(),
+        hotelRequest = getMyHotelConversations();
       const callsRequest = supabase
         .from("private_calls")
         .select("*")
@@ -211,9 +221,20 @@ export default function Chat({
         .or(`caller_id.eq.${profile.user_id},callee_id.eq.${profile.user_id}`)
         .order("created_at", { ascending: false })
         .limit(50);
-      const [convResult, peerResult] = await Promise.all([
+      const [
+        convResult,
+        peerResult,
+        bookingResult,
+        supportResult,
+        hotelResult,
+        callResult,
+      ] = await Promise.all([
         conversationsRequest,
         peopleRequest,
+        bookingRequest,
+        supportRequest,
+        hotelRequest,
+        callsRequest,
       ]);
       if (convResult.error && !quiet)
         toast.error(
@@ -227,25 +248,20 @@ export default function Chat({
       // composer must never become an Inbox row.
       setConversations(allRoommateRows);
       setPeople(peerResult.people || {});
-      setLoading(false);
-      void Promise.all([bookingRequest, supportRequest, callsRequest]).then(
-        ([bookingResult, supportResult, callResult]) => {
-          if (bookingResult.error && !quiet)
-            toast.error(
-              bookingResult.error.message ||
-                "Unable to load Worker conversations",
-            );
-          const calls: Record<string, PrivateCall> = {};
-          for (const row of callResult.data || [])
-            if (!calls[row.context_id])
-              calls[row.context_id] = row as PrivateCall;
-          setRecentRoommateCalls(calls);
-          setBookingConversations(
-            (bookingResult.conversations || []) as BookingConversation[],
-          );
-          setSupportThreads(supportResult.conversations || []);
-        },
+      if (bookingResult.error && !quiet)
+        toast.error(
+          bookingResult.error.message || "Unable to load Worker conversations",
+        );
+      const calls: Record<string, PrivateCall> = {};
+      for (const row of callResult.data || [])
+        if (!calls[row.context_id]) calls[row.context_id] = row as PrivateCall;
+      setRecentRoommateCalls(calls);
+      setBookingConversations(
+        (bookingResult.conversations || []) as BookingConversation[],
       );
+      setSupportThreads(supportResult.conversations || []);
+      setHotelConversations(hotelResult.conversations || []);
+      setLoading(false);
       return allRoommateRows;
     },
     [profile.user_id],
@@ -319,10 +335,17 @@ export default function Chat({
           conversationId: booking.conversation_id,
           bookingId: booking.booking_id,
         });
-      else
+      else {
+        const hotelResult = await getMyHotelConversations();
+        const hotel = hotelResult.conversations.find((row) => row.conversation_id === conversationId);
+        if (hotel) {
+          setActiveHotel({ conversation: hotel });
+          return;
+        }
         toast.error(
           "This conversation is not available. Return to Roommates and reconnect.",
         );
+      }
     })();
   }, [conversationId, loadInbox, profile.user_id]);
   useEffect(() => {
@@ -406,7 +429,7 @@ export default function Chat({
     };
   }, [active, otherId]);
   useEffect(() => {
-    if (active || activeBooking) return;
+    if (active || activeBooking || activeHotel) return;
     const channel = supabase
       .channel(`message-inbox:${profile.user_id}`)
       .on(
@@ -419,13 +442,18 @@ export default function Chat({
         { event: "INSERT", schema: "public", table: "booking_messages" },
         () => void loadInbox(true),
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
+        () => void loadInbox(true),
+      )
       .subscribe();
     const timer = window.setInterval(() => void loadInbox(true), 20000);
     return () => {
       window.clearInterval(timer);
       void supabase.removeChannel(channel);
     };
-  }, [active, activeBooking, profile.user_id, loadInbox]);
+  }, [active, activeBooking, activeHotel, profile.user_id, loadInbox]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
@@ -561,7 +589,7 @@ export default function Chat({
         : "Person unblocked",
     );
   }
-  async function startCall() {
+  async function startCall(type: "audio" | "video") {
     if (!active) return;
     const { capabilities, error } = await getCallCapabilities(
       "roommate",
@@ -569,9 +597,11 @@ export default function Chat({
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (!capabilities.allow_audio_calls)
+    if (type === "audio" && !capabilities.allow_audio_calls)
       return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("roommate", active.id, "audio");
+    if (type === "video" && !capabilities.allow_video_calls)
+      return toast.error("This person is not accepting video calls");
+    launchPrivateCall("roommate", active.id, type);
   }
   function toggleSelected(id: string) {
     setSelected((current) => {
@@ -622,6 +652,12 @@ export default function Chat({
           time: booking.last_message_time || booking.updated_at,
           booking,
         })),
+        ...hotelConversations.map((hotel) => ({
+          kind: "hotel" as const,
+          id: `hotel:${hotel.conversation_id}`,
+          time: hotel.last_message_time || hotel.updated_at,
+          hotel,
+        })),
         ...supportThreads.map((support) => ({
           kind: "support" as const,
           id: `support:${support.conversation_id}`,
@@ -632,11 +668,15 @@ export default function Chat({
         (a, b) =>
           new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
       ),
-    [conversations, bookingConversations, supportThreads, recentRoommateCalls],
+    [conversations, bookingConversations, hotelConversations, supportThreads, recentRoommateCalls],
   );
   const totalUnread =
     conversations.reduce((sum, row) => sum + (unread(row) > 0 ? 1 : 0), 0) +
     bookingConversations.reduce(
+      (sum, row) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
+      0,
+    ) +
+    hotelConversations.reduce(
       (sum, row) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
       0,
     ) +
@@ -660,6 +700,8 @@ export default function Chat({
                 item.booking.last_message,
                 item.booking.booking_code,
               ]
+            : item.kind === "hotel"
+              ? [item.hotel.hotel_name, item.hotel.room_name, item.hotel.booking_code, item.hotel.last_message]
             : (() => {
                 const view = conversationPresentation(item.support);
                 return [
@@ -683,6 +725,20 @@ export default function Chat({
         isWorker={profile.role === "worker"}
         onClose={() => {
           setActiveBooking(null);
+          void loadInbox(true);
+        }}
+      />
+    );
+  if (activeHotel)
+    return (
+      <HotelBookingChat
+        bookingId={activeHotel.conversation.booking_id}
+        conversationId={activeHotel.conversation.conversation_id}
+        profile={profile}
+        title={activeHotel.conversation.other_party_label || activeHotel.conversation.hotel_name}
+        subtitle={`${activeHotel.conversation.room_name} · ${activeHotel.conversation.booking_code || "Paid stay"}`}
+        onClose={() => {
+          setActiveHotel(null);
           void loadInbox(true);
         }}
       />
@@ -756,9 +812,15 @@ export default function Chat({
             </button>
             <HeaderAction
               label="Audio call"
-              onClick={() => void startCall()}
+              onClick={() => void startCall("audio")}
             >
               <PhoneIcon />
+            </HeaderAction>
+            <HeaderAction
+              label="Video call"
+              onClick={() => void startCall("video")}
+            >
+              <VideoCallIcon />
             </HeaderAction>
             <button
               onClick={() => setMenuOpen((value) => !value)}
@@ -1044,7 +1106,7 @@ export default function Chat({
             onToggleBlock={() => void toggleBlock()}
             onAudioCall={() => {
               setProfileOpen(false);
-              void startCall();
+              void startCall("audio");
             }}
             busy={blockBusy}
           />
@@ -1195,6 +1257,11 @@ export default function Chat({
                           })
                         }
                       />
+                    ) : item.kind === "hotel" ? (
+                      <HotelInboxRow
+                        row={item.hotel}
+                        onOpen={() => setActiveHotel({ conversation: item.hotel })}
+                      />
                     ) : item.kind === "support" ? (
                       <SupportInboxRow
                         thread={item.support}
@@ -1331,6 +1398,22 @@ function WorkerInboxRow({
       </div>
       {row.unread_count > 0 && <Unread value={1} />}
     </SelectableRow>
+  );
+}
+function HotelInboxRow({ row, onOpen }: { row: HotelConversation; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]">
+      {row.hotel_image ? <img src={row.hotel_image} alt="" loading="lazy" decoding="async" className="h-12 w-12 shrink-0 rounded-xl object-cover" /> : <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-sm font-bold text-amber-200">H</div>}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{row.other_party_label || row.hotel_name}</p>
+          <span className="shrink-0 rounded-full bg-amber-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-amber-200">HOTEL</span>
+        </div>
+        <p className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}>{row.last_message || "Paid stay conversation"}</p>
+        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{[row.room_name, row.booking_code, formatListTime(row.last_message_time || row.updated_at)].filter(Boolean).join(" · ")}</p>
+      </div>
+      {row.unread_count > 0 && <Unread value={1} />}
+    </button>
   );
 }
 function SupportInboxRow({
@@ -1598,8 +1681,7 @@ function PrivateAttachment({ url, type }: { url: string; type: string }) {
   if (video)
     return <>
       <button type="button" onClick={() => setViewerOpen(true)} className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black" aria-label="Open shared video in WeHouse viewer">
-        <video src={url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-        <span className="absolute inset-0 grid place-items-center bg-black/15"><span className="grid h-12 w-12 place-items-center rounded-full bg-black/65 pl-0.5 text-lg backdrop-blur">▶</span></span>
+        <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]"><span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">▶</span></span>
       </button>
       {viewerOpen ? <MediaViewer src={url} kind="video" title="Shared video" onClose={() => setViewerOpen(false)} /> : null}
     </>;
@@ -1719,6 +1801,14 @@ function PhoneIcon() {
       strokeWidth="1.8"
     >
       <path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.9Z" />
+    </svg>
+  );
+}
+function VideoCallIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
     </svg>
   );
 }

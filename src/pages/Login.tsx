@@ -84,11 +84,11 @@ function friendlyError(raw: string) {
   if (msg.includes("api key") || msg.includes("invalid key"))
     return "Authentication service is not configured correctly.";
   if (msg.includes("banned"))
-    return "Your account has been permanently banned. Contact support for assistance.";
+    return "Your account has been permanently banned. Contact WeHouse for assistance.";
   if (msg.includes("suspended"))
-    return "Your account has been suspended. Contact support for assistance.";
+    return "Your account has been suspended. Contact WeHouse for assistance.";
   if (msg.includes("deleted"))
-    return "This account has been deleted. Contact support if you believe this is an error.";
+    return "This account has been deleted. Contact WeHouse if you believe this is an error.";
   if (
     msg.includes("invalid login credentials") ||
     msg.includes("invalid credentials")
@@ -110,6 +110,12 @@ function friendlyError(raw: string) {
     (msg.includes("weak") || msg.includes("short"))
   )
     return "Password is too weak. Use at least 8 characters.";
+  if (msg.includes("same password") || msg.includes("different from the old"))
+    return "Choose a new password you have not used for this account.";
+  if (msg.includes("session") && (msg.includes("missing") || msg.includes("expired")))
+    return "Your Google confirmation expired. Confirm the account again.";
+  if (msg.includes("rate limit") || msg.includes("too many"))
+    return "Too many password attempts. Wait briefly, then try again.";
   if (msg.includes("expired") || msg.includes("invalid token"))
     return "This verification session has expired. Start again.";
   if (msg.includes("for security"))
@@ -684,10 +690,16 @@ export default function Login({
           "Google could not verify this WeHouse account. Start recovery again.",
         );
       const { error: err } = await supabase.auth.updateUser({ password });
-      if (err) return setError(friendlyError(err.message));
+      if (err) {
+        console.error("[password-recovery] password update failed", {
+          code: (err as { code?: string }).code,
+          status: err.status,
+          message: err.message,
+        });
+        return setError(friendlyError(err.message));
+      }
       clearGoogleVerification();
       sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
-      await supabase.auth.signOut({ scope: "local" });
       window.history.replaceState({}, "", window.location.pathname);
       setPassword("");
       setConfirmPassword("");
@@ -695,6 +707,9 @@ export default function Login({
       setRecoveryReady(false);
       setMode("signin");
       setInfo("Password changed. Sign in with your new password.");
+      // Password success must not be turned into a failure when local session
+      // cleanup is interrupted by a slow mobile connection.
+      void supabase.auth.signOut({ scope: "local" }).catch(() => {});
     } catch (error: unknown) {
       setError(friendlyError(errorMessage(error, "Password reset failed")));
     } finally {

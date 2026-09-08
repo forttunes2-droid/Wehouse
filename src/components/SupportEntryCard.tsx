@@ -12,12 +12,15 @@ type Props = {
   compact?: boolean;
   hideWhenEmpty?: boolean;
   onAvailabilityChange?: (available: boolean) => void;
+  onUnreadChange?: (unread: number) => void;
 };
 
 export default function SupportEntryCard({
+  profile,
   compact = false,
   hideWhenEmpty = false,
   onAvailabilityChange,
+  onUnreadChange,
 }: Props) {
   const [threads, setThreads] = useState<SupportThread[]>([]),
     [loading, setLoading] = useState(true);
@@ -36,7 +39,7 @@ export default function SupportEntryCard({
   }, [load]);
   useEffect(() => {
     const channel = supabase
-      .channel("support-entry-all")
+      .channel(`wehouse-conversations:${profile.user_id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partner_support_messages" },
@@ -69,16 +72,19 @@ export default function SupportEntryCard({
     () => onAvailabilityChange?.(ordered.length > 0),
     [onAvailabilityChange, ordered.length],
   );
-  function open(thread?: SupportThread) {
+  const unread = useMemo(
+    () => ordered.reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0),
+    [ordered],
+  );
+  useEffect(() => onUnreadChange?.(unread), [onUnreadChange, unread]);
+  function open(thread: SupportThread) {
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
-        detail: thread
-          ? {
-              conversationId: thread.conversation_id,
-              contextType: thread.context_type,
-              contextId: thread.context_id,
-            }
-          : undefined,
+        detail: {
+          conversationId: thread.conversation_id,
+          contextType: thread.context_type,
+          contextId: thread.context_id,
+        },
       }),
     );
   }
@@ -91,15 +97,10 @@ export default function SupportEntryCard({
   if (!ordered.length && hideWhenEmpty) return null;
   if (!ordered.length)
     return (
-      <SupportRow
-        compact={compact}
-        title="Message WeHouse"
-        preview="Ask about a property, booking, payment or account."
-        meta="Your conversation starts when you send"
-        unread={0}
-        time={null}
-        onOpen={() => open()}
-      />
+      <div className="px-4 py-8 text-center">
+        <p className="text-xs font-semibold">No WeHouse conversations yet</p>
+        <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#656B7B]">Open the relevant property, booking, payment or account action to contact the correct WeHouse work area.</p>
+      </div>
     );
   return (
     <div>
@@ -120,13 +121,6 @@ export default function SupportEntryCard({
           </div>
         );
       })}
-      <button
-        type="button"
-        onClick={() => open()}
-        className="flex min-h-11 w-full items-center justify-center border-t border-white/[.05] px-4 text-[9px] font-semibold text-violet-300"
-      >
-        New WeHouse conversation
-      </button>
     </div>
   );
 }
@@ -158,7 +152,7 @@ function SupportRow({
       }
     >
       <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 font-bold text-white shadow-lg shadow-violet-500/10">
-        S
+        W
         <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#11141C] bg-emerald-400" />
       </div>
       <div className="min-w-0 flex-1">

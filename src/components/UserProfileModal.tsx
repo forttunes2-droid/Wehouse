@@ -102,6 +102,7 @@ function UserProfileContent({
   const [teamModule, setTeamModule] = useState<StaffModule | "">("");
   const [adminModule, setAdminModule] = useState<StaffModule>("operations");
   const [teamSaving, setTeamSaving] = useState(false);
+  const [existingModule, setExistingModule] = useState<string | null>(null);
 
   const isAdmin = adminProfile?.role === "admin";
   const isCreator = adminProfile?.role === "creator";
@@ -177,8 +178,27 @@ function UserProfileContent({
       }
     }
 
+    async function loadTeamAssignment() {
+      if (u.role !== "staff") return;
+      const { data } = await supabase
+        .from("staff_permissions")
+        .select("permission")
+        .eq("staff_id", u.user_id)
+        .eq("is_active", true)
+        .limit(2);
+      const values = (data || []).map((row) => String(row.permission));
+      setExistingModule(
+        values.length === 1
+          ? STAFF_MODULES.find(([id]) => id === values[0])?.[1] || values[0]
+          : values.length > 1
+            ? "Assignment conflict"
+            : null,
+      );
+    }
+
     loadWorkerStats();
     loadPartnerProperties();
+    loadTeamAssignment();
   }, [user]);
 
   useEffect(() => {
@@ -394,6 +414,11 @@ function UserProfileContent({
                         ? "Suspended"
                         : "Active",
                 },
+                ...(user.role === "admin"
+                  ? [{ label: "Work area", value: "Branch administration" }]
+                  : user.role === "staff"
+                    ? [{ label: "Work area", value: existingModule || "Not assigned" }]
+                    : []),
               ].map((item) => (
                 <div
                   key={item.label}
@@ -410,7 +435,7 @@ function UserProfileContent({
             {user.role === "worker" && (
               <>
                 {user.worker_occupation && (
-                  <div className="glass rounded-2xl p-4">
+                  <div className="border-b border-white/[.06] py-4">
                     <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                       Occupation
                     </p>
@@ -420,7 +445,7 @@ function UserProfileContent({
                   </div>
                 )}
                 {user.worker_bio && (
-                  <div className="glass rounded-2xl p-4">
+                  <div className="border-b border-white/[.06] py-4">
                     <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                       About
                     </p>
@@ -430,7 +455,7 @@ function UserProfileContent({
                   </div>
                 )}
                 {user.worker_skills && user.worker_skills.length > 0 && (
-                  <div className="glass rounded-2xl p-4">
+                  <div className="border-b border-white/[.06] py-4">
                     <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                       Skills
                     </p>
@@ -447,7 +472,7 @@ function UserProfileContent({
                   </div>
                 )}
                 {user.worker_price && (
-                  <div className="glass rounded-2xl p-4">
+                  <div className="border-b border-white/[.06] py-4">
                     <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                       Service Price
                     </p>
@@ -457,7 +482,7 @@ function UserProfileContent({
                   </div>
                 )}
                 {user.worker_experience && (
-                  <div className="glass rounded-2xl p-4">
+                  <div className="border-b border-white/[.06] py-4">
                     <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                       Experience
                     </p>
@@ -471,7 +496,7 @@ function UserProfileContent({
 
             {user.role === "property_partner" &&
               partnerProperties.length > 0 && (
-                <div className="glass rounded-2xl p-4 space-y-3">
+                <div className="space-y-3 border-b border-white/[.06] py-4">
                   <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">
                     Properties ({partnerProperties.length})
                   </p>
@@ -507,7 +532,7 @@ function UserProfileContent({
               )}
 
             {user.bio && (
-              <div className="glass rounded-2xl p-4">
+              <div className="border-b border-white/[.06] py-4">
                 <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                   About
                 </p>
@@ -517,7 +542,7 @@ function UserProfileContent({
               </div>
             )}
 
-            <div className="glass rounded-2xl p-4 space-y-2">
+            <div className="space-y-2 border-b border-white/[.06] py-4">
               <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
                 Contact
               </p>
@@ -555,7 +580,7 @@ function UserProfileContent({
             </div>
 
             {canCreatorAssign && (
-              <div className="glass rounded-2xl border border-violet-500/15 p-4">
+              <div className="border-b border-violet-500/15 py-4">
                 <h4 className="text-xs font-semibold text-violet-300">
                   Team assignment
                 </h4>
@@ -688,7 +713,7 @@ function UserProfileContent({
             )}
 
             {canAppoint && (
-              <div className="glass rounded-2xl p-4 border border-amber-500/10">
+              <div className="border-b border-amber-500/10 py-4">
                 <h4 className="text-xs font-semibold text-amber-400">
                   Management
                 </h4>

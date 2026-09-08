@@ -30,7 +30,7 @@ export default function SecureSupportAttachment({ path, type = '', className = '
   if (isImage || isVideo) return <>
     <button type="button" onClick={() => setViewerOpen(true)} className={`mb-2 block overflow-hidden rounded-xl bg-black text-left ${className}`} aria-label={`View ${isVideo ? 'video' : 'image'} attachment`}>
       {isVideo
-        ? <video src={url} muted playsInline preload="metadata" className="max-h-56 w-full object-contain"/>
+        ? <span className="grid aspect-video max-h-56 w-full place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.22),transparent_42%),#090B10]"><span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">▶</span></span>
         : <img src={url} alt="Support attachment" loading="lazy" decoding="async" className="max-h-56 w-full object-cover"/>}
     </button>
     {viewerOpen ? <MediaViewer src={url} kind={isVideo ? 'video' : 'image'} title="Support attachment" onClose={() => setViewerOpen(false)}/> : null}

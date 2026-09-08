@@ -44,29 +44,6 @@ type SupportMessage = {
   is_read?: boolean | null;
   created_at: string;
 };
-type BookingAttachmentRow = {
-  id: string;
-  booking_code?: string | null;
-  service_type?: string | null;
-  status?: string | null;
-  scheduled_date?: string | null;
-  negotiated_amount?: number | null;
-  agreed_amount?: number | null;
-  created_at?: string | null;
-};
-type ReservationAttachmentRow = {
-  id: string;
-  booking_reference?: string | null;
-  status?: string | null;
-  check_in?: string | null;
-  start_date?: string | null;
-  check_out?: string | null;
-  end_date?: string | null;
-  total_amount?: number | null;
-  amount?: number | null;
-  created_at?: string | null;
-};
-
 export default function SupportChat({
   profile,
   onOpenListing,
@@ -81,77 +58,35 @@ export default function SupportChat({
   const [files, setFiles] = useState<File[]>([]);
   const [pendingContext, setPendingContext] =
     useState<SupportOpenContext | null>(null);
-  const [attachOpen, setAttachOpen] = useState(false);
-  const [attachItems, setAttachItems] = useState<SupportOpenContext[]>([]);
   const [loadError, setLoadError] = useState("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const presentation = conversationPresentation(thread || pendingContext || {});
   const visibleMessages = messages.filter(
     (message) => message.sender_role !== "system",
   );
 
-  async function openWeHouseItems() {
-    setAttachOpen(true);
-    const [jobs, stays] = await Promise.all([
-      supabase
-        .from("worker_bookings")
-        .select("*")
-        .or(`user_id.eq.${profile?.user_id},worker_id.eq.${profile?.user_id}`)
-        .order("created_at", { ascending: false })
-        .limit(8),
-      supabase
-        .from("reservations")
-        .select("*")
-        .eq("user_id", profile?.user_id || "")
-        .order("created_at", { ascending: false })
-        .limit(8),
-    ]);
-    const jobItems = ((jobs.data || []) as BookingAttachmentRow[]).map(
-      (row) => ({
-        category: "service_booking_help",
-        subject: `${row.service_type || "Service booking"} help`,
-        contextType: "worker_booking",
-        contextId: row.id,
-        contextSnapshot: {
-          source_type: "worker_booking",
-          source_id: row.id,
-          booking_code: row.booking_code,
-          service_type: row.service_type,
-          status: row.status,
-          scheduled_date: row.scheduled_date,
-          agreed_amount: row.negotiated_amount || row.agreed_amount,
-          created_at: row.created_at,
-        },
-      }),
-    );
-    const stayItems = ((stays.data || []) as ReservationAttachmentRow[]).map(
-      (row) => ({
-        category: "reservation_support",
-        subject:
-          `Help with reservation ${row.booking_reference ? `#${row.booking_reference}` : ""}`.trim(),
-        contextType: "apartment_reservation",
-        contextId: row.id,
-        contextSnapshot: {
-          source_type: "reservation",
-          source_id: row.id,
-          reference: row.booking_reference,
-          status: row.status,
-          check_in: row.check_in || row.start_date,
-          check_out: row.check_out || row.end_date,
-          amount: row.total_amount || row.amount,
-          created_at: row.created_at,
-        },
-      }),
-    );
-    setAttachItems(
-      [...jobItems, ...stayItems].sort((a, b) =>
-        String(b.contextSnapshot?.created_at || "").localeCompare(
-          String(a.contextSnapshot?.created_at || ""),
-        ),
-      ),
-    );
+  function addFiles(list: FileList | null) {
+    if (!list) return;
+    const allowed = Array.from(list).filter((file) => {
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`${file.name} is larger than 25MB`);
+        return false;
+      }
+      if (
+        !file.type.startsWith("image/") &&
+        !file.type.startsWith("video/") &&
+        file.type !== "application/pdf"
+      ) {
+        toast.error(`${file.name} is not a supported evidence file`);
+        return false;
+      }
+      return true;
+    });
+    setFiles((current) => [...current, ...allowed].slice(0, 6));
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   const loadMessages = useCallback(async (id: string, quiet = false) => {
@@ -458,13 +393,22 @@ export default function SupportChat({
           )}
 
           <div className="flex items-end gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              hidden
+              multiple
+              accept="image/*,video/*,application/pdf"
+              onChange={(event) => addFiles(event.target.files)}
+            />
             <button
-              onClick={() => void openWeHouseItems()}
-              hidden={presentation.operational}
+              onClick={() => fileRef.current?.click()}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
-              aria-label="Attach a WeHouse item"
+              aria-label="Attach evidence"
             >
-              ＋
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m20.5 11.5-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.7 9.7a2 2 0 0 1-2.8-2.8l8.9-8.9" />
+              </svg>
             </button>
             <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.07] bg-[#1A1F28] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
@@ -498,69 +442,6 @@ export default function SupportChat({
           </p>
         </div>
       </footer>
-      {attachOpen && (
-        <div
-          className="fixed inset-0 z-[110] flex items-end bg-black/70 backdrop-blur-sm"
-          onClick={() => setAttachOpen(false)}
-        >
-          <section
-            className="max-h-[72dvh] w-full overflow-y-auto rounded-t-[30px] bg-[#11151D] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-white/15" />
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold">Attach from WeHouse</h2>
-                <p className="mt-1 text-[9px] text-[#747B8B]">
-                  Choose a real booking or reservation. WeHouse receives its
-                  current reference and status.
-                </p>
-              </div>
-              <button
-                onClick={() => setAttachOpen(false)}
-                className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-[#9298A8]"
-              >
-                ×
-              </button>
-            </div>
-            <div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]">
-              {attachItems.length ? (
-                attachItems.map((item) => (
-                  <button
-                    key={`${item.contextType}:${item.contextId}`}
-                    onClick={() => {
-                      setPendingContext(item);
-                      setAttachOpen(false);
-                      requestAnimationFrame(() => inputRef.current?.focus());
-                    }}
-                    className="flex w-full items-center gap-3 py-4 text-left"
-                  >
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/10 text-violet-300">
-                      {item.contextType === "worker_booking" ? "W" : "H"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-semibold">
-                        {item.subject}
-                      </p>
-                      <p className="mt-1 truncate text-[9px] text-[#707788]">
-                        {String(
-                          item.contextSnapshot?.status ||
-                            "Current WeHouse record",
-                        ).replace(/_/g, " ")}
-                      </p>
-                    </div>
-                    <span className="text-[#707788]">›</span>
-                  </button>
-                ))
-              ) : (
-                <p className="py-10 text-center text-[10px] text-[#707788]">
-                  No recent reservations or Worker bookings were found.
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
     </div>,
     document.body,
   );

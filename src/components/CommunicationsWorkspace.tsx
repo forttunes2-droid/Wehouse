@@ -23,7 +23,7 @@ type Props = {
   onOpenConversation?: (id?: string) => void;
   forcedView?: View;
   hideViewTabs?: boolean;
-  queue?: "support" | "reservation_operations";
+  queue?: "all" | "support" | "operations" | "property_operations" | "reservation_operations";
   onUnreadChange?: (count: number) => void;
   initialConversationId?: string;
 };
@@ -62,7 +62,7 @@ export default function CommunicationsWorkspace({
     if (error && !quiet)
       toast.error(
         error.message ||
-          `Unable to load ${queue === "reservation_operations" ? "Reservation Desk" : "WeHouse"} inbox`,
+          `Unable to load ${queue === "reservation_operations" ? "Operations" : "WeHouse"} inbox`,
       );
     if (!error) {
       const next = conversations || [];
@@ -121,12 +121,18 @@ export default function CommunicationsWorkspace({
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, selected?.conversation_id]);
   async function open(row: any) {
-    const claimed = await claimCommunicationCase(row.conversation_id);
-    if (claimed.error)
-      return toast.error(
-        claimed.error.message || "This case could not be assigned",
-      );
-    setSelected({ ...row, assigned_staff_id: profile.user_id });
+    if (profile.role === "staff") {
+      const claimed = await claimCommunicationCase(row.conversation_id);
+      if (claimed.error)
+        return toast.error(
+          claimed.error.message || "This case could not be assigned",
+        );
+    }
+    setSelected(
+      profile.role === "staff"
+        ? { ...row, assigned_staff_id: profile.user_id }
+        : row,
+    );
     setFiles([]);
     setInput("");
     await refreshMessages(row.conversation_id);
@@ -217,7 +223,7 @@ export default function CommunicationsWorkspace({
     });
   }, [rows, search]);
   const unread = rows.reduce((n, row) => n + Number(row.unread_count || 0), 0),
-    reservationQueue = queue === "reservation_operations";
+    reservationQueue = queue === "reservation_operations" || queue === "operations";
   useEffect(() => {
     onUnreadChange?.(unread);
   }, [onUnreadChange, unread]);
@@ -348,7 +354,7 @@ export default function CommunicationsWorkspace({
                 rows={1}
                 placeholder={
                   reservationQueue
-                    ? "Reply from Reservation Desk"
+                    ? "Reply from Bookings"
                     : "Reply as WeHouse"
                 }
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
@@ -364,7 +370,7 @@ export default function CommunicationsWorkspace({
           </div>
           <p className="mx-auto mt-2 max-w-4xl text-center text-[8px] text-[#505666]">
             {reservationQueue
-              ? "Reservation Desk replies stay connected to the booking and property context."
+              ? "Replies stay connected to the booking or property context."
               : "WeHouse conversations use text, photos and documents."}
           </p>
         </footer>

@@ -118,7 +118,7 @@ export default function WorkerSetupProfessional({
     const service = categories.find((item) => item.id === category);
     if (!name.trim()) return toast.error("Add your full name");
     if (!service || !specialty)
-      return toast.error("Choose your service and specialty");
+      return toast.error("Choose a work category and the service you offer");
     if (!occupation.trim()) return toast.error("Add your occupation");
     if (!experience.trim()) return toast.error("Add your work experience");
     if (!location.state || !location.city)
@@ -215,14 +215,14 @@ export default function WorkerSetupProfessional({
 
           <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
             <div className="mb-3">
-              <h2 className="text-sm font-semibold">What do you do?</h2>
+              <h2 className="text-sm font-semibold">Your work</h2>
               <p className="mt-1 text-[9px] text-[#697080]">
-                Service is what customers need. Occupation is who you are. Specialty is the exact work you perform.
+                Choose a broad category, then the exact service customers can request from you.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <SearchableSelect
-                label="Service"
+                label="Work category"
                 value={category}
                 onChange={(value) => {
                   setCategory(value);
@@ -231,11 +231,11 @@ export default function WorkerSetupProfessional({
                   setOccupation(occupationForService(serviceName, ""));
                 }}
                 options={categoryOptions}
-                placeholder="Choose service"
-                searchPlaceholder="Search services"
+                placeholder="Choose category"
+                searchPlaceholder="Search categories"
               />
               <SearchableSelect
-                label="Specialty"
+                label="Service you offer"
                 value={specialty}
                 onChange={(value) => {
                   setSpecialty(value);
@@ -244,15 +244,15 @@ export default function WorkerSetupProfessional({
                 }}
                 options={specialtyOptions}
                 placeholder={
-                  category ? "Choose specialty" : "Choose service first"
+                  category ? "Choose a service" : "Choose a category first"
                 }
-                searchPlaceholder="Search specialty"
+                searchPlaceholder="Search services"
                 disabled={!category}
               />
             </div>
             <div className="mt-3">
-              <Field label="Occupation" value={occupation} set={setOccupation} />
-              <p className="mt-1.5 text-[8px] text-[#5F6676]">Example: Electrical Service → Electrician · Hairstyling Service → Hairstylist</p>
+              <Field label="Professional title" value={occupation} set={setOccupation} />
+              <p className="mt-1.5 text-[8px] text-[#5F6676]">This is the title shown on your public profile, such as Electrician or Hairstylist.</p>
             </div>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">

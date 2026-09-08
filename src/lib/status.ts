@@ -13,3 +13,20 @@ export function canonicalStatusOptions(values: Array<string | null | undefined>)
     ...statuses.map((value) => ({ value, label: formatCanonicalStatus(value) })),
   ];
 }
+
+const PROPERTY_LIFECYCLE_LABELS: Record<string, string> = {
+  access_required: "Access required",
+  access_review: "Access review",
+  inspection_ready: "Inspection ready",
+  inspection: "Inspection in progress",
+  visit_reviewed: "Visit reviewed",
+  listing_prepared: "Listing prepared",
+  live: "Live",
+  changes_requested: "Changes requested",
+  rejected: "Rejected",
+};
+
+export function propertyLifecycleLabel(value: string | null | undefined) {
+  const stage = String(value || "access_required");
+  return PROPERTY_LIFECYCLE_LABELS[stage] || formatCanonicalStatus(stage);
+}

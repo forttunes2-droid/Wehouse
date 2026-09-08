@@ -5,6 +5,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
 import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type Post = {
   id: string;
@@ -56,7 +57,8 @@ export default function WorkerShowcaseManager({
         )
         .eq("worker_id", profile.user_id)
         .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(30),
       supabase
         .from("worker_bookings")
         .select("id,booking_code,service_type")
@@ -248,12 +250,7 @@ export default function WorkerShowcaseManager({
           <main className="min-h-0 flex-1 overflow-y-auto">
             <div className="grid min-h-[48dvh] place-items-center bg-black">
               {previewIsVideo ? (
-                <video
-                  src={preview}
-                  controls
-                  playsInline
-                  className="max-h-[60dvh] w-full object-contain"
-                />
+                <VideoPlayer src={preview} className="max-h-[60dvh] w-full bg-black object-contain" />
               ) : (
                 <img
                   src={preview}
@@ -405,7 +402,7 @@ export default function WorkerShowcaseManager({
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 gap-3"><button onClick={()=>void setHidden(viewer,!viewer.hidden_at)} disabled={busy} className="text-[10px] font-semibold text-violet-300 disabled:opacity-40">{viewer.hidden_at?'Unhide':'Hide'}</button><button onClick={() => void remove(viewer)} disabled={busy} className="text-[10px] font-semibold text-red-300 disabled:opacity-40">Delete</button></div>
+                <div className="flex shrink-0 gap-3"><button onClick={()=>void setHidden(viewer,!viewer.hidden_at)} disabled={busy} className="text-[10px] font-semibold text-violet-300 disabled:opacity-40">{viewer.hidden_at?'Show post':'Hide post'}</button><button onClick={() => void remove(viewer)} disabled={busy} className="text-[10px] font-semibold text-red-300 disabled:opacity-40">Remove post</button></div>
               </div>
             </div>
           </div>
@@ -440,14 +437,6 @@ function Media({
   controls?: boolean;
 }) {
   if (post.media_type === "video")
-    return (
-      <video
-        src={post.url}
-        className={className}
-        controls={controls}
-        playsInline
-        muted={!controls}
-      />
-    );
+    return controls ? <VideoPlayer src={post.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]`} role="img" aria-label="Video post"><span className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">▶</span></div>;
   return <img src={post.url} alt="Worker work" className={className} />;
 }

@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
 import { uploadListingCandidateImage } from "@/lib/supabase/listings";
-import PropertyAccessRecorder from "./PropertyAccessRecorder";
+import PropertyAccessRecorder, {
+  MIN_PROPERTY_ACCESS_SECONDS,
+  propertyAccessDuration,
+} from "./PropertyAccessRecorder";
 import PreciseLocationPicker, {
   type PreciseLocation,
 } from "./PreciseLocationPicker";
@@ -534,7 +537,12 @@ export default function PropertyInspectionRequestPanel({
           throw new Error(
             `Property ${i + 1}: access recording must be under 100MB`,
           );
-        const accessPath = `${profile.user_id}/${d.accessChallenge.id}/${crypto.randomUUID()}.${mediaExtension(d.accessVideo)}`;
+        const accessDuration = propertyAccessDuration(d.accessVideo);
+        if (accessDuration < MIN_PROPERTY_ACCESS_SECONDS)
+          throw new Error(
+            `Property ${i + 1}: record at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds of continuous access evidence`,
+          );
+        const accessPath = `${profile.user_id}/${d.accessChallenge.id}/${crypto.randomUUID()}-${accessDuration}s.${mediaExtension(d.accessVideo)}`;
         try {
           await uploadStorageObjectWithProgress(
             "property-access-private",

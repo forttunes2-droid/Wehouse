@@ -12,6 +12,7 @@ import {
   isConversationDestination,
   longestActivityCutoff,
 } from "@/lib/activityFeed";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type Props = {
   profile: Profile;
@@ -416,12 +417,7 @@ export default function Notifications({
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="grid min-h-[52dvh] place-items-center bg-black">
           {workPost.media_type === "video" ? (
-            <video
-              src={workPost.url}
-              controls
-              playsInline
-              className="max-h-[68dvh] w-full object-contain"
-            />
+            <VideoPlayer src={workPost.url} className="max-h-[68dvh] w-full bg-black object-contain" />
           ) : (
             <img
               src={workPost.url}

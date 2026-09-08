@@ -17,6 +17,7 @@ import {
   hideBookingConversation,
   getMyWorkerBookingReview,
   submitWorkerBookingReview,
+  reactToBookingMessage,
 } from "@/lib/supabase/worker-bookings";
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
@@ -51,6 +52,7 @@ type ChatMessage = {
   content: string;
   attachments?: string[] | null;
   is_read?: boolean | null;
+  reactions?: Record<string, string>;
   created_at: string;
 };
 type Booking = {
@@ -346,15 +348,16 @@ export default function BookingNegotiationChat({
     setMessageMenu(null);
     await loadAll(true);
   }
-  async function startCall() {
+  async function startCall(type: "audio" | "video") {
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
       conversationId,
     );
     if (error || !capabilities)
-      return toast.error(error?.message || "Audio call is not available");
-    if (!capabilities.allow_audio_calls) return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("worker_booking", conversationId, "audio");
+      return toast.error(error?.message || "Call is not available");
+    if (type === "audio" && !capabilities.allow_audio_calls) return toast.error("This person is not accepting audio calls");
+    if (type === "video" && !capabilities.allow_video_calls) return toast.error("This person is not accepting video calls");
+    launchPrivateCall("worker_booking", conversationId, type);
   }
   async function saveReview(){if(reviewRating<1)return toast.error('Choose a star rating');setReviewSaving(true);const{review:next,error}=await submitWorkerBookingReview(bookingId,reviewRating,reviewComment);setReviewSaving(false);if(error||!next)return toast.error(error?.message||'Review could not be saved');setReview(next);setReviewOpen(false);toast.success('Your review was saved')}
   async function handleWorkerAccept() {
@@ -508,11 +511,18 @@ export default function BookingNegotiationChat({
             </div>
           </button>
           {openConversation && <button
-            onClick={() => void startCall()}
+            onClick={() => void startCall("audio")}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
             aria-label="Start audio call"
           >
             <Phone />
+          </button>}
+          {openConversation && <button
+            onClick={() => void startCall("video")}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+            aria-label="Start video call"
+          >
+            <VideoCall />
           </button>}
           <button
             onClick={() => setMenuOpen((value) => !value)}
@@ -756,6 +766,10 @@ export default function BookingNegotiationChat({
           <PrivateCallHistory contextType="worker_booking" contextId={conversationId}/>
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
+              reactions = Object.values(msg.reactions || {}).reduce<Record<string, number>>(
+                (all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }),
+                {},
+              ),
               prev = messages[index - 1],
               showDay =
                 !prev ||
@@ -803,6 +817,15 @@ export default function BookingNegotiationChat({
                         </span>
                       )}
                     </p>
+                    {Object.keys(reactions).length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {Object.entries(reactions).map(([emoji, count]) => (
+                          <span key={emoji} className="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px]">
+                            {emoji}{count > 1 ? ` ${count}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -942,6 +965,35 @@ export default function BookingNegotiationChat({
             <p className="mb-2 truncate px-2 text-[10px] text-[#747B8C]">
               {messageMenu.content || "Attachment"}
             </p>
+            <div className="mb-2 flex items-center justify-between rounded-2xl bg-white/[.035] p-2">
+              {["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => (
+                <button
+                  type="button"
+                  key={emoji}
+                  onClick={async () => {
+                    const current = messageMenu.reactions?.[profile.user_id];
+                    const result = await reactToBookingMessage(
+                      conversationId,
+                      messageMenu.id,
+                      current === emoji ? null : emoji,
+                    );
+                    if (result.error) return toast.error(result.error.message);
+                    setMessages((rows) => rows.map((row) => row.id === messageMenu.id ? { ...row, reactions: result.reactions } : row));
+                    setMessageMenu(null);
+                  }}
+                  className="grid h-10 w-10 place-items-center rounded-full text-base hover:bg-white/[.06]"
+                  aria-label={`React ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+            <div className="border-y border-white/[.06] px-3 py-3 text-[9px] text-[#7B8190]">
+              <p>{new Date(messageMenu.created_at).toLocaleString()}</p>
+              {messageMenu.sender_id === profile.user_id && (
+                <p className="mt-1">{messageMenu.is_read ? "Read by recipient" : "Sent · not read yet"}</p>
+              )}
+            </div>
             <button
               onClick={() => void deleteMessageForMe()}
               className="flex min-h-12 w-full items-center px-3 text-left text-xs font-semibold text-red-300"
@@ -1196,8 +1248,7 @@ function BookingAttachment({ url }: { url: string }) {
   if (isVideo(url))
     return <>
       <button type="button" onClick={() => setViewerOpen(true)} className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black" aria-label="Open video attachment in WeHouse viewer">
-        <video muted playsInline preload="metadata" src={url} className="h-full w-full object-cover" />
-        <span className="absolute inset-0 grid place-items-center bg-black/15"><span className="grid h-12 w-12 place-items-center rounded-full bg-black/65 pl-0.5 text-lg backdrop-blur">▶</span></span>
+        <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]"><span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">▶</span></span>
       </button>
       {viewerOpen ? <MediaViewer src={url} kind="video" title="Booking video" onClose={() => setViewerOpen(false)}/> : null}
     </>;
@@ -1249,6 +1300,9 @@ function Phone() {
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92z" />
     </svg>
   );
+}
+function VideoCall() {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>;
 }
 function TrashIcon() {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="m9 7 .6-2h4.8l.6 2"/><path d="m6.5 7 .8 13h9.4l.8-13"/><path d="M10 11v5M14 11v5"/></svg>;

@@ -5,6 +5,7 @@ import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklis
 import { supabase } from "@/lib/supabase";
 import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
 import type { Profile } from "@/types";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type Props = {
   profile: Profile;
@@ -454,12 +455,7 @@ export default function WorkerVerificationPhase9({
                   onChange={chooseVideo}
                 />
                 {preview && (
-                  <video
-                    src={preview}
-                    controls
-                    playsInline
-                    className="max-h-64 w-full rounded-2xl bg-black object-contain"
-                  />
+                  <VideoPlayer src={preview} className="max-h-64 w-full rounded-2xl bg-black object-contain" />
                 )}
                 <Button
                   label={busy ? "Saving…" : "Save professional evidence"}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getListingMediaUrls } from '@/lib/supabase/listings';
+import VideoPlayer from '@/components/VideoPlayer';
 
 type CacheEntry = { url: string; expiresAt: number };
 type PendingResolver = (url: string) => void;
@@ -82,7 +83,10 @@ export function ListingMediaImage({ reference, alt, className, loading = 'lazy',
 
 export function ListingMediaVideo({ reference, className, preload = 'metadata', playsInline = true, ...props }: { reference: string; className?: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
   const url = useListingMediaUrl(reference);
+  const { controls, autoPlay, ...videoProps } = props;
   return url
-    ? <video src={url} className={className} preload={preload} playsInline={playsInline} {...props}/>
+    ? controls
+      ? <VideoPlayer src={url} className={className} autoPlay={Boolean(autoPlay)}/>
+      : <video src={url} className={className} preload={preload} playsInline={playsInline} autoPlay={autoPlay} {...videoProps}/>
     : <div className={`${className || ''} animate-pulse bg-white/[.04]`} role="status" aria-label="Loading video"/>;
 }

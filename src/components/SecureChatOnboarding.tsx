@@ -144,8 +144,10 @@ function PinInput({
           onChange(event.target.value.replace(/\D/g, "").slice(0, 6))
         }
         inputMode="numeric"
-        type="password"
-        autoComplete="off"
+        type="text"
+        autoComplete="one-time-code"
+        enterKeyHint="done"
+        style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
         aria-label={label}
         className="h-11 w-full rounded-xl border border-white/[.08] bg-[#0F1118] px-3 text-center text-sm tracking-[.3em] outline-none focus:border-violet-500/45"
       />

@@ -402,7 +402,7 @@ export async function notifyStaffInspectionAssigned(
   );
 }
 
-/** Support ticket assigned */
+/** Contextual WeHouse conversation assigned */
 export async function notifyStaffSupportTicket(
   staffId: string,
   ticketTitle: string,
@@ -410,8 +410,8 @@ export async function notifyStaffSupportTicket(
   return createNotification(
     staffId,
     "support_ticket",
-    "New Support Ticket",
-    `A new support ticket has been assigned to you: "${ticketTitle}".`,
+    "New WeHouse conversation",
+    `A contextual conversation has been assigned to you: "${ticketTitle}".`,
     { ticket_title: ticketTitle },
   );
 }

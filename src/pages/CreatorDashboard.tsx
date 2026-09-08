@@ -497,6 +497,7 @@ function CreatorInbox({
           scope="all"
           forcedView="inbox"
           hideViewTabs
+          queue="all"
           initialConversationId={initialConversationId}
           onOpenConversation={onGoToChat}
           onUnreadChange={summary.setMessageUnread}

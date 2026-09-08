@@ -23,7 +23,7 @@ type Module =
   | "security"
   | "verification"
   | "field_officer";
-type MainTab = "home" | "work" | "conversations";
+type MainTab = "home" | "work" | "conversations" | "activity";
 type WorkView =
   | "pipeline"
   | "overview"
@@ -147,13 +147,21 @@ function Workspace({
 }) {
   const copy = MODULE_COPY[module],
     directConversation = module === "support";
+  const communicationQueue =
+    module === "operations" ? "operations" : module === "support" ? "support" : null;
   const inboxSummary = useOperationsInboxSummary(
-    module === "operations" ? profile.user_id : "",
+    profile.user_id,
+    "staff",
+    communicationQueue,
   );
   const items = directConversation
     ? [
         { id: "home", label: "Home" },
-        { id: "conversations", label: "Inbox" },
+        {
+          id: "conversations",
+          label: "Inbox",
+          badge: inboxSummary.totalUnread,
+        },
       ]
     : module === "operations"
       ? [
@@ -168,6 +176,11 @@ function Workspace({
       : [
           { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
+          {
+            id: "activity",
+            label: "Activity",
+            badge: inboxSummary.activityUnread,
+          },
         ];
   const [tab, setTab] = useState<MainTab>("home"),
     [workView, setWorkView] = useState<WorkView>(
@@ -207,6 +220,16 @@ function Workspace({
   else if (tab === "conversations" && directConversation)
     content = (
       <SupportInbox profile={profile} scope={scope} onNavigate={onNavigate} />
+    );
+  else if (tab === "activity")
+    content = (
+      <Notifications
+        profile={profile}
+        scope="staff"
+        embedded
+        onUnreadChange={inboxSummary.refresh}
+        onNavigate={(page) => onNavigate?.(page)}
+      />
     );
   else
     content = (
@@ -361,7 +384,7 @@ function OperationsInbox({
             scope={scope}
             forcedView="inbox"
             hideViewTabs
-            queue="reservation_operations"
+            queue="operations"
             onUnreadChange={summary.refresh}
           />
         </>

@@ -13,6 +13,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import type { Profile } from "@/types";
+import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 
 type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
@@ -48,7 +49,6 @@ const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
 ];
 const money = (value: number) =>
   `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const hidden = "₦••••••";
 
 export default function PropertyOwnerDashboard({
   profile,
@@ -56,6 +56,8 @@ export default function PropertyOwnerDashboard({
   onNavigate,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
+  const [nestedPropertyView, setNestedPropertyView] = useState(false);
+  const inbox = usePartnerInboxSummary(profile.user_id);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
   return (
     <>
@@ -64,26 +66,31 @@ export default function PropertyOwnerDashboard({
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}
         description={current.description}
-        items={TABS.map((item) => ({ id: item.key, label: item.label }))}
+        items={TABS.map((item) => ({ id: item.key, label: item.label, badge: item.key === "communication" ? inbox.totalUnread || undefined : undefined }))}
         active={tab}
         setActive={(id) => setTab(id as PartnerTab)}
         onAccount={() => onNavigate("profile")}
         onLogout={onLogout}
         compact={tab === "communication"}
+        immersive={tab === "properties" && nestedPropertyView}
       >
-        {tab === "properties" && <PropertiesWorkspace profile={profile} />}{" "}
+        {tab === "properties" && <PropertiesWorkspace profile={profile} onNestedChange={setNestedPropertyView} />}{" "}
         {tab === "communication" && (
-          <CommunicationInbox profile={profile} onNavigate={onNavigate} />
+          <CommunicationInbox profile={profile} onNavigate={onNavigate} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
         )}{" "}
         {tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
     </>
   );
 }
-function PropertiesWorkspace({ profile }: { profile: Profile }) {
+function PropertiesWorkspace({ profile, onNestedChange }: { profile: Profile; onNestedChange?: (nested: boolean) => void }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    onNestedChange?.(viewingDetail || creating);
+    return () => onNestedChange?.(false);
+  }, [creating, onNestedChange, viewingDetail]);
   const filters: Array<{
     value: SubmissionFilter;
     label: string;
@@ -372,6 +379,7 @@ function PropertiesTab({
       <PartnerHotelOperations
         hotel={selected}
         accessRole="owner"
+        profile={profile}
         onBack={() => setSelected(null)}
       />
     );
@@ -564,7 +572,6 @@ function FinanceTab({ profile }: { profile: Profile }) {
         <EarningsTab
           profile={profile}
           showAmounts={showAmounts}
-          toggleAmounts={toggleAmounts}
         />
       </section>
     </div>
@@ -573,11 +580,9 @@ function FinanceTab({ profile }: { profile: Profile }) {
 function EarningsTab({
   profile,
   showAmounts,
-  toggleAmounts,
 }: {
   profile: Profile;
   showAmounts: boolean;
-  toggleAmounts: () => void;
 }) {
   const [rows, setRows] = useState<EarningRelease[]>([]),
     [loading, setLoading] = useState(true),
@@ -599,70 +604,10 @@ function EarningsTab({
       active = false;
     };
   }, [profile.user_id]);
-  const totals = rows.reduce(
-    (result, row) => {
-      result[row.status] += Number(row.net_amount || 0);
-      return result;
-    },
-    { pending: 0, available: 0, held: 0, reversed: 0 },
-  );
-  const earned = Math.max(0, totals.available + totals.pending + totals.held),
-    shown =
-      filter === "all" ? rows : rows.filter((row) => row.status === filter),
-    base = Math.max(1, earned);
+  const shown = filter === "all" ? rows : rows.filter((row) => row.status === filter);
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-3xl border border-emerald-500/15 bg-gradient-to-br from-emerald-500/[.12] via-[#111A18] to-[#101018] p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.18em] text-emerald-300/70">
-              Property earnings
-            </p>
-            <p className="mt-2 text-3xl font-bold">
-              {showAmounts ? money(earned) : hidden}
-            </p>
-          </div>
-          <button
-            onClick={toggleAmounts}
-            aria-label={showAmounts ? "Hide earnings" : "Show earnings"}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-black/10 text-[#D7D8E2]"
-          >
-            {showAmounts ? <Eye /> : <EyeOff />}
-          </button>
-        </div>
-        <p className="mt-1 text-[10px] text-[#76827F]">
-          Income currently released, pending or held
-        </p>
-        <div className="mt-5 grid grid-cols-3 gap-2">
-          <EarningMini
-            label="Available"
-            value={totals.available}
-            show={showAmounts}
-          />
-          <EarningMini
-            label="Pending"
-            value={totals.pending}
-            show={showAmounts}
-          />
-          <EarningMini label="Held" value={totals.held} show={showAmounts} />
-        </div>
-        <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-white/[.05]">
-          <span
-            className="bg-emerald-400"
-            style={{
-              width: `${Math.max(0, (totals.available / base) * 100)}%`,
-            }}
-          />
-          <span
-            className="bg-amber-400"
-            style={{ width: `${Math.max(0, (totals.pending / base) * 100)}%` }}
-          />
-          <span
-            className="bg-orange-400"
-            style={{ width: `${Math.max(0, (totals.held / base) * 100)}%` }}
-          />
-        </div>
-      </section>
+    <div className="space-y-4">
+      <p className="border-b border-white/[.06] pb-3 text-[10px] leading-5 text-[#76827F]">This is the itemised record behind the single Finance balance above—not another wallet.</p>
       <section>
         <div className="mb-3 flex gap-2 overflow-x-auto scrollbar-hide">
           {(["all", "available", "pending", "held", "reversed"] as const).map(
@@ -728,24 +673,6 @@ function EarningsTab({
     </div>
   );
 }
-function EarningMini({
-  label,
-  value,
-  show,
-}: {
-  label: string;
-  value: number;
-  show: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
-      <p className="text-[8px] text-[#7F8D88]">{label}</p>
-      <p className="mt-1 truncate text-[11px] font-semibold">
-        {show ? money(value) : "••••"}
-      </p>
-    </div>
-  );
-}
 function Info({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-xl border border-white/[.06] bg-[#111119] p-4">
@@ -799,35 +726,4 @@ function friendly(value: any) {
   return String(value || "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-function Eye() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-function EyeOff() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="m3 3 18 18" />
-      <path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-2.1 3.1M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7a10 10 0 0 0 5.4-1.6" />
-      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
-    </svg>
-  );
 }

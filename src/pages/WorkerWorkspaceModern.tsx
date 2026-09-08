@@ -44,7 +44,10 @@ export default function WorkerWorkspaceModern({
 }) {
   const live =
     profile.worker_status === "verified" && profile.worker_verified === true;
-  const nav = live ? LIVE_NAV : ACTIVATION_NAV;
+  const [inboxUnread, setInboxUnread] = useState(0);
+  const nav = live
+    ? LIVE_NAV.map((item) => item.id === "inbox" ? { ...item, badge: inboxUnread || undefined } : item)
+    : ACTIVATION_NAV;
   const [tab, setTab] = useState<Tab>(live ? "jobs" : "home");
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
@@ -81,6 +84,7 @@ export default function WorkerWorkspaceModern({
         onConversationClosed={() => setConversation(null)}
         onNavigate={onNavigate}
         onOpenJobs={()=>setTab('jobs')}
+        onUnreadChange={setInboxUnread}
       />
     );
   } else if (live && safeTab === "showcase") {

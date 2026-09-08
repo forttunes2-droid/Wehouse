@@ -12,6 +12,7 @@ type LatestActivity = { title: string; createdAt: string } | null;
 export function useOperationsInboxSummary(
   userId: string,
   activityScope = "staff",
+  queue: "support" | "operations" | null = null,
 ) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [activityUnread, setActivityUnread] = useState(0);
@@ -20,7 +21,9 @@ export function useOperationsInboxSummary(
   const refresh = useCallback(async () => {
     if (!userId) return;
     const [support, events, announcements] = await Promise.all([
-      getSupportInbox("reservation_operations"),
+      queue
+        ? getSupportInbox(queue)
+        : Promise.resolve({ conversations: [], error: null }),
       supabase
         .from("notifications")
         .select(
@@ -86,7 +89,7 @@ export function useOperationsInboxSummary(
       )[0];
       setLatestActivity(latest || null);
     }
-  }, [activityScope, userId]);
+  }, [activityScope, queue, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -131,7 +134,7 @@ export function useOperationsInboxSummary(
       document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
-  }, [activityScope, refresh, userId]);
+  }, [activityScope, queue, refresh, userId]);
 
   return {
     messageUnread,

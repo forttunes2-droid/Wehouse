@@ -67,11 +67,11 @@ export function conversationPresentation(
       operational: true,
     };
   }
-  if (["property_listing", "property_inspection"].includes(contextType)) return {
+  if (["property_listing", "property_inspection", "hotel_property", "hotel_operations"].includes(contextType)) return {
     kind: "property_operations",
-    title: String(snapshot.listing_title || rawSubject || "Property").replace(/^(question about|inspection help)\s*·\s*/i, ""),
+    title: String(snapshot.listing_title || snapshot.hotel_name || rawSubject || "Property").replace(/^(question about|inspection help)\s*·\s*/i, ""),
     operator: "WeHouse",
-    meta: [contextType === "property_inspection" ? "Property inspection" : "Property enquiry", code, status].filter(Boolean).join(" · "),
+    meta: [contextType === "property_inspection" ? "Property inspection" : contextType.startsWith("hotel_") ? "Hotel operations" : "Property enquiry", code, status].filter(Boolean).join(" · "),
     operational: true,
   };
   if (contextType === "worker_booking") return {
@@ -191,7 +191,7 @@ export async function markSupportMessagesRead(conversationId: string) {
 }
 
 export async function getSupportInbox(
-  queue: "support" | "reservation_operations" = "support",
+  queue: "all" | "support" | "operations" | "property_operations" | "reservation_operations" = "support",
 ) {
   const { data, error } = await supabase.rpc("support_inbox", { p_queue: queue });
   return { conversations: data || [], error };

@@ -237,7 +237,7 @@ export default function HotelsHome({ onNavigate }: Props) {
     setState(value);
     setCity("");
   }
-  function useLocation() {
+  function locateUser() {
     if (!navigator.geolocation) {
       setLocationError("Current location is not available on this device.");
       return;
@@ -301,19 +301,10 @@ export default function HotelsHome({ onNavigate }: Props) {
           placeholder="Search hotel name"
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
-          onLocation={useLocation}
-          locationLabel={userLocation ? "Update location" : "Use my location"}
-          locationActive={Boolean(userLocation)}
-          locationBusy={locating}
-          onClearLocation={() => {
-            setUserLocation(null);
-            setRadius("");
-            setLocationError("");
-          }}
           locationDetail={locationError || undefined}
         >
           {mappedHotels > 0 && (
-            <div className="flex rounded-xl border border-white/[.07] p-1">
+            <div className="grid w-full grid-cols-3 overflow-hidden rounded-xl border border-white/[.07] p-1 sm:w-auto">
               <button
                 type="button"
                 onClick={() => setView("list")}
@@ -327,6 +318,17 @@ export default function HotelsHome({ onNavigate }: Props) {
                 className={`min-h-8 rounded-lg px-3 text-[9px] font-semibold ${view === "map" ? "bg-violet-500 text-white" : "text-[#818797]"}`}
               >
                 Map
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setView("list");
+                  locateUser();
+                }}
+                disabled={locating}
+                className={`min-h-8 rounded-lg px-3 text-[9px] font-semibold ${userLocation && view === "list" ? "bg-violet-500 text-white" : "text-[#818797]"}`}
+              >
+                {locating ? "Locating…" : "Near me"}
               </button>
             </div>
           )}
@@ -387,7 +389,7 @@ export default function HotelsHome({ onNavigate }: Props) {
             onOpen={(hotel) => onNavigate("hotel_detail", hotel.id)}
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
             {filtered.map(({ hotel, distance }) => (
               <HotelCard
                 key={hotel.hotel_id}
@@ -453,48 +455,22 @@ export default function HotelsHome({ onNavigate }: Props) {
               ))}
             </div>
           </div>
-          {mappedHotels > 0 && (
-            <section className="rounded-2xl border border-white/[.07] bg-[#151922] p-3.5">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-medium text-[#7B8190]">
-                  Distance
-                </p>
-                <button
-                  type="button"
-                  onClick={useLocation}
-                  disabled={locating}
-                  className="h-10 rounded-xl border border-white/[.08] px-3 text-[9px] font-semibold text-[#C7CBD5] disabled:opacity-50"
-                >
-                  {locating
-                    ? "Finding…"
-                    : userLocation
-                      ? "Refresh"
-                      : "Use my location"}
-                </button>
-              </div>
-              {locationError && (
-                <p className="mt-2 text-[8px] text-amber-300">
-                  {locationError}
-                </p>
-              )}
-              {userLocation && (
-                <div className="mt-3">
-                  <SearchableSelect
-                    label="Radius"
-                    value={radius === "" ? "" : String(radius)}
-                    onChange={(value) => setRadius(value ? Number(value) : "")}
-                    options={[
-                      { value: "", label: "Any distance" },
-                      { value: "2", label: "Within 2 km" },
-                      { value: "5", label: "Within 5 km" },
-                      { value: "10", label: "Within 10 km" },
-                      { value: "20", label: "Within 20 km" },
-                    ]}
-                    placeholder="Any distance"
-                    searchPlaceholder="Search distance"
-                  />
-                </div>
-              )}
+          {mappedHotels > 0 && userLocation && (
+            <section>
+              <SearchableSelect
+                label="Distance from your current location"
+                value={radius === "" ? "" : String(radius)}
+                onChange={(value) => setRadius(value ? Number(value) : "")}
+                options={[
+                  { value: "", label: "Any distance" },
+                  { value: "2", label: "Within 2 km" },
+                  { value: "5", label: "Within 5 km" },
+                  { value: "10", label: "Within 10 km" },
+                  { value: "20", label: "Within 20 km" },
+                ]}
+                placeholder="Any distance"
+                searchPlaceholder="Search distance"
+              />
             </section>
           )}
         </DiscoveryFilterSheet>
@@ -521,9 +497,9 @@ function HotelCard({
     <button
       type="button"
       onClick={onOpen}
-      className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C] text-left transition hover:border-violet-500/20"
+      className="grid w-full grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-3 text-left transition hover:bg-white/[.02] sm:grid-cols-[15rem_minmax(0,1fr)] sm:gap-5 sm:py-5"
     >
-      <div className="relative aspect-[16/10] bg-[#171B24]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#171B24] sm:aspect-[16/10]">
         {image ? (
           <img
             src={image}
@@ -549,19 +525,11 @@ function HotelCard({
               : `${distance.toFixed(1)} km`}
           </span>
         )}
-        {minPrice > 0 && (
-          <span className="absolute bottom-3 left-3 text-sm font-bold">
-            ₦{minPrice.toLocaleString()}
-            <span className="ml-1 text-[8px] font-medium text-white/60">
-              / night
-            </span>
-          </span>
-        )}
       </div>
-      <div className="p-4">
+      <div className="min-w-0 self-center py-1 pr-1 sm:pr-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">{hotel.name}</h2>
+            <h2 className="line-clamp-2 text-sm font-semibold sm:text-base">{hotel.name}</h2>
             <p className="mt-1 truncate text-[9px] text-[#6F7585]">
               {[hotel.area, hotel.city, hotel.state].filter(Boolean).join(", ")}
             </p>
@@ -572,8 +540,13 @@ function HotelCard({
             </span>
           )}
         </div>
+        {minPrice > 0 && (
+          <p className="mt-3 text-sm font-bold sm:text-base">
+            ₦{minPrice.toLocaleString()} <span className="text-[8px] font-medium text-[#747A89]">/ night</span>
+          </p>
+        )}
         {hotel.amenities?.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex gap-1.5 overflow-hidden">
             {hotel.amenities.slice(0, 3).map((item) => (
               <span
                 key={item}

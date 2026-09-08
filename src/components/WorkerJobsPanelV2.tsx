@@ -7,6 +7,9 @@ import {
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import Notifications from "@/pages/Notifications";
 import InboxTabs from "@/components/InboxTabs";
+import SupportEntryCard from "@/components/SupportEntryCard";
+import { getMySupportConversations } from "@/lib/supabase/support";
+import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
 export type WorkerBookingConversation = {
@@ -98,12 +101,14 @@ export function WorkerInboxPanel({
   onConversationClosed,
   onNavigate = () => {},
   onOpenJobs,
+  onUnreadChange,
 }: {
   profile: Profile;
   initialConversation?: WorkerBookingConversation | null;
   onConversationClosed?: () => void;
   onNavigate?: (page: string, id?: string) => void;
   onOpenJobs?: () => void;
+  onUnreadChange?: (count: number) => void;
 }) {
   const [rows, setRows] = useState<WorkerBookingConversation[]>([]);
   const [selected, setSelected] = useState<WorkerBookingConversation | null>(
@@ -112,9 +117,17 @@ export function WorkerInboxPanel({
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"chats" | "activity">("chats");
   const [activityUnread, setActivityUnread] = useState(0);
+  const [supportUnread, setSupportUnread] = useState(0);
+  const [supportAvailable, setSupportAvailable] = useState(false);
   const load = useCallback(async () => {
     try {
-      setRows(await loadWorkerConversations(profile.user_id));
+      const [conversations, wehouse] = await Promise.all([
+        loadWorkerConversations(profile.user_id),
+        getMySupportConversations(),
+      ]);
+      setRows(conversations);
+      if (!wehouse.error)
+        setSupportUnread((wehouse.conversations || []).reduce((sum, row) => sum + Number(row.unread_count || 0), 0));
     } catch (error: unknown) {
       toast.error(
         error instanceof Error
@@ -127,6 +140,12 @@ export function WorkerInboxPanel({
   }, [profile.user_id]);
   useEffect(() => {
     void load();
+    const channel = supabase
+      .channel(`worker-inbox:${profile.user_id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "booking_messages" }, () => void load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, () => void load())
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
   }, [load]);
   useEffect(() => {
     if (initialConversation) setSelected(initialConversation);
@@ -145,6 +164,12 @@ export function WorkerInboxPanel({
     }
     onNavigate(page, id);
   }
+  const conversationUnread = rows.reduce(
+    (sum, row) => sum + Number(row.unread_count || 0),
+    0,
+  );
+  const totalUnread = conversationUnread + supportUnread + activityUnread;
+  useEffect(() => onUnreadChange?.(totalUnread), [onUnreadChange, totalUnread]);
   if (selected)
     return (
       <BookingNegotiationChat
@@ -159,16 +184,12 @@ export function WorkerInboxPanel({
         }}
       />
     );
-  const conversationUnread = rows.reduce(
-    (sum, row) => sum + Number(row.unread_count || 0),
-    0,
-  );
   return (
     <div className="space-y-5">
       <InboxTabs
         value={view}
         onChange={setView}
-        chatCount={conversationUnread}
+        chatCount={conversationUnread + supportUnread}
         activityCount={activityUnread}
       />
       {view === "activity" ? (
@@ -183,9 +204,7 @@ export function WorkerInboxPanel({
         <>
           {loading ? (
             <Empty text="Loading conversations…" />
-          ) : rows.length === 0 ? (
-            <Empty text="Conversations appear when a customer starts a service request." />
-          ) : (
+          ) : rows.length > 0 ? (
             <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
               {rows.map((row) => (
                 <ConversationRow
@@ -195,7 +214,11 @@ export function WorkerInboxPanel({
                 />
               ))}
             </div>
-          )}
+          ) : null}
+          <section className="overflow-hidden border-y border-white/[.06]">
+            <SupportEntryCard profile={profile} compact onAvailabilityChange={setSupportAvailable} />
+          </section>
+          {!loading && rows.length === 0 && !supportAvailable ? <p className="px-4 text-center text-[9px] leading-4 text-[#626879]">Job conversations begin from a customer request. WeHouse conversations begin from the relevant job, payment or account action.</p> : null}
         </>
       )}
     </div>
