@@ -24,6 +24,7 @@ import useChatPresence from "@/hooks/useChatPresence";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { toast } from "sonner";
+import { SmilePlus } from "lucide-react";
 import MediaViewer from "@/components/MediaViewer";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import PrivateCallHistory from "@/components/PrivateCallHistory";
@@ -33,6 +34,9 @@ import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
+import MessagePress from "@/components/MessagePress";
+import MessageActionSheet from "@/components/MessageActionSheet";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   privateConversationReadiness,
   type PrivateConversationReadiness,
@@ -111,6 +115,7 @@ export default function BookingNegotiationChat({
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
+    [messageToRemove, setMessageToRemove] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false),
     [secureChat, setSecureChat] = useState<PrivateConversationReadiness | null>(null);
   const [review,setReview]=useState<any>(null),[reviewRating,setReviewRating]=useState(0),[reviewComment,setReviewComment]=useState(''),[reviewSaving,setReviewSaving]=useState(false),[reviewOpen,setReviewOpen]=useState(false);
@@ -338,14 +343,14 @@ export default function BookingNegotiationChat({
     onClose();
   }
   async function deleteMessageForMe() {
-    if (!messageMenu) return;
+    if (!messageToRemove) return;
     const { error } = await supabase.rpc("delete_conversation_message_for_me", {
       p_kind: "worker",
-      p_message_id: messageMenu.id,
+      p_message_id: messageToRemove.id,
     });
     if (error)
       return toast.error(error.message || "Message could not be removed");
-    setMessageMenu(null);
+    setMessageToRemove(null);
     await loadAll(true);
   }
   async function startCall(type: "audio" | "video") {
@@ -778,14 +783,8 @@ export default function BookingNegotiationChat({
             return (
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
-                <div
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMessageMenu(msg);
-                  }}
-                  onDoubleClick={() => setMessageMenu(msg)}
-                  className={`flex ${mine ? "justify-end" : "justify-start"}`}
-                >
+                <MessagePress onOpen={() => setMessageMenu(msg)} className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
+                  {!mine && <button type="button" onClick={(event) => { event.stopPropagation(); setMessageMenu(msg); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
                   <div
                     className={`max-w-[86%] overflow-hidden rounded-[20px] px-3.5 py-2.5 sm:max-w-[72%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.05] bg-[#161922]"}`}
                   >
@@ -827,7 +826,8 @@ export default function BookingNegotiationChat({
                       </div>
                     )}
                   </div>
-                </div>
+                  {mine && <button type="button" onClick={(event) => { event.stopPropagation(); setMessageMenu(msg); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
+                </MessagePress>
               </div>
             );
           })}
@@ -953,62 +953,49 @@ export default function BookingNegotiationChat({
         />
       ) : null}
       {messageMenu && (
-        <div
-          className="fixed inset-0 z-[90] flex items-end bg-black/55 backdrop-blur-sm"
-          onClick={() => setMessageMenu(null)}
-        >
-          <section
-            className="w-full rounded-t-[26px] bg-[#12161E] px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-white/15" />
-            <p className="mb-2 truncate px-2 text-[10px] text-[#747B8C]">
-              {messageMenu.content || "Attachment"}
-            </p>
-            <div className="mb-2 flex items-center justify-between rounded-2xl bg-white/[.035] p-2">
-              {["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => (
-                <button
-                  type="button"
-                  key={emoji}
-                  onClick={async () => {
-                    const current = messageMenu.reactions?.[profile.user_id];
-                    const result = await reactToBookingMessage(
-                      conversationId,
-                      messageMenu.id,
-                      current === emoji ? null : emoji,
-                    );
-                    if (result.error) return toast.error(result.error.message);
-                    setMessages((rows) => rows.map((row) => row.id === messageMenu.id ? { ...row, reactions: result.reactions } : row));
-                    setMessageMenu(null);
-                  }}
-                  className="grid h-10 w-10 place-items-center rounded-full text-base hover:bg-white/[.06]"
-                  aria-label={`React ${emoji}`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-            <div className="border-y border-white/[.06] px-3 py-3 text-[9px] text-[#7B8190]">
-              <p>{new Date(messageMenu.created_at).toLocaleString()}</p>
-              {messageMenu.sender_id === profile.user_id && (
-                <p className="mt-1">{messageMenu.is_read ? "Read by recipient" : "Sent · not read yet"}</p>
-              )}
-            </div>
-            <button
-              onClick={() => void deleteMessageForMe()}
-              className="flex min-h-12 w-full items-center px-3 text-left text-xs font-semibold text-red-300"
-            >
-              Remove message for me
-            </button>
-            <button
-              onClick={() => setMessageMenu(null)}
-              className="min-h-12 w-full text-xs text-[#818899]"
-            >
-              Cancel
-            </button>
-          </section>
-        </div>
+        <MessageActionSheet
+          preview={messageMenu.content || "Attachment"}
+          time={new Date(messageMenu.created_at).toLocaleString()}
+          readStatus={
+            messageMenu.sender_id === profile.user_id
+              ? messageMenu.is_read
+                ? "Read"
+                : "Sent"
+              : null
+          }
+          currentReaction={messageMenu.reactions?.[profile.user_id] || null}
+          onClose={() => setMessageMenu(null)}
+          onReact={async (emoji) => {
+            const current = messageMenu.reactions?.[profile.user_id];
+            const result = await reactToBookingMessage(
+              conversationId,
+              messageMenu.id,
+              current === emoji ? null : emoji,
+            );
+            if (result.error) return toast.error(result.error.message);
+            setMessages((rows) =>
+              rows.map((row) =>
+                row.id === messageMenu.id
+                  ? { ...row, reactions: result.reactions }
+                  : row,
+              ),
+            );
+            setMessageMenu(null);
+          }}
+          onRemove={() => {
+            setMessageToRemove(messageMenu);
+            setMessageMenu(null);
+          }}
+        />
       )}
+      <ConfirmDialog
+        isOpen={Boolean(messageToRemove)}
+        title="Remove this message?"
+        description="This removes the message only from your chat. The other person keeps their copy."
+        confirmLabel="Remove for me"
+        onCancel={() => setMessageToRemove(null)}
+        onConfirm={() => void deleteMessageForMe()}
+      />
       {confirmDelete && (
         <DeleteSheet
           onCancel={() => setConfirmDelete(false)}

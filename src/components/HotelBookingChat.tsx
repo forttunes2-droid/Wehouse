@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SmilePlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   deleteHotelChatAttachment,
@@ -7,6 +8,7 @@ import {
   markHotelMessagesRead,
   openHotelBookingConversation,
   reactToHotelMessage,
+  removeHotelMessageForMe,
   sendHotelMessage,
   uploadHotelChatAttachment,
   type HotelMessage,
@@ -14,6 +16,9 @@ import {
 import MediaViewer from "@/components/MediaViewer";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import MessageActionSheet from "@/components/MessageActionSheet";
+import MessagePress from "@/components/MessagePress";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import type { Profile } from "@/types";
 
@@ -27,7 +32,6 @@ type Props = {
   onUpdated?: () => void;
 };
 
-const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 export default function HotelBookingChat({
@@ -45,7 +49,8 @@ export default function HotelBookingChat({
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [actions, setActions] = useState<string | null>(null);
+  const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
+  const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(null);
   const [viewer, setViewer] = useState<{ src: string; kind: "image" | "video" } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -160,7 +165,23 @@ export default function HotelBookingChat({
     const result = await reactToHotelMessage(conversationId, message.id, mine === emoji ? null : emoji);
     if (result.error) return toast.error(result.error.message || "Reaction could not be saved");
     setMessages((current) => current.map((item) => item.id === message.id ? { ...item, reactions: result.reactions } : item));
-    setActions(null);
+    setMessageMenu(null);
+  }
+
+  async function removeMessage() {
+    if (!conversationId || !messageToRemove) return;
+    const result = await removeHotelMessageForMe(
+      conversationId,
+      messageToRemove.id,
+    );
+    if (result.error) {
+      toast.error(result.error.message || "Message could not be removed");
+      return;
+    }
+    setMessages((current) =>
+      current.filter((message) => message.id !== messageToRemove.id),
+    );
+    setMessageToRemove(null);
   }
 
   return (
@@ -186,9 +207,10 @@ export default function HotelBookingChat({
           ) : messages.map((message) => {
             const mine = message.sender_id === profile.user_id;
             const counts = Object.values(message.reactions || {}).reduce<Record<string, number>>((total, emoji) => ({ ...total, [emoji]: (total[emoji] || 0) + 1 }), {});
-            return <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+            return <MessagePress key={message.id} onOpen={() => setMessageMenu(message)} className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
+              {!mine && <button type="button" onClick={(event) => { event.stopPropagation(); setMessageMenu(message); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
               <div className="max-w-[84%]">
-                <button type="button" onClick={() => setActions(actions === message.id ? null : message.id)} className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[#171B24]"}`}>
+                <div className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[#171B24]"}`}>
                   {!mine && <p className="mb-1 text-[8px] font-semibold text-violet-300">{message.sender_role === "hotel" ? title : message.sender_name}</p>}
                   {message.content && <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.content}</p>}
                   {(message.attachments || []).map((src, index) => {
@@ -196,11 +218,11 @@ export default function HotelBookingChat({
                     return type.startsWith("image/") ? <button key={src} type="button" onClick={(event) => { event.stopPropagation(); setViewer({ src, kind: "image" }); }} className="mt-2 block overflow-hidden rounded-xl"><img src={src} alt="Chat attachment" loading="lazy" decoding="async" className="max-h-72 w-full object-cover" /></button> : type.startsWith("audio/") ? <div key={src} className="mt-2"><VoiceNotePlayer url={src} /></div> : null;
                   })}
                   <span className={`mt-1.5 block text-right text-[7px] ${mine ? "text-violet-100/75" : "text-[#697080]"}`}>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{mine ? message.is_read ? " · Read" : " · Sent" : ""}</span>
-                </button>
+                </div>
                 {Object.keys(counts).length > 0 && <div className={`mt-1 flex flex-wrap gap-1 ${mine ? "justify-end" : "justify-start"}`}>{Object.entries(counts).map(([emoji, count]) => <button key={emoji} onClick={() => void react(message, emoji)} className="rounded-full border border-white/[.08] bg-[#12151D] px-2 py-1 text-[9px]">{emoji} {count}</button>)}</div>}
-                {actions === message.id && <div className={`mt-1 flex gap-1 ${mine ? "justify-end" : "justify-start"}`}>{REACTIONS.map((emoji) => <button key={emoji} onClick={() => void react(message, emoji)} className="grid h-8 w-8 place-items-center rounded-full bg-[#171B24] text-sm">{emoji}</button>)}</div>}
               </div>
-            </div>;
+              {mine && <button type="button" onClick={(event) => { event.stopPropagation(); setMessageMenu(message); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
+            </MessagePress>;
           })}
           <div ref={bottomRef} />
         </div>
@@ -230,6 +252,8 @@ export default function HotelBookingChat({
           </div>}
         </div>
       </footer>
+      {messageMenu && <MessageActionSheet preview={messageMenu.content || "Attachment"} time={new Date(messageMenu.created_at).toLocaleString()} readStatus={messageMenu.sender_id === profile.user_id ? (messageMenu.is_read ? "Read" : "Sent") : null} currentReaction={messageMenu.reactions?.[profile.user_id] || null} onClose={() => setMessageMenu(null)} onReact={(emoji) => void react(messageMenu, emoji)} onRemove={() => { setMessageToRemove(messageMenu); setMessageMenu(null); }} />}
+      <ConfirmDialog isOpen={Boolean(messageToRemove)} title="Remove this message?" description="This removes the message only from your chat. The other person keeps their copy." confirmLabel="Remove for me" onCancel={() => setMessageToRemove(null)} onConfirm={() => void removeMessage()} />
       {viewer && <MediaViewer src={viewer.src} kind={viewer.kind} title="Hotel chat media" onClose={() => setViewer(null)} />}
     </div>
   );

@@ -109,6 +109,20 @@ export async function reactToHotelMessage(
   return { reactions: (data || {}) as Record<string, string>, error };
 }
 
+export async function removeHotelMessageForMe(
+  conversationId: string,
+  messageId: string,
+) {
+  const { data, error } = await supabase.rpc(
+    "remove_hotel_booking_message_for_me",
+    {
+      p_conversation_id: conversationId,
+      p_message_id: messageId,
+    },
+  );
+  return { removed: Boolean(data), error };
+}
+
 export async function uploadHotelChatAttachment(
   conversationId: string,
   userId: string,

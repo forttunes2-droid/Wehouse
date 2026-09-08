@@ -33,6 +33,7 @@ import {
   type SupportThread,
 } from "@/lib/supabase/support";
 import { toast } from "sonner";
+import { SmilePlus } from "lucide-react";
 import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
 import InboxTabs from "@/components/InboxTabs";
@@ -47,6 +48,9 @@ import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import MediaViewer from "@/components/MediaViewer";
 import HotelBookingChat from "@/components/HotelBookingChat";
+import MessagePress from "@/components/MessagePress";
+import MessageActionSheet from "@/components/MessageActionSheet";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   getMyHotelConversations,
   type HotelConversation,
@@ -158,7 +162,8 @@ export default function Chat({
   >({});
   const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
   const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
-  const [messageActions, setMessageActions] = useState<string | null>(null);
+  const [messageActions, setMessageActions] = useState<RoommateMessage | null>(null);
+  const [messageToRemove, setMessageToRemove] = useState<RoommateMessage | null>(null);
   const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
   const inboxAutoSelectedRef = useRef(false);
   const activeRef = useRef<Conversation | null>(null);
@@ -569,6 +574,16 @@ export default function Chat({
     setActive(null);
     await loadInbox(true);
   }
+  async function removeMessageForMe() {
+    if (!active || !messageToRemove) return;
+    const { error } = await supabase.rpc("delete_conversation_message_for_me", {
+      p_kind: "roommate",
+      p_message_id: messageToRemove.id,
+    });
+    if (error) return toast.error(error.message || "Message could not be removed");
+    setMessageToRemove(null);
+    await loadRoommateMessages(active.id);
+  }
   async function toggleBlock() {
     if (!peerId || blockBusy) return;
     const person = people[peerId];
@@ -910,37 +925,7 @@ export default function Chat({
                             )
                           : undefined
                       }
-                      actionsOpen={messageActions === event.message.id}
-                      onToggleActions={() =>
-                        setMessageActions((current) =>
-                          current === event.message.id
-                            ? null
-                            : event.message.id,
-                        )
-                      }
-                      onReply={() => {
-                        setReplyingTo(event.message);
-                        setMessageActions(null);
-                      }}
-                      onReact={async (emoji) => {
-                        const current =
-                          event.message.reactions?.[profile.user_id];
-                        const result = await reactToMessage(
-                          active.id,
-                          event.message.id,
-                          current === emoji ? null : emoji,
-                        );
-                        if (result.error)
-                          return toast.error(result.error.message);
-                        setMessages((rows) =>
-                          rows.map((row) =>
-                            row.id === event.message.id
-                              ? { ...row, reactions: result.reactions }
-                              : row,
-                          ),
-                        );
-                        setMessageActions(null);
-                      }}
+                      onOpenActions={() => setMessageActions(event.message)}
                     />
                   )}
                 </div>
@@ -1090,7 +1075,39 @@ export default function Chat({
             )}
           </div>
         </footer>
-        {confirmDelete && (
+        {messageActions && active && (
+          <MessageActionSheet
+            preview={messageActions.content || "Attachment"}
+            time={new Date(messageActions.created_at).toLocaleString()}
+            readStatus={messageActions.sender_id === profile.user_id ? (messageActions.seen ? "Seen" : "Sent") : null}
+            currentReaction={messageActions.reactions?.[profile.user_id] || null}
+            onClose={() => setMessageActions(null)}
+            onReply={() => {
+              setReplyingTo(messageActions);
+              setMessageActions(null);
+            }}
+            onRemove={() => {
+              setMessageToRemove(messageActions);
+              setMessageActions(null);
+            }}
+            onReact={async (emoji) => {
+              const current = messageActions.reactions?.[profile.user_id];
+              const result = await reactToMessage(active.id, messageActions.id, current === emoji ? null : emoji);
+              if (result.error) return toast.error(result.error.message);
+              setMessages((rows) => rows.map((row) => row.id === messageActions.id ? { ...row, reactions: result.reactions } : row));
+              setMessageActions(null);
+            }}
+          />
+        )}
+        <ConfirmDialog
+          isOpen={Boolean(messageToRemove)}
+          title="Remove this message?"
+          description="This removes the message only from your chat. The other person keeps their copy."
+          confirmLabel="Remove for me"
+          onCancel={() => setMessageToRemove(null)}
+          onConfirm={() => void removeMessageForMe()}
+        />
+      {confirmDelete && (
           <DeleteSheet
             title="Remove this conversation from your Inbox?"
             text="This only removes it from your inbox. It does not erase the other person's copy. A new message can make it appear again."
@@ -1533,28 +1550,20 @@ function RoommateBubble({
   msg,
   mine,
   quoted,
-  actionsOpen,
-  onToggleActions,
-  onReply,
-  onReact,
+  onOpenActions,
 }: {
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
-  actionsOpen: boolean;
-  onToggleActions: () => void;
-  onReply: () => void;
-  onReact: (emoji: string) => void;
+  onOpenActions: () => void;
 }) {
   const reactions = Object.values(msg.reactions || {}).reduce<
     Record<string, number>
   >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
   return (
-    <div
-      className={`group flex flex-col ${mine ? "items-end" : "items-start"}`}
-    >
+    <MessagePress onOpen={onOpenActions} className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
+      {!mine && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenActions(); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
       <div
-        onClick={onToggleActions}
         className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
       >
         {quoted && (
@@ -1605,28 +1614,8 @@ function RoommateBubble({
           </div>
         )}
       </div>
-      {actionsOpen && (
-        <div className="mt-3 flex items-center gap-1 rounded-full border border-white/[.08] bg-[#171A22] p-1 shadow-xl">
-          <button
-            type="button"
-            onClick={onReply}
-            className="rounded-full px-3 py-1.5 text-[9px] font-semibold text-violet-300"
-          >
-            Reply
-          </button>
-          {["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => (
-            <button
-              type="button"
-              key={emoji}
-              onClick={() => onReact(emoji)}
-              className="grid h-8 w-8 place-items-center rounded-full text-sm hover:bg-white/[.06]"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {mine && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenActions(); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
+    </MessagePress>
   );
 }
 function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
