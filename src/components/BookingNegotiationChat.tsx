@@ -900,7 +900,14 @@ export default function BookingNegotiationChat({
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
                 <MessagePress
-                  onOpen={() => setMessageMenu(msg)}
+                  onOpen={() => {
+                    setMessageMenuMode("actions");
+                    setMessageMenu(msg);
+                  }}
+                  onTap={() => {
+                    setMessageMenuMode("reactions");
+                    setMessageMenu(msg);
+                  }}
                   onReply={() => setReplyingTo(msg)}
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
@@ -1231,6 +1238,7 @@ export default function BookingNegotiationChat({
       ) : null}
       {messageMenu && (
         <MessageActionSheet
+          mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
           onClose={() => setMessageMenu(null)}
           onReact={async (emoji) => {
@@ -1258,6 +1266,11 @@ export default function BookingNegotiationChat({
             setMessageToRemove(messageMenu);
             setMessageMenu(null);
           }}
+          onCopy={messageMenu.content ? () => {
+            void navigator.clipboard.writeText(messageMenu.content || "");
+            toast.success("Message copied");
+            setMessageMenu(null);
+          } : undefined}
         />
       )}
       <ConfirmDialog
