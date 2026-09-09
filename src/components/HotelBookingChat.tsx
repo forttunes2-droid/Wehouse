@@ -297,7 +297,7 @@ export default function HotelBookingChat({
                     setMessageMenuMode("reactions");
                     setMessageMenu(message);
                   }}
-                  onReply={() => setReplyingTo(message)
+                  onReply={() => setReplyingTo(message)}
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   <div className="max-w-[84%]">
