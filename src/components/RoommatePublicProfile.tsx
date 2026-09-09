@@ -143,10 +143,8 @@ export default function RoommatePublicProfile({
                   @{person.username.replace(/^@/, "")}
                 </p>
               )}
-              {person.location || (context === "conversation" && presence) ? <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
-                {[person.location, context === "conversation" ? presence : null]
-                  .filter(Boolean)
-                  .join(" · ")}
+              {person.location ? <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
+                {person.location}
               </p> : null}
               {hasScore && context === "discovery" ? (
                 <div className="mt-3 flex items-center gap-2">
