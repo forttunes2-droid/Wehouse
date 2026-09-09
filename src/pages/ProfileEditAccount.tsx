@@ -160,7 +160,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     const detectedLga = detectedState.cities.find((item) => clean(item) === clean(next.city || '')) || '';
     if (state !== detectedState.state || (detectedLga && lga !== detectedLga)) {
       setLocationNotice(`The map suggested ${[detectedLga, detectedState.state].filter(Boolean).join(', ')}. It can be approximate, so your selected State and LGA were not changed.`);
-    } else setLocationNotice('Pin placed. Check the street address before saving.');
+    } else setLocationNotice('Location found. Check the street address before saving.');
   }
 
   if (!editing) return (
@@ -212,8 +212,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
             <h2 className="text-sm font-semibold">Location</h2>
             <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Use your phone location below to find and confirm one private street address.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street pin cleared because the region changed. Use your location again if you want to save a precise address.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
-              <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street pin cleared because the LGA changed. Use your location again if you want to save a precise address.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
+              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Precise address cleared because the region changed. Use your location again if you want to save it.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
+              <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Precise address cleared because the LGA changed. Use your location again if you want to save it.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
             </div>
             <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={resolveLocation}/>{locationNotice&&<p className="mt-2 rounded-xl bg-violet-500/[.07] px-3 py-2 text-[9px] leading-5 text-violet-200" role="status">{locationNotice}</p>}</div>
           </section>
