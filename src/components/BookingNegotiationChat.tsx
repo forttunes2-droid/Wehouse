@@ -395,16 +395,22 @@ export default function BookingNegotiationChat({
     setMessageToRemove(null);
     await loadAll(true);
   }
-  async function startCall(kind: "audio" | "video" = "audio") {
+  async function startCall(kind: "audio" | "video") {
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
       conversationId,
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (!capabilities.allow_audio_calls)
-      return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("worker_booking", conversationId, "audio");
+    const allowed =
+      kind === "video"
+        ? capabilities.allow_video_calls
+        : capabilities.allow_audio_calls;
+    if (!allowed)
+      return toast.error(
+        `This person is not accepting ${kind === "video" ? "video" : "audio"} calls`,
+      );
+    launchPrivateCall("worker_booking", conversationId, kind);
   }
   async function saveReview() {
     if (reviewRating < 1) return toast.error("Choose a star rating");
@@ -583,13 +589,22 @@ export default function BookingNegotiationChat({
             </div>
           </button>
           {openConversation && (
-            <button
-              onClick={() => void startCall()}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
-              aria-label="Start audio call"
-            >
-              <Phone />
-            </button>
+            <>
+              <button
+                onClick={() => void startCall("video")}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+                aria-label="Start video call"
+              >
+                <Camera />
+              </button>
+              <button
+                onClick={() => void startCall("audio")}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+                aria-label="Start audio call"
+              >
+                <Phone />
+              </button>
+            </>
           )}
           <button
             onClick={() => setMenuOpen((value) => !value)}
