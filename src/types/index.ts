@@ -758,7 +758,7 @@ export const WEHOUSE_FEES = {
   // Late payment / penalty fees
   LATE_PAYMENT_FEE_PERCENT: 5, // 5% late fee on overdue installments
 
-  // Security deposit: held in escrow, returned after stay if no damage
+  // Security deposit: covered by Payment Protection and returned after the stay if no claim is accepted
   // Amount is SET BY PROPERTY OWNER (default 10% of rent, min N10,000)
   SECURITY_DEPOSIT_DEFAULT_PERCENT: 10,
   SECURITY_DEPOSIT_MIN_NGN: 10000,
@@ -873,12 +873,12 @@ export function calculateRentalPayments(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// WORKER ESCROW SYSTEM
+// WORKER PAYMENT PROTECTION SYSTEM
 // ═══════════════════════════════════════════════════════════════
 
 export type WorkerBookingStatus =
   | "pending_payment"
-  | "paid_escrow"
+  | "payment_protected"
   | "worker_assigned"
   | "in_progress"
   | "completed_pending_approval"
@@ -917,7 +917,7 @@ export interface WorkerBooking {
 export const WORKER_BOOKING_STATUS_LABELS: Record<WorkerBookingStatus, string> =
   {
     pending_payment: "Pending Payment",
-    paid_escrow: "Paid — In Escrow",
+    payment_protected: "Payment Protected",
     worker_assigned: "Worker Assigned",
     in_progress: "Work In Progress",
     completed_pending_approval: "Done — Awaiting Your Approval",
@@ -930,7 +930,7 @@ export const WORKER_BOOKING_STATUS_LABELS: Record<WorkerBookingStatus, string> =
 export const WORKER_BOOKING_STATUS_COLORS: Record<WorkerBookingStatus, string> =
   {
     pending_payment: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    paid_escrow: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    payment_protected: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     worker_assigned: "bg-purple-500/10 text-purple-400 border-purple-500/20",
     in_progress: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     completed_pending_approval:
@@ -1442,7 +1442,7 @@ export interface Wallet {
 export type WalletTransactionType =
   | "credit"
   | "debit"
-  | "escrow_release"
+  | "payment_protection_release"
   | "withdrawal"
   | "refund"
   | "commission"
@@ -1466,7 +1466,7 @@ export const WALLET_TRANSACTION_TYPE_LABELS: Record<
 > = {
   credit: "Credit",
   debit: "Debit",
-  escrow_release: "Escrow Released",
+  payment_protection_release: "Payment Protection Released",
   withdrawal: "Withdrawal",
   refund: "Refund",
   commission: "Commission",
@@ -1474,36 +1474,33 @@ export const WALLET_TRANSACTION_TYPE_LABELS: Record<
   unfreeze: "Unfrozen",
 };
 
-// ─── ESCROW TRANSACTIONS ────────────────────────────────────
+// ─── PAYMENT PROTECTION TRANSACTIONS ─────────────────────────
 
-export type EscrowStatus =
-  "holding" | "released" | "refunded" | "disputed" | "partially_refunded";
-export type EscrowTransactionType =
+export type PaymentProtectionStatus =
+  "protected" | "released" | "refunded" | "disputed" | "partially_refunded";
+export type PaymentProtectionBookingType =
   "worker_booking" | "property_rental" | "hotel_booking" | "reservation";
 
-export interface EscrowTransaction {
+export interface PaymentProtectionTransaction {
   id: string;
-  reference: string;
-  transaction_type: EscrowTransactionType;
-  booking_id: string | null;
-  customer_id: string;
-  worker_id: string | null;
-  partner_id: string | null;
-  gross_amount: number;
-  wehouse_commission: number;
-  net_amount: number;
-  security_deposit: number;
-  status: EscrowStatus;
+  booking_id: string;
+  booking_type: PaymentProtectionBookingType;
+  payer_user_id: string;
+  payee_user_id: string;
+  amount_total: number;
+  amount_commission: number;
+  amount_payee: number;
+  commission_rate: number;
+  status: PaymentProtectionStatus;
   paystack_reference: string | null;
-  paystack_transaction_id: string | null;
   released_at: string | null;
-  released_to_wallet_id: string | null;
+  released_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export const ESCROW_STATUS_LABELS: Record<EscrowStatus, string> = {
-  holding: "Held",
+export const PAYMENT_PROTECTION_STATUS_LABELS: Record<PaymentProtectionStatus, string> = {
+  protected: "Protected",
   released: "Released",
   refunded: "Refunded",
   disputed: "Disputed",
@@ -1545,7 +1542,12 @@ export const USER_INSPECTION_STATUS_LABELS: Record<
 // ─── WITHDRAWALS ────────────────────────────────────────────
 
 export type WithdrawalStatus =
-  "pending" | "processing" | "successful" | "failed" | "reversed";
+  | "awaiting_review"
+  | "processing"
+  | "paid"
+  | "rejected"
+  | "failed"
+  | "reversed";
 
 export interface Withdrawal {
   id: string;
@@ -1565,17 +1567,19 @@ export interface Withdrawal {
 }
 
 export const WITHDRAWAL_STATUS_LABELS: Record<WithdrawalStatus, string> = {
-  pending: "Pending",
+  awaiting_review: "Awaiting Review",
   processing: "Processing",
-  successful: "Successful",
+  paid: "Paid",
+  rejected: "Rejected",
   failed: "Failed",
   reversed: "Reversed",
 };
 
 export const WITHDRAWAL_STATUS_COLORS: Record<WithdrawalStatus, string> = {
-  pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  awaiting_review: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   processing: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  successful: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  paid: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  rejected: "bg-gray-500/10 text-gray-400 border-gray-500/20",
   failed: "bg-red-500/10 text-red-400 border-red-500/20",
   reversed: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
@@ -1584,12 +1588,14 @@ export const WITHDRAWAL_STATUS_COLORS: Record<WithdrawalStatus, string> = {
 
 export type AuditEventType =
   | "customer_payment"
-  | "escrow_created"
-  | "escrow_released"
-  | "escrow_refunded"
+  | "payment_protection_created"
+  | "payment_protection_released"
+  | "payment_protection_refunded"
+  | "payment_protection_credit_wallet"
   | "withdrawal_requested"
   | "withdrawal_processing"
-  | "withdrawal_successful"
+  | "withdrawal_paid"
+  | "withdrawal_rejected"
   | "withdrawal_failed"
   | "withdrawal_reversed"
   | "wallet_frozen"

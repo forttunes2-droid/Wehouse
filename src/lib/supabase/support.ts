@@ -110,7 +110,7 @@ export function conversationPresentation(
         place ||
         safeSubject ||
         (contextType === "hotel_booking" ? "Hotel stay" : stay),
-      operator: "WeHouse Bookings",
+      operator: "WeHouse Property Operations",
       meta: [
         contextType === "hotel_booking"
           ? "Hotel booking"
@@ -346,6 +346,7 @@ export async function sendSupportMessage(
   attachments: string[] = [],
   attachmentTypes: string[] = [],
   context?: SupportOpenContext | null,
+  visibility: "customer" | "internal" = "customer",
 ) {
   // Context belongs in metadata. The message action remains a normal message;
   // reservation and booking names are not workflow actions in the database.
@@ -366,6 +367,7 @@ export async function sendSupportMessage(
     p_attachment_types: attachmentTypes,
     p_action_type: actionType,
     p_action_metadata: actionMetadata,
+    p_visibility: visibility,
   });
   return { messageId: data as string | null, error };
 }

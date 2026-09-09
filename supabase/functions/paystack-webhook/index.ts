@@ -19,6 +19,23 @@ Deno.serve(async (req) => {
     const raw = await req.text();
     if (!(await validHmac(raw, signature, secret))) return new Response('Invalid signature', { status: 401 });
     const event = JSON.parse(raw);
+    const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+    if (['transfer.success','transfer.failed','transfer.reversed'].includes(event.event)) {
+      const reference = String(event.data?.reference || '');
+      if (!reference) return new Response('Transfer reference missing', { status: 200 });
+      const paystackStatus = event.event.split('.')[1];
+      const eventKey = `${event.event}:${String(event.data?.id || reference)}`;
+      const { error } = await db.rpc('settle_withdrawal_transfer_event', {
+        p_reference: reference,
+        p_transfer_code: String(event.data?.transfer_code || '') || null,
+        p_paystack_status: paystackStatus,
+        p_reason: String(event.data?.reason || event.data?.failures || '') || null,
+        p_event_key: eventKey,
+        p_payload: event.data || {},
+      });
+      if (error) return new Response('Transfer settlement error', { status: 500 });
+      return new Response('OK', { status: 200 });
+    }
     if (event.event !== 'charge.success') return new Response('Ignored', { status: 200 });
     const reference = event.data?.reference;
     const amount = Number(event.data?.amount ?? 0) / 100;
@@ -26,7 +43,6 @@ Deno.serve(async (req) => {
     const status = event.data?.status;
     const transactionId = String(event.data?.id ?? '');
     if (!reference || status !== 'success' || currency !== 'NGN' || amount <= 0) return new Response('Invalid event', { status: 200 });
-    const db = createClient(url, serviceKey, { auth: { persistSession: false } });
     const { data: payment, error: lookupError } = await db.from('booking_payments').select('id,purpose,status,amount,amount_total,worker_booking_id').eq('paystack_reference', reference).maybeSingle();
     if (lookupError) return new Response('Database error', { status: 500 });
     if (!payment) return new Response('Payment not found', { status: 200 });

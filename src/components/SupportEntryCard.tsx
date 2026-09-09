@@ -127,8 +127,8 @@ export default function SupportEntryCard({
                 status,
                 p.title,
                 thread.assigned_staff_name
-                  ? `You ↔ ${thread.assigned_staff_name} · WeHouse`
-                  : `You → ${p.operator}`,
+                  ? `Assigned to ${thread.assigned_staff_name} · WeHouse`
+                  : "",
               ]
                 .filter(Boolean)
                 .join(" · ")}

@@ -5,6 +5,7 @@ import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import InboxTabs from "@/components/InboxTabs";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
+import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import CreatorAuditWorkspace from "@/components/CreatorAuditWorkspace";
 import ServiceBookingOversight from "@/components/ServiceBookingOversight";
 import UserProfileModal from "@/components/UserProfileModal";
@@ -268,7 +269,7 @@ function Overview({
         supabase
           .from("withdrawals")
           .select("*", { count: "exact", head: true })
-          .in("status", ["pending", "processing"]),
+          .in("status", ["awaiting_review", "processing"]),
         supabase
           .from("inspection_requests")
           .select("*", { count: "exact", head: true })
@@ -1081,7 +1082,7 @@ function Finance() {
   return (
     <Section
       title="Platform finance"
-      note="Read-only settlement records. Product rules are managed in Operations → Platform settings."
+      note="Review payout requests, monitor Paystack settlement and inspect commission records. Product rules are managed in Operations → Platform settings."
     >
       <div className="flex gap-1 overflow-x-auto scrollbar-hide">
         <Chip active={view === "payouts"} onClick={() => setView("payouts")}>
@@ -1094,29 +1095,21 @@ function Finance() {
           Commission ledger
         </Chip>
       </div>
-      {loading ? (
+      {view === "payouts" ? (
+        <StaffFinanceRecords view="payouts" />
+      ) : loading ? (
         <Loading />
       ) : rows.length === 0 ? (
-        <Empty
-          text={
-            view === "payouts"
-              ? "No payout requests."
-              : "No commission records."
-          }
-        />
+        <Empty text="No commission records." />
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
             <Card key={row.id}>
               <Top
-                title={
-                  view === "payouts"
-                    ? row.snapshot_bank_account_name || "Payout request"
-                    : row.booking_type || "Commission"
-                }
+                title={row.booking_type || "Commission"}
                 sub={new Date(row.created_at).toLocaleString()}
                 status={row.status || "recorded"}
-                amount={view === "payouts" ? row.amount : row.commission_amount}
+                amount={row.commission_amount}
               />
             </Card>
           ))}

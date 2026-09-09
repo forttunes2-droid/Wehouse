@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, BlueBadgeSubscription, Wallet, WalletTransaction, EscrowTransaction, Withdrawal, FinancialAuditLog } from '@/types';
+import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, BlueBadgeSubscription, Wallet, WalletTransaction, PaymentProtectionTransaction, Withdrawal, FinancialAuditLog } from '@/types';
 
 // ═══════════════════════════════════════════════════════════════
 // WORKER DISCOVERY — Find workers by filters
@@ -392,7 +392,7 @@ export async function getWalletTransactions(walletId: string, limit = 50) {
   return { transactions: data as WalletTransaction[] | null, error };
 }
 
-// Credit wallet (when escrow is released)
+// Credit wallet when Payment Protection is released
 export async function creditWallet(walletId: string, amount: number, description: string, reference?: string) {
   // Use RPC for atomic operation
   const { data, error } = await supabase.rpc('credit_wallet', {
@@ -422,43 +422,16 @@ export async function updateWalletBankDetails(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ESCROW
+// PAYMENT PROTECTION
 // ═══════════════════════════════════════════════════════════════
 
-export async function createEscrowTransaction(escrow: Omit<EscrowTransaction, 'id' | 'created_at' | 'updated_at'>) {
+export async function getPaymentProtectionForBooking(bookingId: string) {
   const { data, error } = await supabase
-    .from('escrow_transactions')
-    .insert(escrow)
-    .select()
-    .single();
-  return { transaction: data as EscrowTransaction | null, error };
-}
-
-export async function getEscrowForBooking(bookingId: string) {
-  const { data, error } = await supabase
-    .from('escrow_transactions')
+    .from('payment_protection_transactions')
     .select('*')
     .eq('booking_id', bookingId)
     .maybeSingle();
-  return { transaction: data as EscrowTransaction | null, error };
-}
-
-// Release escrow to wallet (called when job is completed)
-export async function releaseEscrow(escrowId: string, walletId: string) {
-  const { data, error } = await supabase.rpc('release_escrow', {
-    p_escrow_id: escrowId,
-    p_wallet_id: walletId,
-  });
-  return { result: data, error };
-}
-
-// Refund escrow to customer
-export async function refundEscrow(escrowId: string, reason?: string) {
-  const { data, error } = await supabase.rpc('refund_escrow', {
-    p_escrow_id: escrowId,
-    p_reason: reason || null,
-  });
-  return { result: data, error };
+  return { transaction: data as PaymentProtectionTransaction | null, error };
 }
 
 // ═══════════════════════════════════════════════════════════════

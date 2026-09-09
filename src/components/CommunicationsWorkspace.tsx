@@ -69,6 +69,7 @@ export default function CommunicationsWorkspace({
     [input, setInput] = useState(""),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
+    [messageVisibility, setMessageVisibility] = useState<"customer" | "internal">("customer"),
     [caseAction, setCaseAction] = useState<CaseAction | null>(null),
     [caseNote, setCaseNote] = useState(""),
     [updatingCase, setUpdatingCase] = useState(false);
@@ -180,6 +181,7 @@ export default function CommunicationsWorkspace({
     setEvents([]);
     setCaseAction(null);
     setCaseNote("");
+    setMessageVisibility("customer");
     await refreshMessages(row.conversation_id);
     void load(true);
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -230,6 +232,8 @@ export default function CommunicationsWorkspace({
       input.trim(),
       paths,
       types,
+      null,
+      messageVisibility,
     );
     if (error) {
       for (const path of paths) await deleteSupportAttachment(path);
@@ -343,6 +347,10 @@ export default function CommunicationsWorkspace({
       profile.username ||
       "Current team member";
     const caseNumber = String(selected.context_snapshot?.case_number || "");
+    const conversationLocked = Boolean(
+      !selectedPresentation.operational &&
+        (selected.status === "resolved" || selected.status === "closed"),
+    );
     return (
       <div className="flex min-h-[70vh] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219]">
         <header className="flex items-center gap-3 border-b border-white/[.06] px-3 py-3 sm:px-4">
@@ -363,7 +371,9 @@ export default function CommunicationsWorkspace({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{requesterLabel}</p>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
-              {requesterLabel} ↔ {handlerLabel} · WeHouse
+              {selectedPresentation.operational
+                ? selectedPresentation.meta
+                : selectedPresentation.title}
             </p>
           </div>
           {Number(selected.unread_count || 0) > 0 && (
@@ -372,6 +382,7 @@ export default function CommunicationsWorkspace({
             </span>
           )}
         </header>
+        {!selectedPresentation.operational && (
         <section className="border-b border-white/[.06] bg-[#0B0F15] px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -390,12 +401,11 @@ export default function CommunicationsWorkspace({
                   .join(" · ")}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-1 text-[8px] font-semibold text-violet-300">
-              TO WEHOUSE
-            </span>
+            <StatusBadge status={selected.status} />
           </div>
         </section>
-        <CaseManagementPanel
+        )}
+        {!selectedPresentation.operational && <CaseManagementPanel
           row={selected}
           events={events}
           activeAction={caseAction}
@@ -411,7 +421,7 @@ export default function CommunicationsWorkspace({
             setCaseNote("");
           }}
           onSubmit={(action) => void updateCase(action)}
-        />
+        />}
         {selectedPresentation.operational && (
           <div className="flex items-center gap-3 border-b border-white/[.06] bg-violet-500/[.045] px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -459,6 +469,22 @@ export default function CommunicationsWorkspace({
           </div>
         </main>
         <footer className="border-t border-white/[.06] bg-[#10141B] p-2.5 sm:p-3">
+          <div className="mx-auto mb-2 flex max-w-4xl gap-2">
+            <button
+              type="button"
+              onClick={() => setMessageVisibility("customer")}
+              className={`rounded-full px-3 py-1.5 text-[9px] font-semibold ${messageVisibility === "customer" ? "bg-violet-500 text-white" : "bg-white/[.05] text-[#8A90A0]"}`}
+            >
+              Reply to customer
+            </button>
+            <button
+              type="button"
+              onClick={() => setMessageVisibility("internal")}
+              className={`rounded-full px-3 py-1.5 text-[9px] font-semibold ${messageVisibility === "internal" ? "bg-amber-500/20 text-amber-200" : "bg-white/[.05] text-[#8A90A0]"}`}
+            >
+              Internal work note
+            </button>
+          </div>
           {files.length > 0 && (
             <div className="mx-auto mb-2 flex max-w-4xl gap-2 overflow-x-auto">
               {files.map((file, index) => (
@@ -485,9 +511,7 @@ export default function CommunicationsWorkspace({
           <div className="mx-auto flex max-w-4xl items-end gap-2">
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={
-                selected.status === "resolved" || selected.status === "closed"
-              }
+              disabled={conversationLocked}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
             >
               ＋
@@ -512,13 +536,12 @@ export default function CommunicationsWorkspace({
                   }
                 }}
                 rows={1}
-                disabled={
-                  selected.status === "resolved" ||
-                  selected.status === "closed"
-                }
+                disabled={conversationLocked}
                 placeholder={
-                  selected.status === "resolved" || selected.status === "closed"
+                  conversationLocked
                     ? "Use the request controls above"
+                    : messageVisibility === "internal"
+                      ? "Add a work note visible only to the WeHouse team"
                     : reservationQueue
                       ? "Reply from Bookings"
                       : "Reply as WeHouse"
@@ -530,8 +553,7 @@ export default function CommunicationsWorkspace({
               onClick={() => void reply()}
               disabled={
                 sending ||
-                selected.status === "resolved" ||
-                selected.status === "closed" ||
+                conversationLocked ||
                 (!input.trim() && !files.length)
               }
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#666C7D]"
@@ -539,9 +561,10 @@ export default function CommunicationsWorkspace({
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className="mx-auto mt-2 max-w-4xl text-center text-[8px] text-[#505666]">
-            From {handlerLabel} · WeHouse · To {requesterLabel}
-            {caseNumber ? ` · Case ${caseNumber}` : ""}
+          <p className={`mx-auto mt-2 max-w-4xl text-center text-[8px] ${messageVisibility === "internal" ? "text-amber-300/70" : "text-[#505666]"}`}>
+            {messageVisibility === "internal"
+              ? "Only authorized WeHouse team members can see this note."
+              : `Customer reply from ${handlerLabel} · WeHouse`}
           </p>
         </footer>
       </div>
@@ -1025,6 +1048,17 @@ function Bubble({
   requesterName: string;
 }) {
   const meta = msg.action_metadata || {};
+  const internal = msg.visibility === "internal";
+  if (internal) {
+    return (
+      <div className="mx-auto my-3 max-w-2xl rounded-2xl border border-amber-500/15 bg-amber-500/[.055] px-4 py-3">
+        <p className="text-[8px] font-semibold uppercase tracking-[.14em] text-amber-300">Internal work note · {msg.sender_name || "WeHouse team"}</p>
+        {msg.content && <p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-[#D9D4C7]">{msg.content}</p>}
+        {(msg.attachments || []).map((path: string, i: number) => <SecureSupportAttachment key={`${msg.id}-${path}`} path={path} type={msg.attachment_types?.[i] || ""} />)}
+        <p className="mt-2 text-[8px] text-amber-200/45">{new Date(msg.created_at).toLocaleString()}</p>
+      </div>
+    );
+  }
   if (msg.action_type === "status_change") {
     return (
       <div className="mx-auto my-3 max-w-md rounded-2xl border border-violet-500/15 bg-violet-500/[.055] px-4 py-3 text-center">
@@ -1051,7 +1085,6 @@ function Bubble({
   const sender = fromWeHouse
     ? `${mine ? "You" : msg.sender_name || "WeHouse team"} · WeHouse`
     : msg.sender_name || requesterName;
-  const recipient = fromWeHouse ? requesterName : "WeHouse";
   return (
     <div className={`flex ${fromWeHouse ? "justify-end" : "justify-start"}`}>
       <div
@@ -1063,7 +1096,7 @@ function Bubble({
         <p
           className={`mb-1 px-1 text-[8px] font-medium ${fromWeHouse ? "text-right text-violet-200/65" : "text-[#707789]"}`}
         >
-          {sender} → {recipient}
+          {sender}
         </p>
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}

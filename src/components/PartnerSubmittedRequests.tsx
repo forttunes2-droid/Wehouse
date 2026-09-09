@@ -318,7 +318,7 @@ function RequestDetail({
       ? 5
       : stage === "listing_prepared"
         ? 4
-        : stage === "visit_reviewed"
+        : stage === "awaiting_review" || stage === "ready_to_prepare"
           ? 3
           : stage === "inspection"
             ? 2
@@ -326,7 +326,7 @@ function RequestDetail({
   const steps = [
     "Received",
     "Inspection",
-    "Visit reviewed",
+    "Evidence accepted",
     "Listing prepared",
     "Public",
   ];
@@ -767,8 +767,10 @@ function journeyNext(stage: string) {
     return "Next: WeHouse assigns Field Operations member for an independent visit.";
   if (stage === "inspection")
     return "Next: Field Operations submits independent visit evidence.";
-  if (stage === "visit_reviewed")
-    return "Next: WeHouse prepares the non-public listing or hotel programme.";
+  if (stage === "awaiting_review")
+    return "Next: Property Operations reviews the independent Field Operations evidence.";
+  if (stage === "ready_to_prepare")
+    return "Next: WeHouse prepares the non-public listing using your accepted property facts.";
   if (stage === "listing_prepared")
     return "Next: an Admin or Creator performs the final preview and publishes it.";
   if (stage === "live") return "This property is now public on WeHouse.";

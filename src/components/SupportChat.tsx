@@ -48,6 +48,7 @@ type SupportMessage = {
   action_type?: string | null;
   action_metadata?: Record<string, unknown> | null;
   is_read?: boolean | null;
+  visibility?: "customer" | "internal" | null;
   created_at: string;
 };
 export default function SupportChat({
@@ -74,6 +75,10 @@ export default function SupportChat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const presentation = conversationPresentation(thread || pendingContext || {});
+  const caseLocked = Boolean(
+    !presentation.operational &&
+      (thread?.status === "resolved" || thread?.status === "closed"),
+  );
   const caseNumber = String(thread?.context_snapshot?.case_number || "");
   const handlerLabel = thread?.assigned_staff_name
     ? `${thread.assigned_staff_name} · WeHouse`
@@ -341,12 +346,15 @@ export default function SupportChat({
               </span>
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
-              You ↔ {handlerLabel}
+              {presentation.operational
+                ? presentation.meta || "Linked to this WeHouse record"
+                : handlerLabel}
             </p>
           </div>
         </div>
       </header>
 
+      {!presentation.operational && (
       <section className="shrink-0 border-b border-white/[.06] bg-[#0D1118] px-4 py-2.5">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <div className="min-w-0">
@@ -363,15 +371,14 @@ export default function SupportChat({
                 .join(" · ")}
             </p>
           </div>
-          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-1 text-[8px] font-semibold text-violet-300">
-            TO WEHOUSE
-          </span>
+          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-1 text-[8px] font-semibold text-violet-300">HELP</span>
         </div>
       </section>
+      )}
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.05),transparent_34%)] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-4xl">
-          {thread && (
+          {thread && !presentation.operational && (
             <RequesterCaseSummary
               thread={thread}
               events={events}
@@ -488,9 +495,7 @@ export default function SupportChat({
             />
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={
-                thread?.status === "resolved" || thread?.status === "closed"
-              }
+              disabled={caseLocked}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
               aria-label="Attach evidence"
             >
@@ -520,11 +525,9 @@ export default function SupportChat({
                   }
                 }}
                 rows={1}
-                disabled={
-                  thread?.status === "resolved" || thread?.status === "closed"
-                }
+                disabled={caseLocked}
                 placeholder={
-                  thread?.status === "resolved" || thread?.status === "closed"
+                  caseLocked
                     ? "Use the request outcome buttons above"
                     : thread?.status === "waiting_for_user"
                       ? "Reply with the information WeHouse requested"
@@ -537,8 +540,7 @@ export default function SupportChat({
               onClick={() => void send()}
               disabled={
                 sending ||
-                thread?.status === "resolved" ||
-                thread?.status === "closed" ||
+                caseLocked ||
                 (!input.trim() && !files.length)
               }
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 text-white disabled:bg-white/[.05] disabled:text-[#666C7D]"
@@ -548,8 +550,11 @@ export default function SupportChat({
             </button>
           </div>
           <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
-            From You · To {presentation.operator}
-            {caseNumber ? ` · Case ${caseNumber}` : ""}
+            {presentation.operational
+              ? "This conversation stays with the linked record."
+              : caseNumber
+                ? `Help request ${caseNumber}`
+                : "Message WeHouse when you need help."}
           </p>
         </div>
       </footer>
@@ -804,7 +809,6 @@ function MessageBubble({
       : handlerName
         ? `${handlerName} · WeHouse`
         : teamLabel;
-  const recipient = mine ? teamLabel : "You";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
@@ -820,7 +824,7 @@ function MessageBubble({
         <p
           className={`mb-1 px-1 text-[8px] font-medium ${mine ? "text-right text-violet-200/65" : "text-[#707789]"}`}
         >
-          {sender} → {recipient}
+          {sender}
         </p>
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]"}`}

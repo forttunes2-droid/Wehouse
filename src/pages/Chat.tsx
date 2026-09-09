@@ -1592,8 +1592,8 @@ function SupportInboxRow({
               : "",
             p.title,
             thread.assigned_staff_name
-              ? `You ↔ ${thread.assigned_staff_name} · WeHouse`
-              : `You → ${p.operator}`,
+              ? `Assigned to ${thread.assigned_staff_name} · WeHouse`
+              : "",
             p.meta,
             formatListTime(thread.last_message_time || thread.created_at),
           ]

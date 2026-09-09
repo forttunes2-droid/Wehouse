@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { supabase, createHotelRoom, getHotelRooms } from "@/lib/supabase";
+import { supabase, getHotelRooms } from "@/lib/supabase";
 import LocationMap from "./LocationMap";
 import ManageListing from "./ManageListing";
 import ConfirmDialog from "./ConfirmDialog";
@@ -22,7 +22,8 @@ type Stage =
   | "access_review"
   | "inspection_ready"
   | "inspection"
-  | "visit_reviewed"
+  | "awaiting_review"
+  | "ready_to_prepare"
   | "listing_prepared"
   | "live"
   | "changes_requested"
@@ -33,7 +34,8 @@ const STAGES: [Stage, string][] = [
   ["access_review", "Access review"],
   ["inspection_ready", "Inspection ready"],
   ["inspection", "Inspection"],
-  ["visit_reviewed", "Visit reviewed"],
+  ["awaiting_review", "Awaiting review"],
+  ["ready_to_prepare", "Ready to prepare"],
   ["listing_prepared", "Listing prepared"],
   ["live", "Live"],
   ["changes_requested", "Changes requested"],
@@ -219,7 +221,7 @@ function Case({
   const showPartnerMedia = ["access_required", "access_review"].includes(stage);
   const showCreatorException =
     profile.role === "creator" &&
-    ["visit_reviewed", "listing_prepared", "changes_requested"].includes(stage);
+    ["awaiting_review", "ready_to_prepare", "listing_prepared", "changes_requested"].includes(stage);
   return createPortal(
     <div
       className="fixed inset-0 z-[100020] bg-[#080A0F] text-white"
@@ -271,18 +273,26 @@ function Case({
                 {row.field_officer_name ||
                   "The assigned Field Operations member"}{" "}
                 handles the independent visit. Completion moves this property to
-                visit review.
+                evidence review.
               </p>
             </div>
           )}
-          {stage === "visit_reviewed" && (
+          {stage === "awaiting_review" && (
+            <EvidenceReview row={row} profile={profile} done={back} />
+          )}
+          {stage === "ready_to_prepare" && (
             <>
-              <EvidenceReview inspectionId={row.id} />
+              <EvidenceReview row={row} profile={profile} done={back} readOnly />
               <Prepare row={row} done={back} />
             </>
           )}
           {stage === "listing_prepared" && (
-            <Prepared row={row} authority={oversight} done={back} />
+            <Prepared
+              row={row}
+              canPrepareMedia={operationsAccess}
+              canPublish={oversight}
+              done={back}
+            />
           )}
           {["changes_requested", "rejected"].includes(stage) && (
             <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
@@ -947,7 +957,6 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
         : `${String(row.property_type || "Property").replace(/_/g, " ")} in ${row.property_city}`,
     ),
     [description, setDescription] = useState(row.description || ""),
-    [price, setPrice] = useState(String(row.expected_rent || "")),
     [fieldPhotos, setFieldPhotos] = useState<string[] | null>(null),
     [mediaError, setMediaError] = useState(""),
     [preview, setPreview] = useState(false),
@@ -979,37 +988,25 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
     ]),
   ) as string[];
   async function save() {
-    if (!title.trim()) return toast.error("Public name/title is required");
-    if (row.property_type !== "hotel" && !Number(price))
-      return toast.error("A valid rent is required");
+    if (!title.trim()) return toast.error("Public title is required");
     setSaving(true);
     try {
       if (row.property_type === "hotel") {
         const { error } = await supabase.rpc(
-          "admin_prepare_hotel_from_submission_v3",
+          "prepare_hotel_listing",
           {
             p_inspection_id: row.id,
-            p_name: title.trim(),
             p_description: description.trim() || null,
           },
         );
         if (error) throw error;
       } else {
         const { error } = await supabase.rpc(
-          "post_property_from_inspection_v2",
+          "prepare_property_listing",
           {
-            p_data: {
-              inspection_id: row.id,
-              title: title.trim(),
-              description: description.trim() || null,
-              price: Number(price),
-              property_type: row.property_type,
-              sub_type: row.sub_type,
-              security_deposit_amount: row.security_deposit_amount,
-              amenities: row.amenities || [],
-              bedrooms: row.bedrooms,
-              bathrooms: row.bathrooms,
-            },
+            p_inspection_id: row.id,
+            p_public_title: title.trim(),
+            p_editorial_description: description.trim() || null,
           },
         );
         if (error) throw error;
@@ -1060,7 +1057,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
           <div className="p-4">
             <p className="text-base font-bold">{title || "Listing title"}</p>
             <p className="mt-1 text-sm font-semibold text-violet-300">
-              {row.property_type === "hotel" ? "Hotel" : money(price)}
+              {row.property_type === "hotel" ? "Hotel" : money(row.expected_rent)}
               {row.property_type === "hotel"
                 ? ""
                 : row.sub_type === "short_let"
@@ -1095,9 +1092,9 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
       <div>
         <h3 className="text-sm font-semibold">Prepare listing details</h3>
         <p className="mt-1 text-[9px] leading-5 text-[#777C8E]">
-          Property Operations prepares the text and price only. Submitted
-          partner and field-visit photos are not attached to the public listing
-          until final Admin/Creator selection.
+          Property Operations may write the public description and apartment
+          title. Rent, stay type, deposit, rooms, capacity and amenities come
+          from the accepted submission and cannot be changed here.
         </p>
       </div>
       {mediaError && (
@@ -1109,25 +1106,20 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
       {row.property_type === "hotel" && (
         <HotelProgramSummary program={row.hotel_program} />
       )}
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder={
-          row.property_type === "hotel" ? "Hotel name" : "Listing title"
-        }
-        className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"
-      />
-      {row.property_type !== "hotel" && (
+      {row.property_type === "hotel" ? (
+        <ReadOnlyFact label="Submitted hotel name" value={title} />
+      ) : (
         <input
-          type="number"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder={
-            row.sub_type === "short_let" ? "Nightly rate" : "Annual rent"
-          }
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Public listing title"
           className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"
         />
       )}
+      <ReadOnlyFact
+        label={row.property_type === "hotel" ? "Submitted room prices" : row.sub_type === "short_let" ? "Submitted nightly rate" : "Submitted annual rent"}
+        value={row.property_type === "hotel" ? "Shown in the hotel programme below" : money(row.expected_rent)}
+      />
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
@@ -1193,11 +1185,13 @@ function HotelProgramSummary({ program }: { program: any }) {
 }
 function Prepared({
   row,
-  authority,
+  canPrepareMedia,
+  canPublish,
   done,
 }: {
   row: any;
-  authority: boolean;
+  canPrepareMedia: boolean;
+  canPublish: boolean;
   done: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
@@ -1205,7 +1199,7 @@ function Prepared({
     Boolean(row.final_media_reviewed_at),
   );
   if (row.property_type === "hotel")
-    return <HotelDraft row={row} authority={authority} done={done} />;
+    return <HotelDraft row={row} canPrepareMedia={canPrepareMedia} canPublish={canPublish} done={done} />;
   const listingId = row.listing?.id || row.draft_listing_id;
   return (
     <>
@@ -1234,10 +1228,10 @@ function Prepared({
         </div>
         <FinalGalleryReview
           row={row}
-          authority={authority}
+          authority={canPrepareMedia}
           onSaved={() => setGalleryConfirmed(true)}
         />
-        {authority ? (
+        {canPublish ? (
           <button
             disabled={!listingId || !galleryConfirmed}
             onClick={async () => {
@@ -1300,11 +1294,13 @@ function ReviewStep({
 }
 function HotelDraft({
   row,
-  authority,
+  canPrepareMedia,
+  canPublish,
   done,
 }: {
   row: any;
-  authority: boolean;
+  canPrepareMedia: boolean;
+  canPublish: boolean;
   done: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
@@ -1312,13 +1308,7 @@ function HotelDraft({
   const [rooms, setRooms] = useState<any[]>([]),
     [galleryConfirmed, setGalleryConfirmed] = useState(
       Boolean(row.final_media_reviewed_at),
-    ),
-    [form, setForm] = useState({
-      room_type: "",
-      price: "",
-      max_guests: "2",
-      total_rooms: "1",
-    });
+    );
   async function load() {
     const r = await getHotelRooms(id);
     if (r.error) toast.error(r.error.message);
@@ -1327,26 +1317,6 @@ function HotelDraft({
   useEffect(() => {
     if (id) void load();
   }, [id]);
-  async function add() {
-    if (!form.room_type.trim() || !Number(form.price))
-      return toast.error("Room type and price are required");
-    const { error } = await createHotelRoom({
-      hotel_id: id,
-      room_type: form.room_type.trim(),
-      description: null,
-      price_per_night: Number(form.price),
-      max_guests: Number(form.max_guests) || 2,
-      bed_type: null,
-      images: [],
-      amenities: [],
-      total_rooms: Number(form.total_rooms) || 1,
-    });
-    if (error) return toast.error(error.message);
-    setForm({ room_type: "", price: "", max_guests: "2", total_rooms: "1" });
-    setGalleryConfirmed(false);
-    toast.success("Room type added");
-    void load();
-  }
   return (
     <>
       <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
@@ -1354,48 +1324,16 @@ function HotelDraft({
         <p className="mt-1 text-[10px] text-[#777C8E]">
           {row.hotel?.name || "Hotel draft"} · {rooms.length} room type(s)
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <input
-            value={form.room_type}
-            onChange={(e) => setForm({ ...form, room_type: e.target.value })}
-            placeholder="Room type"
-            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
-          />
-          <input
-            type="number"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-            placeholder="Price per night"
-            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
-          />
-          <input
-            type="number"
-            value={form.max_guests}
-            onChange={(e) => setForm({ ...form, max_guests: e.target.value })}
-            placeholder="Max guests"
-            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
-          />
-          <input
-            type="number"
-            value={form.total_rooms}
-            onChange={(e) => setForm({ ...form, total_rooms: e.target.value })}
-            placeholder="Total rooms"
-            className="h-10 rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
-          />
-        </div>
-        <button
-          onClick={() => void add()}
-          className="mt-2 rounded-xl border border-white/[0.08] px-4 py-2.5 text-[10px] font-semibold"
-        >
-          Add room type
-        </button>
+        <p className="mt-3 rounded-xl border border-white/[.06] bg-white/[.025] p-3 text-[9px] leading-4 text-[#7D8393]">
+          Room types, prices, capacity and inventory are locked to the Property Partner submission. Corrections must be returned to the partner; WeHouse cannot invent or edit them here.
+        </p>
         <HotelMediaReview
           row={row}
           rooms={rooms}
-          authority={authority}
+          authority={canPrepareMedia}
           onSaved={() => setGalleryConfirmed(true)}
         />
-        {authority ? (
+        {canPublish ? (
           <button
             disabled={!galleryConfirmed}
             onClick={async () => {
@@ -1564,7 +1502,7 @@ function HotelMediaReview({
         publicRooms[roomId] = published.publicUrls;
       }
       const { error } = await supabase.rpc(
-        "admin_set_inspected_hotel_media_v2",
+        "prepare_inspected_hotel_media",
         {
           p_inspection_id: row.id,
           p_hotel_source_images: hotel.sources,
@@ -1800,7 +1738,7 @@ function FinalGalleryReview({
       const published = await publishListingCandidateImages(selected, row.id);
       created = published.createdPaths;
       const { error } = await supabase.rpc(
-        "admin_set_inspected_public_gallery_v2",
+        "prepare_inspected_public_gallery",
         {
           p_inspection_id: row.id,
           p_source_images: published.sources,
@@ -2082,7 +2020,17 @@ function SubmittedMedia({ row }: { row: any }) {
     </section>
   );
 }
-function EvidenceReview({ inspectionId }: { inspectionId: string }) {
+function EvidenceReview({
+  row,
+  profile,
+  done,
+  readOnly = false,
+}: {
+  row: any;
+  profile: Profile;
+  done: () => void;
+  readOnly?: boolean;
+}) {
   const [data, setData] = useState<{
       photos: string[];
       videos: string[];
@@ -2091,7 +2039,10 @@ function EvidenceReview({ inspectionId }: { inspectionId: string }) {
       url: string;
       video: boolean;
     } | null>(null),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [note, setNote] = useState(""),
+    [deciding, setDeciding] = useState(false);
+  const inspectionId = String(row.id);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -2124,6 +2075,24 @@ function EvidenceReview({ inspectionId }: { inspectionId: string }) {
     ...(data?.photos || []).map((url) => ({ url, video: false })),
     ...(data?.videos || []).map((url) => ({ url, video: true })),
   ];
+  async function decide(decision: "accept" | "request_changes") {
+    if (decision === "request_changes" && !note.trim())
+      return toast.error("Explain exactly what Field Operations must correct");
+    setDeciding(true);
+    const { error } = await supabase.rpc("review_field_inspection_evidence", {
+      p_inspection_id: inspectionId,
+      p_decision: decision,
+      p_note: note.trim() || null,
+    });
+    setDeciding(false);
+    if (error) return toast.error(error.message);
+    toast.success(
+      decision === "accept"
+        ? "Field evidence accepted. The property can now be prepared."
+        : "Correction sent to the assigned Field Operations member.",
+    );
+    done();
+  }
   return (
     <section className="border-y border-white/[.06] py-4">
       <div className="flex items-end justify-between">
@@ -2136,7 +2105,7 @@ function EvidenceReview({ inspectionId }: { inspectionId: string }) {
           </h4>
           <p className="mt-1 text-[9px] text-[#717789]">
             Captured by the assigned visitor. Field photos become final gallery
-            options; field videos remain inspection evidence.
+            options only after Property Operations accepts this evidence.
           </p>
         </div>
         <span className="text-[9px] text-[#656B7D]">
@@ -2183,6 +2152,39 @@ function EvidenceReview({ inspectionId }: { inspectionId: string }) {
           ))}
         </div>
       )}
+      {!readOnly && (
+        <div className="mt-4 rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
+          <p className="text-[9px] font-semibold text-[#D9DCE4]">Property Operations decision</p>
+          <p className="mt-1 text-[8px] leading-4 text-[#6F7687]">
+            The assigned Field Officer cannot approve their own evidence. {profile.role === "staff" ? "Your Operations role may review this property only within its branch." : "Admin and Creator may provide independent oversight."}
+          </p>
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            rows={3}
+            placeholder="Required only when requesting a correction"
+            className="mt-3 w-full resize-none rounded-xl border border-white/[.07] bg-[#0D1118] p-3 text-[10px] outline-none focus:border-violet-500/35"
+          />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={deciding || !items.length}
+              onClick={() => void decide("request_changes")}
+              className="min-h-11 rounded-xl border border-amber-500/20 text-[9px] font-semibold text-amber-200 disabled:opacity-40"
+            >
+              Request correction
+            </button>
+            <button
+              type="button"
+              disabled={deciding || !items.length}
+              onClick={() => void decide("accept")}
+              className="min-h-11 rounded-xl bg-violet-500 text-[9px] font-semibold disabled:opacity-40"
+            >
+              Accept field evidence
+            </button>
+          </div>
+        </div>
+      )}
       {active && (
         <div
           className="fixed inset-0 z-[100000] grid place-items-center bg-black/90 p-3"
@@ -2218,6 +2220,14 @@ function EvidenceReview({ inspectionId }: { inspectionId: string }) {
         </div>
       )}
     </section>
+  );
+}
+function ReadOnlyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2.5">
+      <p className="text-[8px] font-semibold uppercase tracking-wide text-[#62697A]">{label}</p>
+      <p className="mt-1 text-[11px] font-semibold text-[#D9DCE4]">{value || "Not supplied"}</p>
+    </div>
   );
 }
 function SubmissionDecision({ row, done }: { row: any; done: () => void }) {

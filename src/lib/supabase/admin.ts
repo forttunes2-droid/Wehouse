@@ -35,7 +35,7 @@ export interface CreatorDashboardStats {
   activeWorkerBookings: number;
   totalRevenue: number;
   pendingPayouts: number;
-  escrowBalance: number;
+  paymentProtectionBalance: number;
   todaySignups: number;
 }
 
@@ -43,7 +43,7 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
   const ZERO_STATS: CreatorDashboardStats = {
     totalUsers: 0, totalWorkers: 0, totalPartners: 0, totalStaff: 0, totalAdmins: 0,
     totalListings: 0, pendingInspections: 0, pendingVerifications: 0,
-    activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, escrowBalance: 0, todaySignups: 0,
+    activeWorkerBookings: 0, totalRevenue: 0, pendingPayouts: 0, paymentProtectionBalance: 0, todaySignups: 0,
   };
 
   const { users, error: usersErr } = await getAllUsers();
@@ -72,7 +72,7 @@ export async function getCreatorDashboardStats(): Promise<{ stats: CreatorDashbo
       activeWorkerBookings: bookingsCount || 0,
       totalRevenue: 0,
       pendingPayouts: 0,
-      escrowBalance: 0,
+      paymentProtectionBalance: 0,
       todaySignups: activeUsers.filter((user) => new Date(user.created_at) >= todayStart).length,
     },
     error: null,
