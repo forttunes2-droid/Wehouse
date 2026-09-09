@@ -18,6 +18,10 @@ const ACTIONABLE_ACTIVITY = /action_required|payment_conflict|dispute|changes_re
 const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/i;
 const TRANSIENT_ACTIVITY = /device_confirmation_pending|new_device_login|typing|message_seen|message_viewed|reaction|draft_saved|sync_(started|finished)/i;
 
+export function isTransientActivityEvent(row: Pick<ActivityFeedRow, "type">) {
+  return TRANSIENT_ACTIVITY.test(String(row.type || ""));
+}
+
 export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "source_type" | "destination_route">) {
   const type = String(row.type || "").toLowerCase();
   if (type === "missed_call") return true;
@@ -197,7 +201,7 @@ function activityLane(type: string) {
 export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = Date.now()) {
   const seen = new Set<string>();
   return [...rows]
-    .filter((row) => !TRANSIENT_ACTIVITY.test(String(row.type || "")) && !isOrdinaryMessageEvent(row) && activityIsCurrent(row, now))
+    .filter((row) => !isTransientActivityEvent(row) && !isOrdinaryMessageEvent(row) && activityIsCurrent(row, now))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .filter((row) => {
       const type = String(row.type || "");
