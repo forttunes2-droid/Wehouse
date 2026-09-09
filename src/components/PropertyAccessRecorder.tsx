@@ -7,9 +7,11 @@ type Props = {
   expiresAt: string;
   recordedFile: File | null;
   onRecorded: (file: File | null) => void;
+  disabled?: boolean;
 };
 
 export const MIN_PROPERTY_ACCESS_SECONDS = 20;
+export const MAX_PROPERTY_ACCESS_SECONDS = 180;
 
 export function propertyAccessDuration(file: File | null) {
   if (!file) return 0;
@@ -22,6 +24,7 @@ export default function PropertyAccessRecorder({
   expiresAt,
   recordedFile,
   onRecorded,
+  disabled = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null),
     streamRef = useRef<MediaStream | null>(null),
@@ -70,6 +73,7 @@ export default function PropertyAccessRecorder({
     [],
   );
   async function launch() {
+    if (disabled) return;
     if (
       !navigator.mediaDevices?.getUserMedia ||
       typeof MediaRecorder === "undefined"
@@ -80,9 +84,9 @@ export default function PropertyAccessRecorder({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: 960 },
+          height: { ideal: 540 },
+          frameRate: { ideal: 24, max: 24 },
         },
         audio: {
           echoCancellation: true,
@@ -128,8 +132,8 @@ export default function PropertyAccessRecorder({
       mimeType
         ? {
             mimeType,
-            videoBitsPerSecond: 2_500_000,
-            audioBitsPerSecond: 96_000,
+            videoBitsPerSecond: 700_000,
+            audioBitsPerSecond: 32_000,
           }
         : undefined,
     );
@@ -176,12 +180,15 @@ export default function PropertyAccessRecorder({
     timerRef.current = window.setInterval(
       () => {
         const elapsed = Math.min(
-          120,
+          MAX_PROPERTY_ACCESS_SECONDS,
           Math.floor((performance.now() - startedAtRef.current) / 1000),
         );
         elapsedRef.current = elapsed;
         setSeconds(elapsed);
-        if (elapsed >= 120 && recorderRef.current?.state === "recording") {
+        if (
+          elapsed >= MAX_PROPERTY_ACCESS_SECONDS &&
+          recorderRef.current?.state === "recording"
+        ) {
           setFinalizing(true);
           recorderRef.current.stop();
         }
@@ -224,8 +231,9 @@ export default function PropertyAccessRecorder({
       {!recordedFile ? (
         <button
           type="button"
+          disabled={disabled}
           onClick={() => void launch()}
-          className="mt-3 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold"
+          className="mt-3 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
         >
           Start guided recording
         </button>
@@ -251,8 +259,9 @@ export default function PropertyAccessRecorder({
             </div>
             <button
               type="button"
+              disabled={disabled}
               onClick={() => onRecorded(null)}
-              className="rounded-lg border border-white/[.08] px-3 py-2 text-[9px]"
+              className="rounded-lg border border-white/[.08] px-3 py-2 text-[9px] disabled:opacity-40"
             >
               Retake
             </button>

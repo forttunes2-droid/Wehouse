@@ -35,6 +35,11 @@ type StayType = "long_stay" | "short_let";
 type AuthorityRelationship =
   "owner" | "property_manager" | "agent" | "authorized_representative";
 type AccessChallenge = { id: string; code: string; expires_at: string };
+type AccessChallengeStatus = {
+  valid?: boolean;
+  status?: string;
+  expires_at?: string;
+};
 type HotelRoomDraft = {
   id: string;
   name: string;
@@ -109,6 +114,12 @@ type InspectionRequestItem = {
 };
 const MIN_PROPERTY_PHOTOS = 4,
   MIN_ROOM_PHOTOS = 1;
+const challengeIsCurrent = (challenge: AccessChallenge | null) =>
+  Boolean(
+    challenge &&
+      Number.isFinite(new Date(challenge.expires_at).getTime()) &&
+      new Date(challenge.expires_at).getTime() > Date.now() + 60_000,
+  );
 const id = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 function newRoom(): HotelRoomDraft {
   return {
@@ -252,7 +263,9 @@ export default function PropertyInspectionRequestPanel({
     drafts.length > 0 &&
     drafts.every(
       (draft) =>
-        draftIsComplete(draft) && draft.accessChallenge && draft.accessVideo,
+        draftIsComplete(draft) &&
+        challengeIsCurrent(draft.accessChallenge) &&
+        draft.accessVideo,
     );
   useEffect(() => {
     void (async () => {
@@ -330,7 +343,7 @@ export default function PropertyInspectionRequestPanel({
     })();
   }, [profile]);
   useEffect(() => {
-    if (!hydrated || !batchId || saveRevision === 0) return;
+    if (!hydrated || !batchId || saveRevision === 0 || submitting) return;
     const revision = saveRevision;
     setSaveState("saving");
     const timer = window.setTimeout(() => {
@@ -392,7 +405,7 @@ export default function PropertyInspectionRequestPanel({
       })();
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [active, batchId, drafts, hydrated, saveRevision]);
+  }, [active, batchId, drafts, hydrated, saveRevision, submitting]);
   useEffect(() => {
     if (saveState !== "saved") return;
     const timer = window.setTimeout(() => setSaveState("idle"), 1800);
@@ -487,8 +500,8 @@ export default function PropertyInspectionRequestPanel({
       latitude: String(value.latitude),
       longitude: String(value.longitude),
       propertyAddress: value.address || drafts[index]?.propertyAddress || "",
-      propertyCity: value.city || drafts[index]?.propertyCity || "",
-      propertyState: value.state || drafts[index]?.propertyState || "",
+      propertyCity: drafts[index]?.propertyCity || value.city || "",
+      propertyState: drafts[index]?.propertyState || value.state || "",
       location: {
         lat: value.latitude,
         lon: value.longitude,
@@ -522,10 +535,34 @@ export default function PropertyInspectionRequestPanel({
       );
     }
     if (!batchId) return toast.error("Submission draft is still loading");
+    const expired = drafts.findIndex(
+      (draft) => !challengeIsCurrent(draft.accessChallenge),
+    );
+    if (expired >= 0) {
+      setActive(expired);
+      return toast.error(
+        `Property ${expired + 1}: create a new access code and record again before uploading`,
+      );
+    }
     setSubmitting(true);
     const uploadedCandidates: string[] = [];
     try {
       const items: InspectionRequestItem[] = [];
+      for (let i = 0; i < drafts.length; i++) {
+        const challenge = drafts[i].accessChallenge;
+        if (!challenge) continue;
+        const checked = await supabase.rpc(
+          "validate_my_property_access_challenge",
+          { p_challenge_id: challenge.id },
+        );
+        if (checked.error)
+          throw new Error(`Property ${i + 1}: ${checked.error.message}`);
+        const status = checked.data as AccessChallengeStatus | null;
+        if (!status?.valid)
+          throw new Error(
+            `Property ${i + 1}: this access code is no longer valid. Create a new code and record again.`,
+          );
+      }
       for (let i = 0; i < drafts.length; i++) {
         const d = drafts[i];
         const urls: string[] = [];
@@ -737,7 +774,7 @@ export default function PropertyInspectionRequestPanel({
         </div>
         <button
           type="button"
-          disabled={!hydrated}
+          disabled={!hydrated || submitting}
           onClick={() => void openForm()}
           className="rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold disabled:opacity-40"
         >
@@ -745,7 +782,12 @@ export default function PropertyInspectionRequestPanel({
         </button>
       </div>
       {open && (
-        <form onSubmit={submit} className="border-t border-white/[.05]">
+        <form
+          onSubmit={submit}
+          className="relative border-t border-white/[.05]"
+          aria-busy={submitting}
+        >
+          <fieldset disabled={submitting} className="contents">
           <div className="border-b border-white/[.05] p-3 sm:p-4">
             <SubmissionSteps draft={current} />
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -1041,26 +1083,35 @@ export default function PropertyInspectionRequestPanel({
                     className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"
                   />
                 </label>
-                {current.accessChallenge ? (
+                {current.accessChallenge &&
+                challengeIsCurrent(current.accessChallenge) ? (
                   <PropertyAccessRecorder
                     code={current.accessChallenge.code}
                     expiresAt={current.accessChallenge.expires_at}
                     recordedFile={current.accessVideo}
                     onRecorded={(file) => patch(active, { accessVideo: file })}
+                    disabled={submitting}
                   />
                 ) : (
                   <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4 md:col-span-2">
-                    <p className="text-xs font-semibold">Access video</p>
+                    <p className="text-xs font-semibold">
+                      {current.accessChallenge
+                        ? "Access code expired"
+                        : "Access video"}
+                    </p>
                     <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
-                      When you are at the property, create the code and record
-                      the entrance in one video.
+                      {current.accessChallenge
+                        ? "Create a fresh code before recording. We check it before any upload starts."
+                        : "When you are at the property, create the code and record the entrance in one video."}
                     </p>
                     <button
                       type="button"
                       onClick={() => void prepareChallenge(active)}
                       className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold"
                     >
-                      Start access video
+                      {current.accessChallenge
+                        ? "Create new code"
+                        : "Start access video"}
                     </button>
                   </section>
                 )}
@@ -1106,6 +1157,16 @@ export default function PropertyInspectionRequestPanel({
                     : `Send ${drafts.length === 1 ? "property" : `${drafts.length} properties`}`}
                 </button>
               )}
+            </div>
+          )}
+          </fieldset>
+          {submitting && (
+            <div className="absolute inset-0 z-20 flex items-end justify-center bg-[#090A0F]/65 p-4 backdrop-blur-[2px]" role="status">
+              <div className="sticky bottom-4 w-full max-w-sm rounded-2xl border border-violet-500/20 bg-[#151721] p-4 text-center shadow-2xl">
+                <p className="text-xs font-semibold">Sending property securely</p>
+                <p className="mt-1 text-[9px] text-[#888E9D]">Upload {uploadProgress ?? 0}% · keep this page open</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{ width: `${uploadProgress ?? 0}%` }} /></div>
+              </div>
             </div>
           )}
         </form>

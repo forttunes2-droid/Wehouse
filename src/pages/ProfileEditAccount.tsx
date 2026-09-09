@@ -10,6 +10,12 @@ import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
 import PreciseLocationPicker, { type PreciseLocation } from '@/components/PreciseLocationPicker';
 
 type Props = { profile: Profile; onUpdate: (profile: Profile) => void; onBack: () => void };
+function withTimeout<T>(promise: Promise<T>, milliseconds = 20000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('Saving timed out. Check your connection and try again.')), milliseconds);
+    promise.then((value) => { window.clearTimeout(timer); resolve(value); }, (error) => { window.clearTimeout(timer); reject(error); });
+  });
+}
 
 export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [editing, setEditing] = useState(false);
@@ -129,12 +135,17 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       updates.city = lga;
       updates.profile_complete = true;
     }
-    const { profile: updated, error } = await updateProfile(profile.user_id, updates);
-    setSaving(false);
-    if (error || !updated) return toast.error(error?.message || 'Could not save profile');
-    onUpdate(updated);
-    toast.success('Personal details updated');
-    setEditing(false);
+    try {
+      const { profile: updated, error } = await withTimeout(updateProfile(profile.user_id, updates));
+      if (error || !updated) return toast.error(error?.message || 'Could not save profile');
+      onUpdate(updated);
+      toast.success('Personal details updated');
+      setEditing(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save profile');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function resolveLocation(next: PreciseLocation | null) {
@@ -147,17 +158,9 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       return;
     }
     const detectedLga = detectedState.cities.find((item) => clean(item) === clean(next.city || '')) || '';
-    const stateChanged = state !== detectedState.state;
-    const lgaChanged = Boolean(detectedLga && lga !== detectedLga);
-    setState(detectedState.state);
-    if (detectedLga) setLga(detectedLga);
-    else if (stateChanged) setLga('');
-    if (stateChanged || lgaChanged) {
-      setSchool('');
-      setLocationNotice(detectedLga
-        ? `Region updated to ${detectedLga}, ${detectedState.state} to match this street address.`
-        : `State updated to ${detectedState.state}. Choose the correct LGA for this street address before saving.`);
-    } else setLocationNotice('Street address and selected region agree.');
+    if (state !== detectedState.state || (detectedLga && lga !== detectedLga)) {
+      setLocationNotice(`The map suggested ${[detectedLga, detectedState.state].filter(Boolean).join(', ')}. It can be approximate, so your selected State and LGA were not changed.`);
+    } else setLocationNotice('Pin placed. Check the street address before saving.');
   }
 
   if (!editing) return (
@@ -177,7 +180,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   return (
     <AccountShell profile={profile} title="Personal details" description={isUser ? 'Your personal profile and location used by WeHouse.' : 'Private personal details for this account.'} onBack={onBack}>
       <Toaster position="top-center" richColors />
-      <form onSubmit={save} className="space-y-4">
+      <form onSubmit={save} className="relative space-y-4" aria-busy={saving}>
+        <fieldset disabled={saving} className="contents">
         <button type="button" onClick={()=>setEditing(false)} className="text-[10px] font-semibold text-violet-300">Cancel editing</button>
         <section className="border-y border-white/[.06] py-5">
           <ProfilePhotoEditor avatar={avatar} name={fullName||username} onUploaded={savePhoto} onRemove={async()=>{await deletePhoto();}}/>
@@ -215,6 +219,8 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </section>
 
         {hasChanges && <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white transition disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>}
+        </fieldset>
+        {saving && <div className="absolute inset-0 z-20 grid place-items-end bg-[#090A0F]/55 p-4 backdrop-blur-[2px]" role="status"><p className="sticky bottom-4 w-full rounded-2xl border border-violet-500/20 bg-[#151721] p-4 text-center text-xs font-semibold">Saving changes…</p></div>}
       </form>
     </AccountShell>
   );

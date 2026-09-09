@@ -14,6 +14,7 @@ import {
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
+import HotelTeamInvitations from "@/components/HotelTeamInvitations";
 
 type Props = {
   profile: Profile;
@@ -283,6 +284,7 @@ export default function Notifications({
   }, [onUnreadChange, unread]);
   const content = (
     <main className={embedded ? "py-1" : "mx-auto max-w-4xl px-4 py-5"}>
+      {scope === "personal" && <HotelTeamInvitations />}
       {loading ? (
         <ActivityLoading />
       ) : error && rows.length === 0 ? (
@@ -308,11 +310,11 @@ export default function Notifications({
               >
                 {day}
               </h2>
-              <div className="space-y-2">
+              <div className="divide-y divide-white/[.055] border-y border-white/[.055]">
                 {items.map((row) => (
                   <article
                     key={row.id}
-                    className={`relative overflow-hidden rounded-2xl border ${row.read ? "border-white/[.055] bg-white/[.018]" : "border-violet-500/15 bg-violet-500/[.035]"}`}
+                    className={`relative overflow-hidden ${row.read ? "bg-transparent" : "bg-white/[.018]"}`}
                   >
                     {!row.read && (
                       <span className="absolute inset-y-3 left-0 w-0.5 rounded-r-full bg-violet-400" />
@@ -349,7 +351,7 @@ export default function Notifications({
                               minute: "2-digit",
                             })}
                           </span>
-                          <span className="rounded-full bg-violet-500/[.09] px-2.5 py-1 text-[8px] font-semibold text-violet-200">
+                          <span className="text-[8px] font-semibold text-violet-300">
                             {activityAction(row, expanded === row.id)}
                           </span>
                         </span>

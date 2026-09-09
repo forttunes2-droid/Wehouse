@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { propertyLifecycleLabel } from "@/lib/status";
 import PropertyInspectionRequestPanel from "./PropertyInspectionRequestPanel";
@@ -14,6 +14,7 @@ import { ListingMediaImage } from "./ListingCandidateMedia";
 import PartnerHotelOperations from "./PartnerHotelOperations";
 
 export type SubmissionFilter = "all" | "submitted" | "public" | "rejected";
+export type PartnerAssetKind = "apartment" | "hotel";
 
 type RequestRow = {
   id: string;
@@ -72,12 +73,14 @@ export default function PartnerSubmittedRequests({
   onDetailChange,
   onCreationChange,
   initialRecordId,
+  assetKind = "apartment",
 }: {
   profile: Profile;
   filter?: SubmissionFilter;
   onDetailChange?: (open: boolean) => void;
   onCreationChange?: (open: boolean) => void;
   initialRecordId?: string;
+  assetKind?: PartnerAssetKind;
 }) {
   const openedTarget = useRef<string | null>(null);
   const [requests, setRequests] = useState<RequestRow[]>([]);
@@ -156,6 +159,7 @@ export default function PartnerSubmittedRequests({
   const visibleRequests = useMemo(
     () =>
       requests.filter((request) => {
+        if (request.property_type !== assetKind) return false;
         const stage = request.lifecycle_stage || "access_required";
         if (filter === "public") return stage === "live";
         if (filter === "rejected")
@@ -164,7 +168,7 @@ export default function PartnerSubmittedRequests({
           return !["live", "changes_requested", "rejected"].includes(stage);
         return true;
       }),
-    [filter, requests],
+    [assetKind, filter, requests],
   );
 
   function contact(request: RequestRow) {
@@ -213,12 +217,8 @@ export default function PartnerSubmittedRequests({
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">
-                Your submitted properties
+                Submitted {assetKind === "hotel" ? "hotels" : "apartments"}
               </h2>
-              <p className="mt-1 text-[10px] text-[#66687B]">
-                Open a property to see its details, photos, inspection stage and
-                updates.
-              </p>
             </div>
             <button
               type="button"
@@ -464,14 +464,10 @@ function RequestDetail({
           onCorrected={onCorrected}
         />
       )}
-      <section className="rounded-3xl border border-white/[.06] bg-[#111119] p-5">
+      <section className="border-y border-white/[.06] py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold">Journey to publication</h3>
-            <p className="mt-1 text-[9px] text-[#696D7D]">
-              Access evidence and the independent WeHouse visit must both pass
-              before publication.
-            </p>
+            <h3 className="text-sm font-semibold">Publication status</h3>
           </div>
           <span
             className={`rounded-full px-2 py-1 text-[8px] font-semibold ${stopped ? "bg-red-500/10 text-red-300" : "bg-violet-500/10 text-violet-300"}`}
@@ -479,22 +475,8 @@ function RequestDetail({
             {stopped ? friendly(stage) : `${progress} of 5`}
           </span>
         </div>
-        <div className="mt-5 grid grid-cols-5 gap-1">
-          {steps.map((label, index) => (
-            <div key={label} className="min-w-0 text-center">
-              <div
-                className={`mx-auto grid h-8 w-8 place-items-center rounded-full text-[9px] font-bold ${progress > index ? (progress === 5 ? "bg-emerald-500 text-white" : "bg-violet-500 text-white") : "bg-white/[.05] text-[#5F6272]"}`}
-              >
-                {progress > index ? "✓" : index + 1}
-              </div>
-              <p
-                className={`mt-2 break-words text-[7px] leading-tight sm:text-[8px] ${progress > index ? "text-[#CFD0D9]" : "text-[#5F6272]"}`}
-              >
-                {label}
-              </p>
-            </div>
-          ))}
-        </div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className={`h-full rounded-full ${progress === 5 ? "bg-emerald-400" : "bg-violet-400"}`} style={{ width: `${progress * 20}%` }} /></div>
+        <div className="mt-2 flex justify-between text-[8px] text-[#686E7E]"><span>{steps[Math.max(0, progress - 1)]}</span><span>{progress}/5</span></div>
         {stage === "inspection" && request.scheduled_date && (
           <p className="mt-4 rounded-xl bg-violet-500/[.06] p-3 text-[10px] text-violet-200">
             Inspection visit:{" "}
@@ -594,6 +576,8 @@ function AccessEvidenceCorrection({
   const [challenge, setChallenge] = useState<AccessChallenge | null>(null);
   const [recording, setRecording] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const challengeCurrent = Boolean(challenge && new Date(challenge.expires_at).getTime() > Date.now() + 60_000);
   async function prepare() {
     setBusy(true);
     const { data, error } = await supabase.rpc(
@@ -610,6 +594,7 @@ function AccessEvidenceCorrection({
   }
   async function submit() {
     if (!challenge || !recording) return;
+    if (!challengeCurrent) return toast.error("Create a new access code before uploading");
     if (recording.size > 100 * 1024 * 1024)
       return toast.error("Access recording must be under 100MB");
     const duration = propertyAccessDuration(recording);
@@ -618,22 +603,24 @@ function AccessEvidenceCorrection({
         `Record at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds of continuous access evidence`,
       );
     setBusy(true);
+    const checked = await supabase.rpc("validate_my_property_access_challenge", { p_challenge_id: challenge.id });
+    if (checked.error || !checked.data?.valid) {
+      setBusy(false);
+      return toast.error(checked.error?.message || "This access code expired. Create a new code and record again.");
+    }
     const extension = recording.type.includes("mp4")
       ? "mp4"
       : recording.type.includes("quicktime")
         ? "mov"
         : "webm";
     const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${extension}`;
-    const uploaded = await supabase.storage
-      .from("property-access-private")
-      .upload(path, recording, {
-        contentType: recording.type || "video/webm",
-        upsert: false,
-      });
-    if (uploaded.error) {
+    try {
+      await uploadStorageObjectWithProgress("property-access-private", path, recording, recording.type || "video/webm", setUploadProgress);
+    } catch (error) {
       setBusy(false);
+      setUploadProgress(null);
       return toast.error(
-        uploaded.error.message || "Replacement recording upload failed",
+        error instanceof Error ? error.message : "Replacement recording upload failed",
       );
     }
     const result = await supabase.rpc("submit_my_property_access_correction", {
@@ -644,13 +631,15 @@ function AccessEvidenceCorrection({
     if (result.error) {
       await supabase.storage.from("property-access-private").remove([path]);
       setBusy(false);
+      setUploadProgress(null);
       return toast.error(result.error.message);
     }
     setBusy(false);
+    setUploadProgress(null);
     toast.success("Replacement evidence sent to WeHouse");
     onCorrected();
   }
-  if (!challenge)
+  if (!challenge || !challengeCurrent)
     return (
       <section className="rounded-2xl border border-amber-500/20 bg-amber-500/[.05] p-4">
         <p className="text-xs font-semibold text-amber-200">
@@ -667,7 +656,7 @@ function AccessEvidenceCorrection({
           onClick={() => void prepare()}
           className="mt-3 h-11 w-full rounded-xl bg-amber-400 text-[10px] font-semibold text-black disabled:opacity-40"
         >
-          {busy ? "Preparing…" : "Record replacement evidence"}
+          {busy ? "Preparing…" : challenge ? "Create new code" : "Record replacement evidence"}
         </button>
       </section>
     );
@@ -678,6 +667,7 @@ function AccessEvidenceCorrection({
         expiresAt={challenge.expires_at}
         recordedFile={recording}
         onRecorded={setRecording}
+        disabled={busy}
       />
       {recording && (
         <button
@@ -686,7 +676,7 @@ function AccessEvidenceCorrection({
           onClick={() => void submit()}
           className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
         >
-          {busy ? "Sending replacement…" : "Send replacement to WeHouse"}
+          {busy ? `Sending replacement · ${uploadProgress ?? 0}%` : "Send replacement to WeHouse"}
         </button>
       )}
     </div>
@@ -699,7 +689,7 @@ function AccessEvidenceSummary({ status }: { status: string | null }) {
   const submitted = status === "submitted";
   return (
     <section
-      className={`rounded-2xl border p-4 ${verified ? "border-emerald-500/15 bg-emerald-500/[.04]" : rejected ? "border-amber-500/15 bg-amber-500/[.04]" : "border-white/[.06] bg-[#111119]"}`}
+      className={`border-y py-4 ${verified ? "border-emerald-500/15" : rejected ? "border-amber-500/15" : "border-white/[.06]"}`}
     >
       <div className="flex items-center gap-3">
         <span
@@ -719,7 +709,7 @@ function AccessEvidenceSummary({ status }: { status: string | null }) {
           </p>
           <p className="mt-1 text-[9px] leading-4 text-[#74798A]">
             {verified
-              ? "Operations accepted the private evidence. Admin and Creator retain oversight."
+              ? "The private access recording passed review."
               : rejected
                 ? "Read the latest WeHouse update for the correction required."
                 : submitted
@@ -753,7 +743,7 @@ function journeyNext(stage: string) {
 
 function Info({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
+    <div className="border-b border-white/[.055] py-3">
       <p className="text-[8px] uppercase text-[#5F6273]">{label}</p>
       <p className="mt-1 truncate text-[10px] font-semibold capitalize">
         {value || "—"}

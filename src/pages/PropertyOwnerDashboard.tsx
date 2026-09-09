@@ -5,6 +5,7 @@ import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePane
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
 import PartnerSubmittedRequests, {
+  type PartnerAssetKind,
   type SubmissionFilter,
 } from "@/components/PartnerSubmittedRequests";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
@@ -98,6 +99,7 @@ export default function PropertyOwnerDashboard({
 }
 function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { profile: Profile; initialRecordId?: string; onNestedChange?: (nested: boolean) => void }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
+  const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -129,22 +131,27 @@ function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { pro
   return (
     <div className="space-y-5">
       {!viewingDetail && !creating && (
-        <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
-          <div>
+        <div className="space-y-3 border-b border-white/[.06] pb-3">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">Your properties</h2>
+            <WeHouseSelect
+              value={filter}
+              options={filters}
+              onChange={setFilter}
+              eyebrow="Status"
+              title="Choose status"
+              ariaLabel="Filter property submissions"
+            />
           </div>
-          <WeHouseSelect
-            value={filter}
-            options={filters}
-            onChange={setFilter}
-            eyebrow="Properties"
-            title="Choose what to show"
-            ariaLabel="Filter property submissions"
-          />
+          <div className="grid grid-cols-2 rounded-xl bg-white/[.035] p-1" role="group" aria-label="Property type">
+            {(["apartment", "hotel"] as PartnerAssetKind[]).map((kind) => (
+              <button key={kind} type="button" aria-pressed={assetKind === kind} onClick={() => setAssetKind(kind)} className={`h-10 rounded-lg text-xs font-semibold transition ${assetKind === kind ? "bg-[#202331] text-white shadow-sm" : "text-[#757B8B]"}`}>{kind === "apartment" ? "Apartments" : "Hotels"}</button>
+            ))}
+          </div>
         </div>
       )}
       {filter === "public" ? (
-        <PropertiesTab profile={profile} onDetailChange={setViewingDetail} />
+        <PropertiesTab profile={profile} assetKind={assetKind} onDetailChange={setViewingDetail} />
       ) : (
         <PartnerSubmittedRequests
           profile={profile}
@@ -152,6 +159,7 @@ function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { pro
           initialRecordId={initialRecordId}
           onDetailChange={setViewingDetail}
           onCreationChange={setCreating}
+          assetKind={assetKind}
         />
       )}
     </div>
@@ -159,9 +167,11 @@ function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { pro
 }
 function PropertiesTab({
   profile,
+  assetKind,
   onDetailChange,
 }: {
   profile: Profile;
+  assetKind: PartnerAssetKind;
   onDetailChange?: (open: boolean) => void;
 }) {
   const [assets, setAssets] = useState<any[]>([]),
@@ -170,48 +180,40 @@ function PropertiesTab({
   useEffect(() => {
     let active = true;
     (async () => {
-      const [propertyResult, hotelResult] = await Promise.all([
-        supabase
+      const result = assetKind === "apartment"
+        ? await supabase
           .from("listings")
           .select("*")
           .or(`owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`)
           .eq("status", "available")
           .is("deleted_at", null)
-          .order("created_at", { ascending: false }),
-        supabase
+          .order("created_at", { ascending: false })
+        : await supabase
           .from("hotels")
           .select("*")
           .eq("owner_id", profile.user_id)
           .eq("status", "active")
-          .order("created_at", { ascending: false }),
-      ]);
+          .order("created_at", { ascending: false });
       if (!active) return;
-      if (propertyResult.error || hotelResult.error)
-        toast.error("Unable to load all of your properties and hotels");
+      if (result.error)
+        toast.error(`Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`);
       setAssets(
-        [
-          ...(propertyResult.data || []).map((row) => ({
+        (result.data || []).map((row) => assetKind === "apartment" ? ({
             ...row,
             _assetKind: "property",
-          })),
-          ...(hotelResult.data || []).map((row) => ({
+          }) : ({
             ...row,
             _assetKind: "hotel",
             id: `hotel:${row.hotel_id}`,
             title: row.name,
           })),
-        ].sort(
-          (a, b) =>
-            new Date(b.created_at || 0).getTime() -
-            new Date(a.created_at || 0).getTime(),
-        ),
       );
       setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [profile.user_id]);
+  }, [assetKind, profile.user_id]);
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
     return () => onDetailChange?.(false);
@@ -234,7 +236,7 @@ function PropertiesTab({
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">
-            Published properties and hotels
+            Live {assetKind === "hotel" ? "hotels" : "apartments"}
           </h2>
         </div>
         <span className="rounded-full bg-white/[.04] px-3 py-1 text-[10px] text-[#888A9B]">

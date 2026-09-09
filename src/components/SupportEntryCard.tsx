@@ -148,12 +148,11 @@ function SupportRow({
       className={
         compact
           ? "flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
-          : "flex w-full items-center gap-3 rounded-2xl border border-white/[.06] bg-[#11141C] p-4 text-left transition hover:border-violet-500/20"
+          : "flex w-full items-center gap-3 rounded-2xl border border-white/[.06] bg-white/[.018] p-4 text-left transition hover:bg-white/[.025]"
       }
     >
-      <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 font-bold text-white shadow-lg shadow-violet-500/10">
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/[.08] bg-[#171A22] font-bold text-violet-200">
         W
-        <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#11141C] bg-emerald-400" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-semibold text-white">{title}</p>
