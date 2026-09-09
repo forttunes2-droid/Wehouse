@@ -222,15 +222,6 @@ export default function HotelsHome({ onNavigate }: Props) {
   return (
     <DiscoveryShell active="hotels" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="pb-2">
-          <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
-            WEHOUSE · STAYS
-          </p>
-          <h1 className="mt-2 text-2xl font-bold">Explore hotels</h1>
-          <p className="mt-1 text-[11px] text-[#73798A]">
-            Find a verified room and choose your exact stay dates.
-          </p>
-        </header>
         <DiscoveryToolbar
           value={query}
           onChange={setQuery}
@@ -238,7 +229,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
           locationDetail={locationError || undefined}
-          locationLabel={userLocation ? "Location on" : "Use my location"}
+          locationLabel={userLocation ? "Using current location" : "Use my location"}
           locationActive={Boolean(userLocation)}
           locationBusy={locating}
           onLocation={requestLocation}
@@ -266,7 +257,7 @@ export default function HotelsHome({ onNavigate }: Props) {
                 {savingSearch ? "Saving…" : "Follow search"}
               </button>
             )}
-            {(query || filterCount) && (
+            {Boolean(query || filterCount) && (
               <button
                 type="button"
                 onClick={clearFilters}
@@ -451,21 +442,9 @@ function HotelCard({
           </p>
         )}
         {hotel.amenities?.length > 0 && (
-          <div className="mt-2 flex gap-1.5 overflow-hidden">
-            {hotel.amenities.slice(0, 3).map((item) => (
-              <span
-                key={item}
-                className="rounded-lg border border-white/[.06] px-2 py-1 text-[8px] text-[#858B9A]"
-              >
-                {item}
-              </span>
-            ))}
-            {hotel.amenities.length > 3 && (
-              <span className="shrink-0 rounded-lg border border-violet-500/15 bg-violet-500/[.06] px-2 py-1 text-[8px] text-violet-300">
-                +{hotel.amenities.length - 3}
-              </span>
-            )}
-          </div>
+          <p className="mt-2 text-[8px] text-[#858B9A]">
+            {hotel.amenities.length} {hotel.amenities.length === 1 ? "amenity" : "amenities"}
+          </p>
         )}
       </div>
     </button>
