@@ -23,6 +23,9 @@ type Props = {
   onNavigate: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 };
+const money = (value: number) =>
+  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {
     key: "properties",
