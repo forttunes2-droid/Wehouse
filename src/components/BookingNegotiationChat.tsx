@@ -1218,6 +1218,8 @@ export default function BookingNegotiationChat({
           name={peerName}
           avatar={peerAvatar}
           presence={presenceText || ""}
+          onAudioCall={() => void startCall("audio")}
+          onVideoCall={() => void startCall("video")}
           onClose={() => setProfileOpen(false)}
         />
       ) : null}
