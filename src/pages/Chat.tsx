@@ -527,7 +527,7 @@ export default function Chat({
   async function submit() {
     if (!active || sending || (!input.trim() && !files.length)) return;
     if (secureChat?.state !== "ready")
-      return toast.error("Encrypted chat must be ready before sending");
+      return toast.error("Secure conversation must be ready before sending");
     setSending(true);
     const paths: string[] = [],
       attachments: Array<{
@@ -576,7 +576,7 @@ export default function Chat({
           otherId(active),
         ).then(setSecureChat);
         toast.error(
-          "Encrypted chat is ready now. Send again to protect this message.",
+          "Secure conversation is ready now. Send again to protect this message.",
         );
       } else toast.error(message);
     } finally {
