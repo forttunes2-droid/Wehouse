@@ -51,7 +51,7 @@ export default function HotelBookingChat({
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
+  const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);\n  const [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions");
   const [replyingTo, setReplyingTo] = useState<HotelMessage | null>(null);
   const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(
     null,
