@@ -289,8 +289,15 @@ export default function HotelBookingChat({
               return (
                 <MessagePress
                   key={message.id}
-                  onOpen={() => setMessageMenu(message)}
-                  onReply={() => setReplyingTo(message)}
+                  onOpen={() => {
+                    setMessageMenuMode("actions");
+                    setMessageMenu(message);
+                  }}
+                  onTap={() => {
+                    setMessageMenuMode("reactions");
+                    setMessageMenu(message);
+                  }}
+                  onReply={() => setReplyingTo(message)
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   <div className="max-w-[84%]">
@@ -500,6 +507,7 @@ export default function HotelBookingChat({
       </footer>
       {messageMenu && (
         <MessageActionSheet
+          mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
           onClose={() => setMessageMenu(null)}
           onReact={(emoji) => void react(messageMenu, emoji)}
@@ -511,6 +519,11 @@ export default function HotelBookingChat({
             setMessageToRemove(messageMenu);
             setMessageMenu(null);
           }}
+          onCopy={messageMenu.content ? () => {
+            void navigator.clipboard.writeText(messageMenu.content || "");
+            toast.success("Message copied");
+            setMessageMenu(null);
+          } : undefined}
         />
       )}
       <ConfirmDialog
