@@ -114,7 +114,7 @@ export default function BookingNegotiationChat({
     [menuOpen, setMenuOpen] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
-    [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
+    [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),\n    [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions"),
     [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null),
     [messageToRemove, setMessageToRemove] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false),
@@ -394,7 +394,7 @@ export default function BookingNegotiationChat({
     setMessageToRemove(null);
     await loadAll(true);
   }
-  async function startCall() {
+  async function startCall(kind: "audio" | "video" = "audio") {
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
       conversationId,
@@ -1293,6 +1293,8 @@ function ConversationIdentitySheet({
   name,
   avatar,
   presence,
+  onAudioCall,
+  onVideoCall,
   onClose,
 }: {
   profile: ConversationProfile | null;
@@ -1301,117 +1303,93 @@ function ConversationIdentitySheet({
   name: string;
   avatar?: string | null;
   presence: string;
+  onAudioCall: () => void;
+  onVideoCall: () => void;
   onClose: () => void;
 }) {
-  const viewingWorker = !isWorker,
-    displayName = profile?.full_name || name,
-    details = viewingWorker
-      ? [
-          [
-            "Rating",
-            profile?.rating != null
-              ? `${Number(profile.rating).toFixed(1)} ★ · ${Number(profile.review_count || 0)} reviews`
-              : null,
-          ],
-          ["Service", booking?.service_type || "Service request"],
-          ["Experience", profile?.worker_experience],
-          [
-            "Price",
-            profile?.worker_price
-              ? `₦${Number(profile.worker_price).toLocaleString()}`
-              : null,
-          ],
-          [
-            "Location",
-            [profile?.lga, profile?.state].filter(Boolean).join(", "),
-          ],
-        ]
-      : [
-          [
-            "Location",
-            [profile?.city, profile?.state].filter(Boolean).join(", "),
-          ],
-        ];
-  return (
-    <div className="fixed inset-0 z-[75] flex h-[100dvh] flex-col overflow-hidden bg-[#0A0A0F]">
-      <header className="shrink-0 border-b border-white/[.06] px-4 py-3">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <button
-            onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full text-[#9297A5]"
-            aria-label="Back to conversation"
-          >
-            ←
-          </button>
-          <div>
-            <p className="text-sm font-semibold">Profile</p>
-            <p className="text-[9px] text-[#686F7F]">From this conversation</p>
-          </div>
-        </div>
-      </header>
-      <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-5 py-7">
-          <div className="flex items-center gap-4">
-            <ChatAvatar
-              name={displayName}
-              src={profile?.avatar_url || avatar}
-            />
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-bold">{displayName}</h2>
-              {profile?.username && (
-                <p className="mt-1 text-[10px] text-[#747B8B]">
-                  @{profile.username}
-                </p>
-              )}
-              <p className="mt-1 text-[10px] text-emerald-300">
-                {presence || "WeHouse conversation"}
-              </p>
-            </div>
-          </div>
-          {(profile?.worker_bio || profile?.bio) && (
-            <section className="mt-7 border-y border-white/[.06] py-5">
-              <h3 className="text-xs font-semibold">About</h3>
-              <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-[#AEB3BF]">
-                {profile.worker_bio || profile.bio}
-              </p>
-            </section>
-          )}
-          <div className="divide-y divide-white/[.06]">
-            {details
-              .filter(
-                ([, value]) =>
-                  value !== null && value !== undefined && value !== "",
-              )
-              .map(([label, value]) => (
-                <div
-                  key={String(label)}
-                  className="flex items-center justify-between gap-5 py-4"
-                >
-                  <span className="text-[10px] text-[#707788]">{label}</span>
-                  <span className="text-right text-[12px] font-semibold text-[#E4E6EC]">
-                    {value}
-                  </span>
-                </div>
-              ))}
-          </div>
-          {viewingWorker &&
-            Array.isArray(profile?.worker_skills) &&
-            profile.worker_skills.length > 0 && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {profile.worker_skills.slice(0, 8).map((skill: string) => (
-                  <span
-                    key={skill}
-                    className="rounded-full bg-violet-500/10 px-3 py-1.5 text-[9px] text-violet-200"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            )}
-        </div>
-      </main>
-    </div>
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const viewingWorker = !isWorker;
+  const displayName = profile?.full_name || name;
+  const avatarUrl = profile?.avatar_url || avatar || null;
+  const location = [
+    viewingWorker ? profile?.lga : profile?.city,
+    profile?.state,
+  ].filter(Boolean).join(", ");
+  const rating = profile?.rating != null
+    ? Number(profile.rating).toFixed(1) + " ★ · " + Number(profile.review_count || 0) + " reviews"
+    : null;
+  const completedJobs = Number((profile as any)?.completed_jobs || 0);
+  const reviewed = ["approved", "verified", "live"].includes(
+    String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center"
+        onClick={onClose}
+      >
+        <section
+          className="max-h-[86dvh] w-full max-w-md overflow-y-auto rounded-[28px] border border-white/[.09] bg-[#12161F] p-5 text-white shadow-2xl"
+          role="dialog"
+          aria-modal="true"
+          aria-label={displayName + " contact information"}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                disabled={!avatarUrl}
+                onClick={() => setAvatarOpen(Boolean(avatarUrl))}
+                className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-xl font-bold text-violet-200 disabled:cursor-default"
+                aria-label={avatarUrl ? "Preview profile photo" : undefined}
+              >
+                {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : displayName[0]?.toUpperCase() || "W"}
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-lg font-bold">{displayName}</h2>
+                  {viewingWorker && reviewed ? <span title="WeHouse reviewed" className="text-amber-300">◆</span> : null}
+                </div>
+                {profile?.username ? <p className="mt-1 truncate text-[10px] text-[#8B91A1]">@{profile.username}</p> : null}
+                <p className="mt-1 text-[9px] text-[#747B8C]">
+                  {[viewingWorker ? booking?.service_type : null, location, presence].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+            </div>
+            <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close contact information">×</button>
+          </div>
+
+          {viewingWorker && (rating || completedJobs > 0) ? (
+            <div className="mt-5 grid grid-cols-2 gap-2 border-y border-white/[.07] py-4">
+              <IdentityFact label="Rating" value={rating || "New on WeHouse"} />
+              <IdentityFact label="Completed jobs" value={String(completedJobs)} />
+            </div>
+          ) : null}
+
+          {(profile?.worker_bio || profile?.bio) ? (
+            <div className="mt-5">
+              <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
+              <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-[#A9AEBA]">{profile?.worker_bio || profile?.bio}</p>
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex justify-center gap-12 border-t border-white/[.07] pt-4">
+            <ProfileCall label="Audio" onClick={onAudioCall}><Phone /></ProfileCall>
+            <ProfileCall label="Video" onClick={onVideoCall}><Camera /></ProfileCall>
+          </div>
+        </section>
+      </div>
+      {avatarOpen && avatarUrl ? <MediaViewer src={avatarUrl} kind="image" title={displayName + " profile photo"} avatarUrl={avatarUrl} onClose={() => setAvatarOpen(false)} /> : null}
+    </>
+  );
+}
+function IdentityFact({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-[8px] uppercase tracking-wide text-[#6C7282]">{label}</p><p className="mt-1 text-[11px] font-semibold">{value}</p></div>;
+}
+function ProfileCall({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" onClick={onClick} className="flex flex-col items-center gap-2 text-[9px] text-[#B9BDC8]"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055]">{children}</span>{label}</button>;
 }
 function DaySeparator({ value }: { value: string }) {
   const date = new Date(value),
@@ -1602,7 +1580,7 @@ function Mic() {
     </svg>
   );
 }
-function Phone() {
+function Camera() {\n  return (\n    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">\n      <rect x="3" y="6" width="13" height="12" rx="2" />\n      <path d="m16 10 5-3v10l-5-3Z" />\n    </svg>\n  );\n}\nfunction Phone() {
   return (
     <svg
       width="19"
