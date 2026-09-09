@@ -636,7 +636,7 @@ export default function Chat({
         : "Person unblocked",
     );
   }
-  async function startCall() {
+  async function startCall(kind: "audio" | "video") {
     if (!active) return;
     const { capabilities, error } = await getCallCapabilities(
       "roommate",
@@ -644,9 +644,15 @@ export default function Chat({
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (!capabilities.allow_audio_calls)
-      return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("roommate", active.id, "audio");
+    const allowed =
+      kind === "video"
+        ? capabilities.allow_video_calls
+        : capabilities.allow_audio_calls;
+    if (!allowed)
+      return toast.error(
+        `This person is not accepting ${kind === "video" ? "video" : "audio"} calls`,
+      );
+    launchPrivateCall("roommate", active.id, kind);
   }
   function toggleSelected(id: string) {
     setSelected((current) => {
@@ -866,7 +872,10 @@ export default function Chat({
                 ) : null}
               </span>
             </button>
-            <HeaderAction label="Audio call" onClick={() => void startCall()}>
+            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
+              <CameraIcon />
+            </HeaderAction>
+            <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
               <PhoneIcon />
             </HeaderAction>
             <button
@@ -1162,7 +1171,11 @@ export default function Chat({
             }}
             onAudioCall={() => {
               setProfileOpen(false);
-              void startCall();
+              void startCall("audio");
+            }}
+            onVideoCall={() => {
+              setProfileOpen(false);
+              void startCall("video");
             }}
             busy={blockBusy}
           />
@@ -1225,6 +1238,28 @@ export default function Chat({
             </section>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (conversationId && !active) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-[#090B10] px-6 text-center text-white">
+        <div>
+          {loading ? (
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+          ) : (
+            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-[#8B91A1]">!</div>
+          )}
+          <p className="mt-4 text-sm font-semibold">
+            {loading ? "Opening conversation…" : "Conversation unavailable"}
+          </p>
+          {!loading ? (
+            <button type="button" onClick={() => onNavigate("inbox")} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
+              Go to Inbox
+            </button>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -1877,6 +1912,7 @@ function PeerProfileSheet({
   onClose,
   onToggleBlock,
   onAudioCall,
+  onVideoCall,
   busy,
 }: {
   person?: Person;
@@ -1884,6 +1920,7 @@ function PeerProfileSheet({
   onClose: () => void;
   onToggleBlock: () => void;
   onAudioCall: () => void;
+  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1903,9 +1940,12 @@ function PeerProfileSheet({
       presence={presenceText}
       onClose={onClose}
       actions={
-        <div className="mx-auto flex max-w-xs justify-center">
+        <div className="mx-auto flex max-w-xs justify-center gap-12">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
+          </ProfileAction>
+          <ProfileAction label="Video" onClick={onVideoCall}>
+            <CameraIcon />
           </ProfileAction>
         </div>
       }
