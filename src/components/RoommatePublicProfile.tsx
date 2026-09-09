@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";\nimport MediaViewer from "@/components/MediaViewer";
+import { createPortal } from "react-dom";
+import MediaViewer from "@/components/MediaViewer";
 
 export type RoommatePublicProfileData = {
   name: string;
@@ -35,7 +36,8 @@ export default function RoommatePublicProfile({
   actions,
   footer,
 }: Props) {
-  const hasScore = Number.isFinite(score);\n  const [avatarOpen, setAvatarOpen] = useState(false);
+  const hasScore = Number.isFinite(score);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
