@@ -1346,10 +1346,6 @@ function ConversationIdentitySheet({
     viewingWorker ? profile?.lga : profile?.city,
     profile?.state,
   ].filter(Boolean).join(", ");
-  const rating = profile?.rating != null
-    ? Number(profile.rating).toFixed(1) + " ★ · " + Number(profile.review_count || 0) + " reviews"
-    : null;
-  const completedJobs = Number((profile as any)?.completed_jobs || 0);
   const reviewed = ["approved", "verified", "live"].includes(
     String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
@@ -1392,12 +1388,7 @@ function ConversationIdentitySheet({
             <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close contact information">×</button>
           </div>
 
-          {viewingWorker && (rating || completedJobs > 0) ? (
-            <div className="mt-5 grid grid-cols-2 gap-2 border-y border-white/[.07] py-4">
-              <IdentityFact label="Rating" value={rating || "New on WeHouse"} />
-              <IdentityFact label="Completed jobs" value={String(completedJobs)} />
-            </div>
-          ) : null}
+
 
           {(profile?.worker_bio || profile?.bio) ? (
             <div className="mt-5">
@@ -1415,9 +1406,6 @@ function ConversationIdentitySheet({
       {avatarOpen && avatarUrl ? <MediaViewer src={avatarUrl} kind="image" title={displayName + " profile photo"} avatarUrl={avatarUrl} onClose={() => setAvatarOpen(false)} /> : null}
     </>
   );
-}
-function IdentityFact({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-[8px] uppercase tracking-wide text-[#6C7282]">{label}</p><p className="mt-1 text-[11px] font-semibold">{value}</p></div>;
 }
 function ProfileCall({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return <button type="button" onClick={onClick} className="flex flex-col items-center gap-2 text-[9px] text-[#B9BDC8]"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055]">{children}</span>{label}</button>;
