@@ -23,7 +23,7 @@ type Module =
   | "security"
   | "verification"
   | "field_officer";
-type MainTab = "home" | "work" | "conversations";
+type MainTab = "home" | "work" | "bookings" | "conversations";
 type WorkView =
   | "pipeline"
   | "overview"
@@ -32,7 +32,7 @@ type WorkView =
   | "ledger"
   | "signals"
   | "trail";
-type InboxView = "chats" | "booking" | "activity";
+type InboxView = "chats" | "activity";
 type Props = {
   profile: Profile;
   onLogout: () => void;
@@ -167,6 +167,7 @@ function Workspace({
       ? [
           { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
+          { id: "bookings", label: "Bookings" },
           {
             id: "conversations",
             label: "Inbox",
@@ -207,7 +208,7 @@ function Workspace({
     }
     if (/booking|reservation/.test(route)) {
       setBookingTargetId(id);
-      setTab("conversations");
+      setTab("bookings");
       return;
     }
     if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
@@ -234,6 +235,8 @@ function Workspace({
         onNavigate={onNavigate}
       />
     );
+  else if (tab === "bookings" && module === "operations")
+    content = <HousingOperationsWorkspace initialRecordId={bookingTargetId} />;
   else if (tab === "conversations" && module === "operations")
     content = (
       <OperationsInbox
@@ -244,7 +247,6 @@ function Workspace({
           setWorkTargetId(id);
           setTab("work");
         }}
-        initialBookingId={bookingTargetId}
         initialConversationId={conversationTargetId}
         onNavigate={openStaffDestination}
       />
@@ -366,7 +368,6 @@ function OperationsInbox({
   scope,
   summary,
   openProperties,
-  initialBookingId,
   initialConversationId,
   onNavigate,
 }: {
@@ -374,34 +375,15 @@ function OperationsInbox({
   scope: { state: string; lga: string };
   summary: ReturnType<typeof useOperationsInboxSummary>;
   openProperties: (id?: string) => void;
-  initialBookingId?: string;
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
   const [view, setView] = useState<InboxView>("chats");
-  const [activeBookingId, setActiveBookingId] = useState(initialBookingId);
-  useEffect(() => {
-    if (initialBookingId) {
-      setActiveBookingId(initialBookingId);
-      setView("booking");
-    }
-  }, [initialBookingId]);
   function navigate(page: string, id?: string) {
     if (/operations_properties|staff_inspections|inspection|propert/.test(page))
       return openProperties(id);
-    if (/booking|reservation/.test(page)) {
-      setActiveBookingId(id);
-      setView("booking");
-      return;
-    }
     onNavigate?.(page, id);
   }
-  if (view === "booking")
-    return (
-      <InboxDetail title="Find a booking" back={() => setView("chats")}>
-        <HousingOperationsWorkspace initialRecordId={activeBookingId} />
-      </InboxDetail>
-    );
   return (
     <div className="space-y-4">
       <InboxTabs
@@ -419,31 +401,16 @@ function OperationsInbox({
           onNavigate={navigate}
         />
       ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => setView("booking")}
-            className="flex min-h-14 w-full items-center justify-between border-y border-white/[.06] py-3 text-left"
-          >
-            <span>
-              <strong className="block text-xs">Find a booking</strong>
-              <span className="mt-1 block text-[9px] text-[#707687]">
-                Check a booking code before an arrival or handover
-              </span>
-            </span>
-            <span className="text-[#656B7C]">›</span>
-          </button>
-          <CommunicationsWorkspace
-            profile={profile}
-            scope={scope}
-            forcedView="inbox"
-            hideViewTabs
-            queue="operations"
-            initialConversationId={initialConversationId}
-            onOpenContext={navigate}
-            onUnreadChange={summary.refresh}
-          />
-        </>
+        <CommunicationsWorkspace
+          profile={profile}
+          scope={scope}
+          forcedView="inbox"
+          hideViewTabs
+          queue="operations"
+          initialConversationId={initialConversationId}
+          onOpenContext={navigate}
+          onUnreadChange={summary.refresh}
+        />
       )}
     </div>
   );
