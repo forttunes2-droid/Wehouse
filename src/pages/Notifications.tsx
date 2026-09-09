@@ -605,13 +605,12 @@ function activityKind(row: Activity) {
   if (/security|device|password|login/.test(value)) return "Security";
   if (/payment|payout|earning|refund|wallet|commission/.test(value))
     return "Money";
-  if (
-    /booking|reservation|inspection|listing|property|hotel|job|worker/.test(
-      value,
-    )
-  )
+  if (/inspection|field|visit|access_evidence/.test(value)) return "Inspection";
+  if (/worker|job|service/.test(value)) return "Work";
+  if (/property|listing|publication/.test(value)) return "Property";
+  if (/hotel|booking|reservation|tenancy|move_in|handover|check_in|check_out/.test(value))
     return "Booking";
-  if (/roommate/.test(value)) return "Roommates";
+  if (/roommate|shared_home|match/.test(value)) return "Roommates";
   return "WeHouse";
 }
 function activityTitle(row: Activity) {
