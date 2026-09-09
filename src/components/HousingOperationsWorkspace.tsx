@@ -7,7 +7,6 @@ import {
   confirmApartmentHandover,
   confirmShortStayCheckIn,
 } from "@/lib/supabase/reservations";
-import InlineFilterChips from "@/components/InlineFilterChips";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -213,13 +212,16 @@ export default function HousingOperationsWorkspace({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h3 className="text-base font-bold">Booking lookup</h3>
-        <p className="mt-1 text-[10px] leading-5 text-[#707687]">
-          Verify a customer’s booking before handover, or search current
-          arrivals and tenancies. Publication work stays in Properties.
+      <header className="border-b border-white/[.06] pb-4">
+        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
+          PROPERTY OPERATIONS
         </p>
-      </div>
+        <h3 className="mt-2 text-lg font-bold">Bookings and handovers</h3>
+        <p className="mt-1 max-w-xl text-[10px] leading-5 text-[#707687]">
+          Verify the booking code shown by a customer, then continue the same
+          reservation through arrival, handover, stay and completion.
+        </p>
+      </header>
 
       <section className="rounded-2xl border border-violet-500/10 bg-violet-500/[.03] p-4">
         <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
@@ -395,19 +397,31 @@ export default function HousingOperationsWorkspace({
           />
         </div>
       </section>
-      <InlineFilterChips
-        value={filter}
-        options={[
-          { value: "all", label: "All" },
-          { value: "available", label: "Available" },
-          { value: "reserved", label: "Reserved" },
-          { value: "occupied", label: "Occupied" },
-          { value: "maintenance", label: "Maintenance" },
-          { value: "closed", label: "Closed" },
-        ]}
-        onChange={(value) => setFilter(value as Filter)}
-        ariaLabel="Show properties by lifecycle"
-      />
+      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+            Filter
+          </p>
+          <p className="mt-1 text-[10px] text-[#8A909F]">
+            Booking record status
+          </p>
+        </div>
+        <WeHouseSelect
+          value={filter}
+          options={[
+            { value: "all", label: "All records" },
+            { value: "available", label: "Available" },
+            { value: "reserved", label: "Reserved" },
+            { value: "occupied", label: "Occupied" },
+            { value: "maintenance", label: "Maintenance" },
+            { value: "closed", label: "Closed" },
+          ]}
+          onChange={(value) => setFilter(value as Filter)}
+          eyebrow="Bookings"
+          title="Filter booking records"
+          ariaLabel="Filter booking records by status"
+        />
+      </div>
       {loading ? (
         <Loading />
       ) : filtered.length === 0 ? (
