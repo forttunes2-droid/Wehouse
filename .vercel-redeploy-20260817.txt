@@ -1,1 +1,1 @@
-Production redeploy trigger for WeHouse main after discovery filter consolidation and roommate scaling hardening.
+Production redeploy trigger for the coordinated property lifecycle, operational conversations, Payment Protection and Paystack payout release.
