@@ -114,7 +114,8 @@ export default function BookingNegotiationChat({
     [menuOpen, setMenuOpen] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
-    [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),\n    [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions"),
+    [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
+    [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions"),
     [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null),
     [messageToRemove, setMessageToRemove] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false),
@@ -1580,7 +1581,15 @@ function Mic() {
     </svg>
   );
 }
-function Camera() {\n  return (\n    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">\n      <rect x="3" y="6" width="13" height="12" rx="2" />\n      <path d="m16 10 5-3v10l-5-3Z" />\n    </svg>\n  );\n}\nfunction Phone() {
+function Camera() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3Z" />
+    </svg>
+  );
+}
+function Phone() {
   return (
     <svg
       width="19"
