@@ -169,6 +169,7 @@ export default function Chat({
   const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
     null,
   );
+  const [messageActionMode, setMessageActionMode] = useState<"reactions" | "actions">("reactions");
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
   const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
@@ -944,7 +945,14 @@ export default function Chat({
                         ? messageById.get(event.message.reply_to_id)
                         : undefined
                     }
-                    onOpenActions={() => setMessageActions(event.message)}
+                    onOpenActions={() => {
+                      setMessageActionMode("actions");
+                      setMessageActions(event.message);
+                    }}
+                    onTapReaction={() => {
+                      setMessageActionMode("reactions");
+                      setMessageActions(event.message);
+                    }}
                     onReply={() => setReplyingTo(event.message)}
                   />
                 )}
@@ -1087,6 +1095,7 @@ export default function Chat({
         </footer>
         {messageActions && active && (
           <MessageActionSheet
+            mode={messageActionMode}
             currentReaction={
               messageActions.reactions?.[profile.user_id] || null
             }
@@ -1099,6 +1108,11 @@ export default function Chat({
               setMessageToRemove(messageActions);
               setMessageActions(null);
             }}
+            onCopy={messageActions.content ? () => {
+              void navigator.clipboard.writeText(messageActions.content || "");
+              toast.success("Message copied");
+              setMessageActions(null);
+            } : undefined}
             onReact={async (emoji) => {
               const current = messageActions.reactions?.[profile.user_id];
               const result = await reactToMessage(
@@ -1672,12 +1686,14 @@ function RoommateBubble({
   mine,
   quoted,
   onOpenActions,
+  onTapReaction,
   onReply,
 }: {
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
   onOpenActions: () => void;
+  onTapReaction: () => void;
   onReply: () => void;
 }) {
   const reactions = Object.values(msg.reactions || {}).reduce<
@@ -1686,6 +1702,7 @@ function RoommateBubble({
   return (
     <MessagePress
       onOpen={onOpenActions}
+      onTap={onTapReaction}
       onReply={onReply}
       className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
     >
