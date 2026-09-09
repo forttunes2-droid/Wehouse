@@ -418,14 +418,11 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
         {/* Guest count */}
         <div>
           <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Guests</label>
-          <select
-            value={guestCount}
-            onChange={(e) => setGuestCount(Number(e.target.value))}
-            className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 outline-none focus:border-[#8B5CF6]"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235C5E72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', appearance: 'none' }}
-          >
-            {Array.from({ length: Math.max(1, Number(room.max_guests || 1)) }, (_, index) => index + 1).map(n => <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>)}
-          </select>
+          <div className="flex h-14 items-center justify-between rounded-2xl border border-[#2A2A3A] bg-[#1A1A24] px-2">
+            <button type="button" disabled={submitting||guestCount<=1} onClick={()=>setGuestCount(value=>Math.max(1,value-1))} aria-label="Remove one guest" className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.08] text-xl text-white disabled:opacity-25">−</button>
+            <div className="text-center"><p className="text-base font-bold text-white">{guestCount}</p><p className="text-[8px] text-[#777D8D]">{guestCount===1?'guest':'guests'}</p></div>
+            <button type="button" disabled={submitting||guestCount>=Math.max(1,Number(room.max_guests||1))} onClick={()=>setGuestCount(value=>Math.min(Math.max(1,Number(room.max_guests||1)),value+1))} aria-label="Add one guest" className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.08] text-xl text-white disabled:opacity-25">+</button>
+          </div>
           <p className="mt-1.5 text-[9px] text-[#666B7B]">This room allows up to {Math.max(1, Number(room.max_guests || 1))} guest{Math.max(1, Number(room.max_guests || 1)) === 1 ? '' : 's'}.</p>
         </div>
 
@@ -436,6 +433,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
             <input
               type="text"
               value={guestName}
+              disabled={submitting}
               onChange={(e) => setGuestName(e.target.value)}
               placeholder="Your full name"
               className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#8B5CF6]"
@@ -446,6 +444,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
             <input
               type="tel"
               value={guestPhone}
+              disabled={submitting}
               onChange={(e) => setGuestPhone(e.target.value)}
               placeholder="e.g. 08012345678"
               className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-white text-sm px-4 placeholder-[#5C5E72] outline-none focus:border-[#8B5CF6]"
@@ -455,6 +454,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
             <label className="text-[10px] text-[#5C5E72] uppercase tracking-wider font-medium mb-1.5 block">Special Requests (optional)</label>
             <textarea
               value={specialRequests}
+              disabled={submitting}
               onChange={(e) => setSpecialRequests(e.target.value)}
               placeholder="Any special requirements..."
               rows={3}
@@ -493,7 +493,7 @@ export default function HotelBooking({ hotelId, roomId, checkIn: prefillCheckIn,
           )}
         </button>
 
-        <p className="text-[10px] text-[#5C5E72] text-center">No payment required now. Pay at check-in.</p>
+        <p className="text-[10px] text-[#5C5E72] text-center">Secure payment follows after you confirm.</p>
       </div>
     </div>
   );

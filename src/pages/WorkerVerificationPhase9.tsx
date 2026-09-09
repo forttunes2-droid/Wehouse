@@ -17,6 +17,8 @@ type Activation = {
   live: boolean;
   profile_complete: boolean;
   payment_confirmed?: boolean;
+  payment_required?: boolean;
+  fee_waived?: boolean;
   gold_badge?: boolean;
   identity_status: string;
   identity_passed: boolean;
@@ -41,6 +43,8 @@ const EMPTY: Activation = {
   live: false,
   profile_complete: false,
   payment_confirmed: false,
+  payment_required: true,
+  fee_waived: false,
   gold_badge: false,
   identity_status: "not_started",
   identity_passed: false,
@@ -117,6 +121,7 @@ export default function WorkerVerificationPhase9({
     };
   }, []);
   const paid = Boolean(a.payment_confirmed ?? a.gold_badge),
+    paymentRequired = a.payment_required !== false,
     complete = a.identity_passed && paid && a.evidence_saved,
     reviewing =
       a.worker_status === "profile_under_review" ||
@@ -360,6 +365,7 @@ export default function WorkerVerificationPhase9({
               <WorkerVerificationChecklist
                 identityPassed={a.identity_passed}
                 paymentConfirmed={paid}
+                paymentRequired={paymentRequired}
                 skillVideoSaved={a.evidence_saved}
               />
             )}{" "}
@@ -421,7 +427,7 @@ export default function WorkerVerificationPhase9({
                 title="Show your real work"
                 text="Upload one short skill or completed-work video for private WeHouse review."
               >
-                <Status text="Identity and onboarding payment complete" good />
+                <Status text={paymentRequired ? "Identity and onboarding payment complete" : "Identity complete · onboarding fee waived"} good />
                 <Upload
                   label={
                     certificatePath
@@ -467,7 +473,7 @@ export default function WorkerVerificationPhase9({
               <Card
                 eyebrow="3 · WEHOUSE REVIEW"
                 title="Ready for review"
-                text="Your identity, onboarding payment and professional work evidence are complete."
+                text={paymentRequired ? "Your identity, onboarding payment and professional work evidence are complete." : "Your identity and professional work evidence are complete. Onboarding is currently free."}
               >
                 <Button
                   label={busy ? "Submitting…" : "Submit to WeHouse"}

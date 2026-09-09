@@ -9,7 +9,6 @@ import PartnerSubmittedRequests, {
   type SubmissionFilter,
 } from "@/components/PartnerSubmittedRequests";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
-import WeHouseSelect from "@/components/WeHouseSelect";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import { ListingMediaImage } from "@/components/ListingCandidateMedia";
@@ -106,46 +105,32 @@ function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { pro
     onNestedChange?.(viewingDetail || creating);
     return () => onNestedChange?.(false);
   }, [creating, onNestedChange, viewingDetail]);
-  const filters: Array<{
-    value: SubmissionFilter;
-    label: string;
-    description: string;
-  }> = [
-    {
-      value: "all",
-      label: "All submissions",
-      description: "Every submitted property",
-    },
-    {
-      value: "submitted",
-      label: "In progress",
-      description: "Currently moving through review",
-    },
-    { value: "public", label: "Live", description: "Published properties" },
-    {
-      value: "rejected",
-      label: "Changes requested",
-      description: "Properties needing correction",
-    },
+  const filters: Array<{ value: SubmissionFilter; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "submitted", label: "In progress" },
+    { value: "public", label: "Live" },
+    { value: "rejected", label: "Needs changes" },
   ];
   return (
     <div className="space-y-5">
       {!viewingDetail && !creating && (
-        <div className="space-y-3 border-b border-white/[.06] pb-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold">Your properties</h2>
-            <WeHouseSelect
-              value={filter}
-              options={filters}
-              onChange={setFilter}
-              eyebrow="Status"
-              title="Choose status"
-              ariaLabel="Filter property submissions"
-            />
-          </div>
-          <div className="grid grid-cols-2 rounded-xl bg-white/[.035] p-1" role="group" aria-label="Property type">
+        <div className="space-y-4 border-b border-white/[.06] pb-4">
+          <div className="grid grid-cols-2 rounded-2xl border border-white/[.07] bg-[#0E1118] p-1" role="group" aria-label="Property type">
             {(["apartment", "hotel"] as PartnerAssetKind[]).map((kind) => (
-              <button key={kind} type="button" aria-pressed={assetKind === kind} onClick={() => setAssetKind(kind)} className={`h-10 rounded-lg text-xs font-semibold transition ${assetKind === kind ? "bg-[#202331] text-white shadow-sm" : "text-[#757B8B]"}`}>{kind === "apartment" ? "Apartments" : "Hotels"}</button>
+              <button key={kind} type="button" aria-pressed={assetKind === kind} onClick={() => setAssetKind(kind)} className={`h-11 rounded-xl text-xs font-semibold transition ${assetKind === kind ? "bg-violet-500 text-white shadow-lg shadow-violet-500/10" : "text-[#7C8292]"}`}>{kind === "apartment" ? "Apartments" : "Hotels"}</button>
+            ))}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Property status">
+            {filters.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                aria-pressed={filter === item.value}
+                onClick={() => setFilter(item.value)}
+                className={`min-h-9 shrink-0 rounded-full px-3 text-[9px] font-semibold ${filter === item.value ? "bg-white text-[#0B0D12]" : "border border-white/[.07] text-[#858B9B]"}`}
+              >
+                {item.label}
+              </button>
             ))}
           </div>
         </div>

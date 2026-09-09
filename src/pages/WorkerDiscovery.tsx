@@ -425,7 +425,7 @@ export default function WorkerDiscovery({
             text="Try a broader service or location."
           />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
             {shown.map((worker) => (
               <WorkerCard
                 key={worker.user_id}
@@ -597,7 +597,7 @@ function WorkerCard({
     avatarUrl = workerAvatarUrl(worker),
     skills = workerServiceNames(worker);
   return (
-    <article className="rounded-3xl border border-white/[.07] bg-[#11141C] p-4">
+    <article className="py-4">
       <div className="flex items-start gap-3">
         <button
           onClick={() => (status ? onStatus(status) : onProfile())}
@@ -641,7 +641,7 @@ function WorkerCard({
       {status && (
         <button
           onClick={() => onStatus(status)}
-          className="mt-3 flex w-full items-center justify-between rounded-xl border border-violet-500/15 bg-violet-500/[.05] px-3 py-2 text-left"
+          className="mt-3 flex w-full items-center justify-between border-l-2 border-violet-400 pl-3 text-left"
         >
           <span className="text-[9px] font-semibold text-violet-300">
             ● Work Status live
@@ -650,16 +650,10 @@ function WorkerCard({
         </button>
       )}
       {skills.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {skills.slice(0, 4).map((skill) => (
-            <span
-              key={skill}
-              className="rounded-lg border border-white/[.06] px-2 py-1 text-[8px] text-[#858A99]"
-            >
-              {skill}
-            </span>
-          ))}
-        </div>
+        <p className="mt-3 line-clamp-2 text-[9px] leading-4 text-[#7B8190]">
+          {skills.slice(0, 4).join(" · ")}
+          {skills.length > 4 ? ` · +${skills.length - 4}` : ""}
+        </p>
       )}
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="text-[10px] font-semibold text-[#DDE0E7]">

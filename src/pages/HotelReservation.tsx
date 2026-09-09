@@ -206,7 +206,7 @@ export default function HotelReservation({ hotelId, roomId, profile, onBack, onP
               <ol className="space-y-2">
                 <li className="flex items-start gap-2 text-[10px] text-[#8B8DA0]">
                   <span className="w-4 h-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center text-[8px] text-[#8B5CF6] font-bold flex-shrink-0 mt-0.5">1</span>
-                  Pay the reservation fee to reserve this room
+                  Proceed with reservation to begin your stay
                 </li>
                 <li className="flex items-start gap-2 text-[10px] text-[#8B8DA0]">
                   <span className="w-4 h-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center text-[8px] text-[#8B5CF6] font-bold flex-shrink-0 mt-0.5">2</span>

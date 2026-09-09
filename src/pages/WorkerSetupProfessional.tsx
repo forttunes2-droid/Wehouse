@@ -161,11 +161,11 @@ export default function WorkerSetupProfessional({
 
     if (!profile.profile_complete) {
       try {
-        localStorage.setItem("wh_navpage", "worker_dashboard");
+        localStorage.setItem("wh_navpage", "worker_verification");
         window.history.replaceState(
-          { page: "worker_dashboard" },
+          { page: "worker_verification" },
           "",
-          "#worker_dashboard",
+          "#worker_verification",
         );
       } catch {}
       window.location.reload();

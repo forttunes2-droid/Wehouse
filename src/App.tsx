@@ -192,7 +192,11 @@ function roleRootFor(role: string): NavPage {
               ? "hotel_operations"
               : "search";
 }
-function normalizePageForRole(role: string, page: NavPage): NavPage {
+function normalizePageForRole(
+  role: string,
+  page: NavPage,
+  workerProfileComplete = true,
+): NavPage {
   if (page === "messages") page = "conversation";
   // Preserve old deep links without keeping a second booking destination.
   if (page === "my_bookings") page = "my_reservations";
@@ -202,6 +206,12 @@ function normalizePageForRole(role: string, page: NavPage): NavPage {
     page === "payment_return"
   )
     return page;
+  if (role === "worker" && !workerProfileComplete)
+    return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
+      page,
+    )
+      ? page
+      : "worker_dashboard";
   if (ACCOUNT_PAGES.has(page)) return page;
   if (role === "creator")
     return page === "creator" || page === "new_listing" ? page : "creator";
@@ -405,7 +415,11 @@ export default function App() {
       const raw = localStorage.getItem(NAV_STORAGE_KEY);
       if (raw && isRestorable(raw)) saved = raw;
     } catch {}
-    const safe = normalizePageForRole(role, saved || roleRootFor(role));
+    const safe = normalizePageForRole(
+      role,
+      saved || roleRootFor(role),
+      Boolean(auth.profile.profile_complete),
+    );
     queueMicrotask(() => setNavPage(safe));
     navHistoryRef.current = [safe];
     try {
@@ -415,7 +429,11 @@ export default function App() {
   }, [auth.isLoading, auth.profile]);
   useEffect(() => {
     if (!userRole || auth.isLoading) return;
-    const safe = normalizePageForRole(userRole, navPage);
+    const safe = normalizePageForRole(
+      userRole,
+      navPage,
+      Boolean(baseProfile?.profile_complete),
+    );
     if (safe === navPage) return;
     setNavPage(safe);
     navHistoryRef.current = [safe];
@@ -423,15 +441,19 @@ export default function App() {
       localStorage.setItem(NAV_STORAGE_KEY, safe);
       window.history.replaceState({ page: safe }, "", `#${safe}`);
     } catch {}
-  }, [auth.isLoading, navPage, userRole]);
+  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
       pageScrollPositionsRef.current.set(
         navPage,
         pageScrollRef.current?.scrollTop || 0,
       );
-      const safe = normalizePageForRole(userRole, page),
-        current = navHistoryRef.current.at(-1);
+      const safe = normalizePageForRole(
+        userRole,
+        page,
+        Boolean(baseProfile?.profile_complete),
+      );
+      const current = navHistoryRef.current.at(-1);
       if (safe !== current) {
         window.history.pushState({ page: safe }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
@@ -439,13 +461,17 @@ export default function App() {
       setNavPage(safe);
       if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
     },
-    [userRole, navPage],
+    [baseProfile?.profile_complete, userRole, navPage],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
       const s = e.state as { page?: NavPage } | null;
       if (!s?.page) return;
-      const safe = normalizePageForRole(userRole, s.page);
+      const safe = normalizePageForRole(
+        userRole,
+        s.page,
+        Boolean(baseProfile?.profile_complete),
+      );
       pageScrollPositionsRef.current.set(
         navPage,
         pageScrollRef.current?.scrollTop || 0,
@@ -461,7 +487,7 @@ export default function App() {
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [userRole, navPage]);
+  }, [baseProfile?.profile_complete, userRole, navPage]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (pageScrollRef.current)

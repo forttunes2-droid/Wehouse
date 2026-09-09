@@ -294,8 +294,8 @@ function Overview({
     values: Array<[string, number]>;
   }> = [
     {
-      title: "Properties",
-      note: `${stats?.pendingInspections || 0} inspections need work`,
+      title: "Property review & publishing",
+      note: `${stats?.pendingInspections || 0} active inspections`,
       action: () => openOperation("properties"),
       values: [
         ["Apartments", stats?.listings || 0],
@@ -303,8 +303,8 @@ function Overview({
       ],
     },
     {
-      title: "Accounts",
-      note: "Users and Property Partners",
+      title: "Users & property partners",
+      note: "Account records and partner access",
       action: () => openOperation("people"),
       values: [
         ["Users", stats?.users || 0],
@@ -312,8 +312,8 @@ function Overview({
       ],
     },
     {
-      title: "Workforce",
-      note: `${stats?.pending_verifications || 0} Worker reviews pending`,
+      title: "Workers & internal team",
+      note: `${stats?.pending_verifications || 0} worker reviews pending`,
       action: () => openOperation("workers"),
       values: [
         ["Workers", stats?.workers || 0],
@@ -321,8 +321,8 @@ function Overview({
       ],
     },
     {
-      title: "Finance",
-      note: "Worker and Partner settlements",
+      title: "Payout review",
+      note: "Worker and property-partner settlements",
       action: () => openOperation("finance"),
       values: [["Payouts", stats?.pendingPayouts || 0]],
     },
@@ -332,14 +332,14 @@ function Overview({
     <div className="space-y-5">
       <section className="border-b border-white/[.07] pb-5">
         <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-          Current platform
+          Creator workspace
         </p>
         <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-          What needs attention
+          Platform overview
         </h2>
         <div className="mt-4 flex flex-wrap gap-2">
           <Quick
-            label="Open property work"
+            label="Open property review"
             onClick={() => openOperation("properties")}
             primary
           />

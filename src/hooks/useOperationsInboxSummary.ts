@@ -12,7 +12,7 @@ type LatestActivity = { title: string; createdAt: string } | null;
 export function useOperationsInboxSummary(
   userId: string,
   activityScope = "staff",
-  queue: "support" | "operations" | null = null,
+  queue: "support" | "operations" | "field_operations" | null = null,
 ) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [activityUnread, setActivityUnread] = useState(0);

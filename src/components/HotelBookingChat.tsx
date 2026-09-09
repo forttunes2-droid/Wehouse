@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SmilePlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +21,7 @@ import MessageActionSheet from "@/components/MessageActionSheet";
 import MessagePress from "@/components/MessagePress";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import type { Profile } from "@/types";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 
 type Props = {
   bookingId: number;
@@ -50,11 +51,15 @@ export default function HotelBookingChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
+  const [replyingTo, setReplyingTo] = useState<HotelMessage | null>(null);
   const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(null);
   const [viewer, setViewer] = useState<{ src: string; kind: "image" | "video" } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const voice = useVoiceRecorder();
+  const messageById = useMemo(
+    () => new Map(messages.map((message) => [message.id, message])),
+    [messages],
+  );
 
   const load = useCallback(async (id: string, quiet = false) => {
     if (!quiet) setLoading(true);
@@ -62,7 +67,7 @@ export default function HotelBookingChat({
     if (result.error) toast.error(result.error.message || "Hotel messages could not be loaded");
     else {
       setMessages(result.messages);
-      await markHotelMessagesRead(id);
+      void markHotelMessagesRead(id);
     }
     if (!quiet) setLoading(false);
   }, []);
@@ -130,7 +135,6 @@ export default function HotelBookingChat({
       return true;
     });
     setFiles((current) => [...current, ...incoming].slice(0, 6));
-    if (fileRef.current) fileRef.current.value = "";
   }
 
   async function send() {
@@ -138,21 +142,34 @@ export default function HotelBookingChat({
     setSending(true);
     const paths: string[] = [];
     const types: string[] = [];
+    const text = input.trim();
+    const queuedFiles = [...files];
+    const replyTarget = replyingTo;
+    setInput("");
+    setFiles([]);
+    setReplyingTo(null);
     try {
-      for (const file of files) {
+      for (const file of queuedFiles) {
         const uploaded = await uploadHotelChatAttachment(conversationId, profile.user_id, file);
         if (uploaded.error || !uploaded.path) throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
         paths.push(uploaded.path);
         types.push(uploaded.type);
       }
-      const result = await sendHotelMessage(conversationId, input.trim(), paths, types);
+      const result = await sendHotelMessage(
+        conversationId,
+        text,
+        paths,
+        types,
+        replyTarget?.id || null,
+      );
       if (result.error) throw new Error(result.error.message || "Message could not be sent");
-      setInput("");
-      setFiles([]);
       await load(conversationId, true);
       onUpdated?.();
     } catch (error) {
       await Promise.all(paths.map((path) => deleteHotelChatAttachment(path)));
+      setInput(text);
+      setFiles(queuedFiles);
+      setReplyingTo(replyTarget);
       toast.error(error instanceof Error ? error.message : "Message could not be sent");
     } finally {
       setSending(false);
@@ -212,6 +229,10 @@ export default function HotelBookingChat({
               <div className="max-w-[84%]">
                 <div className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[#171B24]"}`}>
                   {!mine && <p className="mb-1 text-[8px] font-semibold text-violet-300">{message.sender_role === "hotel" ? title : message.sender_name}</p>}
+                  {message.reply_to_id && (() => {
+                    const quoted = messageById.get(message.reply_to_id);
+                    return quoted ? <div className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}><p className="truncate text-[8px] font-semibold text-violet-200">{quoted.sender_id === profile.user_id ? "You" : quoted.sender_name}</p><p className="mt-0.5 truncate text-[9px] opacity-70">{quoted.content || (quoted.attachments?.length ? "Attachment" : "Message")}</p></div> : null;
+                  })()}
                   {message.content && <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.content}</p>}
                   {(message.attachments || []).map((src, index) => {
                     const type = message.attachment_types?.[index] || "";
@@ -244,15 +265,15 @@ export default function HotelBookingChat({
               voice.discard();
             }}
           />
+          {replyingTo && <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2"><div className="min-w-0 flex-1"><p className="text-[8px] font-semibold text-violet-300">Replying to {replyingTo.sender_id === profile.user_id ? "yourself" : replyingTo.sender_name}</p><p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">{replyingTo.content || (replyingTo.attachments?.length ? "Attachment" : "Message")}</p></div><button type="button" onClick={() => setReplyingTo(null)} className="grid h-8 w-8 place-items-center text-[#818797]" aria-label="Cancel reply">×</button></div>}
           {!voice.recording && !voice.draft && <div className="flex items-end gap-2">
-            <input ref={fileRef} type="file" accept="image/*,audio/*" multiple hidden onChange={(event) => chooseFiles(event.target.files)} />
-            <button onClick={() => fileRef.current?.click()} aria-label="Attach photo or audio" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#171B24] text-lg text-[#9CA2B1]">＋</button>
+            <ChatAttachmentPicker onFiles={chooseFiles} allowAudio />
             <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={1} placeholder="Message" className="max-h-28 min-h-11 flex-1 resize-none rounded-3xl border border-white/[.08] bg-[#171B24] px-4 py-3 text-xs outline-none focus:border-violet-500/40" />
             {!input.trim() && !files.length ? <button onClick={() => void voice.start().catch((error) => toast.error(error instanceof Error ? error.message : "Microphone is unavailable"))} aria-label="Record voice note" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#171B24] text-sm">●</button> : <button onClick={() => void send()} disabled={sending} aria-label="Send message" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 text-lg disabled:opacity-50">↑</button>}
           </div>}
         </div>
       </footer>
-      {messageMenu && <MessageActionSheet currentReaction={messageMenu.reactions?.[profile.user_id] || null} onClose={() => setMessageMenu(null)} onReact={(emoji) => void react(messageMenu, emoji)} onRemove={() => { setMessageToRemove(messageMenu); setMessageMenu(null); }} />}
+      {messageMenu && <MessageActionSheet currentReaction={messageMenu.reactions?.[profile.user_id] || null} onClose={() => setMessageMenu(null)} onReact={(emoji) => void react(messageMenu, emoji)} onReply={() => { setReplyingTo(messageMenu); setMessageMenu(null); }} onRemove={() => { setMessageToRemove(messageMenu); setMessageMenu(null); }} />}
       <ConfirmDialog isOpen={Boolean(messageToRemove)} title="Remove this message?" description="This removes the message only from your chat. The other person keeps their copy." confirmLabel="Remove for me" onCancel={() => setMessageToRemove(null)} onConfirm={() => void removeMessage()} />
       {viewer && <MediaViewer src={viewer.src} kind={viewer.kind} title="Hotel chat media" onClose={() => setViewer(null)} />}
     </div>

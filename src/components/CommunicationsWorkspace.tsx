@@ -23,7 +23,7 @@ type Props = {
   onOpenConversation?: (id?: string) => void;
   forcedView?: View;
   hideViewTabs?: boolean;
-  queue?: "all" | "support" | "operations" | "property_operations" | "reservation_operations";
+  queue?: "all" | "support" | "operations" | "property_operations" | "reservation_operations" | "field_operations";
   onUnreadChange?: (count: number) => void;
   initialConversationId?: string;
   onOpenContext?: (page: string, id?: string) => void;
@@ -123,7 +123,7 @@ export default function CommunicationsWorkspace({
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, selected?.conversation_id]);
   async function open(row: any) {
-    if (profile.role === "staff") {
+    if (profile.role === "staff" && queue !== "field_operations") {
       const claimed = await claimCommunicationCase(row.conversation_id);
       if (claimed.error)
         return toast.error(

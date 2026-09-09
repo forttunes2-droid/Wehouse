@@ -76,3 +76,28 @@ export function compressImageFile(
     img.src = url;
   });
 }
+
+export async function prepareChatImageFile(file: File): Promise<{
+  body: Blob | File;
+  contentType: string;
+  extension: string;
+}> {
+  const originalGraphics = new Set(["image/gif", "image/png", "image/webp"]);
+  if (originalGraphics.has(file.type) && file.size <= 8 * 1024 * 1024) {
+    return {
+      body: file,
+      contentType: file.type,
+      extension:
+        file.type === "image/gif"
+          ? "gif"
+          : file.type === "image/png"
+            ? "png"
+            : "webp",
+    };
+  }
+  return {
+    body: await compressImageFile(file, 1920, 0.85),
+    contentType: "image/jpeg",
+    extension: "jpg",
+  };
+}

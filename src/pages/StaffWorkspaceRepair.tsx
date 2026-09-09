@@ -148,7 +148,7 @@ function Workspace({
   const copy = MODULE_COPY[module],
     directConversation = module === "support";
   const communicationQueue =
-    module === "operations" ? "operations" : module === "support" ? "support" : null;
+    module === "operations" ? "operations" : module === "support" ? "support" : module === "field_officer" ? "field_operations" : null;
   const inboxSummary = useOperationsInboxSummary(
     profile.user_id,
     "staff",
@@ -252,6 +252,10 @@ function Workspace({
   else if (tab === "conversations" && directConversation)
     content = (
       <SupportInbox profile={profile} scope={scope} initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
+    );
+  else if (tab === "conversations" && module === "field_officer")
+    content = (
+      <SupportInbox profile={profile} scope={scope} queue="field_operations" initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
     );
   else if (tab === "conversations")
     content = (
@@ -383,7 +387,8 @@ function OperationsInbox({
     }
   }, [initialBookingId]);
   function navigate(page: string, id?: string) {
-    if (page === "operations_properties") return openProperties(id);
+    if (/operations_properties|staff_inspections|inspection|propert/.test(page))
+      return openProperties(id);
     if (/booking|reservation/.test(page)) {
       setActiveBookingId(id);
       setView("booking");
@@ -446,11 +451,13 @@ function OperationsInbox({
 function SupportInbox({
   profile,
   scope,
+  queue = "support",
   initialConversationId,
   onNavigate,
 }: {
   profile: Profile;
   scope: { state: string; lga: string };
+  queue?: "support" | "field_operations";
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
@@ -472,7 +479,7 @@ function SupportInbox({
             scope={scope}
             forcedView="inbox"
             hideViewTabs
-            queue="support"
+            queue={queue}
             initialConversationId={initialConversationId}
             onOpenContext={(page, id)=>onNavigate?.(page, id)}
           />

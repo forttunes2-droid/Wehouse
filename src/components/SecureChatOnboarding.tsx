@@ -113,9 +113,6 @@ export default function SecureChatOnboarding({
                 : "Unlock and continue"}
           </button>
           {creating && confirming ? <button type="button" onClick={() => { setConfirmation(""); setConfirming(false); }} className="mt-2 w-full py-1 text-[9px] font-medium text-[#858B9B]">Use a different passcode</button> : null}
-          <p className="mt-2 text-center text-[8px] leading-4 text-[#626879]">
-            WeHouse cannot read private roommate or worker messages.
-          </p>
         </div>
       ) : (
         <div className="mt-3 border-t border-white/[.06] pt-3">

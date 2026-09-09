@@ -209,6 +209,9 @@ export interface Listing {
   state: string | null;
   city: string | null;
   address: string | null;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  location_accuracy_m?: number | null;
   images: string[];
   videos: string[];
   property_type: PropertyType | null; // 'apartment' (short_let/long_stay) or 'hotel'
@@ -513,6 +516,8 @@ export interface Announcement {
   sender_role: string;
   target_type: AnnouncementTargetType;
   scope?: string | null;
+  target_state?: string | null;
+  target_lga?: string | null;
   recipient_count: number;
   read_count: number;
   created_at: string;

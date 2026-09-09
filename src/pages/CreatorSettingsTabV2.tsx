@@ -15,8 +15,9 @@ const GROUPS:Group[]=[
   {key:'support_email',label:'Support email',description:'Primary public support email.',kind:'email',defaultValue:''},
   {key:'support_phone',label:'Support phone',description:'Primary public support phone number.',kind:'text',defaultValue:''},
  ]},
- {id:'worker_verification',label:'Worker verification',description:'Creator-controlled commercial settings for Worker onboarding.',note:'The private automatic face check is a fixed WeHouse safety requirement: clear live selfie → same-face comparison → automatic head movement/liveness check. No government ID and no liveness video. Payment is only an onboarding fee and never buys approval or trust.',settings:[
-  {key:'worker_verification_fee',label:'Onboarding fee (₦)',description:'Required one-time amount charged when a Worker reaches the payment step. It must remain greater than zero for onboarding to proceed.',kind:'number',defaultValue:'5000',min:1,max:10000000,step:1,category:'worker'},
+ {id:'worker_verification',label:'Worker verification',description:'Creator-controlled commercial settings for Worker onboarding.',note:'Turning the fee off makes onboarding free for new Workers without changing any existing profile, payment, approval or work history.',settings:[
+  {key:'worker_verification_fee_enabled',label:'Charge onboarding fee',description:'Turn off for a free launch period. Turning it on later applies only when an unpaid Worker reaches the payment step.',kind:'toggle',defaultValue:'true',category:'worker'},
+  {key:'worker_verification_fee',label:'Onboarding fee (₦)',description:'One-time amount used only while the onboarding fee is enabled.',kind:'number',defaultValue:'5000',min:1,max:10000000,step:1,category:'worker'},
  ]},
  {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, Worker-caused cancellations and unresolved disputes.',settings:[
   {key:'worker_trust_enabled',label:'Enable WeHouse Trusted',description:'Turn on automatic earned marketplace trust only after Worker-booking reputation data is ready.',kind:'toggle',defaultValue:'false',category:'worker_trust'},

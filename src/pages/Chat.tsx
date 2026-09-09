@@ -51,6 +51,7 @@ import HotelBookingChat from "@/components/HotelBookingChat";
 import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import {
   getMyHotelConversations,
   type HotelConversation,
@@ -149,6 +150,8 @@ export default function Chat({
     [confirmDelete, setConfirmDelete] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
     [blockBusy, setBlockBusy] = useState(false),
+    [blockPrompt, setBlockPrompt] = useState(false),
+    [blockReason, setBlockReason] = useState(""),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [bulkDelete, setBulkDelete] = useState(false),
     [inboxFilter, setInboxFilter] = useState<"all" | "people" | "wehouse">(
@@ -167,9 +170,12 @@ export default function Chat({
   const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
   const activeRef = useRef<Conversation | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null),
-    fileRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
+  const messageById = useMemo(
+    () => new Map(messages.map((message) => [message.id, message])),
+    [messages],
+  );
   const otherId = useCallback(
     (conv: Conversation) =>
       conv.participant_a === profile.user_id
@@ -480,7 +486,6 @@ export default function Chat({
         toast.error("You can send up to 6 items at once");
       return next;
     });
-    if (fileRef.current) fileRef.current.value = "";
   }
   async function toggleVoice() {
     if (voice.recording) return voice.finish();
@@ -576,12 +581,12 @@ export default function Chat({
     setMessageToRemove(null);
     await loadRoommateMessages(active.id);
   }
-  async function toggleBlock() {
+  async function toggleBlock(reason?: string) {
     if (!peerId || blockBusy) return;
     const person = people[peerId];
     setBlockBusy(true);
     const nextBlocked = !person?.isBlocked;
-    const { error } = await setRoommateBlock(peerId, nextBlocked);
+    const { error, cancellationState } = await setRoommateBlock(peerId, nextBlocked, reason);
     setBlockBusy(false);
     if (error)
       return toast.error(error.message || "Could not update this block");
@@ -590,9 +595,15 @@ export default function Chat({
       [peerId]: { ...current[peerId], isBlocked: nextBlocked },
     }));
     setMenuOpen(false);
+    setBlockPrompt(false);
+    setBlockReason("");
     toast.success(
       nextBlocked
-        ? "This person is blocked from matching, messaging and calling"
+        ? cancellationState === "review"
+          ? "Person blocked. The linked paid booking was sent to WeHouse for cancellation."
+          : cancellationState === "cancelled"
+            ? "Person blocked and the linked shared booking was cancelled."
+            : "Person blocked and removed from discovery."
         : "Person unblocked",
     );
   }
@@ -844,7 +855,13 @@ export default function Chat({
               </button>
               <button
                 disabled={blockBusy}
-                onClick={() => void toggleBlock()}
+                onClick={() => {
+                  if (person?.isBlocked) void toggleBlock();
+                  else {
+                    setMenuOpen(false);
+                    setBlockPrompt(true);
+                  }
+                }}
                 className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-amber-200"
               >
                 <span>⊘</span>
@@ -889,9 +906,7 @@ export default function Chat({
                       mine={event.message.sender_id === profile.user_id}
                       quoted={
                         event.message.reply_to_id
-                          ? messages.find(
-                              (row) => row.id === event.message.reply_to_id,
-                            )
+                          ? messageById.get(event.message.reply_to_id)
                           : undefined
                       }
                       onOpenActions={() => setMessageActions(event.message)}
@@ -991,21 +1006,7 @@ export default function Chat({
                   </div>
                 )}
                 <div className="flex items-end gap-2">
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#A2A7B6]"
-                    aria-label="Add photo"
-                  >
-                    <PhotoIcon />
-                  </button>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => choosePhotos(event.target.files)}
-                  />
+                  <ChatAttachmentPicker onFiles={choosePhotos} />
                   <button
                     onClick={() => void toggleVoice()}
                     className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500" : "border border-white/[.07] bg-white/[.035]"} text-white`}
@@ -1087,7 +1088,13 @@ export default function Chat({
             person={person}
             presenceText={presenceText || ""}
             onClose={() => setProfileOpen(false)}
-            onToggleBlock={() => void toggleBlock()}
+            onToggleBlock={() => {
+              if (person?.isBlocked) void toggleBlock();
+              else {
+                setProfileOpen(false);
+                setBlockPrompt(true);
+              }
+            }}
             onAudioCall={() => {
               setProfileOpen(false);
               void startCall("audio");
@@ -1099,6 +1106,7 @@ export default function Chat({
             busy={blockBusy}
           />
         )}
+        {blockPrompt&&<div className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm" onClick={()=>setBlockPrompt(false)}><section className="w-full max-w-md rounded-[26px] border border-white/[.08] bg-[#141821] p-4" onClick={event=>event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold">Block {person?.name||'this person'}?</h2><p className="mt-1 text-[10px] leading-5 text-[#7B8292]">They will leave your discovery results. A linked shared booking will be cancelled, or sent to WeHouse first if payment must be reviewed.</p></div><button onClick={()=>setBlockPrompt(false)} className="grid h-9 w-9 place-items-center text-xl text-[#818797]">×</button></div><textarea value={blockReason} onChange={event=>setBlockReason(event.target.value.slice(0,500))} rows={3} placeholder="Reason (optional)" className="mt-4 w-full resize-none rounded-2xl border border-white/[.08] bg-[#0E1118] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>{setBlockReason('');void toggleBlock()}} disabled={blockBusy} className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold disabled:opacity-40">Skip reason</button><button onClick={()=>void toggleBlock(blockReason)} disabled={blockBusy} className="h-11 rounded-xl bg-red-500 text-[10px] font-semibold disabled:opacity-40">{blockBusy?'Blocking…':'Block and continue'}</button></div></section></div>}
       </div>
     );
   }
@@ -1930,22 +1938,6 @@ function formatListTime(value: string) {
   yesterday.setDate(now.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-function PhotoIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <rect x="3" y="4" width="18" height="16" rx="3" />
-      <circle cx="9" cy="10" r="2" />
-      <path d="m21 15-4-4L6 20" />
-    </svg>
-  );
 }
 function MicIcon() {
   return (

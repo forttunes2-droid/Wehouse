@@ -7,6 +7,7 @@ import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } fr
 import type { Profile } from "@/types";
 import MediaViewer from "@/components/MediaViewer";
 import { toast } from "sonner";
+import MessageActionSheet from '@/components/MessageActionSheet';
 
 type Post = {
   id: string;
@@ -54,6 +55,7 @@ export default function WorkerPublicProfileV2({
     [loading, setLoading] = useState(true),
     [trust, setTrust] = useState<Trust | null>(null),
     [reviews,setReviews]=useState<PublicReview[]>([]),
+    [reactionPost,setReactionPost]=useState<Post|null>(null),
     [postReactions,setPostReactions]=useState<Record<string,{counts:Record<string,number>;mine:string|null}>>({});
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: true } }));
@@ -200,14 +202,9 @@ export default function WorkerPublicProfileV2({
                     {post.verified_job && <span className="absolute left-3 top-3 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">WEHOUSE JOB ✓</span>}
                   </button>
                   {post.caption&&<p className="px-4 pt-3 text-[11px] leading-5 text-[#C7CBD4] sm:px-0">{post.caption}</p>}
-                  <div className="flex items-center gap-1 px-3 pt-2 sm:px-0">
-                    {["👍","❤️","👏"].map(emoji=><button key={emoji} type="button" onClick={async()=>{
-                      const previous=postReactions[post.id]?.mine;
-                      const next=previous===emoji?null:emoji;
-                      const {data,error}=await supabase.rpc('set_my_worker_showcase_reaction',{p_post_id:post.id,p_emoji:next});
-                      if(error)return toast.error(error.message||'Reaction could not be saved');
-                      setPostReactions(current=>({...current,[post.id]:{counts:(data||{}) as Record<string,number>,mine:next}}));
-                    }} className={`rounded-full px-2.5 py-1.5 text-[10px] ${postReactions[post.id]?.mine===emoji?'bg-violet-500/20 ring-1 ring-violet-400/30':'bg-white/[.04]'}`}>{emoji}{postReactions[post.id]?.counts[emoji]?` ${postReactions[post.id].counts[emoji]}`:''}</button>)}
+                  <div className="flex flex-wrap items-center gap-1 px-3 pt-2 sm:px-0">
+                    {Object.entries(postReactions[post.id]?.counts||{}).map(([emoji,count])=><button key={emoji} type="button" onClick={()=>setReactionPost(post)} className={`rounded-full px-2.5 py-1.5 text-[10px] ${postReactions[post.id]?.mine===emoji?'bg-violet-500/20 ring-1 ring-violet-400/30':'bg-white/[.04]'}`}>{emoji}{count>1?` ${count}`:''}</button>)}
+                    <button type="button" onClick={()=>setReactionPost(post)} className="rounded-full bg-white/[.04] px-3 py-1.5 text-[9px] text-[#9CA2B1]">React</button>
                   </div>
                 </article>
               ))}
@@ -229,6 +226,7 @@ export default function WorkerPublicProfileV2({
         </div>
       </div> : null}
       {viewer && <MediaViewer src={viewer.url || ""} kind={viewer.media_type} title={displayName} subtitle={occupation} avatarUrl={avatarUrl} onClose={() => setViewer(null)} />}
+      {reactionPost&&<MessageActionSheet currentReaction={postReactions[reactionPost.id]?.mine||null} onClose={()=>setReactionPost(null)} onReact={async emoji=>{const previous=postReactions[reactionPost.id]?.mine;const next=previous===emoji?null:emoji;const{data,error}=await supabase.rpc('set_my_worker_showcase_reaction',{p_post_id:reactionPost.id,p_emoji:next});if(error)return toast.error(error.message||'Reaction could not be saved');setPostReactions(current=>({...current,[reactionPost.id]:{counts:(data||{}) as Record<string,number>,mine:next}}));setReactionPost(null)}}/>}
     </div>,
     document.body,
   );

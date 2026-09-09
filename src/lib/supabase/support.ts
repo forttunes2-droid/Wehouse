@@ -191,7 +191,7 @@ export async function markSupportMessagesRead(conversationId: string) {
 }
 
 export async function getSupportInbox(
-  queue: "all" | "support" | "operations" | "property_operations" | "reservation_operations" = "support",
+  queue: "all" | "support" | "operations" | "property_operations" | "reservation_operations" | "field_operations" = "support",
 ) {
   const { data, error } = await supabase.rpc("support_inbox", { p_queue: queue });
   return { conversations: data || [], error };

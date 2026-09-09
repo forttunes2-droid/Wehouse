@@ -3,7 +3,7 @@ import { getHotels, supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import { HOTEL_AMENITIES } from "@/types";
-import type { Hotel, Listing } from "@/types";
+import type { Hotel } from "@/types";
 import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryPriceRangeSlider from "@/components/DiscoveryPriceRangeSlider";
 import DiscoveryShell, {
@@ -11,7 +11,7 @@ import DiscoveryShell, {
   DiscoveryFilterSheet,
   DiscoveryToolbar,
 } from "@/components/DiscoveryShell";
-import PropertyMapExplorer from "@/components/PropertyMapExplorer";
+import { distanceBetweenKm, useDiscoveryLocation } from "@/hooks/useDiscoveryLocation";
 
 type HotelRoomPreview = {
   room_id: number;
@@ -23,7 +23,6 @@ type HotelRow = Hotel & {
   gps_latitude?: number | null;
   gps_longitude?: number | null;
 };
-type UserLocation = { lat: number; lng: number };
 type Props = { onNavigate: (page: string, id?: string) => void };
 const HOTEL_PRICE_FLOOR = 1000;
 const HOTEL_PRICE_CEILING = 1000000;
@@ -32,17 +31,6 @@ function normalize(v: unknown) {
   return String(v || "")
     .trim()
     .toLowerCase();
-}
-function distanceKm(a: UserLocation, b: { lat: number; lng: number }) {
-  const R = 6371,
-    dLat = ((b.lat - a.lat) * Math.PI) / 180,
-    dLng = ((b.lng - a.lng) * Math.PI) / 180,
-    q =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((a.lat * Math.PI) / 180) *
-        Math.cos((b.lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(q));
 }
 function coords(h: HotelRow) {
   const lat = Number(h.gps_latitude),
@@ -60,12 +48,9 @@ export default function HotelsHome({ onNavigate }: Props) {
     [minPrice, setMinPrice] = useState<number | "">(""),
     [maxPrice, setMaxPrice] = useState<number | "">(""),
     [filtersOpen, setFiltersOpen] = useState(false),
-    [userLocation, setUserLocation] = useState<UserLocation | null>(null),
-    [locating, setLocating] = useState(false),
-    [locationError, setLocationError] = useState(""),
     [radius, setRadius] = useState<number | "">(""),
-    [savingSearch, setSavingSearch] = useState(false),
-    [view, setView] = useState<"list" | "map">("list");
+    [savingSearch, setSavingSearch] = useState(false);
+  const { location: userLocation, locating, error: locationError, requestLocation, clearLocation } = useDiscoveryLocation();
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -115,10 +100,6 @@ export default function HotelsHome({ onNavigate }: Props) {
       ),
     };
   }, [hotels]);
-  const mappedHotels = useMemo(
-    () => hotels.filter((hotel) => Boolean(coords(hotel))).length,
-    [hotels],
-  );
   const filtered = useMemo(
     () =>
       hotels
@@ -126,7 +107,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           const c = coords(hotel);
           return {
             hotel,
-            distance: userLocation && c ? distanceKm(userLocation, c) : null,
+            distance: userLocation && c ? distanceBetweenKm(userLocation, c) : null,
           };
         })
         .filter(({ hotel, distance }) => {
@@ -179,39 +160,6 @@ export default function HotelsHome({ onNavigate }: Props) {
     [state, city, radius].filter(Boolean).length +
     amenities.length +
     (priceActive ? 1 : 0);
-  const mapItems = useMemo(
-    () =>
-      filtered.map(({ hotel, distance }) => {
-        const prices = (hotel.hotel_rooms || [])
-          .map((room) => Number(room.price_per_night || 0))
-          .filter(Boolean);
-        return {
-          distance,
-          listing: {
-            ...hotel,
-            id: String(hotel.hotel_id),
-            listing_id: String(hotel.hotel_id),
-            title: hotel.name,
-            price: prices.length ? Math.min(...prices) : 0,
-            currency: "NGN",
-            property_type: "hotel",
-            sub_type: null,
-            bedrooms: 0,
-            bathrooms: 0,
-            videos: [],
-            availability_status: "available",
-            chat_agent_id: null,
-            partner_id: hotel.owner_id,
-            reserved_by: null,
-            reservation_expiry: null,
-            reservation_fee_paid: false,
-            chat_unlocked: false,
-            status: "available",
-          } as unknown as Listing,
-        };
-      }),
-    [filtered],
-  );
   function clearFilters() {
     setQuery("");
     setState("");
@@ -220,8 +168,6 @@ export default function HotelsHome({ onNavigate }: Props) {
     setMinPrice("");
     setMaxPrice("");
     setRadius("");
-    setUserLocation(null);
-    setLocationError("");
   }
   function clearStructuredFilters() {
     setState("");
@@ -230,34 +176,10 @@ export default function HotelsHome({ onNavigate }: Props) {
     setMinPrice("");
     setMaxPrice("");
     setRadius("");
-    setUserLocation(null);
-    setLocationError("");
   }
   function chooseState(value: string) {
     setState(value);
     setCity("");
-  }
-  function locateUser() {
-    if (!navigator.geolocation) {
-      setLocationError("Current location is not available on this device.");
-      return;
-    }
-    setLocating(true);
-    setLocationError("");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-        setLocating(false);
-      },
-      () => {
-        setLocating(false);
-        setLocationError("Allow location access to use distance filtering.");
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    );
   }
   async function followSearch() {
     setSavingSearch(true);
@@ -300,37 +222,12 @@ export default function HotelsHome({ onNavigate }: Props) {
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
           locationDetail={locationError || undefined}
-        >
-          {mappedHotels > 0 && (
-            <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
-              <div className="inline-flex rounded-xl border border-white/[.07] p-1">
-              <button
-                type="button"
-                onClick={() => setView("list")}
-                className={`h-9 rounded-lg px-4 text-[9px] font-semibold ${view === "list" ? "bg-white/[.08] text-white" : "text-[#818797]"}`}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("map")}
-                className={`h-9 rounded-lg px-4 text-[9px] font-semibold ${view === "map" ? "bg-white/[.08] text-white" : "text-[#818797]"}`}
-              >
-                Map
-              </button>
-              </div><button
-                type="button"
-                onClick={() => {
-                  locateUser();
-                }}
-                disabled={locating}
-                className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-[9px] font-semibold disabled:opacity-50 ${userLocation ? "border-violet-400/30 bg-violet-500/10 text-violet-200" : "border-white/[.07] text-[#9297A5]"}`}
-              >
-                <span aria-hidden="true">⌖</span>{locating ? "Finding…" : userLocation ? "Location on" : "Use location"}
-              </button>
-            </div>
-          )}
-        </DiscoveryToolbar>
+          locationLabel={userLocation ? "Location on" : "Use my location"}
+          locationActive={Boolean(userLocation)}
+          locationBusy={locating}
+          onLocation={requestLocation}
+          onClearLocation={clearLocation}
+        />
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold">
@@ -353,7 +250,7 @@ export default function HotelsHome({ onNavigate }: Props) {
                 {savingSearch ? "Saving…" : "Follow search"}
               </button>
             )}
-            {(query || filterCount || userLocation) && (
+            {(query || filterCount) && (
               <button
                 type="button"
                 onClick={clearFilters}
@@ -377,17 +274,8 @@ export default function HotelsHome({ onNavigate }: Props) {
             }
             text="Change the selected filters to see other hotels."
           />
-        ) : view === "map" ? (
-          <PropertyMapExplorer
-            items={mapItems}
-            userLocation={userLocation}
-            radius={radius}
-            kind="Hotel"
-            approximate={false}
-            onOpen={(hotel) => onNavigate("hotel_detail", hotel.id)}
-          />
         ) : (
-          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map(({ hotel, distance }) => (
               <HotelCard
                 key={hotel.hotel_id}
@@ -453,7 +341,7 @@ export default function HotelsHome({ onNavigate }: Props) {
               ))}
             </div>
           </div>
-          {mappedHotels > 0 && userLocation && (
+          {userLocation && (
             <section>
               <SearchableSelect
                 label="Distance from your current location"
@@ -495,14 +383,14 @@ function HotelCard({
     <button
       type="button"
       onClick={onOpen}
-      className="grid w-full grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-3 text-left transition hover:bg-white/[.02] sm:grid-cols-[15rem_minmax(0,1fr)] sm:gap-5 sm:py-5"
+      className="group w-full border-b border-white/[.07] pb-5 text-left"
     >
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#171B24] sm:aspect-[16/10]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#171B24]">
         {image ? (
           <img
             src={image}
             alt={hotel.name}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
             loading="lazy"
           />
         ) : (
@@ -524,10 +412,10 @@ function HotelCard({
           </span>
         )}
       </div>
-      <div className="min-w-0 self-center py-1 pr-1 sm:pr-4">
+      <div className="min-w-0 px-1 pt-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="line-clamp-2 text-sm font-semibold sm:text-base">{hotel.name}</h2>
+            <h2 className="line-clamp-2 text-[15px] font-bold">{hotel.name}</h2>
             <p className="mt-1 truncate text-[9px] text-[#6F7585]">
               {[hotel.area, hotel.city, hotel.state].filter(Boolean).join(", ")}
             </p>
@@ -539,7 +427,7 @@ function HotelCard({
           )}
         </div>
         {minPrice > 0 && (
-          <p className="mt-3 text-sm font-bold sm:text-base">
+          <p className="mt-3 text-sm font-bold">
             ₦{minPrice.toLocaleString()} <span className="text-[8px] font-medium text-[#747A89]">/ night</span>
           </p>
         )}
@@ -553,6 +441,7 @@ function HotelCard({
                 {item}
               </span>
             ))}
+            {hotel.amenities.length > 3 && <span className="shrink-0 rounded-lg border border-violet-500/15 bg-violet-500/[.06] px-2 py-1 text-[8px] text-violet-300">+{hotel.amenities.length - 3}</span>}
           </div>
         )}
       </div>

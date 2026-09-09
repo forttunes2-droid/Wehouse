@@ -28,7 +28,6 @@ const LIVE_NAV = [
 
 const ACTIVATION_NAV = [
   { id: "home", label: "Home" },
-  { id: "account", label: "Account" },
 ];
 
 export default function WorkerWorkspaceModern({

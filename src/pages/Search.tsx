@@ -9,6 +9,7 @@ import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Listing } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { distanceBetweenKm, useDiscoveryLocation } from '@/hooks/useDiscoveryLocation';
 
 type SearchProps = { onNavigate:(page:string,listingId?:string)=>void; savedIds:Set<string>; onToggleSave:(listingId:string)=>void };
 
@@ -28,6 +29,7 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
  const[priceMin,setPriceMin]=useState<number|''>(()=>searchState.priceMin),[priceMax,setPriceMax]=useState<number|''>(()=>searchState.priceMax),[bedrooms,setBedrooms]=useState<number|''>(()=>searchState.bedrooms);
  const[filterState,setFilterState]=useState(()=>searchState.filterState),[filterCity,setFilterCity]=useState(()=>searchState.filterCity),[showFilters,setShowFilters]=useState(false);
  const[savingSearch,setSavingSearch]=useState(false);
+ const{location,locating,error:locationError,requestLocation,clearLocation}=useDiscoveryLocation();
 
  useEffect(()=>{const saved=sessionStorage.getItem('search_property_type');if(saved==='short_let'||saved==='long_stay')setStayType(saved);sessionStorage.removeItem('search_property_type')},[]);
  useEffect(()=>{searchState={stayType,priceMin,priceMax,bedrooms,filterState,filterCity}},[stayType,priceMin,priceMax,bedrooms,filterState,filterCity]);
@@ -41,13 +43,17 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
    ? {floor:getNumber('home_short_stay_min_price',SHORT_FLOOR),ceiling:getNumber('home_short_stay_max_price',SHORT_CEILING),step:1000}
    : {floor:getNumber('home_long_stay_min_price',LONG_FLOOR),ceiling:getNumber('home_long_stay_max_price',LONG_CEILING),step:10000},[stayType,getNumber]);
 
- const filtered=useMemo(()=>listings.filter(listing=>{
+ const filtered=useMemo(()=>listings.map(listing=>{
+   const lat=Number(listing.gps_latitude),lng=Number(listing.gps_longitude);
+   const distance=location&&Number.isFinite(lat)&&Number.isFinite(lng)?distanceBetweenKm(location,{lat,lng}):null;
+   return{listing,distance};
+ }).filter(({listing})=>{
    if(listing.sub_type!==stayType)return false;
    const price=Number(listing.price||0);if(priceMin!==''&&(price<=0||price<priceMin))return false;if(priceMax!==''&&(price<=0||price>priceMax))return false;
    if(bedrooms&&Number(listing.bedrooms||0)<bedrooms)return false;
    if(filterState&&normalize(listing.state)!==normalize(filterState))return false;if(filterCity&&normalize(listing.city)!==normalize(filterCity))return false;
    return true;
- }),[listings,stayType,priceMin,priceMax,bedrooms,filterState,filterCity]);
+ }).sort((a,b)=>location?(a.distance??Infinity)-(b.distance??Infinity):0),[listings,stayType,priceMin,priceMax,bedrooms,filterState,filterCity,location]);
 
  const priceActive=priceMin!==''||priceMax!=='';
  const filterCount=[bedrooms,filterState,filterCity].filter(Boolean).length+(priceActive?1:0);
@@ -62,9 +68,9 @@ export default function Search({onNavigate,savedIds,onToggleSave}:SearchProps){
 
  return <DiscoveryShell active="homes" onNavigate={onNavigate}>
   <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
-   <DiscoveryToolbar showSearch={false} toolbarLabel={locationSummary} onFilters={()=>setShowFilters(true)} filterCount={filterCount}/>
+   <DiscoveryToolbar showSearch={false} toolbarLabel={locationSummary} onFilters={()=>setShowFilters(true)} filterCount={filterCount} locationLabel={location?'Location on':'Use my location'} locationActive={Boolean(location)} locationBusy={locating} onLocation={requestLocation} onClearLocation={clearLocation} locationDetail={locationError||undefined}/>
    <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold">{loading?'Loading apartments…':`${filtered.length} ${filtered.length===1?'apartment':'apartments'}`}</p><p className="mt-1 text-[9px] text-[#666D7E]">{modeLabel}</p></div><div className="flex items-center gap-3">{hasFilters&&<button type="button" disabled={savingSearch} onClick={()=>void followSearch()} className="rounded-full border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-40">{savingSearch?'Saving…':'Follow search'}</button>}{hasFilters&&<button type="button" onClick={clearFilters} className="text-[9px] font-semibold text-[#858A99]">Clear</button>}</div></div>
-   {loadError&&!listings.length?<section className="border-y border-red-500/15 px-5 py-12 text-center"><p className="text-sm font-semibold">Apartments could not be loaded</p><p className="mt-2 text-[10px] text-[#777D8D]">{loadError}</p><button type="button" onClick={()=>void loadProperties()} className="mt-4 rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Try again</button></section>:loading&&!listings.length?<div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>:filtered.length===0?<DiscoveryEmpty title={emptyTitle} text="Change the selected filters to see other apartments."/>:<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(listing=><ListingCard key={listing.id} listing={listing} onClick={()=>onNavigate('detail',listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event=>{event.stopPropagation();onToggleSave(listing.id)}}/>)}</div>}
+   {loadError&&!listings.length?<section className="border-y border-red-500/15 px-5 py-12 text-center"><p className="text-sm font-semibold">Apartments could not be loaded</p><p className="mt-2 text-[10px] text-[#777D8D]">{loadError}</p><button type="button" onClick={()=>void loadProperties()} className="mt-4 rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold">Try again</button></section>:loading&&!listings.length?<div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>:filtered.length===0?<DiscoveryEmpty title={emptyTitle} text="Change the selected filters to see other apartments."/>:<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(({listing,distance})=><ListingCard key={listing.id} listing={listing} distanceKm={distance} onClick={()=>onNavigate('detail',listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event=>{event.stopPropagation();onToggleSave(listing.id)}}/>)}</div>}
   </main>
 
   {showFilters&&<DiscoveryFilterSheet title="Find apartments" onClose={()=>setShowFilters(false)} onClear={clearFilters} resultLabel={`Show ${filtered.length} ${filtered.length===1?'apartment':'apartments'}`}>

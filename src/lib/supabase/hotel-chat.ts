@@ -1,4 +1,4 @@
-import { compressImageFile } from "./utils";
+import { prepareChatImageFile } from "./utils";
 import { supabase } from "./client";
 
 export type HotelConversation = {
@@ -32,6 +32,7 @@ export type HotelMessage = {
   attachment_types: string[];
   reactions: Record<string, string>;
   is_read: boolean;
+  reply_to_id?: string | null;
   created_at: string;
 };
 
@@ -79,12 +80,14 @@ export async function sendHotelMessage(
   content: string,
   attachments: string[] = [],
   attachmentTypes: string[] = [],
+  replyToId: string | null = null,
 ) {
   const { data, error } = await supabase.rpc("send_hotel_booking_message", {
     p_conversation_id: conversationId,
     p_content: content,
     p_attachments: attachments,
     p_attachment_types: attachmentTypes,
+    p_reply_to_id: replyToId,
   });
   return { messageId: data as string | null, error };
 }
@@ -132,9 +135,10 @@ export async function uploadHotelChatAttachment(
   let contentType = file.type || "application/octet-stream";
   let extension = (file.name.split(".").pop() || "bin").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   if (file.type.startsWith("image/")) {
-    upload = await compressImageFile(file, 1920, 0.84);
-    contentType = "image/jpeg";
-    extension = "jpg";
+    const prepared = await prepareChatImageFile(file);
+    upload = prepared.body;
+    contentType = prepared.contentType;
+    extension = prepared.extension;
   }
   const path = `${conversationId}/${userId}/${Date.now()}-${crypto.randomUUID()}.${extension || "bin"}`;
   const { error } = await supabase.storage.from("hotel-chat-files").upload(path, upload, {

@@ -293,16 +293,16 @@ export default function Notifications({
         <Empty />
       ) : (
         <div className="space-y-5">
-          <div className="flex min-h-10 items-center justify-end border-b border-white/[.06] pb-3">
-            {unread > 0 && (
+          {unread > 0 && (
+            <div className="flex items-center justify-end">
               <button
                 onClick={() => void markAll()}
                 className="shrink-0 rounded-full border border-white/[.08] px-3 py-2 text-[9px] font-semibold text-violet-300"
               >
-                Mark read
+                Mark all read
               </button>
-            )}
-          </div>
+            </div>
+          )}
           {groups.map(([day, items]) => (
             <section key={day}>
               <h2

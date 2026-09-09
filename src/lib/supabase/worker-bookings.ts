@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { compressImageFile } from './utils';
+import { prepareChatImageFile } from './utils';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, type EncryptedAttachment } from '@/lib/e2ee';
 
 export async function createBookingRequest(workerId:string,serviceType:string,description:string,address:string,scheduledDate:string,customerMessage?:string){
@@ -69,10 +69,10 @@ export async function reactToBookingMessage(
   return { reactions: (data || {}) as Record<string, string>, error };
 }
 
-export async function sendBookingMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[]){
+export async function sendBookingMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],replyToId:string|null=null){
   try{
     const encrypted=await encryptPrivateMessage('worker',conversationId,peerUserId,content);
-    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'worker',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments});
+    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'worker',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId});
     return{messageId:data,error};
   }catch(error:any){return{messageId:null,error:{message:error?.message||'Encrypted message could not be sent'} as any}}
 }
@@ -82,7 +82,7 @@ export async function uploadBookingChatAttachment(file:File,conversationId:strin
     let upload:Blob|File=file;
     let contentType=file.type||'application/octet-stream';
     let extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
-    if(file.type.startsWith('image/')){upload=await compressImageFile(file,1920,.85);contentType='image/jpeg';extension='jpg'}
+    if(file.type.startsWith('image/')){const prepared=await prepareChatImageFile(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'file';
     const encrypted=await encryptPrivateAttachment('worker',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
     const path=`e2ee/worker/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;

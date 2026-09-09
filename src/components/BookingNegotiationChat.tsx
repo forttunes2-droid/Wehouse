@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   getBookingMessages,
@@ -32,11 +32,11 @@ import BackButton from "@/components/BackButton";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
-import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import {
   privateConversationReadiness,
   type PrivateConversationReadiness,
@@ -57,6 +57,7 @@ type ChatMessage = {
   attachments?: string[] | null;
   is_read?: boolean | null;
   reactions?: Record<string, string>;
+  reply_to_id?: string | null;
   created_at: string;
 };
 type Booking = {
@@ -115,14 +116,18 @@ export default function BookingNegotiationChat({
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
+    [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null),
     [messageToRemove, setMessageToRemove] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false),
     [secureChat, setSecureChat] = useState<PrivateConversationReadiness | null>(null);
   const [review,setReview]=useState<any>(null),[reviewRating,setReviewRating]=useState(0),[reviewComment,setReviewComment]=useState(''),[reviewSaving,setReviewSaving]=useState(false),[reviewOpen,setReviewOpen]=useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null),
-    fileInputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
+  const messageById = useMemo(
+    () => new Map(messages.map((message) => [message.id, message])),
+    [messages],
+  );
   const peerId = booking
     ? isWorker
       ? booking.user_id
@@ -139,6 +144,7 @@ export default function BookingNegotiationChat({
       if (!quiet) setLoading(true);
       const bookingRes = await getBookingDetails(bookingId);
       const loadedBooking = (bookingRes.booking || null) as Booking | null;
+      if (!bookingRes.error) setBooking(loadedBooking);
       const loadedPeerId = loadedBooking ? (isWorker ? loadedBooking.user_id : loadedBooking.worker_id) : null;
       const msgRes = await getBookingMessages(conversationId, loadedPeerId);
       if (!msgRes.error) {
@@ -148,11 +154,9 @@ export default function BookingNegotiationChat({
         setMessageError(msgRes.error.message || "Conversation could not be loaded");
         toast.error("Conversation could not be loaded");
       }
-      if (!bookingRes.error)
-        setBooking(loadedBooking);
-      if(loadedBooking?.status==='approved_released'&&!isWorker){const reviewResult=await getMyWorkerBookingReview(bookingId);if(!reviewResult.error&&reviewResult.review){setReview(reviewResult.review);setReviewRating(Number(reviewResult.review.rating||0));setReviewComment(String(reviewResult.review.comment||''));}}
-      await markBookingMessagesRead(conversationId);
       if (!quiet) setLoading(false);
+      void markBookingMessagesRead(conversationId);
+      if(loadedBooking?.status==='approved_released'&&!isWorker)void getMyWorkerBookingReview(bookingId).then(reviewResult=>{if(!reviewResult.error&&reviewResult.review){setReview(reviewResult.review);setReviewRating(Number(reviewResult.review.rating||0));setReviewComment(String(reviewResult.review.comment||''));}});
     },
     [conversationId, bookingId, isWorker],
   );
@@ -255,16 +259,17 @@ export default function BookingNegotiationChat({
         toast.error("You can send up to 6 files at once");
       return next;
     });
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
   async function handleSend() {
     if (sending || (!input.trim() && !files.length)) return;
     if (secureChat?.state !== "ready" || !peerId) return toast.error("Secure chat is not ready yet");
     const content = input.trim(),
-      queuedFiles = [...files];
+      queuedFiles = [...files],
+      replyTarget = replyingTo;
     setSending(true);
     setInput("");
     setFiles([]);
+    setReplyingTo(null);
     const optimisticId = `pending-${Date.now()}`;
     if (content)
       setMessages((current) => [
@@ -275,6 +280,7 @@ export default function BookingNegotiationChat({
           sender_name: profile.full_name || profile.username || "You",
           content,
           attachments: [],
+          reply_to_id: replyTarget?.id || null,
           is_read: false,
           created_at: new Date().toISOString(),
         },
@@ -297,6 +303,7 @@ export default function BookingNegotiationChat({
         peerId || "",
         content,
         attachments,
+        replyTarget?.id || null,
       );
       if (error) throw error;
       await loadAll(true);
@@ -306,6 +313,7 @@ export default function BookingNegotiationChat({
       );
       setInput(content);
       setFiles(queuedFiles);
+      setReplyingTo(replyTarget);
       if (paths.length) await supabase.storage.from("chat-files").remove(paths);
       toast.error(
         error instanceof Error ? error.message : "Message could not be sent",
@@ -792,6 +800,10 @@ export default function BookingNegotiationChat({
                         {msg.sender_name || "Job participant"}
                       </p>
                     )}
+                    {msg.reply_to_id && (() => {
+                      const quoted = messageById.get(msg.reply_to_id);
+                      return quoted ? <div className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}><p className="truncate text-[8px] font-semibold text-violet-200">{quoted.sender_id === profile.user_id ? "You" : quoted.sender_name || peerName}</p><p className="mt-0.5 truncate text-[9px] opacity-70">{quoted.content || (quoted.attachments?.length ? "Attachment" : "Message")}</p></div> : null;
+                    })()}
                     {msg.attachments?.map((url: string, i: number) => (
                       <BookingAttachment key={`${msg.id}-${i}`} url={url} />
                     ))}
@@ -876,20 +888,21 @@ export default function BookingNegotiationChat({
                 voice.discard();
               }}
             />
+            {replyingTo && (
+              <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[8px] font-semibold text-violet-300">Replying to {replyingTo.sender_id === profile.user_id ? "yourself" : replyingTo.sender_name || peerName}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">{replyingTo.content || (replyingTo.attachments?.length ? "Attachment" : "Message")}</p>
+                </div>
+                <button type="button" onClick={() => setReplyingTo(null)} className="grid h-8 w-8 place-items-center text-[#818797]" aria-label="Cancel reply">×</button>
+              </div>
+            )}
             <div className="flex items-end gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-lg text-[#858A9B]"
-              >
-                ＋
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,application/pdf,audio/*,video/mp4"
-                className="hidden"
-                onChange={(e) => chooseFiles(e.target.files)}
+              <ChatAttachmentPicker
+                onFiles={chooseFiles}
+                allowVideo
+                allowDocuments
+                allowAudio
               />
               <button
                 onClick={() => void toggleVoice()}
@@ -929,16 +942,7 @@ export default function BookingNegotiationChat({
           <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Message WeHouse</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>
         )}
       </footer>
-      {profileOpen && !isWorker && peerProfile ? (
-        <WorkerPublicProfile
-          worker={peerProfile as Profile}
-          bookingActive
-          showBookingAction={false}
-          onBack={() => setProfileOpen(false)}
-          onOpenBooking={() => setProfileOpen(false)}
-          onBook={() => setProfileOpen(false)}
-        />
-      ) : profileOpen ? (
+      {profileOpen ? (
         <ConversationIdentitySheet
           profile={peerProfile}
           booking={booking}
@@ -969,6 +973,10 @@ export default function BookingNegotiationChat({
                   : row,
               ),
             );
+            setMessageMenu(null);
+          }}
+          onReply={() => {
+            setReplyingTo(messageMenu);
             setMessageMenu(null);
           }}
           onRemove={() => {

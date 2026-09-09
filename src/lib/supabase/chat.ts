@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { compressImageFile } from './utils';
+import { prepareChatImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, type EncryptedAttachment } from '@/lib/e2ee';
 
@@ -66,7 +66,7 @@ export async function uploadRoommateChatAttachment(file:File,conversationId:stri
     if(!file.type.startsWith('image/')&&!file.type.startsWith('audio/'))return{path:null,error:{message:'Roommate chat supports photos and voice notes only'} as any};
     if(file.size>25*1024*1024)return{path:null,error:{message:'Attachment must be 25MB or smaller'} as any};
     let upload:Blob|File=file,contentType=file.type||'application/octet-stream',extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
-    if(file.type.startsWith('image/')){upload=await compressImageFile(file,1920,.85);contentType='image/jpeg';extension='jpg'}
+    if(file.type.startsWith('image/')){const prepared=await prepareChatImageFile(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'attachment';
     const encrypted=await encryptPrivateAttachment('roommate',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
     const path=`e2ee/roommate/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;
@@ -86,9 +86,9 @@ export async function hideRoommateConversation(conversationId:string){
   return{hidden:data===true,error};
 }
 
-export async function setRoommateBlock(userId:string,blocked:boolean){
-  const{data,error}=await supabase.rpc('set_my_roommate_block',{p_user_id:userId,p_blocked:blocked});
-  return{blocked:data===true,error};
+export async function setRoommateBlock(userId:string,blocked:boolean,reason?:string){
+  const{data,error}=await supabase.rpc('set_my_roommate_block_v2',{p_user_id:userId,p_blocked:blocked,p_reason:reason?.trim()||null});
+  return{blocked:Boolean(data?.blocked),cancellationState:String(data?.cancellation_state||'none'),error};
 }
 
 export async function markMessagesSeen(conversationId:string){
