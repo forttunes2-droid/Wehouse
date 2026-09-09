@@ -128,7 +128,10 @@ export default function PartnerSubmittedRequests({
       } else {
         const nextRequests = (data || []) as RequestRow[];
         setRequests(nextRequests);
-        if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
+        if (
+          initialRecordId &&
+          openedTarget.current !== String(initialRecordId)
+        ) {
           openedTarget.current = String(initialRecordId);
           const target = nextRequests.find((request) =>
             [request.id, request.draft_listing_id, request.draft_hotel_id]
@@ -475,8 +478,16 @@ function RequestDetail({
             {stopped ? friendly(stage) : `${progress} of 5`}
           </span>
         </div>
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className={`h-full rounded-full ${progress === 5 ? "bg-emerald-400" : "bg-violet-400"}`} style={{ width: `${progress * 20}%` }} /></div>
-        <div className="mt-2 flex justify-between text-[8px] text-[#686E7E]"><span>{steps[Math.max(0, progress - 1)]}</span><span>{progress}/5</span></div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+          <div
+            className={`h-full rounded-full ${progress === 5 ? "bg-emerald-400" : "bg-violet-400"}`}
+            style={{ width: `${progress * 20}%` }}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[8px] text-[#686E7E]">
+          <span>{steps[Math.max(0, progress - 1)]}</span>
+          <span>{progress}/5</span>
+        </div>
         {stage === "inspection" && request.scheduled_date && (
           <p className="mt-4 rounded-xl bg-violet-500/[.06] p-3 text-[10px] text-violet-200">
             Inspection visit:{" "}
@@ -499,13 +510,10 @@ function RequestDetail({
       )}
       {request.gps_latitude != null && request.gps_longitude != null && (
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4">
-          <p className="text-xs font-semibold">Property coordinates supplied</p>
+          <p className="text-xs font-semibold">Location recorded privately</p>
           <p className="mt-1 text-[10px] text-[#777E90]">
-            {request.gps_latitude.toFixed(6)},{" "}
-            {request.gps_longitude.toFixed(6)}
-            {request.location_accuracy_m
-              ? ` · ±${Math.round(request.location_accuracy_m)}m`
-              : ""}
+            The exact pin is available only to authorized WeHouse operations for
+            inspection and handover.
           </p>
         </section>
       )}
@@ -559,7 +567,12 @@ function LiveHotel({
       </div>
     );
   return (
-    <PartnerHotelOperations hotel={hotel} accessRole="owner" profile={profile} onBack={onBack} />
+    <PartnerHotelOperations
+      hotel={hotel}
+      accessRole="owner"
+      profile={profile}
+      onBack={onBack}
+    />
   );
 }
 
@@ -577,7 +590,9 @@ function AccessEvidenceCorrection({
   const [recording, setRecording] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const challengeCurrent = Boolean(challenge && new Date(challenge.expires_at).getTime() > Date.now() + 60_000);
+  const challengeCurrent = Boolean(
+    challenge && new Date(challenge.expires_at).getTime() > Date.now() + 60_000,
+  );
   async function prepare() {
     setBusy(true);
     const { data, error } = await supabase.rpc(
@@ -594,7 +609,8 @@ function AccessEvidenceCorrection({
   }
   async function submit() {
     if (!challenge || !recording) return;
-    if (!challengeCurrent) return toast.error("Create a new access code before uploading");
+    if (!challengeCurrent)
+      return toast.error("Create a new access code before uploading");
     if (recording.size > 100 * 1024 * 1024)
       return toast.error("Access recording must be under 100MB");
     const duration = propertyAccessDuration(recording);
@@ -603,10 +619,16 @@ function AccessEvidenceCorrection({
         `Record at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds of continuous access evidence`,
       );
     setBusy(true);
-    const checked = await supabase.rpc("validate_my_property_access_challenge", { p_challenge_id: challenge.id });
+    const checked = await supabase.rpc(
+      "validate_my_property_access_challenge",
+      { p_challenge_id: challenge.id },
+    );
     if (checked.error || !checked.data?.valid) {
       setBusy(false);
-      return toast.error(checked.error?.message || "This access code expired. Create a new code and record again.");
+      return toast.error(
+        checked.error?.message ||
+          "This access code expired. Create a new code and record again.",
+      );
     }
     const extension = recording.type.includes("mp4")
       ? "mp4"
@@ -615,12 +637,20 @@ function AccessEvidenceCorrection({
         : "webm";
     const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${extension}`;
     try {
-      await uploadStorageObjectWithProgress("property-access-private", path, recording, recording.type || "video/webm", setUploadProgress);
+      await uploadStorageObjectWithProgress(
+        "property-access-private",
+        path,
+        recording,
+        recording.type || "video/webm",
+        setUploadProgress,
+      );
     } catch (error) {
       setBusy(false);
       setUploadProgress(null);
       return toast.error(
-        error instanceof Error ? error.message : "Replacement recording upload failed",
+        error instanceof Error
+          ? error.message
+          : "Replacement recording upload failed",
       );
     }
     const result = await supabase.rpc("submit_my_property_access_correction", {
@@ -656,7 +686,11 @@ function AccessEvidenceCorrection({
           onClick={() => void prepare()}
           className="mt-3 h-11 w-full rounded-xl bg-amber-400 text-[10px] font-semibold text-black disabled:opacity-40"
         >
-          {busy ? "Preparing…" : challenge ? "Create new code" : "Record replacement evidence"}
+          {busy
+            ? "Preparing…"
+            : challenge
+              ? "Create new code"
+              : "Record replacement evidence"}
         </button>
       </section>
     );
@@ -676,7 +710,9 @@ function AccessEvidenceCorrection({
           onClick={() => void submit()}
           className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
         >
-          {busy ? `Sending replacement · ${uploadProgress ?? 0}%` : "Send replacement to WeHouse"}
+          {busy
+            ? `Sending replacement · ${uploadProgress ?? 0}%`
+            : "Send replacement to WeHouse"}
         </button>
       )}
     </div>

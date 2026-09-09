@@ -86,6 +86,7 @@ export {
 // Reservations
 export {
   createReservation,
+  createShortStayReservation,
   initializeReservationPayment,
   getReservationForListing,
   getReservationsForUser,
@@ -106,6 +107,8 @@ export {
   completeInspectionResult,
   confirmApartmentHandover,
   completeApartmentTenancy,
+  completeShortStay,
+  confirmShortStayCheckIn,
   expireOverdueReservations,
 } from "./reservations";
 

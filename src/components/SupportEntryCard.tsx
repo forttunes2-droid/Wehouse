@@ -73,7 +73,11 @@ export default function SupportEntryCard({
     [onAvailabilityChange, ordered.length],
   );
   const unread = useMemo(
-    () => ordered.reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0),
+    () =>
+      ordered.reduce(
+        (sum, thread) => sum + Number(thread.unread_count || 0),
+        0,
+      ),
     [ordered],
   );
   useEffect(() => onUnreadChange?.(unread), [onUnreadChange, unread]);
@@ -99,13 +103,18 @@ export default function SupportEntryCard({
     return (
       <div className="px-4 py-8 text-center">
         <p className="text-xs font-semibold">No WeHouse conversations yet</p>
-        <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#656B7B]">Open the relevant property, booking, payment or account action to contact the correct WeHouse work area.</p>
+        <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#656B7B]">
+          Open the relevant property, booking, payment or account action to
+          contact the correct WeHouse work area.
+        </p>
       </div>
     );
   return (
     <div>
       {ordered.map((thread, index) => {
         const p = conversationPresentation(thread);
+        const caseNumber = String(thread.context_snapshot?.case_number || "");
+        const status = supportStatus(thread.status);
         return (
           <div key={thread.conversation_id}>
             {index > 0 && <div className="ml-[4.5rem] h-px bg-white/[.05]" />}
@@ -113,7 +122,16 @@ export default function SupportEntryCard({
               compact={compact}
               title={p.title}
               preview={thread.last_message || p.operator}
-              meta={[p.operator, p.meta].filter(Boolean).join(" · ")}
+              meta={[
+                caseNumber ? `Case ${caseNumber}` : "",
+                status,
+                thread.assigned_staff_name
+                  ? `Assigned to ${thread.assigned_staff_name}`
+                  : "Awaiting WeHouse assignment",
+                p.meta,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               unread={Number(thread.unread_count || 0)}
               time={thread.last_message_time || thread.created_at}
               onOpen={() => open(thread)}
@@ -179,6 +197,16 @@ function SupportRow({
       </div>
     </button>
   );
+}
+function supportStatus(value: string) {
+  const labels: Record<string, string> = {
+    open: "Received",
+    assigned: "Assigned",
+    in_progress: "In progress",
+    resolved: "Resolved",
+    closed: "Closed",
+  };
+  return labels[value] || String(value || "Received").replace(/_/g, " ");
 }
 function formatTime(value: string) {
   const d = new Date(value),

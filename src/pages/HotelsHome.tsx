@@ -11,7 +11,10 @@ import DiscoveryShell, {
   DiscoveryFilterSheet,
   DiscoveryToolbar,
 } from "@/components/DiscoveryShell";
-import { distanceBetweenKm, useDiscoveryLocation } from "@/hooks/useDiscoveryLocation";
+import {
+  distanceBetweenKm,
+  useDiscoveryLocation,
+} from "@/hooks/useDiscoveryLocation";
 
 type HotelRoomPreview = {
   room_id: number;
@@ -50,7 +53,13 @@ export default function HotelsHome({ onNavigate }: Props) {
     [filtersOpen, setFiltersOpen] = useState(false),
     [radius, setRadius] = useState<number | "">(""),
     [savingSearch, setSavingSearch] = useState(false);
-  const { location: userLocation, locating, error: locationError, requestLocation, clearLocation } = useDiscoveryLocation();
+  const {
+    location: userLocation,
+    locating,
+    error: locationError,
+    requestLocation,
+    clearLocation,
+  } = useDiscoveryLocation();
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -107,7 +116,8 @@ export default function HotelsHome({ onNavigate }: Props) {
           const c = coords(hotel);
           return {
             hotel,
-            distance: userLocation && c ? distanceBetweenKm(userLocation, c) : null,
+            distance:
+              userLocation && c ? distanceBetweenKm(userLocation, c) : null,
           };
         })
         .filter(({ hotel, distance }) => {
@@ -210,11 +220,17 @@ export default function HotelsHome({ onNavigate }: Props) {
     );
   }
   return (
-    <DiscoveryShell
-      active="hotels"
-      onNavigate={onNavigate}
-    >
+    <DiscoveryShell active="hotels" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
+        <header className="pb-2">
+          <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
+            WEHOUSE · STAYS
+          </p>
+          <h1 className="mt-2 text-2xl font-bold">Explore hotels</h1>
+          <p className="mt-1 text-[11px] text-[#73798A]">
+            Find a verified room and choose your exact stay dates.
+          </p>
+        </header>
         <DiscoveryToolbar
           value={query}
           onChange={setQuery}
@@ -428,7 +444,10 @@ function HotelCard({
         </div>
         {minPrice > 0 && (
           <p className="mt-3 text-sm font-bold">
-            ₦{minPrice.toLocaleString()} <span className="text-[8px] font-medium text-[#747A89]">/ night</span>
+            ₦{minPrice.toLocaleString()}{" "}
+            <span className="text-[8px] font-medium text-[#747A89]">
+              / night
+            </span>
           </p>
         )}
         {hotel.amenities?.length > 0 && (
@@ -441,7 +460,11 @@ function HotelCard({
                 {item}
               </span>
             ))}
-            {hotel.amenities.length > 3 && <span className="shrink-0 rounded-lg border border-violet-500/15 bg-violet-500/[.06] px-2 py-1 text-[8px] text-violet-300">+{hotel.amenities.length - 3}</span>}
+            {hotel.amenities.length > 3 && (
+              <span className="shrink-0 rounded-lg border border-violet-500/15 bg-violet-500/[.06] px-2 py-1 text-[8px] text-violet-300">
+                +{hotel.amenities.length - 3}
+              </span>
+            )}
           </div>
         )}
       </div>

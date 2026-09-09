@@ -24,7 +24,6 @@ import useChatPresence from "@/hooks/useChatPresence";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { toast } from "sonner";
-import { SmilePlus } from "lucide-react";
 import MediaViewer from "@/components/MediaViewer";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import PrivateCallHistory from "@/components/PrivateCallHistory";
@@ -119,8 +118,14 @@ export default function BookingNegotiationChat({
     [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null),
     [messageToRemove, setMessageToRemove] = useState<ChatMessage | null>(null),
     [confirmDelete, setConfirmDelete] = useState(false),
-    [secureChat, setSecureChat] = useState<PrivateConversationReadiness | null>(null);
-  const [review,setReview]=useState<any>(null),[reviewRating,setReviewRating]=useState(0),[reviewComment,setReviewComment]=useState(''),[reviewSaving,setReviewSaving]=useState(false),[reviewOpen,setReviewOpen]=useState(false);
+    [secureChat, setSecureChat] = useState<PrivateConversationReadiness | null>(
+      null,
+    );
+  const [review, setReview] = useState<any>(null),
+    [reviewRating, setReviewRating] = useState(0),
+    [reviewComment, setReviewComment] = useState(""),
+    [reviewSaving, setReviewSaving] = useState(false),
+    [reviewOpen, setReviewOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
@@ -137,7 +142,9 @@ export default function BookingNegotiationChat({
   const presenceText = chatPresenceLabel(presence);
   const refreshSecureChat = useCallback(async () => {
     if (!peerId) return setSecureChat(null);
-    setSecureChat(await privateConversationReadiness("worker", conversationId, peerId));
+    setSecureChat(
+      await privateConversationReadiness("worker", conversationId, peerId),
+    );
   }, [conversationId, peerId]);
   const loadAll = useCallback(
     async (quiet = false) => {
@@ -145,18 +152,31 @@ export default function BookingNegotiationChat({
       const bookingRes = await getBookingDetails(bookingId);
       const loadedBooking = (bookingRes.booking || null) as Booking | null;
       if (!bookingRes.error) setBooking(loadedBooking);
-      const loadedPeerId = loadedBooking ? (isWorker ? loadedBooking.user_id : loadedBooking.worker_id) : null;
+      const loadedPeerId = loadedBooking
+        ? isWorker
+          ? loadedBooking.user_id
+          : loadedBooking.worker_id
+        : null;
       const msgRes = await getBookingMessages(conversationId, loadedPeerId);
       if (!msgRes.error) {
         setMessages((msgRes.messages || []) as ChatMessage[]);
         setMessageError(null);
       } else if (!quiet) {
-        setMessageError(msgRes.error.message || "Conversation could not be loaded");
+        setMessageError(
+          msgRes.error.message || "Conversation could not be loaded",
+        );
         toast.error("Conversation could not be loaded");
       }
       if (!quiet) setLoading(false);
       void markBookingMessagesRead(conversationId);
-      if(loadedBooking?.status==='approved_released'&&!isWorker)void getMyWorkerBookingReview(bookingId).then(reviewResult=>{if(!reviewResult.error&&reviewResult.review){setReview(reviewResult.review);setReviewRating(Number(reviewResult.review.rating||0));setReviewComment(String(reviewResult.review.comment||''));}});
+      if (loadedBooking?.status === "approved_released" && !isWorker)
+        void getMyWorkerBookingReview(bookingId).then((reviewResult) => {
+          if (!reviewResult.error && reviewResult.review) {
+            setReview(reviewResult.review);
+            setReviewRating(Number(reviewResult.review.rating || 0));
+            setReviewComment(String(reviewResult.review.comment || ""));
+          }
+        });
     },
     [conversationId, bookingId, isWorker],
   );
@@ -262,7 +282,8 @@ export default function BookingNegotiationChat({
   }
   async function handleSend() {
     if (sending || (!input.trim() && !files.length)) return;
-    if (secureChat?.state !== "ready" || !peerId) return toast.error("Secure chat is not ready yet");
+    if (secureChat?.state !== "ready" || !peerId)
+      return toast.error("Secure chat is not ready yet");
     const content = input.trim(),
       queuedFiles = [...files],
       replyTarget = replyingTo;
@@ -285,7 +306,13 @@ export default function BookingNegotiationChat({
           created_at: new Date().toISOString(),
         },
       ]);
-    const paths: string[] = [], attachments: Array<{path:string;file_iv:string;metadata_ciphertext:string;metadata_iv:string}> = [];
+    const paths: string[] = [],
+      attachments: Array<{
+        path: string;
+        file_iv: string;
+        metadata_ciphertext: string;
+        metadata_iv: string;
+      }> = [];
     try {
       for (const file of queuedFiles) {
         const uploaded = await uploadBookingChatAttachment(
@@ -294,7 +321,9 @@ export default function BookingNegotiationChat({
           peerId || "",
         );
         if (uploaded.error || !uploaded.path || !uploaded.attachment)
-          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
+          throw new Error(
+            uploaded.error?.message || `Could not upload ${file.name}`,
+          );
         paths.push(uploaded.path);
         attachments.push(uploaded.attachment);
       }
@@ -329,7 +358,11 @@ export default function BookingNegotiationChat({
     try {
       await voice.start();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Microphone permission is required for voice messages");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Microphone permission is required for voice messages",
+      );
     }
   }
   async function openPeerProfile() {
@@ -361,18 +394,32 @@ export default function BookingNegotiationChat({
     setMessageToRemove(null);
     await loadAll(true);
   }
-  async function startCall(type: "audio" | "video") {
+  async function startCall() {
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
       conversationId,
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (type === "audio" && !capabilities.allow_audio_calls) return toast.error("This person is not accepting audio calls");
-    if (type === "video" && !capabilities.allow_video_calls) return toast.error("This person is not accepting video calls");
-    launchPrivateCall("worker_booking", conversationId, type);
+    if (!capabilities.allow_audio_calls)
+      return toast.error("This person is not accepting audio calls");
+    launchPrivateCall("worker_booking", conversationId, "audio");
   }
-  async function saveReview(){if(reviewRating<1)return toast.error('Choose a star rating');setReviewSaving(true);const{review:next,error}=await submitWorkerBookingReview(bookingId,reviewRating,reviewComment);setReviewSaving(false);if(error||!next)return toast.error(error?.message||'Review could not be saved');setReview(next);setReviewOpen(false);toast.success('Your review was saved')}
+  async function saveReview() {
+    if (reviewRating < 1) return toast.error("Choose a star rating");
+    setReviewSaving(true);
+    const { review: next, error } = await submitWorkerBookingReview(
+      bookingId,
+      reviewRating,
+      reviewComment,
+    );
+    setReviewSaving(false);
+    if (error || !next)
+      return toast.error(error?.message || "Review could not be saved");
+    setReview(next);
+    setReviewOpen(false);
+    toast.success("Your review was saved");
+  }
   async function handleWorkerAccept() {
     const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
@@ -444,12 +491,16 @@ export default function BookingNegotiationChat({
       }
       const reference = bootstrap.reference as string,
         amount = bootstrap.amount as number;
-      const { data: initialized, error: initError } = await supabase.functions.invoke(
-        "payment-init",
-        { body: { reference } },
-      );
+      const { data: initialized, error: initError } =
+        await supabase.functions.invoke("payment-init", {
+          body: { reference },
+        });
       if (initError || !initialized?.success) {
-        throw new Error(initialized?.error || initError?.message || "Checkout could not start");
+        throw new Error(
+          initialized?.error ||
+            initError?.message ||
+            "Checkout could not start",
+        );
       }
       if (initialized.already_paid) {
         toast.success("Payment is already confirmed");
@@ -457,10 +508,16 @@ export default function BookingNegotiationChat({
         void loadAll(true);
         return;
       }
-      if (!initialized.authorization_url) throw new Error("Paystack checkout link is missing");
+      if (!initialized.authorization_url)
+        throw new Error("Paystack checkout link is missing");
       try {
-        localStorage.setItem("wh_worker_booking_payment", JSON.stringify({ reference, bookingId, amount }));
-      } catch { /* Checkout still works when storage is unavailable. */ }
+        localStorage.setItem(
+          "wh_worker_booking_payment",
+          JSON.stringify({ reference, bookingId, amount }),
+        );
+      } catch {
+        /* Checkout still works when storage is unavailable. */
+      }
       window.location.assign(String(initialized.authorization_url));
     } catch (error: unknown) {
       setPaying(false);
@@ -490,7 +547,8 @@ export default function BookingNegotiationChat({
     return createPortal(
       <div className="fixed inset-0 z-50 grid place-items-center bg-[#0A0A0F]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>, document.body
+      </div>,
+      document.body,
     );
   return createPortal(
     <div className="fixed inset-0 z-[100020] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#0A0A0F] text-white">
@@ -523,20 +581,15 @@ export default function BookingNegotiationChat({
               </p>
             </div>
           </button>
-          {openConversation && <button
-            onClick={() => void startCall("audio")}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
-            aria-label="Start audio call"
-          >
-            <Phone />
-          </button>}
-          {openConversation && <button
-            onClick={() => void startCall("video")}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
-            aria-label="Start video call"
-          >
-            <VideoCall />
-          </button>}
+          {openConversation && (
+            <button
+              onClick={() => void startCall()}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+              aria-label="Start audio call"
+            >
+              <Phone />
+            </button>
+          )}
           <button
             onClick={() => setMenuOpen((value) => !value)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[#8E93A3] hover:bg-white/[.05]"
@@ -568,9 +621,23 @@ export default function BookingNegotiationChat({
         )}
         {booking && (
           <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-white/[.06] bg-white/[.025] p-3">
-            <button type="button" onClick={()=>setDetailsOpen(true)} className="flex w-full items-center justify-between gap-3 text-left">
-              <span className="min-w-0"><span className="block truncate text-[10px] font-semibold">{booking.service_type || 'Service request'}</span><span className="mt-1 block truncate text-[8px] text-[#686E7E]">#{booking.booking_code||'—'} · {statusInfo?.label || 'Booking'}</span></span>
-              <span className="shrink-0 text-[10px] font-semibold text-violet-300">View request ›</span>
+            <button
+              type="button"
+              onClick={() => setDetailsOpen(true)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-[10px] font-semibold">
+                  {booking.service_type || "Service request"}
+                </span>
+                <span className="mt-1 block truncate text-[8px] text-[#686E7E]">
+                  #{booking.booking_code || "—"} ·{" "}
+                  {statusInfo?.label || "Booking"}
+                </span>
+              </span>
+              <span className="shrink-0 text-[10px] font-semibold text-violet-300">
+                View request ›
+              </span>
             </button>
             <div className="mb-2 mt-3 flex items-center justify-between border-t border-white/[.055] pt-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-[#656A7A]">
@@ -591,24 +658,39 @@ export default function BookingNegotiationChat({
             <p className="mt-1 text-[9px] leading-relaxed text-[#686C7D]">
               {statusInfo?.description}
             </p>
-            {!isWorker && ["confirmed", "in_progress", "completed_pending_approval"].includes(booking.status) && (
-              <div className="mt-3 border-y border-emerald-500/15 py-3">
-                <div className="flex items-start gap-2.5">
-                  <span className="mt-0.5 text-emerald-300">✓</span>
-                  <div>
-                    <p className="text-[10px] font-semibold text-emerald-300">Payment secured for this job</p>
-                    <p className="mt-1 text-[9px] leading-relaxed text-[#808696]">
-                      The Worker is paid only after the work is completed and you confirm it. If something goes wrong, raise a dispute before confirming completion.
-                    </p>
+            {!isWorker &&
+              [
+                "confirmed",
+                "in_progress",
+                "completed_pending_approval",
+              ].includes(booking.status) && (
+                <div className="mt-3 border-y border-emerald-500/15 py-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 text-emerald-300">✓</span>
+                    <div>
+                      <p className="text-[10px] font-semibold text-emerald-300">
+                        Payment secured for this job
+                      </p>
+                      <p className="mt-1 text-[9px] leading-relaxed text-[#808696]">
+                        The Worker is paid only after the work is completed and
+                        you confirm it. If something goes wrong, raise a dispute
+                        before confirming completion.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            {isWorker && ["confirmed", "in_progress", "completed_pending_approval"].includes(booking.status) && (
-              <p className="mt-3 border-y border-emerald-500/15 py-3 text-[9px] leading-relaxed text-[#808696]">
-                Customer payment is secured. Your earnings become available after completed work is confirmed.
-              </p>
-            )}
+              )}
+            {isWorker &&
+              [
+                "confirmed",
+                "in_progress",
+                "completed_pending_approval",
+              ].includes(booking.status) && (
+                <p className="mt-3 border-y border-emerald-500/15 py-3 text-[9px] leading-relaxed text-[#808696]">
+                  Customer payment is secured. Your earnings become available
+                  after completed work is confirmed.
+                </p>
+              )}
             {paymentReview && (
               <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/[.06] px-3 py-2">
                 <p className="text-[9px] font-semibold text-amber-300">
@@ -773,12 +855,38 @@ export default function BookingNegotiationChat({
       </header>
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
-          {messageError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center"><p className="text-xs font-semibold text-red-200">Messages could not be loaded</p><button onClick={() => void loadAll()} className="mt-2 text-[10px] font-semibold text-violet-300">Try again</button></div> : null}
-          {!messageError && messages.length === 0 ? <div className="grid min-h-44 place-items-center text-center"><div><p className="text-sm font-semibold">No messages yet</p><p className="mt-2 text-[10px] text-[#666C7D]">Start with the work details, schedule and price.</p></div></div> : null}
-          <PrivateCallHistory contextType="worker_booking" contextId={conversationId}/>
+          {messageError ? (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center">
+              <p className="text-xs font-semibold text-red-200">
+                Messages could not be loaded
+              </p>
+              <button
+                onClick={() => void loadAll()}
+                className="mt-2 text-[10px] font-semibold text-violet-300"
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
+          {!messageError && messages.length === 0 ? (
+            <div className="grid min-h-44 place-items-center text-center">
+              <div>
+                <p className="text-sm font-semibold">No messages yet</p>
+                <p className="mt-2 text-[10px] text-[#666C7D]">
+                  Start with the work details, schedule and price.
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <PrivateCallHistory
+            contextType="worker_booking"
+            contextId={conversationId}
+          />
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
-              reactions = Object.values(msg.reactions || {}).reduce<Record<string, number>>(
+              reactions = Object.values(msg.reactions || {}).reduce<
+                Record<string, number>
+              >(
                 (all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }),
                 {},
               ),
@@ -790,8 +898,11 @@ export default function BookingNegotiationChat({
             return (
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
-                <MessagePress onOpen={() => setMessageMenu(msg)} className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
-                  {!mine && <button type="button" onClick={(event) => { event.stopPropagation(); setMessageMenu(msg); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
+                <MessagePress
+                  onOpen={() => setMessageMenu(msg)}
+                  onReply={() => setReplyingTo(msg)}
+                  className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
+                >
                   <div
                     className={`max-w-[86%] overflow-hidden rounded-[20px] px-3.5 py-2.5 sm:max-w-[72%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.05] bg-[#161922]"}`}
                   >
@@ -800,10 +911,27 @@ export default function BookingNegotiationChat({
                         {msg.sender_name || "Job participant"}
                       </p>
                     )}
-                    {msg.reply_to_id && (() => {
-                      const quoted = messageById.get(msg.reply_to_id);
-                      return quoted ? <div className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}><p className="truncate text-[8px] font-semibold text-violet-200">{quoted.sender_id === profile.user_id ? "You" : quoted.sender_name || peerName}</p><p className="mt-0.5 truncate text-[9px] opacity-70">{quoted.content || (quoted.attachments?.length ? "Attachment" : "Message")}</p></div> : null;
-                    })()}
+                    {msg.reply_to_id &&
+                      (() => {
+                        const quoted = messageById.get(msg.reply_to_id);
+                        return quoted ? (
+                          <div
+                            className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
+                          >
+                            <p className="truncate text-[8px] font-semibold text-violet-200">
+                              {quoted.sender_id === profile.user_id
+                                ? "You"
+                                : quoted.sender_name || peerName}
+                            </p>
+                            <p className="mt-0.5 truncate text-[9px] opacity-70">
+                              {quoted.content ||
+                                (quoted.attachments?.length
+                                  ? "Attachment"
+                                  : "Message")}
+                            </p>
+                          </div>
+                        ) : null;
+                      })()}
                     {msg.attachments?.map((url: string, i: number) => (
                       <BookingAttachment key={`${msg.id}-${i}`} url={url} />
                     ))}
@@ -830,14 +958,17 @@ export default function BookingNegotiationChat({
                     {Object.keys(reactions).length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {Object.entries(reactions).map(([emoji, count]) => (
-                          <span key={emoji} className="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px]">
-                            {emoji}{count > 1 ? ` ${count}` : ""}
+                          <span
+                            key={emoji}
+                            className="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px]"
+                          >
+                            {emoji}
+                            {count > 1 ? ` ${count}` : ""}
                           </span>
                         ))}
                       </div>
                     )}
                   </div>
-                  {mine && <button type="button" onClick={(event) => { event.stopPropagation(); setMessageMenu(msg); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
                 </MessagePress>
               </div>
             );
@@ -848,98 +979,234 @@ export default function BookingNegotiationChat({
       <footer className="chat-input-container shrink-0 border-t border-white/[.06] bg-[#11131A]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         {openConversation ? (
           <div className="mx-auto max-w-4xl">
-            {!secureChat ? <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Opening conversation…</div> : secureChat.state !== "ready" ? <SecureChatOnboarding status={secureChat} personName={peerName} onReady={() => {setSecureChat(null);void privateConversationReadiness("worker",conversationId,peerId||"").then(result=>{setSecureChat(result);if(result.state==="ready")void loadAll(true)})}}/> : <>
-            {files.length > 0 && (
-              <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {files.map((file, index) => (
-                  <div
-                    key={`${file.name}-${index}`}
-                    className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.05] px-3 py-2"
-                  >
-                    <p className="max-w-40 truncate text-[9px] text-violet-200">
-                      {file.type.startsWith("audio/")
-                        ? "🎤 Voice note"
-                        : file.name}
-                    </p>
+            {!secureChat ? (
+              <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-violet-400" />
+                Opening conversation…
+              </div>
+            ) : secureChat.state !== "ready" ? (
+              <SecureChatOnboarding
+                status={secureChat}
+                personName={peerName}
+                onReady={() => {
+                  setSecureChat(null);
+                  void privateConversationReadiness(
+                    "worker",
+                    conversationId,
+                    peerId || "",
+                  ).then((result) => {
+                    setSecureChat(result);
+                    if (result.state === "ready") void loadAll(true);
+                  });
+                }}
+              />
+            ) : (
+              <>
+                {files.length > 0 && (
+                  <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {files.map((file, index) => (
+                      <div
+                        key={`${file.name}-${index}`}
+                        className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.05] px-3 py-2"
+                      >
+                        <p className="max-w-40 truncate text-[9px] text-violet-200">
+                          {file.type.startsWith("audio/")
+                            ? "🎤 Voice note"
+                            : file.name}
+                        </p>
+                        <button
+                          onClick={() =>
+                            setFiles((current) =>
+                              current.filter((_, i) => i !== index),
+                            )
+                          }
+                          className="text-[#8B90A0]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <VoiceRecorderPanel
+                  recording={voice.recording}
+                  seconds={voice.seconds}
+                  level={voice.level}
+                  draft={voice.draft}
+                  onCancel={voice.cancel}
+                  onFinish={voice.finish}
+                  onDiscard={voice.discard}
+                  onUse={(file) => {
+                    setFiles((current) =>
+                      [...current, file].slice(0, MAX_FILES),
+                    );
+                    voice.discard();
+                  }}
+                />
+                {replyingTo && (
+                  <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[8px] font-semibold text-violet-300">
+                        Replying to{" "}
+                        {replyingTo.sender_id === profile.user_id
+                          ? "yourself"
+                          : replyingTo.sender_name || peerName}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
+                        {replyingTo.content ||
+                          (replyingTo.attachments?.length
+                            ? "Attachment"
+                            : "Message")}
+                      </p>
+                    </div>
                     <button
-                      onClick={() =>
-                        setFiles((current) =>
-                          current.filter((_, i) => i !== index),
-                        )
-                      }
-                      className="text-[#8B90A0]"
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="grid h-8 w-8 place-items-center text-[#818797]"
+                      aria-label="Cancel reply"
                     >
                       ×
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-            <VoiceRecorderPanel
-              recording={voice.recording}
-              seconds={voice.seconds}
-              level={voice.level}
-              draft={voice.draft}
-              onCancel={voice.cancel}
-              onFinish={voice.finish}
-              onDiscard={voice.discard}
-              onUse={(file) => {
-                setFiles((current) => [...current, file].slice(0, MAX_FILES));
-                voice.discard();
-              }}
-            />
-            {replyingTo && (
-              <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[8px] font-semibold text-violet-300">Replying to {replyingTo.sender_id === profile.user_id ? "yourself" : replyingTo.sender_name || peerName}</p>
-                  <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">{replyingTo.content || (replyingTo.attachments?.length ? "Attachment" : "Message")}</p>
-                </div>
-                <button type="button" onClick={() => setReplyingTo(null)} className="grid h-8 w-8 place-items-center text-[#818797]" aria-label="Cancel reply">×</button>
-              </div>
-            )}
-            <div className="flex items-end gap-2">
-              <ChatAttachmentPicker
-                onFiles={chooseFiles}
-                allowVideo
-                allowDocuments
-                allowAudio
-              />
-              <button
-                onClick={() => void toggleVoice()}
-                aria-label={
-                  voice.recording ? "Finish voice recording" : "Record voice message"
-                }
-                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-white/[.07] bg-white/[.035] text-[#858A9B]"}`}
-              >
-                <Mic />
-              </button>
-              <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.07] bg-[#1A1A24] px-3 py-1.5 focus-within:border-violet-500/40">
-                <textarea
-                  rows={1}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleSend();
+                )}
+                <div className="flex items-end gap-2">
+                  <ChatAttachmentPicker
+                    onFiles={chooseFiles}
+                    allowVideo
+                    allowDocuments
+                    allowAudio
+                  />
+                  <button
+                    onClick={() => void toggleVoice()}
+                    aria-label={
+                      voice.recording
+                        ? "Finish voice recording"
+                        : "Record voice message"
                     }
-                  }}
-                  placeholder="Write in this conversation…"
-                  className="max-h-24 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
-                />
-              </div>
-              <button
-                onClick={() => void handleSend()}
-                disabled={sending || (!input.trim() && !files.length)}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#626879]"
-              >
-                {sending ? "…" : "➤"}
-              </button>
-            </div>
-            </>}
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-white/[.07] bg-white/[.035] text-[#858A9B]"}`}
+                  >
+                    <Mic />
+                  </button>
+                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.07] bg-[#1A1A24] px-3 py-1.5 focus-within:border-violet-500/40">
+                    <textarea
+                      rows={1}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSend();
+                        }
+                      }}
+                      placeholder="Write in this conversation…"
+                      className="max-h-24 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void handleSend()}
+                    disabled={sending || (!input.trim() && !files.length)}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#626879]"
+                  >
+                    {sending ? "…" : "➤"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
-          <div className="mx-auto max-w-4xl py-2"><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-[#656A7A]">This job conversation is closed.</p><button onClick={openSupport} className="text-[10px] font-semibold text-violet-300">Message WeHouse</button></div>{!isWorker&&booking?.status==='approved_released'&&<section className="mt-3 border-t border-white/[.06] pt-3">{review&&!reviewOpen?<div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold text-amber-300">{'★'.repeat(Number(review.rating))}</p><p className="mt-1 text-[9px] text-[#6D7282]">Your verified review · {review.comment?'Written review included':'No written comment'}</p></div><button onClick={()=>setReviewOpen(true)} className="text-[9px] font-semibold text-violet-300">Edit review</button></div>:reviewOpen?<div><p className="text-xs font-semibold">Rate this completed job</p><p className="mt-1 text-[9px] text-[#6D7282]">Your rating and review appear on this professional’s public profile.</p><div className="mt-3 flex gap-2" aria-label="Choose rating">{[1,2,3,4,5].map(value=><button key={value} type="button" aria-label={`${value} star${value===1?'':'s'}`} onClick={()=>setReviewRating(value)} className={`text-2xl ${value<=reviewRating?'text-amber-300':'text-[#373C48]'}`}>★</button>)}</div><textarea value={reviewComment} onChange={event=>setReviewComment(event.target.value.slice(0,1200))} placeholder="Describe the work, communication and reliability (optional)" className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-2 flex gap-2"><button disabled={reviewSaving} onClick={()=>void saveReview()} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{reviewSaving?'Saving…':'Publish verified review'}</button>{review&&<button onClick={()=>setReviewOpen(false)} className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]">Cancel</button>}</div></div>:<button onClick={()=>setReviewOpen(true)} className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300">Rate and review this job</button>}</section>}</div>
+          <div className="mx-auto max-w-4xl py-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] text-[#656A7A]">
+                This job conversation is closed.
+              </p>
+              <button
+                onClick={openSupport}
+                className="text-[10px] font-semibold text-violet-300"
+              >
+                Message WeHouse
+              </button>
+            </div>
+            {!isWorker && booking?.status === "approved_released" && (
+              <section className="mt-3 border-t border-white/[.06] pt-3">
+                {review && !reviewOpen ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold text-amber-300">
+                        {"★".repeat(Number(review.rating))}
+                      </p>
+                      <p className="mt-1 text-[9px] text-[#6D7282]">
+                        Your verified review ·{" "}
+                        {review.comment
+                          ? "Written review included"
+                          : "No written comment"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setReviewOpen(true)}
+                      className="text-[9px] font-semibold text-violet-300"
+                    >
+                      Edit review
+                    </button>
+                  </div>
+                ) : reviewOpen ? (
+                  <div>
+                    <p className="text-xs font-semibold">
+                      Rate this completed job
+                    </p>
+                    <p className="mt-1 text-[9px] text-[#6D7282]">
+                      Your rating and review appear on this professional’s
+                      public profile.
+                    </p>
+                    <div className="mt-3 flex gap-2" aria-label="Choose rating">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-label={`${value} star${value === 1 ? "" : "s"}`}
+                          onClick={() => setReviewRating(value)}
+                          className={`text-2xl ${value <= reviewRating ? "text-amber-300" : "text-[#373C48]"}`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={reviewComment}
+                      onChange={(event) =>
+                        setReviewComment(event.target.value.slice(0, 1200))
+                      }
+                      placeholder="Describe the work, communication and reliability (optional)"
+                      className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        disabled={reviewSaving}
+                        onClick={() => void saveReview()}
+                        className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40"
+                      >
+                        {reviewSaving ? "Saving…" : "Publish verified review"}
+                      </button>
+                      {review && (
+                        <button
+                          onClick={() => setReviewOpen(false)}
+                          className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setReviewOpen(true)}
+                    className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300"
+                  >
+                    Rate and review this job
+                  </button>
+                )}
+              </section>
+            )}
+          </div>
         )}
       </footer>
       {profileOpen ? (
@@ -953,7 +1220,12 @@ export default function BookingNegotiationChat({
           onClose={() => setProfileOpen(false)}
         />
       ) : null}
-      {detailsOpen && booking ? <JobRequestDetailsSheet booking={booking} onClose={() => setDetailsOpen(false)} /> : null}
+      {detailsOpen && booking ? (
+        <JobRequestDetailsSheet
+          booking={booking}
+          onClose={() => setDetailsOpen(false)}
+        />
+      ) : null}
       {messageMenu && (
         <MessageActionSheet
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
@@ -999,7 +1271,8 @@ export default function BookingNegotiationChat({
           onDelete={() => void deleteFromMessages()}
         />
       )}
-    </div>, document.body
+    </div>,
+    document.body,
   );
 }
 function ChatAvatar({ name, src }: { name: string; src?: string | null }) {
@@ -1182,7 +1455,9 @@ function DeleteSheet({
         className="w-full rounded-3xl border border-white/[.08] bg-[#151922] p-5 sm:max-w-sm"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300"><TrashIcon /></div>
+        <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300">
+          <TrashIcon />
+        </div>
         <h2 className="text-base font-bold">Remove this conversation?</h2>
         <p className="mt-2 text-[10px] leading-5 text-[#767C8C]">
           The job and its audit history stay intact, and the other participant
@@ -1209,12 +1484,31 @@ function DeleteSheet({
 function MessageContent({ content }: { content: string }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   if (isImage(content))
-    return <>
-      <button type="button" onClick={() => setViewerOpen(true)} className="mb-1 block max-w-full overflow-hidden rounded-xl bg-black">
-        <img src={content} alt="Shared" loading="lazy" decoding="async" className="max-h-72 max-w-full object-contain"/>
-      </button>
-      {viewerOpen ? <MediaViewer src={content} kind="image" title="Shared image" onClose={() => setViewerOpen(false)}/> : null}
-    </>;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="mb-1 block max-w-full overflow-hidden rounded-xl bg-black"
+        >
+          <img
+            src={content}
+            alt="Shared"
+            loading="lazy"
+            decoding="async"
+            className="max-h-72 max-w-full object-contain"
+          />
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={content}
+            kind="image"
+            title="Shared image"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
   return (
     <p className="whitespace-pre-wrap text-xs leading-relaxed">{content}</p>
   );
@@ -1222,20 +1516,57 @@ function MessageContent({ content }: { content: string }) {
 function BookingAttachment({ url }: { url: string }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   if (isImage(url))
-    return <>
-      <button type="button" onClick={() => setViewerOpen(true)} className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black">
-        <img src={url} alt="Attachment" loading="lazy" decoding="async" className="max-h-72 max-w-full object-contain"/>
-      </button>
-      {viewerOpen ? <MediaViewer src={url} kind="image" title="Booking attachment" onClose={() => setViewerOpen(false)}/> : null}
-    </>;
-  if (isAudio(url)) return <VoiceNotePlayer url={url}/>;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black"
+        >
+          <img
+            src={url}
+            alt="Attachment"
+            loading="lazy"
+            decoding="async"
+            className="max-h-72 max-w-full object-contain"
+          />
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={url}
+            kind="image"
+            title="Booking attachment"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  if (isAudio(url)) return <VoiceNotePlayer url={url} />;
   if (isVideo(url))
-    return <>
-      <button type="button" onClick={() => setViewerOpen(true)} className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black" aria-label="Open video attachment in WeHouse viewer">
-        <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]"><span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">▶</span></span>
-      </button>
-      {viewerOpen ? <MediaViewer src={url} kind="video" title="Booking video" onClose={() => setViewerOpen(false)}/> : null}
-    </>;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black"
+          aria-label="Open video attachment in WeHouse viewer"
+        >
+          <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]">
+            <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">
+              ▶
+            </span>
+          </span>
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={url}
+            kind="video"
+            title="Booking video"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
   return (
     <a
       href={url}
@@ -1285,33 +1616,145 @@ function Phone() {
     </svg>
   );
 }
-function VideoCall() {
-  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>;
-}
 function TrashIcon() {
-  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="m9 7 .6-2h4.8l.6 2"/><path d="m6.5 7 .8 13h9.4l.8-13"/><path d="M10 11v5M14 11v5"/></svg>;
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="m9 7 .6-2h4.8l.6 2" />
+      <path d="m6.5 7 .8 13h9.4l.8-13" />
+      <path d="M10 11v5M14 11v5" />
+    </svg>
+  );
 }
-function JobRequestDetails({booking}:{booking:Booking}) {
-  const amount=Number(booking.negotiated_amount||booking.agreed_amount||0);
-  const facts=[
-    ['Service',booking.service_type||'Service request'],
-    ['Location',booking.address||'Not supplied'],
-    ['Requested',booking.created_at?new Date(booking.created_at).toLocaleString():'Not available'],
-    ['Schedule',booking.scheduled_date?new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString():'To be agreed'],
-    ['Price',amount>0?`₦${amount.toLocaleString('en-NG')}`:'Worker has not supplied a price'],
-    ['Payment',booking.payment_status&&booking.payment_status!=='not_started'?booking.payment_status.replace(/_/g,' '):booking.status==='waiting_payment'?'Action needed':(['confirmed','in_progress','completed_pending_approval','approved_released'].includes(booking.status)?'Secured':'Not started')],
+function JobRequestDetails({ booking }: { booking: Booking }) {
+  const amount = Number(
+    booking.negotiated_amount || booking.agreed_amount || 0,
+  );
+  const facts = [
+    ["Service", booking.service_type || "Service request"],
+    ["Location", booking.address || "Not supplied"],
+    [
+      "Requested",
+      booking.created_at
+        ? new Date(booking.created_at).toLocaleString()
+        : "Not available",
+    ],
+    [
+      "Schedule",
+      booking.scheduled_date
+        ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString()
+        : "To be agreed",
+    ],
+    [
+      "Price",
+      amount > 0
+        ? `₦${amount.toLocaleString("en-NG")}`
+        : "Worker has not supplied a price",
+    ],
+    [
+      "Payment",
+      booking.payment_status && booking.payment_status !== "not_started"
+        ? booking.payment_status.replace(/_/g, " ")
+        : booking.status === "waiting_payment"
+          ? "Action needed"
+          : [
+                "confirmed",
+                "in_progress",
+                "completed_pending_approval",
+                "approved_released",
+              ].includes(booking.status)
+            ? "Secured"
+            : "Not started",
+    ],
   ];
-  return <div className="mb-3 space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
-    <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{facts.map(([label,value])=><div key={label}><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">{label}</p><p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">{value}</p></div>)}</div>
-    <div className="border-t border-white/[.055] pt-3"><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">Original description</p><p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">{booking.description||booking.customer_message||'No written description was supplied with this request.'}</p></div>
-    {booking.request_attachments?.length?<div className="grid gap-2 border-t border-white/[.055] pt-3 sm:grid-cols-2">{booking.request_attachments.map((url,index)=><div key={`${url}-${index}`}><p className="mb-1 text-[8px] text-[#6D7383]">Request attachment {index+1}</p><BookingAttachment url={url}/></div>)}</div>:null}
-  </div>;
+  return (
+    <div className="mb-3 space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">
+              {label}
+            </p>
+            <p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-white/[.055] pt-3">
+        <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">
+          Original description
+        </p>
+        <p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">
+          {booking.description ||
+            booking.customer_message ||
+            "No written description was supplied with this request."}
+        </p>
+      </div>
+      {booking.request_attachments?.length ? (
+        <div className="grid gap-2 border-t border-white/[.055] pt-3 sm:grid-cols-2">
+          {booking.request_attachments.map((url, index) => (
+            <div key={`${url}-${index}`}>
+              <p className="mb-1 text-[8px] text-[#6D7383]">
+                Request attachment {index + 1}
+              </p>
+              <BookingAttachment url={url} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
-function JobRequestDetailsSheet({booking,onClose}:{booking:Booking;onClose:()=>void}){
-  return <div className="fixed inset-0 z-[100120] flex h-[100dvh] flex-col bg-[#090B10] text-white" role="dialog" aria-modal="true" aria-label="Service request details">
-    <header className="flex min-h-14 items-center gap-3 border-b border-white/[.07] px-3 pt-[env(safe-area-inset-top)]"><button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#9BA0AE]" aria-label="Back to chat">←</button><div className="min-w-0"><p className="truncate text-sm font-semibold">{booking.service_type||'Service request'}</p><p className="mt-0.5 text-[9px] text-[#697081]">#{booking.booking_code||'—'}</p></div></header>
-    <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5"><div className="mx-auto max-w-xl"><JobRequestDetails booking={booking}/></div></main>
-  </div>;
+function JobRequestDetailsSheet({
+  booking,
+  onClose,
+}: {
+  booking: Booking;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[100120] flex h-[100dvh] flex-col bg-[#090B10] text-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Service request details"
+    >
+      <header className="flex min-h-14 items-center gap-3 border-b border-white/[.07] px-3 pt-[env(safe-area-inset-top)]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#9BA0AE]"
+          aria-label="Back to chat"
+        >
+          ←
+        </button>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
+            {booking.service_type || "Service request"}
+          </p>
+          <p className="mt-0.5 text-[9px] text-[#697081]">
+            #{booking.booking_code || "—"}
+          </p>
+        </div>
+      </header>
+      <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+        <div className="mx-auto max-w-xl">
+          <JobRequestDetails booking={booking} />
+        </div>
+      </main>
+    </div>
+  );
 }
 function getProgressWidth(status: string) {
   const progress: Record<string, string> = {

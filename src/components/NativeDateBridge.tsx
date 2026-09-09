@@ -8,7 +8,9 @@ function dateTitle(input: HTMLInputElement) {
   const label = input.closest("label");
   if (label) {
     const clone = label.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll("input,select,textarea,button").forEach((node) => node.remove());
+    clone
+      .querySelectorAll("input,select,textarea,button")
+      .forEach((node) => node.remove());
     const text = clone.textContent?.replace(/\s+/g, " ").trim();
     if (text) return text;
   }
@@ -37,7 +39,13 @@ export default function NativeDateBridge() {
       const input = (event.target as Element | null)?.closest?.(
         'input[type="date"]',
       ) as HTMLInputElement | null;
-      if (!input || input.disabled || input.readOnly || input.dataset.wehouseNative === "true") return;
+      if (
+        !input ||
+        input.disabled ||
+        input.readOnly ||
+        input.dataset.wehouseNative === "true"
+      )
+        return;
       event.preventDefault();
       event.stopPropagation();
       setActive(input);
@@ -81,7 +89,10 @@ export default function NativeDateBridge() {
 
   function choose(date: Date | undefined) {
     if (!active || !date) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
     const value = formatDate(date);
     if (setter) setter.call(active, value);
     else active.value = value;
@@ -105,19 +116,35 @@ export default function NativeDateBridge() {
       >
         <header className="flex items-start justify-between gap-3 border-b border-white/[.06] px-5 py-4">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">WEHOUSE CALENDAR</p>
+            <p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">
+              WEHOUSE CALENDAR
+            </p>
             <h2 className="mt-1 text-base font-semibold">{title}</h2>
             <p className="mt-1 text-[10px] text-[#747A8B]">
-              {values.selected ? values.selected.toLocaleDateString(undefined, { dateStyle: "long" }) : "Choose an available date"}
+              {values.selected
+                ? values.selected.toLocaleDateString(undefined, {
+                    dateStyle: "long",
+                  })
+                : "Choose an available date"}
             </p>
           </div>
-          <button type="button" onClick={() => setActive(null)} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-lg text-[#A7ACB9]" aria-label="Close calendar">×</button>
+          <button
+            type="button"
+            onClick={() => setActive(null)}
+            className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-lg text-[#A7ACB9]"
+            aria-label="Close calendar"
+          >
+            ×
+          </button>
         </header>
         <div className="flex justify-center px-3 py-4">
           <Calendar
             mode="single"
             selected={values.selected}
             defaultMonth={values.selected || values.min || new Date()}
+            startMonth={values.min}
+            endMonth={values.max}
+            showOutsideDays={false}
             disabled={disabled}
             onSelect={choose}
             className="w-full max-w-sm rounded-2xl bg-[#11151E] p-3 [--cell-size:2.65rem]"
@@ -131,7 +158,7 @@ export default function NativeDateBridge() {
           />
         </div>
         <footer className="border-t border-white/[.06] px-5 py-3 pb-[max(.85rem,env(safe-area-inset-bottom))] text-[9px] text-[#646B7B]">
-          Dates outside the allowed booking range are unavailable.
+          Dates outside this booking window are unavailable.
         </footer>
       </section>
     </div>,

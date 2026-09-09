@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Reply, Trash2, Plus } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -51,23 +51,55 @@ export default function MessageActionSheet({
               {emoji}
             </button>
           ))}
-          <button type="button" onClick={()=>setCustomOpen(value=>!value)} aria-label="Choose another reaction" className={`grid h-10 w-10 place-items-center rounded-full transition ${customOpen?'bg-violet-500/20 text-violet-200':'text-[#AEB4C0] hover:bg-white/[.07]'}`}><Plus className="h-4 w-4"/></button>
+          <button
+            type="button"
+            onClick={() => setCustomOpen((value) => !value)}
+            aria-label="Choose another reaction"
+            className={`grid h-10 w-10 place-items-center rounded-full transition ${customOpen ? "bg-violet-500/20 text-violet-200" : "text-[#AEB4C0] hover:bg-white/[.07]"}`}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
-        {customOpen&&<div className="mt-2 flex gap-2 rounded-2xl border border-white/[.09] bg-[#171A22] p-2 shadow-2xl"><input autoFocus inputMode="text" value={customEmoji} onChange={event=>setCustomEmoji(event.target.value.slice(0,12))} placeholder="Choose or type an emoji" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#0F1218] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={!customEmoji.trim()} onClick={()=>onReact(customEmoji.trim())} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-35">React</button></div>}
-        {(onReply||onRemove)&&<div className="mt-2 overflow-hidden rounded-2xl border border-white/[.09] bg-[#171A22] p-1.5 shadow-2xl">
-          {onReply ? (
-            <button type="button" onClick={onReply} className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-semibold text-white hover:bg-white/[.05]">
-              <Reply className="mr-3 h-4 w-4 text-[#B9BECA]" />
-              Reply
+        {customOpen && (
+          <div className="mt-2 flex gap-2 rounded-2xl border border-white/[.09] bg-[#171A22] p-2 shadow-2xl">
+            <input
+              autoFocus
+              inputMode="text"
+              value={customEmoji}
+              onChange={(event) =>
+                setCustomEmoji(event.target.value.slice(0, 12))
+              }
+              placeholder="Choose or type an emoji"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#0F1218] px-3 text-sm outline-none focus:border-violet-500/40"
+            />
+            <button
+              type="button"
+              disabled={!customEmoji.trim()}
+              onClick={() => onReact(customEmoji.trim())}
+              className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-35"
+            >
+              React
             </button>
-          ) : null}
-          {onRemove ? (
-            <button type="button" onClick={onRemove} className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-semibold text-red-300 hover:bg-red-500/[.07]">
-              <Trash2 className="mr-3 h-4 w-4" />
-              Remove from my chat
+          </div>
+        )}
+        {onRemove ? (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="Remove message from my chat"
+              title="Remove message"
+              className="grid h-11 w-11 place-items-center rounded-full border border-red-500/15 bg-[#171A22] text-red-300 shadow-2xl active:scale-95"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
-          ) : null}
-        </div>}
+          </div>
+        ) : null}
+        {onReply ? (
+          <p className="mt-2 text-center text-[9px] text-white/45">
+            Swipe a message right to reply
+          </p>
+        ) : null}
       </section>
     </div>
   );

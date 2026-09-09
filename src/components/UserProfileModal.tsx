@@ -5,6 +5,7 @@ import { NIGERIA_STATES } from "@/data/nigeria-locations";
 import type { Profile } from "@/types";
 import { Toaster, toast } from "sonner";
 import { workerOccupation } from "@/lib/workerTaxonomy";
+import MediaViewer from "@/components/MediaViewer";
 
 interface UserProfileModalProps {
   user: Profile | null;
@@ -103,6 +104,7 @@ function UserProfileContent({
   const [adminModule, setAdminModule] = useState<StaffModule>("operations");
   const [teamSaving, setTeamSaving] = useState(false);
   const [existingModule, setExistingModule] = useState<string | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   const isAdmin = adminProfile?.role === "admin";
   const isCreator = adminProfile?.role === "creator";
@@ -301,7 +303,14 @@ function UserProfileContent({
               </svg>
             </button>
             <div className="flex items-center gap-4 pr-10">
-              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-xl font-bold">
+              <button
+                type="button"
+                onClick={() => user.avatar_url && setAvatarOpen(true)}
+                className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-xl font-bold"
+                aria-label={
+                  user.avatar_url ? "Preview profile photo" : undefined
+                }
+              >
                 {user.avatar_url ? (
                   <img
                     src={user.avatar_url}
@@ -311,7 +320,7 @@ function UserProfileContent({
                 ) : (
                   initials
                 )}
-              </div>
+              </button>
               <div className="min-w-0">
                 <h3 className="truncate text-lg font-bold text-white">
                   {user.full_name || `@${user.username || "unknown"}`}
@@ -417,7 +426,12 @@ function UserProfileContent({
                 ...(user.role === "admin"
                   ? [{ label: "Work area", value: "Branch administration" }]
                   : user.role === "staff"
-                    ? [{ label: "Work area", value: existingModule || "Not assigned" }]
+                    ? [
+                        {
+                          label: "Work area",
+                          value: existingModule || "Not assigned",
+                        },
+                      ]
                     : []),
               ].map((item) => (
                 <div
@@ -790,5 +804,18 @@ function UserProfileContent({
     </div>
   );
 
-  return createPortal(content, document.body);
+  return createPortal(
+    <>
+      {content}
+      {avatarOpen && user.avatar_url ? (
+        <MediaViewer
+          src={user.avatar_url}
+          kind="image"
+          title={user.full_name || user.username || "Profile photo"}
+          onClose={() => setAvatarOpen(false)}
+        />
+      ) : null}
+    </>,
+    document.body,
+  );
 }

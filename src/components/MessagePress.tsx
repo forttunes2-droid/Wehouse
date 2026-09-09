@@ -1,15 +1,23 @@
-import { useRef, type PointerEvent, type ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
   className?: string;
   onOpen: () => void;
+  onReply?: () => void;
 };
 
-export default function MessagePress({ children, className = "", onOpen }: Props) {
+export default function MessagePress({
+  children,
+  className = "",
+  onOpen,
+  onReply,
+}: Props) {
   const timer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
   const opened = useRef(false);
+  const dragged = useRef(false);
+  const [translate, setTranslate] = useState(0);
 
   function cancel() {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -18,6 +26,7 @@ export default function MessagePress({ children, className = "", onOpen }: Props
   function start(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
     opened.current = false;
+    dragged.current = false;
     origin.current = { x: event.clientX, y: event.clientY };
     cancel();
     timer.current = window.setTimeout(() => {
@@ -28,16 +37,39 @@ export default function MessagePress({ children, className = "", onOpen }: Props
     }, 420);
   }
   function move(event: PointerEvent<HTMLDivElement>) {
-    if (Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y) > 10) cancel();
+    const dx = event.clientX - origin.current.x,
+      dy = event.clientY - origin.current.y;
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      cancel();
+      setTranslate(0);
+      return;
+    }
+    if (onReply && dx > 8) {
+      cancel();
+      dragged.current = true;
+      setTranslate(Math.min(72, dx * 0.72));
+    }
+  }
+  function finish() {
+    cancel();
+    if (translate >= 54 && onReply) {
+      navigator.vibrate?.(12);
+      onReply();
+      opened.current = true;
+    }
+    setTranslate(0);
   }
 
   return (
     <div
-      className={`touch-pan-y select-none ${className}`}
+      className={`relative touch-pan-y select-none ${className}`}
       onPointerDown={start}
       onPointerMove={move}
-      onPointerUp={cancel}
-      onPointerCancel={cancel}
+      onPointerUp={finish}
+      onPointerCancel={() => {
+        cancel();
+        setTranslate(0);
+      }}
       onContextMenu={(event) => {
         event.preventDefault();
         cancel();
@@ -45,13 +77,26 @@ export default function MessagePress({ children, className = "", onOpen }: Props
       }}
       onDoubleClick={onOpen}
       onClickCapture={(event) => {
-        if (!opened.current) return;
+        if (!opened.current && !dragged.current) return;
         event.preventDefault();
         event.stopPropagation();
         opened.current = false;
       }}
     >
-      {children}
+      {onReply && translate > 0 ? (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute left-1 grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-sm text-white transition-opacity ${translate >= 54 ? "opacity-100" : "opacity-45"}`}
+        >
+          ↩
+        </span>
+      ) : null}
+      <div
+        style={{ transform: `translateX(${translate}px)` }}
+        className="transition-[transform] duration-75"
+      >
+        {children}
+      </div>
     </div>
   );
 }

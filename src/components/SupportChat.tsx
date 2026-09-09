@@ -193,6 +193,17 @@ export default function SupportChat({
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, open]);
 
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("wehouse:nested-screen", { detail: { open } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
+      );
+    };
+  }, [open]);
+
   async function send() {
     if (sending || (!input.trim() && !files.length)) return;
     setSending(true);
@@ -406,7 +417,17 @@ export default function SupportChat({
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
               aria-label="Attach evidence"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="m20.5 11.5-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.7 9.7a2 2 0 0 1-2.8-2.8l8.9-8.9" />
               </svg>
             </button>

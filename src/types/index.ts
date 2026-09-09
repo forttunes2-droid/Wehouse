@@ -587,6 +587,8 @@ export interface HotelBooking {
   total_nights: number;
   total_price: number;
   status: HotelBookingStatus;
+  payment_status?: string | null;
+  booking_code?: string | null;
   guest_name: string | null;
   guest_phone: string | null;
   special_requests: string | null;

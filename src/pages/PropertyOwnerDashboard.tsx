@@ -14,6 +14,7 @@ import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import { ListingMediaImage } from "@/components/ListingCandidateMedia";
 import type { Profile } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
+import WeHouseSelect from "@/components/WeHouseSelect";
 
 type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
@@ -56,7 +57,9 @@ export default function PropertyOwnerDashboard({
   onNavigate,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
-  const [propertyTargetId, setPropertyTargetId] = useState<string | undefined>();
+  const [propertyTargetId, setPropertyTargetId] = useState<
+    string | undefined
+  >();
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
   const inbox = usePartnerInboxSummary(profile.user_id);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
@@ -79,7 +82,14 @@ export default function PropertyOwnerDashboard({
       <WorkspaceFrameV2
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}
-        items={TABS.map((item) => ({ id: item.key, label: item.label, badge: item.key === "communication" ? inbox.totalUnread || undefined : undefined }))}
+        items={TABS.map((item) => ({
+          id: item.key,
+          label: item.label,
+          badge:
+            item.key === "communication"
+              ? inbox.totalUnread || undefined
+              : undefined,
+        }))}
         active={tab}
         setActive={(id) => setTab(id as PartnerTab)}
         onAccount={() => onNavigate("profile")}
@@ -87,16 +97,35 @@ export default function PropertyOwnerDashboard({
         compact={tab === "communication"}
         immersive={tab === "properties" && nestedPropertyView}
       >
-        {tab === "properties" && <PropertiesWorkspace profile={profile} initialRecordId={propertyTargetId} onNestedChange={setNestedPropertyView} />}{" "}
+        {tab === "properties" && (
+          <PropertiesWorkspace
+            profile={profile}
+            initialRecordId={propertyTargetId}
+            onNestedChange={setNestedPropertyView}
+          />
+        )}{" "}
         {tab === "communication" && (
-          <CommunicationInbox profile={profile} onNavigate={openActivityDestination} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
+          <CommunicationInbox
+            profile={profile}
+            onNavigate={openActivityDestination}
+            chatUnread={inbox.chatUnread}
+            activityUnread={inbox.activityUnread}
+          />
         )}{" "}
         {tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
     </>
   );
 }
-function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { profile: Profile; initialRecordId?: string; onNestedChange?: (nested: boolean) => void }) {
+function PropertiesWorkspace({
+  profile,
+  initialRecordId,
+  onNestedChange,
+}: {
+  profile: Profile;
+  initialRecordId?: string;
+  onNestedChange?: (nested: boolean) => void;
+}) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
@@ -115,28 +144,47 @@ function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { pro
     <div className="space-y-5">
       {!viewingDetail && !creating && (
         <div className="space-y-4 border-b border-white/[.06] pb-4">
-          <div className="grid grid-cols-2 rounded-2xl border border-white/[.07] bg-[#0E1118] p-1" role="group" aria-label="Property type">
+          <div
+            className="grid grid-cols-2 rounded-2xl border border-white/[.07] bg-[#0E1118] p-1"
+            role="group"
+            aria-label="Property type"
+          >
             {(["apartment", "hotel"] as PartnerAssetKind[]).map((kind) => (
-              <button key={kind} type="button" aria-pressed={assetKind === kind} onClick={() => setAssetKind(kind)} className={`h-11 rounded-xl text-xs font-semibold transition ${assetKind === kind ? "bg-violet-500 text-white shadow-lg shadow-violet-500/10" : "text-[#7C8292]"}`}>{kind === "apartment" ? "Apartments" : "Hotels"}</button>
-            ))}
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" aria-label="Property status">
-            {filters.map((item) => (
               <button
-                key={item.value}
+                key={kind}
                 type="button"
-                aria-pressed={filter === item.value}
-                onClick={() => setFilter(item.value)}
-                className={`min-h-9 shrink-0 rounded-full px-3 text-[9px] font-semibold ${filter === item.value ? "bg-white text-[#0B0D12]" : "border border-white/[.07] text-[#858B9B]"}`}
+                aria-pressed={assetKind === kind}
+                onClick={() => setAssetKind(kind)}
+                className={`h-11 rounded-xl text-xs font-semibold transition ${assetKind === kind ? "bg-violet-500 text-white shadow-lg shadow-violet-500/10" : "text-[#7C8292]"}`}
               >
-                {item.label}
+                {kind === "apartment" ? "Apartments" : "Hotels"}
               </button>
             ))}
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[#666C7C]">
+                Filter
+              </p>
+              <p className="mt-1 text-xs text-[#AEB3C1]">Property status</p>
+            </div>
+            <WeHouseSelect
+              value={filter}
+              options={filters}
+              onChange={setFilter}
+              eyebrow="Properties"
+              title="Filter by status"
+              ariaLabel="Filter properties by status"
+            />
           </div>
         </div>
       )}
       {filter === "public" ? (
-        <PropertiesTab profile={profile} assetKind={assetKind} onDetailChange={setViewingDetail} />
+        <PropertiesTab
+          profile={profile}
+          assetKind={assetKind}
+          onDetailChange={setViewingDetail}
+        />
       ) : (
         <PartnerSubmittedRequests
           profile={profile}
@@ -165,33 +213,42 @@ function PropertiesTab({
   useEffect(() => {
     let active = true;
     (async () => {
-      const result = assetKind === "apartment"
-        ? await supabase
-          .from("listings")
-          .select("*")
-          .or(`owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`)
-          .eq("status", "available")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-        : await supabase
-          .from("hotels")
-          .select("*")
-          .eq("owner_id", profile.user_id)
-          .eq("status", "active")
-          .order("created_at", { ascending: false });
+      const result =
+        assetKind === "apartment"
+          ? await supabase
+              .from("listings")
+              .select("*")
+              .or(
+                `owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`,
+              )
+              .eq("status", "available")
+              .is("deleted_at", null)
+              .order("created_at", { ascending: false })
+          : await supabase
+              .from("hotels")
+              .select("*")
+              .eq("owner_id", profile.user_id)
+              .eq("status", "active")
+              .order("created_at", { ascending: false });
       if (!active) return;
       if (result.error)
-        toast.error(`Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`);
+        toast.error(
+          `Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`,
+        );
       setAssets(
-        (result.data || []).map((row) => assetKind === "apartment" ? ({
-            ...row,
-            _assetKind: "property",
-          }) : ({
-            ...row,
-            _assetKind: "hotel",
-            id: `hotel:${row.hotel_id}`,
-            title: row.name,
-          })),
+        (result.data || []).map((row) =>
+          assetKind === "apartment"
+            ? {
+                ...row,
+                _assetKind: "property",
+              }
+            : {
+                ...row,
+                _assetKind: "hotel",
+                id: `hotel:${row.hotel_id}`,
+                title: row.name,
+              },
+        ),
       );
       setLoading(false);
     })();
@@ -214,7 +271,11 @@ function PropertiesTab({
     );
   if (selected)
     return (
-      <PropertyDetails property={selected} onBack={() => setSelected(null)} />
+      <PropertyDetails
+        property={selected}
+        profile={profile}
+        onBack={() => setSelected(null)}
+      />
     );
   return (
     <section>
@@ -286,11 +347,31 @@ function PropertiesTab({
 }
 function PropertyDetails({
   property,
+  profile,
   onBack,
 }: {
   property: any;
+  profile: Profile;
   onBack: () => void;
 }) {
+  const [stays, setStays] = useState<any[]>([]);
+  const [loadingStays, setLoadingStays] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .rpc("get_my_property_partner_stays", {
+        p_listing_id: String(property.id),
+      })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) toast.error("Booking activity could not be loaded");
+        setStays(Array.isArray(data) ? data : []);
+        setLoadingStays(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile.user_id, property.id]);
   function contact() {
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
@@ -358,6 +439,85 @@ function PropertyDetails({
           </button>
         </div>
       </section>
+      <section className="border-t border-white/[.07] pt-5">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold">Bookings and occupancy</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">
+              Live booking, check-in and checkout updates for this property.
+            </p>
+          </div>
+          <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
+        </div>
+        {loadingStays ? (
+          <Loading />
+        ) : stays.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
+            <p className="text-xs font-semibold">No active booking yet</p>
+            <p className="mt-2 text-[9px] text-[#666C7C]">
+              A record appears here when a customer completes the reservation
+              step.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
+            {stays.map((stay) => (
+              <article key={stay.reservation_id} className="py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold">
+                        {stay.stay_type === "short_let"
+                          ? "Short Let stay"
+                          : "Long Let tenancy"}
+                      </p>
+                      <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[7px] font-semibold uppercase text-violet-300">
+                        {String(stay.status || "").replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[9px] text-[#696F80]">
+                      Booking {stay.booking_code || "confirmed"}
+                    </p>
+                  </div>
+                  <span className="text-[8px] capitalize text-[#777D8D]">
+                    {String(stay.payment_status || "not started").replace(
+                      /_/g,
+                      " ",
+                    )}
+                  </span>
+                </div>
+                {stay.stay_type === "short_let" ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <Info label="Check-in" value={partnerDate(stay.check_in)} />
+                    <Info
+                      label="Checkout"
+                      value={partnerDate(stay.check_out)}
+                    />
+                    <Info
+                      label="Guests"
+                      value={String(stay.guest_count || 1)}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Info
+                      label="Move-in"
+                      value={partnerDate(stay.tenancy_start_date)}
+                    />
+                    <Info
+                      label="Tenancy ends"
+                      value={partnerDate(stay.tenancy_end_date)}
+                    />
+                  </div>
+                )}
+                <p className="mt-3 text-[9px] leading-5 text-[#888E9D]">
+                  {partnerStayMessage(stay)}
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -389,10 +549,7 @@ function FinanceTab({ profile }: { profile: Profile }) {
       <PayoutAccountManager profile={profile} />
       <section className="border-t border-white/[.07] pt-5">
         <h2 className="mb-3 text-sm font-bold">Earnings history</h2>
-        <EarningsTab
-          profile={profile}
-          showAmounts={showAmounts}
-        />
+        <EarningsTab profile={profile} showAmounts={showAmounts} />
       </section>
     </div>
   );
@@ -424,7 +581,8 @@ function EarningsTab({
       active = false;
     };
   }, [profile.user_id]);
-  const shown = filter === "all" ? rows : rows.filter((row) => row.status === filter);
+  const shown =
+    filter === "all" ? rows : rows.filter((row) => row.status === filter);
   return (
     <div className="space-y-3">
       <section>
@@ -540,6 +698,29 @@ function Loading() {
       <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
     </div>
   );
+}
+function partnerDate(value?: string | null) {
+  return value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString()
+    : "Not started";
+}
+function partnerStayMessage(stay: any) {
+  if (stay.stay_type === "short_let") {
+    if (stay.status === "occupied")
+      return "The guest has checked in. WeHouse will record checkout when the guest leaves.";
+    if (stay.status === "completed")
+      return "The guest has checked out. Any refundable deposit review remains with WeHouse.";
+    if (stay.status === "ready_for_move_in")
+      return "Payment is confirmed and the guest is ready for check-in on the booked date.";
+    return "The Short Let booking is active. WeHouse is handling the next arrival step.";
+  }
+  if (stay.status === "occupied")
+    return "The tenant has moved in and the property is occupied.";
+  if (stay.status === "completed")
+    return "The tenancy has ended and move-out was recorded.";
+  if (stay.status === "ready_for_move_in")
+    return "The tenancy is ready for verified property handover.";
+  return "The Long Let reservation is moving through WeHouse operations.";
 }
 function friendly(value: any) {
   return String(value || "")

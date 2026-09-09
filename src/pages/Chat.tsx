@@ -33,7 +33,6 @@ import {
   type SupportThread,
 } from "@/lib/supabase/support";
 import { toast } from "sonner";
-import { SmilePlus } from "lucide-react";
 import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
 import InboxTabs from "@/components/InboxTabs";
@@ -135,7 +134,9 @@ export default function Chat({
       BookingConversation[]
     >([]),
     [supportThreads, setSupportThreads] = useState<SupportThread[]>([]),
-    [hotelConversations, setHotelConversations] = useState<HotelConversation[]>([]),
+    [hotelConversations, setHotelConversations] = useState<HotelConversation[]>(
+      [],
+    ),
     [active, setActive] = useState<Conversation | null>(null),
     [activeBooking, setActiveBooking] = useState<ActiveBooking>(null),
     [activeHotel, setActiveHotel] = useState<ActiveHotel>(null),
@@ -165,8 +166,11 @@ export default function Chat({
   >({});
   const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
   const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
-  const [messageActions, setMessageActions] = useState<RoommateMessage | null>(null);
-  const [messageToRemove, setMessageToRemove] = useState<RoommateMessage | null>(null);
+  const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
+    null,
+  );
+  const [messageToRemove, setMessageToRemove] =
+    useState<RoommateMessage | null>(null);
   const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
   const activeRef = useRef<Conversation | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -205,6 +209,18 @@ export default function Chat({
     if (!conversationId) setInboxMode(initialMode);
   }, [conversationId, initialMode]);
 
+  useEffect(() => {
+    const open = Boolean(active || activeBooking || activeHotel);
+    window.dispatchEvent(
+      new CustomEvent("wehouse:nested-screen", { detail: { open } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
+      );
+    };
+  }, [active, activeBooking, activeHotel]);
+
   const loadInbox = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
@@ -242,7 +258,9 @@ export default function Chat({
           convResult.error.message || "Unable to load roommate conversations",
         );
       if (peerResult.error && !quiet)
-        toast.error(peerResult.error.message || "Unable to load roommate names");
+        toast.error(
+          peerResult.error.message || "Unable to load roommate names",
+        );
       const allRoommateRows = (convResult.conversations || []).filter(
         (row) => row.conversation_type === "roommate",
       );
@@ -316,7 +334,10 @@ export default function Chat({
     if (!conversationId) return;
     void (async () => {
       const direct = await getConversationById(conversationId);
-      if (!direct.error && direct.conversation?.conversation_type === "roommate") {
+      if (
+        !direct.error &&
+        direct.conversation?.conversation_type === "roommate"
+      ) {
         setActive(direct.conversation);
         void loadInbox(true);
         return;
@@ -340,7 +361,9 @@ export default function Chat({
         });
       else {
         const hotelResult = await getMyHotelConversations();
-        const hotel = hotelResult.conversations.find((row) => row.conversation_id === conversationId);
+        const hotel = hotelResult.conversations.find(
+          (row) => row.conversation_id === conversationId,
+        );
         if (hotel) {
           setActiveHotel({ conversation: hotel });
           return;
@@ -577,7 +600,8 @@ export default function Chat({
       p_kind: "roommate",
       p_message_id: messageToRemove.id,
     });
-    if (error) return toast.error(error.message || "Message could not be removed");
+    if (error)
+      return toast.error(error.message || "Message could not be removed");
     setMessageToRemove(null);
     await loadRoommateMessages(active.id);
   }
@@ -586,7 +610,11 @@ export default function Chat({
     const person = people[peerId];
     setBlockBusy(true);
     const nextBlocked = !person?.isBlocked;
-    const { error, cancellationState } = await setRoommateBlock(peerId, nextBlocked, reason);
+    const { error, cancellationState } = await setRoommateBlock(
+      peerId,
+      nextBlocked,
+      reason,
+    );
     setBlockBusy(false);
     if (error)
       return toast.error(error.message || "Could not update this block");
@@ -607,7 +635,7 @@ export default function Chat({
         : "Person unblocked",
     );
   }
-  async function startCall(type: "audio" | "video") {
+  async function startCall() {
     if (!active) return;
     const { capabilities, error } = await getCallCapabilities(
       "roommate",
@@ -615,11 +643,9 @@ export default function Chat({
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (type === "audio" && !capabilities.allow_audio_calls)
+    if (!capabilities.allow_audio_calls)
       return toast.error("This person is not accepting audio calls");
-    if (type === "video" && !capabilities.allow_video_calls)
-      return toast.error("This person is not accepting video calls");
-    launchPrivateCall("roommate", active.id, type);
+    launchPrivateCall("roommate", active.id, "audio");
   }
   function toggleSelected(id: string) {
     setSelected((current) => {
@@ -686,7 +712,13 @@ export default function Chat({
         (a, b) =>
           new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
       ),
-    [conversations, bookingConversations, hotelConversations, supportThreads, recentRoommateCalls],
+    [
+      conversations,
+      bookingConversations,
+      hotelConversations,
+      supportThreads,
+      recentRoommateCalls,
+    ],
   );
   const totalUnread =
     conversations.reduce((sum, row) => sum + (unread(row) > 0 ? 1 : 0), 0) +
@@ -719,17 +751,22 @@ export default function Chat({
                 item.booking.booking_code,
               ]
             : item.kind === "hotel"
-              ? [item.hotel.hotel_name, item.hotel.room_name, item.hotel.booking_code, item.hotel.last_message]
-            : (() => {
-                const view = conversationPresentation(item.support);
-                return [
-                  view.title,
-                  view.operator,
-                  view.meta,
-                  item.support.subject,
-                  item.support.last_message,
-                ];
-              })();
+              ? [
+                  item.hotel.hotel_name,
+                  item.hotel.room_name,
+                  item.hotel.booking_code,
+                  item.hotel.last_message,
+                ]
+              : (() => {
+                  const view = conversationPresentation(item.support);
+                  return [
+                    view.title,
+                    view.operator,
+                    view.meta,
+                    item.support.subject,
+                    item.support.last_message,
+                  ];
+                })();
       return searchable.filter(Boolean).join(" ").toLowerCase().includes(query);
     });
   }, [inboxFilter, inboxItems, inboxQuery, otherId, people]);
@@ -753,7 +790,10 @@ export default function Chat({
         bookingId={activeHotel.conversation.booking_id}
         conversationId={activeHotel.conversation.conversation_id}
         profile={profile}
-        title={activeHotel.conversation.other_party_label || activeHotel.conversation.hotel_name}
+        title={
+          activeHotel.conversation.other_party_label ||
+          activeHotel.conversation.hotel_name
+        }
         subtitle={`${activeHotel.conversation.room_name} · ${activeHotel.conversation.booking_code || "Paid stay"}`}
         onClose={() => {
           setActiveHotel(null);
@@ -816,22 +856,17 @@ export default function Chat({
                 <span className="block truncate text-[14px] font-semibold">
                   {person?.name || "Roommate"}
                 </span>
-                {presenceText ? <span
-                  className={`mt-0.5 block truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
-                >{presenceText}</span> : null}
+                {presenceText ? (
+                  <span
+                    className={`mt-0.5 block truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
+                  >
+                    {presenceText}
+                  </span>
+                ) : null}
               </span>
             </button>
-            <HeaderAction
-              label="Audio call"
-              onClick={() => void startCall("audio")}
-            >
+            <HeaderAction label="Audio call" onClick={() => void startCall()}>
               <PhoneIcon />
-            </HeaderAction>
-            <HeaderAction
-              label="Video call"
-              onClick={() => void startCall("video")}
-            >
-              <VideoCallIcon />
             </HeaderAction>
             <button
               onClick={() => setMenuOpen((value) => !value)}
@@ -893,27 +928,28 @@ export default function Chat({
               />
             ) : null}
             {timeline.map((event, index) => (
-                <div key={event.id}>
-                  {index === 0 ||
-                  dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
-                    <DateDivider value={event.time} />
-                  ) : null}
-                  {event.kind === "call" ? (
-                    <CallTimelineEvent call={event.call} me={profile.user_id} />
-                  ) : (
-                    <RoommateBubble
-                      msg={event.message}
-                      mine={event.message.sender_id === profile.user_id}
-                      quoted={
-                        event.message.reply_to_id
-                          ? messageById.get(event.message.reply_to_id)
-                          : undefined
-                      }
-                      onOpenActions={() => setMessageActions(event.message)}
-                    />
-                  )}
-                </div>
-              ))}
+              <div key={event.id}>
+                {index === 0 ||
+                dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
+                  <DateDivider value={event.time} />
+                ) : null}
+                {event.kind === "call" ? (
+                  <CallTimelineEvent call={event.call} me={profile.user_id} />
+                ) : (
+                  <RoommateBubble
+                    msg={event.message}
+                    mine={event.message.sender_id === profile.user_id}
+                    quoted={
+                      event.message.reply_to_id
+                        ? messageById.get(event.message.reply_to_id)
+                        : undefined
+                    }
+                    onOpenActions={() => setMessageActions(event.message)}
+                    onReply={() => setReplyingTo(event.message)}
+                  />
+                )}
+              </div>
+            ))}
             <div ref={bottomRef} />
           </div>
         </main>
@@ -933,7 +969,10 @@ export default function Chat({
                 </button>
               </div>
             ) : !secureChat ? (
-              <div className="flex items-end gap-2" aria-label="Opening secure conversation">
+              <div
+                className="flex items-end gap-2"
+                aria-label="Opening secure conversation"
+              >
                 <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-[11px] text-[#666C7B]">
                   Opening conversation…
                 </div>
@@ -1048,7 +1087,9 @@ export default function Chat({
         </footer>
         {messageActions && active && (
           <MessageActionSheet
-            currentReaction={messageActions.reactions?.[profile.user_id] || null}
+            currentReaction={
+              messageActions.reactions?.[profile.user_id] || null
+            }
             onClose={() => setMessageActions(null)}
             onReply={() => {
               setReplyingTo(messageActions);
@@ -1060,9 +1101,19 @@ export default function Chat({
             }}
             onReact={async (emoji) => {
               const current = messageActions.reactions?.[profile.user_id];
-              const result = await reactToMessage(active.id, messageActions.id, current === emoji ? null : emoji);
+              const result = await reactToMessage(
+                active.id,
+                messageActions.id,
+                current === emoji ? null : emoji,
+              );
               if (result.error) return toast.error(result.error.message);
-              setMessages((rows) => rows.map((row) => row.id === messageActions.id ? { ...row, reactions: result.reactions } : row));
+              setMessages((rows) =>
+                rows.map((row) =>
+                  row.id === messageActions.id
+                    ? { ...row, reactions: result.reactions }
+                    : row,
+                ),
+              );
               setMessageActions(null);
             }}
           />
@@ -1075,7 +1126,7 @@ export default function Chat({
           onCancel={() => setMessageToRemove(null)}
           onConfirm={() => void removeMessageForMe()}
         />
-      {confirmDelete && (
+        {confirmDelete && (
           <DeleteSheet
             title="Remove this conversation from your Inbox?"
             text="This only removes it from your inbox. It does not erase the other person's copy. A new message can make it appear again."
@@ -1097,16 +1148,69 @@ export default function Chat({
             }}
             onAudioCall={() => {
               setProfileOpen(false);
-              void startCall("audio");
-            }}
-            onVideoCall={() => {
-              setProfileOpen(false);
-              void startCall("video");
+              void startCall();
             }}
             busy={blockBusy}
           />
         )}
-        {blockPrompt&&<div className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm" onClick={()=>setBlockPrompt(false)}><section className="w-full max-w-md rounded-[26px] border border-white/[.08] bg-[#141821] p-4" onClick={event=>event.stopPropagation()}><div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold">Block {person?.name||'this person'}?</h2><p className="mt-1 text-[10px] leading-5 text-[#7B8292]">They will leave your discovery results. A linked shared booking will be cancelled, or sent to WeHouse first if payment must be reviewed.</p></div><button onClick={()=>setBlockPrompt(false)} className="grid h-9 w-9 place-items-center text-xl text-[#818797]">×</button></div><textarea value={blockReason} onChange={event=>setBlockReason(event.target.value.slice(0,500))} rows={3} placeholder="Reason (optional)" className="mt-4 w-full resize-none rounded-2xl border border-white/[.08] bg-[#0E1118] p-3 text-xs outline-none focus:border-violet-500/40"/><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>{setBlockReason('');void toggleBlock()}} disabled={blockBusy} className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold disabled:opacity-40">Skip reason</button><button onClick={()=>void toggleBlock(blockReason)} disabled={blockBusy} className="h-11 rounded-xl bg-red-500 text-[10px] font-semibold disabled:opacity-40">{blockBusy?'Blocking…':'Block and continue'}</button></div></section></div>}
+        {blockPrompt && (
+          <div
+            className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm"
+            onClick={() => setBlockPrompt(false)}
+          >
+            <section
+              className="w-full max-w-md rounded-[26px] border border-white/[.08] bg-[#141821] p-4"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold">
+                    Block {person?.name || "this person"}?
+                  </h2>
+                  <p className="mt-1 text-[10px] leading-5 text-[#7B8292]">
+                    They will leave your discovery results. A linked shared
+                    booking will be cancelled, or sent to WeHouse first if
+                    payment must be reviewed.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBlockPrompt(false)}
+                  className="grid h-9 w-9 place-items-center text-xl text-[#818797]"
+                >
+                  ×
+                </button>
+              </div>
+              <textarea
+                value={blockReason}
+                onChange={(event) =>
+                  setBlockReason(event.target.value.slice(0, 500))
+                }
+                rows={3}
+                placeholder="Reason (optional)"
+                className="mt-4 w-full resize-none rounded-2xl border border-white/[.08] bg-[#0E1118] p-3 text-xs outline-none focus:border-violet-500/40"
+              />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setBlockReason("");
+                    void toggleBlock();
+                  }}
+                  disabled={blockBusy}
+                  className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold disabled:opacity-40"
+                >
+                  Skip reason
+                </button>
+                <button
+                  onClick={() => void toggleBlock(blockReason)}
+                  disabled={blockBusy}
+                  className="h-11 rounded-xl bg-red-500 text-[10px] font-semibold disabled:opacity-40"
+                >
+                  {blockBusy ? "Blocking…" : "Block and continue"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     );
   }
@@ -1248,7 +1352,9 @@ export default function Chat({
                     ) : item.kind === "hotel" ? (
                       <HotelInboxRow
                         row={item.hotel}
-                        onOpen={() => setActiveHotel({ conversation: item.hotel })}
+                        onOpen={() =>
+                          setActiveHotel({ conversation: item.hotel })
+                        }
                       />
                     ) : item.kind === "support" ? (
                       <SupportInboxRow
@@ -1388,17 +1494,55 @@ function WorkerInboxRow({
     </SelectableRow>
   );
 }
-function HotelInboxRow({ row, onOpen }: { row: HotelConversation; onOpen: () => void }) {
+function HotelInboxRow({
+  row,
+  onOpen,
+}: {
+  row: HotelConversation;
+  onOpen: () => void;
+}) {
   return (
-    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]">
-      {row.hotel_image ? <img src={row.hotel_image} alt="" loading="lazy" decoding="async" className="h-12 w-12 shrink-0 rounded-xl object-cover" /> : <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-sm font-bold text-amber-200">H</div>}
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
+    >
+      {row.hotel_image ? (
+        <img
+          src={row.hotel_image}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-12 w-12 shrink-0 rounded-xl object-cover"
+        />
+      ) : (
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-sm font-bold text-amber-200">
+          H
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{row.other_party_label || row.hotel_name}</p>
-          <span className="shrink-0 rounded-full bg-amber-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-amber-200">HOTEL</span>
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            {row.other_party_label || row.hotel_name}
+          </p>
+          <span className="shrink-0 rounded-full bg-amber-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-amber-200">
+            HOTEL
+          </span>
         </div>
-        <p className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}>{row.last_message || "Paid stay conversation"}</p>
-        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{[row.room_name, row.booking_code, formatListTime(row.last_message_time || row.updated_at)].filter(Boolean).join(" · ")}</p>
+        <p
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+        >
+          {row.last_message || "Paid stay conversation"}
+        </p>
+        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
+          {[
+            row.room_name,
+            row.booking_code,
+            formatListTime(row.last_message_time || row.updated_at),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
       </div>
       {row.unread_count > 0 && <Unread value={1} />}
     </button>
@@ -1522,18 +1666,23 @@ function RoommateBubble({
   mine,
   quoted,
   onOpenActions,
+  onReply,
 }: {
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
   onOpenActions: () => void;
+  onReply: () => void;
 }) {
   const reactions = Object.values(msg.reactions || {}).reduce<
     Record<string, number>
   >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
   return (
-    <MessagePress onOpen={onOpenActions} className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
-      {!mine && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenActions(); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
+    <MessagePress
+      onOpen={onOpenActions}
+      onReply={onReply}
+      className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
+    >
       <div
         className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
       >
@@ -1585,7 +1734,6 @@ function RoommateBubble({
           </div>
         )}
       </div>
-      {mine && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenActions(); }} aria-label="Message actions" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#707687] opacity-65 sm:opacity-0 sm:group-hover:opacity-100"><SmilePlus className="h-4 w-4" /></button>}
     </MessagePress>
   );
 }
@@ -1629,22 +1777,62 @@ function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
 }
 function PrivateAttachment({ url, type }: { url: string; type: string }) {
   const [viewerOpen, setViewerOpen] = useState(false);
-  const image = type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
-  const video = type.startsWith("video/") || /\.(mp4|mov)(\?|$)/i.test(url) || (!type && /\.webm(\?|$)/i.test(url));
+  const image =
+    type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+  const video =
+    type.startsWith("video/") ||
+    /\.(mp4|mov)(\?|$)/i.test(url) ||
+    (!type && /\.webm(\?|$)/i.test(url));
   if (image)
-    return <>
-      <button type="button" onClick={() => setViewerOpen(true)} className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black" aria-label="Open shared photo in WeHouse viewer">
-        <img src={url} alt="Shared photo" className="max-h-80 w-auto max-w-full object-contain" />
-      </button>
-      {viewerOpen ? <MediaViewer src={url} kind="image" title="Shared photo" onClose={() => setViewerOpen(false)} /> : null}
-    </>;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black"
+          aria-label="Open shared photo in WeHouse viewer"
+        >
+          <img
+            src={url}
+            alt="Shared photo"
+            className="max-h-80 w-auto max-w-full object-contain"
+          />
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={url}
+            kind="image"
+            title="Shared photo"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
   if (video)
-    return <>
-      <button type="button" onClick={() => setViewerOpen(true)} className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black" aria-label="Open shared video in WeHouse viewer">
-        <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]"><span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">▶</span></span>
-      </button>
-      {viewerOpen ? <MediaViewer src={url} kind="video" title="Shared video" onClose={() => setViewerOpen(false)} /> : null}
-    </>;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black"
+          aria-label="Open shared video in WeHouse viewer"
+        >
+          <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]">
+            <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">
+              ▶
+            </span>
+          </span>
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={url}
+            kind="video"
+            title="Shared video"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
   if (type.startsWith("audio/") || /\.(webm|m4a|mp3|wav|ogg)(\?|$)/i.test(url))
     return <VoiceNotePlayer url={url} />;
   return null;
@@ -1666,7 +1854,6 @@ function PeerProfileSheet({
   onClose,
   onToggleBlock,
   onAudioCall,
-  onVideoCall,
   busy,
 }: {
   person?: Person;
@@ -1674,7 +1861,6 @@ function PeerProfileSheet({
   onClose: () => void;
   onToggleBlock: () => void;
   onAudioCall: () => void;
-  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1694,12 +1880,9 @@ function PeerProfileSheet({
       presence={presenceText}
       onClose={onClose}
       actions={
-        <div className="mx-auto flex max-w-xs justify-center gap-12">
+        <div className="mx-auto flex max-w-xs justify-center">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
-          </ProfileAction>
-          <ProfileAction label="Video" onClick={onVideoCall}>
-            <VideoCallIcon />
           </ProfileAction>
         </div>
       }
@@ -1768,14 +1951,6 @@ function PhoneIcon() {
       strokeWidth="1.8"
     >
       <path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.9Z" />
-    </svg>
-  );
-}
-function VideoCallIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="6" width="13" height="12" rx="2" />
-      <path d="m16 10 5-3v10l-5-3" />
     </svg>
   );
 }

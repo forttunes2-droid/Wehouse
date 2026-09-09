@@ -1061,7 +1061,11 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
             <p className="text-base font-bold">{title || "Listing title"}</p>
             <p className="mt-1 text-sm font-semibold text-violet-300">
               {row.property_type === "hotel" ? "Hotel" : money(price)}
-              {row.property_type === "hotel" ? "" : " / year"}
+              {row.property_type === "hotel"
+                ? ""
+                : row.sub_type === "short_let"
+                  ? " / night"
+                  : " / year"}
             </p>
             <p className="mt-3 whitespace-pre-wrap text-[10px] leading-5 text-[#8A90A0]">
               {description || "No public description yet."}
@@ -1118,7 +1122,9 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
           type="number"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          placeholder="Annual rent"
+          placeholder={
+            row.sub_type === "short_let" ? "Nightly rate" : "Annual rent"
+          }
           className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"
         />
       )}
@@ -1205,6 +1211,23 @@ function Prepared({
           {row.listing?.title || "Prepared listing"} ·{" "}
           {money(row.listing?.price || 0)}
         </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <ReviewStep
+            number="1"
+            title="Select public photos"
+            active={!galleryConfirmed}
+          />
+          <ReviewStep
+            number="2"
+            title="Confirm exact gallery"
+            active={!galleryConfirmed}
+          />
+          <ReviewStep
+            number="3"
+            title="Approve and publish"
+            active={galleryConfirmed}
+          />
+        </div>
         <FinalGalleryReview
           row={row}
           authority={authority}
@@ -1247,6 +1270,28 @@ function Prepared({
       </div>
       <ConfirmDialog {...dialogProps} />
     </>
+  );
+}
+function ReviewStep({
+  number,
+  title,
+  active,
+}: {
+  number: string;
+  title: string;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${active ? "border-violet-500/20 bg-violet-500/[.06]" : "border-white/[.06] bg-white/[.025]"}`}
+    >
+      <span
+        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold ${active ? "bg-violet-500 text-white" : "bg-white/[.07] text-[#858B9B]"}`}
+      >
+        {number}
+      </span>
+      <span className="text-[9px] font-semibold">{title}</span>
+    </div>
   );
 }
 function HotelDraft({

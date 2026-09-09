@@ -35,10 +35,18 @@ export type SupportOpenContext = {
 };
 
 export function supportContextType(
-  value: Pick<SupportThread, "context_type" | "context_snapshot"> | SupportOpenContext,
+  value:
+    | Pick<SupportThread, "context_type" | "context_snapshot">
+    | SupportOpenContext,
 ) {
-  const stored = "context_type" in value ? value.context_type : value.contextType || "general";
-  const snapshot = ("context_snapshot" in value ? value.context_snapshot : value.contextSnapshot) || {};
+  const stored =
+    "context_type" in value
+      ? value.context_type
+      : value.contextType || "general";
+  const snapshot =
+    ("context_snapshot" in value
+      ? value.context_snapshot
+      : value.contextSnapshot) || {};
   const source = String(snapshot.source_type || "");
   if (stored === "support_case" && source) return source;
   if (stored === "listing") return "property_listing";
@@ -46,44 +54,106 @@ export function supportContextType(
 }
 
 export function conversationPresentation(
-  value: Pick<SupportThread, "subject" | "context_type" | "context_snapshot" | "status"> | SupportOpenContext,
+  value:
+    | Pick<
+        SupportThread,
+        "subject" | "context_type" | "context_snapshot" | "status"
+      >
+    | SupportOpenContext,
 ): ConversationPresentation {
-  const snapshot = ("context_snapshot" in value ? value.context_snapshot : value.contextSnapshot) || {};
+  const snapshot =
+    ("context_snapshot" in value
+      ? value.context_snapshot
+      : value.contextSnapshot) || {};
   const contextType = supportContextType(value);
-  const rawSubject = String("subject" in value ? value.subject || "" : value.subject || "").trim();
+  const rawSubject = String(
+    "subject" in value ? value.subject || "" : value.subject || "",
+  ).trim();
   const threadStatus = "status" in value ? value.status : "";
-  const status = String(snapshot.status || threadStatus || "").replace(/_/g, " ");
-  const code = String(snapshot.booking_code || snapshot.reference || snapshot.request_code || "").trim();
-  const reservation = ["apartment_reservation", "apartment_payment", "reservation", "hotel_booking"].includes(contextType);
+  const status = String(snapshot.status || threadStatus || "").replace(
+    /_/g,
+    " ",
+  );
+  const code = String(
+    snapshot.booking_code || snapshot.reference || snapshot.request_code || "",
+  ).trim();
+  const reservation = [
+    "apartment_reservation",
+    "apartment_payment",
+    "reservation",
+    "hotel_booking",
+  ].includes(contextType);
   if (reservation) {
     const stay = snapshot.stay_type === "short_let" ? "Short Let" : "Long Let";
-    const place = String(snapshot.listing_title || snapshot.hotel_name || "").trim();
-    const safeSubject = /^(wehouse support|reservation help)$/i.test(rawSubject) ? "" : rawSubject.replace(/\s*·\s*Reservation Desk$/i, "");
+    const place = String(
+      snapshot.listing_title || snapshot.hotel_name || "",
+    ).trim();
+    const safeSubject = /^(wehouse support|reservation help)$/i.test(rawSubject)
+      ? ""
+      : rawSubject.replace(/\s*·\s*Reservation Desk$/i, "");
     return {
       kind: "reservation",
-      title: place || safeSubject || (contextType === "hotel_booking" ? "Hotel stay" : stay),
+      title:
+        place ||
+        safeSubject ||
+        (contextType === "hotel_booking" ? "Hotel stay" : stay),
       operator: "WeHouse",
-      meta: [contextType === "hotel_booking" ? "Hotel booking" : "Property reservation", code, reservationStatusLabel(status, contextType)].filter(Boolean).join(" · "),
+      meta: [
+        contextType === "hotel_booking"
+          ? "Hotel booking"
+          : "Property reservation",
+        code,
+        reservationStatusLabel(status, contextType),
+      ]
+        .filter(Boolean)
+        .join(" · "),
       operational: true,
     };
   }
-  if (["property_listing", "property_inspection", "hotel_property", "hotel_operations"].includes(contextType)) return {
-    kind: "property_operations",
-    title: String(snapshot.listing_title || snapshot.hotel_name || rawSubject || "Property").replace(/^(question about|inspection help)\s*·\s*/i, ""),
-    operator: "WeHouse",
-    meta: [contextType === "property_inspection" ? "Property inspection" : contextType.startsWith("hotel_") ? "Hotel operations" : "Property enquiry", code, status].filter(Boolean).join(" · "),
-    operational: true,
-  };
-  if (contextType === "worker_booking") return {
-    kind: "service_help",
-    title: rawSubject || String(snapshot.service_type || "Service booking"),
-    operator: "WeHouse",
-    meta: ["Service booking", code, status].filter(Boolean).join(" · "),
-    operational: true,
-  };
+  if (
+    [
+      "property_listing",
+      "property_inspection",
+      "hotel_property",
+      "hotel_operations",
+    ].includes(contextType)
+  )
+    return {
+      kind: "property_operations",
+      title: String(
+        snapshot.listing_title ||
+          snapshot.hotel_name ||
+          rawSubject ||
+          "Property",
+      ).replace(/^(question about|inspection help)\s*·\s*/i, ""),
+      operator: "WeHouse",
+      meta: [
+        contextType === "property_inspection"
+          ? "Property inspection"
+          : contextType.startsWith("hotel_")
+            ? "Hotel operations"
+            : "Property enquiry",
+        code,
+        status,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      operational: true,
+    };
+  if (contextType === "worker_booking")
+    return {
+      kind: "service_help",
+      title: rawSubject || String(snapshot.service_type || "Service booking"),
+      operator: "WeHouse",
+      meta: ["Service booking", code, status].filter(Boolean).join(" · "),
+      operational: true,
+    };
   return {
     kind: "support",
-    title: rawSubject && !/^wehouse support$/i.test(rawSubject) ? rawSubject : "WeHouse",
+    title:
+      rawSubject && !/^wehouse support$/i.test(rawSubject)
+        ? rawSubject
+        : "WeHouse",
     operator: "WeHouse",
     meta: ["Help", status].filter(Boolean).join(" · "),
     operational: false,
@@ -95,38 +165,39 @@ function reservationStatusLabel(status: string, contextType: string) {
   if (value === "occupied") return "Tenancy active";
   if (value === "checked in" || value === "checked_in") return "Checked in";
   if (value === "checked out" || value === "checked_out") return "Checked out";
-  if (value === "confirmed") return contextType === "hotel_booking" ? "Stay confirmed" : "Booking confirmed";
+  if (value === "confirmed")
+    return contextType === "hotel_booking"
+      ? "Stay confirmed"
+      : "Booking confirmed";
   return value ? value[0].toUpperCase() + value.slice(1) : "";
 }
 
 export async function createSupportConversation(
   input: SupportOpenContext = {},
 ) {
-  if (["apartment_reservation", "reservation", "hotel_booking"].includes(input.contextType || "")) {
-    const { data, error } = await supabase.rpc("open_my_reservation_conversation", {
-      p_context_type: input.contextType,
-      p_context_id: input.contextId,
-    });
+  if (
+    ["apartment_reservation", "reservation", "hotel_booking"].includes(
+      input.contextType || "",
+    )
+  ) {
+    const { data, error } = await supabase.rpc(
+      "open_my_reservation_conversation",
+      {
+        p_context_type: input.contextType,
+        p_context_id: input.contextId,
+      },
+    );
     return { conversationId: data as string | null, error };
   }
-  if ((input.contextType || "general") !== "property_inspection") {
-    const snapshot = input.contextSnapshot || {};
-    const { data, error } = await supabase.rpc("create_my_support_case", {
-      p_subject: input.subject || "WeHouse",
-      p_category: input.category || "general",
-      p_source_type: String(snapshot.source_type || input.contextType || "general"),
-      p_source_id: String(snapshot.source_id || input.contextId || "") || null,
-      p_source_snapshot: snapshot,
-      p_priority: input.priority || "normal",
-    });
-    return { conversationId: data as string | null, error };
-  }
-  const { data, error } = await supabase.rpc("create_support_conversation", {
+  const snapshot = input.contextSnapshot || {};
+  const { data, error } = await supabase.rpc("create_my_support_case", {
     p_subject: input.subject || "WeHouse",
     p_category: input.category || "general",
-    p_context_type: input.contextType || "general",
-    p_context_id: input.contextId || null,
-    p_context_snapshot: input.contextSnapshot || {},
+    p_source_type: String(
+      snapshot.source_type || input.contextType || "general",
+    ),
+    p_source_id: String(snapshot.source_id || input.contextId || "") || null,
+    p_source_snapshot: snapshot,
     p_priority: input.priority || "normal",
   });
   return { conversationId: data as string | null, error };
@@ -191,9 +262,17 @@ export async function markSupportMessagesRead(conversationId: string) {
 }
 
 export async function getSupportInbox(
-  queue: "all" | "support" | "operations" | "property_operations" | "reservation_operations" | "field_operations" = "support",
+  queue:
+    | "all"
+    | "support"
+    | "operations"
+    | "property_operations"
+    | "reservation_operations"
+    | "field_operations" = "support",
 ) {
-  const { data, error } = await supabase.rpc("support_inbox", { p_queue: queue });
+  const { data, error } = await supabase.rpc("support_inbox", {
+    p_queue: queue,
+  });
   return { conversations: data || [], error };
 }
 
