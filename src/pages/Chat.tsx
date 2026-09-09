@@ -1946,7 +1946,15 @@ function HeaderAction({
     </button>
   );
 }
-function CameraIcon() {\n  return (\n    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">\n      <rect x="3" y="6" width="13" height="12" rx="2" />\n      <path d="m16 10 5-3v10l-5-3Z" />\n    </svg>\n  );\n}\nfunction PhoneIcon() {
+function CameraIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3Z" />
+    </svg>
+  );
+}
+function PhoneIcon() {
   return (
     <svg
       width="17"
