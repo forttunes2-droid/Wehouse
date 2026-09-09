@@ -1255,7 +1255,7 @@ export default function Chat({
             {loading ? "Opening conversation…" : "Conversation unavailable"}
           </p>
           {!loading ? (
-            <button type="button" onClick={() => onNavigate("inbox")} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
+            <button type="button" onClick={() => onNavigate("chat")} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
               Go to Inbox
             </button>
           ) : null}
