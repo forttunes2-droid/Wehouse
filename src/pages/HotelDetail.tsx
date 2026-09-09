@@ -270,7 +270,7 @@ export default function HotelDetail({
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
-                The exact address and location pin are shown only after a paid
+                The exact address and directions are shown only after a paid
                 booking.
               </div>
             )}
