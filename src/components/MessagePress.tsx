@@ -52,7 +52,7 @@ export default function MessagePress({
   }
   function finish() {
     cancel();
-    if (translate >= 54 && onReply) {
+    if (Math.abs(translate) >= 54 && onReply) {
       navigator.vibrate?.(12);
       onReply();
       opened.current = true;
@@ -83,10 +83,10 @@ export default function MessagePress({
         opened.current = false;
       }}
     >
-      {onReply && translate > 0 ? (
+      {onReply && translate !== 0 ? (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-1 grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-sm text-white transition-opacity ${translate >= 54 ? "opacity-100" : "opacity-45"}`}
+          className={`pointer-events-none absolute ${translate > 0 ? "left-1" : "right-1"} grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-sm text-white transition-opacity ${Math.abs(translate) >= 54 ? "opacity-100" : "opacity-45"}`}
         >
           ↩
         </span>
