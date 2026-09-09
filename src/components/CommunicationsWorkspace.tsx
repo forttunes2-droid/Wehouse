@@ -7,15 +7,26 @@ import {
   claimCommunicationCase,
   conversationPresentation,
   deleteSupportAttachment,
+  getSupportCaseEvents,
   getSupportInbox,
   getSupportMessages,
   markSupportMessagesRead,
   sendSupportMessage,
+  supportNextStep,
+  supportStatusLabel,
+  transitionSupportCase,
   uploadSupportAttachment,
+  type SupportCaseEvent,
 } from "@/lib/supabase/support";
 import type { Profile } from "@/types";
 
 type View = "inbox" | "broadcast";
+type CaseAction =
+  | "start"
+  | "request_info"
+  | "escalate"
+  | "resolve"
+  | "close";
 type Scope = "all" | { state: string; lga: string };
 type Props = {
   profile: Profile;
@@ -54,9 +65,13 @@ export default function CommunicationsWorkspace({
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState<any | null>(null),
     [messages, setMessages] = useState<any[]>([]),
+    [events, setEvents] = useState<SupportCaseEvent[]>([]),
     [input, setInput] = useState(""),
     [sending, setSending] = useState(false),
-    [files, setFiles] = useState<File[]>([]);
+    [files, setFiles] = useState<File[]>([]),
+    [caseAction, setCaseAction] = useState<CaseAction | null>(null),
+    [caseNote, setCaseNote] = useState(""),
+    [updatingCase, setUpdatingCase] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null),
     bottomRef = useRef<HTMLDivElement>(null),
     inputRef = useRef<HTMLTextAreaElement>(null),
@@ -75,6 +90,13 @@ export default function CommunicationsWorkspace({
     if (!error) {
       const next = conversations || [];
       setRows(next);
+      setSelected((current: any | null) =>
+        current
+          ? next.find(
+              (row: any) => row.conversation_id === current.conversation_id,
+            ) || current
+          : current,
+      );
       if (
         initialConversationId &&
         openedInitialRef.current !== initialConversationId
@@ -95,10 +117,16 @@ export default function CommunicationsWorkspace({
   }
   async function refreshMessages(id: string, quiet = false) {
     if (!quiet) setLoadingThread(true);
-    const { messages: data, error } = await getSupportMessages(id);
-    if (error && !quiet)
-      toast.error(error.message || "Unable to open conversation");
-    if (!error) setMessages(data || []);
+    const [{ messages: data, error }, { events: history, error: eventError }] =
+      await Promise.all([getSupportMessages(id), getSupportCaseEvents(id)]);
+    if ((error || eventError) && !quiet)
+      toast.error(
+        (error || eventError)?.message || "Unable to open conversation",
+      );
+    if (!error && !eventError) {
+      setMessages(data || []);
+      setEvents(history);
+    }
     await markSupportMessagesRead(id);
     if (!quiet) setLoadingThread(false);
   }
@@ -138,11 +166,20 @@ export default function CommunicationsWorkspace({
     }
     setSelected(
       profile.role === "staff"
-        ? { ...row, assigned_staff_id: profile.user_id }
+        ? {
+            ...row,
+            assigned_staff_id: profile.user_id,
+            assigned_staff_name:
+              profile.full_name || profile.username || "Current team member",
+            status: row.status === "open" ? "assigned" : row.status,
+          }
         : row,
     );
     setFiles([]);
     setInput("");
+    setEvents([]);
+    setCaseAction(null);
+    setCaseNote("");
     await refreshMessages(row.conversation_id);
     void load(true);
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -202,6 +239,49 @@ export default function CommunicationsWorkspace({
     setSending(false);
     setInput("");
     setFiles([]);
+    await refreshMessages(selected.conversation_id, true);
+    void load(true);
+  }
+  async function updateCase(action: CaseAction) {
+    if (!selected || updatingCase) return;
+    const noteRequired = ["request_info", "escalate", "resolve"].includes(
+      action,
+    );
+    if (noteRequired && !caseNote.trim()) {
+      toast.error(
+        action === "request_info"
+          ? "Say exactly what information the requester must provide"
+          : action === "escalate"
+            ? "Add the reason for escalation"
+            : "Explain the outcome before resolving",
+      );
+      return;
+    }
+    setUpdatingCase(true);
+    const { error } = await transitionSupportCase(
+      selected.conversation_id,
+      action,
+      caseNote.trim(),
+    );
+    if (error) {
+      setUpdatingCase(false);
+      toast.error(error.message || "Could not update this request");
+      return;
+    }
+    const nextStatus: Record<CaseAction, string> = {
+      start: "in_progress",
+      request_info: "waiting_for_user",
+      escalate: "escalated",
+      resolve: "resolved",
+      close: "closed",
+    };
+    setSelected((current: any | null) =>
+      current ? { ...current, status: nextStatus[action] } : current,
+    );
+    setCaseAction(null);
+    setCaseNote("");
+    setUpdatingCase(false);
+    toast.success(caseActionConfirmation(action));
     await refreshMessages(selected.conversation_id, true);
     void load(true);
   }
@@ -270,7 +350,10 @@ export default function CommunicationsWorkspace({
             onClick={() => {
               setSelected(null);
               setMessages([]);
+              setEvents([]);
               setFiles([]);
+              setCaseAction(null);
+              setCaseNote("");
             }}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#9DA3B2] hover:bg-white/[.05]"
           >
@@ -312,6 +395,23 @@ export default function CommunicationsWorkspace({
             </span>
           </div>
         </section>
+        <CaseManagementPanel
+          row={selected}
+          events={events}
+          activeAction={caseAction}
+          note={caseNote}
+          busy={updatingCase}
+          onSelectAction={(action) => {
+            setCaseAction(action);
+            setCaseNote("");
+          }}
+          onNoteChange={setCaseNote}
+          onCancel={() => {
+            setCaseAction(null);
+            setCaseNote("");
+          }}
+          onSubmit={(action) => void updateCase(action)}
+        />
         {selectedPresentation.operational && (
           <div className="flex items-center gap-3 border-b border-white/[.06] bg-violet-500/[.045] px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -385,6 +485,9 @@ export default function CommunicationsWorkspace({
           <div className="mx-auto flex max-w-4xl items-end gap-2">
             <button
               onClick={() => fileRef.current?.click()}
+              disabled={
+                selected.status === "resolved" || selected.status === "closed"
+              }
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
             >
               ＋
@@ -409,15 +512,28 @@ export default function CommunicationsWorkspace({
                   }
                 }}
                 rows={1}
+                disabled={
+                  selected.status === "resolved" ||
+                  selected.status === "closed"
+                }
                 placeholder={
-                  reservationQueue ? "Reply from Bookings" : "Reply as WeHouse"
+                  selected.status === "resolved" || selected.status === "closed"
+                    ? "Use the request controls above"
+                    : reservationQueue
+                      ? "Reply from Bookings"
+                      : "Reply as WeHouse"
                 }
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
               />
             </div>
             <button
               onClick={() => void reply()}
-              disabled={sending || (!input.trim() && !files.length)}
+              disabled={
+                sending ||
+                selected.status === "resolved" ||
+                selected.status === "closed" ||
+                (!input.trim() && !files.length)
+              }
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#666C7D]"
             >
               {sending ? "…" : "➤"}
@@ -485,6 +601,7 @@ export default function CommunicationsWorkspace({
                     <span className="shrink-0 rounded-full bg-white/[.04] px-2 py-0.5 text-[8px] capitalize text-[#777C8D]">
                       {publicRole(row.requester_role)}
                     </span>
+                    <StatusBadge status={row.status} />
                   </div>
                   {reservationQueue ? (
                     <ReservationContext row={row} />
@@ -528,6 +645,287 @@ export default function CommunicationsWorkspace({
     </div>
   );
 }
+
+function CaseManagementPanel({
+  row,
+  events,
+  activeAction,
+  note,
+  busy,
+  onSelectAction,
+  onNoteChange,
+  onCancel,
+  onSubmit,
+}: {
+  row: any;
+  events: SupportCaseEvent[];
+  activeAction: CaseAction | null;
+  note: string;
+  busy: boolean;
+  onSelectAction: (action: CaseAction) => void;
+  onNoteChange: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: (action: CaseAction) => void;
+}) {
+  const next = supportNextStep(row.status, row.assigned_staff_name);
+  const actions = availableCaseActions(row.status);
+  const importantEvent = [...events]
+    .reverse()
+    .find((event) =>
+      ["information_requested", "escalated", "resolved"].includes(
+        event.event_type,
+      ),
+    );
+  return (
+    <section className="border-b border-white/[.06] bg-[#11161E] px-4 py-4">
+      <div className="mx-auto max-w-4xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#697183]">
+              Request handling
+            </p>
+            <p className="mt-1 text-[12px] font-semibold text-[#ECEEF2]">
+              {row.subject || "WeHouse request"}
+            </p>
+          </div>
+          <StatusBadge status={row.status} large />
+        </div>
+        <div className="mt-3 grid gap-3 rounded-2xl border border-white/[.06] bg-black/10 p-3 sm:grid-cols-3">
+          <CaseFact
+            label="Owner"
+            value={row.assigned_staff_name || "Awaiting assignment"}
+          />
+          <CaseFact label="Next action by" value={next.actor} />
+          <CaseFact label="What happens now" value={next.text} wide />
+        </div>
+        {importantEvent?.note &&
+        ["waiting_for_user", "escalated", "resolved"].includes(row.status) ? (
+          <div className="mt-3 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2.5">
+            <p className="text-[8px] font-semibold uppercase tracking-wide text-[#646C7D]">
+              Latest decision
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-[#CDD0D8]">
+              {importantEvent.note}
+            </p>
+          </div>
+        ) : null}
+        {actions.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <button
+                key={action}
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  action === "start" || action === "close"
+                    ? onSubmit(action)
+                    : onSelectAction(action)
+                }
+                className={`min-h-9 rounded-xl px-3 text-[9px] font-semibold disabled:opacity-50 ${caseActionTone(action)}`}
+              >
+                {caseActionLabel(action)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {activeAction &&
+        ["request_info", "escalate", "resolve"].includes(activeAction) ? (
+          <div className="mt-3 rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3">
+            <label className="text-[9px] font-semibold text-violet-200">
+              {caseActionPrompt(activeAction)}
+            </label>
+            <textarea
+              autoFocus
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              rows={3}
+              placeholder={caseActionPlaceholder(activeAction)}
+              className="mt-2 w-full resize-none rounded-xl border border-white/[.07] bg-[#0D1118] p-3 text-[11px] leading-5 outline-none placeholder:text-[#575E6F] focus:border-violet-500/35"
+            />
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onCancel}
+                className="min-h-9 rounded-xl px-3 text-[9px] font-semibold text-[#8A90A0]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy || !note.trim()}
+                onClick={() => onSubmit(activeAction)}
+                className="min-h-9 rounded-xl bg-violet-500 px-4 text-[9px] font-semibold disabled:opacity-50"
+              >
+                {busy ? "Updating…" : caseActionLabel(activeAction)}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <details className="mt-3 border-t border-white/[.05] pt-3">
+          <summary className="cursor-pointer text-[9px] font-semibold text-violet-300">
+            Request history · {events.length + 1} update
+            {events.length === 0 ? "" : "s"}
+          </summary>
+          <div className="mt-3 space-y-2 border-l border-white/[.08] pl-3">
+            <StaffHistoryItem
+              title="Request sent to WeHouse"
+              time={row.created_at}
+              note={null}
+            />
+            {events.map((event) => (
+              <StaffHistoryItem
+                key={event.id}
+                title={caseEventLabel(event.event_type)}
+                time={event.created_at}
+                note={event.note}
+              />
+            ))}
+          </div>
+        </details>
+      </div>
+    </section>
+  );
+}
+
+function CaseFact({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <div className={wide ? "sm:col-span-1" : ""}>
+      <p className="text-[8px] font-semibold uppercase tracking-wide text-[#626A7B]">
+        {label}
+      </p>
+      <p className="mt-1 text-[10px] leading-4 text-[#CACDD5]">{value}</p>
+    </div>
+  );
+}
+
+function StaffHistoryItem({
+  title,
+  time,
+  note,
+}: {
+  title: string;
+  time: string;
+  note: string | null;
+}) {
+  return (
+    <div>
+      <p className="text-[9px] font-medium text-[#D2D5DC]">{title}</p>
+      <p className="mt-0.5 text-[8px] text-[#5E6575]">
+        {new Date(time).toLocaleString([], {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </p>
+      {note ? (
+        <p className="mt-1 text-[9px] leading-4 text-[#858B99]">{note}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function availableCaseActions(status: string): CaseAction[] {
+  if (status === "open" || status === "assigned") return ["start"];
+  if (status === "in_progress")
+    return ["request_info", "escalate", "resolve"];
+  if (status === "waiting_for_user") return ["escalate", "resolve"];
+  if (status === "escalated") return ["request_info", "resolve"];
+  if (status === "resolved") return ["close"];
+  return [];
+}
+
+function caseActionLabel(action: CaseAction) {
+  const labels: Record<CaseAction, string> = {
+    start: "Start work",
+    request_info: "Request information",
+    escalate: "Escalate",
+    resolve: "Resolve",
+    close: "Close request",
+  };
+  return labels[action];
+}
+
+function caseActionPrompt(action: CaseAction) {
+  if (action === "request_info") return "What exactly must the requester send?";
+  if (action === "escalate") return "Why does this need additional review?";
+  return "What was done and what is the outcome?";
+}
+
+function caseActionPlaceholder(action: CaseAction) {
+  if (action === "request_info")
+    return "Example: Please upload the payment receipt showing the transaction reference.";
+  if (action === "escalate")
+    return "Explain the issue and why another WeHouse reviewer is needed.";
+  return "Explain the result in plain language the requester can understand.";
+}
+
+function caseActionTone(action: CaseAction) {
+  if (action === "escalate") return "bg-rose-500/10 text-rose-300";
+  if (action === "resolve" || action === "close")
+    return "bg-emerald-500/10 text-emerald-300";
+  return "bg-violet-500/10 text-violet-300";
+}
+
+function caseActionConfirmation(action: CaseAction) {
+  const labels: Record<CaseAction, string> = {
+    start: "Work started",
+    request_info: "Requester notified about the information needed",
+    escalate: "Request escalated",
+    resolve: "Outcome sent to the requester",
+    close: "Request closed",
+  };
+  return labels[action];
+}
+
+function StatusBadge({
+  status,
+  large = false,
+}: {
+  status: string;
+  large?: boolean;
+}) {
+  const tone =
+    status === "waiting_for_user"
+      ? "bg-amber-500/10 text-amber-300"
+      : status === "escalated"
+        ? "bg-rose-500/10 text-rose-300"
+        : status === "resolved" || status === "closed"
+          ? "bg-emerald-500/10 text-emerald-300"
+          : "bg-violet-500/10 text-violet-300";
+  return (
+    <span
+      className={`shrink-0 rounded-full font-semibold ${large ? "px-2.5 py-1 text-[8px]" : "px-2 py-0.5 text-[7px]"} ${tone}`}
+    >
+      {supportStatusLabel(status, "staff")}
+    </span>
+  );
+}
+
+function caseEventLabel(value: string) {
+  const labels: Record<string, string> = {
+    assigned: "Assigned to a WeHouse team member",
+    work_started: "WeHouse started work",
+    information_requested: "Information requested",
+    requester_replied: "Requester supplied information",
+    escalated: "Escalated for additional review",
+    resolved: "Outcome sent to requester",
+    resolution_accepted: "Requester confirmed the outcome",
+    closed: "Request closed",
+    reopened: "Requester still needs help",
+  };
+  return labels[value] || value.replace(/_/g, " ");
+}
+
 function communicationDestination(row: any) {
   const type = String(
     row.context_type || row.context_snapshot?.source_type || "",
@@ -627,6 +1025,26 @@ function Bubble({
   requesterName: string;
 }) {
   const meta = msg.action_metadata || {};
+  if (msg.action_type === "status_change") {
+    return (
+      <div className="mx-auto my-3 max-w-md rounded-2xl border border-violet-500/15 bg-violet-500/[.055] px-4 py-3 text-center">
+        <p className="text-[9px] font-semibold text-violet-200">
+          {caseEventLabel(String(meta.event_type || "request_updated"))}
+        </p>
+        {msg.content ? (
+          <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#B1B5C1]">
+            {msg.content}
+          </p>
+        ) : null}
+        <p className="mt-1 text-[8px] text-[#606778]">
+          {new Date(msg.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      </div>
+    );
+  }
   const fromWeHouse = ["staff", "admin", "creator"].includes(
     String(msg.sender_role || ""),
   );

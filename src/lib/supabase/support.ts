@@ -16,6 +16,19 @@ export type SupportThread = {
   created_at: string;
 };
 
+export type SupportCaseEvent = {
+  id: string;
+  event_type: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_role: string | null;
+  from_status: string | null;
+  to_status: string | null;
+  note: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
 export type ConversationPresentation = {
   kind: "reservation" | "service_help" | "property_operations" | "support";
   title: string;
@@ -217,11 +230,114 @@ export async function getSupportMessages(conversationId: string) {
   return { messages: data || [], error };
 }
 
+export async function getSupportCaseEvents(conversationId: string) {
+  const { data, error } = await supabase.rpc("get_my_support_case_events", {
+    p_conversation_id: conversationId,
+  });
+  return { events: (data || []) as SupportCaseEvent[], error };
+}
+
 export async function claimCommunicationCase(conversationId: string) {
   const { error } = await supabase.rpc("claim_my_communication_case", {
     p_conversation_id: conversationId,
   });
   return { error };
+}
+
+export async function transitionSupportCase(
+  conversationId: string,
+  action: "start" | "request_info" | "escalate" | "resolve" | "close",
+  note?: string,
+) {
+  const { data, error } = await supabase.rpc("transition_my_support_case", {
+    p_conversation_id: conversationId,
+    p_action: action,
+    p_note: note || null,
+  });
+  return { conversation: data, error };
+}
+
+export async function completeSupportCase(conversationId: string) {
+  const { data, error } = await supabase.rpc("complete_my_support_case", {
+    p_conversation_id: conversationId,
+  });
+  return { conversation: data, error };
+}
+
+export async function reopenSupportCase(
+  conversationId: string,
+  note?: string,
+) {
+  const { data, error } = await supabase.rpc("reopen_my_support_case", {
+    p_conversation_id: conversationId,
+    p_note: note || null,
+  });
+  return { conversation: data, error };
+}
+
+export function supportStatusLabel(
+  value?: string | null,
+  perspective: "requester" | "staff" = "requester",
+) {
+  const labels: Record<string, string> = {
+    open: "Open",
+    assigned: "Open",
+    in_progress: "In progress",
+    waiting_for_user:
+      perspective === "staff" ? "Waiting for requester" : "Waiting for you",
+    escalated: "Escalated",
+    resolved: "Resolved",
+    closed: "Closed",
+  };
+  return labels[String(value || "")] || "Open";
+}
+
+export function supportNextStep(
+  status?: string | null,
+  assignedStaffName?: string | null,
+) {
+  switch (status) {
+    case "open":
+      return {
+        actor: "WeHouse",
+        text: "The correct WeHouse team will review and assign your request.",
+      };
+    case "assigned":
+      return {
+        actor: "WeHouse",
+        text: `${assignedStaffName || "A team member"} will begin reviewing your request.`,
+      };
+    case "in_progress":
+      return {
+        actor: "WeHouse",
+        text: `${assignedStaffName || "The assigned team"} is working on your request and will update you here.`,
+      };
+    case "waiting_for_user":
+      return {
+        actor: "You",
+        text: "Reply with the information WeHouse requested so work can continue.",
+      };
+    case "escalated":
+      return {
+        actor: "WeHouse",
+        text: "A senior WeHouse reviewer is checking this request. You will receive the outcome here.",
+      };
+    case "resolved":
+      return {
+        actor: "You",
+        text: "Review the outcome, then confirm it is solved or tell WeHouse you still need help.",
+      };
+    case "closed":
+      return {
+        actor: "No action",
+        text: "This request is closed. Reopen it if the same issue is not actually solved.",
+      };
+    default:
+      return {
+        actor: "WeHouse",
+        text: "WeHouse will review this request after you send it.",
+      };
+  }
 }
 
 export async function sendSupportMessage(
