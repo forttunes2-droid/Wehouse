@@ -30,7 +30,12 @@ const categories: { id: DiscoveryKey; label: string; route: string; icon: ReactN
 
 export default function DiscoveryShell({ active, onNavigate, children }: ShellProps) {
   return <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_15%_-10%,rgba(124,58,237,.14),transparent_28rem),#090B10] pb-24 text-white">
-    <header className="sticky top-0 z-40 border-b border-white/[.055] bg-[#090B10]/90 backdrop-blur-2xl">
+    <section className="mx-auto max-w-7xl px-4 pb-4 pt-5 sm:px-6 lg:px-8">
+      <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE</p>
+      <h1 className="mt-2 text-2xl font-bold">Find what you need</h1>
+      <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#73798A]">Rent a home, book a stay, find a roommate or hire a trusted professional.</p>
+    </section>
+    <header className="sticky top-0 z-40 border-y border-white/[.055] bg-[#090B10]/90 backdrop-blur-2xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <nav className="flex gap-5 overflow-x-auto scrollbar-hide" aria-label="Discover categories">
           {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 text-[10px] font-semibold transition ${selected ? 'border-violet-400 text-white' : 'border-transparent text-[#777E8E] hover:text-white'}`}><span className={selected ? 'text-violet-300' : 'text-[#697080]'}>{item.icon}</span>{item.label}</button>; })}
