@@ -4,6 +4,7 @@ type Props = {
   children: ReactNode;
   className?: string;
   onOpen: () => void;
+  onTap?: () => void;
   onReply?: () => void;
 };
 
@@ -11,6 +12,7 @@ export default function MessagePress({
   children,
   className = "",
   onOpen,
+  onTap,
   onReply,
 }: Props) {
   const timer = useRef<number | null>(null);
@@ -44,15 +46,16 @@ export default function MessagePress({
       setTranslate(0);
       return;
     }
-    if (onReply && dx > 8) {
+    if (onReply && Math.abs(dx) > 8) {
       cancel();
       dragged.current = true;
-      setTranslate(Math.min(72, dx * 0.72));
+      const distance = Math.min(72, Math.abs(dx) * 0.72);
+      setTranslate(Math.sign(dx) * distance);
     }
   }
   function finish() {
     cancel();
-    if (translate >= 54 && onReply) {
+    if (Math.abs(translate) >= 54 && onReply) {
       navigator.vibrate?.(12);
       onReply();
       opened.current = true;
@@ -75,7 +78,12 @@ export default function MessagePress({
         cancel();
         onOpen();
       }}
-      onDoubleClick={onOpen}
+      onClick={(event) => {
+        if (opened.current || dragged.current || !onTap) return;
+        const target = event.target as HTMLElement;
+        if (target.closest("button,a,input,textarea,audio,video")) return;
+        onTap();
+      }}
       onClickCapture={(event) => {
         if (!opened.current && !dragged.current) return;
         event.preventDefault();
@@ -83,10 +91,10 @@ export default function MessagePress({
         opened.current = false;
       }}
     >
-      {onReply && translate > 0 ? (
+      {onReply && translate !== 0 ? (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-1 grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-sm text-white transition-opacity ${translate >= 54 ? "opacity-100" : "opacity-45"}`}
+          className={`pointer-events-none absolute ${translate > 0 ? "left-1" : "right-1"} grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-sm text-white transition-opacity ${Math.abs(translate) >= 54 ? "opacity-100" : "opacity-45"}`}
         >
           ↩
         </span>

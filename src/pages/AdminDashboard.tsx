@@ -271,7 +271,7 @@ function Overview({
         </h2>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">
           Admin manages only this branch. Property authority follows State/LGA;
-          GPS improves maps and distance but never expands branch permissions.
+          Precise location improves maps and distance but never expands branch permissions.
         </p>
       </section>
       <section className="divide-y divide-white/[.06] border-y border-white/[.06]">

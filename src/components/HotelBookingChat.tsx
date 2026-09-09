@@ -52,6 +52,7 @@ export default function HotelBookingChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
+  const [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions");
   const [replyingTo, setReplyingTo] = useState<HotelMessage | null>(null);
   const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(
     null,
@@ -288,7 +289,14 @@ export default function HotelBookingChat({
               return (
                 <MessagePress
                   key={message.id}
-                  onOpen={() => setMessageMenu(message)}
+                  onOpen={() => {
+                    setMessageMenuMode("actions");
+                    setMessageMenu(message);
+                  }}
+                  onTap={() => {
+                    setMessageMenuMode("reactions");
+                    setMessageMenu(message);
+                  }}
                   onReply={() => setReplyingTo(message)}
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
@@ -499,6 +507,7 @@ export default function HotelBookingChat({
       </footer>
       {messageMenu && (
         <MessageActionSheet
+          mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
           onClose={() => setMessageMenu(null)}
           onReact={(emoji) => void react(messageMenu, emoji)}
@@ -510,6 +519,11 @@ export default function HotelBookingChat({
             setMessageToRemove(messageMenu);
             setMessageMenu(null);
           }}
+          onCopy={messageMenu.content ? () => {
+            void navigator.clipboard.writeText(messageMenu.content || "");
+            toast.success("Message copied");
+            setMessageMenu(null);
+          } : undefined}
         />
       )}
       <ConfirmDialog

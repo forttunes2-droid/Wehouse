@@ -205,26 +205,50 @@ function PinInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-center text-[9px] font-semibold text-[#9AA0AF]">
+      <span className="mb-3 block text-center text-[9px] font-semibold text-[#9AA0AF]">
         {label}
       </span>
-      <input
-        autoFocus
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value.replace(/\D/g, "").slice(0, 6))
-        }
-        onKeyDown={(event) => {
-          if (event.key === "Enter") onEnter();
-        }}
-        inputMode="numeric"
-        type="password"
-        autoComplete="one-time-code"
-        enterKeyHint="done"
-        aria-label={label}
-        placeholder="••••••"
-        className="h-14 w-full rounded-2xl border border-white/[.1] bg-[#0B0E14] px-4 text-center text-xl font-semibold tracking-[.42em] text-white outline-none placeholder:text-[#444A59] focus:border-violet-400/65 focus:ring-4 focus:ring-violet-500/10"
-      />
+      <span className="relative block">
+        <span className="grid grid-cols-6 gap-2" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, index) => {
+            const filled = index < value.length;
+            const active = index === value.length && value.length < 6;
+            return (
+              <span
+                key={index}
+                className={`grid aspect-square place-items-center rounded-xl border text-lg transition ${
+                  active
+                    ? "border-violet-400 bg-violet-500/[.08] ring-4 ring-violet-500/10"
+                    : filled
+                      ? "border-white/[.14] bg-[#0B0E14]"
+                      : "border-white/[.08] bg-[#0B0E14]"
+                }`}
+              >
+                {filled ? "•" : ""}
+              </span>
+            );
+          })}
+        </span>
+        <input
+          autoFocus
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value.replace(/\D/g, "").slice(0, 6))
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onEnter();
+          }}
+          inputMode="numeric"
+          type="password"
+          autoComplete="one-time-code"
+          enterKeyHint="done"
+          aria-label={label}
+          className="absolute inset-0 h-full w-full cursor-text opacity-0"
+        />
+      </span>
+      <span className="mt-3 block text-center text-[8px] leading-4 text-[#666D7E]">
+        This protects private messages. It is not a property booking code.
+      </span>
     </label>
   );
 }

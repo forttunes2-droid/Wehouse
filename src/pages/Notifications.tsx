@@ -15,6 +15,7 @@ import {
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
 import HotelTeamInvitations from "@/components/HotelTeamInvitations";
+import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
   profile: Profile;
@@ -45,6 +46,7 @@ type WorkPostConfirmation = {
   job_confirmation_status: string;
   url: string;
 };
+type ActivityFilter = "all" | "action" | "bookings" | "property" | "work" | "money" | "roommates" | "wehouse";
 const activityCache = new Map<string, Activity[]>();
 
 export default function Notifications({
@@ -58,7 +60,8 @@ export default function Notifications({
   const cached = activityCache.get(cacheKey);
   const [rows, setRows] = useState<Activity[]>(cached || []),
     [loading, setLoading] = useState(!cached),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
@@ -154,14 +157,18 @@ export default function Notifications({
     };
   }, [profile.user_id, scope]);
 
+  const filteredRows = useMemo(
+    () => rows.filter((row) => matchesActivityFilter(row, activityFilter)),
+    [activityFilter, rows],
+  );
   const groups = useMemo(() => {
     const result = new Map<string, Activity[]>();
-    for (const row of rows) {
+    for (const row of filteredRows) {
       const day = !row.read ? "New" : dayLabel(row.created_at);
       result.set(day, [...(result.get(day) || []), row]);
     }
     return [...result];
-  }, [rows]);
+  }, [filteredRows]);
 
   async function markRead(row: Activity) {
     if (row.read) return true;
@@ -293,6 +300,33 @@ export default function Notifications({
         <Empty />
       ) : (
         <div className="space-y-5">
+          <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+                Activity
+              </p>
+              <p className="mt-1 text-[10px] text-[#8A909F]">
+                Meaningful updates and actions
+              </p>
+            </div>
+            <WeHouseSelect
+              value={activityFilter}
+              options={[
+                { value: "all", label: "All updates" },
+                { value: "action", label: "Needs my action" },
+                { value: "bookings", label: "Bookings and stays" },
+                { value: "property", label: "Properties" },
+                { value: "work", label: "Work and inspections" },
+                { value: "money", label: "Money" },
+                { value: "roommates", label: "Roommates" },
+                { value: "wehouse", label: "WeHouse" },
+              ]}
+              onChange={(value) => setActivityFilter(value as ActivityFilter)}
+              eyebrow="Activity"
+              title="Filter updates"
+              ariaLabel="Filter activity updates"
+            />
+          </div>
           {unread > 0 && (
             <div className="flex items-center justify-end">
               <button
@@ -303,7 +337,16 @@ export default function Notifications({
               </button>
             </div>
           )}
-          {groups.map(([day, items]) => (
+          {groups.length === 0 ? (
+            <div className="grid min-h-48 place-items-center text-center">
+              <div>
+                <p className="text-sm font-semibold">No updates in this group</p>
+                <p className="mt-2 text-[10px] text-[#6C7282]">
+                  Choose another filter to see other meaningful activity.
+                </p>
+              </div>
+            </div>
+          ) : groups.map(([day, items]) => (
             <section key={day}>
               <h2
                 className={`mb-2 text-[9px] font-bold uppercase tracking-[.15em] ${day === "New" ? "text-violet-300" : "text-[#656B7C]"}`}
@@ -544,18 +587,30 @@ function ErrorState({ text, retry }: { text: string; retry: () => void }) {
     </div>
   );
 }
+function matchesActivityFilter(row: Activity, filter: ActivityFilter) {
+  if (filter === "all") return true;
+  const value = `${row.type} ${row.source_type} ${row.destination_route}`.toLowerCase();
+  if (filter === "action")
+    return /action_required|changes_requested|waiting_for_user|escalat|failed|dispute|verification_required|approval_required/.test(value);
+  if (filter === "money")
+    return /payment|payout|earning|refund|wallet|commission/.test(value);
+  if (filter === "roommates") return /roommate|shared_home|match/.test(value);
+  if (filter === "property") return /property|listing|hotel_review|publication/.test(value);
+  if (filter === "work") return /worker|job|service|inspection|field/.test(value);
+  if (filter === "bookings") return /booking|reservation|tenancy|move_in|handover|check_in|check_out|hotel/.test(value);
+  return row.source === "announcement" || !/payment|payout|earning|refund|wallet|commission|roommate|shared_home|match|property|listing|hotel|worker|job|service|inspection|field|booking|reservation|tenancy|move_in|handover|check_in|check_out/.test(value);
+}
 function activityKind(row: Activity) {
   const value = `${row.type} ${row.source_type}`.toLowerCase();
   if (/security|device|password|login/.test(value)) return "Security";
   if (/payment|payout|earning|refund|wallet|commission/.test(value))
     return "Money";
-  if (
-    /booking|reservation|inspection|listing|property|hotel|job|worker/.test(
-      value,
-    )
-  )
+  if (/inspection|field|visit|access_evidence/.test(value)) return "Inspection";
+  if (/worker|job|service/.test(value)) return "Work";
+  if (/property|listing|publication/.test(value)) return "Property";
+  if (/hotel|booking|reservation|tenancy|move_in|handover|check_in|check_out/.test(value))
     return "Booking";
-  if (/roommate/.test(value)) return "Roommates";
+  if (/roommate|shared_home|match/.test(value)) return "Roommates";
   return "WeHouse";
 }
 function activityTitle(row: Activity) {

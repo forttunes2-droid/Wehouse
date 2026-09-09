@@ -512,7 +512,7 @@ function RequestDetail({
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4">
           <p className="text-xs font-semibold">Location recorded privately</p>
           <p className="mt-1 text-[10px] text-[#777E90]">
-            The exact pin is available only to authorized WeHouse operations for
+            The exact property location is available only to authorized WeHouse operations for
             inspection and handover.
           </p>
         </section>

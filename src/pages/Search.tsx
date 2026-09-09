@@ -32,7 +32,7 @@ const LONG_CEILING = 5000000;
 const SHORT_FLOOR = 5000;
 const SHORT_CEILING = 500000;
 let propertyCache: Listing[] | null = null;
-type StayFilter = "all" | HomeStayType;
+type StayFilter = HomeStayType;
 type PropertySearchState = {
   stayType: StayFilter;
   priceMin: number | "";
@@ -42,7 +42,7 @@ type PropertySearchState = {
   filterCity: string;
 };
 let searchState: PropertySearchState = {
-  stayType: "all",
+  stayType: "long_stay",
   priceMin: "",
   priceMax: "",
   bedrooms: "",
@@ -176,7 +176,7 @@ export default function Search({
           return { listing, distance };
         })
         .filter(({ listing }) => {
-          if (stayType !== "all" && listing.sub_type !== stayType) return false;
+          if (listing.sub_type !== stayType) return false;
           const price = Number(listing.price || 0);
           if (priceMin !== "" && (price <= 0 || price < priceMin)) return false;
           if (priceMax !== "" && (price <= 0 || price > priceMax)) return false;
@@ -209,11 +209,10 @@ export default function Search({
   const priceActive = priceMin !== "" || priceMax !== "";
   const filterCount =
     [bedrooms, filterState, filterCity].filter(Boolean).length +
-    (priceActive ? 1 : 0) +
-    (stayType === "all" ? 0 : 1);
-  const hasFilters = Boolean(filterCount);
+    (priceActive ? 1 : 0);
+  const hasFilters = Boolean(filterCount || stayType);
   function clearFilters() {
-    setStayType("all");
+    setStayType("long_stay");
     setPriceMin("");
     setPriceMax("");
     setBedrooms("");
@@ -232,12 +231,12 @@ export default function Search({
   }
   async function followSearch() {
     setSavingSearch(true);
-    const name = `${stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "Apartments"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
+    const name = `${stayType === "short_let" ? "Short Let" : "Long Let"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
     const { error } = await supabase.rpc("save_my_property_search", {
       p_name: name,
       p_search_kind: "homes",
       p_criteria: {
-        sub_type: stayType === "all" ? null : stayType,
+        sub_type: stayType,
         state: filterState,
         city: filterCity,
         min_price: priceMin === "" ? null : priceMin,
@@ -252,45 +251,25 @@ export default function Search({
       "Search followed. New matching apartments will appear in Activity.",
     );
   }
-  const modeLabel =
-    stayType === "short_let"
-      ? "Short Let"
-      : stayType === "long_stay"
-        ? "Long Let"
-        : "All stays";
+  const modeLabel = stayType === "short_let" ? "Short Let" : "Long Let";
   const locationSummary = filterCity
     ? `${filterCity}, ${filterState}`
     : filterState
       ? filterState
-      : stayType === "all"
-        ? "All apartments"
-        : `${modeLabel} apartments`;
-  const emptyTitle =
-    stayType === "all"
-      ? "No apartments match these filters"
-      : priceActive
-        ? `No ${modeLabel} apartments match this ${stayType === "short_let" ? "nightly" : "annual"} price range`
-        : `No ${modeLabel} apartments match these filters`;
+      : `${modeLabel} apartments`;
+  const emptyTitle = priceActive
+    ? `No ${modeLabel} apartments match this ${stayType === "short_let" ? "nightly" : "annual"} price range`
+    : `No ${modeLabel} apartments match these filters`;
 
   return (
     <DiscoveryShell active="homes" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="pb-2">
-          <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
-            WEHOUSE · HOMES
-          </p>
-          <h1 className="mt-2 text-2xl font-bold">Explore apartments</h1>
-          <p className="mt-1 text-[11px] text-[#73798A]">
-            Browse every available home, then narrow it down only when you want
-            to.
-          </p>
-        </header>
         <DiscoveryToolbar
           showSearch={false}
           toolbarLabel={locationSummary}
           onFilters={() => setShowFilters(true)}
           filterCount={filterCount}
-          locationLabel={location ? "Location on" : "Use my location"}
+          locationLabel={location ? "Using current location" : "Use my location"}
           locationActive={Boolean(location)}
           locationBusy={locating}
           onLocation={requestLocation}
@@ -377,10 +356,9 @@ export default function Search({
           onClear={clearFilters}
           resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
         >
-          <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
+          <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
             {(
               [
-                ["all", "All"],
                 ["long_stay", "Long Let"],
                 ["short_let", "Short Let"],
               ] as const
@@ -414,18 +392,16 @@ export default function Search({
               disabled={!filterState}
             />
           </div>
-          {stayType !== "all" && (
-            <DiscoveryPriceRangeSlider
-              label={stayType === "short_let" ? "Nightly price" : "Annual rent"}
-              floor={priceScale.floor}
-              ceiling={priceScale.ceiling}
-              step={priceScale.step}
-              minValue={priceMin}
-              maxValue={priceMax}
-              onMinChange={setPriceMin}
-              onMaxChange={setPriceMax}
-            />
-          )}
+          <DiscoveryPriceRangeSlider
+            label={stayType === "short_let" ? "Nightly price" : "Annual rent"}
+            floor={priceScale.floor}
+            ceiling={priceScale.ceiling}
+            step={priceScale.step}
+            minValue={priceMin}
+            maxValue={priceMax}
+            onMinChange={setPriceMin}
+            onMaxChange={setPriceMax}
+          />
           <section>
             <p className="mb-2 text-[10px] font-medium text-[#7B8190]">
               Bedrooms

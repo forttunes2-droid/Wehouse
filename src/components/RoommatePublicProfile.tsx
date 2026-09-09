@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import MediaViewer from "@/components/MediaViewer";
 
 export type RoommatePublicProfileData = {
   name: string;
@@ -36,6 +37,7 @@ export default function RoommatePublicProfile({
   footer,
 }: Props) {
   const hasScore = Number.isFinite(score);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -43,6 +45,53 @@ export default function RoommatePublicProfile({
       document.body.style.overflow = previous;
     };
   }, []);
+  if (context === "conversation") {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-[100100] flex items-end justify-center bg-black/65 px-3 pt-12 text-white backdrop-blur-sm sm:items-center"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${person.name} contact profile`}
+        onClick={onClose}
+      >
+        <section
+          className="w-full max-w-md rounded-t-[30px] border border-white/[.08] bg-[#11151D] p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-[30px]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              disabled={!person.avatar}
+              onClick={() => person.avatar && setAvatarOpen(true)}
+              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-xl font-bold disabled:cursor-default"
+              aria-label={person.avatar ? "Preview profile photo" : "No profile photo"}
+            >
+              {person.avatar ? <img src={person.avatar} alt={`${person.name} profile`} className="h-full w-full object-cover" /> : person.name[0]?.toUpperCase() || "W"}
+            </button>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-lg font-bold">{person.name}</h2>
+              {person.username ? <p className="mt-1 truncate text-[10px] text-[#777E8E]">@{person.username.replace(/^@/, "")}</p> : null}
+              <p className="mt-2 text-[9px] text-[#8A90A0]">
+                {[presence, person.location, person.occupation].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-xl" aria-label="Close profile">×</button>
+          </div>
+          <div className="mt-5 border-t border-white/[.06] pt-4">
+            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
+            <p className="mt-2 text-[11px] leading-5 text-[#A9AEBA]">{person.bio || "No introduction added yet."}</p>
+          </div>
+          {actions ? <div className="mt-4 border-t border-white/[.06] pt-4">{actions}</div> : null}
+          {footer}
+        </section>
+        {avatarOpen && person.avatar ? (
+          <MediaViewer src={person.avatar} kind="image" title={`${person.name} profile photo`} avatarUrl={person.avatar} onClose={() => setAvatarOpen(false)} />
+        ) : null}
+      </div>,
+      document.body,
+    );
+  }
   return createPortal(
     <div
       className="fixed inset-0 z-[100100] overflow-y-auto bg-[#090B10] text-white"
@@ -70,7 +119,13 @@ export default function RoommatePublicProfile({
         <section className="relative overflow-hidden border-b border-white/[.07] pb-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-violet-600/10 blur-3xl" />
           <div className="relative flex items-center gap-4">
-            <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[28px] border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100">
+            <button
+              type="button"
+              disabled={!person.avatar}
+              onClick={() => person.avatar && setAvatarOpen(true)}
+              aria-label={person.avatar ? "Preview profile photo" : "No profile photo"}
+              className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[28px] border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default"
+            >
               {person.avatar ? (
                 <img
                   src={person.avatar}
@@ -80,7 +135,7 @@ export default function RoommatePublicProfile({
               ) : (
                 person.name[0]?.toUpperCase() || "W"
               )}
-            </div>
+            </button>
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-2xl font-bold">{person.name}</h3>
               {person.username && (
@@ -88,10 +143,8 @@ export default function RoommatePublicProfile({
                   @{person.username.replace(/^@/, "")}
                 </p>
               )}
-              {person.location || (context === "conversation" && presence) ? <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
-                {[person.location, context === "conversation" ? presence : null]
-                  .filter(Boolean)
-                  .join(" · ")}
+              {person.location ? <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
+                {person.location}
               </p> : null}
               {hasScore && context === "discovery" ? (
                 <div className="mt-3 flex items-center gap-2">
@@ -151,6 +204,9 @@ export default function RoommatePublicProfile({
         </section>
         {footer}
       </main>
+      {avatarOpen && person.avatar ? (
+        <MediaViewer src={person.avatar} kind="image" title={`${person.name} profile photo`} avatarUrl={person.avatar} onClose={() => setAvatarOpen(false)} />
+      ) : null}
     </div>,
     document.body,
   );

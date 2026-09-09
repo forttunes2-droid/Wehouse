@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   activityIsCurrent,
   isOrdinaryMessageEvent,
+  isTransientActivityEvent,
   longestActivityCutoff,
 } from "@/lib/activityFeed";
 import { supabase } from "@/lib/supabase";
@@ -46,6 +47,7 @@ export function useOperationsInboxSummary(
 
     const currentEvents = (events.data || []).filter(
       (row) =>
+        !isTransientActivityEvent(row) &&
         !isOrdinaryMessageEvent(row) &&
         activityIsCurrent({ ...row, source: "event" }),
     );

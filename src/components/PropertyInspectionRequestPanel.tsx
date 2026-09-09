@@ -1133,7 +1133,7 @@ export default function PropertyInspectionRequestPanel({
               <PreciseLocationPicker
                 subject="property"
                 title="Confirm property address"
-                description="While you are at the property, use this phone to place the pin and confirm the exact street address."
+                description="While you are at the property, use this phone to confirm the exact entrance and street address."
                 value={
                   current.location
                     ? {

@@ -169,6 +169,7 @@ export default function Chat({
   const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
     null,
   );
+  const [messageActionMode, setMessageActionMode] = useState<"reactions" | "actions">("reactions");
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
   const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
@@ -527,7 +528,7 @@ export default function Chat({
   async function submit() {
     if (!active || sending || (!input.trim() && !files.length)) return;
     if (secureChat?.state !== "ready")
-      return toast.error("Encrypted chat must be ready before sending");
+      return toast.error("Secure conversation must be ready before sending");
     setSending(true);
     const paths: string[] = [],
       attachments: Array<{
@@ -576,7 +577,7 @@ export default function Chat({
           otherId(active),
         ).then(setSecureChat);
         toast.error(
-          "Encrypted chat is ready now. Send again to protect this message.",
+          "Secure conversation is ready now. Send again to protect this message.",
         );
       } else toast.error(message);
     } finally {
@@ -635,7 +636,7 @@ export default function Chat({
         : "Person unblocked",
     );
   }
-  async function startCall() {
+  async function startCall(kind: "audio" | "video") {
     if (!active) return;
     const { capabilities, error } = await getCallCapabilities(
       "roommate",
@@ -643,9 +644,15 @@ export default function Chat({
     );
     if (error || !capabilities)
       return toast.error(error?.message || "Call is not available");
-    if (!capabilities.allow_audio_calls)
-      return toast.error("This person is not accepting audio calls");
-    launchPrivateCall("roommate", active.id, "audio");
+    const allowed =
+      kind === "video"
+        ? capabilities.allow_video_calls
+        : capabilities.allow_audio_calls;
+    if (!allowed)
+      return toast.error(
+        `This person is not accepting ${kind === "video" ? "video" : "audio"} calls`,
+      );
+    launchPrivateCall("roommate", active.id, kind);
   }
   function toggleSelected(id: string) {
     setSelected((current) => {
@@ -865,7 +872,10 @@ export default function Chat({
                 ) : null}
               </span>
             </button>
-            <HeaderAction label="Audio call" onClick={() => void startCall()}>
+            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
+              <CameraIcon />
+            </HeaderAction>
+            <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
               <PhoneIcon />
             </HeaderAction>
             <button
@@ -944,7 +954,14 @@ export default function Chat({
                         ? messageById.get(event.message.reply_to_id)
                         : undefined
                     }
-                    onOpenActions={() => setMessageActions(event.message)}
+                    onOpenActions={() => {
+                      setMessageActionMode("actions");
+                      setMessageActions(event.message);
+                    }}
+                    onTapReaction={() => {
+                      setMessageActionMode("reactions");
+                      setMessageActions(event.message);
+                    }}
                     onReply={() => setReplyingTo(event.message)}
                   />
                 )}
@@ -1087,6 +1104,7 @@ export default function Chat({
         </footer>
         {messageActions && active && (
           <MessageActionSheet
+            mode={messageActionMode}
             currentReaction={
               messageActions.reactions?.[profile.user_id] || null
             }
@@ -1099,6 +1117,11 @@ export default function Chat({
               setMessageToRemove(messageActions);
               setMessageActions(null);
             }}
+            onCopy={messageActions.content ? () => {
+              void navigator.clipboard.writeText(messageActions.content || "");
+              toast.success("Message copied");
+              setMessageActions(null);
+            } : undefined}
             onReact={async (emoji) => {
               const current = messageActions.reactions?.[profile.user_id];
               const result = await reactToMessage(
@@ -1148,7 +1171,11 @@ export default function Chat({
             }}
             onAudioCall={() => {
               setProfileOpen(false);
-              void startCall();
+              void startCall("audio");
+            }}
+            onVideoCall={() => {
+              setProfileOpen(false);
+              void startCall("video");
             }}
             busy={blockBusy}
           />
@@ -1211,6 +1238,28 @@ export default function Chat({
             </section>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (conversationId && !active) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-[#090B10] px-6 text-center text-white">
+        <div>
+          {loading ? (
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+          ) : (
+            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-[#8B91A1]">!</div>
+          )}
+          <p className="mt-4 text-sm font-semibold">
+            {loading ? "Opening conversation…" : "Conversation unavailable"}
+          </p>
+          {!loading ? (
+            <button type="button" onClick={() => onNavigate("chat")} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
+              Go to Inbox
+            </button>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -1672,12 +1721,14 @@ function RoommateBubble({
   mine,
   quoted,
   onOpenActions,
+  onTapReaction,
   onReply,
 }: {
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
   onOpenActions: () => void;
+  onTapReaction: () => void;
   onReply: () => void;
 }) {
   const reactions = Object.values(msg.reactions || {}).reduce<
@@ -1686,6 +1737,7 @@ function RoommateBubble({
   return (
     <MessagePress
       onOpen={onOpenActions}
+      onTap={onTapReaction}
       onReply={onReply}
       className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
     >
@@ -1860,6 +1912,7 @@ function PeerProfileSheet({
   onClose,
   onToggleBlock,
   onAudioCall,
+  onVideoCall,
   busy,
 }: {
   person?: Person;
@@ -1867,6 +1920,7 @@ function PeerProfileSheet({
   onClose: () => void;
   onToggleBlock: () => void;
   onAudioCall: () => void;
+  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1886,9 +1940,12 @@ function PeerProfileSheet({
       presence={presenceText}
       onClose={onClose}
       actions={
-        <div className="mx-auto flex max-w-xs justify-center">
+        <div className="mx-auto flex max-w-xs justify-center gap-12">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
+          </ProfileAction>
+          <ProfileAction label="Video" onClick={onVideoCall}>
+            <CameraIcon />
           </ProfileAction>
         </div>
       }
@@ -1944,6 +2001,14 @@ function HeaderAction({
     >
       {children}
     </button>
+  );
+}
+function CameraIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3Z" />
+    </svg>
   );
 }
 function PhoneIcon() {

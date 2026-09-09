@@ -23,14 +23,9 @@ type Props = {
   onNavigate: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 };
-type EarningRelease = {
-  id: string;
-  earning_type: string;
-  status: "pending" | "available" | "held" | "reversed";
-  net_amount: number;
-  release_event: string | null;
-  created_at: string;
-};
+const money = (value: number) =>
+  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {
     key: "properties",
@@ -48,9 +43,6 @@ const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
     description: "Your wallet, earnings and withdrawals",
   },
 ];
-const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 export default function PropertyOwnerDashboard({
   profile,
   onLogout,
@@ -548,106 +540,6 @@ function FinanceTab({ profile }: { profile: Profile }) {
         onToggleAmounts={toggleAmounts}
       />
       <PayoutAccountManager profile={profile} />
-      <section className="border-t border-white/[.07] pt-5">
-        <h2 className="mb-3 text-sm font-bold">Earnings history</h2>
-        <EarningsTab profile={profile} showAmounts={showAmounts} />
-      </section>
-    </div>
-  );
-}
-function EarningsTab({
-  profile,
-  showAmounts,
-}: {
-  profile: Profile;
-  showAmounts: boolean;
-}) {
-  const [rows, setRows] = useState<EarningRelease[]>([]),
-    [loading, setLoading] = useState(true),
-    [filter, setFilter] = useState<"all" | EarningRelease["status"]>("all");
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data, error } = await supabase
-        .from("property_partner_earning_releases")
-        .select("id,earning_type,status,net_amount,release_event,created_at")
-        .eq("partner_id", profile.user_id)
-        .order("created_at", { ascending: false });
-      if (!active) return;
-      if (error) toast.error("Unable to load earnings");
-      setRows((data || []) as EarningRelease[]);
-      setLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [profile.user_id]);
-  const shown =
-    filter === "all" ? rows : rows.filter((row) => row.status === filter);
-  return (
-    <div className="space-y-3">
-      <section>
-        <div className="mb-3 flex gap-2 overflow-x-auto scrollbar-hide">
-          {(["all", "available", "pending", "held", "reversed"] as const).map(
-            (value) => (
-              <button
-                key={value}
-                onClick={() => setFilter(value)}
-                className={`shrink-0 rounded-xl px-3 py-2 text-[9px] font-semibold capitalize ${filter === value ? "bg-violet-500 text-white" : "border border-white/[.06] bg-[#111119] text-[#777A8B]"}`}
-              >
-                {value}
-              </button>
-            ),
-          )}
-        </div>
-        {loading ? (
-          <Loading />
-        ) : shown.length === 0 ? (
-          <Empty
-            title={
-              rows.length
-                ? "No earnings in this group"
-                : "No property earnings yet"
-            }
-            text={
-              rows.length
-                ? "Choose another earning status."
-                : "Eligible property income will appear here when it is recorded."
-            }
-          />
-        ) : (
-          <div className="space-y-2">
-            {shown.map((row) => (
-              <article
-                key={row.id}
-                className="rounded-2xl border border-white/[.06] bg-[#111119] p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="break-words text-xs font-semibold">
-                      {friendly(row.earning_type)}
-                    </p>
-                    <p className="mt-1 text-[9px] text-[#626477]">
-                      {new Date(row.created_at).toLocaleDateString()}{" "}
-                      {row.release_event
-                        ? `· ${friendly(row.release_event)}`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">
-                      {showAmounts ? money(row.net_amount) : "••••"}
-                    </p>
-                    <div className="mt-1">
-                      <Status value={row.status} />
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

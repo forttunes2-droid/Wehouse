@@ -582,7 +582,7 @@ export default function ListingDetail({
                     </p>
                     {!reservationPaid && (
                       <p className="mt-1 text-[9px] text-[#5F6575]">
-                        The exact address and pin are private until your
+                        The exact address and directions are private until your
                         reservation is confirmed.
                       </p>
                     )}
