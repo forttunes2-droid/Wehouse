@@ -97,7 +97,7 @@ export function conversationPresentation(
         place ||
         safeSubject ||
         (contextType === "hotel_booking" ? "Hotel stay" : stay),
-      operator: "WeHouse",
+      operator: "WeHouse Bookings",
       meta: [
         contextType === "hotel_booking"
           ? "Hotel booking"
@@ -126,7 +126,7 @@ export function conversationPresentation(
           rawSubject ||
           "Property",
       ).replace(/^(question about|inspection help)\s*·\s*/i, ""),
-      operator: "WeHouse",
+      operator: "WeHouse Property Operations",
       meta: [
         contextType === "property_inspection"
           ? "Property inspection"
@@ -144,7 +144,7 @@ export function conversationPresentation(
     return {
       kind: "service_help",
       title: rawSubject || String(snapshot.service_type || "Service booking"),
-      operator: "WeHouse",
+      operator: "WeHouse Service Support",
       meta: ["Service booking", code, status].filter(Boolean).join(" · "),
       operational: true,
     };
@@ -154,7 +154,7 @@ export function conversationPresentation(
       rawSubject && !/^wehouse support$/i.test(rawSubject)
         ? rawSubject
         : "WeHouse",
-    operator: "WeHouse",
+    operator: "WeHouse Support",
     meta: ["Help", status].filter(Boolean).join(" · "),
     operational: false,
   };

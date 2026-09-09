@@ -1574,7 +1574,7 @@ function SupportInboxRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {p.title}
+            {p.operator}
           </p>
           <span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">
             {badge}
@@ -1583,11 +1583,17 @@ function SupportInboxRow({
         <p
           className={`mt-1 truncate text-[11px] ${thread.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
         >
-          {thread.last_message || p.operator}
+          {thread.last_message || p.title}
         </p>
         <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
           {[
-            p.operator,
+            String(thread.context_snapshot?.case_number || "")
+              ? `Case ${String(thread.context_snapshot?.case_number)}`
+              : "",
+            p.title,
+            thread.assigned_staff_name
+              ? `You ↔ ${thread.assigned_staff_name} · WeHouse`
+              : `You → ${p.operator}`,
             p.meta,
             formatListTime(thread.last_message_time || thread.created_at),
           ]

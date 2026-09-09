@@ -120,15 +120,15 @@ export default function SupportEntryCard({
             {index > 0 && <div className="ml-[4.5rem] h-px bg-white/[.05]" />}
             <SupportRow
               compact={compact}
-              title={p.title}
-              preview={thread.last_message || p.operator}
+              title={p.operator}
+              preview={thread.last_message || p.title}
               meta={[
                 caseNumber ? `Case ${caseNumber}` : "",
                 status,
+                p.title,
                 thread.assigned_staff_name
-                  ? `Assigned to ${thread.assigned_staff_name}`
-                  : "Awaiting WeHouse assignment",
-                p.meta,
+                  ? `You ↔ ${thread.assigned_staff_name} · WeHouse`
+                  : `You → ${p.operator}`,
               ]
                 .filter(Boolean)
                 .join(" · ")}

@@ -64,6 +64,10 @@ export default function SupportChat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const presentation = conversationPresentation(thread || pendingContext || {});
+  const caseNumber = String(thread?.context_snapshot?.case_number || "");
+  const handlerLabel = thread?.assigned_staff_name
+    ? `${thread.assigned_staff_name} · WeHouse`
+    : `${presentation.operator} · awaiting assignment`;
   const visibleMessages = messages.filter(
     (message) => message.sender_role !== "system",
   );
@@ -287,24 +291,40 @@ export default function SupportChat({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[14px] font-semibold">
-                {presentation.title}
+                {presentation.operator}
               </p>
               <span className="grid h-4 w-4 place-items-center rounded-full bg-violet-400 text-[9px] font-bold">
                 ✓
               </span>
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
+              You ↔ {handlerLabel}
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <section className="shrink-0 border-b border-white/[.06] bg-[#0D1118] px-4 py-2.5">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-[10px] font-semibold text-[#D9DCE4]">
+              {presentation.title}
+            </p>
+            <p className="mt-0.5 truncate text-[8px] text-[#687081]">
               {[
-                presentation.operator,
+                caseNumber ? `Case ${caseNumber}` : "Case opens when sent",
+                thread ? supportStatusLabel(thread.status) : "Not sent",
                 presentation.meta,
-                thread?.assigned_staff_name,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
           </div>
+          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-1 text-[8px] font-semibold text-violet-300">
+            TO WEHOUSE
+          </span>
         </div>
-      </header>
+      </section>
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.05),transparent_34%)] px-3 py-4 sm:px-5">
         <div className="mx-auto max-w-4xl">
@@ -355,6 +375,8 @@ export default function SupportChat({
                   <MessageBubble
                     msg={msg}
                     mine={msg.sender_id === profile.user_id}
+                    teamLabel={presentation.operator}
+                    handlerName={thread?.assigned_staff_name}
                     showContext={!presentation.operational}
                     onOpenListing={(listingId) => {
                       setOpen(false);
@@ -457,9 +479,8 @@ export default function SupportChat({
             </button>
           </div>
           <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
-            {presentation.operational
-              ? "Linked to this WeHouse record · visible to you and the authorized team"
-              : "Private WeHouse conversation · visible to you and the authorized team"}
+            From You · To {presentation.operator}
+            {caseNumber ? ` · Case ${caseNumber}` : ""}
           </p>
         </div>
       </footer>
@@ -471,15 +492,30 @@ export default function SupportChat({
 function MessageBubble({
   msg,
   mine,
+  teamLabel,
+  handlerName,
   showContext,
   onOpenListing,
 }: {
   msg: SupportMessage;
   mine: boolean;
+  teamLabel: string;
+  handlerName?: string | null;
   showContext: boolean;
   onOpenListing?: (listingId: string) => void;
 }) {
   const meta = msg.action_metadata || {};
+  const senderIsWeHouse = ["staff", "admin", "creator"].includes(
+    String(msg.sender_role || ""),
+  );
+  const sender = mine
+    ? "You"
+    : msg.sender_name
+      ? `${msg.sender_name}${senderIsWeHouse ? " · WeHouse" : ""}`
+      : handlerName
+        ? `${handlerName} · WeHouse`
+        : teamLabel;
+  const recipient = mine ? teamLabel : "You";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
@@ -492,14 +528,14 @@ function MessageBubble({
             onOpenListing={onOpenListing}
           />
         )}
+        <p
+          className={`mb-1 px-1 text-[8px] font-medium ${mine ? "text-right text-violet-200/65" : "text-[#707789]"}`}
+        >
+          {sender} → {recipient}
+        </p>
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]"}`}
         >
-          {!mine && (
-            <p className="mb-1 text-[9px] font-semibold text-violet-300">
-              {msg.sender_name || "WeHouse"}
-            </p>
-          )}
           {(msg.attachments || []).map((path: string, i: number) => (
             <SecureSupportAttachment
               key={`${msg.id}-${path}`}
@@ -807,6 +843,17 @@ function formatTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function supportStatusLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    open: "Received by WeHouse",
+    assigned: "Assigned",
+    in_progress: "WeHouse is working on it",
+    resolved: "Resolved",
+    closed: "Closed",
+  };
+  return labels[String(value || "")] || "Received by WeHouse";
 }
 
 function DaySeparator({ value }: { value: string }) {

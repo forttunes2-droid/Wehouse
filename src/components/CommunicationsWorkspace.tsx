@@ -23,7 +23,13 @@ type Props = {
   onOpenConversation?: (id?: string) => void;
   forcedView?: View;
   hideViewTabs?: boolean;
-  queue?: "all" | "support" | "operations" | "property_operations" | "reservation_operations" | "field_operations";
+  queue?:
+    | "all"
+    | "support"
+    | "operations"
+    | "property_operations"
+    | "reservation_operations"
+    | "field_operations";
   onUnreadChange?: (count: number) => void;
   initialConversationId?: string;
   onOpenContext?: (page: string, id?: string) => void;
@@ -225,7 +231,8 @@ export default function CommunicationsWorkspace({
     });
   }, [rows, search]);
   const unread = rows.reduce((n, row) => n + Number(row.unread_count || 0), 0),
-    reservationQueue = queue === "reservation_operations" || queue === "operations";
+    reservationQueue =
+      queue === "reservation_operations" || queue === "operations";
   useEffect(() => {
     onUnreadChange?.(unread);
   }, [onUnreadChange, unread]);
@@ -245,12 +252,19 @@ export default function CommunicationsWorkspace({
         <AnnouncementsTab profile={profile} scope={scope} />
       </div>
     );
-  if (selected)
-    {
+  if (selected) {
     const selectedPresentation = conversationPresentation(selected);
     const destination = communicationDestination(selected);
+    const requesterLabel =
+      selected.requester_name || selected.requester_email || "WeHouse member";
+    const handlerLabel =
+      selected.assigned_staff_name ||
+      profile.full_name ||
+      profile.username ||
+      "Current team member";
+    const caseNumber = String(selected.context_snapshot?.case_number || "");
     return (
-    <div className="flex min-h-[70vh] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219]">
+      <div className="flex min-h-[70vh] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219]">
         <header className="flex items-center gap-3 border-b border-white/[.06] px-3 py-3 sm:px-4">
           <button
             onClick={() => {
@@ -264,16 +278,9 @@ export default function CommunicationsWorkspace({
           </button>
           <Avatar name={selected.requester_name || selected.requester_email} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">
-              {selected.requester_name ||
-                selected.requester_email ||
-                "WeHouse member"}
-            </p>
-            <p className="mt-0.5 truncate text-[9px] capitalize text-[#747A8B]">
-              {String(selected.requester_role || "user").replace(/_/g, " ")} ·{" "}
-              {[selected.requester_lga, selected.requester_state]
-                .filter(Boolean)
-                .join(", ") || "Location unavailable"}
+            <p className="truncate text-sm font-semibold">{requesterLabel}</p>
+            <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
+              {requesterLabel} ↔ {handlerLabel} · WeHouse
             </p>
           </div>
           {Number(selected.unread_count || 0) > 0 && (
@@ -282,10 +289,48 @@ export default function CommunicationsWorkspace({
             </span>
           )}
         </header>
+        <section className="border-b border-white/[.06] bg-[#0B0F15] px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-semibold text-[#D9DCE4]">
+                {selectedPresentation.title}
+              </p>
+              <p className="mt-0.5 truncate text-[8px] text-[#687081]">
+                {[
+                  caseNumber ? `Case ${caseNumber}` : "WeHouse conversation",
+                  publicRole(selected.requester_role),
+                  [selected.requester_lga, selected.requester_state]
+                    .filter(Boolean)
+                    .join(", "),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-1 text-[8px] font-semibold text-violet-300">
+              TO WEHOUSE
+            </span>
+          </div>
+        </section>
         {selectedPresentation.operational && (
           <div className="flex items-center gap-3 border-b border-white/[.06] bg-violet-500/[.045] px-4 py-3">
-            <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-semibold text-violet-100">{selectedPresentation.title}</p><p className="mt-1 truncate text-[8px] text-[#787F90]">{selectedPresentation.meta}</p></div>
-            {onOpenContext && <button type="button" onClick={() => onOpenContext(destination.page, destination.id)} className="shrink-0 rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold">Open record</button>}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[10px] font-semibold text-violet-100">
+                {selectedPresentation.title}
+              </p>
+              <p className="mt-1 truncate text-[8px] text-[#787F90]">
+                {selectedPresentation.meta}
+              </p>
+            </div>
+            {onOpenContext && (
+              <button
+                type="button"
+                onClick={() => onOpenContext(destination.page, destination.id)}
+                className="shrink-0 rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold"
+              >
+                Open record
+              </button>
+            )}
           </div>
         )}
         <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
@@ -305,6 +350,7 @@ export default function CommunicationsWorkspace({
                     key={msg.id}
                     msg={msg}
                     mine={msg.sender_id === profile.user_id}
+                    requesterName={requesterLabel}
                   />
                 ))}
               </div>
@@ -364,9 +410,7 @@ export default function CommunicationsWorkspace({
                 }}
                 rows={1}
                 placeholder={
-                  reservationQueue
-                    ? "Reply from Bookings"
-                    : "Reply as WeHouse"
+                  reservationQueue ? "Reply from Bookings" : "Reply as WeHouse"
                 }
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
               />
@@ -380,14 +424,13 @@ export default function CommunicationsWorkspace({
             </button>
           </div>
           <p className="mx-auto mt-2 max-w-4xl text-center text-[8px] text-[#505666]">
-            {reservationQueue
-              ? "Replies stay connected to the booking or property context."
-              : "WeHouse conversations use text, photos and documents."}
+            From {handlerLabel} · WeHouse · To {requesterLabel}
+            {caseNumber ? ` · Case ${caseNumber}` : ""}
           </p>
         </footer>
       </div>
     );
-    }
+  }
 
   return (
     <div className="space-y-4">
@@ -423,7 +466,7 @@ export default function CommunicationsWorkspace({
           </div>
         </div>
       ) : (
-          <section className="overflow-hidden border-y border-white/[.06]">
+        <section className="overflow-hidden border-y border-white/[.06]">
           {shown.map((row, index) => (
             <div key={row.conversation_id}>
               {index > 0 && <div className="ml-[4.5rem] h-px bg-white/[.05]" />}
@@ -485,13 +528,41 @@ export default function CommunicationsWorkspace({
     </div>
   );
 }
-function communicationDestination(row:any){
-  const type=String(row.context_type||row.context_snapshot?.source_type||'');
-  const id=String(row.context_id||row.context_snapshot?.source_id||row.context_snapshot?.booking_id||row.context_snapshot?.listing_id||'')||undefined;
-  if(['property_listing','property_inspection','hotel_property','hotel_operations'].includes(type))return{page:'operations_properties',id};
-  if(['apartment_reservation','apartment_payment','reservation','hotel_booking'].includes(type))return{page:'operations_bookings',id};
-  if(type==='worker_booking')return{page:'operations_workers',id};
-  return{page:'operations_inbox',id:String(row.conversation_id||'')||undefined};
+function communicationDestination(row: any) {
+  const type = String(
+    row.context_type || row.context_snapshot?.source_type || "",
+  );
+  const id =
+    String(
+      row.context_id ||
+        row.context_snapshot?.source_id ||
+        row.context_snapshot?.booking_id ||
+        row.context_snapshot?.listing_id ||
+        "",
+    ) || undefined;
+  if (
+    [
+      "property_listing",
+      "property_inspection",
+      "hotel_property",
+      "hotel_operations",
+    ].includes(type)
+  )
+    return { page: "operations_properties", id };
+  if (
+    [
+      "apartment_reservation",
+      "apartment_payment",
+      "reservation",
+      "hotel_booking",
+    ].includes(type)
+  )
+    return { page: "operations_bookings", id };
+  if (type === "worker_booking") return { page: "operations_workers", id };
+  return {
+    page: "operations_inbox",
+    id: String(row.conversation_id || "") || undefined,
+  };
 }
 function ReservationContext({ row }: { row: any }) {
   const presentation = conversationPresentation(row);
@@ -546,22 +617,39 @@ function publicRole(role?: string) {
   if (role === "property_partner") return "Property Partner";
   return String(role || "user").replace(/_/g, " ");
 }
-function Bubble({ msg, mine }: { msg: any; mine: boolean }) {
+function Bubble({
+  msg,
+  mine,
+  requesterName,
+}: {
+  msg: any;
+  mine: boolean;
+  requesterName: string;
+}) {
   const meta = msg.action_metadata || {};
+  const fromWeHouse = ["staff", "admin", "creator"].includes(
+    String(msg.sender_role || ""),
+  );
+  const sender = fromWeHouse
+    ? `${mine ? "You" : msg.sender_name || "WeHouse team"} · WeHouse`
+    : msg.sender_name || requesterName;
+  const recipient = fromWeHouse ? requesterName : "WeHouse";
   return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div className="flex max-w-[88%] flex-col sm:max-w-[72%]">
+    <div className={`flex ${fromWeHouse ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${fromWeHouse ? "items-end" : "items-start"}`}
+      >
         {Object.keys(meta).length > 0 && (
           <ContextCard meta={meta} type={msg.action_type} />
         )}
-        <div
-          className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
+        <p
+          className={`mb-1 px-1 text-[8px] font-medium ${fromWeHouse ? "text-right text-violet-200/65" : "text-[#707789]"}`}
         >
-          {!mine && (
-            <p className="mb-1 text-[9px] font-semibold text-violet-300">
-              {msg.sender_name || "Member"}
-            </p>
-          )}
+          {sender} → {recipient}
+        </p>
+        <div
+          className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
+        >
           {(msg.attachments || []).map((path: string, i: number) => (
             <SecureSupportAttachment
               key={`${msg.id}-${path}`}
@@ -575,7 +663,7 @@ function Bubble({ msg, mine }: { msg: any; mine: boolean }) {
             </p>
           )}
           <p
-            className={`mt-1 text-[8px] ${mine ? "text-violet-100/65" : "text-[#606677]"}`}
+            className={`mt-1 text-[8px] ${fromWeHouse ? "text-violet-100/65" : "text-[#606677]"}`}
           >
             {new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
@@ -594,7 +682,9 @@ function ContextCard({ meta, type }: { meta: any; type?: string }) {
     ).replace(/_/g, " ");
   return (
     <div className="mb-1.5 flex items-center gap-3 rounded-xl border border-violet-500/15 bg-violet-500/[.055] px-3 py-2">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/12 text-[10px] text-violet-200">↗</span>
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/12 text-[10px] text-violet-200">
+        ↗
+      </span>
       <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
         <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}

@@ -1140,7 +1140,11 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
         <p className="mt-1 text-[9px] text-[#73798A]">
           {(row.photo_urls || []).length} Property Partner ·{" "}
           {fieldPhotos === null ? "loading…" : fieldPhotos.length} Field
-          Operations · Operations cannot add photos
+          Operations
+        </p>
+        <p className="mt-1 text-[8px] leading-4 text-[#5F6677]">
+          These sources stay separate in final review so Admin or Creator can
+          see who supplied every photo before selecting it.
         </p>
       </div>
       <button
@@ -1824,7 +1828,7 @@ function FinalGalleryReview({
           <p className="text-[10px] font-semibold">Final public gallery</p>
           <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
             {authority
-              ? "Nothing new is selected automatically. Choose the exact partner and Field Operations photos users should see."
+              ? "Review each source separately. Tap only the photos that should appear publicly; nothing is selected automatically."
               : "Only Admin or Creator can select which submitted photos go live."}
           </p>
         </div>
@@ -1846,37 +1850,32 @@ function FinalGalleryReview({
           No eligible submitted photos are available.
         </p>
       ) : (
-        <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
-          {candidates.map((url, index) => {
-            const chosen = selected.includes(url),
-              source = partner.includes(url) ? "PARTNER" : "FIELD";
-            return (
-              <button
-                type="button"
-                key={url}
-                disabled={!authority}
-                onClick={() => toggle(url)}
-                className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen ? "border-emerald-400" : "border-white/[.08] opacity-55"}`}
-              >
-                <ListingMediaImage
-                  reference={url}
-                  alt={`${source === "PARTNER" ? "Property Partner" : "Field Operations"} photo ${index + 1}`}
-                  className="h-full w-full object-cover"
-                />
-                <span className="absolute bottom-2 left-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
-                  {source}
-                </span>
-                <span className="absolute bottom-2 right-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
-                  {index + 1} / {candidates.length}
-                </span>
-                {chosen && (
-                  <span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-xs font-bold text-black">
-                    ✓
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <div className="mt-4 space-y-5">
+          <GallerySourceGroup
+            title="Property Partner photos"
+            description="Photos supplied when the property was submitted."
+            photos={partner}
+            selected={selected}
+            authority={authority}
+            onToggle={toggle}
+          />
+          <GallerySourceGroup
+            title="Field Operations photos"
+            description="Independent photos captured during the WeHouse visit."
+            photos={fieldPhotos || []}
+            selected={selected}
+            authority={authority}
+            onToggle={toggle}
+          />
+          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-3">
+            <p className="text-[9px] font-semibold text-emerald-200">
+              Final public gallery · {selected.length} selected
+            </p>
+            <p className="mt-1 text-[8px] leading-4 text-[#747B89]">
+              Only the photos marked with a numbered green badge will be copied
+              to the public listing. The badge number is their gallery order.
+            </p>
+          </div>
         </div>
       )}
       {authority && (
@@ -1893,6 +1892,82 @@ function FinalGalleryReview({
         >
           {saving ? "Saving gallery…" : "Confirm this exact gallery"}
         </button>
+      )}
+    </section>
+  );
+}
+
+function GallerySourceGroup({
+  title,
+  description,
+  photos,
+  selected,
+  authority,
+  onToggle,
+}: {
+  title: string;
+  description: string;
+  photos: string[];
+  selected: string[];
+  authority: boolean;
+  onToggle: (url: string) => void;
+}) {
+  return (
+    <section>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="text-[10px] font-semibold">{title}</h4>
+          <p className="mt-1 text-[8px] text-[#686F80]">{description}</p>
+        </div>
+        <span className="shrink-0 text-[8px] text-[#686F80]">
+          {photos.length} photo{photos.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      {photos.length === 0 ? (
+        <div className="mt-2 rounded-2xl border border-dashed border-amber-500/20 px-4 py-6 text-center">
+          <p className="text-[9px] font-semibold text-amber-200">
+            No photos from this source
+          </p>
+          <p className="mt-1 text-[8px] leading-4 text-[#6F7482]">
+            This is visible here so a missing Field Operations submission cannot
+            be mistaken for Partner media.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {photos.map((url, index) => {
+            const order = selected.indexOf(url);
+            const chosen = order >= 0;
+            return (
+              <button
+                type="button"
+                key={url}
+                disabled={!authority}
+                onClick={() => onToggle(url)}
+                aria-pressed={chosen}
+                className={`relative aspect-[4/3] overflow-hidden rounded-2xl border-2 bg-black text-left ${chosen ? "border-emerald-400" : "border-white/[.08] opacity-65"}`}
+              >
+                <ListingMediaImage
+                  reference={url}
+                  alt={`${title} ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/75 px-2 py-1 text-[7px] font-semibold">
+                  Photo {index + 1}
+                </span>
+                {chosen ? (
+                  <span className="absolute right-1.5 top-1.5 grid h-7 min-w-7 place-items-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-black">
+                    {order + 1}
+                  </span>
+                ) : (
+                  <span className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-sm text-white/80">
+                    +
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       )}
     </section>
   );

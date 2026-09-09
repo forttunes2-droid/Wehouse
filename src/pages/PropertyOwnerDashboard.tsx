@@ -442,9 +442,15 @@ function PropertyDetails({
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold">Bookings and occupancy</h2>
+            <h2 className="text-sm font-bold">
+              {property.sub_type === "short_let"
+                ? "Short Let stays"
+                : "Rent and tenancy"}
+            </h2>
             <p className="mt-1 text-[9px] text-[#707687]">
-              Live booking, check-in and checkout updates for this property.
+              {property.sub_type === "short_let"
+                ? "Plain updates when a stay is booked, the guest enters and the guest leaves."
+                : "WeHouse confirms when a tenant is found, the rent is secured and the home is ready for move-in."}
             </p>
           </div>
           <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
@@ -455,8 +461,9 @@ function PropertyDetails({
           <div className="mt-4 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
             <p className="text-xs font-semibold">No active booking yet</p>
             <p className="mt-2 text-[9px] text-[#666C7C]">
-              A record appears here when a customer completes the reservation
-              step.
+              {property.sub_type === "short_let"
+                ? "A stay appears after the guest completes payment."
+                : "WeHouse will update this page after a tenant is found and the rent is confirmed."}
             </p>
           </div>
         ) : (
@@ -467,23 +474,17 @@ function PropertyDetails({
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-semibold">
-                        {stay.stay_type === "short_let"
-                          ? "Short Let stay"
-                          : "Long Let tenancy"}
+                        {partnerStayStage(stay)}
                       </p>
-                      <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[7px] font-semibold uppercase text-violet-300">
-                        {String(stay.status || "").replace(/_/g, " ")}
-                      </span>
                     </div>
-                    <p className="mt-1 text-[9px] text-[#696F80]">
-                      Booking {stay.booking_code || "confirmed"}
-                    </p>
+                    {stay.stay_type === "short_let" ? (
+                      <p className="mt-1 text-[9px] text-[#696F80]">
+                        Stay {stay.booking_code || "confirmed"}
+                      </p>
+                    ) : null}
                   </div>
-                  <span className="text-[8px] capitalize text-[#777D8D]">
-                    {String(stay.payment_status || "not started").replace(
-                      /_/g,
-                      " ",
-                    )}
+                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-[8px] font-semibold text-emerald-300">
+                    {partnerPaymentLabel(stay)}
                   </span>
                 </div>
                 {stay.stay_type === "short_let" ? (
@@ -707,20 +708,40 @@ function partnerDate(value?: string | null) {
 function partnerStayMessage(stay: any) {
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied")
-      return "The guest has checked in. WeHouse will record checkout when the guest leaves.";
+      return `The guest entered on ${partnerDate(stay.check_in)}. WeHouse will record when the guest leaves.`;
     if (stay.status === "completed")
-      return "The guest has checked out. Any refundable deposit review remains with WeHouse.";
+      return `The guest left on ${partnerDate(stay.check_out)}. WeHouse is handling the final stay and deposit checks.`;
     if (stay.status === "ready_for_move_in")
-      return "Payment is confirmed and the guest is ready for check-in on the booked date.";
-    return "The Short Let booking is active. WeHouse is handling the next arrival step.";
+      return `Payment is confirmed. The guest is expected on ${partnerDate(stay.check_in)} and can only enter during the booked stay.`;
+    return `This home is booked from ${partnerDate(stay.check_in)} to ${partnerDate(stay.check_out)}. WeHouse is handling the guest’s arrival.`;
   }
   if (stay.status === "occupied")
-    return "The tenant has moved in and the property is occupied.";
+    return "WeHouse found a tenant, confirmed the rent and completed the move-in.";
   if (stay.status === "completed")
-    return "The tenancy has ended and move-out was recorded.";
+    return "The tenancy has ended. The rent history remains available in Finance.";
   if (stay.status === "ready_for_move_in")
-    return "The tenancy is ready for verified property handover.";
-  return "The Long Let reservation is moving through WeHouse operations.";
+    return "WeHouse found a tenant and confirmed the rent. The home is ready for move-in.";
+  return "WeHouse found a tenant and confirmed the rent. WeHouse is preparing the home for move-in.";
+}
+function partnerStayStage(stay: any) {
+  if (stay.stay_type === "short_let") {
+    if (stay.status === "occupied") return "Guest checked in";
+    if (stay.status === "completed") return "Guest checked out";
+    if (stay.status === "ready_for_move_in") return "Guest expected";
+    return "Short Let booked";
+  }
+  if (stay.status === "occupied") return "Tenant moved in";
+  if (stay.status === "completed") return "Tenancy ended";
+  if (stay.status === "ready_for_move_in") return "Ready for move-in";
+  return "Tenant found";
+}
+function partnerPaymentLabel(stay: any) {
+  const paid = ["paid", "upfront_paid", "completed"].includes(
+    String(stay.payment_status || stay.manual_payment_status || ""),
+  );
+  if (stay.stay_type === "short_let")
+    return paid ? "Stay paid" : "Payment pending";
+  return paid ? "Rent confirmed" : "Rent processing";
 }
 function friendly(value: any) {
   return String(value || "")
