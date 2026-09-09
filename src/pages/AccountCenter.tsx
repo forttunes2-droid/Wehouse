@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import AccountShell, { AccountRow, AccountSection } from '@/components/AccountShell';
 import type { Profile } from '@/types';
 import PrivacySecuritySettings from '@/pages/PrivacySecuritySettings';
+import MediaViewer from '@/components/MediaViewer';
 
 type Props = {
   profile: Profile;
@@ -49,6 +50,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(false);
 
   const role = profile.role;
   const isUser = role === 'user';
@@ -188,9 +190,15 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
         <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-base font-bold text-violet-200">
-            {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
-          </div>
+          <button
+            type="button"
+            onClick={() => profile.avatar_url && setPhotoPreview(true)}
+            disabled={!profile.avatar_url}
+            aria-label={profile.avatar_url ? "Preview profile photo" : "No profile photo"}
+            className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-base font-bold text-violet-200 disabled:cursor-default"
+          >
+            {profile.avatar_url ? <img src={profile.avatar_url} alt="Your profile" className="h-full w-full object-cover" /> : initials}
+          </button>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-sm font-semibold">{isWorker ? (profile.username ? `@${profile.username}` : 'Worker account') : (profile.full_name || `@${profile.username || 'account'}`)}</h2>
@@ -202,6 +210,16 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
           </div>
         </div>
       </section>
+
+      {photoPreview && profile.avatar_url && (
+        <MediaViewer
+          src={profile.avatar_url}
+          kind="image"
+          title={profile.full_name || profile.username || "Your profile photo"}
+          subtitle="Profile photo"
+          onClose={() => setPhotoPreview(false)}
+        />
+      )}
 
       {canSwitchWorkspace && (
         <AccountSection title="Workspaces">
