@@ -33,7 +33,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,initial
       </AccountSection>
       {(privateMessaging||canClose)&&<AccountSection title="Account ownership">
         {privateMessaging&&(
-          <AccountRow title="Encrypted chats" detail="Your private messaging key and six-digit Recovery PIN" onClick={()=>setSection('encryption')} icon={<KeyIcon/>}/>
+          <AccountRow title="Encrypted chats" detail="Your private messaging key and six-digit recovery passcode" onClick={()=>setSection('encryption')} icon={<KeyIcon/>}/>
         )}
         {canClose&&(
           <AccountRow title="Close account" detail="Close this account after bookings, balances and obligations are cleared" onClick={()=>setSection('close')} icon={<WarningIcon/>}/>

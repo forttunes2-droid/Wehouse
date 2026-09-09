@@ -1,33 +1,214 @@
-import { useCallback,useEffect,useState } from 'react';
-import { toast,Toaster } from 'sonner';
-import { supabase } from '@/lib/supabase';
-import AccountShell from '@/components/AccountShell';
-import PartnerHotelOperations from '@/components/PartnerHotelOperations';
-import HotelBookingChat from '@/components/HotelBookingChat';
-import InboxTabs from '@/components/InboxTabs';
-import SupportEntryCard from '@/components/SupportEntryCard';
-import Notifications from '@/pages/Notifications';
-import { getMyHotelConversations,type HotelConversation } from '@/lib/supabase/hotel-chat';
-import { useOperationsInboxSummary } from '@/hooks/useOperationsInboxSummary';
-import type { Profile } from '@/types';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast, Toaster } from "sonner";
+import { supabase } from "@/lib/supabase";
+import AccountShell from "@/components/AccountShell";
+import PartnerHotelOperations from "@/components/PartnerHotelOperations";
+import HotelBookingChat from "@/components/HotelBookingChat";
+import InboxTabs from "@/components/InboxTabs";
+import Notifications from "@/pages/Notifications";
+import {
+  getMyHotelConversations,
+  type HotelConversation,
+} from "@/lib/supabase/hotel-chat";
+import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
+import type { Profile } from "@/types";
 
-type Hotel={hotel_id:number;name:string;city:string|null;state:string|null;status:string;images:string[]|null;access_role:'manager'|'staff'};
+type Hotel = {
+  hotel_id: number;
+  name: string;
+  city: string | null;
+  state: string | null;
+  status: string;
+  images: string[] | null;
+  access_role: "manager" | "staff";
+};
 
-export default function HotelTeamDashboard({profile}:{profile:Profile;onLogout:()=>void;onNavigate?:(page:string)=>void}){
- const[hotels,setHotels]=useState<Hotel[]>([]),[selected,setSelected]=useState<Hotel|null>(null),[loading,setLoading]=useState(true),[tab,setTab]=useState<'hotels'|'inbox'>('hotels'),[inboxView,setInboxView]=useState<'chats'|'activity'>('chats'),[conversations,setConversations]=useState<HotelConversation[]>([]),[activeConversation,setActiveConversation]=useState<HotelConversation|null>(null),[weHouseUnread,setWeHouseUnread]=useState(0),[hasWeHouseConversations,setHasWeHouseConversations]=useState(false);
- const activity=useOperationsInboxSummary(profile.user_id,'hotel_staff',null);
- const loadConversations=useCallback(async()=>{const result=await getMyHotelConversations();if(result.error)return;setConversations(result.conversations)},[]);
- useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.rpc('get_my_hotel_operations');if(!active)return;if(error)toast.error(error.message);setHotels((Array.isArray(data)?data:[]) as Hotel[]);setLoading(false)})();return()=>{active=false}},[]);
- useEffect(()=>{void loadConversations();const channel=supabase.channel(`hotel-team-inbox:${profile.user_id}`).on('postgres_changes',{event:'*',schema:'public',table:'hotel_booking_messages'},()=>void loadConversations()).subscribe();return()=>{void supabase.removeChannel(channel)}},[loadConversations,profile.user_id]);
- const guestUnread=conversations.reduce((sum,row)=>sum+Number(row.unread_count||0),0),chatUnread=guestUnread+weHouseUnread;
- if(selected)return <div className="min-h-dvh bg-[#0A0A0F] px-4 py-5 text-white sm:px-6"><Toaster position="top-center" richColors/><div className="mx-auto max-w-6xl"><PartnerHotelOperations hotel={selected} accessRole={selected.access_role} profile={profile} onBack={()=>setSelected(null)}/></div></div>;
- if(activeConversation)return <HotelBookingChat bookingId={activeConversation.booking_id} conversationId={activeConversation.conversation_id} profile={profile} title={activeConversation.guest_name||'Guest'} subtitle={`${activeConversation.hotel_name} · ${activeConversation.booking_code||'Paid stay'}`} onClose={()=>setActiveConversation(null)} onUpdated={loadConversations}/>;
- return <AccountShell profile={profile} title={tab==='hotels'?'Hotel Operations':'Inbox'} description={tab==='hotels'?'Work only inside hotels where the owner assigned you.':'Guest conversations and official hotel-work Activity in one place.'}>
-  <Toaster position="top-center" richColors/>
-  <div className="mb-5 grid grid-cols-2 border-b border-white/[.07]">{([['hotels','Hotels'],['inbox','Inbox']] as const).map(([id,label])=><button key={id} type="button" onClick={()=>setTab(id)} className={`relative min-h-12 text-xs font-semibold ${tab===id?'text-white':'text-[#747A8B]'}`}>{label}{id==='inbox'&&chatUnread+activity.activityUnread>0&&<span className="ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px]">{chatUnread+activity.activityUnread>99?'99+':chatUnread+activity.activityUnread}</span>}{tab===id&&<span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400"/>}</button>)}</div>
-  {tab==='inbox'?<section className="space-y-4"><InboxTabs value={inboxView} onChange={setInboxView} chatCount={chatUnread} activityCount={activity.activityUnread}/>{inboxView==='activity'?<Notifications profile={profile} scope="hotel_staff" embedded onUnreadChange={activity.refresh} onNavigate={()=>{}}/>:<div className="divide-y divide-white/[.06] border-y border-white/[.06]"><SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setHasWeHouseConversations} onUnreadChange={setWeHouseUnread}/>{conversations.map(row=><button key={row.conversation_id} type="button" onClick={()=>setActiveConversation(row)} className="flex w-full items-center gap-3 py-4 text-left"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-200">{(row.guest_name||'G').slice(0,1).toUpperCase()}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-xs font-semibold">{row.guest_name||'Guest'}</p><span className="text-[8px] text-[#73798A]">{row.booking_code}</span></div><p className={`mt-1 truncate text-[10px] ${row.unread_count?'text-white':'text-[#73798A]'}`}>{row.last_message||'Paid stay conversation'}</p><p className="mt-1 truncate text-[8px] text-[#565D6E]">Hotel guest · {row.hotel_name} · {row.room_name}</p></div>{row.unread_count>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{row.unread_count}</span>}</button>)}{!conversations.length&&!hasWeHouseConversations&&<p className="py-12 text-center text-[10px] leading-5 text-[#6D7485]">No conversations yet.<br/>Guest chat starts from an eligible paid stay. WeHouse conversations start from the hotel or reservation concerned.</p>}</div>}</section>:
-  <section className="space-y-4"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">ASSIGNED HOTELS</p><h2 className="mt-2 text-xl font-bold">Your hotel work</h2><p className="mt-1 text-[10px] leading-relaxed text-[#737A8B]">Managers control rooms and availability. Front desk members handle arrivals and departures. Neither role can change ownership or team access.</p></div>
-  {loading?<div className="min-h-40" role="status" aria-label="Loading assigned hotels"/>:hotels.length===0?<div className="border-y border-dashed border-white/[.08] py-10 text-center text-xs text-[#687080]">No active hotel assignment is available.</div>:<div className="divide-y divide-white/[.07] border-y border-white/[.07]">{hotels.map(hotel=><button key={hotel.hotel_id} onClick={()=>setSelected(hotel)} className="flex w-full items-center gap-4 py-4 text-left"><div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">{hotel.images?.[0]?<img src={hotel.images[0]} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-[8px] text-[#697080]">No photo</div>}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{hotel.name}</p><p className="mt-1 text-[9px] text-[#6D7485]">{[hotel.city,hotel.state].filter(Boolean).join(', ')}</p><p className="mt-2 text-[8px] font-semibold uppercase tracking-wide text-violet-300">{hotel.access_role==='manager'?'Manager access':'Front desk access'}</p></div><span aria-hidden="true" className="text-[#686F80]">›</span></button>)}</div>}
-  </section>}
- </AccountShell>;
+export default function HotelTeamDashboard({
+  profile,
+}: {
+  profile: Profile;
+  onLogout: () => void;
+  onNavigate?: (page: string, id?: string) => void;
+}) {
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [selected, setSelected] = useState<Hotel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"hotels" | "inbox">("hotels");
+  const [inboxView, setInboxView] = useState<"chats" | "activity">("chats");
+  const [conversations, setConversations] = useState<HotelConversation[]>([]);
+  const [activeConversation, setActiveConversation] =
+    useState<HotelConversation | null>(null);
+  const frontDeskHotelIds = useMemo(
+    () => new Set(hotels.filter((hotel) => hotel.access_role === "staff").map((hotel) => hotel.hotel_id)),
+    [hotels],
+  );
+  const hasFrontDeskAccess = frontDeskHotelIds.size > 0;
+  const activity = useOperationsInboxSummary(
+    hasFrontDeskAccess ? profile.user_id : "",
+    "hotel_staff",
+    null,
+  );
+  const visibleConversations = useMemo(
+    () => conversations.filter((row) => frontDeskHotelIds.has(Number(row.hotel_id))),
+    [conversations, frontDeskHotelIds],
+  );
+  const loadConversations = useCallback(async () => {
+    const result = await getMyHotelConversations();
+    if (result.error) return;
+    setConversations(result.conversations);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.rpc("get_my_hotel_operations");
+      if (!active) return;
+      if (error) toast.error(error.message);
+      setHotels((Array.isArray(data) ? data : []) as Hotel[]);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (loading || !hasFrontDeskAccess) {
+      setConversations([]);
+      return;
+    }
+    void loadConversations();
+    const channel = supabase
+      .channel(`hotel-team-inbox:${profile.user_id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hotel_booking_messages" },
+        () => void loadConversations(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [hasFrontDeskAccess, loadConversations, loading, profile.user_id]);
+  useEffect(() => {
+    if (!loading && !hasFrontDeskAccess && tab === "inbox") setTab("hotels");
+  }, [hasFrontDeskAccess, loading, tab]);
+
+  const chatUnread = visibleConversations.reduce(
+    (sum, row) => sum + Number(row.unread_count || 0),
+    0,
+  );
+  function openActivityDestination(page: string, id?: string) {
+    const route = page.toLowerCase().replace(/-/g, "_");
+    if (["conversation", "conversations", "message", "messages", "chat"].includes(route)) {
+      const thread = visibleConversations.find(
+        (row) =>
+          String(row.conversation_id) === String(id || "") ||
+          String(row.booking_id) === String(id || ""),
+      );
+      if (thread) return setActiveConversation(thread);
+    }
+    if (/booking|reservation/.test(route)) {
+      const thread = visibleConversations.find(
+        (row) => String(row.booking_id) === String(id || ""),
+      );
+      if (thread) return setActiveConversation(thread);
+    }
+    if (/hotel/.test(route)) {
+      const hotel = hotels.find(
+        (row) => String(row.hotel_id) === String(id || ""),
+      );
+      if (hotel) return setSelected(hotel);
+    }
+    toast.error("This update is outside your assigned hotel work.");
+  }
+
+  if (selected)
+    return (
+      <div className="min-h-dvh bg-[#0A0A0F] px-4 py-5 text-white sm:px-6">
+        <Toaster position="top-center" richColors />
+        <div className="mx-auto max-w-6xl">
+          <PartnerHotelOperations
+            hotel={selected}
+            accessRole={selected.access_role}
+            profile={profile}
+            onBack={() => setSelected(null)}
+          />
+        </div>
+      </div>
+    );
+  if (activeConversation)
+    return (
+      <HotelBookingChat
+        bookingId={activeConversation.booking_id}
+        conversationId={activeConversation.conversation_id}
+        profile={profile}
+        title={activeConversation.guest_name || "Guest"}
+        subtitle={`${activeConversation.hotel_name} · ${activeConversation.booking_code || "Paid stay"}`}
+        onClose={() => setActiveConversation(null)}
+        onUpdated={loadConversations}
+      />
+    );
+
+  return (
+    <AccountShell profile={profile} title={tab === "hotels" ? "Hotels" : "Inbox"}>
+      <Toaster position="top-center" richColors />
+      {hasFrontDeskAccess ? (
+        <div className="mb-5 grid grid-cols-2 border-b border-white/[.07]">
+          {([['hotels', 'Hotels'], ['inbox', 'Inbox']] as const).map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setTab(id)} className={`relative min-h-12 text-xs font-semibold ${tab === id ? "text-white" : "text-[#747A8B]"}`}>
+              {label}
+              {id === "inbox" && chatUnread + activity.activityUnread > 0 ? <span className="ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px]">{chatUnread + activity.activityUnread > 99 ? "99+" : chatUnread + activity.activityUnread}</span> : null}
+              {tab === id ? <span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400" /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {tab === "inbox" && hasFrontDeskAccess ? (
+        <section className="space-y-4">
+          <InboxTabs value={inboxView} onChange={setInboxView} chatCount={chatUnread} activityCount={activity.activityUnread} />
+          {inboxView === "activity" ? (
+            <Notifications profile={profile} scope="hotel_staff" embedded onUnreadChange={activity.refresh} onNavigate={openActivityDestination} />
+          ) : (
+            <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+              {visibleConversations.map((row) => (
+                <button key={row.conversation_id} type="button" onClick={() => setActiveConversation(row)} className="flex w-full items-center gap-3 py-4 text-left">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-200">{(row.guest_name || "G").slice(0, 1).toUpperCase()}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-xs font-semibold">{row.guest_name || "Guest"}</p><span className="text-[8px] text-[#73798A]">{row.booking_code}</span></div>
+                    <p className={`mt-1 truncate text-[10px] ${row.unread_count ? "text-white" : "text-[#73798A]"}`}>{row.last_message || "Paid stay conversation"}</p>
+                    <p className="mt-1 truncate text-[8px] text-[#565D6E]">{row.hotel_name} · {row.room_name}</p>
+                  </div>
+                  {row.unread_count > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{row.unread_count}</span> : null}
+                </button>
+              ))}
+              {!visibleConversations.length ? <p className="py-12 text-center text-[10px] text-[#6D7485]">No guest conversations yet.</p> : null}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold">Assigned hotels</h2>
+          {loading ? (
+            <div className="min-h-40" role="status" aria-label="Loading assigned hotels" />
+          ) : hotels.length === 0 ? (
+            <div className="border-y border-dashed border-white/[.08] py-10 text-center text-xs text-[#687080]">No active hotel assignment is available.</div>
+          ) : (
+            <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
+              {hotels.map((hotel) => (
+                <button key={hotel.hotel_id} onClick={() => setSelected(hotel)} className="flex w-full items-center gap-4 py-4 text-left">
+                  <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">{hotel.images?.[0] ? <img src={hotel.images[0]} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-[8px] text-[#697080]">No photo</div>}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{hotel.name}</p>
+                    <p className="mt-1 text-[9px] text-[#6D7485]">{[hotel.city, hotel.state].filter(Boolean).join(", ")}</p>
+                    <p className="mt-2 text-[8px] font-semibold uppercase tracking-wide text-violet-300">{hotel.access_role === "manager" ? "Manager" : "Front desk"}</p>
+                  </div>
+                  <span aria-hidden="true" className="text-[#686F80]">›</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+    </AccountShell>
+  );
 }

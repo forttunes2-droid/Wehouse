@@ -60,15 +60,9 @@ export default function RoommatePublicProfile({
           >
             ←
           </button>
-          <div>
-            <p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-400">
-              Roommates
-            </p>
-            <h2 className="text-sm font-semibold">
-              {context === "conversation"
-                ? "Conversation profile"
-                : "Roommate profile"}
-            </h2>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">{person.name}</h2>
+            {person.location ? <p className="mt-0.5 truncate text-[9px] text-[#73798A]">{person.location}</p> : null}
           </div>
         </div>
       </header>
@@ -94,11 +88,11 @@ export default function RoommatePublicProfile({
                   @{person.username.replace(/^@/, "")}
                 </p>
               )}
-              <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
+              {person.location || (context === "conversation" && presence) ? <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
                 {[person.location, context === "conversation" ? presence : null]
                   .filter(Boolean)
-                  .join(" · ") || "Roommate connection"}
-              </p>
+                  .join(" · ")}
+              </p> : null}
               {hasScore && context === "discovery" ? (
                 <div className="mt-3 flex items-center gap-2">
                   <strong className="text-xl text-violet-300">{score}%</strong>
@@ -109,22 +103,21 @@ export default function RoommatePublicProfile({
               ) : null}
             </div>
           </div>
+          <div className="relative mt-5 border-t border-white/[.06] pt-4">
+            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
+            <p className="mt-2 text-[12px] leading-6 text-[#A9AEBA]">{person.bio || "No introduction added yet."}</p>
+          </div>
           {actions && (
-            <div className="mt-5 border-t border-white/[.06] pt-5">
+            <div className="mt-4 border-t border-white/[.06] pt-4">
               {actions}
             </div>
           )}
         </section>
         {hasScore && context === "discovery" && (
           <section className="border-b border-white/[.07] py-5">
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">
-                What matches
-              </p>
-              <p className="text-[9px] text-[#777D8D]">
-                Compatibility, not identity
-              </p>
-            </div>
+            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">
+              What matches
+            </p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
               <div
                 className="h-full rounded-full bg-violet-500"
@@ -155,14 +148,6 @@ export default function RoommatePublicProfile({
           {person.occupation && (
             <Detail label="Occupation" value={person.occupation} />
           )}
-        </section>
-        <section className="py-6">
-          <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">
-            About
-          </p>
-          <p className="mt-2 text-[12px] leading-6 text-[#A2A7B5]">
-            {person.bio || "No introduction added yet."}
-          </p>
         </section>
         {footer}
       </main>

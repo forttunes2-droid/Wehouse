@@ -165,7 +165,6 @@ export default function Chat({
   const [messageActions, setMessageActions] = useState<RoommateMessage | null>(null);
   const [messageToRemove, setMessageToRemove] = useState<RoommateMessage | null>(null);
   const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
-  const inboxAutoSelectedRef = useRef(false);
   const activeRef = useRef<Conversation | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null),
@@ -197,17 +196,8 @@ export default function Chat({
   }, [conversations]);
 
   useEffect(() => {
-    if (
-      inboxAutoSelectedRef.current ||
-      conversationId ||
-      initialMode === "activity"
-    )
-      return;
-    if (chatUnreadCount === 0 && activityUnreadCount > 0)
-      setInboxMode("activity");
-    if (chatUnreadCount > 0 || activityUnreadCount > 0)
-      inboxAutoSelectedRef.current = true;
-  }, [activityUnreadCount, chatUnreadCount, conversationId, initialMode]);
+    if (!conversationId) setInboxMode(initialMode);
+  }, [conversationId, initialMode]);
 
   const loadInbox = useCallback(
     async (quiet = false) => {
@@ -245,6 +235,8 @@ export default function Chat({
         toast.error(
           convResult.error.message || "Unable to load roommate conversations",
         );
+      if (peerResult.error && !quiet)
+        toast.error(peerResult.error.message || "Unable to load roommate names");
       const allRoommateRows = (convResult.conversations || []).filter(
         (row) => row.conversation_type === "roommate",
       );
@@ -760,11 +752,6 @@ export default function Chat({
     );
   if (active) {
     const person = people[otherId(active)];
-    const securityGate =
-      !secureChat ||
-      secureChat.state === "setup_required" ||
-      secureChat.state === "unlock_required" ||
-      secureChat.state === "unavailable";
     const canCompose = secureChat?.state === "ready";
     const refreshSecurity = () => {
       setSecureChat(null);
@@ -816,13 +803,11 @@ export default function Chat({
               <Avatar person={person} />
               <span className="min-w-0">
                 <span className="block truncate text-[14px] font-semibold">
-                  {person?.name || "Roommate match"}
+                  {person?.name || "Roommate"}
                 </span>
-                <span
+                {presenceText ? <span
                   className={`mt-0.5 block truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
-                >
-                  {presenceText || "Private roommate conversation"}
-                </span>
+                >{presenceText}</span> : null}
               </span>
             </button>
             <HeaderAction
@@ -882,22 +867,7 @@ export default function Chat({
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
-            {securityGate ? (
-              <div className="mx-auto max-w-md pt-2">
-                {secureChat ? (
-                  <SecureChatOnboarding
-                    status={secureChat}
-                    personName={person?.name || "This person"}
-                    onReady={refreshSecurity}
-                  />
-                ) : (
-                  <div className="flex min-h-24 items-center justify-center gap-3 text-[10px] text-[#858B9B]">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-violet-400" />
-                    Checking private chat…
-                  </div>
-                )}
-              </div>
-            ) : loadingMessages && messages.length === 0 ? (
+            {loadingMessages && messages.length === 0 ? (
               <MessageSkeleton />
             ) : messages.length === 0 ? (
               <Empty
@@ -905,8 +875,7 @@ export default function Chat({
                 text="You both accepted the roommate match. Share photos, voice notes or a message while you discuss living plans."
               />
             ) : null}
-            {!securityGate &&
-              timeline.map((event, index) => (
+            {timeline.map((event, index) => (
                 <div key={event.id}>
                   {index === 0 ||
                   dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
@@ -930,7 +899,7 @@ export default function Chat({
                   )}
                 </div>
               ))}
-            {!securityGate && <div ref={bottomRef} />}
+            <div ref={bottomRef} />
           </div>
         </main>
         <footer className="shrink-0 border-t border-white/[.06] bg-[#10131B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
@@ -949,11 +918,15 @@ export default function Chat({
                 </button>
               </div>
             ) : !secureChat ? (
-              <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-violet-400" />
-                Checking private chat…
+              <div className="flex items-end gap-2" aria-label="Opening secure conversation">
+                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-[11px] text-[#666C7B]">
+                  Opening conversation…
+                </div>
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-white/[.05]">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+                </span>
               </div>
-            ) : securityGate ? null : !canCompose ? (
+            ) : !canCompose ? (
               <SecureChatOnboarding
                 status={secureChat}
                 personName={person?.name || "This person"}
@@ -961,9 +934,6 @@ export default function Chat({
               />
             ) : (
               <>
-                <p className="mb-2 text-center text-[8px] font-medium text-emerald-300">
-                  ⌾ End-to-end encrypted
-                </p>
                 {files.length > 0 && (
                   <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
                     {files.map((file, index) => (
@@ -1077,9 +1047,6 @@ export default function Chat({
         </footer>
         {messageActions && active && (
           <MessageActionSheet
-            preview={messageActions.content || "Attachment"}
-            time={new Date(messageActions.created_at).toLocaleString()}
-            readStatus={messageActions.sender_id === profile.user_id ? (messageActions.seen ? "Seen" : "Sent") : null}
             currentReaction={messageActions.reactions?.[profile.user_id] || null}
             onClose={() => setMessageActions(null)}
             onReply={() => {
@@ -1125,6 +1092,10 @@ export default function Chat({
               setProfileOpen(false);
               void startCall("audio");
             }}
+            onVideoCall={() => {
+              setProfileOpen(false);
+              void startCall("video");
+            }}
             busy={blockBusy}
           />
         )}
@@ -1147,17 +1118,9 @@ export default function Chat({
             </button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">
-              WEHOUSE
-            </p>
-            <h1 className="mt-0.5 text-lg font-bold sm:text-xl">
+            <h1 className="text-lg font-bold sm:text-xl">
               {selected.size ? `${selected.size} selected` : "Inbox"}
             </h1>
-            <p className="mt-1 hidden text-[10px] text-[#74798B] sm:block">
-              {selected.size
-                ? "Tap another conversation to add it."
-                : "Chats and activity connected to your WeHouse life."}
-            </p>
           </div>
           {selected.size ? (
             <button
@@ -1336,7 +1299,7 @@ function RoommateInboxRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {person?.name || "Roommate match"}
+            {person?.name || "Roommate"}
           </p>
           <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-violet-300">
             ROOMMATE
@@ -1695,6 +1658,7 @@ function PeerProfileSheet({
   onClose,
   onToggleBlock,
   onAudioCall,
+  onVideoCall,
   busy,
 }: {
   person?: Person;
@@ -1702,6 +1666,7 @@ function PeerProfileSheet({
   onClose: () => void;
   onToggleBlock: () => void;
   onAudioCall: () => void;
+  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1713,15 +1678,20 @@ function PeerProfileSheet({
         avatar: person?.avatar,
         location,
         bio: person?.bio,
-        school: person?.isStudent ? person.school : null,
+        // School is a matching constraint, not general profile information.
+        // Conversation profiles must not disclose it outside a same-school result.
+        school: null,
         occupation: person?.occupation,
       }}
-      presence={presenceText || "Roommate connection"}
+      presence={presenceText}
       onClose={onClose}
       actions={
-        <div className="mx-auto flex max-w-xs justify-center">
+        <div className="mx-auto flex max-w-xs justify-center gap-12">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
+          </ProfileAction>
+          <ProfileAction label="Video" onClick={onVideoCall}>
+            <VideoCallIcon />
           </ProfileAction>
         </div>
       }

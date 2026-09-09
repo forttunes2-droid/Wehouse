@@ -233,6 +233,7 @@ export default function App() {
     [hotelCheckOut, setHotelCheckOut] = useState(""),
     [chatConvId, setChatConvId] = useState<string | null>(null),
     [bookingContextId, setBookingContextId] = useState<string | null>(null),
+    [roommateContextId, setRoommateContextId] = useState<string | null>(null),
     [workerCategory, setWorkerCategory] = useState<string | null>(null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
@@ -738,6 +739,7 @@ export default function App() {
     (p: NavPage, c?: string) => {
       if (c) setWorkerCategory(c);
       if (p !== "my_reservations") setBookingContextId(null);
+      if (p !== "roommate") setRoommateContextId(null);
       handleSetNavPage(p);
     },
     [handleSetNavPage],
@@ -768,6 +770,30 @@ export default function App() {
       handleSetNavPage("chat");
     },
     [isUserRole, handleSetNavPage, roleRoot],
+  );
+  const openUserDestination = useCallback(
+    (page: string, id?: string) => {
+      const route = page.toLowerCase().replace(/-/g, "_");
+      if (id && (route === "detail" || route === "listing_detail"))
+        return goToDetail(id);
+      if (
+        ["conversation", "conversations", "message", "messages", "chat"].includes(
+          route,
+        )
+      )
+        return goToChat(id);
+      if (route === "my_reservations" || route === "my_bookings") {
+        setBookingContextId(id || null);
+        return goTo("my_reservations");
+      }
+      if (route === "roommate") {
+        setRoommateContextId(id || null);
+        return goTo("roommate");
+      }
+      if (route === "security" && id) return goTo("devices");
+      goTo(route as NavPage);
+    },
+    [goTo, goToChat, goToDetail],
   );
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
@@ -842,7 +868,7 @@ export default function App() {
         <AdminDashboard
           profile={profile}
           onLogout={auth.logout}
-          onNavigate={(p) => goTo(p as NavPage)}
+          onNavigate={(p, id) => openUserDestination(p, id)}
           onGoToChat={goToChat}
         />
       );
@@ -852,7 +878,7 @@ export default function App() {
           profile={profile}
           onLogout={auth.logout}
           onGoToChat={goToChat}
-          onNavigate={(p) => goTo(p as NavPage)}
+          onNavigate={(p, id) => openUserDestination(p, id)}
         />
       );
     if (isWorkerRole)
@@ -861,7 +887,7 @@ export default function App() {
           profile={profile}
           onGoToSetup={() => goTo("worker_setup")}
           onLogout={auth.logout}
-          onNavigate={(p) => goTo(p as NavPage)}
+          onNavigate={(p, id) => openUserDestination(p, id)}
         />
       );
     if (isPropertyPartner)
@@ -869,7 +895,7 @@ export default function App() {
         <PropertyPartnerDashboard
           profile={profile}
           onLogout={auth.logout}
-          onNavigate={(p) => goTo(p as NavPage)}
+          onNavigate={(p, id) => openUserDestination(p, id)}
         />
       );
     if (isHotelTeamRole)
@@ -877,7 +903,7 @@ export default function App() {
         <HotelTeamDashboard
           profile={profile}
           onLogout={auth.logout}
-          onNavigate={(p) => goTo(p as NavPage)}
+          onNavigate={(p, id) => openUserDestination(p, id)}
         />
       );
     return null;
@@ -928,6 +954,7 @@ export default function App() {
             onGoToChat={goToChat}
             onEditProfile={goToProfileEdit}
             onOpenListing={goToDetail}
+            initialContextId={roommateContextId}
           />
         ) : (
           renderRoleRoot()
@@ -936,9 +963,7 @@ export default function App() {
         return isUserRole ? (
           <Activity
             profile={profile}
-            onNavigate={(p: string, id?: string) =>
-              id ? goToDetail(id) : goTo(p as NavPage)
-            }
+            onNavigate={openUserDestination}
             onGoToChat={goToChat}
           />
         ) : (
@@ -951,17 +976,7 @@ export default function App() {
             initialMode="activity"
             chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
-            onNavigate={(page, id) => {
-              if (id && (page === "detail" || page === "listing_detail"))
-                return goToDetail(id);
-              if (id && (page === "messages" || page === "conversation"))
-                return goToChat(id);
-              if (page === "my_reservations" || page === "my_bookings") {
-                setBookingContextId(id || null);
-                return goTo("my_reservations");
-              }
-              goTo((page === "messages" ? "conversation" : page) as NavPage);
-            }}
+            onNavigate={openUserDestination}
           />
         ) : (
           renderRoleRoot()
@@ -1043,17 +1058,7 @@ export default function App() {
         return isUserRole ? (
           <Chat
             profile={profile}
-            onNavigate={(page, id) => {
-              if (id && (page === "detail" || page === "listing_detail"))
-                return goToDetail(id);
-              if (id && (page === "messages" || page === "conversation"))
-                return goToChat(id);
-              if (page === "my_reservations" || page === "my_bookings") {
-                setBookingContextId(id || null);
-                return goTo("my_reservations");
-              }
-              goTo((page === "messages" ? "conversation" : page) as NavPage);
-            }}
+            onNavigate={openUserDestination}
             conversationId={chatConvId}
             chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
@@ -1219,7 +1224,7 @@ export default function App() {
       !conversationOpen &&
       !nestedScreen &&
       !hide.includes(navPage),
-    supportRole = ["user", "worker", "property_partner", "hotel_staff"].includes(
+    supportRole = ["user", "worker", "property_partner"].includes(
       profile?.role || "",
     );
   return (
@@ -1276,13 +1281,7 @@ export default function App() {
                     <button
                       key={tab.id}
                       aria-label={tab.label}
-                      onClick={() =>
-                        tab.id === "conversation" &&
-                        unreadCount === 0 &&
-                        notificationCount > 0
-                          ? goTo("notifications")
-                          : goTo(tab.id)
-                      }
+                      onClick={() => goTo(tab.id)}
                       className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
                     >
                       <tab.icon size={22} active={active} />

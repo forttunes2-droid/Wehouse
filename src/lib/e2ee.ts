@@ -28,6 +28,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
 const readinessTimeoutMs = 10_000;
+const conversationKeyCache = new Map<string, Promise<CryptoKey>>();
 
 async function currentProfileId(){
   const {data,error}=await supabase.rpc("current_profile_user_id");
@@ -77,7 +78,7 @@ async function myIdentity() {
 }
 
 export async function createEncryptionIdentity(pin: string) {
-  if (!/^\d{6}$/.test(pin)) throw new Error("Use a 6-digit Recovery PIN");
+  if (!/^\d{6}$/.test(pin)) throw new Error("Use a 6-digit recovery passcode");
   const existing = await myIdentity();
   if (existing.error) throw existing.error;
   if (existing.identity) throw new Error("Secure messaging is already set up");
@@ -121,7 +122,7 @@ export async function unlockEncryptionIdentity(pin: string) {
     const jwk = JSON.parse(decoder.decode(clear)) as JsonWebKey;
     sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(jwk));
   } catch {
-    throw new Error("Incorrect Recovery PIN");
+    throw new Error("Incorrect recovery passcode");
   }
 }
 
@@ -135,13 +136,13 @@ async function decryptBackedUpPrivateJwk(identity: IdentityRow, pin: string) {
     );
     return JSON.parse(decoder.decode(clear)) as JsonWebKey;
   } catch {
-    throw new Error("Incorrect current Recovery PIN");
+    throw new Error("Incorrect current recovery passcode");
   }
 }
 
 export async function changeEncryptionRecoveryPin(currentPin: string, nextPin: string) {
-  if (!/^\d{6}$/.test(nextPin)) throw new Error("Use a 6-digit Recovery PIN");
-  if (currentPin === nextPin) throw new Error("Choose a different Recovery PIN");
+  if (!/^\d{6}$/.test(nextPin)) throw new Error("Use a 6-digit recovery passcode");
+  if (currentPin === nextPin) throw new Error("Choose a different recovery passcode");
   const { identity, error } = await myIdentity();
   if (error) throw error;
   if (!identity) throw new Error("Secure messaging has not been set up");
@@ -173,6 +174,7 @@ export async function changeEncryptionRecoveryPin(currentPin: string, nextPin: s
 
 export async function lockEncryptionIdentity() {
   sessionStorage.removeItem(sessionKey(await currentProfileId()));
+  conversationKeyCache.clear();
 }
 
 export async function encryptionIdentityStatus() {
@@ -212,8 +214,8 @@ async function checkPrivateConversationReadiness(
       .catch((error: unknown) => ({ ready: false, error })),
   ]);
   if (mine.error) return { state: "unavailable", message: mine.error.message || "Secure chat could not be checked" };
-  if (!mine.enabled) return { state: "setup_required", message: "Create your Recovery PIN before sending private messages." };
-  if (!mine.unlocked) return { state: "unlock_required", message: "Unlock private messages with your Recovery PIN on this device." };
+  if (!mine.enabled) return { state: "setup_required", message: "Create your recovery passcode before sending private messages." };
+  if (!mine.unlocked) return { state: "unlock_required", message: "Unlock private messages with your recovery passcode on this device." };
   if (peerResult.ready) return { state: "ready", message: "End-to-end encrypted" };
   const message = peerResult.error instanceof Error ? peerResult.error.message : "Secure chat is not ready";
   if (/other person.*enable secure messages/i.test(message)) {
@@ -224,7 +226,7 @@ async function checkPrivateConversationReadiness(
 
 async function unlockedPrivateKey() {
   const value = sessionStorage.getItem(sessionKey(await currentProfileId()));
-  if (!value) throw new Error("Enter your Recovery PIN to unlock private messages");
+  if (!value) throw new Error("Enter your recovery passcode to unlock private messages");
   return importPrivateKey(JSON.parse(value) as JsonWebKey);
 }
 async function peerPublicKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
@@ -252,7 +254,7 @@ async function wrapFor(key: CryptoKey, recipient: { user_id: string; key_version
     wrap_iv: bytesToBase64(iv),
   };
 }
-async function conversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
+async function loadConversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
   const profileId=await currentProfileId();
   const { data: existing, error } = await supabase
     .from("conversation_key_envelopes")
@@ -272,7 +274,7 @@ async function conversationKey(kind: PrivateConversationKind, conversationId: st
   }
   const mine = await myIdentity();
   if (mine.error) throw mine.error;
-  if (!mine.identity) throw new Error("Set a Recovery PIN to enable secure messages");
+  if (!mine.identity) throw new Error("Set a recovery passcode to enable secure messages");
   await unlockedPrivateKey();
   const peer = await peerPublicKey(kind, conversationId, peerUserId);
   const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
@@ -305,6 +307,18 @@ async function conversationKey(kind: PrivateConversationKind, conversationId: st
   const wrapKey = await wrappingKey(await unlockedPrivateKey(), await importPublicKey(envelope.sender_ephemeral_public_key_jwk));
   const raw = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(envelope.wrap_iv) }, wrapKey, base64ToBytes(envelope.wrapped_key));
   return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+function conversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
+  const cacheKey = `${kind}:${conversationId}:${peerUserId}`;
+  const existing = conversationKeyCache.get(cacheKey);
+  if (existing) return existing;
+  const pending = loadConversationKey(kind, conversationId, peerUserId).catch((error) => {
+    conversationKeyCache.delete(cacheKey);
+    throw error;
+  });
+  conversationKeyCache.set(cacheKey, pending);
+  return pending;
 }
 
 export async function encryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, content: string) {

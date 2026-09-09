@@ -31,7 +31,7 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
   const messages=await Promise.all((data as any[]).map(async row=>{
     let content=String(row.legacy_content||'');
     if(row.ciphertext&&row.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your Recovery PIN'}
+      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your recovery passcode'}
     }
     const attachments:string[]=[];const attachmentTypes:string[]=[];
     const legacyPaths=Array.isArray(row.legacy_attachments)?row.legacy_attachments.filter(Boolean):[];

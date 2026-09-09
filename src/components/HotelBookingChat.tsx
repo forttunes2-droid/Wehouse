@@ -252,7 +252,7 @@ export default function HotelBookingChat({
           </div>}
         </div>
       </footer>
-      {messageMenu && <MessageActionSheet preview={messageMenu.content || "Attachment"} time={new Date(messageMenu.created_at).toLocaleString()} readStatus={messageMenu.sender_id === profile.user_id ? (messageMenu.is_read ? "Read" : "Sent") : null} currentReaction={messageMenu.reactions?.[profile.user_id] || null} onClose={() => setMessageMenu(null)} onReact={(emoji) => void react(messageMenu, emoji)} onRemove={() => { setMessageToRemove(messageMenu); setMessageMenu(null); }} />}
+      {messageMenu && <MessageActionSheet currentReaction={messageMenu.reactions?.[profile.user_id] || null} onClose={() => setMessageMenu(null)} onReact={(emoji) => void react(messageMenu, emoji)} onRemove={() => { setMessageToRemove(messageMenu); setMessageMenu(null); }} />}
       <ConfirmDialog isOpen={Boolean(messageToRemove)} title="Remove this message?" description="This removes the message only from your chat. The other person keeps their copy." confirmLabel="Remove for me" onCancel={() => setMessageToRemove(null)} onConfirm={() => void removeMessage()} />
       {viewer && <MediaViewer src={viewer.src} kind={viewer.kind} title="Hotel chat media" onClose={() => setViewer(null)} />}
     </div>

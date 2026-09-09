@@ -29,6 +29,7 @@ type Props = {
   onGoToChat?: (id: string) => void;
   onEditProfile?: () => void;
   onOpenListing?: (id: string) => void;
+  initialContextId?: string | null;
 };
 type Form = RoommatePreferenceForm;
 const EMPTY: Form = {
@@ -71,6 +72,7 @@ export default function RoommateWorkspace({
   onGoToChat,
   onEditProfile,
   onOpenListing,
+  initialContextId,
 }: Props) {
   const [prefs, setPrefs] = useState<RoommatePreferences | null>(null),
     [matches, setMatches] = useState<RoommateMatchResult[]>([]),
@@ -85,7 +87,10 @@ export default function RoommateWorkspace({
     [busy, setBusy] = useState(false),
     [loadingMore, setLoadingMore] = useState(false),
     [interestBusy, setInterestBusy] = useState<string | null>(null),
-    [openingChatId, setOpeningChatId] = useState<string | null>(null);
+    [openingChatId, setOpeningChatId] = useState<string | null>(null),
+    [focusedContextId, setFocusedContextId] = useState<string | null>(
+      initialContextId || null,
+    );
   const profileReady =
     Boolean(profile.profile_complete) &&
     Boolean(profile.gender) &&
@@ -172,6 +177,21 @@ export default function RoommateWorkspace({
       void supabase.removeChannel(channel);
     };
   }, [profile.user_id, load]);
+  useEffect(() => {
+    if (loading || !initialContextId) return;
+    setFocusedContextId(initialContextId);
+    const frame = window.requestAnimationFrame(() => {
+      const target = [...document.querySelectorAll<HTMLElement>("[data-activity-context]")]
+        .find((element) =>
+          String(element.dataset.activityContext || "")
+            .split(" ")
+            .includes(initialContextId),
+        );
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      target?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialContextId, loading, matches, received]);
 
   function applyResult(result: {
     matches?: RoommateMatchResult[];
@@ -356,8 +376,6 @@ export default function RoommateWorkspace({
   return (
     <DiscoveryShell
       active="roommates"
-      title="Roommates"
-      description="Set your preferences and find compatible people in your area."
       onNavigate={navigate}
     >
       <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-6">
@@ -418,7 +436,8 @@ export default function RoommateWorkspace({
           <ReceivedInterests
             rows={received}
             busyId={interestBusy}
-            showSchool={Boolean(prefs?.school_match)}
+            focusedId={focusedContextId}
+            schoolFilter={prefs?.school_match ? (prefs.school_name || profile.school || "") : ""}
             onRespond={respond}
           />
         )}
@@ -489,11 +508,12 @@ export default function RoommateWorkspace({
             </section>
             <Matches
               rows={matches}
+              focusedId={focusedContextId}
               discoveryActive={matchingActive}
               hasMore={hasMore}
               loadingMore={loadingMore}
               busyId={interestBusy || openingChatId}
-              showSchool={Boolean(prefs.school_match)}
+              schoolFilter={prefs.school_match ? (prefs.school_name || profile.school || "") : ""}
               onLoadMore={loadMore}
               onChat={openConversation}
               onInterest={interest}
@@ -560,21 +580,23 @@ function matchLabel(score: number) {
 }
 function Matches({
   rows,
+  focusedId,
   discoveryActive,
   hasMore,
   loadingMore,
   busyId,
-  showSchool,
+  schoolFilter,
   onLoadMore,
   onChat,
   onInterest,
 }: {
   rows: RoommateMatchResult[];
+  focusedId: string | null;
   discoveryActive: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   busyId: string | null;
-  showSchool: boolean;
+  schoolFilter: string;
   onLoadMore: () => void;
   onChat?: (row: RoommateMatchResult) => void;
   onInterest: (row: RoommateMatchResult, status: "accepted" | "declined") => void;
@@ -597,7 +619,7 @@ function Matches({
             </div>
             <span className="text-[9px] text-[#777D8D]">{established.length}</span>
           </div>
-          <MatchRail items={established} busyId={busyId} showSchool={showSchool} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} />
+          <MatchRail items={established} focusedId={focusedId} busyId={busyId} schoolFilter={schoolFilter} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} />
         </section>
       ) : null}
       {discoveryActive ? (
@@ -613,7 +635,7 @@ function Matches({
               {discoverable.length} new
             </span>
           </div>
-          {discoverable.length > 0 ? <MatchRail items={discoverable} busyId={busyId} showSchool={showSchool} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} /> : (
+          {discoverable.length > 0 ? <MatchRail items={discoverable} focusedId={focusedId} busyId={busyId} schoolFilter={schoolFilter} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} /> : (
             <div className="border-y border-white/[.065] px-3 py-10 text-center">
               <p className="text-sm font-semibold">No new matches yet</p>
               <p className="mt-1 text-[10px] text-[#686D7E]">Refresh when more compatible people become available.</p>
@@ -628,23 +650,25 @@ function Matches({
           ) : null}
         </section>
       ) : null}
-      {openProfile ? <RoommateProfileSheet row={openProfile} showSchool={showSchool} onClose={() => setOpenProfileId(null)} /> : null}
+      {openProfile ? <RoommateProfileSheet row={openProfile} schoolFilter={schoolFilter} onClose={() => setOpenProfileId(null)} /> : null}
     </>
   );
 }
 
-function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];busyId:string|null;showSchool:boolean;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"declined")=>void}) {
+function sameSchool(filter:string, candidate?:string|null){return Boolean(filter.trim()&&candidate?.trim()&&filter.trim().toLocaleLowerCase()===candidate.trim().toLocaleLowerCase())}
+function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"declined")=>void}) {
   return <div className="divide-y divide-white/[.06] border-y border-white/[.07]">{items.map((row)=>{
     const p=row.matched_profile,score=Number(row.match_score||0),connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
     const name=p.full_name||`@${p.username||"user"}`;
-    return <article key={row.id} className="py-4">
+    const contextIds=[row.id,row.conversation_id].filter(Boolean).join(" "),focused=[row.id,row.conversation_id].filter(Boolean).some(id=>String(id)===focusedId);
+    return <article key={row.id} tabIndex={-1} data-activity-context={contextIds} className={`rounded-2xl px-2 py-4 outline-none transition ${focused?"bg-violet-500/[.08] ring-1 ring-violet-400/35":""}`}>
       <div className="flex items-center gap-3">
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="shrink-0 rounded-full" aria-label={`View ${name} profile`}>
           <ProfileImage src={p.avatar_url} name={name} className="h-14 w-14 rounded-full border border-white/10 text-lg"/>
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="min-w-0 flex-1 text-left">
           <div className="flex items-center justify-between gap-3"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="shrink-0 text-[10px] font-bold text-violet-300">{score}%</span></div>
-          <p className="mt-1 truncate text-[9px] text-[#747A8B]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{showSchool&&p.school?` · ${p.school}`:""}</p>
+          <p className="mt-1 truncate text-[9px] text-[#747A8B]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{sameSchool(schoolFilter,p.school)?` · ${p.school}`:""}</p>
           <p className={`mt-1 text-[9px] font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[#858B99]"}`}>{connected?"Connected":sent?"Interest sent":`${matchLabel(score)} compatibility`}</p>
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[#6D7383]" aria-label={`Open ${name} profile`}>›</button>
@@ -654,21 +678,23 @@ function MatchRail({items,busyId,showSchool,onOpenProfile,onChat,onInterest}:{it
   })}</div>;
 }
 
-function RoommateProfileSheet({row,showSchool,onClose}:{row:RoommateMatchResult;showSchool:boolean;onClose:()=>void}){
+function RoommateProfileSheet({row,schoolFilter,onClose}:{row:RoommateMatchResult;schoolFilter:string;onClose:()=>void}){
   const p=row.matched_profile,score=Number(row.match_score||0);
   const highlights=Object.entries(p.score_factors||{}).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3).map(([key])=>key==='stay'?'Stay length':key[0].toUpperCase()+key.slice(1));
-  return <RoommatePublicProfile context="discovery" person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:showSchool?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score} matchLabel={`${matchLabel(score)} match`} highlights={highlights} footer={<p className="border-t border-white/[.06] pt-4 text-[9px] leading-5 text-[#666D7E]">Compatibility combines budget, location and living preferences. Eligibility rules are applied before ranking.</p>}/>;
+  return <RoommatePublicProfile context="discovery" person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score} matchLabel={`${matchLabel(score)} match`} highlights={highlights}/>;
 }
 
 function ReceivedInterests({
   rows,
   busyId,
-  showSchool,
+  focusedId,
+  schoolFilter,
   onRespond,
 }: {
   rows: ReceivedRoommateInterest[];
   busyId: string | null;
-  showSchool: boolean;
+  focusedId: string | null;
+  schoolFilter: string;
   onRespond: (
     row: ReceivedRoommateInterest,
     response: "accepted" | "declined",
@@ -695,7 +721,9 @@ function ReceivedInterests({
         {rows.map((row) => (
           <article
             key={row.interest_id}
-            className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 py-4 sm:grid-cols-[3rem_minmax(0,1fr)_auto]"
+            tabIndex={-1}
+            data-activity-context={row.interest_id}
+            className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 rounded-2xl px-2 py-4 outline-none transition sm:grid-cols-[3rem_minmax(0,1fr)_auto] ${focusedId===row.interest_id?"bg-violet-500/[.09] ring-1 ring-violet-400/35":""}`}
           >
             {row.avatar_url ? (
               <img
@@ -715,7 +743,7 @@ function ReceivedInterests({
               <p className="mt-1 truncate text-[9px] text-[#73798A]">
                 {row.match_score}% match ·{" "}
                 {[row.city, row.state].filter(Boolean).join(", ") || "Nigeria"}
-                {showSchool && row.school ? ` · ${row.school}` : ""}
+                {sameSchool(schoolFilter, row.school) ? ` · ${row.school}` : ""}
               </p>
             </div>
             <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:shrink-0">

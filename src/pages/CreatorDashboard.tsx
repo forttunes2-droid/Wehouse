@@ -500,6 +500,7 @@ function CreatorInbox({
           queue="all"
           initialConversationId={initialConversationId}
           onOpenConversation={onGoToChat}
+          onOpenContext={(page,id)=>onNavigate?.(page,id)}
           onUnreadChange={summary.setMessageUnread}
         />
       ) : (

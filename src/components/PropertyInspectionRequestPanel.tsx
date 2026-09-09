@@ -137,7 +137,7 @@ function fresh(profile: Profile, copy?: Draft): Draft {
     bathrooms: "1",
     expectedRent: "",
     securityDeposit: copy?.subType === "short_let" ? copy.securityDeposit : "",
-    maxGuests: copy?.subType === "short_let" ? copy.maxGuests || "2" : "2",
+    maxGuests: copy?.subType === "short_let" ? copy.maxGuests || "" : "",
     description: "",
     ownerPhone: copy?.ownerPhone || profile.phone || "",
     files: [],
@@ -517,7 +517,7 @@ export default function PropertyInspectionRequestPanel({
               : d.propertyType === "apartment" &&
                   d.subType === "short_let" &&
                   Number(d.maxGuests) < 1
-                ? `Property ${invalid + 1}: maximum guests must be at least 1`
+                ? `Property ${invalid + 1}: choose a valid maximum guest limit`
                 : `Complete the required details for property ${invalid + 1}`,
       );
     }
@@ -700,7 +700,7 @@ export default function PropertyInspectionRequestPanel({
           : typeof err === "object" && err && "message" in err
             ? String((err as { message: unknown }).message)
             : "Unable to submit property batch";
-      toast.error(message);
+      toast.error(friendlySubmissionError(message));
     } finally {
       setSubmitting(false);
       setUploadProgress(null);
@@ -1120,6 +1120,17 @@ export default function PropertyInspectionRequestPanel({
       ) : null}
     </section>
   );
+}
+
+function friendlySubmissionError(message: string) {
+  const value = String(message || "");
+  if (/mime type|not supported/i.test(value))
+    return "This recording format could not be uploaded. Retake the walkthrough and try again.";
+  if (/invalid input syntax|uuid/i.test(value))
+    return "The property draft is incomplete. Reopen the highlighted property and check its required details.";
+  if (/network|fetch|connection/i.test(value))
+    return "The property could not be sent because the connection was interrupted. Your draft is saved.";
+  return value.replace(/^Property \d+:\s*/i, "") || "The property could not be sent. Your draft is saved.";
 }
 function FilePreviewImage({
   file,

@@ -560,12 +560,11 @@ export default function BookingNegotiationChat({
         )}
         {booking && (
           <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-white/[.06] bg-white/[.025] p-3">
-            <button type="button" onClick={()=>setDetailsOpen(value=>!value)} className="mb-3 flex w-full items-center justify-between gap-3 border-b border-white/[.055] pb-3 text-left">
-              <span><span className="block text-[10px] font-semibold">Original service request</span><span className="mt-1 block text-[8px] text-[#686E7E]">The same request is shared by customer and Worker · #{booking.booking_code||'—'}</span></span>
-              <span className="shrink-0 text-[10px] font-semibold text-violet-300">{detailsOpen?'Hide':'View details'}</span>
+            <button type="button" onClick={()=>setDetailsOpen(true)} className="flex w-full items-center justify-between gap-3 text-left">
+              <span className="min-w-0"><span className="block truncate text-[10px] font-semibold">{booking.service_type || 'Service request'}</span><span className="mt-1 block truncate text-[8px] text-[#686E7E]">#{booking.booking_code||'—'} · {statusInfo?.label || 'Booking'}</span></span>
+              <span className="shrink-0 text-[10px] font-semibold text-violet-300">View request ›</span>
             </button>
-            {detailsOpen&&<JobRequestDetails booking={booking}/>}
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 mt-3 flex items-center justify-between border-t border-white/[.055] pt-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-[#656A7A]">
                 Job progress
               </p>
@@ -837,7 +836,7 @@ export default function BookingNegotiationChat({
       <footer className="chat-input-container shrink-0 border-t border-white/[.06] bg-[#11131A]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         {openConversation ? (
           <div className="mx-auto max-w-4xl">
-            {!secureChat ? <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Checking private chat…</div> : secureChat.state !== "ready" ? <SecureChatOnboarding status={secureChat} personName={peerName} onReady={() => {setSecureChat(null);void privateConversationReadiness("worker",conversationId,peerId||"").then(result=>{setSecureChat(result);if(result.state==="ready")void loadAll(true)})}}/> : <>
+            {!secureChat ? <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]"><span className="h-2 w-2 animate-pulse rounded-full bg-violet-400"/>Opening conversation…</div> : secureChat.state !== "ready" ? <SecureChatOnboarding status={secureChat} personName={peerName} onReady={() => {setSecureChat(null);void privateConversationReadiness("worker",conversationId,peerId||"").then(result=>{setSecureChat(result);if(result.state==="ready")void loadAll(true)})}}/> : <>
             {files.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {files.map((file, index) => (
@@ -924,9 +923,6 @@ export default function BookingNegotiationChat({
                 {sending ? "…" : "➤"}
               </button>
             </div>
-            <p className="mt-2 text-center text-[8px] leading-relaxed text-[#505565]">
-              End-to-end encrypted · private to you and the Worker
-            </p>
             </>}
           </div>
         ) : (
@@ -937,6 +933,7 @@ export default function BookingNegotiationChat({
         <WorkerPublicProfile
           worker={peerProfile as Profile}
           bookingActive
+          showBookingAction={false}
           onBack={() => setProfileOpen(false)}
           onOpenBooking={() => setProfileOpen(false)}
           onBook={() => setProfileOpen(false)}
@@ -952,17 +949,9 @@ export default function BookingNegotiationChat({
           onClose={() => setProfileOpen(false)}
         />
       ) : null}
+      {detailsOpen && booking ? <JobRequestDetailsSheet booking={booking} onClose={() => setDetailsOpen(false)} /> : null}
       {messageMenu && (
         <MessageActionSheet
-          preview={messageMenu.content || "Attachment"}
-          time={new Date(messageMenu.created_at).toLocaleString()}
-          readStatus={
-            messageMenu.sender_id === profile.user_id
-              ? messageMenu.is_read
-                ? "Read"
-                : "Sent"
-              : null
-          }
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
           onClose={() => setMessageMenu(null)}
           onReact={async (emoji) => {
@@ -1308,6 +1297,12 @@ function JobRequestDetails({booking}:{booking:Booking}) {
     <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{facts.map(([label,value])=><div key={label}><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">{label}</p><p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">{value}</p></div>)}</div>
     <div className="border-t border-white/[.055] pt-3"><p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">Original description</p><p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">{booking.description||booking.customer_message||'No written description was supplied with this request.'}</p></div>
     {booking.request_attachments?.length?<div className="grid gap-2 border-t border-white/[.055] pt-3 sm:grid-cols-2">{booking.request_attachments.map((url,index)=><div key={`${url}-${index}`}><p className="mb-1 text-[8px] text-[#6D7383]">Request attachment {index+1}</p><BookingAttachment url={url}/></div>)}</div>:null}
+  </div>;
+}
+function JobRequestDetailsSheet({booking,onClose}:{booking:Booking;onClose:()=>void}){
+  return <div className="fixed inset-0 z-[100120] flex h-[100dvh] flex-col bg-[#090B10] text-white" role="dialog" aria-modal="true" aria-label="Service request details">
+    <header className="flex min-h-14 items-center gap-3 border-b border-white/[.07] px-3 pt-[env(safe-area-inset-top)]"><button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#9BA0AE]" aria-label="Back to chat">←</button><div className="min-w-0"><p className="truncate text-sm font-semibold">{booking.service_type||'Service request'}</p><p className="mt-0.5 text-[9px] text-[#697081]">#{booking.booking_code||'—'}</p></div></header>
+    <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5"><div className="mx-auto max-w-xl"><JobRequestDetails booking={booking}/></div></main>
   </div>;
 }
 function getProgressWidth(status: string) {

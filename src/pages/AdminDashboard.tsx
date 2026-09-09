@@ -19,11 +19,12 @@ import VideoPlayer from "@/components/VideoPlayer";
 
 type AdminTab = "home" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings";
+type OperationTarget = { operation: Operation; id?: string } | null;
 type PersonFilter = "user" | "property_partner";
 type Props = {
   profile: Profile;
   onLogout: () => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 };
 const NAV = [
@@ -60,6 +61,8 @@ export default function AdminDashboard({
 }: Props) {
   const [tab, setTab] = useState<AdminTab>("home"),
     [operation, setOperation] = useState<Operation | null>(null),
+    [operationTarget, setOperationTarget] = useState<OperationTarget>(null),
+    [inboxTargetId, setInboxTargetId] = useState<string | undefined>(),
     [stats, setStats] = useState<any>({
       users: 0,
       workers: 0,
@@ -80,26 +83,32 @@ export default function AdminDashboard({
   useEffect(() => {
     void loadStats();
   }, [branchReady, profile.assigned_state, profile.assigned_lga]);
-  function openOperation(next: Operation) {
+  function openOperation(next: Operation, id?: string) {
+    setOperationTarget({ operation: next, id });
     setOperation(next);
     setTab("operations");
   }
-  function openActivity(page: string) {
+  function openActivity(page: string, id?: string) {
     const route = String(page || "").toLowerCase();
     if (
       route.includes("propert") ||
       route === "listing_detail" ||
       route === "detail"
     )
-      return openOperation("properties");
+      return openOperation("properties", id);
     if (
       route.includes("reservation") ||
       route.includes("booking") ||
       route === "operations_inbox"
     )
-      return openOperation("bookings");
-    if (route.includes("worker")) return openOperation("workers");
-    onNavigate?.(page);
+      return openOperation("bookings", id);
+    if (route.includes("worker")) return openOperation("workers", id);
+    if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
+      setInboxTargetId(id);
+      setTab("inbox");
+      return;
+    }
+    onNavigate?.(page, id);
   }
   const nav = NAV.map((item) =>
     item.id === "inbox" ? { ...item, badge: inboxSummary.totalUnread } : item,
@@ -119,7 +128,10 @@ export default function AdminDashboard({
         setActive={(id) => {
           const next = id as AdminTab;
           setTab(next);
-          if (next === "operations") setOperation(null);
+          if (next === "operations") {
+            setOperation(null);
+            setOperationTarget(null);
+          }
         }}
         onAccount={onNavigate ? () => onNavigate("profile") : undefined}
         onLogout={onLogout}
@@ -141,7 +153,11 @@ export default function AdminDashboard({
               <Operations
                 profile={profile}
                 active={operation}
-                setActive={setOperation}
+                target={operationTarget}
+                setActive={(next) => {
+                  setOperation(next);
+                  if (!next) setOperationTarget(null);
+                }}
                 onView={setViewing}
                 onRefreshStats={loadStats}
               />
@@ -151,6 +167,7 @@ export default function AdminDashboard({
                 profile={profile}
                 summary={inboxSummary}
                 onNavigate={openActivity}
+                initialConversationId={inboxTargetId}
               />
             )}
           </>
@@ -178,10 +195,12 @@ function AdminInbox({
   profile,
   summary,
   onNavigate,
+  initialConversationId,
 }: {
   profile: Profile;
   summary: ReturnType<typeof useCreatorInboxSummary>;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, id?: string) => void;
+  initialConversationId?: string;
 }) {
   const [view, setView] = useState<"chats" | "activity">("chats");
   return (
@@ -199,6 +218,8 @@ function AdminInbox({
           forcedView="inbox"
           hideViewTabs
           queue="all"
+          initialConversationId={initialConversationId}
+          onOpenContext={onNavigate}
           onUnreadChange={summary.setMessageUnread}
         />
       ) : (
@@ -207,7 +228,7 @@ function AdminInbox({
           scope="admin"
           embedded
           onUnreadChange={summary.setActivityUnread}
-          onNavigate={(page) => onNavigate(page)}
+          onNavigate={onNavigate}
         />
       )}
     </div>
@@ -281,12 +302,14 @@ function Overview({
 function Operations({
   profile,
   active,
+  target,
   setActive,
   onView,
   onRefreshStats,
 }: {
   profile: Profile;
   active: Operation | null;
+  target: OperationTarget;
   setActive: (t: Operation | null) => void;
   onView: (p: Profile) => void;
   onRefreshStats: () => Promise<void> | void;
@@ -298,10 +321,17 @@ function Operations({
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
-        <PropertyPipelineWorkspace profile={profile} />
+        <PropertyPipelineWorkspace
+          profile={profile}
+          initialRecordId={target?.operation === "properties" ? target.id : undefined}
+        />
       )}{" "}
       {active === "workers" && <Workers onChanged={onRefreshStats} />}{" "}
-      {active === "bookings" && <BookingsWorkspace />}{" "}
+      {active === "bookings" && (
+        <BookingsWorkspace
+          initialRecordId={target?.operation === "bookings" ? target.id : undefined}
+        />
+      )}{" "}
     </div>
   );
 }
@@ -546,10 +576,13 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
     </Section>
   );
 }
-function BookingsWorkspace() {
+function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
   const [domain, setDomain] = useState<"services" | "apartments" | "hotels">(
-    "services",
+    initialRecordId ? "apartments" : "services",
   );
+  useEffect(() => {
+    if (initialRecordId) setDomain("apartments");
+  }, [initialRecordId]);
   return (
     <div className="space-y-4">
       <nav
@@ -578,7 +611,7 @@ function BookingsWorkspace() {
       {domain === "services" ? (
         <ServiceBookings />
       ) : domain === "apartments" ? (
-        <HousingOperationsWorkspace />
+        <HousingOperationsWorkspace initialRecordId={initialRecordId} />
       ) : (
         <HotelBookings />
       )}

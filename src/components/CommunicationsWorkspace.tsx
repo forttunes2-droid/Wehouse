@@ -26,6 +26,7 @@ type Props = {
   queue?: "all" | "support" | "operations" | "property_operations" | "reservation_operations";
   onUnreadChange?: (count: number) => void;
   initialConversationId?: string;
+  onOpenContext?: (page: string, id?: string) => void;
 };
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -38,6 +39,7 @@ export default function CommunicationsWorkspace({
   queue = "support",
   onUnreadChange,
   initialConversationId,
+  onOpenContext,
 }: Props) {
   const [view, setView] = useState<View>(forcedView || "inbox"),
     [rows, setRows] = useState<any[]>([]),
@@ -244,6 +246,9 @@ export default function CommunicationsWorkspace({
       </div>
     );
   if (selected)
+    {
+    const selectedPresentation = conversationPresentation(selected);
+    const destination = communicationDestination(selected);
     return (
     <div className="flex min-h-[70vh] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219]">
         <header className="flex items-center gap-3 border-b border-white/[.06] px-3 py-3 sm:px-4">
@@ -277,6 +282,12 @@ export default function CommunicationsWorkspace({
             </span>
           )}
         </header>
+        {selectedPresentation.operational && (
+          <div className="flex items-center gap-3 border-b border-white/[.06] bg-violet-500/[.045] px-4 py-3">
+            <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-semibold text-violet-100">{selectedPresentation.title}</p><p className="mt-1 truncate text-[8px] text-[#787F90]">{selectedPresentation.meta}</p></div>
+            {onOpenContext && <button type="button" onClick={() => onOpenContext(destination.page, destination.id)} className="shrink-0 rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold">Open record</button>}
+          </div>
+        )}
         <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
           <div className="mx-auto max-w-4xl">
             {loadingThread ? (
@@ -376,6 +387,7 @@ export default function CommunicationsWorkspace({
         </footer>
       </div>
     );
+    }
 
   return (
     <div className="space-y-4">
@@ -473,6 +485,14 @@ export default function CommunicationsWorkspace({
     </div>
   );
 }
+function communicationDestination(row:any){
+  const type=String(row.context_type||row.context_snapshot?.source_type||'');
+  const id=String(row.context_id||row.context_snapshot?.source_id||row.context_snapshot?.booking_id||row.context_snapshot?.listing_id||'')||undefined;
+  if(['property_listing','property_inspection','hotel_property','hotel_operations'].includes(type))return{page:'operations_properties',id};
+  if(['apartment_reservation','apartment_payment','reservation','hotel_booking'].includes(type))return{page:'operations_bookings',id};
+  if(type==='worker_booking')return{page:'operations_workers',id};
+  return{page:'operations_inbox',id:String(row.conversation_id||'')||undefined};
+}
 function ReservationContext({ row }: { row: any }) {
   const presentation = conversationPresentation(row);
   return (
@@ -568,14 +588,14 @@ function Bubble({ msg, mine }: { msg: any; mine: boolean }) {
   );
 }
 function ContextCard({ meta, type }: { meta: any; type?: string }) {
-  const snap = meta.context_snapshot || {},
-    ref = meta.context_id,
+  const ref = meta.context_id,
     label = String(
       meta.subject || type || meta.context_type || "Linked item",
     ).replace(/_/g, " ");
   return (
-    <div className="mb-1.5 rounded-2xl border border-violet-500/15 bg-violet-500/[.055] p-3">
-      <div className="flex items-center justify-between gap-3">
+    <div className="mb-1.5 flex items-center gap-3 rounded-xl border border-violet-500/15 bg-violet-500/[.055] px-3 py-2">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/12 text-[10px] text-violet-200">↗</span>
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
         <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
           {label}
         </p>
@@ -585,20 +605,6 @@ function ContextCard({ meta, type }: { meta: any; type?: string }) {
           </span>
         )}
       </div>
-      {Object.keys(snap).length > 0 && (
-        <div className="mt-2 grid gap-1 text-[9px] text-[#8FA0B9] sm:grid-cols-2">
-          {Object.entries(snap)
-            .slice(0, 8)
-            .map(([k, v]) => (
-              <p key={k} className="truncate">
-                <span className="capitalize text-[#66758C]">
-                  {k.replace(/_/g, " ")}:
-                </span>{" "}
-                {String(v ?? "")}
-              </p>
-            ))}
-        </div>
-      )}
     </div>
   );
 }

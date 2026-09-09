@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import PropertyInspectionRequestPanel from "@/components/PropertyInspectionRequestPanel";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
@@ -12,6 +11,7 @@ import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
+import { ListingMediaImage } from "@/components/ListingCandidateMedia";
 import type { Profile } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 
@@ -19,7 +19,7 @@ type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
   profile: Profile;
   onLogout: () => void;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 };
 type EarningRelease = {
@@ -56,16 +56,29 @@ export default function PropertyOwnerDashboard({
   onNavigate,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
+  const [propertyTargetId, setPropertyTargetId] = useState<string | undefined>();
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
   const inbox = usePartnerInboxSummary(profile.user_id);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
+  function openActivityDestination(page: string, id?: string) {
+    const route = page.toLowerCase().replace(/-/g, "_");
+    if (/propert|listing|inspection|hotel_detail/.test(route)) {
+      setPropertyTargetId(id);
+      setTab("properties");
+      return;
+    }
+    if (/finance|earning|payment|wallet/.test(route)) {
+      setTab("finance");
+      return;
+    }
+    onNavigate(page, id);
+  }
   return (
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}
-        description={current.description}
         items={TABS.map((item) => ({ id: item.key, label: item.label, badge: item.key === "communication" ? inbox.totalUnread || undefined : undefined }))}
         active={tab}
         setActive={(id) => setTab(id as PartnerTab)}
@@ -74,16 +87,16 @@ export default function PropertyOwnerDashboard({
         compact={tab === "communication"}
         immersive={tab === "properties" && nestedPropertyView}
       >
-        {tab === "properties" && <PropertiesWorkspace profile={profile} onNestedChange={setNestedPropertyView} />}{" "}
+        {tab === "properties" && <PropertiesWorkspace profile={profile} initialRecordId={propertyTargetId} onNestedChange={setNestedPropertyView} />}{" "}
         {tab === "communication" && (
-          <CommunicationInbox profile={profile} onNavigate={onNavigate} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
+          <CommunicationInbox profile={profile} onNavigate={openActivityDestination} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
         )}{" "}
         {tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
     </>
   );
 }
-function PropertiesWorkspace({ profile, onNestedChange }: { profile: Profile; onNestedChange?: (nested: boolean) => void }) {
+function PropertiesWorkspace({ profile, initialRecordId, onNestedChange }: { profile: Profile; initialRecordId?: string; onNestedChange?: (nested: boolean) => void }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -119,10 +132,6 @@ function PropertiesWorkspace({ profile, onNestedChange }: { profile: Profile; on
         <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
           <div>
             <h2 className="text-sm font-semibold">Your properties</h2>
-            <p className="mt-1 text-[9px] text-[#686B7D]">
-              The selection filters one property workspace; lifecycle states
-              stay on each property.
-            </p>
           </div>
           <WeHouseSelect
             value={filter}
@@ -140,178 +149,11 @@ function PropertiesWorkspace({ profile, onNestedChange }: { profile: Profile; on
         <PartnerSubmittedRequests
           profile={profile}
           filter={filter}
+          initialRecordId={initialRecordId}
           onDetailChange={setViewingDetail}
           onCreationChange={setCreating}
         />
       )}
-    </div>
-  );
-}
-// Compatibility export retained for bookmarked legacy Partner requests.
-export function RequestsTab({ profile }: { profile: Profile }) {
-  const [requests, setRequests] = useState<any[]>([]),
-    [loading, setLoading] = useState(true);
-  async function load() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("inspection_requests")
-      .select(
-        "id,request_code,property_address,property_type,property_state,property_city,expected_rent,status,created_at,scheduled_date,completed_at,notes,rejection_reason,submission_batch_id,submission_batch_position",
-      )
-      .eq("owner_id", profile.user_id)
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(error.message || "Unable to load property requests");
-      setRequests([]);
-    } else setRequests(data || []);
-    setLoading(false);
-  }
-  useEffect(() => {
-    void load();
-  }, [profile.user_id]);
-  function contact(request: any) {
-    window.dispatchEvent(
-      new CustomEvent("openSupportChat", {
-        detail: {
-          category: "property_inspection",
-          subject: `Property inspection ${request.request_code || ""}`.trim(),
-          contextType: "property_inspection",
-          contextId: request.id,
-          contextSnapshot: {
-            request_code: request.request_code,
-            property_address: request.property_address,
-            property_type: request.property_type,
-            city: request.property_city,
-            state: request.property_state,
-            status: request.status,
-          },
-        },
-      }),
-    );
-  }
-  const batchCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of requests)
-      if (r.submission_batch_id)
-        map.set(
-          r.submission_batch_id,
-          (map.get(r.submission_batch_id) || 0) + 1,
-        );
-    return map;
-  }, [requests]);
-  return (
-    <div className="space-y-6">
-      <PropertyInspectionRequestPanel profile={profile} />
-      <section>
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">Your submitted properties</h2>
-            <p className="mt-1 text-[10px] text-[#66687B]">
-              Every property keeps its own progress, even when you submit
-              several together.
-            </p>
-          </div>
-          <button
-            onClick={() => void load()}
-            className="w-fit rounded-lg border border-white/[.07] px-3 py-2 text-[9px] text-[#888A9B]"
-          >
-            Refresh
-          </button>
-        </div>
-        {loading ? (
-          <Loading />
-        ) : requests.length === 0 ? (
-          <Empty
-            title="No properties submitted yet"
-            text="Use Add properties above to send one property or a batch."
-          />
-        ) : (
-          <div className="space-y-3">
-            {requests.map((request) => (
-              <section
-                key={request.id}
-                className="rounded-2xl border border-white/[.06] bg-[#111119] p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="break-words text-xs font-semibold">
-                        {request.property_address ||
-                          request.property_type ||
-                          "Property"}
-                      </p>
-                      {request.submission_batch_id &&
-                        Number(
-                          batchCounts.get(request.submission_batch_id) || 0,
-                        ) > 1 && (
-                          <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[8px] font-semibold text-violet-300">
-                            Batch · {request.submission_batch_position}/
-                            {batchCounts.get(request.submission_batch_id)}
-                          </span>
-                        )}
-                    </div>
-                    <p className="mt-1 break-words text-[10px] text-[#66687B]">
-                      {[request.property_city, request.property_state]
-                        .filter(Boolean)
-                        .join(", ")}{" "}
-                      {request.request_code ? `· ${request.request_code}` : ""}
-                    </p>
-                  </div>
-                  <Status value={request.status || "pending"} />
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                  <Info
-                    label="Type"
-                    value={request.property_type || "Not specified"}
-                  />
-                  <Info
-                    label="Expected rent"
-                    value={
-                      request.expected_rent
-                        ? money(Number(request.expected_rent))
-                        : "—"
-                    }
-                  />
-                  <Info
-                    label="Sent"
-                    value={
-                      request.created_at
-                        ? new Date(request.created_at).toLocaleDateString()
-                        : "—"
-                    }
-                  />
-                  <Info
-                    label="Visit"
-                    value={
-                      request.scheduled_date
-                        ? new Date(request.scheduled_date).toLocaleDateString()
-                        : request.completed_at
-                          ? new Date(request.completed_at).toLocaleDateString()
-                          : "Not scheduled"
-                    }
-                  />
-                </div>
-                {(request.notes || request.rejection_reason) && (
-                  <div className="mt-3 rounded-xl border border-white/[.05] bg-white/[.02] p-3">
-                    <p className="text-[9px] uppercase tracking-wide text-[#66687B]">
-                      Latest update
-                    </p>
-                    <p className="mt-1 text-[10px] leading-relaxed text-[#A4A5B2]">
-                      {request.rejection_reason || request.notes}
-                    </p>
-                  </div>
-                )}
-                <button
-                  onClick={() => contact(request)}
-                  className="mt-3 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2 text-[10px] font-semibold text-violet-300"
-                >
-                  Message WeHouse
-                </button>
-              </section>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
@@ -394,9 +236,6 @@ function PropertiesTab({
           <h2 className="text-sm font-semibold">
             Published properties and hotels
           </h2>
-          <p className="mt-1 text-[10px] text-[#66687B]">
-            Open an asset to manage it at the depth it needs.
-          </p>
         </div>
         <span className="rounded-full bg-white/[.04] px-3 py-1 text-[10px] text-[#888A9B]">
           {assets.length}
@@ -419,11 +258,10 @@ function PropertiesTab({
             >
               <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#171722]">
                 {property.images?.[0] ? (
-                  <img
-                    src={property.images[0]}
-                    alt=""
+                  <ListingMediaImage
+                    reference={property.images[0]}
+                    alt={property.title || "Property"}
                     loading="lazy"
-                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -563,12 +401,7 @@ function FinanceTab({ profile }: { profile: Profile }) {
       />
       <PayoutAccountManager profile={profile} />
       <section className="border-t border-white/[.07] pt-5">
-        <div className="mb-4">
-          <h2 className="text-sm font-bold">Property earnings</h2>
-          <p className="mt-1 text-[9px] text-[#66687B]">
-            Every property-income release in the same Finance workspace.
-          </p>
-        </div>
+        <h2 className="mb-3 text-sm font-bold">Earnings history</h2>
         <EarningsTab
           profile={profile}
           showAmounts={showAmounts}
@@ -606,8 +439,7 @@ function EarningsTab({
   }, [profile.user_id]);
   const shown = filter === "all" ? rows : rows.filter((row) => row.status === filter);
   return (
-    <div className="space-y-4">
-      <p className="border-b border-white/[.06] pb-3 text-[10px] leading-5 text-[#76827F]">This is the itemised record behind the single Finance balance above—not another wallet.</p>
+    <div className="space-y-3">
       <section>
         <div className="mb-3 flex gap-2 overflow-x-auto scrollbar-hide">
           {(["all", "available", "pending", "held", "reversed"] as const).map(

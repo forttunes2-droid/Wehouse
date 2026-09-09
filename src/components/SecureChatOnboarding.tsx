@@ -33,15 +33,15 @@ export default function SecureChatOnboarding({
 
   async function continueToChat() {
     if (!/^\d{6}$/.test(pin))
-      return toast.error("Enter a 6-digit Recovery PIN");
+      return toast.error("Enter your 6-digit recovery passcode");
     if (creating && !confirming) {
       setConfirming(true);
       return;
     }
     if (creating && !/^\d{6}$/.test(confirmation))
-      return toast.error("Confirm your 6-digit Recovery PIN");
+      return toast.error("Confirm your 6-digit recovery passcode");
     if (creating && pin !== confirmation)
-      return toast.error("Those PINs do not match");
+      return toast.error("Those passcodes do not match");
     setBusy(true);
     try {
       if (creating) await createEncryptionIdentity(pin);
@@ -83,7 +83,7 @@ export default function SecureChatOnboarding({
             {creating
               ? confirming
                 ? "Enter it once more to make sure you can recover this chat."
-                : "Choose a 6-digit Recovery PIN for private chats on this and new devices."
+                : "Choose a 6-digit recovery passcode for private chats on this and new devices."
               : status.state === "peer_setup_required"
                 ? `${personName} will be asked to protect private chats when they open this conversation.`
                 : status.message}
@@ -94,7 +94,7 @@ export default function SecureChatOnboarding({
         <div className="mt-3 border-t border-white/[.06] pt-3">
           <div className="mx-auto max-w-xs">
             <PinInput
-              label={creating ? (confirming ? "Confirm Recovery PIN" : "New Recovery PIN") : "Recovery PIN"}
+              label={creating ? (confirming ? "Confirm recovery passcode" : "New recovery passcode") : "Recovery passcode"}
               value={creating && confirming ? confirmation : pin}
               onChange={creating && confirming ? setConfirmation : setPin}
               onEnter={() => void continueToChat()}
@@ -112,7 +112,7 @@ export default function SecureChatOnboarding({
                 ? confirming ? "Protect chat" : "Continue"
                 : "Unlock and continue"}
           </button>
-          {creating && confirming ? <button type="button" onClick={() => { setConfirmation(""); setConfirming(false); }} className="mt-2 w-full py-1 text-[9px] font-medium text-[#858B9B]">Use a different PIN</button> : null}
+          {creating && confirming ? <button type="button" onClick={() => { setConfirmation(""); setConfirming(false); }} className="mt-2 w-full py-1 text-[9px] font-medium text-[#858B9B]">Use a different passcode</button> : null}
           <p className="mt-2 text-center text-[8px] leading-4 text-[#626879]">
             WeHouse cannot read private roommate or worker messages.
           </p>

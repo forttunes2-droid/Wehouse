@@ -40,7 +40,7 @@ export default function WorkerWorkspaceModern({
   profile: Profile;
   onGoToSetup: () => void;
   onLogout: () => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
 }) {
   const live =
     profile.worker_status === "verified" && profile.worker_verified === true;
@@ -97,7 +97,7 @@ export default function WorkerWorkspaceModern({
     content = (
       <WorkerActivationHome
         profile={profile}
-        onProfile={() => setTab("account")}
+        onProfile={onGoToSetup}
         onVerification={() => onNavigate?.("worker_verification")}
       />
     );

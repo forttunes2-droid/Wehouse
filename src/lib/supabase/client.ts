@@ -46,7 +46,10 @@ export async function uploadStorageObjectWithProgress(
     xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(bucket)}/${safePath}`);
     xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
     xhr.setRequestHeader('authorization', `Bearer ${data.session.access_token}`);
-    xhr.setRequestHeader('content-type', contentType || 'application/octet-stream');
+    // Storage accepts the media type, while MediaRecorder may append codec
+    // parameters (for example video/webm;codecs=vp9,opus).
+    const storageContentType = (contentType || 'application/octet-stream').split(';', 1)[0].trim();
+    xhr.setRequestHeader('content-type', storageContentType);
     xhr.setRequestHeader('x-upsert', 'false');
     xhr.setRequestHeader('cache-control', '3600');
     xhr.upload.onprogress = (event) => {

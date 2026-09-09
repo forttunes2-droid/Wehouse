@@ -6,10 +6,12 @@ type MediaViewerProps = {
   src: string;
   kind: 'image' | 'video';
   title?: string;
+  subtitle?: string;
+  avatarUrl?: string | null;
   onClose: () => void;
 };
 
-export default function MediaViewer({ src, kind, title = 'Media preview', onClose }: MediaViewerProps) {
+export default function MediaViewer({ src, kind, title = 'Media preview', subtitle, avatarUrl, onClose }: MediaViewerProps) {
   const [ready, setReady] = useState(kind === 'video');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -30,9 +32,12 @@ export default function MediaViewer({ src, kind, title = 'Media preview', onClos
   return createPortal(
     <div className="fixed inset-0 z-[100200] isolate flex h-[100dvh] flex-col bg-[#050608] text-white" role="dialog" aria-modal="true" aria-label={title}>
       <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[.08] px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] backdrop-blur-xl">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{title}</p>
-          {kind === 'video' && duration > 0 ? <p className="mt-0.5 font-mono text-[9px] text-white/55">{formatDuration(currentTime)} / {formatDuration(duration)}</p> : null}
+        <div className="flex min-w-0 items-center gap-2.5">
+          {avatarUrl ? <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" /> : null}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{title}</p>
+            {subtitle ? <p className="mt-0.5 truncate text-[9px] text-white/55">{subtitle}</p> : kind === 'video' && duration > 0 ? <p className="mt-0.5 font-mono text-[9px] text-white/55">{formatDuration(currentTime)} / {formatDuration(duration)}</p> : null}
+          </div>
         </div>
         <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[.08] text-xl" aria-label="Close media preview">×</button>
       </header>

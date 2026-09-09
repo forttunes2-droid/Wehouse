@@ -290,8 +290,6 @@ export default function HotelsHome({ onNavigate }: Props) {
   return (
     <DiscoveryShell
       active="hotels"
-      title="Hotels"
-      description="Search by hotel name, location and nightly price."
       onNavigate={onNavigate}
     >
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
@@ -304,31 +302,31 @@ export default function HotelsHome({ onNavigate }: Props) {
           locationDetail={locationError || undefined}
         >
           {mappedHotels > 0 && (
-            <div className="grid w-full grid-cols-3 overflow-hidden rounded-xl border border-white/[.07] p-1 sm:w-auto">
+            <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
+              <div className="inline-flex rounded-xl border border-white/[.07] p-1">
               <button
                 type="button"
                 onClick={() => setView("list")}
-                className={`min-h-8 rounded-lg px-3 text-[9px] font-semibold ${view === "list" ? "bg-violet-500 text-white" : "text-[#818797]"}`}
+                className={`h-9 rounded-lg px-4 text-[9px] font-semibold ${view === "list" ? "bg-white/[.08] text-white" : "text-[#818797]"}`}
               >
                 List
               </button>
               <button
                 type="button"
                 onClick={() => setView("map")}
-                className={`min-h-8 rounded-lg px-3 text-[9px] font-semibold ${view === "map" ? "bg-violet-500 text-white" : "text-[#818797]"}`}
+                className={`h-9 rounded-lg px-4 text-[9px] font-semibold ${view === "map" ? "bg-white/[.08] text-white" : "text-[#818797]"}`}
               >
                 Map
               </button>
-              <button
+              </div><button
                 type="button"
                 onClick={() => {
-                  setView("list");
                   locateUser();
                 }}
                 disabled={locating}
-                className={`min-h-8 rounded-lg px-3 text-[9px] font-semibold ${userLocation && view === "list" ? "bg-violet-500 text-white" : "text-[#818797]"}`}
+                className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-[9px] font-semibold disabled:opacity-50 ${userLocation ? "border-violet-400/30 bg-violet-500/10 text-violet-200" : "border-white/[.07] text-[#9297A5]"}`}
               >
-                {locating ? "Locating…" : "Near me"}
+                <span aria-hidden="true">⌖</span>{locating ? "Finding…" : userLocation ? "Location on" : "Use location"}
               </button>
             </div>
           )}

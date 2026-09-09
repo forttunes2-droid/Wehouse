@@ -152,7 +152,7 @@ export default function WorkerShowcaseManager({
       });
       if (error) throw error;
 
-      toast.success(bookingId ? "Work posted · customer confirmation requested" : "Work posted");
+      toast.success(bookingId ? "Showcase published · customer confirmation requested" : "Showcase published");
       clearComposer();
       await load();
     } catch (error: unknown) {
@@ -174,7 +174,7 @@ export default function WorkerShowcaseManager({
   async function remove(post: Post) {
     if (
       !(await ask({
-        title: "Delete this Work Post permanently?",
+        title: "Delete this showcase post permanently?",
         description: "The post and its uploaded media cannot be restored.",
         confirmLabel: "Delete post",
         variant: "danger",
@@ -303,7 +303,7 @@ export default function WorkerShowcaseManager({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold text-violet-200">
-                        {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading showcase media" : "Creating your work post"}
+                        {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading showcase media" : "Publishing your showcase"}
                       </p>
                       <p className="mt-1 text-[8px] text-[#777E8E]">
                         {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Almost done."}
@@ -391,7 +391,7 @@ export default function WorkerShowcaseManager({
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold">
-                    Work Post
+                    Showcase post
                     {viewer.verified_job
                       ? " · Completed through WeHouse ✓"
                       : ""}

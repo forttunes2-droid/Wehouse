@@ -5,7 +5,7 @@ import IdentityAccessGate from '@/components/IdentityAccessGate';
 type Props = {
   profile: Profile;
   onLogout: () => void;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
 };
 

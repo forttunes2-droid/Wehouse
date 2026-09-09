@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { completeApartmentTenancy, confirmApartmentHandover } from '@/lib/supabase/reservations';
@@ -16,7 +16,12 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   closed: { label: 'Closed', cls: 'border-white/10 bg-white/[.04] text-[#8B909E]' },
 };
 
-export default function HousingOperationsWorkspace() {
+export default function HousingOperationsWorkspace({
+  initialRecordId,
+}: {
+  initialRecordId?: string;
+}) {
+  const openedTarget = useRef<string | null>(null);
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
@@ -33,10 +38,21 @@ export default function HousingOperationsWorkspace() {
     setLoading(true);
     const { data, error } = await supabase.rpc('get_my_housing_operations');
     if (error) toast.error(error.message);
-    setRows(Array.isArray(data) ? data : []);
+    const nextRows = Array.isArray(data) ? data : [];
+    setRows(nextRows);
+    if (!error && initialRecordId && openedTarget.current !== String(initialRecordId)) {
+      openedTarget.current = String(initialRecordId);
+      const target = nextRows.find((row: any) =>
+        [row.listing_id, row.current_reservation_id, row.reservation_id]
+          .filter(Boolean)
+          .some((value) => String(value) === String(initialRecordId)),
+      );
+      if (target) setSelected(target);
+      else toast.error("The linked booking is no longer available in this branch.");
+    }
     setLoading(false);
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [initialRecordId]);
 
   async function verifyCode() {
     const code = bookingCode.trim().toUpperCase();

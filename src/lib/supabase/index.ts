@@ -275,6 +275,7 @@ export {
   getRoomById,
   getHotelReviews,
   addHotelReview,
+  canReviewHotel,
   createHotelBooking,
   initializeHotelBookingPayment,
   getHotelBookingsForUser,

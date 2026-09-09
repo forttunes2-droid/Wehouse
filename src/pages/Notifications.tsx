@@ -7,10 +7,11 @@ import {
 import type { Profile } from "@/types";
 import { toast, Toaster } from "sonner";
 import {
+  activityDestinationLabel,
   activityIsCurrent,
   currentActivityRows,
-  isConversationDestination,
   longestActivityCutoff,
+  resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
 
@@ -63,7 +64,6 @@ export default function Notifications({
 
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
-    await supabase.rpc("prune_my_activity");
     let eventQuery = supabase
       .from("notifications")
       .select(
@@ -188,7 +188,7 @@ export default function Notifications({
   }
 
   async function open(row: Activity) {
-    if (!(await markRead(row))) return;
+    void markRead(row);
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));
       return;
@@ -197,20 +197,20 @@ export default function Notifications({
       const postId = String(
         row.destination_params?.work_post_id || row.source_id || "",
       );
-      if (!postId) return toast.error("Work Post reference is missing");
+      if (!postId) return toast.error("Showcase post reference is missing");
       const { data, error } = await supabase
         .from("worker_showcase_posts")
         .select("id,media_type,storage_path,caption,job_confirmation_status")
         .eq("id", postId)
         .maybeSingle();
       if (error || !data)
-        return toast.error(error?.message || "Work Post could not be loaded");
+        return toast.error(error?.message || "Showcase post could not be loaded");
       const signed = await supabase.storage
         .from("worker-showcase")
         .createSignedUrl(data.storage_path, 900);
       if (signed.error || !signed.data?.signedUrl)
         return toast.error(
-          signed.error?.message || "Work Post media could not be opened",
+          signed.error?.message || "Showcase media could not be opened",
         );
       setWorkPost({
         ...data,
@@ -218,29 +218,13 @@ export default function Notifications({
       } as WorkPostConfirmation);
       return;
     }
-    const route = activityRoute(row),
-      params = row.destination_params || {};
-    const id = String(
-      params.inspection_id ||
-        params.inspectionId ||
-        params.listing_id ||
-        params.listingId ||
-        params.reservation_id ||
-        params.reservationId ||
-        params.conversation_id ||
-        params.conversationId ||
-        params.contextId ||
-        params.booking_id ||
-        params.bookingId ||
-        params.worker_id ||
-        params.workerId ||
-        params.hotel_id ||
-        params.hotelId ||
-        params.sharedGroupId ||
-        row.source_id ||
-        "",
-    );
-    if (route) onNavigate(route, id || undefined);
+    if (row.source_type === "wehouse_case" && !["creator", "admin", "staff"].includes(profile.role)) {
+      window.dispatchEvent(new CustomEvent("openSupportChat", { detail: { conversationId: row.source_id } }));
+      return;
+    }
+    const destination = resolveActivityDestination(row);
+    if (destination.route)
+      onNavigate(destination.route, destination.id);
     else setExpanded((current) => (current === row.id ? null : row.id));
   }
 
@@ -307,17 +291,7 @@ export default function Notifications({
         <Empty />
       ) : (
         <div className="space-y-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">
-                {unread > 0
-                  ? `${unread} new update${unread === 1 ? "" : "s"}`
-                  : "Recent activity"}
-              </p>
-              <p className="mt-1 text-[9px] text-[#697081]">
-                Security, money, bookings and official WeHouse updates.
-              </p>
-            </div>
+          <div className="flex min-h-10 items-center justify-end border-b border-white/[.06] pb-3">
             {unread > 0 && (
               <button
                 onClick={() => void markAll()}
@@ -334,12 +308,18 @@ export default function Notifications({
               >
                 {day}
               </h2>
-              <div className="divide-y divide-white/[.055] border-y border-white/[.06]">
+              <div className="space-y-2">
                 {items.map((row) => (
-                  <div key={row.id}>
+                  <article
+                    key={row.id}
+                    className={`relative overflow-hidden rounded-2xl border ${row.read ? "border-white/[.055] bg-white/[.018]" : "border-violet-500/15 bg-violet-500/[.035]"}`}
+                  >
+                    {!row.read && (
+                      <span className="absolute inset-y-3 left-0 w-0.5 rounded-r-full bg-violet-400" />
+                    )}
                     <button
                       onClick={() => void open(row)}
-                      className="flex min-h-20 w-full items-start gap-3 py-3 text-left"
+                      className="flex min-h-24 w-full items-start gap-3 p-3.5 text-left active:bg-white/[.025] sm:p-4"
                     >
                       <span
                         className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-white/[.035] text-[#73798A]" : "bg-violet-500/12 text-violet-300"}`}
@@ -362,14 +342,14 @@ export default function Notifications({
                             {activityMessage(row)}
                           </span>
                         )}
-                        <span className="mt-2 flex items-center gap-2">
+                        <span className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                           <span className="text-[8px] text-[#555C6D]">
                             {new Date(row.created_at).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
                           </span>
-                          <span className="text-[8px] font-semibold text-violet-300">
+                          <span className="rounded-full bg-violet-500/[.09] px-2.5 py-1 text-[8px] font-semibold text-violet-200">
                             {activityAction(row, expanded === row.id)}
                           </span>
                         </span>
@@ -380,7 +360,7 @@ export default function Notifications({
                         <span className="mt-2 text-[#555C6D]">›</span>
                       )}
                     </button>
-                  </div>
+                  </article>
                 ))}
               </div>
             </section>
@@ -394,7 +374,7 @@ export default function Notifications({
       className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white"
       role="dialog"
       aria-modal="true"
-      aria-label="Confirm worker Work Post"
+      aria-label="Confirm worker showcase post"
     >
       <header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3">
         <button
@@ -436,7 +416,7 @@ export default function Notifications({
             <>
               <p className="text-[10px] leading-5 text-[#7D8393]">
                 Yes adds the “Completed through WeHouse” badge. No keeps this as
-                an ordinary worker post without that badge.
+                an ordinary showcase post without that badge.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -477,13 +457,7 @@ export default function Notifications({
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
-          <p className="text-[9px] font-bold uppercase tracking-[.24em] text-violet-400">
-            WEHOUSE
-          </p>
-          <h1 className="mt-1 text-xl font-bold">Activity</h1>
-          <p className="mt-1 text-[10px] text-[#747A8B]">
-            Important security, payment, booking and official updates.
-          </p>
+          <h1 className="text-xl font-bold">Activity</h1>
         </div>
       </header>
       {content}
@@ -492,53 +466,13 @@ export default function Notifications({
   );
 }
 
-function legacyRoute(type: string) {
-  if (
-    type === "roommate_interest" ||
-    type === "roommate_match" ||
-    type === "shared_home_invite" ||
-    type === "shared_home_response"
-  )
-    return "roommate";
-  if (
-    type.includes("booking") ||
-    type.includes("payment") ||
-    type.includes("inspection") ||
-    type.includes("reservation") ||
-    type.includes("shared_home")
-  )
-    return "my_reservations";
-  return "";
-}
-function activityRoute(row: Activity) {
-  const fallback = legacyRoute(row.type);
-  if (isConversationDestination(row)) return fallback;
-  const route = String(row.destination_route || fallback || "");
-  return /^(conversation|conversations|message|messages|chat)$/i.test(route)
-    ? ""
-    : route;
-}
 function activityAction(row: Activity, expanded: boolean) {
   if (row.source === "announcement")
     return expanded ? "Show less" : "Read update";
   if (row.type === "work_post_confirmation_requested")
     return "Review completed work";
-  const route = activityRoute(row).toLowerCase();
-  if (
-    route.includes("propert") ||
-    route === "detail" ||
-    route === "listing_detail"
-  )
-    return "Open property record";
-  if (
-    route.includes("reservation") ||
-    route.includes("booking") ||
-    route === "operations_inbox"
-  )
-    return "Open booking record";
-  if (route.includes("worker")) return "Open worker record";
-  if (route.includes("roommate")) return "Open roommate record";
-  return expanded ? "Show less" : "View details";
+  const label = activityDestinationLabel(row);
+  return label === "View details" && expanded ? "Show less" : label;
 }
 function dayLabel(value: string) {
   const date = new Date(value),

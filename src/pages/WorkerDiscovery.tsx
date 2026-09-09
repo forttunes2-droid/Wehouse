@@ -17,7 +17,8 @@ import DiscoveryShell, {
   DiscoveryFilterSheet,
   DiscoveryToolbar,
 } from "@/components/DiscoveryShell";
-import { workerOccupation, workerServiceNames } from "@/lib/workerTaxonomy";
+import { workerServiceNames } from "@/lib/workerTaxonomy";
+import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } from "@/lib/workerIdentity";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 
@@ -219,7 +220,7 @@ export default function WorkerDiscovery({
       liveWorkers
         .filter((worker) => {
           const hay = [
-              worker.full_name || worker.username || "",
+              workerDisplayName(worker),
               worker.worker_occupation || "",
               worker.worker_bio || "",
               worker.city || "",
@@ -276,9 +277,7 @@ export default function WorkerDiscovery({
           const rating = Number(b.rating || 0) - Number(a.rating || 0);
           return (
             rating ||
-            String(a.full_name || a.username || "").localeCompare(
-              String(b.full_name || b.username || ""),
-            )
+            workerDisplayName(a).localeCompare(workerDisplayName(b))
           );
         }),
     [liveWorkers, search, category, specialty, state, city],
@@ -345,8 +344,6 @@ export default function WorkerDiscovery({
   return (
     <DiscoveryShell
       active="services"
-      title="Find a service"
-      description="Browse reviewed professionals across home, lifestyle and specialist service categories."
       onNavigate={onNavigate}
     >
       <Toaster position="top-center" richColors />
@@ -378,7 +375,7 @@ export default function WorkerDiscovery({
                     />
                   </div>
                   <p className="mt-1 truncate text-[9px] font-semibold text-[#C6CAD4]">
-                    {worker.full_name || worker.username || "Professional"}
+                    {workerDisplayName(worker)}
                   </p>
                   <p className="truncate text-[8px] text-[#686F80]">
                     {status.caption || "Work Status"}
@@ -517,23 +514,19 @@ export default function WorkerDiscovery({
           >
             <div className="mb-3 flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-violet-500 text-xs font-bold">
-                {story.worker.avatar_url ? (
+                {workerAvatarUrl(story.worker) ? (
                   <img
-                    src={story.worker.avatar_url}
+                    src={workerAvatarUrl(story.worker) || ""}
                     alt=""
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  (story.worker.full_name ||
-                    story.worker.username ||
-                    "W")[0].toUpperCase()
+                  workerInitial(story.worker)
                 )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold">
-                  {story.worker.full_name ||
-                    story.worker.username ||
-                    "Professional"}
+                  {workerDisplayName(story.worker)}
                 </p>
                 <p className="mt-0.5 text-[9px] text-violet-300">
                   Work Status · 24 hours
@@ -599,7 +592,9 @@ function WorkerCard({
   onBook: () => void;
   onOpen: () => void;
 }) {
-  const occupation = workerOccupation(worker),
+  const occupation = workerRoleLabel(worker),
+    displayName = workerDisplayName(worker),
+    avatarUrl = workerAvatarUrl(worker),
     skills = workerServiceNames(worker);
   return (
     <article className="rounded-3xl border border-white/[.07] bg-[#11141C] p-4">
@@ -609,21 +604,21 @@ function WorkerCard({
           className={`shrink-0 rounded-[18px] ${status ? "bg-gradient-to-br from-violet-300 via-violet-500 to-violet-500 p-[2px]" : ""}`}
         >
           <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 text-lg font-bold">
-            {worker.avatar_url ? (
+            {avatarUrl ? (
               <img
-                src={worker.avatar_url}
+                src={avatarUrl}
                 alt=""
                 className="h-full w-full object-cover"
               />
             ) : (
-              (worker.full_name || worker.username || "W")[0].toUpperCase()
+              workerInitial(worker)
             )}
           </div>
         </button>
         <button onClick={onProfile} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
             <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {worker.full_name || worker.username || "Professional"}
+              {displayName}
             </h2>
             <GoldTickBadge size="sm" title="WeHouse reviewed professional" />
           </div>

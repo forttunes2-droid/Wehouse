@@ -5,54 +5,6 @@ import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, 
 // WORKER DISCOVERY — Find workers by filters
 // ═══════════════════════════════════════════════════════════════
 
-// Safe public fields for worker discovery — NEVER expose auth_id, email, phone, etc.
-const WORKER_PUBLIC_FIELDS = `
-  user_id,
-  username,
-  role,
-  profile_complete,
-  avatar_url,
-  bio,
-  country,
-  state,
-  city,
-  local_government,
-  area,
-  worker_status,
-  worker_occupation,
-  worker_skills,
-  worker_price,
-  worker_verified,
-  available,
-  worker_bio,
-  worker_experience,
-  is_online,
-  last_seen,
-  rating,
-  review_count,
-  created_at
-`;
-
-export async function getWorkers(filters?: { city?: string; occupation?: string; status?: string }) {
-  // Public worker discovery: ONLY show verified + available workers
-  let query = supabase
-    .from('profiles')
-    .select(WORKER_PUBLIC_FIELDS)
-    .eq('role', 'worker')
-    .eq('worker_status', 'verified')
-    .eq('worker_verified', true)
-    .eq('available', true)
-    .eq('deleted', false)
-    .eq('suspended', false)
-    .eq('banned', false);
-
-  if (filters?.city) query = query.or(`city.ilike.%${filters.city}%,local_government.ilike.%${filters.city}%`);
-  if (filters?.occupation) query = query.or(`worker_occupation.ilike.%${filters.occupation}%,worker_skills.cs.{${filters.occupation}}`);
-  // Note: status filter is ignored for public discovery — only 'verified' workers are shown
-  const { data, error } = await query.order('rating', { ascending: false });
-  return { workers: data as Profile[] | null, error };
-}
-
 // Parse worker status from profile — worker_status column is the source of truth.
 // bio emoji string is legacy fallback only.
 export function parseWorkerStatus(profile: Profile): string {
@@ -113,17 +65,6 @@ export async function updateWorkerStatus(userId: string, status: string) {
 }
 
 // Worker: Toggle availability (accepting new bookings)
-export async function setWorkerAvailability(workerId: string, isAvailable: boolean) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ available: isAvailable, updated_at: new Date().toISOString() })
-    .eq('user_id', workerId)
-    .eq('role', 'worker')
-    .select()
-    .single();
-  return { profile: data as Profile | null, error };
-}
-
 // ═══════════════════════════════════════════════════════════════
 // SERVICE CATEGORIES — Database-Driven
 // ═══════════════════════════════════════════════════════════════

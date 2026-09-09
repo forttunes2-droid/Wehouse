@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -71,12 +71,15 @@ export default function PartnerSubmittedRequests({
   filter = "all",
   onDetailChange,
   onCreationChange,
+  initialRecordId,
 }: {
   profile: Profile;
   filter?: SubmissionFilter;
   onDetailChange?: (open: boolean) => void;
   onCreationChange?: (open: boolean) => void;
+  initialRecordId?: string;
 }) {
+  const openedTarget = useRef<string | null>(null);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [selected, setSelected] = useState<RequestRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,14 +123,25 @@ export default function PartnerSubmittedRequests({
         toast.error(error.message || "Unable to load property requests");
         setRequests([]);
       } else {
-        setRequests((data || []) as RequestRow[]);
+        const nextRequests = (data || []) as RequestRow[];
+        setRequests(nextRequests);
+        if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
+          openedTarget.current = String(initialRecordId);
+          const target = nextRequests.find((request) =>
+            [request.id, request.draft_listing_id, request.draft_hotel_id]
+              .filter(Boolean)
+              .some((value) => String(value) === String(initialRecordId)),
+          );
+          if (target) setSelected(target);
+          else toast.error("The linked property is no longer available.");
+        }
       }
       setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [profile.user_id]);
+  }, [initialRecordId, profile.user_id]);
 
   const batchCounts = useMemo(() => {
     const counts = new Map<string, number>();

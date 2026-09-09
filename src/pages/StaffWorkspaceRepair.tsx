@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
@@ -23,7 +23,7 @@ type Module =
   | "security"
   | "verification"
   | "field_officer";
-type MainTab = "home" | "work" | "conversations" | "activity";
+type MainTab = "home" | "work" | "conversations";
 type WorkView =
   | "pipeline"
   | "overview"
@@ -37,7 +37,7 @@ type Props = {
   profile: Profile;
   onLogout: () => void;
   onGoToChat?: (id?: string) => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
 };
 const MODULES: Module[] = [
   "operations",
@@ -143,7 +143,7 @@ function Workspace({
   module: Module;
   profile: Profile;
   onLogout: () => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
 }) {
   const copy = MODULE_COPY[module],
     directConversation = module === "support";
@@ -177,12 +177,15 @@ function Workspace({
           { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
           {
-            id: "activity",
-            label: "Activity",
-            badge: inboxSummary.activityUnread,
+            id: "conversations",
+            label: "Inbox",
+            badge: inboxSummary.totalUnread,
           },
         ];
   const [tab, setTab] = useState<MainTab>("home"),
+    [workTargetId, setWorkTargetId] = useState<string | undefined>(),
+    [bookingTargetId, setBookingTargetId] = useState<string | undefined>(),
+    [conversationTargetId, setConversationTargetId] = useState<string | undefined>(),
     [workView, setWorkView] = useState<WorkView>(
       module === "finance"
         ? "overview"
@@ -195,6 +198,30 @@ function Workspace({
       lga: profile.assigned_lga || "",
     },
     branch = [scope.lga, scope.state].filter(Boolean).join(", ");
+  function openStaffDestination(page: string, id?: string) {
+    const route = page.toLowerCase().replace(/-/g, "_");
+    if (/propert|listing|inspection/.test(route)) {
+      setWorkTargetId(id);
+      setTab("work");
+      return;
+    }
+    if (/booking|reservation/.test(route)) {
+      setBookingTargetId(id);
+      setTab("conversations");
+      return;
+    }
+    if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
+      setConversationTargetId(id);
+      setTab("conversations");
+      return;
+    }
+    if (/worker|finance|earning|payment|security|device/.test(route)) {
+      setWorkTargetId(id);
+      setTab("work");
+      return;
+    }
+    onNavigate?.(page, id);
+  }
   let content: React.ReactNode;
   if (tab === "home")
     content = (
@@ -213,22 +240,26 @@ function Workspace({
         profile={profile}
         scope={scope}
         summary={inboxSummary}
-        openProperties={() => setTab("work")}
-        onNavigate={onNavigate}
+        openProperties={(id) => {
+          setWorkTargetId(id);
+          setTab("work");
+        }}
+        initialBookingId={bookingTargetId}
+        initialConversationId={conversationTargetId}
+        onNavigate={openStaffDestination}
       />
     );
   else if (tab === "conversations" && directConversation)
     content = (
-      <SupportInbox profile={profile} scope={scope} onNavigate={onNavigate} />
+      <SupportInbox profile={profile} scope={scope} initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
     );
-  else if (tab === "activity")
+  else if (tab === "conversations")
     content = (
-      <Notifications
+      <ActivityOnlyInbox
         profile={profile}
-        scope="staff"
-        embedded
+        unread={inboxSummary.activityUnread}
         onUnreadChange={inboxSummary.refresh}
-        onNavigate={(page) => onNavigate?.(page)}
+        onNavigate={openStaffDestination}
       />
     );
   else
@@ -236,6 +267,7 @@ function Workspace({
       <ModuleWork
         module={module}
         profile={profile}
+        initialRecordId={workTargetId}
         view={workView}
         setView={setWorkView}
       />
@@ -265,11 +297,13 @@ function Workspace({
 function ModuleWork({
   module,
   profile,
+  initialRecordId,
   view,
   setView,
 }: {
   module: Module;
   profile: Profile;
+  initialRecordId?: string;
   view: WorkView;
   setView: (view: WorkView) => void;
 }) {
@@ -295,7 +329,7 @@ function ModuleWork({
       </div>
     );
   if (module === "operations")
-    return <PropertyPipelineWorkspace profile={profile} />;
+    return <PropertyPipelineWorkspace profile={profile} initialRecordId={initialRecordId} />;
   if (module === "finance")
     return (
       <div className="space-y-5">
@@ -328,24 +362,39 @@ function OperationsInbox({
   scope,
   summary,
   openProperties,
+  initialBookingId,
+  initialConversationId,
   onNavigate,
 }: {
   profile: Profile;
   scope: { state: string; lga: string };
   summary: ReturnType<typeof useOperationsInboxSummary>;
-  openProperties: () => void;
-  onNavigate?: (page: string) => void;
+  openProperties: (id?: string) => void;
+  initialBookingId?: string;
+  initialConversationId?: string;
+  onNavigate?: (page: string, id?: string) => void;
 }) {
   const [view, setView] = useState<InboxView>("chats");
-  function navigate(page: string) {
-    if (page === "operations_properties") return openProperties();
-    if (page === "operations_inbox") return setView("booking");
-    onNavigate?.(page);
+  const [activeBookingId, setActiveBookingId] = useState(initialBookingId);
+  useEffect(() => {
+    if (initialBookingId) {
+      setActiveBookingId(initialBookingId);
+      setView("booking");
+    }
+  }, [initialBookingId]);
+  function navigate(page: string, id?: string) {
+    if (page === "operations_properties") return openProperties(id);
+    if (/booking|reservation/.test(page)) {
+      setActiveBookingId(id);
+      setView("booking");
+      return;
+    }
+    onNavigate?.(page, id);
   }
   if (view === "booking")
     return (
       <InboxDetail title="Find a booking" back={() => setView("chats")}>
-        <HousingOperationsWorkspace />
+        <HousingOperationsWorkspace initialRecordId={activeBookingId} />
       </InboxDetail>
     );
   return (
@@ -362,7 +411,7 @@ function OperationsInbox({
           scope="staff"
           embedded
           onUnreadChange={summary.refresh}
-          onNavigate={(page) => navigate(page)}
+          onNavigate={navigate}
         />
       ) : (
         <>
@@ -385,6 +434,8 @@ function OperationsInbox({
             forcedView="inbox"
             hideViewTabs
             queue="operations"
+            initialConversationId={initialConversationId}
+            onOpenContext={navigate}
             onUnreadChange={summary.refresh}
           />
         </>
@@ -395,11 +446,13 @@ function OperationsInbox({
 function SupportInbox({
   profile,
   scope,
+  initialConversationId,
   onNavigate,
 }: {
   profile: Profile;
   scope: { state: string; lga: string };
-  onNavigate?: (page: string) => void;
+  initialConversationId?: string;
+  onNavigate?: (page: string, id?: string) => void;
 }) {
   const [view, setView] = useState<"chats" | "activity">("chats");
   return (
@@ -410,7 +463,7 @@ function SupportInbox({
           profile={profile}
           scope="staff"
           embedded
-          onNavigate={(page) => onNavigate?.(page)}
+          onNavigate={(page, id) => onNavigate?.(page, id)}
         />
       ) : (
         <>
@@ -420,8 +473,46 @@ function SupportInbox({
             forcedView="inbox"
             hideViewTabs
             queue="support"
+            initialConversationId={initialConversationId}
+            onOpenContext={(page, id)=>onNavigate?.(page, id)}
           />
         </>
+      )}
+    </div>
+  );
+}
+function ActivityOnlyInbox({
+  profile,
+  unread,
+  onUnreadChange,
+  onNavigate,
+}: {
+  profile: Profile;
+  unread: number;
+  onUnreadChange: () => void;
+  onNavigate: (page: string, id?: string) => void;
+}) {
+  const [view, setView] = useState<"chats" | "activity">("activity");
+  return (
+    <div className="space-y-4">
+      <InboxTabs value={view} onChange={setView} activityCount={unread} />
+      {view === "activity" ? (
+        <Notifications
+          profile={profile}
+          scope="staff"
+          embedded
+          onUnreadChange={onUnreadChange}
+          onNavigate={onNavigate}
+        />
+      ) : (
+        <div className="grid min-h-48 place-items-center border-y border-white/[.06] text-center">
+          <div>
+            <p className="text-sm font-semibold">No conversations assigned</p>
+            <p className="mt-2 max-w-xs text-[10px] leading-5 text-[#686F80]">
+              Messages appear here only when this work area is authorized for a conversation.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

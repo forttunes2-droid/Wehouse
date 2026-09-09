@@ -71,6 +71,18 @@ export async function addHotelReview(hotelId: number, userId: string, rating: nu
   return { review: data as HotelReview | null, error };
 }
 
+export async function canReviewHotel(hotelId: number, userId: string) {
+  const { data, error } = await supabase
+    .from('hotel_bookings')
+    .select('booking_id')
+    .eq('hotel_id', hotelId)
+    .eq('user_id', userId)
+    .eq('payment_status', 'paid')
+    .in('status', ['checked_out', 'completed'])
+    .limit(1);
+  return { eligible: Boolean(data?.length), error };
+}
+
 // ── Bookings ────────────────────────────────────────────
 
 // The browser supplies guest choices only. Identity, availability, room price,

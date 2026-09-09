@@ -41,7 +41,7 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
   const messages=await Promise.all((data as any[]).map(async msg=>{
     let content=String(msg.legacy_content||'');
     if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your Recovery PIN'}
+      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your recovery passcode'}
     }
     const attachments:string[]=[];
     const legacyPaths=Array.isArray(msg.legacy_attachments)?msg.legacy_attachments.filter(Boolean):[];

@@ -151,13 +151,27 @@ export function WorkerInboxPanel({
     if (initialConversation) setSelected(initialConversation);
   }, [initialConversation]);
   function openActivitySource(page: string, id?: string) {
+    const route = page.toLowerCase().replace(/-/g, "_");
+    if (["conversation", "conversations", "message", "messages", "chat"].includes(route)) {
+      const conversation = rows.find(
+        (row) =>
+          String(row.conversation_id) === String(id || "") ||
+          String(row.booking_id) === String(id || ""),
+      );
+      if (conversation) {
+        setSelected(conversation);
+        return;
+      }
+      toast.error("This job conversation is no longer available.");
+      return;
+    }
     if (
       [
         "worker_dashboard",
         "operations_inbox",
         "my_reservations",
         "my_bookings",
-      ].includes(page)
+      ].includes(route)
     ) {
       onOpenJobs?.();
       return;
@@ -216,9 +230,9 @@ export function WorkerInboxPanel({
             </div>
           ) : null}
           <section className="overflow-hidden border-y border-white/[.06]">
-            <SupportEntryCard profile={profile} compact onAvailabilityChange={setSupportAvailable} />
+            <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />
           </section>
-          {!loading && rows.length === 0 && !supportAvailable ? <p className="px-4 text-center text-[9px] leading-4 text-[#626879]">Job conversations begin from a customer request. WeHouse conversations begin from the relevant job, payment or account action.</p> : null}
+          {!loading && rows.length === 0 && !supportAvailable ? <div className="grid min-h-48 place-items-center text-center"><div><p className="text-sm font-semibold">No conversations yet</p><p className="mt-2 text-[10px] text-[#686F7F]">New job conversations will appear here.</p></div></div> : null}
         </>
       )}
     </div>

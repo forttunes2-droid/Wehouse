@@ -95,8 +95,8 @@ export default function PropertyMapExplorer({
     mapRef.current = map;
     L.control.zoom({ position: "bottomright" }).addTo(map);
     const tiles = L.tileLayer(
-      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      { maxZoom: 19, attribution: "© OpenStreetMap contributors" },
+      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, subdomains: "abcd", attribution: "© OpenStreetMap · © CARTO" },
     );
     tiles.on("tileerror", () => setMapError(true));
     tiles.on("load", () => setMapError(false));
