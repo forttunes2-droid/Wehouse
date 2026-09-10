@@ -13,6 +13,7 @@ type Props = {
   onGoToSaved: () => void;
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
+  onNavigate?: (page: string) => void;
   onLogout?: () => void;
   workspaceAccess?: WorkspaceAccess | null;
   activeWorkspace?: WorkspaceChoice;
@@ -37,7 +38,7 @@ type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'privacy_security' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
-export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace }: Props) {
+export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onNavigate, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace }: Props) {
   void onGoToPrivacy;
   void onGoToSecurity;
   const p = profile as Profile & ProfilePreferences;
@@ -132,8 +133,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   }
 
   function openLegal(page: 'privacy_policy' | 'terms_of_service') {
-    window.history.pushState({ page }, '', `#${page}`);
-    window.dispatchEvent(new PopStateEvent('popstate', { state: { page } }));
+    if (onNavigate) onNavigate(page);
   }
 
   if (panel === 'privacy_security') return <PrivacySecuritySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;

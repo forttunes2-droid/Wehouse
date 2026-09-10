@@ -232,7 +232,7 @@ function normalizePageForRole(
   page: NavPage,
   workerProfileComplete = true,
 ): NavPage {
-  if (page === "messages") page = "conversation";
+  if (page === "messages" || page === "chat") page = "conversation";
   // Preserve old deep links without keeping a second booking destination.
   if (page === "my_bookings") page = "my_reservations";
   if (
@@ -278,6 +278,7 @@ export default function App() {
     [hotelCheckIn, setHotelCheckIn] = useState(""),
     [hotelCheckOut, setHotelCheckOut] = useState(""),
     [chatConvId, setChatConvId] = useState<string | null>(null),
+    [chatPeerId, setChatPeerId] = useState<string | null>(null),
     [bookingContextId, setBookingContextId] = useState<string | null>(null),
     [roommateContextId, setRoommateContextId] = useState<string | null>(null),
     [workerCategory, setWorkerCategory] = useState<string | null>(null),
@@ -627,7 +628,7 @@ export default function App() {
           source_id?: string | null;
           destination_route?: string | null;
         }>,
-      ).length;
+      ).filter((row) => !row.read).length;
       const announcementUnread = (announcementResult.messages || []).filter(
         (delivery: any) => {
           const announcement = Array.isArray(delivery.announcements)
@@ -649,6 +650,7 @@ export default function App() {
     void count();
     const openMessages = (conversationId?: string) => {
       setChatConvId(conversationId || null);
+      setChatPeerId(null);
       handleSetNavPage("conversation");
     };
     const openNotifications = () => handleSetNavPage("notifications");
@@ -895,6 +897,10 @@ export default function App() {
   const goTo = useCallback(
     (p: NavPage, c?: string) => {
       if (c) setWorkerCategory(c);
+      if (p === "conversation" || p === "messages" || p === "chat") {
+        setChatConvId(null);
+        setChatPeerId(null);
+      }
       if (p !== "my_reservations") setBookingContextId(null);
       if (p !== "roommate") setRoommateContextId(null);
       handleSetNavPage(p);
@@ -918,13 +924,14 @@ export default function App() {
     else handleSetNavPage("search");
   }, [handleSetNavPage]);
   const goToChat = useCallback(
-    (id?: string) => {
+    (id?: string, peerId?: string) => {
       if (!isUserRole) {
         handleSetNavPage(roleRoot());
         return;
       }
       setChatConvId(id || null);
-      handleSetNavPage("chat");
+      setChatPeerId(peerId || null);
+      handleSetNavPage("conversation");
     },
     [isUserRole, handleSetNavPage, roleRoot],
   );
@@ -1116,6 +1123,7 @@ export default function App() {
           <Roommate
             profile={profile}
             onGoToChat={goToChat}
+            onNavigate={openUserDestination}
             onEditProfile={goToProfileEdit}
             onOpenListing={goToDetail}
             initialContextId={roommateContextId}
@@ -1156,6 +1164,7 @@ export default function App() {
             onGoToPrivacy={goToPrivacy}
             onGoToSecurity={goToSecurity}
             onGoToProfileEdit={goToProfileEdit}
+            onNavigate={(page) => goTo(page as NavPage)}
             onLogout={auth.logout}
             workspaceAccess={workspaceAccess}
             activeWorkspace={activeWorkspace}
@@ -1190,7 +1199,13 @@ export default function App() {
           />
         );
       case "profile_edit":
-        return (
+        return isWorkerRole ? (
+          <WorkerSetup
+            profile={profile}
+            onComplete={() => goTo("worker_dashboard")}
+            onBack={subpageBack}
+          />
+        ) : (
           <ProfileEdit
             profile={profile}
             onUpdate={(u) => auth.handleSetupComplete(u)}
@@ -1228,6 +1243,11 @@ export default function App() {
             profile={profile}
             onNavigate={openUserDestination}
             conversationId={chatConvId}
+            peerUserId={chatPeerId}
+            onConversationClose={() => {
+              setChatConvId(null);
+              setChatPeerId(null);
+            }}
             chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
             onActivityUnreadChange={setNotificationCount}

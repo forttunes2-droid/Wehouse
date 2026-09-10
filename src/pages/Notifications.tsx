@@ -188,11 +188,13 @@ export default function Notifications({
       );
       return false;
     }
-    setRows((current) =>
-      current.map((item) =>
+    setRows((current) => {
+      const next = current.map((item) =>
         item.id === row.id ? { ...item, read: true } : item,
-      ),
-    );
+      );
+      activityCache.set(cacheKey, next);
+      return next;
+    });
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     return true;
   }
@@ -283,7 +285,11 @@ export default function Notifications({
           announcementError?.message ||
           "Activity could not be marked as read",
       );
-    setRows((current) => current.map((row) => ({ ...row, read: true })));
+    setRows((current) => {
+      const next = current.map((row) => ({ ...row, read: true }));
+      activityCache.set(cacheKey, next);
+      return next;
+    });
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     toast.success("Activity marked as read");
   }

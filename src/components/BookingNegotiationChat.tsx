@@ -37,6 +37,7 @@ import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
+import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import {
   privateConversationReadiness,
   type PrivateConversationReadiness,
@@ -590,13 +591,22 @@ export default function BookingNegotiationChat({
             </div>
           </button>
           {openConversation && (
-            <button
-              onClick={() => void startCall("audio")}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
-              aria-label="Start audio call"
-            >
-              <Phone />
-            </button>
+            <>
+              <button
+                onClick={() => void startCall("audio")}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+                aria-label="Start audio call"
+              >
+                <Phone />
+              </button>
+              <button
+                onClick={() => void startCall("video")}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+                aria-label="Start video call"
+              >
+                <VideoCall />
+              </button>
+            </>
           )}
           <button
             onClick={() => setMenuOpen((value) => !value)}
@@ -1237,6 +1247,10 @@ export default function BookingNegotiationChat({
             setProfileOpen(false);
             void startCall("audio");
           }}
+          onVideoCall={() => {
+            setProfileOpen(false);
+            void startCall("video");
+          }}
         />
       ) : null}
       {detailsOpen && booking ? (
@@ -1320,6 +1334,7 @@ function ConversationIdentitySheet({
   presence,
   onClose,
   onAudioCall,
+  onVideoCall,
 }: {
   profile: ConversationProfile | null;
   booking: Booking | null;
@@ -1329,6 +1344,7 @@ function ConversationIdentitySheet({
   presence: string;
   onClose: () => void;
   onAudioCall: () => void;
+  onVideoCall: () => void;
 }) {
   const viewingWorker = !isWorker;
   const displayName = profile?.full_name || name;
@@ -1337,6 +1353,22 @@ function ConversationIdentitySheet({
   const reviewed = ["approved", "verified", "live"].includes(
     String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
+  if (viewingWorker && profile?.user_id) {
+    return (
+      <WorkerPublicProfile
+        worker={profile as Profile}
+        onBack={onClose}
+        onBook={() => undefined}
+        showBookingAction={false}
+        communicationActions={
+          <>
+            <ProfileCallAction label="Audio" onClick={onAudioCall}><Phone /></ProfileCallAction>
+            <ProfileCallAction label="Video" onClick={onVideoCall}><VideoCall /></ProfileCallAction>
+          </>
+        }
+      />
+    );
+  }
   return (
     <RoommatePublicProfile
       context="conversation"
@@ -1357,16 +1389,10 @@ function ConversationIdentitySheet({
       presence={presence}
       onClose={onClose}
       actions={
-        <button
-          type="button"
-          onClick={onAudioCall}
-          className="flex items-center gap-3 text-[10px] font-semibold text-[#C7CBD5]"
-        >
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055]">
-            <Phone />
-          </span>
-          Audio call
-        </button>
+        <div className="flex gap-5">
+          <ProfileCallAction label="Audio" onClick={onAudioCall}><Phone /></ProfileCallAction>
+          <ProfileCallAction label="Video" onClick={onVideoCall}><VideoCall /></ProfileCallAction>
+        </div>
       }
       footer={
         isWorker && booking ? (
@@ -1608,6 +1634,22 @@ function Phone() {
     >
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92z" />
     </svg>
+  );
+}
+function VideoCall() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
+    </svg>
+  );
+}
+function ProfileCallAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="flex flex-col items-center gap-2 text-[10px] font-medium text-[#B9BDC8]">
+      <span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055] text-[#D8DAE1]">{children}</span>
+      {label}
+    </button>
   );
 }
 function TrashIcon() {

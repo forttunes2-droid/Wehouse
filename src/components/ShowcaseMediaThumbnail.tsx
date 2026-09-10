@@ -49,7 +49,10 @@ export default function ShowcaseMediaThumbnail({
     );
 
   return (
-    <span ref={root} className="relative block h-full w-full overflow-hidden bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_48%),#0D1118]">
+    <span ref={root} className="relative block h-full w-full overflow-hidden bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_48%),#111522]">
+      {!ready ? (
+        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[.035] via-violet-500/[.08] to-white/[.025]" />
+      ) : null}
       {src && nearViewport ? (
         <video
           src={`${src}#t=0.1`}
@@ -62,7 +65,7 @@ export default function ShowcaseMediaThumbnail({
         />
       ) : null}
       <span className="pointer-events-none absolute inset-0 grid place-items-center">
-        <span className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-sm text-white backdrop-blur-sm">
+        <span className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/50 pl-0.5 text-sm text-white shadow-lg backdrop-blur-sm">
           ▶
         </span>
       </span>

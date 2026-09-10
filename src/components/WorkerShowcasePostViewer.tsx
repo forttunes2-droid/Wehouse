@@ -44,6 +44,7 @@ export default function WorkerShowcasePostViewer({
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [comment, setComment] = useState("");
   const [commentBusy, setCommentBusy] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
@@ -57,28 +58,36 @@ export default function WorkerShowcasePostViewer({
     setCommentsLoading(false);
     if (error) return toast.error("Comments could not be loaded");
     setComments((Array.isArray(data) ? data : []) as Comment[]);
+    setCommentsLoaded(true);
   }, [post.id]);
 
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    void loadComments();
     return () => {
       document.body.style.overflow = previous;
     };
   }, [loadComments]);
 
+  function openComments() {
+    setCommentsOpen(true);
+    if (!commentsLoaded && !commentsLoading) void loadComments();
+  }
+
   async function submitComment() {
     const body = comment.trim();
     if (!body || commentBusy) return;
     setCommentBusy(true);
+    setComment("");
     const { error } = await supabase.rpc("add_my_worker_showcase_comment", {
       p_post_id: post.id,
       p_body: body,
     });
     setCommentBusy(false);
-    if (error) return toast.error(error.message || "Comment could not be posted");
-    setComment("");
+    if (error) {
+      setComment(body);
+      return toast.error(error.message || "Comment could not be posted");
+    }
     await loadComments();
   }
 
@@ -99,18 +108,21 @@ export default function WorkerShowcasePostViewer({
             disabled={likeBusy}
             onClick={async () => {
               setLikeBusy(true);
-              await onLike?.();
-              setLikeBusy(false);
+              try {
+                await onLike?.();
+              } finally {
+                setLikeBusy(false);
+              }
             }}
             className="flex flex-col items-center gap-1 text-[9px] font-semibold"
             aria-label={liked ? "Remove like" : "Like work post"}
           >
-            <span className={`grid h-12 w-12 place-items-center rounded-full bg-black/55 text-2xl backdrop-blur ${liked ? "text-rose-400" : "text-white"}`}>{liked ? "♥" : "♡"}</span>
+            <span className={`grid h-12 w-12 place-items-center rounded-full bg-black/55 backdrop-blur ${liked ? "text-rose-400" : "text-white"}`}><HeartIcon filled={liked} /></span>
             {likeCount || "Like"}
           </button> : null}
-          <button type="button" onClick={() => setCommentsOpen(true)} className="flex flex-col items-center gap-1 text-[9px] font-semibold" aria-label="Open comments">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-black/55 text-xl backdrop-blur">◯</span>
-            {comments.length || "Comment"}
+          <button type="button" onClick={openComments} className="flex flex-col items-center gap-1 text-[9px] font-semibold" aria-label="Open comments">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-black/55 backdrop-blur"><CommentIcon /></span>
+            {commentsLoaded && comments.length ? comments.length : "Comment"}
           </button>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-4 pb-5 pr-20 pt-20">
@@ -148,5 +160,21 @@ export default function WorkerShowcasePostViewer({
       ) : null}
     </div>,
     document.body,
+  );
+}
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20.8 4.7a5.5 5.5 0 0 0-7.8 0L12 5.8l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.4 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+    </svg>
+  );
+}
+
+function CommentIcon() {
+  return (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12a8 8 0 0 1-8 8H6l-3 2v-7a8 8 0 1 1 18-3Z" />
+    </svg>
   );
 }

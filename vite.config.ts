@@ -14,7 +14,7 @@ function releaseVersion() {
 }
 
 const buildVersion = releaseVersion()
-const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: true }, null, 2)}\n`
+const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: false }, null, 2)}\n`
 const updateWorker = `// WeHouse release ${buildVersion}
 const RELEASE = ${JSON.stringify(buildVersion)};
 
@@ -23,20 +23,14 @@ self.addEventListener('install', function (event) {
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(
-    caches.keys()
-      .then(function (names) {
-        return Promise.all(names.map(function (name) { return caches.delete(name); }));
-      })
-      .then(function () { return self.clients.claim(); })
-  );
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-  if (event.request.mode === 'navigate' || ['script', 'style', 'worker'].includes(event.request.destination)) {
+  if (event.request.mode === 'navigate') {
     event.respondWith(fetch(event.request, { cache: 'no-store' }));
   }
 });
@@ -96,7 +90,7 @@ export default defineConfig({
           'vendor-router': ['react-router-dom'],
           'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-popover', '@radix-ui/react-slot', '@radix-ui/react-separator', '@radix-ui/react-tabs', 'class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'],
           'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
-          'vendor-data': ['@supabase/supabase-js', 'openai'],
+          'vendor-data': ['@supabase/supabase-js'],
           'vendor-utils': ['date-fns', 'sonner', 'embla-carousel-react'],
         },
         entryFileNames: 'assets/[name]-[hash].js',

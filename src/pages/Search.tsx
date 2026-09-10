@@ -38,6 +38,7 @@ type PropertySearchState = {
   priceMin: number | "";
   priceMax: number | "";
   bedrooms: number | "";
+  bathrooms: number | "";
   filterState: string;
   filterCity: string;
 };
@@ -46,6 +47,7 @@ let searchState: PropertySearchState = {
   priceMin: "",
   priceMax: "",
   bedrooms: "",
+  bathrooms: "",
   filterState: "",
   filterCity: "",
 };
@@ -73,7 +75,8 @@ export default function Search({
       () => searchState.priceMin,
     ),
     [priceMax, setPriceMax] = useState<number | "">(() => searchState.priceMax),
-    [bedrooms, setBedrooms] = useState<number | "">(() => searchState.bedrooms);
+    [bedrooms, setBedrooms] = useState<number | "">(() => searchState.bedrooms),
+    [bathrooms, setBathrooms] = useState<number | "">(() => searchState.bathrooms);
   const [filterState, setFilterState] = useState(() => searchState.filterState),
     [filterCity, setFilterCity] = useState(() => searchState.filterCity),
     [showFilters, setShowFilters] = useState(false);
@@ -97,10 +100,11 @@ export default function Search({
       priceMin,
       priceMax,
       bedrooms,
+      bathrooms,
       filterState,
       filterCity,
     };
-  }, [stayType, priceMin, priceMax, bedrooms, filterState, filterCity]);
+  }, [stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
   const loadProperties = useCallback(async (quiet = false) => {
     if (!quiet && !propertyCache) setLoading(true);
     setLoadError("");
@@ -182,6 +186,8 @@ export default function Search({
           if (priceMax !== "" && (price <= 0 || price > priceMax)) return false;
           if (bedrooms && Number(listing.bedrooms || 0) < bedrooms)
             return false;
+          if (bathrooms && Number(listing.bathrooms || 0) < bathrooms)
+            return false;
           if (
             filterState &&
             normalize(listing.state) !== normalize(filterState)
@@ -200,6 +206,7 @@ export default function Search({
       priceMin,
       priceMax,
       bedrooms,
+      bathrooms,
       filterState,
       filterCity,
       location,
@@ -208,7 +215,7 @@ export default function Search({
 
   const priceActive = priceMin !== "" || priceMax !== "";
   const filterCount =
-    [bedrooms, filterState, filterCity].filter(Boolean).length +
+    [bedrooms, bathrooms, filterState, filterCity].filter(Boolean).length +
     (priceActive ? 1 : 0);
   const hasFilters = Boolean(filterCount || stayType !== "all");
   function clearFilters() {
@@ -216,6 +223,7 @@ export default function Search({
     setPriceMin("");
     setPriceMax("");
     setBedrooms("");
+    setBathrooms("");
     setFilterState("");
     setFilterCity("");
   }
@@ -242,6 +250,7 @@ export default function Search({
         min_price: priceMin === "" ? null : priceMin,
         max_price: priceMax === "" ? null : priceMax,
         bedrooms: bedrooms === "" ? null : bedrooms,
+        bathrooms: bathrooms === "" ? null : bathrooms,
       },
     });
     setSavingSearch(false);
@@ -351,7 +360,7 @@ export default function Search({
 
       {showFilters && (
         <DiscoveryFilterSheet
-          title="Find apartments"
+          title="Filter apartments"
           onClose={() => setShowFilters(false)}
           onClear={clearFilters}
           resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
@@ -359,7 +368,7 @@ export default function Search({
           <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
             {(
               [
-                ["all", "All"],
+                ["all", "All apartments"],
                 ["long_stay", "Long Let"],
                 ["short_let", "Short Let"],
               ] as const
@@ -395,7 +404,7 @@ export default function Search({
           </div>
           {stayType === "all" ? (
             <p className="rounded-2xl border border-white/[.06] bg-white/[.02] px-4 py-3 text-[9px] leading-5 text-[#737A8B]">
-              Choose Long Let or Short Let only when you want the matching annual or nightly price filter.
+              See every apartment type, or select Long Let or Short Let to use its matching annual or nightly price range.
             </p>
           ) : (
             <DiscoveryPriceRangeSlider
@@ -429,6 +438,31 @@ export default function Search({
                   onClick={() => setBedrooms(value ? Number(value) : "")}
                   aria-pressed={String(bedrooms) === value}
                   className={`h-11 rounded-xl text-[10px] font-semibold ${String(bedrooms) === value ? "bg-violet-500 text-white" : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </section>
+          <section>
+            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">
+              Bathrooms
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {(
+                [
+                  ["", "Any"],
+                  ["1", "1+"],
+                  ["2", "2+"],
+                  ["3", "3+"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value || "any"}
+                  type="button"
+                  onClick={() => setBathrooms(value ? Number(value) : "")}
+                  aria-pressed={String(bathrooms) === value}
+                  className={`h-11 rounded-xl text-[10px] font-semibold ${String(bathrooms) === value ? "bg-violet-500 text-white" : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"}`}
                 >
                   {label}
                 </button>

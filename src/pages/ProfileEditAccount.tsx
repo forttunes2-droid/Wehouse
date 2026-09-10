@@ -164,30 +164,30 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   }
 
   if (!editing) return (
-    <AccountShell profile={profile} title="Personal details" description="Your WeHouse profile and location." onBack={onBack}>
+    <AccountShell profile={profile} title="Personal profile" description="Your identity, contact details and private location settings." onBack={onBack}>
       <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#11141C]">
         <div className="flex items-center gap-4 p-5">
           <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-2xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</div>
           <div className="min-w-0 flex-1"><h2 className="truncate text-lg font-bold">{fullName || username || 'WeHouse member'}</h2><p className="mt-1 truncate text-[10px] text-[#737A8B]">@{username || 'username'}</p>{bio && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[#A1A6B3]">{bio}</p>}</div>
         </div>
-        <div className="grid grid-cols-2 border-y border-white/[.06] sm:grid-cols-3"><ProfileFact label="Phone" value={phone || 'Not added'} /><ProfileFact label="Role" value={profile.role === 'worker' ? 'WeHouse Service Worker' : profile.role} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
-        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Private address" value={preciseLocation?.address || 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
+        <div className="grid grid-cols-2 border-y border-white/[.06] sm:grid-cols-3"><ProfileFact label="Phone · private" value={phone || 'Not added'} /><ProfileFact label="Account" value={profile.role === 'worker' ? 'WeHouse professional' : profile.role === 'user' ? 'WeHouse member' : profile.role.replaceAll('_', ' ')} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
+        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Exact address" value={preciseLocation ? 'Saved privately' : 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
         <div className="p-4"><button type="button" onClick={()=>setEditing(true)} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Edit profile</button></div>
       </section>
     </AccountShell>
   );
 
   return (
-    <AccountShell profile={profile} title="Personal details" description={isUser ? 'Your personal profile and location used by WeHouse.' : 'Private personal details for this account.'} onBack={onBack}>
+    <AccountShell profile={profile} title="Edit profile" description={isUser ? 'Update what people see and the private details WeHouse uses.' : 'Update the private details for this account.'} onBack={onBack}>
       <Toaster position="top-center" richColors />
       <form onSubmit={save} className="relative space-y-4" aria-busy={saving}>
         <fieldset disabled={saving} className="contents">
-        <button type="button" onClick={()=>setEditing(false)} className="text-[10px] font-semibold text-violet-300">Cancel editing</button>
-        <section className="border-y border-white/[.06] py-5">
+        <button type="button" onClick={()=>setEditing(false)} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/[.08] px-4 text-[10px] font-semibold text-[#B9BECA]"><span aria-hidden="true">←</span> Profile summary</button>
+        <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
           <ProfilePhotoEditor avatar={avatar} name={fullName||username} onUploaded={savePhoto} onRemove={async()=>{await deletePhoto();}}/>
         </section>
 
-        <section className="border-y border-white/[.06] py-5">
+        <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" value={fullName} onChange={setFullName} />
             <div><Field label="Username" value={username} onChange={setUsername} /><p className={`mt-1 text-[9px] ${usernameState === 'available' ? 'text-emerald-300' : usernameState === 'taken' || usernameState === 'invalid' ? 'text-red-300' : 'text-[#62697A]'}`}>{usernameState === 'checking' ? 'Checking…' : usernameState === 'available' ? 'Username available' : usernameState === 'taken' ? 'Username already taken' : usernameState === 'invalid' ? 'Use 3–20 letters, numbers or underscores' : ''}</p></div>
@@ -197,7 +197,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
         </section>
 
         {isUser && <>
-          <section className="border-y border-white/[.06] py-5">
+          <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
             <h2 className="text-sm font-semibold">About you</h2>
             <div className="mt-4 space-y-4">
               <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
@@ -208,7 +208,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </section>
 
           </>}
-          <section className="border-y border-white/[.06] py-5">
+          <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
             <h2 className="text-sm font-semibold">Location</h2>
             <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Use your phone location below to find and confirm one private street address.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">

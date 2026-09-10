@@ -26,7 +26,8 @@ import type { Profile, RoommatePreferences } from "@/types";
 
 type Props = {
   profile: Profile;
-  onGoToChat?: (id: string) => void;
+  onGoToChat?: (id: string, peerId?: string) => void;
+  onNavigate: (page: string, id?: string) => void;
   onEditProfile?: () => void;
   onOpenListing?: (id: string) => void;
   initialContextId?: string | null;
@@ -70,6 +71,7 @@ function visibleMatches(
 export default function RoommateWorkspace({
   profile,
   onGoToChat,
+  onNavigate,
   onEditProfile,
   onOpenListing,
   initialContextId,
@@ -357,16 +359,7 @@ export default function RoommateWorkspace({
     setMatches((current) => current.map((row) => row.id === match.id
       ? { ...row, conversation_id: result.conversationId }
       : row));
-    onGoToChat(result.conversationId);
-  }
-  function navigate(page: string) {
-    try {
-      localStorage.setItem("wh_navpage", page);
-      window.history.pushState({ page }, "", `#${page}`);
-      window.dispatchEvent(new PopStateEvent("popstate", { state: { page } }));
-    } catch {
-      window.location.hash = page;
-    }
+    onGoToChat(result.conversationId, match.matched_user_id);
   }
   if (loading)
     return (
@@ -376,7 +369,7 @@ export default function RoommateWorkspace({
   return (
     <DiscoveryShell
       active="roommates"
-      onNavigate={navigate}
+      onNavigate={onNavigate}
     >
       <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-6">
         <header className="flex items-center gap-3 border-y border-white/[.07] py-4">
@@ -425,7 +418,7 @@ export default function RoommateWorkspace({
               profile can enter matching.
             </p>
             <button
-              onClick={() => navigate("privacy")}
+              onClick={() => onNavigate("privacy")}
               className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold text-white"
             >
               Open Privacy

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import GoldTickBadge from "@/components/GoldTickBadge";
 import { supabase } from "@/lib/supabase";
@@ -59,6 +59,7 @@ type Props = {
   bookingActive?: boolean;
   onOpenBooking?: () => void;
   showBookingAction?: boolean;
+  communicationActions?: ReactNode;
 };
 
 export default function WorkerPublicProfileV2({
@@ -68,6 +69,7 @@ export default function WorkerPublicProfileV2({
   bookingActive = false,
   onOpenBooking,
   showBookingAction = true,
+  communicationActions,
 }: Props) {
   const [posts, setPosts] = useState<Post[]>([]),
     [viewer, setViewer] = useState<Post | null>(null),
@@ -266,6 +268,11 @@ export default function WorkerPublicProfileV2({
               </div>
             )}
           </div>
+          {communicationActions ? (
+            <div className="mt-5 flex gap-5 border-t border-white/[.06] pt-4">
+              {communicationActions}
+            </div>
+          ) : null}
         </section>
         <section className="grid grid-cols-3 border-y border-white/[.06]">
           <ProfileFact

@@ -346,16 +346,16 @@ export default function WorkerShowcaseManager({
           <span className="text-[9px] text-[#686F80]">{workPosts.length}</span>
         </div>
         {workPosts.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="-mx-4 grid grid-cols-2 gap-0.5 bg-white/[.07] sm:mx-0 sm:grid-cols-3 sm:overflow-hidden sm:rounded-2xl lg:grid-cols-4">
             {workPosts.map((post) => (
               <button
                 key={post.id}
                 onClick={() => setViewer(post)}
-                className="relative overflow-hidden rounded-2xl border border-white/[.06] bg-[#0D1118] text-left"
+                className="group relative aspect-square overflow-hidden bg-[#0D1118] text-left"
               >
                 <Media
                   post={post}
-                  className="aspect-[4/3] w-full object-cover"
+                  className="h-full w-full object-cover transition duration-300 group-active:scale-[.99]"
                 />
                 {post.verified_job && (
                   <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">
@@ -364,8 +364,8 @@ export default function WorkerShowcaseManager({
                 )}
                 {post.job_confirmation_status === 'pending' && <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-[7px] font-bold text-[#171000]">CUSTOMER CHECK</span>}
                 {post.hidden_at && <span className="absolute right-2 top-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-bold text-white">HIDDEN</span>}
-                <div className="p-2">
-                  <p className="line-clamp-2 text-[9px] text-[#A0A5B2]">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent px-2.5 pb-2.5 pt-10">
+                  <p className="line-clamp-2 text-[9px] leading-4 text-white">
                     {post.caption || "Professional work"}
                   </p>
                 </div>

@@ -61,6 +61,8 @@ type Props = {
   profile: Profile;
   onNavigate: (page: string, id?: string) => void;
   conversationId?: string | null;
+  peerUserId?: string | null;
+  onConversationClose?: () => void;
   initialMode?: "chats" | "activity";
   chatUnreadCount?: number;
   activityUnreadCount?: number;
@@ -95,6 +97,15 @@ type InboxItem =
   | { kind: "worker"; id: string; time: string; booking: BookingConversation }
   | { kind: "hotel"; id: string; time: string; hotel: HotelConversation }
   | { kind: "support"; id: string; time: string; support: SupportThread };
+type InboxSnapshot = {
+  conversations: Conversation[];
+  bookingConversations: BookingConversation[];
+  supportThreads: SupportThread[];
+  hotelConversations: HotelConversation[];
+  people: Record<string, Person>;
+  recentRoommateCalls: Record<string, PrivateCall>;
+};
+const inboxCache = new Map<string, InboxSnapshot>();
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -126,27 +137,30 @@ function SearchIcon() {
 export default function Chat({
   profile,
   conversationId,
+  peerUserId,
+  onConversationClose,
   onNavigate,
   initialMode = "chats",
   chatUnreadCount = 0,
   activityUnreadCount = 0,
   onActivityUnreadChange,
 }: Props) {
-  const [conversations, setConversations] = useState<Conversation[]>([]),
+  const cachedInbox = inboxCache.get(profile.user_id);
+  const [conversations, setConversations] = useState<Conversation[]>(() => cachedInbox?.conversations || []),
     [bookingConversations, setBookingConversations] = useState<
       BookingConversation[]
-    >([]),
-    [supportThreads, setSupportThreads] = useState<SupportThread[]>([]),
+    >(() => cachedInbox?.bookingConversations || []),
+    [supportThreads, setSupportThreads] = useState<SupportThread[]>(() => cachedInbox?.supportThreads || []),
     [hotelConversations, setHotelConversations] = useState<HotelConversation[]>(
-      [],
+      () => cachedInbox?.hotelConversations || [],
     ),
     [active, setActive] = useState<Conversation | null>(null),
     [activeBooking, setActiveBooking] = useState<ActiveBooking>(null),
     [activeHotel, setActiveHotel] = useState<ActiveHotel>(null),
     [messages, setMessages] = useState<RoommateMessage[]>([]),
-    [people, setPeople] = useState<Record<string, Person>>({}),
+    [people, setPeople] = useState<Record<string, Person>>(() => cachedInbox?.people || {}),
     [input, setInput] = useState(""),
-    [loading, setLoading] = useState(true),
+    [loading, setLoading] = useState(() => !cachedInbox),
     [loadingMessages, setLoadingMessages] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
@@ -166,7 +180,7 @@ export default function Chat({
     useState<PrivateConversationReadiness | null>(null);
   const [recentRoommateCalls, setRecentRoommateCalls] = useState<
     Record<string, PrivateCall>
-  >({});
+  >(() => cachedInbox?.recentRoommateCalls || {});
   const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
   const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
   const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
@@ -281,11 +295,20 @@ export default function Chat({
       for (const row of callResult.data || [])
         if (!calls[row.context_id]) calls[row.context_id] = row as PrivateCall;
       setRecentRoommateCalls(calls);
-      setBookingConversations(
-        (bookingResult.conversations || []) as BookingConversation[],
-      );
-      setSupportThreads(supportResult.conversations || []);
-      setHotelConversations(hotelResult.conversations || []);
+      const nextBookingConversations = (bookingResult.conversations || []) as BookingConversation[];
+      const nextSupportThreads = supportResult.conversations || [];
+      const nextHotelConversations = hotelResult.conversations || [];
+      setBookingConversations(nextBookingConversations);
+      setSupportThreads(nextSupportThreads);
+      setHotelConversations(nextHotelConversations);
+      inboxCache.set(profile.user_id, {
+        conversations: allRoommateRows,
+        bookingConversations: nextBookingConversations,
+        supportThreads: nextSupportThreads,
+        hotelConversations: nextHotelConversations,
+        people: peerResult.people || {},
+        recentRoommateCalls: calls,
+      });
       setLoading(false);
       return allRoommateRows;
     },
@@ -332,8 +355,8 @@ export default function Chat({
   );
 
   useEffect(() => {
-    if (!conversationId) void loadInbox();
-  }, [conversationId, loadInbox]);
+    if (!conversationId) void loadInbox(Boolean(inboxCache.get(profile.user_id)));
+  }, [conversationId, loadInbox, profile.user_id]);
   useEffect(() => {
     if (!conversationId) return;
     void (async () => {
@@ -343,6 +366,25 @@ export default function Chat({
         direct.conversation?.conversation_type === "roommate"
       ) {
         setActive(direct.conversation);
+        void loadInbox(true);
+        return;
+      }
+      if (peerUserId) {
+        const now = new Date().toISOString();
+        setActive({
+          id: conversationId,
+          participant_a: profile.user_id,
+          participant_b: peerUserId,
+          listing_id: null,
+          status: "active",
+          last_message: null,
+          last_message_at: now,
+          unread_a: 0,
+          unread_b: 0,
+          created_at: now,
+          conversation_type: "roommate",
+          subject: "Roommate Match",
+        });
         void loadInbox(true);
         return;
       }
@@ -377,7 +419,7 @@ export default function Chat({
         );
       }
     })();
-  }, [conversationId, loadInbox, profile.user_id]);
+  }, [conversationId, loadInbox, peerUserId, profile.user_id]);
   useEffect(() => {
     if (!active) {
       setMessages([]);
@@ -776,6 +818,7 @@ export default function Chat({
         isWorker={profile.role === "worker"}
         onClose={() => {
           setActiveBooking(null);
+          onConversationClose?.();
           void loadInbox(true);
         }}
       />
@@ -793,6 +836,7 @@ export default function Chat({
         subtitle={`${activeHotel.conversation.room_name} · ${activeHotel.conversation.booking_code || "Paid stay"}`}
         onClose={() => {
           setActiveHotel(null);
+          onConversationClose?.();
           void loadInbox(true);
         }}
       />
@@ -835,7 +879,11 @@ export default function Chat({
         <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center gap-1">
             <button
-              onClick={() => setActive(null)}
+              onClick={() => {
+                setActive(null);
+                onConversationClose?.();
+                void loadInbox(true);
+              }}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9699A8] hover:bg-white/[.05]"
               aria-label="Back to Inbox"
             >
@@ -863,6 +911,9 @@ export default function Chat({
             </button>
             <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
               <PhoneIcon />
+            </HeaderAction>
+            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
+              <VideoCallIcon />
             </HeaderAction>
             <button
               onClick={() => setMenuOpen((value) => !value)}
@@ -1159,6 +1210,10 @@ export default function Chat({
               setProfileOpen(false);
               void startCall("audio");
             }}
+            onVideoCall={() => {
+              setProfileOpen(false);
+              void startCall("video");
+            }}
             busy={blockBusy}
           />
         )}
@@ -1237,7 +1292,10 @@ export default function Chat({
             {loading ? "Opening conversation…" : "Conversation unavailable"}
           </p>
           {!loading ? (
-            <button type="button" onClick={() => onNavigate("chat")} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
+            <button type="button" onClick={() => {
+              onConversationClose?.();
+              onNavigate("conversation");
+            }} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
               Go to Inbox
             </button>
           ) : null}
@@ -1902,6 +1960,7 @@ function PeerProfileSheet({
   onClose,
   onToggleBlock,
   onAudioCall,
+  onVideoCall,
   busy,
 }: {
   person?: Person;
@@ -1909,6 +1968,7 @@ function PeerProfileSheet({
   onClose: () => void;
   onToggleBlock: () => void;
   onAudioCall: () => void;
+  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1928,9 +1988,12 @@ function PeerProfileSheet({
       presence={presenceText}
       onClose={onClose}
       actions={
-        <div className="flex justify-start">
+        <div className="flex justify-start gap-5">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
+          </ProfileAction>
+          <ProfileAction label="Video" onClick={onVideoCall}>
+            <VideoCallIcon />
           </ProfileAction>
         </div>
       }
@@ -1999,6 +2062,24 @@ function PhoneIcon() {
       strokeWidth="1.8"
     >
       <path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.9Z" />
+    </svg>
+  );
+}
+function VideoCallIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
     </svg>
   );
 }
