@@ -51,11 +51,21 @@ export default function WorkerWorkspaceModern({
   const [tab, setTab] = useState<Tab>(live ? "jobs" : "home");
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
+  const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
   const [accountView, setAccountView] = useState<"account" | "profile">("account");
   const safeTab =
     !live && (tab === "jobs" || tab === "inbox" || tab === "showcase" || tab === "earnings")
       ? "home"
       : tab;
+  function openActivityDestination(page: string, id?: string) {
+    const route = page.toLowerCase().replace(/-/g, "_");
+    if (/worker_showcase|showcase_post/.test(route)) {
+      setShowcaseTargetId(id);
+      setTab("showcase");
+      return;
+    }
+    onNavigate?.(page, id);
+  }
 
   if (safeTab === "account") {
     if (accountView === "profile") return <AccountShell profile={profile} title="Professional Profile" description="This is the professional profile customers see." onBack={() => setAccountView("account")}><WorkerProfilePanelV3 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/></AccountShell>;
@@ -82,7 +92,7 @@ export default function WorkerWorkspaceModern({
         profile={profile}
         initialConversation={conversation}
         onConversationClosed={() => setConversation(null)}
-        onNavigate={onNavigate}
+        onNavigate={openActivityDestination}
         onOpenJobs={()=>setTab('jobs')}
         chatUnread={inbox.chatUnread}
         activityUnread={inbox.activityUnread}
@@ -90,7 +100,7 @@ export default function WorkerWorkspaceModern({
       />
     );
   } else if (live && safeTab === "showcase") {
-    content = <WorkerShowcaseManager profile={profile} />;
+    content = <WorkerShowcaseManager profile={profile} initialPostId={showcaseTargetId} />;
   } else if (live && safeTab === "earnings") {
     content = <div className="space-y-5"><WorkerWallet profile={profile}/><PayoutAccountManager profile={profile}/></div>;
   } else if (live) {

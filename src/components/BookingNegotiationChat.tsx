@@ -36,6 +36,7 @@ import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
+import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import {
   privateConversationReadiness,
   type PrivateConversationReadiness,
@@ -589,22 +590,13 @@ export default function BookingNegotiationChat({
             </div>
           </button>
           {openConversation && (
-            <>
-              <button
-                onClick={() => void startCall("video")}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
-                aria-label="Start video call"
-              >
-                <Camera />
-              </button>
-              <button
-                onClick={() => void startCall("audio")}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
-                aria-label="Start audio call"
-              >
-                <Phone />
-              </button>
-            </>
+            <button
+              onClick={() => void startCall("audio")}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+              aria-label="Start audio call"
+            >
+              <Phone />
+            </button>
           )}
           <button
             onClick={() => setMenuOpen((value) => !value)}
@@ -1241,6 +1233,10 @@ export default function BookingNegotiationChat({
           avatar={peerAvatar}
           presence={presenceText || ""}
           onClose={() => setProfileOpen(false)}
+          onAudioCall={() => {
+            setProfileOpen(false);
+            void startCall("audio");
+          }}
         />
       ) : null}
       {detailsOpen && booking ? (
@@ -1323,6 +1319,7 @@ function ConversationIdentitySheet({
   avatar,
   presence,
   onClose,
+  onAudioCall,
 }: {
   profile: ConversationProfile | null;
   booking: Booking | null;
@@ -1331,8 +1328,8 @@ function ConversationIdentitySheet({
   avatar?: string | null;
   presence: string;
   onClose: () => void;
+  onAudioCall: () => void;
 }) {
-  const [avatarOpen, setAvatarOpen] = useState(false);
   const viewingWorker = !isWorker;
   const displayName = profile?.full_name || name;
   const avatarUrl = profile?.avatar_url || avatar || null;
@@ -1340,91 +1337,71 @@ function ConversationIdentitySheet({
   const reviewed = ["approved", "verified", "live"].includes(
     String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
-
   return (
-    <>
-      <div
-        className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center"
-        onClick={onClose}
-      >
-        <section
-          className="max-h-[86dvh] w-full max-w-md overflow-y-auto rounded-[28px] border border-white/[.09] bg-[#12161F] p-5 text-white shadow-2xl"
-          role="dialog"
-          aria-modal="true"
-          aria-label={displayName + " contact information"}
-          onClick={(event) => event.stopPropagation()}
+    <RoommatePublicProfile
+      context="conversation"
+      person={{
+        name: displayName,
+        username: profile?.username,
+        avatar: avatarUrl,
+        location,
+        bio: viewingWorker
+          ? profile?.worker_bio || profile?.bio
+          : profile?.bio || "Customer for this service booking.",
+        occupation: viewingWorker
+          ? reviewed
+            ? "WeHouse reviewed service worker"
+            : "WeHouse service worker"
+          : "WeHouse customer",
+      }}
+      presence={presence}
+      onClose={onClose}
+      actions={
+        <button
+          type="button"
+          onClick={onAudioCall}
+          className="flex items-center gap-3 text-[10px] font-semibold text-[#C7CBD5]"
         >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <button
-                type="button"
-                disabled={!avatarUrl}
-                onClick={() => setAvatarOpen(Boolean(avatarUrl))}
-                className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-xl font-bold text-violet-200 disabled:cursor-default"
-                aria-label={avatarUrl ? "Preview profile photo" : undefined}
-              >
-                {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : displayName[0]?.toUpperCase() || "W"}
-              </button>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="truncate text-lg font-bold">{displayName}</h2>
-                  {viewingWorker && reviewed ? <span title="WeHouse reviewed" className="text-amber-300">◆</span> : null}
-                </div>
-                {profile?.username ? <p className="mt-1 truncate text-[10px] text-[#8B91A1]">@{profile.username}</p> : null}
-                <p className="mt-1 text-[9px] text-[#747B8C]">
-                  {[
-                    viewingWorker ? booking?.service_type : "Customer for this booking",
-                    viewingWorker ? location : booking?.booking_code ? `#${booking.booking_code}` : null,
-                    presence,
-                  ].filter(Boolean).join(" · ")}
-                </p>
-              </div>
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055]">
+            <Phone />
+          </span>
+          Audio call
+        </button>
+      }
+      footer={
+        isWorker && booking ? (
+          <div className="mt-5 border-t border-white/[.07] pt-4">
+            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">
+              This booking
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <CaseFact label="Service" value={booking.service_type || "Service request"} />
+              <CaseFact label="Status" value={booking.status.replaceAll("_", " ")} />
+              <CaseFact
+                label="Scheduled"
+                value={booking.scheduled_date ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString() : "Not agreed"}
+              />
+              <CaseFact
+                label="Agreed price"
+                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `₦${Number(booking.agreed_amount || booking.negotiated_amount).toLocaleString("en-NG")}` : "Not agreed"}
+              />
             </div>
-            <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close contact information">×</button>
+            {booking.address ? (
+              <div className="mt-2 rounded-xl bg-white/[.035] p-3">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Job location</p>
+                <p className="mt-1 text-[10px] leading-4 text-[#B4B8C3]">{booking.address}</p>
+              </div>
+            ) : null}
+            {booking.customer_message || booking.description ? (
+              <div className="mt-2 rounded-xl bg-white/[.035] p-3">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Original request</p>
+                <p className="mt-1 whitespace-pre-line text-[10px] leading-4 text-[#B4B8C3]">{booking.customer_message || booking.description}</p>
+              </div>
+            ) : null}
           </div>
-          {isWorker && booking ? (
-            <div className="mt-5 border-t border-white/[.07] pt-4">
-              <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">
-                Booking case
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <CaseFact label="Service" value={booking.service_type || "Service request"} />
-                <CaseFact label="Status" value={booking.status.replaceAll("_", " ")} />
-                <CaseFact
-                  label="Scheduled"
-                  value={booking.scheduled_date ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString() : "Not agreed"}
-                />
-                <CaseFact
-                  label="Agreed price"
-                  value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `₦${Number(booking.agreed_amount || booking.negotiated_amount).toLocaleString("en-NG")}` : "Not agreed"}
-                />
-              </div>
-              {booking.address ? (
-                <div className="mt-2 rounded-xl bg-white/[.035] p-3">
-                  <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Job location</p>
-                  <p className="mt-1 text-[10px] leading-4 text-[#B4B8C3]">{booking.address}</p>
-                </div>
-              ) : null}
-              {booking.customer_message || booking.description ? (
-                <div className="mt-2 rounded-xl bg-white/[.035] p-3">
-                  <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Original request</p>
-                  <p className="mt-1 whitespace-pre-line text-[10px] leading-4 text-[#B4B8C3]">{booking.customer_message || booking.description}</p>
-                </div>
-              ) : null}
-              <p className="mt-3 text-[9px] leading-4 text-[#777E8F]">
-                This information belongs to this booking and is shown so you can solve the customer’s case in the same conversation.
-              </p>
-            </div>
-          ) : (profile?.worker_bio || profile?.bio) ? (
-            <div className="mt-5">
-              <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
-              <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-[#A9AEBA]">{profile?.worker_bio || profile?.bio}</p>
-            </div>
-          ) : null}
-        </section>
-      </div>
-      {avatarOpen && avatarUrl ? <MediaViewer src={avatarUrl} kind="image" title={displayName + " profile photo"} avatarUrl={avatarUrl} onClose={() => setAvatarOpen(false)} /> : null}
-    </>
+        ) : undefined
+      }
+    />
   );
 }
 function CaseFact({ label, value }: { label: string; value: string }) {
@@ -1616,14 +1593,6 @@ function Mic() {
     >
       <rect x="9" y="2" width="6" height="12" rx="3" />
       <path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8" />
-    </svg>
-  );
-}
-function Camera() {
-  return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="6" width="13" height="12" rx="2" />
-      <path d="m16 10 5-3v10l-5-3Z" />
     </svg>
   );
 }

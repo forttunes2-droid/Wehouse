@@ -861,9 +861,6 @@ export default function Chat({
                 ) : null}
               </span>
             </button>
-            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
-              <CameraIcon />
-            </HeaderAction>
             <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
               <PhoneIcon />
             </HeaderAction>
@@ -1161,10 +1158,6 @@ export default function Chat({
             onAudioCall={() => {
               setProfileOpen(false);
               void startCall("audio");
-            }}
-            onVideoCall={() => {
-              setProfileOpen(false);
-              void startCall("video");
             }}
             busy={blockBusy}
           />
@@ -1909,7 +1902,6 @@ function PeerProfileSheet({
   onClose,
   onToggleBlock,
   onAudioCall,
-  onVideoCall,
   busy,
 }: {
   person?: Person;
@@ -1917,7 +1909,6 @@ function PeerProfileSheet({
   onClose: () => void;
   onToggleBlock: () => void;
   onAudioCall: () => void;
-  onVideoCall: () => void;
   busy: boolean;
 }) {
   const location = [person?.city, person?.state].filter(Boolean).join(", ");
@@ -1937,12 +1928,9 @@ function PeerProfileSheet({
       presence={presenceText}
       onClose={onClose}
       actions={
-        <div className="mx-auto flex max-w-xs justify-center gap-12">
+        <div className="flex justify-start">
           <ProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
-          </ProfileAction>
-          <ProfileAction label="Video" onClick={onVideoCall}>
-            <CameraIcon />
           </ProfileAction>
         </div>
       }
@@ -1998,14 +1986,6 @@ function HeaderAction({
     >
       {children}
     </button>
-  );
-}
-function CameraIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <rect x="3" y="6" width="13" height="12" rx="2" />
-      <path d="m16 10 5-3v10l-5-3Z" />
-    </svg>
   );
 }
 function PhoneIcon() {

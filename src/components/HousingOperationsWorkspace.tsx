@@ -780,6 +780,15 @@ function HousingCase({
   const [codeInput, setCodeInput] = useState(bookingCode || "");
   const [codeError, setCodeError] = useState("");
   const [checkingCode, setCheckingCode] = useState(false);
+  const [assignment, setAssignment] = useState<{
+    conversation_id?: string | null;
+    assigned_field_officer_id?: string | null;
+    assigned_field_officer_name?: string | null;
+    candidates?: Array<{ user_id: string; name: string; username?: string | null }>;
+  } | null>(null);
+  const [assignmentLoading, setAssignmentLoading] = useState(true);
+  const [assignmentBusy, setAssignmentBusy] = useState(false);
+  const [selectedOfficer, setSelectedOfficer] = useState("");
   const rentReady = ["paid", "upfront_paid"].includes(
     String(row.rent_payment_status || ""),
   );
@@ -790,6 +799,31 @@ function HousingCase({
     rentReady &&
     row.requested_move_in_at,
   );
+  const handoverAssigned = Boolean(assignment?.assigned_field_officer_id);
+
+  useEffect(() => {
+    let active = true;
+    if (!row.current_reservation_id) {
+      setAssignmentLoading(false);
+      return;
+    }
+    setAssignmentLoading(true);
+    void supabase
+      .rpc("get_reservation_handover_assignment", {
+        p_reservation_id: String(row.current_reservation_id),
+      })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) toast.error(error.message || "Handover assignment could not be loaded");
+        const next = !error && data && typeof data === "object" ? data as typeof assignment : null;
+        setAssignment(next);
+        setSelectedOfficer(String(next?.assigned_field_officer_id || ""));
+        setAssignmentLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [row.current_reservation_id]);
 
   useEffect(() => {
     setVerifiedCode(bookingCode);
@@ -798,6 +832,10 @@ function HousingCase({
   }, [bookingCode, row.current_reservation_id]);
 
   async function verifyArrivalCode() {
+    if (!handoverAssigned) {
+      setCodeError("Assign Field Operations to this reservation conversation first.");
+      return;
+    }
     const code = codeInput.trim().toUpperCase();
     if (!code) {
       setCodeError("Enter the code shown by this customer.");
@@ -830,6 +868,25 @@ function HousingCase({
     setVerifiedCode(String(data.code || code));
     setCodeInput(String(data.code || code));
     toast.success("Customer, property, payment and move-in time matched.");
+  }
+
+  async function assignFieldOfficer() {
+    if (!row.current_reservation_id || !selectedOfficer) {
+      return toast.error("Choose a Field Operations officer");
+    }
+    setAssignmentBusy(true);
+    const { data, error } = await supabase.rpc("assign_reservation_field_officer", {
+      p_reservation_id: String(row.current_reservation_id),
+      p_field_officer_id: selectedOfficer,
+    });
+    setAssignmentBusy(false);
+    if (error) return toast.error(error.message || "Field Operations could not be assigned");
+    setAssignment((current) => ({
+      ...(current || {}),
+      ...(data && typeof data === "object" ? data : {}),
+    }));
+    setVerifiedCode(null);
+    toast.success("Field Operations joined the existing reservation conversation.");
   }
 
   async function activate() {
@@ -1040,7 +1097,49 @@ function HousingCase({
         </section>
       )}
 
-      {canMoveIn && !verifiedCode && (
+      {canMoveIn && (
+        <section className={`rounded-2xl border p-4 ${handoverAssigned ? "border-emerald-500/15 bg-emerald-500/[.035]" : "border-violet-500/15 bg-violet-500/[.035]"}`}>
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
+            Same reservation conversation
+          </p>
+          <h4 className="mt-1 text-sm font-semibold">Field Operations handover</h4>
+          <p className="mt-1 text-[10px] leading-5 text-[#858B9A]">
+            Property Operations owns this case. Assign the officer who will support the physical handover; the customer, property, payment and messages stay in this same conversation.
+          </p>
+          {assignmentLoading ? (
+            <p className="mt-3 text-[9px] text-[#73798A]">Loading branch officers…</p>
+          ) : handoverAssigned ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.05] p-3">
+              <div>
+                <p className="text-[9px] text-[#757D8D]">Assigned for this handover</p>
+                <p className="mt-1 text-xs font-semibold text-emerald-300">{assignment?.assigned_field_officer_name || assignment?.assigned_field_officer_id}</p>
+              </div>
+              <span className="text-[8px] font-semibold text-emerald-300">IN SAME CHAT</span>
+            </div>
+          ) : assignment?.candidates?.length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <select
+                value={selectedOfficer}
+                onChange={(event) => setSelectedOfficer(event.target.value)}
+                className="h-11 rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs outline-none focus:border-violet-500/40"
+                aria-label="Field Operations officer"
+              >
+                <option value="">Choose Field Operations</option>
+                {assignment.candidates.map((officer) => (
+                  <option key={officer.user_id} value={officer.user_id}>{officer.name}{officer.username ? ` · @${officer.username}` : ""}</option>
+                ))}
+              </select>
+              <button type="button" disabled={assignmentBusy || !selectedOfficer} onClick={() => void assignFieldOfficer()} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">
+                {assignmentBusy ? "Assigning…" : "Assign to conversation"}
+              </button>
+            </div>
+          ) : (
+            <p className="mt-3 rounded-xl bg-amber-500/[.06] p-3 text-[9px] leading-5 text-amber-200">No active Field Operations officer is configured for this State/LGA.</p>
+          )}
+        </section>
+      )}
+
+      {canMoveIn && handoverAssigned && !verifiedCode && (
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
           <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
             Customer arrival verification
@@ -1084,7 +1183,7 @@ function HousingCase({
         </section>
       )}
 
-      {canMoveIn && verifiedCode && (
+      {canMoveIn && handoverAssigned && verifiedCode && (
         <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.035] p-4">
           <h4 className="text-sm font-semibold text-emerald-300">
             Complete handover and start tenancy

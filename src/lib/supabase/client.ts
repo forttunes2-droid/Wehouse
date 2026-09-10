@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import * as tus from 'tus-js-client';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // These are PUBLIC client credentials — safe in browser bundles.
@@ -27,6 +28,19 @@ export async function uploadStorageObjectWithProgress(
     throw error || new Error('Your session expired. Sign in and try the upload again.');
   }
 
+  const storageContentType = (contentType || 'application/octet-stream').split(';', 1)[0].trim();
+  if (body.size > 6 * 1024 * 1024) {
+    await uploadResumableStorageObject(
+      bucket,
+      path,
+      body,
+      storageContentType,
+      data.session.access_token,
+      onProgress,
+    );
+    return;
+  }
+
   const safePath = path.split('/').map(encodeURIComponent).join('/');
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -48,10 +62,9 @@ export async function uploadStorageObjectWithProgress(
     xhr.setRequestHeader('authorization', `Bearer ${data.session.access_token}`);
     // Storage accepts the media type, while MediaRecorder may append codec
     // parameters (for example video/webm;codecs=vp9,opus).
-    const storageContentType = (contentType || 'application/octet-stream').split(';', 1)[0].trim();
     xhr.setRequestHeader('content-type', storageContentType);
     xhr.setRequestHeader('x-upsert', 'false');
-    xhr.setRequestHeader('cache-control', '3600');
+    xhr.setRequestHeader('cache-control', '86400');
     xhr.upload.onprogress = (event) => {
       resetStallTimer();
       if (event.lengthComputable && event.total > 0) {
@@ -74,6 +87,50 @@ export async function uploadStorageObjectWithProgress(
     xhr.onerror = () => finish(() => reject(new Error('Upload connection failed. Check your network and try again.')));
     xhr.onabort = () => finish(() => reject(new Error('Upload stopped because no progress was received for 60 seconds. Try again on a stable connection.')));
     xhr.send(body);
+  });
+}
+
+async function uploadResumableStorageObject(
+  bucket: string,
+  path: string,
+  body: Blob,
+  contentType: string,
+  accessToken: string,
+  onProgress: (percent: number) => void,
+) {
+  await new Promise<void>((resolve, reject) => {
+    const upload = new tus.Upload(body, {
+      endpoint: 'https://rkrhnkhppeihvmuwvsvn.storage.supabase.co/storage/v1/upload/resumable',
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        apikey: SUPABASE_ANON_KEY,
+        'x-upsert': 'false',
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      chunkSize: 6 * 1024 * 1024,
+      metadata: {
+        bucketName: bucket,
+        objectName: path,
+        contentType,
+        cacheControl: '86400',
+      },
+      onProgress: (uploaded, total) => {
+        if (total > 0)
+          onProgress(Math.min(99, Math.max(1, Math.round((uploaded / total) * 100))));
+      },
+      onError: (uploadError) =>
+        reject(new Error(uploadError.message || 'Resumable upload failed. Check your connection and try again.')),
+      onSuccess: () => {
+        onProgress(100);
+        resolve();
+      },
+    });
+    void upload.findPreviousUploads().then((previous) => {
+      if (previous.length) upload.resumeFromPreviousUpload(previous[0]);
+      upload.start();
+    }).catch(reject);
   });
 }
 

@@ -32,7 +32,7 @@ const LONG_CEILING = 5000000;
 const SHORT_FLOOR = 5000;
 const SHORT_CEILING = 500000;
 let propertyCache: Listing[] | null = null;
-type StayFilter = HomeStayType;
+type StayFilter = HomeStayType | "all";
 type PropertySearchState = {
   stayType: StayFilter;
   priceMin: number | "";
@@ -42,7 +42,7 @@ type PropertySearchState = {
   filterCity: string;
 };
 let searchState: PropertySearchState = {
-  stayType: "long_stay",
+  stayType: "all",
   priceMin: "",
   priceMax: "",
   bedrooms: "",
@@ -176,7 +176,7 @@ export default function Search({
           return { listing, distance };
         })
         .filter(({ listing }) => {
-          if (listing.sub_type !== stayType) return false;
+          if (stayType !== "all" && listing.sub_type !== stayType) return false;
           const price = Number(listing.price || 0);
           if (priceMin !== "" && (price <= 0 || price < priceMin)) return false;
           if (priceMax !== "" && (price <= 0 || price > priceMax)) return false;
@@ -210,9 +210,9 @@ export default function Search({
   const filterCount =
     [bedrooms, filterState, filterCity].filter(Boolean).length +
     (priceActive ? 1 : 0);
-  const hasFilters = Boolean(filterCount || stayType);
+  const hasFilters = Boolean(filterCount || stayType !== "all");
   function clearFilters() {
-    setStayType("long_stay");
+    setStayType("all");
     setPriceMin("");
     setPriceMax("");
     setBedrooms("");
@@ -231,12 +231,12 @@ export default function Search({
   }
   async function followSearch() {
     setSavingSearch(true);
-    const name = `${stayType === "short_let" ? "Short Let" : "Long Let"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
+    const name = `${stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "All apartments"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
     const { error } = await supabase.rpc("save_my_property_search", {
       p_name: name,
       p_search_kind: "homes",
       p_criteria: {
-        sub_type: stayType,
+        sub_type: stayType === "all" ? null : stayType,
         state: filterState,
         city: filterCity,
         min_price: priceMin === "" ? null : priceMin,
@@ -251,14 +251,14 @@ export default function Search({
       "Search followed. New matching apartments will appear in Activity.",
     );
   }
-  const modeLabel = stayType === "short_let" ? "Short Let" : "Long Let";
+  const modeLabel = stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "All stays";
   const locationSummary = filterCity
     ? `${filterCity}, ${filterState}`
     : filterState
       ? filterState
       : `${modeLabel} apartments`;
   const emptyTitle = priceActive
-    ? `No ${modeLabel} apartments match this ${stayType === "short_let" ? "nightly" : "annual"} price range`
+    ? `No ${modeLabel.toLowerCase()} apartments match this ${stayType === "short_let" ? "nightly" : "annual"} price range`
     : `No ${modeLabel} apartments match these filters`;
 
   return (
@@ -356,9 +356,10 @@ export default function Search({
           onClear={clearFilters}
           resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
         >
-          <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
+          <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
             {(
               [
+                ["all", "All"],
                 ["long_stay", "Long Let"],
                 ["short_let", "Short Let"],
               ] as const
@@ -392,16 +393,22 @@ export default function Search({
               disabled={!filterState}
             />
           </div>
-          <DiscoveryPriceRangeSlider
-            label={stayType === "short_let" ? "Nightly price" : "Annual rent"}
-            floor={priceScale.floor}
-            ceiling={priceScale.ceiling}
-            step={priceScale.step}
-            minValue={priceMin}
-            maxValue={priceMax}
-            onMinChange={setPriceMin}
-            onMaxChange={setPriceMax}
-          />
+          {stayType === "all" ? (
+            <p className="rounded-2xl border border-white/[.06] bg-white/[.02] px-4 py-3 text-[9px] leading-5 text-[#737A8B]">
+              Choose Long Let or Short Let only when you want the matching annual or nightly price filter.
+            </p>
+          ) : (
+            <DiscoveryPriceRangeSlider
+              label={stayType === "short_let" ? "Nightly price" : "Annual rent"}
+              floor={priceScale.floor}
+              ceiling={priceScale.ceiling}
+              step={priceScale.step}
+              minValue={priceMin}
+              maxValue={priceMax}
+              onMinChange={setPriceMin}
+              onMaxChange={setPriceMax}
+            />
+          )}
           <section>
             <p className="mb-2 text-[10px] font-medium text-[#7B8190]">
               Bedrooms

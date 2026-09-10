@@ -38,10 +38,19 @@ export function usePartnerInboxSummary(userId: string) {
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` }, () => void refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "announcement_recipients", filter: `user_id=eq.${userId}` }, () => void refresh())
       .subscribe();
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const onUnreadChanged = () => void refresh();
+    window.addEventListener("focus", onVisible);
+    window.addEventListener("wehouse:unread-changed", onUnreadChanged);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => void refresh(), 60_000);
     return () => {
-      window.removeEventListener("focus", onFocus);
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      window.removeEventListener("wehouse:unread-changed", onUnreadChanged);
+      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [refresh, userId]);

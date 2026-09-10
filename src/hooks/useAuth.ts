@@ -704,12 +704,20 @@ export function useAuth() {
       authId = state.profile?.auth_id,
       sid = getStoredSessionId();
     explicitSignOutRef.current = true;
+    // Login chooses its initial screen from this durable transaction. Clear it
+    // before mounting Login; clearing it after the route change leaves Login
+    // stuck on the previous "verify this device" screen until a full refresh.
+    clearGoogleVerification();
+    try {
+      sessionStorage.removeItem("wh_login_method");
+    } catch {}
     setState({
       page: "login",
       profile: null,
       isLoading: false,
       error: "",
       kickedOut: false,
+      pendingDevice: null,
     });
     window.history.replaceState({ page: "login" }, "", "#login");
     const remoteCleanup: Promise<unknown>[] = [];

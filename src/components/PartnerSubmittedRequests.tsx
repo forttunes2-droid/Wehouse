@@ -311,6 +311,7 @@ function RequestDetail({
   onContact: () => void;
   onCorrected: () => void;
 }) {
+  const [managingHotel, setManagingHotel] = useState(false);
   const images = request.photo_urls || [];
   const stage = request.lifecycle_stage || "access_required";
   const stopped = ["changes_requested", "rejected"].includes(stage);
@@ -332,7 +333,7 @@ function RequestDetail({
     "Public",
   ];
   if (
-    stage === "live" &&
+    (stage === "live" || managingHotel) &&
     request.property_type === "hotel" &&
     request.draft_hotel_id
   )
@@ -398,17 +399,27 @@ function RequestDetail({
           )}
         </div>
       </section>
-      {request.property_type === "hotel" &&
-      request.hotel_program?.room_types?.length ? (
+      {request.property_type === "hotel" ? (
         <section className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold">Hotel rooms</h3>
-            <p className="mt-1 text-[9px] text-[#696D7D]">
-              Each room type keeps its own gallery, description, amenities, rate
-              and inventory.
-            </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold">Hotel rooms</h3>
+              <p className="mt-1 text-[9px] text-[#696D7D]">
+                Each room type keeps its own gallery, description, amenities, rate
+                and inventory.
+              </p>
+            </div>
+            {request.draft_hotel_id ? (
+              <button
+                type="button"
+                onClick={() => setManagingHotel(true)}
+                className="shrink-0 rounded-xl border border-violet-500/25 bg-violet-500/[.07] px-3 py-2.5 text-[9px] font-semibold text-violet-200"
+              >
+                Manage rooms
+              </button>
+            ) : null}
           </div>
-          {request.hotel_program.room_types.map((room, index) => (
+          {(request.hotel_program?.room_types || []).map((room, index) => (
             <article
               key={`${room.name}-${index}`}
               className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#111119]"
@@ -458,6 +469,17 @@ function RequestDetail({
               </div>
             </article>
           ))}
+          {!request.hotel_program?.room_types?.length ? (
+            <div className="rounded-2xl border border-dashed border-white/[.08] bg-[#111119] px-4 py-6 text-center">
+              <p className="text-xs font-semibold text-[#D5D7E1]">
+                No room types added yet
+              </p>
+              <p className="mt-1 text-[9px] leading-5 text-[#73798A]">
+                Add the rooms guests can reserve, with separate prices, photos,
+                amenities and inventory.
+              </p>
+            </div>
+          ) : null}
         </section>
       ) : null}
       <AccessEvidenceSummary status={request.access_evidence_status} />
@@ -543,11 +565,9 @@ function LiveHotel({
   useEffect(() => {
     let active = true;
     void (async () => {
-      const { data, error } = await supabase
-        .from("hotels")
-        .select("*")
-        .eq("hotel_id", request.draft_hotel_id)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("get_public_hotel_detail", {
+        p_hotel_id: Number(request.draft_hotel_id),
+      });
       if (!active) return;
       if (error) toast.error(error.message);
       setHotel(data || null);
@@ -563,7 +583,7 @@ function LiveHotel({
       <div className="space-y-4">
         <BackButton onClick={onBack} />
         <p className="rounded-2xl border border-amber-500/15 p-4 text-[10px] text-amber-200">
-          The live hotel record could not be opened. Refresh and try again.
+          The hotel record could not be opened. Refresh and try again.
         </p>
       </div>
     );

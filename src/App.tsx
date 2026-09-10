@@ -724,6 +724,15 @@ export default function App() {
           });
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "partner_support_messages" },
+        (payload) => {
+          const message = payload.new as IncomingMessageRow;
+          if (String(message.sender_id || "") === uid) return;
+          void count();
+        },
+      )
       .subscribe();
     const officialChannel = supabase
       .channel(`app-unread-official:${uid}`)
@@ -840,7 +849,16 @@ export default function App() {
         },
       )
       .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void count();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    const unreadTimer = window.setInterval(() => void count(), 60_000);
     return () => {
+      window.clearInterval(unreadTimer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("wehouse:unread-changed", refreshUnread);
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(officialChannel);

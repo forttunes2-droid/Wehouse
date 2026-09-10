@@ -6,6 +6,8 @@ import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
 import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
 import VideoPlayer from "@/components/VideoPlayer";
+import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import WorkerShowcasePostViewer from "@/components/WorkerShowcasePostViewer";
 
 type Post = {
   id: string;
@@ -31,11 +33,14 @@ type Job = {
 
 export default function WorkerShowcaseManager({
   profile,
+  initialPostId,
 }: {
   profile: Profile;
+  initialPostId?: string;
 }) {
   const { ask, dialogProps } = useConfirm();
   const input = useRef<HTMLInputElement>(null);
+  const openedTarget = useRef<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const kind = "work_post" as const;
@@ -68,18 +73,29 @@ export default function WorkerShowcaseManager({
         .limit(30),
     ]);
 
-    const enriched = await Promise.all(
-      ((rows || []) as Post[]).map(async (row) => {
-        const { data } = await supabase.storage
+    const sourceRows = (rows || []) as Post[];
+    const signed = sourceRows.length
+      ? await supabase.storage
           .from("worker-showcase")
-          .createSignedUrl(row.storage_path, 3600);
-        return { ...row, url: data?.signedUrl || "" } as Post;
-      }),
+          .createSignedUrls(sourceRows.map((row) => row.storage_path), 3600)
+      : { data: [], error: null };
+    const urls = new Map(
+      (signed.data || []).map((item) => [item.path, item.signedUrl || ""]),
     );
+    const enriched = sourceRows.map((row) => ({
+      ...row,
+      url: urls.get(row.storage_path) || "",
+    }));
 
     setPosts(enriched);
+    if (initialPostId && openedTarget.current !== String(initialPostId)) {
+      openedTarget.current = String(initialPostId);
+      const target = enriched.find((post) => String(post.id) === String(initialPostId));
+      if (target) setViewer(target);
+      else toast.error("The linked showcase post is no longer available.");
+    }
     setJobs((completed || []) as Job[]);
-  }, [profile.user_id]);
+  }, [initialPostId, profile.user_id]);
 
   useEffect(() => {
     void load();
@@ -374,39 +390,18 @@ export default function WorkerShowcaseManager({
       </button>
 
       {viewer && (
-        <div
-          className="fixed inset-0 z-[90] grid place-items-center bg-black/90 p-4"
-          onClick={() => setViewer(null)}
-        >
-          <div
-            className="w-full max-w-md"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Media
-              post={viewer}
-              className="max-h-[70dvh] w-full rounded-3xl bg-black object-contain"
-              controls
-            />
-            <div className="mt-3 rounded-2xl bg-[#11151D] p-4">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold">
-                    Showcase post
-                    {viewer.verified_job
-                      ? " · Completed through WeHouse ✓"
-                      : ""}
-                  </p>
-                  {viewer.caption && (
-                    <p className="mt-1 text-[10px] leading-relaxed text-[#858B9A]">
-                      {viewer.caption}
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 gap-3"><button onClick={()=>void setHidden(viewer,!viewer.hidden_at)} disabled={busy} className="text-[10px] font-semibold text-violet-300 disabled:opacity-40">{viewer.hidden_at?'Show post':'Hide post'}</button><button onClick={() => void remove(viewer)} disabled={busy} className="text-[10px] font-semibold text-red-300 disabled:opacity-40">Remove post</button></div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <WorkerShowcasePostViewer
+          post={viewer}
+          workerName={profile.full_name || profile.username || "My showcase"}
+          workerAvatar={profile.avatar_url}
+          onClose={() => setViewer(null)}
+          ownerActions={
+            <>
+              <button onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="rounded-full px-3 py-2 text-[9px] font-semibold text-violet-200 disabled:opacity-40">{viewer.hidden_at ? "Show" : "Hide"}</button>
+              <button onClick={() => void remove(viewer)} disabled={busy} className="rounded-full px-3 py-2 text-[9px] font-semibold text-red-300 disabled:opacity-40">Delete</button>
+            </>
+          }
+        />
       )}
       <ConfirmDialog {...dialogProps} />
     </section>
@@ -430,13 +425,11 @@ function EmptyWork({ title, text }: { title: string; text: string }) {
 function Media({
   post,
   className,
-  controls = false,
 }: {
   post: Post;
   className: string;
-  controls?: boolean;
 }) {
   if (post.media_type === "video")
-    return controls ? <VideoPlayer src={post.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]`} role="img" aria-label="Video post"><span className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">▶</span></div>;
-  return <img src={post.url} alt="Worker work" className={className} />;
+    return <ShowcaseMediaThumbnail src={post.url} mediaType="video" alt="Video work preview" className={className} />;
+  return <ShowcaseMediaThumbnail src={post.url} mediaType="image" alt="Worker work" className={className} />;
 }

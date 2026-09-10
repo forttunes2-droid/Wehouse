@@ -12,8 +12,9 @@ import {
 import type { Profile } from "@/types";
 import MediaViewer from "@/components/MediaViewer";
 import { toast } from "sonner";
-import MessageActionSheet from "@/components/MessageActionSheet";
 import BackButton from "@/components/BackButton";
+import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import WorkerShowcasePostViewer from "@/components/WorkerShowcasePostViewer";
 
 type Post = {
   id: string;
@@ -74,7 +75,6 @@ export default function WorkerPublicProfileV2({
     [loading, setLoading] = useState(true),
     [trust, setTrust] = useState<Trust | null>(null),
     [reviews, setReviews] = useState<PublicReview[]>([]),
-    [reactionPost, setReactionPost] = useState<Post | null>(null),
     [postReactions, setPostReactions] = useState<
       Record<string, { counts: Record<string, number>; mine: string | null }>
     >({});
@@ -127,14 +127,19 @@ export default function WorkerPublicProfileV2({
           p_worker_id: worker.user_id,
         }),
       ]);
-      const enriched = await Promise.all(
-        ((rows || []) as Post[]).map(async (row) => {
-          const { data } = await supabase.storage
+      const sourceRows = (rows || []) as Post[];
+      const signed = sourceRows.length
+        ? await supabase.storage
             .from("worker-showcase")
-            .createSignedUrl(row.storage_path, 3600);
-          return { ...row, url: data?.signedUrl || "" } as Post;
-        }),
+            .createSignedUrls(sourceRows.map((row) => row.storage_path), 3600)
+        : { data: [], error: null };
+      const urls = new Map(
+        (signed.data || []).map((item) => [item.path, item.signedUrl || ""]),
       );
+      const enriched = sourceRows.map((row) => ({
+        ...row,
+        url: urls.get(row.storage_path) || "",
+      }));
       if (active) {
         setPosts(enriched);
         setTrust((trustData || null) as Trust | null);
@@ -306,14 +311,11 @@ export default function WorkerPublicProfileV2({
                       <span className="line-clamp-2 block text-[9px] leading-4 text-white">{post.caption || "Work sample"}</span>
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setReactionPost(post)}
-                    className={`absolute right-2 top-2 grid min-h-8 min-w-8 place-items-center rounded-full border border-white/10 bg-black/65 px-2 text-[9px] backdrop-blur ${postReactions[post.id]?.mine ? "text-violet-200 ring-1 ring-violet-400/30" : "text-white"}`}
-                    aria-label="React to work sample"
-                  >
-                    {postReactions[post.id]?.mine || "♡"}
-                  </button>
+                  {reactionTotal(postReactions[post.id]?.counts) > 0 ? (
+                    <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/65 px-2 py-1 text-[8px] font-semibold text-white backdrop-blur">
+                      ♥ {reactionTotal(postReactions[post.id]?.counts)}
+                    </span>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -377,13 +379,32 @@ export default function WorkerPublicProfileV2({
         </div>
       ) : null}
       {viewer && (
-        <MediaViewer
-          src={viewer.url || ""}
-          kind={viewer.media_type}
-          title={displayName}
-          subtitle={occupation}
-          avatarUrl={avatarUrl}
+        <WorkerShowcasePostViewer
+          post={viewer}
+          workerName={displayName}
+          workerAvatar={avatarUrl}
+          liked={Boolean(postReactions[viewer.id]?.mine)}
+          likeCount={reactionTotal(postReactions[viewer.id]?.counts)}
           onClose={() => setViewer(null)}
+          onLike={async () => {
+            const previous = postReactions[viewer.id]?.mine;
+            const next = previous ? null : "♥";
+            const { data, error } = await supabase.rpc(
+              "set_my_worker_showcase_reaction",
+              { p_post_id: viewer.id, p_emoji: next },
+            );
+            if (error) {
+              toast.error(error.message || "Like could not be saved");
+              return;
+            }
+            setPostReactions((current) => ({
+              ...current,
+              [viewer.id]: {
+                counts: (data || {}) as Record<string, number>,
+                mine: next,
+              },
+            }));
+          }}
         />
       )}
       {avatarOpen && avatarUrl ? (
@@ -395,56 +416,15 @@ export default function WorkerPublicProfileV2({
           onClose={() => setAvatarOpen(false)}
         />
       ) : null}
-      {reactionPost && (
-        <MessageActionSheet
-          currentReaction={postReactions[reactionPost.id]?.mine || null}
-          onClose={() => setReactionPost(null)}
-          onReact={async (emoji) => {
-            const previous = postReactions[reactionPost.id]?.mine;
-            const next = previous === emoji ? null : emoji;
-            const { data, error } = await supabase.rpc(
-              "set_my_worker_showcase_reaction",
-              { p_post_id: reactionPost.id, p_emoji: next },
-            );
-            if (error)
-              return toast.error(
-                error.message || "Reaction could not be saved",
-              );
-            setPostReactions((current) => ({
-              ...current,
-              [reactionPost.id]: {
-                counts: (data || {}) as Record<string, number>,
-                mine: next,
-              },
-            }));
-            setReactionPost(null);
-          }}
-        />
-      )}
     </div>,
     document.body,
   );
 }
 function Media({ post, className }: { post: Post; className: string }) {
-  return post.media_type === "video" ? (
-    <div
-      className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]`}
-      role="img"
-      aria-label="Video post"
-    >
-      <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">
-        ▶
-      </span>
-    </div>
-  ) : (
-    <img
-      src={post.url}
-      alt="Worker work"
-      className={className}
-      loading="lazy"
-      decoding="async"
-    />
-  );
+  return <ShowcaseMediaThumbnail src={post.url} mediaType={post.media_type} alt="Worker work" className={className} />;
+}
+function reactionTotal(counts?: Record<string, number>) {
+  return Object.values(counts || {}).reduce((total, value) => total + Number(value || 0), 0);
 }
 function Empty({ text }: { text: string }) {
   return (

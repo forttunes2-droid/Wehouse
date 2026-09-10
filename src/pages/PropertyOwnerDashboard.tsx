@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
@@ -52,13 +52,30 @@ export default function PropertyOwnerDashboard({
   const [propertyTargetId, setPropertyTargetId] = useState<
     string | undefined
   >();
+  const [propertyReservationId, setPropertyReservationId] = useState<string>();
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
   const inbox = usePartnerInboxSummary(profile.user_id);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
-  function openActivityDestination(page: string, id?: string) {
+  async function openActivityDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
+    if (/booking|reservation|handover|operations_bookings/.test(route) && id) {
+      const { data, error } = await supabase
+        .from("reservations")
+        .select("id,listing_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (!error && data?.listing_id) {
+        setPropertyTargetId(String(data.listing_id));
+        setPropertyReservationId(String(data.id));
+        setTab("properties");
+        return;
+      }
+      toast.error("The linked reservation could not be opened.");
+      return;
+    }
     if (/propert|listing|inspection|hotel_detail/.test(route)) {
       setPropertyTargetId(id);
+      setPropertyReservationId(undefined);
       setTab("properties");
       return;
     }
@@ -93,6 +110,7 @@ export default function PropertyOwnerDashboard({
           <PropertiesWorkspace
             profile={profile}
             initialRecordId={propertyTargetId}
+            initialReservationId={propertyReservationId}
             onNestedChange={setNestedPropertyView}
           />
         )}{" "}
@@ -112,16 +130,23 @@ export default function PropertyOwnerDashboard({
 function PropertiesWorkspace({
   profile,
   initialRecordId,
+  initialReservationId,
   onNestedChange,
 }: {
   profile: Profile;
   initialRecordId?: string;
+  initialReservationId?: string;
   onNestedChange?: (nested: boolean) => void;
 }) {
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (!initialReservationId) return;
+    setAssetKind("apartment");
+    setFilter("public");
+  }, [initialReservationId]);
   useEffect(() => {
     onNestedChange?.(viewingDetail || creating);
     return () => onNestedChange?.(false);
@@ -175,6 +200,8 @@ function PropertiesWorkspace({
         <PropertiesTab
           profile={profile}
           assetKind={assetKind}
+          initialRecordId={initialRecordId}
+          initialReservationId={initialReservationId}
           onDetailChange={setViewingDetail}
         />
       ) : (
@@ -193,12 +220,17 @@ function PropertiesWorkspace({
 function PropertiesTab({
   profile,
   assetKind,
+  initialRecordId,
+  initialReservationId,
   onDetailChange,
 }: {
   profile: Profile;
   assetKind: PartnerAssetKind;
+  initialRecordId?: string;
+  initialReservationId?: string;
   onDetailChange?: (open: boolean) => void;
 }) {
+  const openedTarget = useRef<string | null>(null);
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
@@ -228,8 +260,7 @@ function PropertiesTab({
         toast.error(
           `Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`,
         );
-      setAssets(
-        (result.data || []).map((row) =>
+      const nextAssets = (result.data || []).map((row) =>
           assetKind === "apartment"
             ? {
                 ...row,
@@ -241,14 +272,24 @@ function PropertiesTab({
                 id: `hotel:${row.hotel_id}`,
                 title: row.name,
               },
-        ),
-      );
+        );
+      setAssets(nextAssets);
+      if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
+        openedTarget.current = String(initialRecordId);
+        const target = nextAssets.find((asset) =>
+          [asset.id, asset.listing_id, asset.hotel_id, `hotel:${asset.hotel_id}`]
+            .filter(Boolean)
+            .some((value) => String(value) === String(initialRecordId)),
+        );
+        if (target) setSelected(target);
+        else toast.error("The linked property is no longer available.");
+      }
       setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [assetKind, profile.user_id]);
+  }, [assetKind, initialRecordId, profile.user_id]);
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
     return () => onDetailChange?.(false);
@@ -267,6 +308,7 @@ function PropertiesTab({
       <PropertyDetails
         property={selected}
         profile={profile}
+        initialReservationId={initialReservationId}
         onBack={() => setSelected(null)}
       />
     );
@@ -363,14 +405,26 @@ function hotelInventorySummary(property: any) {
 function PropertyDetails({
   property,
   profile,
+  initialReservationId,
   onBack,
 }: {
   property: any;
   profile: Profile;
+  initialReservationId?: string;
   onBack: () => void;
 }) {
   const [stays, setStays] = useState<any[]>([]);
   const [loadingStays, setLoadingStays] = useState(true);
+  const orderedStays = useMemo(() => {
+    if (!initialReservationId) return stays;
+    return [...stays].sort((a, b) =>
+      String(a.reservation_id) === String(initialReservationId)
+        ? -1
+        : String(b.reservation_id) === String(initialReservationId)
+          ? 1
+          : 0,
+    );
+  }, [initialReservationId, stays]);
   useEffect(() => {
     let active = true;
     void supabase
@@ -387,6 +441,16 @@ function PropertyDetails({
       active = false;
     };
   }, [profile.user_id, property.id]);
+  useEffect(() => {
+    if (loadingStays || !initialReservationId) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(`partner-stay-${initialReservationId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [initialReservationId, loadingStays]);
   function contact() {
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
@@ -498,8 +562,12 @@ function PropertyDetails({
           </div>
         ) : (
           <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
-            {stays.map((stay) => (
-              <article key={stay.reservation_id} className="py-4">
+            {orderedStays.map((stay) => (
+              <article
+                id={`partner-stay-${stay.reservation_id}`}
+                key={stay.reservation_id}
+                className={`scroll-mt-6 py-4 ${String(stay.reservation_id) === String(initialReservationId || "") ? "rounded-2xl border border-violet-500/25 bg-violet-500/[.06] px-4" : ""}`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">

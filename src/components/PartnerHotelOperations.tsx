@@ -363,12 +363,22 @@ export default function PartnerHotelOperations({
         <section className="grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-white/[.08] text-[9px] text-[#656C7C]">No hotel gallery is published yet</section>
       )}
 
+      {hotel.status !== "active" ? (
+        <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.045] p-4">
+          <p className="text-xs font-semibold text-amber-200">Hotel setup is still private</p>
+          <p className="mt-1 text-[9px] leading-5 text-[#8F897F]">Add or correct room types, packages and hotel facilities here. WeHouse publishes this one hotel record after final review. An individual room reservation changes dated inventory only; it does not replace the hotel or complete publication.</p>
+        </section>
+      ) : null}
+
       <section>
-        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">ONE LIVE RECORD</p>
+        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">ONE HOTEL RECORD</p>
         <h3 className="mt-2 text-lg font-bold">From room sale to guest stay</h3>
         <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#747A8B]">Rooms, packages, dated inventory, payment, guest messages, check-in and checkout remain attached to this hotel. The status below comes from the live booking and inventory records.</p>
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {["Approved hotel", "Rooms + packages", "Live availability", "Paid reservation", "Stay + checkout"].map((label, index) => (
+          {(hotel.status === "active"
+            ? ["Approved hotel", "Rooms + packages", "Live availability", "Paid reservation", "Stay + checkout"]
+            : ["Hotel record", "Rooms + packages", "Final review", "Public availability", "Reservations + stays"]
+          ).map((label, index) => (
             <div key={label} className="flex min-w-32 items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2.5"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet-500/15 text-[8px] font-bold text-violet-200">{index + 1}</span><span className="text-[9px] font-medium text-[#B7BCC8]">{label}</span></div>
           ))}
         </div>
