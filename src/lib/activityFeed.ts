@@ -177,6 +177,11 @@ export function resolveActivityDestination(
 
 export function activityDestinationLabel(row: Parameters<typeof resolveActivityDestination>[0]) {
   const { route } = resolveActivityDestination(row);
+  const type = String(row.type || "").toLowerCase();
+  if (type === "property_move_in_requested") return "Prepare handover";
+  if (type === "property_rent_confirmed") return "View reservation";
+  if (type === "property_inspection_coordination_required")
+    return "Open inspection request";
   if (route === "conversation") return "Open conversation";
   if (route === "devices" || route === "security") return "Review security activity";
   if (/propert|listing|inspection/.test(route)) return "Open property record";
