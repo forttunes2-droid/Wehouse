@@ -43,7 +43,9 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
 
 function successMessage(purpose?: string) {
   if (purpose === 'apartment_reservation') return 'Reservation payment confirmed. This property is now held for you and the Housing workflow is unlocked.';
-  if (purpose === 'apartment_rent') return 'Contract-rent payment confirmed. If the required move-in amount is complete, Housing Operations can now activate the tenancy.';
+  if (purpose === 'apartment_rent') return 'Year 1 apartment rent confirmed. Choose your move-in time next; the tenancy starts only after Property Operations verifies handover.';
+  if (purpose === 'worker_booking') return 'WeHouse Services payment confirmed for the professional job. This payment does not pay an apartment reservation or rent.';
+  if (purpose === 'hotel_booking') return 'Hotel stay payment confirmed. This payment applies only to the selected hotel room and package.';
   return 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.';
 }
 
