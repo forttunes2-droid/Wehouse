@@ -6,6 +6,7 @@ import {
   getInspectionRequestsForUser,
   getReservationsForUser,
   initializeReservationPayment,
+  requestApartmentMoveIn,
 } from "@/lib/supabase/reservations";
 import {
   initializeApartmentRentPayment,
@@ -26,6 +27,7 @@ import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import { getPropertyBookingJourney } from "@/lib/propertyBookingLifecycle";
+import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
 
 type Props = { profile: Profile; initialBookingId?:string|null; onInitialBookingConsumed?:()=>void; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
 type View = "all" | "housing" | "hotels" | "services";
@@ -253,6 +255,34 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   }
   async function payHousingRent(row: any) {
     setBusyId(row.id);
+    if (
+      row.rent_payment_status === "payment_pending" &&
+      row.rent_payment_reference
+    ) {
+      const verified = await verifyPaymentWithRetry(
+        String(row.rent_payment_reference),
+        {
+          purpose: "apartment_rent",
+        },
+        1,
+      );
+      if (verified.success && verified.verified) {
+        toast.success(
+          row.stay_type === "short_let"
+            ? "Stay payment confirmed"
+            : "Year 1 rent confirmed",
+        );
+        await load(true);
+        return;
+      }
+      if (verified.requires_review) {
+        setBusyId(null);
+        return toast.error(
+          verified.error ||
+            "Payment was charged and is now with WeHouse for review",
+        );
+      }
+    }
     const { result, error } = row.stay_type === "short_let"
       ? await initializeShortStayPayment(row.id)
       : await initializeApartmentRentPayment(row.id);
@@ -270,6 +300,17 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
       return toast.error("Secure checkout link is missing");
     }
     window.location.assign(String(result.authorization_url));
+  }
+  async function requestMoveIn(row: any, requestedAt: string) {
+    setBusyId(row.id);
+    const { error } = await requestApartmentMoveIn(
+      row.id,
+      new Date(requestedAt).toISOString(),
+    );
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success("Move-in time sent to Property Operations");
+    await load(true);
   }
   async function runPending() {
     const action = pending;
@@ -311,7 +352,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   }
   if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
   if(activeHotelChat)return <HotelBookingChat bookingId={Number(activeHotelChat.booking_id)} profile={profile} title={activeHotelChat.hotels?.name||activeHotelChat.hotel?.name||activeHotelChat.hotel_name||"Hotel"} subtitle={`${activeHotelChat.hotel_rooms?.room_type||activeHotelChat.room_name||"Room"} · ${activeHotelChat.booking_code||"Paid stay"}`} onClose={()=>{setActiveHotelChat(null);void load(true)}}/>;
-  if(activeHousing)return <PropertyBookingDetail row={activeHousing} inspection={inspections.find(item=>String(item.reservation_id)===String(activeHousing.id))||null} busy={busyId===activeHousing.id} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)} onResume={()=>void continueHousing(activeHousing)} onInspect={()=>void inspectHousing(activeHousing)} onRent={()=>void payHousingRent(activeHousing)}/>;
+  if(activeHousing)return <PropertyBookingDetail row={activeHousing} inspection={inspections.find(item=>String(item.reservation_id)===String(activeHousing.id))||null} busy={busyId===activeHousing.id} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)} onResume={()=>void continueHousing(activeHousing)} onInspect={()=>void inspectHousing(activeHousing)} onRent={()=>void payHousingRent(activeHousing)} onMoveIn={(requestedAt)=>void requestMoveIn(activeHousing,requestedAt)}/>;
   if(activeHotel)return <HotelBookingDetail row={activeHotel} busy={busyId===`hotel-${activeHotel.booking_id}`} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)} onHotel={()=>setActiveHotelChat(activeHotel)} onPay={()=>void payHotel(activeHotel)}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
@@ -564,7 +605,7 @@ function HousingCard({
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
-        {row.status === "payment_pending" ? <button disabled={busy} onClick={onResume} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-50">{busy ? "Opening payment…" : "Continue reservation"}</button> : <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "Open tenancy" : "Open booking"}</button>}
+        {row.status === "payment_pending" ? <button disabled={busy} onClick={onResume} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-50">{busy ? "Opening payment…" : "Continue reservation"}</button> : <button onClick={onOpen} className="h-10 flex-1 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold">{row.status === "occupied" ? "Open tenancy" : rentPaid ? "Open move-in" : "Open reservation"}</button>}
         {row.status === "payment_pending" && <button onClick={onOpen} className="h-10 rounded-xl border border-white/[.08] px-3 text-[10px] font-semibold text-[#B2B6C2]">Details</button>}
         {row.status === "payment_pending" && (
           <button
@@ -641,13 +682,16 @@ function HotelCard({
     </article>
   );
 }
-function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onInspect,onRent}:{row:any;inspection:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void;onInspect:()=>void;onRent:()=>void}) {
+function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onInspect,onRent,onMoveIn}:{row:any;inspection:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void;onInspect:()=>void;onRent:()=>void;onMoveIn:(requestedAt:string)=>void}) {
   const short=row.stay_type==='short_let';
   const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
-  const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Apartment stay':'Apartment booking');
+  const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Apartment stay':'Apartment reservation');
   const journey=getPropertyBookingJourney(row,inspection);
-  const recordCode=Boolean(row.booking_code)&&row.status!=="payment_pending"&&!isUnpaidHousingDraft(row);
+  const recordCode=Boolean(row.booking_code)&&journey.rentPaid&&['handover','tenancy','completed'].includes(journey.action);
   const rentAmount=Number(short?Number(row.stay_rent_total||0)+Number(row.security_deposit_snapshot||0):row.upfront_rent_required||row.annual_rent_snapshot||row.listing_price||0);
+  const earliestMoveIn=toLocalDateTimeInput(new Date(Date.now()+5*60_000));
+  const latestMoveIn=toLocalDateTimeInput(new Date(Date.now()+3*86_400_000));
+  const [moveInAt,setMoveInAt]=useState(row.requested_move_in_at?toLocalDateTimeInput(new Date(row.requested_move_in_at)):earliestMoveIn);
   return (
     <BookingDetailShell title={title} onBack={onBack}>
       <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">
@@ -661,7 +705,7 @@ function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onIns
             </div>
             <span className="shrink-0 rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span>
           </div>
-          {recordCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking record <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}
+          {recordCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Move-in code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}
           <div className="mt-4 grid grid-cols-2 gap-x-3">
             <Info label="Reservation fee" value={journey.feePaid?`Paid · ${money(row.amount)}`:money(row.amount)}/>
             <Info label={short?'Stay payment':'Year 1 rent'} value={journey.rentPaid?'Paid':row.rent_payment_status==='payment_pending'?'Payment started':'Not paid'}/>
@@ -681,7 +725,15 @@ function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onIns
             </section>
           )}
           {journey.action==='rent_payment'&&(
-            <button type="button" disabled={busy} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">{busy?'Opening secure payment…':row.rent_payment_status==='payment_pending'?(short?'Continue stay payment':'Continue Year 1 rent payment'):(short?`Pay stay and deposit · ${money(rentAmount)}`:`Pay Year 1 rent · ${money(rentAmount)}`)}</button>
+            <button type="button" disabled={busy} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">{busy?'Checking payment…':row.rent_payment_status==='payment_pending'?(short?'Check or continue stay payment':'Check Year 1 rent payment'):(short?`Pay stay and deposit · ${money(rentAmount)}`:`Pay Year 1 rent · ${money(rentAmount)}`)}</button>
+          )}
+          {journey.action==='move_in_request'&&(
+            <section className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
+              <p className="text-xs font-semibold">Choose your move-in time</p>
+              <p className="mt-1 text-[9px] leading-4 text-[#777D8E]">Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.</p>
+              <input type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event)=>setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs"/>
+              <button type="button" disabled={busy||!moveInAt} onClick={()=>onMoveIn(moveInAt)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Saving move-in time…':'Send move-in time'}</button>
+            </section>
           )}
           {journey.action==='handover'&&row.booking_code&&(
             <div className="mt-5 border-y border-emerald-500/20 bg-emerald-500/[.035] py-4 text-center">
@@ -696,6 +748,7 @@ function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onIns
     </BookingDetailShell>
   );
 }
+function toLocalDateTimeInput(value:Date){const offset=value.getTimezoneOffset()*60_000;return new Date(value.getTime()-offset).toISOString().slice(0,16)}
 function HotelBookingDetail({row,busy,onBack,onDesk,onHotel,onPay}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onHotel:()=>void;onPay:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';
   const status=HOTEL_STATUS[String(row.status||'')]||'Status unavailable';
