@@ -429,6 +429,17 @@ export async function confirmApartmentHandover(
   return { reservation: (data as ReservationRecord) || null, error };
 }
 
+export async function requestApartmentMoveIn(
+  reservationId: string,
+  requestedAt: string,
+) {
+  const { data, error } = await supabase.rpc("request_my_apartment_move_in", {
+    p_reservation_id: reservationId,
+    p_requested_at: requestedAt,
+  });
+  return { reservation: (data as ReservationRecord) || null, error };
+}
+
 export async function completeApartmentTenancy(
   reservationId: string,
   nextStatus: "maintenance" | "available" | "closed" = "maintenance",
