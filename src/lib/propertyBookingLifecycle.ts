@@ -5,6 +5,7 @@ export type PropertyJourneyAction =
   | "choose_inspection_or_rent"
   | "inspection"
   | "rent_payment"
+  | "move_in_request"
   | "handover"
   | "tenancy"
   | "completed"
@@ -149,7 +150,8 @@ export function getPropertyBookingJourney(
   let action: PropertyJourneyAction;
   if (!feePaid || status === "payment_pending") action = "reservation_payment";
   else if (inspectionActive) action = "inspection";
-  else if (rentPaid && status === "ready_for_move_in") action = "handover";
+  else if (rentPaid && status === "ready_for_move_in")
+    action = row.requested_move_in_at ? "handover" : "move_in_request";
   else if (status === "occupied") action = "tenancy";
   else if (status === "completed") action = "completed";
   else if (rentStatus === "payment_pending" || status === "ready_for_move_in") action = "rent_payment";
@@ -172,8 +174,15 @@ export function getPropertyBookingJourney(
   const handoverStep = status === "occupied" || status === "completed"
     ? complete("Property handover", "Booking code verified and access handed over.")
     : action === "handover"
-      ? current("Property handover", "Property Operations verifies the booking code before giving access.")
-      : upcoming("Property handover", "Available after Year 1 rent is confirmed.");
+      ? current("Property handover", "Property Operations verifies the move-in code at the requested arrival time before giving access.")
+      : upcoming("Property handover", action === "move_in_request" ? "Available after you choose a move-in time." : "Available after Year 1 rent is confirmed.");
+  const arrivalStep = status === "occupied" || status === "completed"
+    ? complete("Move-in time", "Arrival was completed with the verified handover.")
+    : row.requested_move_in_at
+      ? complete("Move-in time", `Requested for ${new Date(row.requested_move_in_at).toLocaleString()}.`)
+      : action === "move_in_request"
+        ? current("Move-in time", "Choose when you can meet Property Operations within the next 3 days.")
+        : upcoming("Move-in time", "Available after Year 1 rent is confirmed.");
   const tenancyStep = status === "completed"
     ? complete("Tenancy", "Tenancy completed.")
     : status === "occupied"
@@ -183,7 +192,7 @@ export function getPropertyBookingJourney(
   return {
     action,
     ...copy,
-    steps: [reservationStep, inspectionStep, rentStep, handoverStep, tenancyStep],
+    steps: [reservationStep, inspectionStep, rentStep, arrivalStep, handoverStep, tenancyStep],
     feePaid,
     rentPaid,
     inspectionStatus,
@@ -213,9 +222,13 @@ function longStayCopy(
     title: operations ? "Waiting for verified Year 1 rent" : rentStatus === "payment_pending" ? "Finish Year 1 rent payment" : "Pay the required Year 1 rent",
     detail: operations ? "Do not hand over access until the payment is verified and the booking becomes ready for move-in." : "Year 1 rent is required before Property Operations can hand over the apartment.",
   };
+  if (action === "move_in_request") return {
+    title: operations ? "Waiting for the customer’s move-in time" : "Choose your move-in time",
+    detail: operations ? "Year 1 rent is verified. The customer must choose an arrival time before handover can be confirmed." : "Your rent is confirmed, but your tenancy has not started. Choose a time within the next 3 days to meet Property Operations for handover.",
+  };
   if (action === "handover") return {
-    title: operations ? "Verify code and hand over access" : "Ready for property handover",
-    detail: operations ? "Match the booking code, customer, property and verified rent before handing over access and activating the tenancy." : "Take the booking code to WeHouse Property Operations. They will match the property, your identity and payment before giving access.",
+    title: operations ? "Verify code and hand over access" : "Move-in requested · awaiting handover",
+    detail: operations ? "Match the move-in code, customer, property, verified rent and requested time before handing over access and activating the tenancy." : "Your rent is paid, but your tenancy starts only when Property Operations hands over access and verifies your move-in code.",
   };
   if (action === "tenancy") return {
     title: "Tenancy active",
