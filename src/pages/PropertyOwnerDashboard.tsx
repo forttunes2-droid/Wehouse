@@ -474,7 +474,7 @@ function PropertyDetails({
             <p className="mt-1 text-[9px] text-[#707687]">
               {property.sub_type === "short_let"
                 ? "Plain updates when a stay is booked, the guest enters and the guest leaves."
-                : "WeHouse confirms when a tenant is found, the rent is secured and the home is ready for move-in."}
+                : "WeHouse shows when rent is secured, when the customer chooses a move-in time, and when verified handover starts the tenancy."}
             </p>
           </div>
           <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
@@ -532,12 +532,20 @@ function PropertyDetails({
                 ) : (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <Info
-                      label="Move-in"
-                      value={partnerDate(stay.tenancy_start_date)}
+                      label={stay.tenancy_start_date ? "Move-in" : "Requested arrival"}
+                      value={
+                        stay.tenancy_start_date
+                          ? partnerDate(stay.tenancy_start_date)
+                          : partnerDateTime(stay.requested_move_in_at)
+                      }
                     />
                     <Info
                       label="Tenancy ends"
-                      value={partnerDate(stay.tenancy_end_date)}
+                      value={
+                        stay.tenancy_end_date
+                          ? partnerDate(stay.tenancy_end_date)
+                          : "Starts after handover"
+                      }
                     />
                   </div>
                 )}
@@ -638,6 +646,9 @@ function partnerDate(value?: string | null) {
     ? new Date(`${value}T00:00:00`).toLocaleDateString()
     : "Not started";
 }
+function partnerDateTime(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : "Not chosen";
+}
 function partnerPropertyStateMessage(property: any) {
   const state = String(property.availability_status || property.status || "available");
   if (state === "reserved")
@@ -665,7 +676,9 @@ function partnerStayMessage(stay: any) {
   if (stay.status === "completed")
     return "The tenancy has ended. The rent history remains available in Finance.";
   if (stay.status === "ready_for_move_in")
-    return "WeHouse found a tenant and confirmed the rent. The home is ready for move-in.";
+    return stay.requested_move_in_at
+      ? `The customer selected ${partnerDateTime(stay.requested_move_in_at)}. WeHouse will verify their code and hand over access at arrival.`
+      : "Year 1 rent is confirmed. WeHouse is waiting for the customer to choose a move-in time; the tenancy has not started.";
   return "WeHouse found a tenant and confirmed the rent. WeHouse is preparing the home for move-in.";
 }
 function partnerStayStage(stay: any) {
@@ -677,7 +690,10 @@ function partnerStayStage(stay: any) {
   }
   if (stay.status === "occupied") return "Tenant moved in";
   if (stay.status === "completed") return "Tenancy ended";
-  if (stay.status === "ready_for_move_in") return "Ready for move-in";
+  if (stay.status === "ready_for_move_in")
+    return stay.requested_move_in_at
+      ? "Move-in scheduled"
+      : "Waiting for move-in time";
   return "Tenant found";
 }
 function partnerPaymentLabel(stay: any) {
