@@ -106,6 +106,24 @@ export default function HousingOperationsWorkspace({
   }
   useEffect(() => {
     void load();
+    const channel = supabase
+      .channel("housing-operations-lifecycle")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reservations" },
+        () => void load(),
+      )
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(channel);
+    };
   }, [initialRecordId]);
 
   async function verifyCode() {
@@ -332,8 +350,8 @@ export default function HousingOperationsWorkspace({
               !verifiedBooking.can_handover &&
               !verifiedBooking.can_check_in && (
                 <p className="mt-3 rounded-xl bg-amber-500/[.06] p-3 text-[9px] leading-5 text-amber-200">
-                  The booking exists, but check-in is blocked until its
-                  reservation and payment state are ready.
+                  The paid booking exists, but handover is blocked until the
+                  required payment and customer arrival time are ready.
                 </p>
               )}
             {verifiedBooking.kind === "hotel" && (
@@ -747,7 +765,9 @@ function HousingCase({
 }) {
   const { ask, dialogProps } = useConfirm();
   const [startDate, setStartDate] = useState(
-    new Date().toISOString().slice(0, 10),
+    row.requested_move_in_at
+      ? new Date(row.requested_move_in_at).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
   );
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
@@ -760,7 +780,8 @@ function HousingCase({
     row.current_reservation_id &&
     row.reservation_status === "ready_for_move_in" &&
     row.reservation_fee_paid &&
-    rentReady,
+    rentReady &&
+    row.requested_move_in_at,
   );
 
   async function activate() {
@@ -897,6 +918,10 @@ function HousingCase({
                   : "Not needed"
               }
             />
+            <Info
+              label="Move-in request"
+              value={row.requested_move_in_at ? new Date(row.requested_move_in_at).toLocaleString() : rentReady ? "Waiting for customer" : "Available after rent"}
+            />
           </div>
           {Number(row.rental_plan_years || 1) > 1 && (
             <p className="mt-3 text-[9px] leading-5 text-emerald-300">
@@ -947,6 +972,19 @@ function HousingCase({
           <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
             The inspection passed, but Operations cannot activate occupancy
             until the full first-year rent is verified server-side.
+          </p>
+        </section>
+      )}
+
+      {row.reservation_status === "ready_for_move_in" && rentReady && !row.requested_move_in_at && (
+        <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4">
+          <h4 className="text-sm font-semibold text-amber-300">
+            Waiting for customer move-in time
+          </h4>
+          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
+            Year 1 rent is verified, but the tenancy has not started. The
+            customer must choose an arrival time before Operations can verify
+            handover.
           </p>
         </section>
       )}
