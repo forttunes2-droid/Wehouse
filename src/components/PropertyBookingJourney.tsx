@@ -16,10 +16,12 @@ export default function PropertyBookingJourney({
   return (
     <section className="border-y border-white/[.07] py-5">
       <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
-        Reservation to {String(row.stay_type || row._stayKind) === "short_let" ? "checkout" : "tenancy"}
+        {audience === "operations"
+          ? "Operations handover record"
+          : `Reservation to ${String(row.stay_type || row._stayKind) === "short_let" ? "checkout" : "tenancy"}`}
       </p>
       <h2 className="mt-2 text-base font-bold">{journey.title}</h2>
-      <p className="mt-1 max-w-xl text-[10px] leading-5 text-[#858A99]">
+      <p className={`mt-1 max-w-xl leading-5 text-[#858A99] ${audience === "operations" ? "text-xs" : "text-[10px]"}`}>
         {journey.detail}
       </p>
       <ol className="mt-5 space-y-0">
@@ -51,14 +53,14 @@ export default function PropertyBookingJourney({
             </span>
             <div className="min-w-0 pt-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <p className={`text-[10px] font-semibold ${step.state === "current" ? "text-white" : step.state === "complete" ? "text-emerald-200" : step.state === "stopped" ? "text-amber-200" : "text-[#777D8D]"}`}>
+                <p className={`${audience === "operations" ? "text-xs" : "text-[10px]"} font-semibold ${step.state === "current" ? "text-white" : step.state === "complete" ? "text-emerald-200" : step.state === "stopped" ? "text-amber-200" : "text-[#777D8D]"}`}>
                   {step.label}
                 </p>
                 {step.optional && (
                   <span className="text-[7px] uppercase tracking-wide text-[#616777]">Optional</span>
                 )}
               </div>
-              <p className="mt-0.5 text-[9px] leading-4 text-[#686E7E]">{step.detail}</p>
+              <p className={`mt-1 text-[#767C8C] ${audience === "operations" ? "text-[11px] leading-5" : "text-[9px] leading-4"}`}>{step.detail}</p>
             </div>
           </li>
         ))}

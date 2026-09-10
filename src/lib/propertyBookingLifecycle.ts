@@ -171,17 +171,41 @@ export function getPropertyBookingJourney(
     : action === "rent_payment"
       ? current("Year 1 rent", rentStatus === "payment_pending" ? "Secure checkout started; payment is not confirmed yet." : "The required Year 1 rent is ready for payment.")
       : upcoming("Year 1 rent", inspectionActive ? "Available after the requested inspection is completed." : "Required before handover.");
+  const operations = audience === "operations";
   const handoverStep = status === "occupied" || status === "completed"
     ? complete("Property handover", "Booking code verified and access handed over.")
     : action === "handover"
-      ? current("Property handover", "Property Operations verifies the move-in code at the requested arrival time before giving access.")
-      : upcoming("Property handover", action === "move_in_request" ? "Available after you choose a move-in time." : "Available after Year 1 rent is confirmed.");
+      ? current(
+          "Property handover",
+          operations
+            ? "At the customer’s requested time, verify the code, customer, property and paid rent before giving access."
+            : "Property Operations verifies your move-in code at the requested arrival time before giving access.",
+        )
+      : upcoming(
+          "Property handover",
+          action === "move_in_request"
+            ? operations
+              ? "No action yet · wait for the customer to choose a move-in time."
+              : "Available after you choose a move-in time."
+            : "Available after Year 1 rent is confirmed.",
+        );
   const arrivalStep = status === "occupied" || status === "completed"
-    ? complete("Move-in time", "Arrival was completed with the verified handover.")
+    ? complete(
+        operations ? "Customer move-in" : "Move-in time",
+        "Arrival was completed with the verified handover.",
+      )
     : row.requested_move_in_at
-      ? complete("Move-in time", `Requested for ${new Date(row.requested_move_in_at).toLocaleString()}.`)
+      ? complete(
+          operations ? "Customer move-in time" : "Move-in time",
+          `${operations ? "Customer requested" : "Requested for"} ${new Date(row.requested_move_in_at).toLocaleString()}.`,
+        )
       : action === "move_in_request"
-        ? current("Move-in time", "Choose when you can meet Property Operations within the next 3 days.")
+        ? current(
+            operations ? "Waiting for customer" : "Move-in time",
+            operations
+              ? "No move-in time has been submitted. Operations has no handover action yet."
+              : "Choose when you can meet Property Operations within the next 3 days.",
+          )
         : upcoming("Move-in time", "Available after Year 1 rent is confirmed.");
   const tenancyStep = status === "completed"
     ? complete("Tenancy", "Tenancy completed.")
@@ -199,7 +223,10 @@ export function getPropertyBookingJourney(
   };
 }
 
-export function propertyBookingStatusLabel(row: Record<string, any>) {
+export function propertyBookingStatusLabel(
+  row: Record<string, any>,
+  audience: PropertyJourneyAudience = "customer",
+) {
   const status = String(row.status || row.reservation_status || "payment_pending");
   const shortStay = String(row.stay_type || row._stayKind || "long_stay") === "short_let";
   const rentPaid = RENT_PAID_STATUSES.has(
@@ -209,7 +236,11 @@ export function propertyBookingStatusLabel(row: Record<string, any>) {
   if (status === "ready_for_move_in") {
     if (shortStay) return rentPaid ? "Ready for check-in" : "Stay payment required";
     if (!rentPaid) return "Year 1 rent required";
-    return row.requested_move_in_at ? "Move-in scheduled" : "Choose move-in time";
+    return row.requested_move_in_at
+      ? "Move-in scheduled"
+      : audience === "operations"
+        ? "Waiting for customer move-in time"
+        : "Choose move-in time";
   }
   if (status === "occupied") return shortStay ? "Checked in" : "Tenancy active";
   if (status === "completed") return shortStay ? "Stay completed" : "Tenancy completed";

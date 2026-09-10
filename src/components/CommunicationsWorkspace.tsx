@@ -289,11 +289,14 @@ export default function CommunicationsWorkspace({
     await refreshMessages(selected.conversation_id, true);
     void load(true);
   }
+  const reservationQueue =
+      queue === "reservation_operations" || queue === "operations",
+    presentationAudience = reservationQueue ? "operations" : "customer";
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) => {
-      const presentation = conversationPresentation(row);
+      const presentation = conversationPresentation(row, presentationAudience);
       return [
         row.requester_name,
         row.requester_email,
@@ -313,10 +316,8 @@ export default function CommunicationsWorkspace({
         .toLowerCase()
         .includes(q);
     });
-  }, [rows, search]);
-  const unread = rows.reduce((n, row) => n + Number(row.unread_count || 0), 0),
-    reservationQueue =
-      queue === "reservation_operations" || queue === "operations";
+  }, [presentationAudience, rows, search]);
+  const unread = rows.reduce((n, row) => n + Number(row.unread_count || 0), 0);
   useEffect(() => {
     onUnreadChange?.(unread);
   }, [onUnreadChange, unread]);
@@ -337,7 +338,10 @@ export default function CommunicationsWorkspace({
       </div>
     );
   if (selected) {
-    const selectedPresentation = conversationPresentation(selected);
+    const selectedPresentation = conversationPresentation(
+      selected,
+      presentationAudience,
+    );
     const destination = communicationDestination(selected);
     const requesterLabel =
       selected.requester_name || selected.requester_email || "WeHouse member";
@@ -352,9 +356,11 @@ export default function CommunicationsWorkspace({
         (selected.status === "resolved" || selected.status === "closed"),
     );
     return (
-      <div className="flex min-h-[70vh] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219]">
+      <div className="-mx-4 flex min-h-[calc(100dvh-13.5rem)] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219] sm:mx-0 sm:min-h-[70vh] sm:rounded-2xl sm:border">
         <header className="flex items-center gap-3 border-b border-white/[.06] px-3 py-3 sm:px-4">
           <button
+            type="button"
+            aria-label="Back to conversations"
             onClick={() => {
               setSelected(null);
               setMessages([]);
@@ -367,12 +373,12 @@ export default function CommunicationsWorkspace({
           >
             ←
           </button>
-          <Avatar name={selected.requester_name || selected.requester_email} />
+          <Avatar name={selected.requester_name || selected.requester_email} compact />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{requesterLabel}</p>
-            <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
+            <p className="mt-0.5 truncate text-[11px] text-[#858B9B]">
               {selectedPresentation.operational
-                ? selectedPresentation.meta
+                ? selectedPresentation.operator
                 : selectedPresentation.title}
             </p>
           </div>
@@ -425,10 +431,10 @@ export default function CommunicationsWorkspace({
         {selectedPresentation.operational && (
           <div className="flex items-center gap-3 border-b border-white/[.06] bg-violet-500/[.045] px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[10px] font-semibold text-violet-100">
+              <p className="truncate text-sm font-semibold text-violet-100">
                 {selectedPresentation.title}
               </p>
-              <p className="mt-1 truncate text-[8px] text-[#787F90]">
+              <p className="mt-1 truncate text-[11px] text-[#8A91A2]">
                 {selectedPresentation.meta}
               </p>
             </div>
@@ -436,9 +442,13 @@ export default function CommunicationsWorkspace({
               <button
                 type="button"
                 onClick={() => onOpenContext(destination.page, destination.id)}
-                className="shrink-0 rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold"
+                className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[11px] font-semibold"
               >
-                Open record
+                {selectedPresentation.kind === "reservation"
+                  ? "Open booking"
+                  : selectedPresentation.kind === "property_operations"
+                    ? "Open property"
+                    : "Open job"}
               </button>
             )}
           </div>
@@ -454,7 +464,7 @@ export default function CommunicationsWorkspace({
                 No messages yet.
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3.5">
                 {messages.map((msg) => (
                   <Bubble
                     key={msg.id}
@@ -473,14 +483,14 @@ export default function CommunicationsWorkspace({
             <button
               type="button"
               onClick={() => setMessageVisibility("customer")}
-              className={`rounded-full px-3 py-1.5 text-[9px] font-semibold ${messageVisibility === "customer" ? "bg-violet-500 text-white" : "bg-white/[.05] text-[#8A90A0]"}`}
+              className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${messageVisibility === "customer" ? "bg-violet-500 text-white" : "bg-white/[.05] text-[#8A90A0]"}`}
             >
               Reply to customer
             </button>
             <button
               type="button"
               onClick={() => setMessageVisibility("internal")}
-              className={`rounded-full px-3 py-1.5 text-[9px] font-semibold ${messageVisibility === "internal" ? "bg-amber-500/20 text-amber-200" : "bg-white/[.05] text-[#8A90A0]"}`}
+              className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${messageVisibility === "internal" ? "bg-amber-500/20 text-amber-200" : "bg-white/[.05] text-[#8A90A0]"}`}
             >
               Internal work note
             </button>
@@ -510,6 +520,8 @@ export default function CommunicationsWorkspace({
           )}
           <div className="mx-auto flex max-w-4xl items-end gap-2">
             <button
+              type="button"
+              aria-label="Attach a file"
               onClick={() => fileRef.current?.click()}
               disabled={conversationLocked}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
@@ -543,13 +555,15 @@ export default function CommunicationsWorkspace({
                     : messageVisibility === "internal"
                       ? "Add a work note visible only to the WeHouse team"
                     : reservationQueue
-                      ? "Reply from Bookings"
+                      ? "Reply as Property Operations"
                       : "Reply as WeHouse"
                 }
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
               />
             </div>
             <button
+              type="button"
+              aria-label="Send message"
               onClick={() => void reply()}
               disabled={
                 sending ||
@@ -561,7 +575,7 @@ export default function CommunicationsWorkspace({
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className={`mx-auto mt-2 max-w-4xl text-center text-[8px] ${messageVisibility === "internal" ? "text-amber-300/70" : "text-[#505666]"}`}>
+          <p className={`mx-auto mt-2 max-w-4xl text-center text-[10px] ${messageVisibility === "internal" ? "text-amber-300/70" : "text-[#656C7D]"}`}>
             {messageVisibility === "internal"
               ? "Only authorized WeHouse team members can see this note."
               : `Customer reply from ${handlerLabel} · WeHouse`}
@@ -627,7 +641,10 @@ export default function CommunicationsWorkspace({
                     <StatusBadge status={row.status} />
                   </div>
                   {reservationQueue ? (
-                    <ReservationContext row={row} />
+                    <ReservationContext
+                      row={row}
+                      audience={presentationAudience}
+                    />
                   ) : (
                     <>
                       <p
@@ -985,17 +1002,23 @@ function communicationDestination(row: any) {
     id: String(row.conversation_id || "") || undefined,
   };
 }
-function ReservationContext({ row }: { row: any }) {
-  const presentation = conversationPresentation(row);
+function ReservationContext({
+  row,
+  audience,
+}: {
+  row: any;
+  audience: "customer" | "operations";
+}) {
+  const presentation = conversationPresentation(row, audience);
   return (
     <>
       <p
-        className={`mt-1 truncate text-[11px] ${Number(row.unread_count || 0) > 0 ? "font-medium text-[#E3E5EB]" : "text-[#A0A5B3]"}`}
+        className={`mt-1 truncate text-xs ${Number(row.unread_count || 0) > 0 ? "font-medium text-[#E3E5EB]" : "text-[#A0A5B3]"}`}
       >
         {presentation.title}
         {presentation.meta ? ` · ${presentation.meta}` : ""}
       </p>
-      <p className="mt-0.5 truncate text-[9px] text-[#596071]">
+      <p className="mt-1 truncate text-[10px] text-[#666D7E]">
         {row.last_message || "Conversation started"}
       </p>
     </>
@@ -1052,10 +1075,10 @@ function Bubble({
   if (internal) {
     return (
       <div className="mx-auto my-3 max-w-2xl rounded-2xl border border-amber-500/15 bg-amber-500/[.055] px-4 py-3">
-        <p className="text-[8px] font-semibold uppercase tracking-[.14em] text-amber-300">Internal work note · {msg.sender_name || "WeHouse team"}</p>
-        {msg.content && <p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-[#D9D4C7]">{msg.content}</p>}
+        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-amber-300">Internal work note · {msg.sender_name || "WeHouse team"}</p>
+        {msg.content && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E2DED3]">{msg.content}</p>}
         {(msg.attachments || []).map((path: string, i: number) => <SecureSupportAttachment key={`${msg.id}-${path}`} path={path} type={msg.attachment_types?.[i] || ""} />)}
-        <p className="mt-2 text-[8px] text-amber-200/45">{new Date(msg.created_at).toLocaleString()}</p>
+        <p className="mt-2 text-[10px] text-amber-200/50">{new Date(msg.created_at).toLocaleString()}</p>
       </div>
     );
   }
@@ -1094,7 +1117,7 @@ function Bubble({
           <ContextCard meta={meta} type={msg.action_type} />
         )}
         <p
-          className={`mb-1 px-1 text-[8px] font-medium ${fromWeHouse ? "text-right text-violet-200/65" : "text-[#707789]"}`}
+          className={`mb-1 px-1 text-[11px] font-medium ${fromWeHouse ? "text-right text-violet-200/75" : "text-[#838A9B]"}`}
         >
           {sender}
         </p>
@@ -1109,12 +1132,12 @@ function Bubble({
             />
           ))}
           {msg.content && (
-            <p className="whitespace-pre-wrap text-[12px] leading-5">
+            <p className="whitespace-pre-wrap text-sm leading-6">
               {msg.content}
             </p>
           )}
           <p
-            className={`mt-1 text-[8px] ${fromWeHouse ? "text-violet-100/65" : "text-[#606677]"}`}
+            className={`mt-1 text-[10px] ${fromWeHouse ? "text-violet-100/70" : "text-[#747B8C]"}`}
           >
             {new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
@@ -1149,9 +1172,11 @@ function ContextCard({ meta, type }: { meta: any; type?: string }) {
     </div>
   );
 }
-function Avatar({ name }: { name?: string }) {
+function Avatar({ name, compact = false }: { name?: string; compact?: boolean }) {
   return (
-    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500/20 to-violet-500/20 text-sm font-bold text-violet-200">
+    <div
+      className={`grid flex-none place-items-center rounded-full bg-violet-500/20 font-bold text-violet-200 ${compact ? "h-11 min-h-11 w-11 min-w-11 max-w-11 text-sm" : "h-12 min-h-12 w-12 min-w-12 max-w-12 text-sm"}`}
+    >
       {(name || "W")[0].toUpperCase()}
     </div>
   );

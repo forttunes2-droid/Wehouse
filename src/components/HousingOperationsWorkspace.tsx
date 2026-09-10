@@ -483,12 +483,14 @@ export default function HousingOperationsWorkspace({
                     <p className="text-[9px] text-[#626778]">
                       {row.customer_name || "Customer"}
                     </p>
-                    <p className="mt-0.5 text-[8px] capitalize text-violet-300">
-                      {String(row.reservation_status || "").replace(/_/g, " ")}{" "}
-                      · {row._stayKind === "short_let" ? "stay" : "rent"}{" "}
-                      {String(row.rent_payment_status || "not started").replace(
-                        /_/g,
-                        " ",
+                    <p className="mt-1 text-[10px] font-medium text-violet-200">
+                      {propertyBookingStatusLabel(
+                        {
+                          ...row,
+                          status: row.reservation_status,
+                          stay_type: row._stayKind,
+                        },
+                        "operations",
                       )}
                     </p>
                   </div>
@@ -905,11 +907,14 @@ function HousingCase({
           />
           <Info
             label="Reservation"
-            value={propertyBookingStatusLabel({
-              ...row,
-              status: row.reservation_status,
-              stay_type: "long_stay",
-            })}
+            value={propertyBookingStatusLabel(
+              {
+                ...row,
+                status: row.reservation_status,
+                stay_type: "long_stay",
+              },
+              "operations",
+            )}
           />
           <Info
             label="Reservation fee"
@@ -1176,7 +1181,7 @@ function Badge({ status }: { status: string }) {
     <span
       className={`shrink-0 rounded-full border px-2 py-1 text-[8px] font-semibold ${item.cls}`}
     >
-      {item.label}
+      Property · {item.label}
     </span>
   );
 }

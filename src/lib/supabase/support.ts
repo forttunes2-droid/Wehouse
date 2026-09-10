@@ -1,4 +1,8 @@
 import { supabase } from "./client";
+import {
+  propertyBookingStatusLabel,
+  type PropertyJourneyAudience,
+} from "@/lib/propertyBookingLifecycle";
 
 export type SupportThread = {
   conversation_id: string;
@@ -73,6 +77,7 @@ export function conversationPresentation(
         "subject" | "context_type" | "context_snapshot" | "status"
       >
     | SupportOpenContext,
+  audience: PropertyJourneyAudience = "customer",
 ): ConversationPresentation {
   const snapshot =
     ("context_snapshot" in value
@@ -98,6 +103,16 @@ export function conversationPresentation(
   ].includes(contextType);
   if (reservation) {
     const stay = snapshot.stay_type === "short_let" ? "Short Let" : "Long Let";
+    const lifecycleStatus = propertyBookingStatusLabel(
+      {
+        status,
+        stay_type: snapshot.stay_type,
+        rent_payment_status:
+          snapshot.rent_payment_status || snapshot.payment_status,
+        requested_move_in_at: snapshot.requested_move_in_at,
+      },
+      audience,
+    );
     const place = String(
       snapshot.listing_title || snapshot.hotel_name || "",
     ).trim();
@@ -116,7 +131,9 @@ export function conversationPresentation(
           ? "Hotel booking"
           : "Property reservation",
         code,
-        reservationStatusLabel(status, contextType),
+        lifecycleStatus === "Status unavailable"
+          ? reservationStatusLabel(status, contextType)
+          : lifecycleStatus,
       ]
         .filter(Boolean)
         .join(" · "),
