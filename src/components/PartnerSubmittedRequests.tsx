@@ -20,6 +20,7 @@ type RequestRow = {
   id: string;
   request_code: string | null;
   property_address: string | null;
+  property_display_name: string | null;
   property_type: string | null;
   sub_type: string | null;
   property_state: string | null;
@@ -65,7 +66,7 @@ type RequestRow = {
 };
 
 const fields =
-  "id,request_code,property_address,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
+  "id,request_code,property_address,property_display_name,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
 
 export default function PartnerSubmittedRequests({
   profile,

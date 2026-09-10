@@ -3,25 +3,16 @@ import type { Listing } from '@/types';
 import { compressImageFile } from './utils';
 import { ROLE_RANK } from '@/types';
 
-// Canonical listing API. Public reads use RLS; all mutations use server-authorized RPCs.
+// Public discovery and detail reads use server-side redaction. Raw listing rows
+// contain exact entrances and operational identifiers and are never a public API.
 
 export async function getAllListings() {
-  const { data, error } = await supabase
-    .from('listings')
-    .select('*')
-    .eq('status', 'available')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
-  return { listings: data as Listing[] | null, error };
+  const { data, error } = await supabase.rpc('get_discoverable_listings');
+  return { listings: (Array.isArray(data) ? data : []) as Listing[], error };
 }
 
 export async function getListing(id: string) {
-  const { data, error } = await supabase
-    .from('listings')
-    .select('*')
-    .or(`listing_id.eq.${id},id.eq.${id}`)
-    .is('deleted_at', null)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('get_public_listing_detail', { p_listing_id: id });
   return { listing: data as Listing | null, error };
 }
 

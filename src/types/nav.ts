@@ -37,7 +37,6 @@ export type NavPage =
   | 'hotels'
   | 'hotel_detail'
   | 'hotel_booking'
-  | 'hotel_reservation'
   // ── Public pages (no login required) ──
   | 'privacy_policy'
   | 'terms_of_service';

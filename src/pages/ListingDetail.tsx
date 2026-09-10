@@ -30,6 +30,8 @@ import {
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import { Toaster, toast } from "sonner";
+import { listingDisplayTitle } from "@/lib/listingPresentation";
+import BackButton from "@/components/BackButton";
 
 type Props = {
   listingId: string;
@@ -165,6 +167,7 @@ export default function ListingDetail({
     kind: "property" | "reservation" | "inspection" | "payment" = "property",
   ) {
     if (!listing) return;
+    const displayTitle = listingDisplayTitle(listing);
     const contextId =
       kind === "inspection"
         ? inspection?.id || reservation?.id || listing.listing_id
@@ -188,12 +191,12 @@ export default function ListingDetail({
               : kind === "payment"
                 ? "payment"
                 : "apartment_booking",
-          subject: `${kind === "property" ? "Question about" : kind === "payment" ? "Payment help" : kind === "inspection" ? "Inspection help" : "Reservation help"} · ${listing.title}`,
+          subject: `${kind === "property" ? "Question about" : kind === "payment" ? "Payment help" : kind === "inspection" ? "Inspection help" : "Reservation help"} · ${displayTitle}`,
           contextType,
           contextId,
           contextSnapshot: {
             listing_id: listing.listing_id,
-            listing_title: listing.title,
+            listing_title: displayTitle,
             location: [listing.city, listing.state].filter(Boolean).join(", "),
             price: listing.price,
             reservation_id: reservation?.id || null,
@@ -472,20 +475,21 @@ export default function ListingDetail({
       String(reservation?.manual_payment_status || ""),
     ),
   );
-  const visibleAddress = reservationPaid
+  const locationExact = reservationPaid && listing.location_exact === true;
+  const visibleAddress = locationExact
     ? [listing.address, listing.city, listing.state].filter(Boolean).join(", ")
     : [listing.city, listing.state].filter(Boolean).join(", ");
-  const destination =
-    reservationPaid &&
-    Number.isFinite(Number(listing.gps_latitude)) &&
+  const mapPoint = Number.isFinite(Number(listing.gps_latitude)) &&
     Number.isFinite(Number(listing.gps_longitude))
       ? {
           lat: Number(listing.gps_latitude),
           lng: Number(listing.gps_longitude),
         }
       : null;
+  const destination = locationExact ? mapPoint : null;
   const distance =
-    location && destination ? distanceBetweenKm(location, destination) : null;
+    location && mapPoint ? distanceBetweenKm(location, mapPoint) : null;
+  const displayTitle = listingDisplayTitle(listing);
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-12 text-white">
@@ -494,14 +498,12 @@ export default function ListingDetail({
         <PropertyMediaCarousel
           images={images}
           videos={listing.videos || []}
-          title={listing.title}
+          title={displayTitle}
         >
-          <button
+          <BackButton
             onClick={onNavigate}
-            className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
-          >
-            ←
-          </button>
+            className="!absolute !left-4 !top-4 !rounded-full !border-transparent !bg-black/50 !text-white backdrop-blur"
+          />
           {!hasOwnActiveReservation && (
             <button
               onClick={onToggleSave}
@@ -530,7 +532,7 @@ export default function ListingDetail({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <h1 className="break-words text-2xl font-bold">
-                      {listing.title}
+                      {displayTitle}
                     </h1>
                     <p className="mt-1 text-xs text-[#777B8B]">
                       {visibleAddress || "Location unavailable"}
@@ -580,10 +582,10 @@ export default function ListingDetail({
                         ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
                         : ""}
                     </p>
-                    {!reservationPaid && (
+                    {!locationExact && (
                       <p className="mt-1 text-[9px] text-[#5F6575]">
-                        The exact address and directions are private until your
-                        reservation is confirmed.
+                        Approximate area and distance only. The exact entrance
+                        and road directions unlock after confirmed payment.
                       </p>
                     )}
                   </div>

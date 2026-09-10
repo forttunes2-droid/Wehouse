@@ -1,5 +1,6 @@
 import type { Listing, ListingStatus } from '@/types';
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from '@/types';
+import { listingDisplayTitle } from '@/lib/listingPresentation';
 
 interface ListingCardProps {
   listing: Listing;
@@ -23,10 +24,11 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave, d
   const statusBorder = statusColor.includes('green') ? 'border-green-500/20' : statusColor.includes('amber') ? 'border-amber-500/20' : statusColor.includes('blue') ? 'border-violet-500/20' : statusColor.includes('red') ? 'border-red-500/20' : 'border-gray-500/20';
   const media = (listing.images || []).filter(Boolean);
   const primary = media[0] || imageUrl;
+  const displayTitle = listingDisplayTitle(listing);
 
   return <article onClick={onClick} className="group cursor-pointer border-b border-white/[.07] pb-5">
     <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#141720]">
-      <img src={primary} alt={listing.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" decoding="async"/>
+      <img src={primary} alt={displayTitle} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" decoding="async"/>
       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10"/>
       <div className="absolute left-2.5 top-2.5 z-10"><span className={`rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase backdrop-blur-md ${statusBg} ${statusText} ${statusBorder}`}>{statusLabel}</span></div>
       {onToggleSave ? <button onClick={onToggleSave} aria-label={isSaved ? 'Remove from saved apartments' : 'Save apartment'} aria-pressed={isSaved} className="absolute right-2.5 top-2.5 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/45 backdrop-blur-md"><svg width="17" height="17" viewBox="0 0 24 24" fill={isSaved ? '#A78BFA' : 'none'} stroke={isSaved ? '#A78BFA' : 'white'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button> : null}
@@ -35,7 +37,7 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave, d
     </div>
     <div className="px-1 pt-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">{listing.sub_type === 'short_let' ? 'Short Let' : 'Long Let'}</p><h3 className="mt-1 truncate text-[15px] font-bold">{listing.title}</h3><p className="mt-1 truncate text-[10px] text-[#686F80]">{[listing.city, listing.state].filter(Boolean).join(', ') || 'Location unavailable'}</p></div>
+        <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">{listing.sub_type === 'short_let' ? 'Short Stay' : 'Long Let'}</p><h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3><p className="mt-1 truncate text-[10px] text-[#686F80]">{[listing.city, listing.state].filter(Boolean).join(', ') || 'Location unavailable'}</p></div>
         <div className="shrink-0 text-right text-[9px] text-[#9BA0AF]">{listing.bedrooms > 0 ? <p>{listing.bedrooms} bed · {listing.bathrooms || 0} bath</p> : null}{distanceKm != null && Number.isFinite(distanceKm) ? <p className="mt-1 text-violet-300">{distanceKm < 1 ? `${Math.max(1, Math.round(distanceKm * 1000))} m` : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`} away</p> : null}</div>
       </div>
       <div className="mt-3 flex items-center gap-2 text-[8px]">{rawStatus === 'available' ? <span className="text-emerald-300">● Verified and available</span> : null}{listing.videos?.length > 0 ? <span className="text-[#747B8C]">▶ Video preview</span> : null}</div>

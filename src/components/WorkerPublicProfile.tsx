@@ -13,6 +13,7 @@ import type { Profile } from "@/types";
 import MediaViewer from "@/components/MediaViewer";
 import { toast } from "sonner";
 import MessageActionSheet from "@/components/MessageActionSheet";
+import BackButton from "@/components/BackButton";
 
 type Post = {
   id: string;
@@ -177,12 +178,7 @@ export default function WorkerPublicProfileV2({
     >
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
-          <button
-            onClick={onBack}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07] bg-white/[.03]"
-          >
-            ←
-          </button>
+          <BackButton onClick={onBack} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{displayName}</p>
             <p className="mt-0.5 truncate text-[9px] text-[#777D8D]">
@@ -293,71 +289,31 @@ export default function WorkerPublicProfileV2({
           ) : workPosts.length === 0 ? (
             <Empty text="This worker has not published any work posts yet." />
           ) : (
-            <div className="-mx-4 divide-y divide-white/[.06] border-y border-white/[.06] sm:mx-0">
+            <div className="-mx-4 grid grid-cols-2 gap-0.5 bg-white/[.08] sm:mx-0 sm:grid-cols-3 sm:overflow-hidden sm:rounded-2xl">
               {workPosts.map((post) => (
-                <article key={post.id} className="py-4 first:pt-0">
-                  <div className="flex items-center gap-2.5 px-4 pb-3 sm:px-0">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-[11px] font-bold text-violet-200">
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        workerInitial(worker)
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-[11px] font-semibold">
-                        {displayName}
-                      </p>
-                      <p className="mt-0.5 truncate text-[8px] text-[#6D7383]">
-                        {occupation}
-                      </p>
-                    </div>
-                  </div>
+                <article key={post.id} className="group relative aspect-square min-w-0 overflow-hidden bg-black [content-visibility:auto]">
                   <button
                     onClick={() => void openPost(post)}
-                    className="group relative block w-full overflow-hidden bg-black text-left"
+                    className="relative block h-full w-full overflow-hidden bg-black text-left"
+                    aria-label={`Open work sample${post.caption ? `: ${post.caption}` : ""}`}
                   >
                     <Media
                       post={post}
-                      className="aspect-[16/11] w-full object-cover transition duration-300 group-active:scale-[.99]"
+                      className="h-full w-full object-cover transition duration-300 group-active:scale-[.99]"
                     />
-                    {post.verified_job && (
-                      <span className="absolute left-3 top-3 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">
-                        WEHOUSE JOB ✓
-                      </span>
-                    )}
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent px-2.5 pb-2.5 pt-8">
+                      {post.verified_job ? <span className="mb-1 block text-[7px] font-bold uppercase tracking-wide text-emerald-300">Verified WeHouse job</span> : null}
+                      <span className="line-clamp-2 block text-[9px] leading-4 text-white">{post.caption || "Work sample"}</span>
+                    </span>
                   </button>
-                  {post.caption && (
-                    <p className="px-4 pt-3 text-[11px] leading-5 text-[#C7CBD4] sm:px-0">
-                      {post.caption}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-1 px-3 pt-2 sm:px-0">
-                    {Object.entries(postReactions[post.id]?.counts || {}).map(
-                      ([emoji, count]) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => setReactionPost(post)}
-                          className={`rounded-full px-2.5 py-1.5 text-[10px] ${postReactions[post.id]?.mine === emoji ? "bg-violet-500/20 ring-1 ring-violet-400/30" : "bg-white/[.04]"}`}
-                        >
-                          {emoji}
-                          {count > 1 ? ` ${count}` : ""}
-                        </button>
-                      ),
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setReactionPost(post)}
-                      className="rounded-full bg-white/[.04] px-3 py-1.5 text-[9px] text-[#9CA2B1]"
-                    >
-                      React
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReactionPost(post)}
+                    className={`absolute right-2 top-2 grid min-h-8 min-w-8 place-items-center rounded-full border border-white/10 bg-black/65 px-2 text-[9px] backdrop-blur ${postReactions[post.id]?.mine ? "text-violet-200 ring-1 ring-violet-400/30" : "text-white"}`}
+                    aria-label="React to work sample"
+                  >
+                    {postReactions[post.id]?.mine || "♡"}
+                  </button>
                 </article>
               ))}
             </div>

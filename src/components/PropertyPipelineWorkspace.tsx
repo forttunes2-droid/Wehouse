@@ -954,7 +954,9 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
   const [title, setTitle] = useState(
       row.property_type === "hotel"
         ? row.hotel_program?.name || ""
-        : `${String(row.property_type || "Property").replace(/_/g, " ")} in ${row.property_city}`,
+        : row.sub_type === "short_let"
+          ? row.property_display_name || `Short Stay · ${row.property_city}`
+          : `Long Let Apartment in ${row.property_city}`,
     ),
     [description, setDescription] = useState(row.description || ""),
     [fieldPhotos, setFieldPhotos] = useState<string[] | null>(null),

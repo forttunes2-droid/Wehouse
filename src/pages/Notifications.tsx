@@ -46,7 +46,7 @@ type WorkPostConfirmation = {
   job_confirmation_status: string;
   url: string;
 };
-type ActivityFilter = "all" | "action" | "bookings" | "property" | "work" | "money" | "roommates" | "wehouse";
+type ActivityFilter = "all" | "action";
 const activityCache = new Map<string, Activity[]>();
 
 export default function Notifications({
@@ -134,7 +134,7 @@ export default function Notifications({
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "notifications",
           filter: `recipient_id=eq.${profile.user_id}`,
@@ -144,7 +144,7 @@ export default function Notifications({
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "announcement_recipients",
           filter: `user_id=eq.${profile.user_id}`,
@@ -192,6 +192,7 @@ export default function Notifications({
         item.id === row.id ? { ...item, read: true } : item,
       ),
     );
+    window.dispatchEvent(new Event("wehouse:unread-changed"));
     return true;
   }
 
@@ -282,6 +283,7 @@ export default function Notifications({
           "Activity could not be marked as read",
       );
     setRows((current) => current.map((row) => ({ ...row, read: true })));
+    window.dispatchEvent(new Event("wehouse:unread-changed"));
     toast.success("Activity marked as read");
   }
 
@@ -314,12 +316,6 @@ export default function Notifications({
               options={[
                 { value: "all", label: "All updates" },
                 { value: "action", label: "Needs my action" },
-                { value: "bookings", label: "Bookings and stays" },
-                { value: "property", label: "Properties" },
-                { value: "work", label: "Work and inspections" },
-                { value: "money", label: "Money" },
-                { value: "roommates", label: "Roommates" },
-                { value: "wehouse", label: "WeHouse" },
               ]}
               onChange={(value) => setActivityFilter(value as ActivityFilter)}
               eyebrow="Activity"
@@ -590,15 +586,7 @@ function ErrorState({ text, retry }: { text: string; retry: () => void }) {
 function matchesActivityFilter(row: Activity, filter: ActivityFilter) {
   if (filter === "all") return true;
   const value = `${row.type} ${row.source_type} ${row.destination_route}`.toLowerCase();
-  if (filter === "action")
-    return /action_required|changes_requested|waiting_for_user|escalat|failed|dispute|verification_required|approval_required/.test(value);
-  if (filter === "money")
-    return /payment|payout|earning|refund|wallet|commission/.test(value);
-  if (filter === "roommates") return /roommate|shared_home|match/.test(value);
-  if (filter === "property") return /property|listing|hotel_review|publication/.test(value);
-  if (filter === "work") return /worker|job|service|inspection|field/.test(value);
-  if (filter === "bookings") return /booking|reservation|tenancy|move_in|handover|check_in|check_out|hotel/.test(value);
-  return row.source === "announcement" || !/payment|payout|earning|refund|wallet|commission|roommate|shared_home|match|property|listing|hotel|worker|job|service|inspection|field|booking|reservation|tenancy|move_in|handover|check_in|check_out/.test(value);
+  return /action_required|changes_requested|waiting_for_user|escalat|failed|dispute|verification_required|approval_required|payment_conflict/.test(value);
 }
 function activityKind(row: Activity) {
   const value = `${row.type} ${row.source_type}`.toLowerCase();

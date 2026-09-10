@@ -54,11 +54,24 @@ export default function NativeDateBridge() {
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape") setActive(null);
     }
+    const close = () => setActive(null);
     document.addEventListener("pointerdown", open, true);
     document.addEventListener("keydown", escape);
+    document.addEventListener("submit", close, true);
+    document.addEventListener("reset", close, true);
+    window.addEventListener("wehouse:navigation", close);
+    window.addEventListener("popstate", close);
+    window.addEventListener("hashchange", close);
+    window.addEventListener("pagehide", close);
     return () => {
       document.removeEventListener("pointerdown", open, true);
       document.removeEventListener("keydown", escape);
+      document.removeEventListener("submit", close, true);
+      document.removeEventListener("reset", close, true);
+      window.removeEventListener("wehouse:navigation", close);
+      window.removeEventListener("popstate", close);
+      window.removeEventListener("hashchange", close);
+      window.removeEventListener("pagehide", close);
     };
   }, []);
 
@@ -66,7 +79,12 @@ export default function NativeDateBridge() {
     if (!active) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const observer = new MutationObserver(() => {
+      if (!active.isConnected) setActive(null);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     return () => {
+      observer.disconnect();
       document.body.style.overflow = previous;
     };
   }, [active]);
@@ -98,7 +116,6 @@ export default function NativeDateBridge() {
     else active.value = value;
     active.dispatchEvent(new Event("input", { bubbles: true }));
     active.dispatchEvent(new Event("change", { bubbles: true }));
-    active.focus({ preventScroll: true });
     setActive(null);
   }
 

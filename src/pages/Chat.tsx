@@ -63,6 +63,7 @@ type Props = {
   initialMode?: "chats" | "activity";
   chatUnreadCount?: number;
   activityUnreadCount?: number;
+  onActivityUnreadChange?: (count: number) => void;
 };
 type Person = Pick<RoommatePeer, "name" | "avatar"> & Partial<RoommatePeer>;
 type RoommateMessage = Message & {
@@ -128,6 +129,7 @@ export default function Chat({
   initialMode = "chats",
   chatUnreadCount = 0,
   activityUnreadCount = 0,
+  onActivityUnreadChange,
 }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]),
     [bookingConversations, setBookingConversations] = useState<
@@ -1315,6 +1317,7 @@ export default function Chat({
             scope="personal"
             embedded
             onNavigate={onNavigate}
+            onUnreadChange={onActivityUnreadChange}
           />
         ) : (
           <section>

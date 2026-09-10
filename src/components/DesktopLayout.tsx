@@ -46,7 +46,6 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
   'detail',
   'hotel_detail',
   'hotel_booking',
-  'hotel_reservation',
   'my_bookings',
   'my_reservations',
   'worker_verification',

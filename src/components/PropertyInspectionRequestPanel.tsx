@@ -64,6 +64,7 @@ type HotelProgramRoom = {
 type Draft = {
   id: string;
   propertyAddress: string;
+  propertyDisplayName: string;
   propertyCity: string;
   propertyState: string;
   propertyType: string;
@@ -88,6 +89,7 @@ type Draft = {
 };
 type InspectionRequestItem = {
   property_address: string;
+  property_display_name: string | null;
   property_city: string;
   property_state: string;
   property_type: string;
@@ -138,6 +140,7 @@ function fresh(profile: Profile, copy?: Draft): Draft {
   return {
     id: id(),
     propertyAddress: "",
+    propertyDisplayName: copy?.propertyDisplayName || "",
     propertyCity:
       copy?.propertyCity || profile.city || profile.local_government || "",
     propertyState: copy?.propertyState || profile.state || "",
@@ -245,7 +248,8 @@ export default function PropertyInspectionRequestPanel({
       (draft.propertyType !== "apartment" || Number(draft.expectedRent) > 0) &&
       (draft.propertyType !== "apartment" ||
         draft.subType !== "short_let" ||
-        (Number(draft.securityDeposit) > 0 &&
+        (draft.propertyDisplayName.trim() &&
+          Number(draft.securityDeposit) > 0 &&
           Number.isInteger(Number(draft.maxGuests)) &&
           Number(draft.maxGuests) >= 1)) &&
       (draft.propertyType !== "hotel" ||
@@ -663,6 +667,10 @@ export default function PropertyInspectionRequestPanel({
           }
         items.push({
           property_address: d.propertyAddress.trim(),
+          property_display_name:
+            d.propertyType === "apartment" && d.subType === "short_let"
+              ? d.propertyDisplayName.trim()
+              : null,
           property_city: d.propertyCity.trim(),
           property_state: d.propertyState.trim(),
           property_type: d.propertyType,
@@ -972,6 +980,12 @@ export default function PropertyInspectionRequestPanel({
                     />
                     {current.subType === "short_let" && (
                       <>
+                        <Field
+                          label="Property or host name shown to guests *"
+                          value={current.propertyDisplayName}
+                          set={(v) => patch(active, { propertyDisplayName: v })}
+                          span
+                        />
                         <Field
                           label="Refundable security deposit *"
                           inputMode="numeric"

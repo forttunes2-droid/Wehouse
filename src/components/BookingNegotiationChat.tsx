@@ -1240,8 +1240,6 @@ export default function BookingNegotiationChat({
           name={peerName}
           avatar={peerAvatar}
           presence={presenceText || ""}
-          onAudioCall={() => void startCall("audio")}
-          onVideoCall={() => void startCall("video")}
           onClose={() => setProfileOpen(false)}
         />
       ) : null}
@@ -1324,8 +1322,6 @@ function ConversationIdentitySheet({
   name,
   avatar,
   presence,
-  onAudioCall,
-  onVideoCall,
   onClose,
 }: {
   profile: ConversationProfile | null;
@@ -1334,18 +1330,13 @@ function ConversationIdentitySheet({
   name: string;
   avatar?: string | null;
   presence: string;
-  onAudioCall: () => void;
-  onVideoCall: () => void;
   onClose: () => void;
 }) {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const viewingWorker = !isWorker;
   const displayName = profile?.full_name || name;
   const avatarUrl = profile?.avatar_url || avatar || null;
-  const location = [
-    viewingWorker ? profile?.lga : profile?.city,
-    profile?.state,
-  ].filter(Boolean).join(", ");
+  const location = [profile?.city, profile?.state].filter(Boolean).join(", ");
   const reviewed = ["approved", "verified", "live"].includes(
     String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
@@ -1381,34 +1372,63 @@ function ConversationIdentitySheet({
                 </div>
                 {profile?.username ? <p className="mt-1 truncate text-[10px] text-[#8B91A1]">@{profile.username}</p> : null}
                 <p className="mt-1 text-[9px] text-[#747B8C]">
-                  {[viewingWorker ? booking?.service_type : null, location, presence].filter(Boolean).join(" · ")}
+                  {[
+                    viewingWorker ? booking?.service_type : "Customer for this booking",
+                    viewingWorker ? location : booking?.booking_code ? `#${booking.booking_code}` : null,
+                    presence,
+                  ].filter(Boolean).join(" · ")}
                 </p>
               </div>
             </div>
             <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close contact information">×</button>
           </div>
-
-
-
-          {(profile?.worker_bio || profile?.bio) ? (
+          {isWorker && booking ? (
+            <div className="mt-5 border-t border-white/[.07] pt-4">
+              <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">
+                Booking case
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <CaseFact label="Service" value={booking.service_type || "Service request"} />
+                <CaseFact label="Status" value={booking.status.replaceAll("_", " ")} />
+                <CaseFact
+                  label="Scheduled"
+                  value={booking.scheduled_date ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString() : "Not agreed"}
+                />
+                <CaseFact
+                  label="Agreed price"
+                  value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `₦${Number(booking.agreed_amount || booking.negotiated_amount).toLocaleString("en-NG")}` : "Not agreed"}
+                />
+              </div>
+              {booking.address ? (
+                <div className="mt-2 rounded-xl bg-white/[.035] p-3">
+                  <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Job location</p>
+                  <p className="mt-1 text-[10px] leading-4 text-[#B4B8C3]">{booking.address}</p>
+                </div>
+              ) : null}
+              {booking.customer_message || booking.description ? (
+                <div className="mt-2 rounded-xl bg-white/[.035] p-3">
+                  <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Original request</p>
+                  <p className="mt-1 whitespace-pre-line text-[10px] leading-4 text-[#B4B8C3]">{booking.customer_message || booking.description}</p>
+                </div>
+              ) : null}
+              <p className="mt-3 text-[9px] leading-4 text-[#777E8F]">
+                This information belongs to this booking and is shown so you can solve the customer’s case in the same conversation.
+              </p>
+            </div>
+          ) : (profile?.worker_bio || profile?.bio) ? (
             <div className="mt-5">
               <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
               <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-[#A9AEBA]">{profile?.worker_bio || profile?.bio}</p>
             </div>
           ) : null}
-
-          <div className="mt-5 flex justify-center gap-12 border-t border-white/[.07] pt-4">
-            <ProfileCall label="Audio" onClick={onAudioCall}><Phone /></ProfileCall>
-            <ProfileCall label="Video" onClick={onVideoCall}><Camera /></ProfileCall>
-          </div>
         </section>
       </div>
       {avatarOpen && avatarUrl ? <MediaViewer src={avatarUrl} kind="image" title={displayName + " profile photo"} avatarUrl={avatarUrl} onClose={() => setAvatarOpen(false)} /> : null}
     </>
   );
 }
-function ProfileCall({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" onClick={onClick} className="flex flex-col items-center gap-2 text-[9px] text-[#B9BDC8]"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055]">{children}</span>{label}</button>;
+function CaseFact({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl bg-white/[.035] p-3"><p className="text-[8px] uppercase tracking-wide text-[#6F7585]">{label}</p><p className="mt-1 capitalize text-[10px] font-semibold text-[#CFD2DA]">{value}</p></div>;
 }
 function DaySeparator({ value }: { value: string }) {
   const date = new Date(value),

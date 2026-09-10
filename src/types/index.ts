@@ -212,6 +212,8 @@ export interface Listing {
   gps_latitude?: number | null;
   gps_longitude?: number | null;
   location_accuracy_m?: number | null;
+  location_exact?: boolean;
+  partner_display_name?: string | null;
   images: string[];
   videos: string[];
   property_type: PropertyType | null; // 'apartment' (short_let/long_stay) or 'hotel'
@@ -547,6 +549,9 @@ export interface Hotel {
   city: string;
   area: string | null;
   address: string | null;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  location_exact?: boolean;
   images: string[];
   amenities: string[];
   owner_id: string;
@@ -568,18 +573,72 @@ export interface HotelRoom {
   bed_type: string | null;
   images: string[];
   amenities: string[];
+  rate_plans?: HotelRatePlan[];
   total_rooms: number;
   created_at: string;
   updated_at: string;
 }
 
+export type HotelMealPlan =
+  | "room_only"
+  | "breakfast"
+  | "half_board"
+  | "full_board"
+  | "all_inclusive";
+
+export type HotelPaymentTiming =
+  | "pay_now"
+  | "before_arrival"
+  | "at_property";
+
+export interface HotelRatePlan {
+  rate_plan_id: number;
+  hotel_id: number;
+  room_id: number;
+  name: string;
+  description: string | null;
+  meal_plan: HotelMealPlan;
+  payment_timing: HotelPaymentTiming;
+  refundable: boolean;
+  cancellation_hours: number | null;
+  price_per_night: number;
+  included_features: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HotelVenue {
+  venue_id: number;
+  hotel_id: number;
+  name: string;
+  kind: "restaurant" | "bar" | "cafe" | "spa" | "lounge" | "pool" | "gym" | "other";
+  description: string | null;
+  opening_hours: string | null;
+  package_notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type HotelBookingStatus =
-  "pending" | "confirmed" | "cancelled" | "completed";
+  | "pending"
+  | "confirmed"
+  | "checked_in"
+  | "checked_out"
+  | "cancelled"
+  | "completed"
+  | "refunded"
+  | "expired"
+  | "payment_conflict";
 
 export interface HotelBooking {
   booking_id: number;
   hotel_id: number;
   room_id: number;
+  rate_plan_id?: number | null;
+  rate_plan_name?: string | null;
+  rate_plan_snapshot?: Record<string, unknown> | null;
   user_id: string;
   check_in: string;
   check_out: string;

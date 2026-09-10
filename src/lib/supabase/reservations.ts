@@ -136,15 +136,19 @@ export async function getReservationsForUser(userId?: string) {
         ),
     ),
   );
-  const { data: listings, error: listingError } = await supabase
-    .from("listings")
-    .select(
-      "id,title,address,city,state,images,videos,sub_type,bedrooms,bathrooms,price",
-    )
-    .in("id", listingIds);
-  if (listingError) return { reservations, error: listingError };
+  const listingResults = await Promise.all(
+    listingIds.map((id) =>
+      supabase.rpc("get_public_listing_detail", { p_listing_id: id }),
+    ),
+  );
+  const listingError = listingResults.find((result) => result.error)?.error;
+  const listings = listingResults
+    .map((result) => result.data)
+    .filter(Boolean) as ListingMediaRow[];
+  if (listingError && !listings.length)
+    return { reservations, error: listingError };
   const mediaByListing = new Map(
-    ((listings || []) as ListingMediaRow[]).map((row) => [
+    listings.map((row) => [
       row.id,
       {
         title: row.title,

@@ -7,12 +7,14 @@ import {
   getHotelBookingsForUser,
 } from "@/lib/supabase";
 import type { Hotel, HotelRoom, HotelReview } from "@/types";
+import type { HotelRatePlan, HotelVenue } from "@/types";
 import { Toaster, toast } from "sonner";
 import {
   directionsUrl,
   distanceBetweenKm,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
+import BackButton from "@/components/BackButton";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -23,23 +25,48 @@ type Props = {
   onBook: (
     hotelId: number,
     roomId: number,
+    ratePlanId: number,
     checkIn: string,
     checkOut: string,
   ) => void;
-  onReserve: (hotelId: number, roomId: number) => void;
   profile: { user_id: string; username: string | null };
 };
+
+function roomStartingPrice(room: HotelRoom) {
+  const prices = (room.rate_plans || [])
+    .filter((plan) => plan.active)
+    .map((plan) => Number(plan.price_per_night))
+    .filter((price) => Number.isFinite(price) && price > 0);
+  return prices.length ? Math.min(...prices) : Number(room.price_per_night || 0);
+}
+
+function mealLabel(value: HotelRatePlan["meal_plan"]) {
+  return {
+    room_only: "Room only",
+    breakfast: "Breakfast included",
+    half_board: "Breakfast + one meal",
+    full_board: "All daily meals",
+    all_inclusive: "All inclusive",
+  }[value];
+}
+
+function paymentLabel(value: HotelRatePlan["payment_timing"]) {
+  return {
+    pay_now: "Pay now",
+    before_arrival: "Pay before arrival",
+    at_property: "Pay at the property",
+  }[value];
+}
 
 export default function HotelDetail({
   hotelId,
   onBack,
   onBook,
-  onReserve,
   profile,
 }: Props) {
   const { location } = useDiscoveryLocation();
   const [hotel, setHotel] = useState<
-      (Hotel & { hotel_rooms: HotelRoom[] }) | null
+      (Hotel & { hotel_rooms: HotelRoom[]; venues?: HotelVenue[] }) | null
     >(null),
     [reviews, setReviews] = useState<ReviewRow[]>([]),
     [loading, setLoading] = useState(true),
@@ -53,9 +80,9 @@ export default function HotelDetail({
     [reviewComment, setReviewComment] = useState(""),
     [submittingReview, setSubmittingReview] = useState(false),
     [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null),
+    [selectedRate, setSelectedRate] = useState<HotelRatePlan | null>(null),
     [checkIn, setCheckIn] = useState(""),
     [checkOut, setCheckOut] = useState("");
-  const reservationSettings = { enabled: false } as const;
   useEffect(() => {
     void load();
   }, [hotelId]);
@@ -74,7 +101,9 @@ export default function HotelDetail({
       return;
     }
     setHotel(h);
-    setSelectedRoom(h.hotel_rooms?.[0] || null);
+    const firstRoom = h.hotel_rooms?.[0] || null;
+    setSelectedRoom(firstRoom);
+    setSelectedRate(firstRoom?.rate_plans?.find((plan) => plan.active) || null);
     setReviews((r || []) as ReviewRow[]);
     setReviewEligible(eligibility.eligible);
     setLocationUnlocked(
@@ -127,19 +156,14 @@ export default function HotelDetail({
             86400000,
         )
       : 0;
-  const totalPrice =
-    selectedRoom && nights > 0 ? nights * selectedRoom.price_per_night : 0;
-  const reservationFee = 0;
+  const totalPrice = selectedRate && nights > 0 ? nights * selectedRate.price_per_night : 0;
   function proceed() {
     if (!selectedRoom) return toast.error("Choose a room first");
-    if (reservationSettings.enabled) {
-      onReserve(hotelId, selectedRoom.room_id);
-      return;
-    }
+    if (!selectedRate) return toast.error("Choose a room package first");
     if (!checkIn || !checkOut)
       return toast.error("Select check-in and check-out");
     if (nights <= 0) return toast.error("Check-out must be after check-in");
-    onBook(hotelId, selectedRoom.room_id, checkIn, checkOut);
+    onBook(hotelId, selectedRoom.room_id, selectedRate.rate_plan_id, checkIn, checkOut);
   }
   if (loading)
     return (
@@ -166,27 +190,17 @@ export default function HotelDetail({
     displayedAmenities = showAllAmenities
       ? allAmenities
       : allAmenities.slice(0, 4);
-  const latitude = Number((hotel as any).gps_latitude),
-    longitude = Number((hotel as any).gps_longitude),
-    destination =
-      locationUnlocked &&
-      Number.isFinite(latitude) &&
-      Number.isFinite(longitude)
-        ? { lat: latitude, lng: longitude }
-        : null,
-    distance =
-      location && destination ? distanceBetweenKm(location, destination) : null;
+  const latitude = Number(hotel.gps_latitude),
+    longitude = Number(hotel.gps_longitude),
+    mapPoint = Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null,
+    destination = locationUnlocked && hotel.location_exact === true ? mapPoint : null,
+    distance = location && mapPoint ? distanceBetweenKm(location, mapPoint) : null;
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <button
-            onClick={onBack}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.08] bg-white/[.03] text-[#9DA3B2]"
-          >
-            ←
-          </button>
+          <BackButton onClick={onBack} />
           <div className="min-w-0">
             <p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-400">
               WEHOUSE · HOTELS
@@ -254,7 +268,7 @@ export default function HotelDetail({
                 {hotel.description}
               </p>
             )}
-            {locationUnlocked && hotel.address ? (
+            {destination && hotel.address ? (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
                 <span>{hotel.address}</span>
                 {destination && (
@@ -270,8 +284,8 @@ export default function HotelDetail({
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
-                The exact address and directions are shown only after a paid
-                booking.
+                Approximate area only. The exact entrance and road directions
+                unlock after a confirmed payment.
               </div>
             )}
           </div>
@@ -324,6 +338,7 @@ export default function HotelDetail({
                     key={room.room_id}
                     onClick={() => {
                       setSelectedRoom(room);
+                      setSelectedRate(room.rate_plans?.find((plan) => plan.active) || null);
                       setRoomImage(0);
                     }}
                     className={`flex w-full items-center gap-3 py-3 text-left ${active ? "text-white" : "text-[#C3C7D1]"}`}
@@ -353,7 +368,7 @@ export default function HotelDetail({
                         {room.bed_type ? ` · ${room.bed_type}` : ""}
                       </p>
                       <p className="mt-1 text-[11px] font-bold text-violet-200">
-                        ₦{Number(room.price_per_night).toLocaleString()}{" "}
+                        From ₦{roomStartingPrice(room).toLocaleString()}{" "}
                         <span className="text-[8px] font-normal text-[#62697A]">
                           / night
                         </span>
@@ -421,12 +436,10 @@ export default function HotelDetail({
                       {selectedRoom.max_guests === 1 ? "" : "s"}
                     </p>
                   </div>
-                  <p className="text-sm font-bold text-violet-200">
-                    ₦{Number(selectedRoom.price_per_night).toLocaleString()}
-                    <span className="block text-right text-[8px] font-normal text-[#62697A]">
-                      per night
-                    </span>
-                  </p>
+                  {selectedRate && <p className="text-sm font-bold text-violet-200">
+                    ₦{Number(selectedRate.price_per_night).toLocaleString()}
+                    <span className="block text-right text-[8px] font-normal text-[#62697A]">per night</span>
+                  </p>}
                 </div>
                 {selectedRoom.description && (
                   <p className="mt-3 text-[10px] leading-5 text-[#969CAA]">
@@ -445,12 +458,55 @@ export default function HotelDetail({
                     ))}
                   </div>
                 )}
+                <div className="mt-5 space-y-2">
+                  <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">Choose your package</p>
+                  {(selectedRoom.rate_plans || []).filter((plan) => plan.active).map((plan) => (
+                    <button
+                      key={plan.rate_plan_id}
+                      type="button"
+                      onClick={() => setSelectedRate(plan)}
+                      className={`w-full rounded-2xl border p-3 text-left ${selectedRate?.rate_plan_id === plan.rate_plan_id ? "border-violet-400/45 bg-violet-500/[.09]" : "border-white/[.07] bg-white/[.02]"}`}
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <span>
+                          <span className="block text-xs font-semibold">{plan.name}</span>
+                          <span className="mt-1 block text-[9px] text-[#747B8C]">
+                            {mealLabel(plan.meal_plan)} · {paymentLabel(plan.payment_timing)} · {plan.refundable ? `Free cancellation${plan.cancellation_hours ? ` up to ${plan.cancellation_hours}h before arrival` : ""}` : "Non-refundable"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-bold text-violet-200">₦{Number(plan.price_per_night).toLocaleString()}</span>
+                      </span>
+                      {plan.description && <span className="mt-2 block text-[9px] leading-4 text-[#8A91A0]">{plan.description}</span>}
+                      {plan.included_features?.length ? <span className="mt-2 block text-[8px] text-emerald-300">Includes {plan.included_features.join(" · ")}</span> : null}
+                    </button>
+                  ))}
+                  {!selectedRoom.rate_plans?.some((plan) => plan.active) && <p className="rounded-xl bg-amber-500/[.08] p-3 text-[9px] text-amber-200">This room has no active package yet.</p>}
+                </div>
               </div>
             </div>
           )}
         </section>
 
-        {!reservationSettings.enabled && selectedRoom && (
+        {hotel.venues?.length ? (
+          <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
+            <h2 className="text-sm font-semibold">At the hotel</h2>
+            <p className="mt-1 text-[9px] text-[#666D7E]">Named restaurants and facilities, with hours and package access.</p>
+            <div className="mt-3 divide-y divide-white/[.06]">
+              {hotel.venues.map((venue) => (
+                <div key={venue.venue_id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="text-xs font-semibold">{venue.name}</p><p className="mt-1 text-[8px] uppercase tracking-wide text-violet-300">{venue.kind}</p></div>
+                    {venue.opening_hours && <p className="text-right text-[9px] text-[#858B9A]">{venue.opening_hours}</p>}
+                  </div>
+                  {venue.description && <p className="mt-2 text-[9px] leading-4 text-[#858B9A]">{venue.description}</p>}
+                  {venue.package_notes && <p className="mt-2 text-[8px] text-emerald-300">Package access: {venue.package_notes}</p>}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {selectedRoom && (
           <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
             <h2 className="text-sm font-semibold">Stay dates</h2>
             <p className="mt-1 text-[9px] text-[#6F7585]">
@@ -483,21 +539,6 @@ export default function HotelDetail({
                   value={`₦${totalPrice.toLocaleString()}`}
                 />
               </div>
-            )}
-          </section>
-        )}
-
-        {reservationSettings.enabled && selectedRoom && (
-          <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4">
-            <p className="text-sm font-semibold">Reservation mode</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-[#858B9A]">
-              Continue to the current WeHouse hotel reservation flow for this
-              room.
-            </p>
-            {reservationFee > 0 && (
-              <p className="mt-3 text-[10px] font-semibold text-violet-200">
-                Reservation fee: ₦{reservationFee.toLocaleString()}
-              </p>
             )}
           </section>
         )}
@@ -586,9 +627,7 @@ export default function HotelDetail({
             disabled={!selectedRoom}
             className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
           >
-            {reservationSettings.enabled
-              ? "Continue reservation"
-              : "Continue booking"}
+            Continue to guest details
           </button>
         </div>
       </div>

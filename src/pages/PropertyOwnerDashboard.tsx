@@ -218,7 +218,7 @@ function PropertiesTab({
               .order("created_at", { ascending: false })
           : await supabase
               .from("hotels")
-              .select("*")
+              .select("*,hotel_rooms(room_id,total_rooms,price_per_night,images)")
               .eq("owner_id", profile.user_id)
               .eq("status", "active")
               .order("created_at", { ascending: false });
@@ -326,9 +326,14 @@ function PropertiesTab({
                 </div>
                 <p className="mt-2 text-xs font-bold">
                   {property._assetKind === "hotel"
-                    ? "Hotel operation"
+                    ? hotelInventorySummary(property)
                     : money(Number(property.price || 0))}
                 </p>
+                {property._assetKind === "hotel" ? (
+                  <p className="mt-1 text-[9px] text-violet-300">
+                    Open rooms, packages, calendar and stays
+                  </p>
+                ) : null}
               </div>
             </button>
           ))}
@@ -336,6 +341,23 @@ function PropertiesTab({
       )}
     </section>
   );
+}
+function hotelInventorySummary(property: any) {
+  const rooms = Array.isArray(property.hotel_rooms) ? property.hotel_rooms : [];
+  const units = rooms.reduce(
+    (sum: number, room: { total_rooms?: number | null }) =>
+      sum + Number(room.total_rooms || 0),
+    0,
+  );
+  const startingRate = rooms.reduce(
+    (lowest: number, room: { price_per_night?: number | null }) => {
+      const rate = Number(room.price_per_night || 0);
+      return rate > 0 && (!lowest || rate < lowest) ? rate : lowest;
+    },
+    0,
+  );
+  const roomLabel = `${rooms.length} room ${rooms.length === 1 ? "type" : "types"} · ${units} ${units === 1 ? "room" : "rooms"}`;
+  return startingRate ? `${roomLabel} · from ${money(startingRate)}` : roomLabel;
 }
 function PropertyDetails({
   property,

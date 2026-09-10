@@ -4,12 +4,7 @@ import type { Listing } from '@/types';
 export type HomeStayType = 'long_stay' | 'short_let';
 
 export async function getDiscoverableHomes() {
-  const { data, error } = await supabase
-    .from('listings')
-    .select('*')
-    .in('status', ['available', 'occupied'])
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabase.rpc('get_discoverable_listings');
 
   const homes = ((data || []) as Listing[]).filter((listing) => {
     const type = String(listing.property_type || 'apartment').toLowerCase();

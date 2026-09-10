@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import type { Hotel, HotelRoom, HotelBooking, HotelReview } from '@/types';
+import type { Hotel, HotelRoom, HotelBooking, HotelReview, HotelRatePlan, HotelVenue } from '@/types';
 import { compressImageFile } from './utils';
 
 // ── Browse Hotels ──────────────────────────────────────
@@ -13,27 +13,27 @@ export async function getHotels(filters?: {
   search?: string;
   featured?: boolean;
 }) {
-  let query = supabase
-    .from('hotels')
-    .select('*, hotel_rooms(room_id, price_per_night, room_type)')
-    .eq('status', 'active');
-
-  if (filters?.state) query = query.ilike('state', `%${filters.state}%`);
-  if (filters?.city) query = query.ilike('city', `%${filters.city}%`);
-  if (filters?.featured) query = query.eq('featured', true);
-  if (filters?.search) query = query.ilike('name', `%${filters.search}%`);
-
-  const { data, error } = await query.order('featured', { ascending: false }).order('created_at', { ascending: false });
-  return { hotels: data as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[] | null, error };
+  const { data, error } = await supabase.rpc('get_discoverable_hotels');
+  const rows = (Array.isArray(data) ? data : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
+  const includes = (value: unknown, query: string) => String(value || '').toLowerCase().includes(query.toLowerCase());
+  const hotels = rows.filter((hotel) => {
+    if (filters?.state && !includes(hotel.state, filters.state)) return false;
+    if (filters?.city && !includes(hotel.city, filters.city)) return false;
+    if (filters?.featured && !hotel.featured) return false;
+    if (filters?.search && !includes(hotel.name, filters.search)) return false;
+    if (filters?.amenities?.length && !filters.amenities.every((item) => hotel.amenities?.includes(item))) return false;
+    if (filters?.minPrice != null || filters?.maxPrice != null) {
+      const prices = (hotel.hotel_rooms || []).map((room) => Number(room.price_per_night || 0));
+      if (!prices.some((price) => (filters.minPrice == null || price >= filters.minPrice) && (filters.maxPrice == null || price <= filters.maxPrice))) return false;
+    }
+    return true;
+  });
+  return { hotels, error };
 }
 
 export async function getHotelById(hotelId: number) {
-  const { data, error } = await supabase
-    .from('hotels')
-    .select('*, hotel_rooms(*)')
-    .eq('hotel_id', hotelId)
-    .maybeSingle();
-  return { hotel: data as (Hotel & { hotel_rooms: HotelRoom[] }) | null, error };
+  const { data, error } = await supabase.rpc('get_public_hotel_detail', { p_hotel_id: hotelId });
+  return { hotel: data as (Hotel & { hotel_rooms: HotelRoom[]; venues?: HotelVenue[] }) | null, error };
 }
 
 export async function getHotelRooms(hotelId: number) {
@@ -45,13 +45,16 @@ export async function getHotelRooms(hotelId: number) {
   return { rooms: data as HotelRoom[] | null, error };
 }
 
-export async function getRoomById(roomId: number) {
-  const { data, error } = await supabase
-    .from('hotel_rooms')
-    .select('*, hotels(*)')
-    .eq('room_id', roomId)
-    .maybeSingle();
-  return { room: data as (HotelRoom & { hotels: Hotel }) | null, error };
+export async function getRoomById(roomId: number, hotelId?: number) {
+  let resolvedHotelId = hotelId;
+  if (!resolvedHotelId) {
+    const roomResult = await supabase.from('hotel_rooms').select('hotel_id').eq('room_id', roomId).maybeSingle();
+    if (roomResult.error || !roomResult.data) return { room: null, error: roomResult.error };
+    resolvedHotelId = Number(roomResult.data.hotel_id);
+  }
+  const result = await getHotelById(resolvedHotelId);
+  const room = result.hotel?.hotel_rooms?.find((item) => Number(item.room_id) === Number(roomId));
+  return { room: room && result.hotel ? { ...room, hotels: result.hotel } : null, error: result.error };
 }
 
 // ── Reviews ────────────────────────────────────────────
@@ -88,9 +91,10 @@ export async function canReviewHotel(hotelId: number, userId: string) {
 // The browser supplies guest choices only. Identity, availability, room price,
 // nights, total and pending-hold status are computed again by Postgres.
 export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase.rpc('create_my_hotel_booking', {
+  const { data, error } = await supabase.rpc('create_my_hotel_booking_with_rate', {
     p_hotel_id: booking.hotel_id,
     p_room_id: booking.room_id,
+    p_rate_plan_id: booking.rate_plan_id,
     p_check_in: booking.check_in,
     p_check_out: booking.check_out,
     p_guest_count: booking.guest_count,
@@ -99,6 +103,23 @@ export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id
     p_special_requests: booking.special_requests || null,
   });
   return { booking: data as HotelBooking | null, error };
+}
+
+export async function quoteHotelRoomRate(input: {
+  hotelId: number;
+  roomId: number;
+  ratePlanId: number;
+  checkIn: string;
+  checkOut: string;
+}) {
+  const { data, error } = await supabase.rpc('quote_hotel_room_rate', {
+    p_hotel_id: input.hotelId,
+    p_room_id: input.roomId,
+    p_rate_plan_id: input.ratePlanId,
+    p_check_in: input.checkIn,
+    p_check_out: input.checkOut,
+  });
+  return { quote: data as { available: boolean; nights?: number; total_price?: number; blocked_date?: string; rate_plan_name?: string } | null, error };
 }
 
 export async function initializeHotelBookingPayment(bookingId: number) {
@@ -116,12 +137,9 @@ export async function initializeHotelBookingPayment(bookingId: number) {
 }
 
 export async function getHotelBookingsForUser(userId: string) {
-  const { data, error } = await supabase
-    .from('hotel_bookings')
-    .select('*, hotels(name, city, state, images), hotel_rooms(room_type, bed_type, description, images, amenities)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-  return { bookings: data as (HotelBooking & { hotels: Hotel; hotel_rooms: HotelRoom })[] | null, error };
+  void userId;
+  const { data, error } = await supabase.rpc('get_my_hotel_bookings');
+  return { bookings: (Array.isArray(data) ? data : []) as (HotelBooking & { hotels: Hotel; hotel_rooms: HotelRoom; hotel_rate_plans?: HotelRatePlan | null })[], error };
 }
 
 export async function getHotelBookingsForHotel(hotelId: number) {
@@ -172,6 +190,52 @@ export async function createHotelRoom(room: Omit<HotelRoom, 'room_id' | 'created
   return { room: data as HotelRoom | null, error };
 }
 
+export async function partnerCreateHotelRoom(room: Omit<HotelRoom, 'room_id' | 'created_at' | 'updated_at' | 'rate_plans'>) {
+  const { data, error } = await supabase.rpc('partner_create_hotel_room', {
+    p_hotel_id: room.hotel_id,
+    p_room_type: room.room_type,
+    p_description: room.description,
+    p_price_per_night: room.price_per_night,
+    p_max_guests: room.max_guests,
+    p_bed_type: room.bed_type,
+    p_total_rooms: room.total_rooms,
+    p_amenities: room.amenities || [],
+    p_images: room.images || [],
+  });
+  return { room: data as HotelRoom | null, error };
+}
+
+export async function partnerSaveHotelRatePlan(plan: Partial<HotelRatePlan> & Pick<HotelRatePlan, 'room_id' | 'name' | 'meal_plan' | 'payment_timing' | 'refundable' | 'price_per_night'>) {
+  const { data, error } = await supabase.rpc('partner_save_hotel_rate_plan', {
+    p_rate_plan_id: plan.rate_plan_id || null,
+    p_room_id: plan.room_id,
+    p_name: plan.name,
+    p_description: plan.description || null,
+    p_meal_plan: plan.meal_plan,
+    p_payment_timing: plan.payment_timing,
+    p_refundable: plan.refundable,
+    p_cancellation_hours: plan.refundable ? plan.cancellation_hours ?? 24 : null,
+    p_price_per_night: plan.price_per_night,
+    p_included_features: plan.included_features || [],
+    p_active: plan.active ?? true,
+  });
+  return { plan: data as HotelRatePlan | null, error };
+}
+
+export async function partnerSaveHotelVenue(venue: Partial<HotelVenue> & Pick<HotelVenue, 'hotel_id' | 'name' | 'kind'>) {
+  const { data, error } = await supabase.rpc('partner_save_hotel_venue', {
+    p_venue_id: venue.venue_id || null,
+    p_hotel_id: venue.hotel_id,
+    p_name: venue.name,
+    p_kind: venue.kind,
+    p_description: venue.description || null,
+    p_opening_hours: venue.opening_hours || null,
+    p_package_notes: venue.package_notes || null,
+    p_active: venue.active ?? true,
+  });
+  return { venue: data as HotelVenue | null, error };
+}
+
 export async function updateHotelRoom(roomId: number, updates: Partial<HotelRoom>) {
   const { data, error } = await supabase.from('hotel_rooms').update({ ...updates, updated_at: new Date().toISOString() }).eq('room_id', roomId).select().maybeSingle();
   return { room: data as HotelRoom | null, error };
@@ -188,10 +252,10 @@ export async function uploadHotelImage(file: File, hotelId: number) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image' } as any };
   try {
     const compressed = await compressImageFile(file, 1200, 0.8);
-    const path = `hotels/${hotelId}/${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage.from('listings').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
+    const path = `hotels/${hotelId}/${crypto.randomUUID()}.jpg`;
+    const { error: uploadError } = await supabase.storage.from('listing-images').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
     if (uploadError) return { url: null, error: uploadError };
-    const { data } = supabase.storage.from('listings').getPublicUrl(path);
+    const { data } = supabase.storage.from('listing-images').getPublicUrl(path);
     return { url: data.publicUrl, error: null };
   } catch (err: any) {
     return { url: null, error: { message: err.message || 'Upload failed' } };
@@ -202,10 +266,10 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image' } as any };
   try {
     const compressed = await compressImageFile(file, 1200, 0.8);
-    const path = `hotels/${hotelId}/rooms/${roomId}/${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage.from('listings').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
+    const path = `hotels/${hotelId}/rooms/${roomId}/${crypto.randomUUID()}.jpg`;
+    const { error: uploadError } = await supabase.storage.from('listing-images').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
     if (uploadError) return { url: null, error: uploadError };
-    const { data } = supabase.storage.from('listings').getPublicUrl(path);
+    const { data } = supabase.storage.from('listing-images').getPublicUrl(path);
     return { url: data.publicUrl, error: null };
   } catch (err: any) {
     return { url: null, error: { message: err.message || 'Upload failed' } };

@@ -33,7 +33,7 @@ import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
-import { currentActivityRows } from "@/lib/activityFeed";
+import { currentActivityRows, resolveActivityDestination } from "@/lib/activityFeed";
 
 type ConversationUnreadRow = {
   id: string;
@@ -71,7 +71,6 @@ const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
 const HotelsHome = lazy(() => import("@/pages/HotelsHome"));
 const HotelDetail = lazy(() => import("@/pages/HotelDetail"));
 const HotelBooking = lazy(() => import("@/pages/HotelBooking"));
-const HotelReservation = lazy(() => import("@/pages/HotelReservation"));
 const PropertyPartnerDashboard = lazy(
   () => import("@/pages/PropertyPartnerDashboard"),
 );
@@ -168,7 +167,6 @@ const USER_PAGES = new Set<NavPage>([
   "hotels",
   "hotel_detail",
   "hotel_booking",
-  "hotel_reservation",
   "worker_discovery",
   "worker_categories",
   "my_bookings",
@@ -239,6 +237,7 @@ export default function App() {
     [detailId, setDetailId] = useState<string | null>(null),
     [hotelId, setHotelId] = useState<number | null>(null),
     [hotelRoomId, setHotelRoomId] = useState<number | null>(null),
+    [hotelRatePlanId, setHotelRatePlanId] = useState<number | null>(null),
     [hotelCheckIn, setHotelCheckIn] = useState(""),
     [hotelCheckOut, setHotelCheckOut] = useState(""),
     [chatConvId, setChatConvId] = useState<string | null>(null),
@@ -377,6 +376,7 @@ export default function App() {
           "That workspace is not available for this account.",
         );
       setActiveWorkspace(workspace);
+      window.dispatchEvent(new Event("wehouse:navigation"));
       try {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
       } catch {}
@@ -444,6 +444,7 @@ export default function App() {
   }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
+      window.dispatchEvent(new Event("wehouse:navigation"));
       pageScrollPositionsRef.current.set(
         navPage,
         pageScrollRef.current?.scrollTop || 0,
@@ -596,6 +597,8 @@ export default function App() {
     void count();
     const openMessages = () => handleSetNavPage("conversation");
     const openNotifications = () => handleSetNavPage("notifications");
+    const refreshUnread = () => void count();
+    window.addEventListener("wehouse:unread-changed", refreshUnread);
     const chatChannel = supabase
       .channel(`app-incoming-chat:${uid}`)
       .on(
@@ -645,13 +648,63 @@ export default function App() {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${uid}`,
+        },
+        (payload) => {
+          void count();
+          if (payload.eventType !== "INSERT") return;
+          const notification = payload.new as {
+            title?: string;
+            message?: string;
+            type?: string;
+            source_type?: string | null;
+            source_id?: string | null;
+            destination_route?: string | null;
+            destination_params?: Record<string, unknown> | null;
+          };
+          const type = String(notification.type || "");
+          if (["new_device_login", "device_confirmation_pending"].includes(type))
+            return;
+          const destination = resolveActivityDestination(notification);
+          const opensInbox = destination.route === "conversation";
+          if (
+            opensInbox &&
+            ["roommate_message", "customer_message", "worker_replied"].includes(type)
+          )
+            return;
+          if (profile.pref_push_notif === false) return;
+          toast(notification.title || "WeHouse update", {
+            description:
+              notification.message || "Open WeHouse to view the update.",
+            action: {
+              label: "View",
+              onClick: opensInbox ? openMessages : openNotifications,
+            },
+            classNames: {
+              toast:
+                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+              title: "!text-[13px] !font-semibold",
+              description: "!text-[10px] !text-[#9AA1B2]",
+              actionButton:
+                "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
+            },
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
           schema: "public",
           table: "announcement_recipients",
           filter: `user_id=eq.${uid}`,
         },
         async (payload) => {
           void count();
+          if (payload.eventType !== "INSERT") return;
           const announcementId = (payload.new as AnnouncementRecipientRow)
             .announcement_id;
           if (!announcementId) return;
@@ -679,6 +732,7 @@ export default function App() {
       )
       .subscribe();
     return () => {
+      window.removeEventListener("wehouse:unread-changed", refreshUnread);
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(officialChannel);
     };
@@ -688,56 +742,6 @@ export default function App() {
     isUserRole,
     handleSetNavPage,
   ]);
-  useEffect(() => {
-    if (!profile?.user_id) return;
-    const uid = profile.user_id;
-    const channel = supabase
-      .channel(`app-notifications:${uid}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${uid}`,
-        },
-        (payload) => {
-          const notification = payload.new as {
-            title?: string;
-            message?: string;
-            type?: string;
-          };
-          if (
-            ["new_device_login", "device_confirmation_pending"].includes(
-              String(notification.type || ""),
-            )
-          )
-            return;
-          if (
-            isUserRole &&
-            ["roommate_message", "customer_message", "worker_replied"].includes(
-              String(notification.type || ""),
-            )
-          )
-            return;
-          toast(notification.title || "WeHouse update", {
-            description:
-              notification.message || "Open WeHouse to view the update.",
-            classNames: {
-              toast:
-                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
-              title: "!text-[13px] !font-semibold",
-              description: "!text-[10px] !text-[#9AA1B2]",
-            },
-          });
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [profile?.user_id, isUserRole]);
-
   const toggle = useCallback(
     async (id: string) => {
       if (!profile) return;
@@ -1003,6 +1007,7 @@ export default function App() {
             chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
             onNavigate={openUserDestination}
+            onActivityUnreadChange={setNotificationCount}
           />
         ) : (
           renderRoleRoot()
@@ -1088,6 +1093,7 @@ export default function App() {
             conversationId={chatConvId}
             chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
+            onActivityUnreadChange={setNotificationCount}
           />
         ) : (
           renderRoleRoot()
@@ -1152,17 +1158,13 @@ export default function App() {
           <HotelDetail
             hotelId={hotelId}
             onBack={subpageBack}
-            onBook={(h, r, ci, co) => {
+            onBook={(h, r, ratePlanId, ci, co) => {
               setHotelId(h);
               setHotelRoomId(r);
+              setHotelRatePlanId(ratePlanId);
               setHotelCheckIn(ci || "");
               setHotelCheckOut(co || "");
               goTo("hotel_booking");
-            }}
-            onReserve={(h, r) => {
-              setHotelId(h);
-              setHotelRoomId(r);
-              goTo("hotel_reservation");
             }}
             profile={profile}
           />
@@ -1170,31 +1172,15 @@ export default function App() {
           renderRoleRoot()
         );
       case "hotel_booking":
-        return isUserRole && hotelId && hotelRoomId ? (
+        return isUserRole && hotelId && hotelRoomId && hotelRatePlanId ? (
           <HotelBooking
             hotelId={hotelId}
             roomId={hotelRoomId}
+            ratePlanId={hotelRatePlanId}
             checkIn={hotelCheckIn}
             checkOut={hotelCheckOut}
             profile={profile}
             onBack={subpageBack}
-            onComplete={() => goTo("hotels")}
-          />
-        ) : (
-          renderRoleRoot()
-        );
-      case "hotel_reservation":
-        return isUserRole && hotelId && hotelRoomId ? (
-          <HotelReservation
-            hotelId={hotelId}
-            roomId={hotelRoomId}
-            profile={profile}
-            onBack={subpageBack}
-            onProceedToBooking={(h, r) => {
-              setHotelId(h);
-              setHotelRoomId(r);
-              goTo("hotel_booking");
-            }}
             onComplete={() => goTo("hotels")}
           />
         ) : (
@@ -1241,7 +1227,6 @@ export default function App() {
     "worker_setup",
     "hotel_detail",
     "hotel_booking",
-    "hotel_reservation",
     "worker_verification",
     "payment_return",
   ] as NavPage[];
