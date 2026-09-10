@@ -11,6 +11,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
+import { propertyBookingStatusLabel } from "@/lib/propertyBookingLifecycle";
 
 type Filter =
   "reserved" | "occupied" | "available" | "maintenance" | "closed" | "all";
@@ -773,6 +774,10 @@ function HousingCase({
     "maintenance" | "available" | "closed"
   >("maintenance");
   const [busy, setBusy] = useState(false);
+  const [verifiedCode, setVerifiedCode] = useState<string | null>(bookingCode);
+  const [codeInput, setCodeInput] = useState(bookingCode || "");
+  const [codeError, setCodeError] = useState("");
+  const [checkingCode, setCheckingCode] = useState(false);
   const rentReady = ["paid", "upfront_paid"].includes(
     String(row.rent_payment_status || ""),
   );
@@ -784,22 +789,63 @@ function HousingCase({
     row.requested_move_in_at,
   );
 
+  useEffect(() => {
+    setVerifiedCode(bookingCode);
+    setCodeInput(bookingCode || "");
+    setCodeError("");
+  }, [bookingCode, row.current_reservation_id]);
+
+  async function verifyArrivalCode() {
+    const code = codeInput.trim().toUpperCase();
+    if (!code) {
+      setCodeError("Enter the code shown by this customer.");
+      return;
+    }
+    setCheckingCode(true);
+    setCodeError("");
+    const { data, error } = await supabase.rpc("verify_branch_booking_code", {
+      p_code: code,
+    });
+    setCheckingCode(false);
+    if (error || !data) {
+      setVerifiedCode(null);
+      setCodeError(error?.message || "This booking code could not be verified.");
+      return;
+    }
+    if (
+      String(data.kind || "") !== "housing" ||
+      String(data.reservation_id || "") !== String(row.current_reservation_id)
+    ) {
+      setVerifiedCode(null);
+      setCodeError("This code belongs to a different booking. Check the customer and property before continuing.");
+      return;
+    }
+    if (!data.valid || !data.can_handover) {
+      setVerifiedCode(null);
+      setCodeError("This reservation is not ready for handover. Verified rent and the customer’s selected arrival time are required.");
+      return;
+    }
+    setVerifiedCode(String(data.code || code));
+    setCodeInput(String(data.code || code));
+    toast.success("Customer, property, payment and move-in time matched.");
+  }
+
   async function activate() {
-    if (!bookingCode)
+    if (!verifiedCode)
       return toast.error(
         "Verify the customer booking code before confirming handover",
       );
     if (
       !(await ask({
-        title: "Confirm property handover?",
-        description: `Booking code ${bookingCode} matches ${row.customer_name || "this customer"} and this property. Confirm only after access has been handed over.`,
-        confirmLabel: "Confirm handover",
+        title: "Complete move-in handover?",
+        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${new Date(startDate).toLocaleDateString()}.`,
+        confirmLabel: "Start tenancy",
         variant: "info",
       }))
     )
       return;
     setBusy(true);
-    const { error } = await confirmApartmentHandover(bookingCode, startDate);
+    const { error } = await confirmApartmentHandover(verifiedCode, startDate);
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("Tenancy activated. Property is now Occupied.");
@@ -834,7 +880,7 @@ function HousingCase({
         onClick={back}
         className="text-[10px] font-semibold text-violet-300"
       >
-        ← Back to live housing
+        ← Back to bookings
       </button>
       <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
         <div className="flex items-start justify-between gap-3">
@@ -859,11 +905,11 @@ function HousingCase({
           />
           <Info
             label="Reservation"
-            value={
-              row.reservation_status
-                ? String(row.reservation_status).replace(/_/g, " ")
-                : "None"
-            }
+            value={propertyBookingStatusLabel({
+              ...row,
+              status: row.reservation_status,
+              stay_type: "long_stay",
+            })}
           />
           <Info
             label="Reservation fee"
@@ -931,7 +977,7 @@ function HousingCase({
               additional year.
             </p>
           )}
-          {row.hold_expires_at && (
+          {row.hold_expires_at && !rentReady && (
             <p className="mt-3 text-[9px] text-amber-300">
               Reservation hold expires{" "}
               {new Date(row.hold_expires_at).toLocaleString()}
@@ -989,16 +1035,58 @@ function HousingCase({
         </section>
       )}
 
-      {canMoveIn && bookingCode && (
+      {canMoveIn && !verifiedCode && (
+        <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
+            Customer arrival verification
+          </p>
+          <h4 className="mt-1 text-sm font-semibold">
+            Match the code for this move-in
+          </h4>
+          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
+            Ask the customer for the code when they arrive at the selected time. WeHouse checks that it belongs to this customer, apartment and verified rent before handover can continue.
+          </p>
+          <p className="mt-3 text-[9px] text-[#777D8E]">
+            Requested arrival · {new Date(row.requested_move_in_at).toLocaleString()}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={codeInput}
+              onChange={(event) => {
+                setCodeInput(event.target.value.toUpperCase().replace(/\s/g, ""));
+                setCodeError("");
+              }}
+              aria-label="Customer move-in code"
+              autoComplete="off"
+              placeholder="Enter customer code"
+              maxLength={14}
+              className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#11151E] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"
+            />
+            <button
+              type="button"
+              disabled={checkingCode}
+              onClick={() => void verifyArrivalCode()}
+              className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-50"
+            >
+              {checkingCode ? "Checking…" : "Verify"}
+            </button>
+          </div>
+          {codeError && (
+            <p className="mt-2 rounded-xl bg-red-500/[.06] px-3 py-2 text-[9px] leading-5 text-red-300" role="alert">
+              {codeError}
+            </p>
+          )}
+        </section>
+      )}
+
+      {canMoveIn && verifiedCode && (
         <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.035] p-4">
           <h4 className="text-sm font-semibold text-emerald-300">
-            Confirm property handover
+            Complete handover and start tenancy
           </h4>
           <p className="mt-1 text-[10px] leading-5 text-[#788090]">
-            Booking code{" "}
-            <span className="font-bold text-emerald-200">{bookingCode}</span>{" "}
-            has been matched to this customer and property. Confirm only after
-            the customer receives access.
+            Code <span className="font-bold text-emerald-200">{verifiedCode}</span>{" "}
+            has been matched. Confirm only after the customer receives the keys or access.
           </p>
           <label className="mt-3 block">
             <span className="mb-1 block text-[9px] text-[#757B8C]">
@@ -1016,20 +1104,8 @@ function HousingCase({
             onClick={() => void activate()}
             className="mt-3 h-11 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50"
           >
-            {busy ? "Updating…" : "Confirm handover → Occupied"}
+            {busy ? "Updating…" : "Confirm access → Start tenancy"}
           </button>
-        </section>
-      )}
-      {canMoveIn && !bookingCode && (
-        <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4">
-          <h4 className="text-sm font-semibold text-amber-300">
-            Booking code required
-          </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
-            Open Find a booking in the Operations Inbox and verify the code
-            shown by the customer. A property cannot become Occupied from this
-            record alone.
-          </p>
         </section>
       )}
 
