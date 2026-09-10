@@ -1188,6 +1188,9 @@ export default function App() {
             onToggleSave={() => toggle(detailId)}
             profile={profile}
             onGoToChat={goToChat}
+            onOpenBooking={(id) =>
+              openUserDestination("my_reservations", id)
+            }
           />
         ) : (
           renderRoleRoot()
