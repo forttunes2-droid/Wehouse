@@ -199,6 +199,30 @@ export function getPropertyBookingJourney(
   };
 }
 
+export function propertyBookingStatusLabel(row: Record<string, any>) {
+  const status = String(row.status || row.reservation_status || "payment_pending");
+  const shortStay = String(row.stay_type || row._stayKind || "long_stay") === "short_let";
+  const rentPaid = RENT_PAID_STATUSES.has(
+    String(row.rent_payment_status || row.payment_status || "not_started"),
+  );
+
+  if (status === "ready_for_move_in") {
+    if (shortStay) return rentPaid ? "Ready for check-in" : "Stay payment required";
+    if (!rentPaid) return "Year 1 rent required";
+    return row.requested_move_in_at ? "Move-in scheduled" : "Choose move-in time";
+  }
+  if (status === "occupied") return shortStay ? "Checked in" : "Tenancy active";
+  if (status === "completed") return shortStay ? "Stay completed" : "Tenancy completed";
+  if (status === "inspection_pending") return "Inspection in progress";
+  if (status === "payment_pending") return "Reservation payment pending";
+  if (status === "payment_conflict") return "Payment needs review";
+  if (status === "reserved") return "Reserved";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "expired") return "Expired";
+  if (status === "refunded") return "Refunded";
+  return "Status unavailable";
+}
+
 function longStayCopy(
   action: PropertyJourneyAction,
   audience: PropertyJourneyAudience,
