@@ -15,6 +15,7 @@ import IdentityAccessGate from "@/components/IdentityAccessGate";
 import WorkerWallet from "@/pages/WorkerWallet";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import WorkerAvailabilityControl from "@/components/WorkerAvailabilityControl";
+import { useWorkerInboxSummary } from "@/hooks/useWorkerInboxSummary";
 
 type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
@@ -43,9 +44,9 @@ export default function WorkerWorkspaceModern({
 }) {
   const live =
     profile.worker_status === "verified" && profile.worker_verified === true;
-  const [inboxUnread, setInboxUnread] = useState(0);
+  const inbox = useWorkerInboxSummary(profile.user_id);
   const nav = live
-    ? LIVE_NAV.map((item) => item.id === "inbox" ? { ...item, badge: inboxUnread || undefined } : item)
+    ? LIVE_NAV.map((item) => item.id === "inbox" ? { ...item, badge: inbox.totalUnread || undefined } : item)
     : ACTIVATION_NAV;
   const [tab, setTab] = useState<Tab>(live ? "jobs" : "home");
   const [conversation, setConversation] =
@@ -83,7 +84,9 @@ export default function WorkerWorkspaceModern({
         onConversationClosed={() => setConversation(null)}
         onNavigate={onNavigate}
         onOpenJobs={()=>setTab('jobs')}
-        onUnreadChange={setInboxUnread}
+        chatUnread={inbox.chatUnread}
+        activityUnread={inbox.activityUnread}
+        onUnreadRefresh={inbox.refresh}
       />
     );
   } else if (live && safeTab === "showcase") {
