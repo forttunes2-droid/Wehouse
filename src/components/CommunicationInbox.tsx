@@ -55,7 +55,7 @@ export default function CommunicationInbox({
       {view === "activity" ? (
         <Notifications
           profile={profile}
-          scope="property_partner"
+          scope="partner"
           embedded
           onNavigate={openActivityDestination}
         />
