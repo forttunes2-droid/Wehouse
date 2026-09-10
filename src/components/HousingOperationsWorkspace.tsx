@@ -11,10 +11,12 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
-import { propertyBookingStatusLabel } from "@/lib/propertyBookingLifecycle";
+import {
+  getPropertyBookingJourney,
+  propertyBookingStatusLabel,
+} from "@/lib/propertyBookingLifecycle";
 
-type Filter =
-  "reserved" | "occupied" | "available" | "maintenance" | "closed" | "all";
+type Filter = "all" | "needs_action" | "upcoming" | "active" | "finished";
 const STATUS: Record<string, { label: string; cls: string }> = {
   available: {
     label: "Available",
@@ -171,7 +173,20 @@ export default function HousingOperationsWorkspace({
   const filtered = useMemo(
     () =>
       rows.filter((row) => {
-        if (filter !== "all" && row.listing_status !== filter) return false;
+        const journey = getPropertyBookingJourney(row, null, "operations");
+        const status = String(row.reservation_status || row.status || "");
+        const group: Exclude<Filter, "all"> =
+          status === "payment_conflict" ||
+          journey.action === "inspection" ||
+          journey.action === "handover"
+            ? "needs_action"
+            : journey.action === "tenancy"
+              ? "active"
+              : journey.action === "completed" ||
+                  journey.action === "stopped"
+                ? "finished"
+                : "upcoming";
+        if (filter !== "all" && group !== filter) return false;
         const query = search.trim().toLowerCase();
         if (!query) return true;
         return [
@@ -423,18 +438,17 @@ export default function HousingOperationsWorkspace({
             Filter
           </p>
           <p className="mt-1 text-[10px] text-[#8A909F]">
-            Booking record status
+            Reservation lifecycle
           </p>
         </div>
         <WeHouseSelect
           value={filter}
           options={[
-            { value: "all", label: "All records" },
-            { value: "available", label: "Available" },
-            { value: "reserved", label: "Reserved" },
-            { value: "occupied", label: "Occupied" },
-            { value: "maintenance", label: "Maintenance" },
-            { value: "closed", label: "Closed" },
+            { value: "all", label: "All bookings" },
+            { value: "needs_action", label: "Needs action" },
+            { value: "upcoming", label: "Upcoming" },
+            { value: "active", label: "Active stays" },
+            { value: "finished", label: "Finished" },
           ]}
           onChange={(value) => setFilter(value as Filter)}
           eyebrow="Bookings"

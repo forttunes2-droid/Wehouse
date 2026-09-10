@@ -136,6 +136,11 @@ export default function CreatorDashboard({
 
   function openCreatorDestination(page: string, id?: string) {
     const route = String(page || "").toLowerCase();
+    if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
+      setInboxTargetId(id);
+      setTab("inbox");
+      return;
+    }
     if (
       route === "operations_properties" ||
       route === "listing_detail" ||
@@ -146,7 +151,6 @@ export default function CreatorDashboard({
       return;
     }
     if (
-      route === "operations_inbox" ||
       route === "my_reservations" ||
       route === "my_bookings" ||
       route.includes("reservation") ||
@@ -157,11 +161,6 @@ export default function CreatorDashboard({
     }
     if (route.includes("worker")) {
       openOperation("workers", id);
-      return;
-    }
-    if (route === "conversation" || route === "messages" || route === "chat") {
-      setInboxTargetId(id);
-      setTab("inbox");
       return;
     }
     onNavigate?.(page, id);

@@ -205,15 +205,20 @@ function reservationStatusLabel(status: string, contextType: string) {
 export async function createSupportConversation(
   input: SupportOpenContext = {},
 ) {
+  const canonicalContextType = ["reservation", "apartment_payment"].includes(
+    input.contextType || "",
+  )
+    ? "apartment_reservation"
+    : input.contextType;
   if (
-    ["apartment_reservation", "reservation", "hotel_booking"].includes(
-      input.contextType || "",
+    ["apartment_reservation", "hotel_booking"].includes(
+      canonicalContextType || "",
     )
   ) {
     const { data, error } = await supabase.rpc(
       "open_my_reservation_conversation",
       {
-        p_context_type: input.contextType,
+        p_context_type: canonicalContextType,
         p_context_id: input.contextId,
       },
     );

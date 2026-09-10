@@ -127,13 +127,15 @@ export function resolveActivityDestination(
     "context_id",
     "contextId",
   ]);
-  const bookingId = value(params, [
+  const explicitBookingId = value(params, [
     "reservation_id",
     "reservationId",
     "booking_id",
     "bookingId",
     "shared_group_id",
     "sharedGroupId",
+  ]);
+  const bookingId = explicitBookingId || value(params, [
     "context_id",
     "contextId",
   ]);
@@ -159,6 +161,28 @@ export function resolveActivityDestination(
   ]);
   const securityId = value(params, ["session_id", "sessionId"]);
   const fallbackId = value(params, ["context_id", "contextId"]) || row.source_id || undefined;
+  const lifecycleBookingId =
+    explicitBookingId ||
+    (/booking|reservation/.test(sourceType) ? row.source_id || undefined : undefined);
+
+  // Booking events sometimes carry both the parent property and the exact
+  // reservation. The reservation owns the action; the property is only its
+  // container. Never discard the more specific target because an older event
+  // happened to store a property-oriented destination route.
+  if (
+    lifecycleBookingId &&
+    /booking|reservation|rent|move_in|handover|tenancy|stay/.test(
+      `${type} ${sourceType}`,
+    ) &&
+    /propert|listing|inspection|hotel_detail/.test(route)
+  ) {
+    return {
+      route: /hotel/.test(`${type} ${sourceType}`)
+        ? "hotel_booking"
+        : "reservation",
+      id: String(lifecycleBookingId),
+    };
+  }
 
   if (route === "conversation") return { route, id: conversationId || fallbackId };
   if (/propert|listing|inspection|hotel_detail/.test(route))

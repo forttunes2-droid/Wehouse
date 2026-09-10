@@ -939,7 +939,14 @@ export default function App() {
         )
       )
         return goToChat(id);
-      if (route === "my_reservations" || route === "my_bookings") {
+      if (
+        route === "my_reservations" ||
+        route === "my_bookings" ||
+        route === "reservation" ||
+        route === "property_booking" ||
+        route === "hotel_booking" ||
+        route === "operations_bookings"
+      ) {
         setBookingContextId(id || null);
         return goTo("my_reservations");
       }

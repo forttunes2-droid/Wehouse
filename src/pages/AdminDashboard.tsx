@@ -90,6 +90,11 @@ export default function AdminDashboard({
   }
   function openActivity(page: string, id?: string) {
     const route = String(page || "").toLowerCase();
+    if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
+      setInboxTargetId(id);
+      setTab("inbox");
+      return;
+    }
     if (
       route.includes("propert") ||
       route === "listing_detail" ||
@@ -98,16 +103,10 @@ export default function AdminDashboard({
       return openOperation("properties", id);
     if (
       route.includes("reservation") ||
-      route.includes("booking") ||
-      route === "operations_inbox"
+      route.includes("booking")
     )
       return openOperation("bookings", id);
     if (route.includes("worker")) return openOperation("workers", id);
-    if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
-      setInboxTargetId(id);
-      setTab("inbox");
-      return;
-    }
     onNavigate?.(page, id);
   }
   const nav = NAV.map((item) =>
