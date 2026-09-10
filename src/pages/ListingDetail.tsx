@@ -40,6 +40,7 @@ type Props = {
   onToggleSave: () => void;
   profile: Profile;
   onGoToChat: (convId: string) => void;
+  onOpenBooking: (reservationId: string) => void;
 };
 
 type Plan = {
@@ -99,6 +100,7 @@ export default function ListingDetail({
   profile,
   isSaved,
   onToggleSave,
+  onOpenBooking,
 }: Props) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -640,6 +642,7 @@ export default function ListingDetail({
                   onInspect={() => void requestInspection()}
                   onRentOptions={() => setShowPlan(true)}
                   onRentPay={() => void payContractRent()}
+                  onOpenBooking={() => onOpenBooking(String(reservation.id))}
                   onSupport={() =>
                     support(
                       reservation?.status === "payment_pending" ||
@@ -1106,6 +1109,7 @@ function ReservationPanel({
   onInspect,
   onRentOptions,
   onRentPay,
+  onOpenBooking,
   onSupport,
 }: {
   shortStay: boolean;
@@ -1117,6 +1121,7 @@ function ReservationPanel({
   onInspect: () => void;
   onRentOptions: () => void;
   onRentPay: () => void;
+  onOpenBooking: () => void;
   onSupport: () => void;
 }) {
   const status = String(reservation?.status || "payment_pending");
@@ -1254,20 +1259,27 @@ function ReservationPanel({
           </button>
         </section>
       );
+    const moveInRequested = Boolean(reservation.requested_move_in_at);
     return (
       <section className="rounded-3xl border border-emerald-500/15 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,.12),transparent_45%),#11141C] p-5">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-          Payment complete · apartment ready
+          Year 1 rent verified
         </p>
         <h2 className="mt-2 text-xl font-bold">
-          Your apartment is ready for handover
+          {moveInRequested ? "Move-in time sent" : "Choose your move-in time"}
         </h2>
         <p className="mt-2 text-[11px] leading-relaxed text-[#8A918F]">
-          Show this booking code to WeHouse Operations at the apartment. They
-          will match your identity, payment and apartment before handing over
-          access and activating the tenancy.
+          {moveInRequested
+            ? "Meet Property Operations at the selected time. Show the booking code only when you arrive; your tenancy starts after access is handed over and verified."
+            : "Rent payment alone does not start the tenancy. Open Bookings to choose when you can meet Property Operations for handover."}
         </p>
-        {reservation.booking_code && (
+        {moveInRequested && reservation.requested_move_in_at && (
+          <Row
+            label="Requested arrival"
+            value={new Date(reservation.requested_move_in_at).toLocaleString()}
+          />
+        )}
+        {moveInRequested && reservation.booking_code && (
           <Row label="Booking code" value={String(reservation.booking_code)} />
         )}
         {reservation.rent_paid_at && (
@@ -1277,8 +1289,14 @@ function ReservationPanel({
           />
         )}
         <button
+          onClick={onOpenBooking}
+          className="mt-4 h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
+        >
+          {moveInRequested ? "Open move-in booking" : "Choose move-in time in Bookings"}
+        </button>
+        <button
           onClick={onSupport}
-          className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
+          className="mt-2 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
         >
           Message WeHouse
         </button>
