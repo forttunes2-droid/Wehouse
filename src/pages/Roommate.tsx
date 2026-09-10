@@ -286,7 +286,7 @@ export default function RoommateWorkspace({
   }
   async function interest(
     match: RoommateMatchResult,
-    status: "accepted" | "declined",
+    status: "accepted" | "viewed",
   ) {
     if (interestBusy) return;
     setInterestBusy(match.id);
@@ -302,9 +302,9 @@ export default function RoommateWorkspace({
       return toast.error(error.message);
     }
     setInterestBusy(null);
-    if (status === "declined") {
+    if (status === "viewed") {
       setMatches((current) => current.filter((row) => row.id !== match.id));
-      toast.success("Passed privately. This profile will not be shown again.");
+      toast.success("Skipped for now. This profile can return after Refresh.");
       return;
     }
     if (conversationId) {
@@ -599,7 +599,7 @@ function Matches({
   schoolFilter: string;
   onLoadMore: () => void;
   onChat?: (row: RoommateMatchResult) => void;
-  onInterest: (row: RoommateMatchResult, status: "accepted" | "declined") => void;
+  onInterest: (row: RoommateMatchResult, status: "accepted" | "viewed") => void;
 }) {
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const openProfile = rows.find((row) => row.id === openProfileId) || null;
@@ -656,7 +656,7 @@ function Matches({
 }
 
 function sameSchool(filter:string, candidate?:string|null){return Boolean(filter.trim()&&candidate?.trim()&&filter.trim().toLocaleLowerCase()===candidate.trim().toLocaleLowerCase())}
-function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"declined")=>void}) {
+function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"viewed")=>void}) {
   return <div className="divide-y divide-white/[.06] border-y border-white/[.07]">{items.map((row)=>{
     const p=row.matched_profile,score=Number(row.match_score||0),connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
     const name=p.full_name||`@${p.username||"user"}`;
@@ -669,11 +669,11 @@ function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onI
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="min-w-0 flex-1 text-left">
           <div className="flex items-center justify-between gap-3"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="shrink-0 text-[10px] font-bold text-violet-300">{score}%</span></div>
           <p className="mt-1 truncate text-[9px] text-[#747A8B]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{sameSchool(schoolFilter,p.school)?` · ${p.school}`:""}</p>
-          <p className={`mt-1 text-[9px] font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[#858B99]"}`}>{connected?"Connected":sent?"Interest sent":`${matchLabel(score)} compatibility`}</p>
+          <p className={`mt-1 text-[9px] font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[#858B99]"}`}>{connected?"Matched":sent?"Request pending":`${matchLabel(score)} compatibility`}</p>
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[#6D7383]" aria-label={`Open ${name} profile`}>›</button>
       </div>
-      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<div className="flex min-h-10 flex-1 items-center rounded-xl border border-violet-400/15 px-3 text-[9px] font-semibold text-violet-200">Waiting for their response</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"declined")} className="min-h-10 rounded-xl border border-white/[.09] px-4 text-[9px] font-semibold disabled:opacity-40">Pass</button></>}</div>
+      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<div className="flex min-h-10 flex-1 items-center rounded-xl border border-violet-400/15 px-3 text-[9px] font-semibold text-violet-200">Waiting for {name} to accept</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-white/[.09] px-4 text-[9px] font-semibold disabled:opacity-40">Skip</button></>}</div>
     </article>;
   })}</div>;
 }
@@ -709,8 +709,8 @@ function ReceivedInterests({
           </p>
           <h2 className="mt-1 text-lg font-bold">Roommate requests</h2>
           <p className="mt-1 text-[9px] text-[#747A8B]">
-            Accept to connect, or pass privately. A chat appears in Inbox only
-            after either person sends the first message.
+            Accept to create a mutual match, or pass privately. After accepting,
+            tap Message to create or open the chat.
           </p>
         </div>
         <span className="grid h-7 min-w-7 place-items-center rounded-full bg-violet-500 px-2 text-[9px] font-bold">
