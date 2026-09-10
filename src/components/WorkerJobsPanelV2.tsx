@@ -101,14 +101,18 @@ export function WorkerInboxPanel({
   onConversationClosed,
   onNavigate = () => {},
   onOpenJobs,
-  onUnreadChange,
+  chatUnread,
+  activityUnread: summaryActivityUnread,
+  onUnreadRefresh,
 }: {
   profile: Profile;
   initialConversation?: WorkerBookingConversation | null;
   onConversationClosed?: () => void;
   onNavigate?: (page: string, id?: string) => void;
   onOpenJobs?: () => void;
-  onUnreadChange?: (count: number) => void;
+  chatUnread?: number;
+  activityUnread?: number;
+  onUnreadRefresh?: () => void;
 }) {
   const [rows, setRows] = useState<WorkerBookingConversation[]>([]);
   const [selected, setSelected] = useState<WorkerBookingConversation | null>(
@@ -181,8 +185,15 @@ export function WorkerInboxPanel({
   const conversationUnread = rows.filter(
     (row) => Number(row.unread_count || 0) > 0,
   ).length;
-  const totalUnread = conversationUnread + supportUnread + activityUnread;
-  useEffect(() => onUnreadChange?.(totalUnread), [onUnreadChange, totalUnread]);
+  const displayedChatUnread = chatUnread ?? conversationUnread + supportUnread;
+  const displayedActivityUnread = summaryActivityUnread ?? activityUnread;
+  const reportActivityUnread = useCallback(
+    (count: number) => {
+      setActivityUnread(count);
+      onUnreadRefresh?.();
+    },
+    [onUnreadRefresh],
+  );
   if (selected)
     return (
       <BookingNegotiationChat
@@ -194,6 +205,7 @@ export function WorkerInboxPanel({
           setSelected(null);
           onConversationClosed?.();
           void load();
+          onUnreadRefresh?.();
         }}
       />
     );
@@ -202,8 +214,8 @@ export function WorkerInboxPanel({
       <InboxTabs
         value={view}
         onChange={setView}
-        chatCount={conversationUnread + supportUnread}
-        activityCount={activityUnread}
+        chatCount={displayedChatUnread}
+        activityCount={displayedActivityUnread}
       />
       {view === "activity" ? (
         <Notifications
@@ -211,7 +223,7 @@ export function WorkerInboxPanel({
           scope="worker"
           embedded
           onNavigate={openActivitySource}
-          onUnreadChange={setActivityUnread}
+          onUnreadChange={reportActivityUnread}
         />
       ) : (
         <>
