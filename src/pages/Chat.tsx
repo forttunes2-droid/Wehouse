@@ -55,6 +55,7 @@ import {
   getMyHotelConversations,
   type HotelConversation,
 } from "@/lib/supabase/hotel-chat";
+import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
   profile: Profile;
@@ -729,20 +730,6 @@ export default function Chat({
       recentRoommateCalls,
     ],
   );
-  const totalUnread =
-    conversations.reduce((sum, row) => sum + (unread(row) > 0 ? 1 : 0), 0) +
-    bookingConversations.reduce(
-      (sum, row) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
-      0,
-    ) +
-    hotelConversations.reduce(
-      (sum, row) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
-      0,
-    ) +
-    supportThreads.reduce(
-      (sum, row) => sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
-      0,
-    );
   const visibleInboxItems = useMemo(() => {
     const query = inboxQuery.trim().toLowerCase();
     return inboxItems.filter((item) => {
@@ -1293,13 +1280,7 @@ export default function Chat({
             >
               {bulkDelete ? "Removing…" : "Remove"}
             </button>
-          ) : (
-            totalUnread > 0 && (
-              <span className="mt-5 rounded-full bg-violet-500/10 px-2.5 py-1 text-[9px] font-semibold text-violet-300">
-                {totalUnread > 99 ? "99+" : totalUnread} new
-              </span>
-            )
-          )}
+          ) : null}
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
@@ -1330,26 +1311,39 @@ export default function Chat({
                 className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
               />
             </label>
-            <div
-              className="mt-3 flex gap-1 rounded-2xl border border-white/[.06] bg-[#0E1118] p-1"
-              aria-label="Conversation filters"
-            >
-              {(
-                [
-                  ["all", "All"],
-                  ["people", "People"],
-                  ["wehouse", "WeHouse"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setInboxFilter(id)}
-                  className={`min-h-9 flex-1 rounded-xl text-[10px] font-semibold ${inboxFilter === id ? "bg-violet-500 text-white" : "text-[#7A8090]"}`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="mt-3 flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+                  Conversations
+                </p>
+                <p className="mt-1 truncate text-[10px] text-[#8A909F]">
+                  Private messages and WeHouse help
+                </p>
+              </div>
+              <WeHouseSelect
+                value={inboxFilter}
+                options={[
+                  {
+                    value: "all",
+                    label: "All messages",
+                    description: "People, bookings, hotels and WeHouse help",
+                  },
+                  {
+                    value: "people",
+                    label: "People & bookings",
+                    description: "Roommates, professionals and paid hotel chats",
+                  },
+                  {
+                    value: "wehouse",
+                    label: "WeHouse help",
+                    description: "Your support and operations conversations",
+                  },
+                ]}
+                onChange={setInboxFilter}
+                eyebrow="Messages"
+                title="Filter conversations"
+                ariaLabel="Filter conversations"
+              />
             </div>
             {loading ? (
               <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">

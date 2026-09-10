@@ -17,9 +17,19 @@ import HotelBookingChat from "@/components/HotelBookingChat";
 import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
+import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = { profile: Profile; initialBookingId?:string|null; onInitialBookingConsumed?:()=>void; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
 type View = "all" | "housing" | "hotels" | "services";
+type BookingItem = { kind: "housing" | "hotel" | "service"; row: any; date: string };
+type BookingGroup = "action" | "active" | "history";
+type BookingSourceErrors = Partial<Record<"housing" | "hotels" | "services", string>>;
+const VIEW_OPTIONS = [
+  { value: "all", label: "All bookings", description: "Apartments, hotels and WeHouse Services" },
+  { value: "housing", label: "Apartments", description: "Short lets and long-let tenancies" },
+  { value: "hotels", label: "Hotels", description: "Hotel rooms and stay packages" },
+  { value: "services", label: "WeHouse Services", description: "Jobs booked with professionals" },
+] as const;
 const money = (v: unknown) => `₦${Number(v || 0).toLocaleString()}`;
 const date = (v: any) => (v ? new Date(v).toLocaleDateString() : "—");
 const isUnpaidHousingDraft = (row: any) =>
@@ -60,6 +70,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
     [hotels, setHotels] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
+    [sourceErrors, setSourceErrors] = useState<BookingSourceErrors>({}),
     [loading, setLoading] = useState(true),
     [activeHousing, setActiveHousing] = useState<any | null>(null),
     [activeHotel, setActiveHotel] = useState<any | null>(null),
@@ -78,15 +89,24 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
         getHotelBookingsForUser(profile.user_id),
         getMyBookingConversations(profile.user_id),
       ]);
-      if (housingResult.status === "fulfilled" && !housingResult.value.error)
-        setHousing((housingResult.value.reservations || []).filter((row: any) => !isUnpaidHousingDraft(row)));
-      if (hotelResult.status === "fulfilled" && !hotelResult.value.error)
-        setHotels((hotelResult.value.bookings || []).filter((row: any) => !isUnpaidHotelDraft(row)));
-      if (serviceResult.status === "fulfilled" && !serviceResult.value.error) setServices(serviceResult.value.conversations || []);
-      const failed = housingResult.status === "rejected" || Boolean(housingResult.value?.error) ||
-        hotelResult.status === "rejected" || Boolean(hotelResult.value?.error) ||
-        serviceResult.status === "rejected" || Boolean(serviceResult.value?.error);
-      if (failed && !quiet) toast.error("Some bookings could not be refreshed. Please try again.");
+      const nextErrors: BookingSourceErrors = {};
+      if (housingResult.status === "fulfilled") {
+        if (housingResult.value.reservations)
+          setHousing(housingResult.value.reservations.filter((row: any) => !isUnpaidHousingDraft(row)));
+        if (housingResult.value.error)
+          nextErrors.housing = "Apartment bookings could not be fully refreshed.";
+      } else nextErrors.housing = "Apartment bookings could not be refreshed.";
+      if (hotelResult.status === "fulfilled") {
+        if (!hotelResult.value.error)
+          setHotels((hotelResult.value.bookings || []).filter((row: any) => !isUnpaidHotelDraft(row)));
+        else nextErrors.hotels = "Hotel stays could not be refreshed.";
+      } else nextErrors.hotels = "Hotel stays could not be refreshed.";
+      if (serviceResult.status === "fulfilled") {
+        if (!serviceResult.value.error)
+          setServices(serviceResult.value.conversations || []);
+        else nextErrors.services = "WeHouse Services could not be refreshed.";
+      } else nextErrors.services = "WeHouse Services could not be refreshed.";
+      setSourceErrors(nextErrors);
     } finally {
       setBusyId(null);
       if (!quiet) setLoading(false);
@@ -141,6 +161,19 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
         ),
     [housing, hotels, services, view],
   );
+  const sections = useMemo(() => {
+    const groups: Record<BookingGroup, BookingItem[]> = {
+      action: [],
+      active: [],
+      history: [],
+    };
+    for (const item of rows as BookingItem[]) groups[bookingGroup(item)].push(item);
+    return [
+      { id: "action" as const, label: "Needs your action", items: groups.action },
+      { id: "active" as const, label: "Active & upcoming", items: groups.active },
+      { id: "history" as const, label: "History", items: groups.history },
+    ].filter((section) => section.items.length > 0);
+  }, [rows]);
   async function cancelHousing(row: any) {
     setBusyId(row.id);
     const { error } = await cancelReservation(row.id);
@@ -238,51 +271,79 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
             </p>
             <h1 className="mt-1 text-xl font-bold">Bookings</h1>
             <p className="mt-1 text-[10px] text-[#74798B]">
-              Apartment tenancies, hotel stays and service jobs in one place.
+              What needs you now, what is active, and what is finished.
             </p>
           </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8">
-        <div className="border-b border-white/[.07]" role="group" aria-label="Filter by booking type">
-          <div className="grid grid-cols-4">
-            {([['all','All'],['housing','Apartments'],['hotels','Hotels'],['services','Services']] as const).map(([id,label])=><button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={`relative min-h-11 px-2 text-[10px] font-semibold ${view===id?'text-violet-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400':'text-[#74798A]'}`}>{label}</button>)}
+        <div className="flex items-center justify-between gap-3 border-b border-white/[.07] pb-3">
+          <div className="min-w-0">
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+              Booking type
+            </p>
+            <p className="mt-1 text-[10px] text-[#8A909F]">
+              {rows.length} {rows.length === 1 ? "record" : "records"} shown
+            </p>
           </div>
+          <WeHouseSelect
+            value={view}
+            options={VIEW_OPTIONS}
+            onChange={setView}
+            eyebrow="Bookings"
+            title="Filter booking type"
+            ariaLabel="Filter bookings by type"
+          />
         </div>
+        {Object.keys(sourceErrors).length > 0 && (
+          <BookingSourceNotice errors={sourceErrors} retry={() => void load()} />
+        )}
         {loading ? (
           <Loading />
         ) : rows.length === 0 ? (
-          <Empty />
+          <Empty view={view} />
         ) : (
-          <div className="space-y-3">
-            {rows.map((item) =>
-              item.kind === "housing" ? (
-                <HousingCard
-                  key={item.row.id}
-                  row={item.row}
-                  onOpen={() => setActiveHousing(item.row)}
-                  onResume={() => void continueHousing(item.row)}
-                  busy={busyId === item.row.id}
-                  onCancel={() =>
-                    setPending({ kind: "cancel_housing", row: item.row })
-                  }
-                  onSupport={() => support(item.row)}
-                />
-              ) : item.kind === "hotel" ? (
-                <HotelCard
-                  key={item.row.booking_id}
-                  row={item.row}
-                  busy={busyId === `hotel-${item.row.booking_id}`}
-                  onCancel={() =>
-                    setPending({ kind: "cancel_hotel", row: item.row })
-                  }
-                  onSupport={()=>hotelSupport(item.row)}
-                  onOpen={()=>setActiveHotel(item.row)}
-                />
-              ) : (
-                <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={()=>setActiveService({conversationId:item.row.conversation_id,bookingId:item.row.booking_id})}/>
-              ),
-            )}
+          <div className="space-y-7">
+            {sections.map((section) => (
+              <section key={section.id}>
+                <div className="mb-1 flex items-center justify-between">
+                  <h2 className={`text-[10px] font-bold uppercase tracking-[.14em] ${section.id === "action" ? "text-amber-300" : "text-[#747A8B]"}`}>
+                    {section.label}
+                  </h2>
+                  <span className="text-[9px] text-[#555C6D]">{section.items.length}</span>
+                </div>
+                <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
+                  {section.items.map((item) =>
+                    item.kind === "housing" ? (
+                      <HousingCard
+                        key={item.row.id}
+                        row={item.row}
+                        onOpen={() => setActiveHousing(item.row)}
+                        onResume={() => void continueHousing(item.row)}
+                        busy={busyId === item.row.id}
+                        onCancel={() =>
+                          setPending({ kind: "cancel_housing", row: item.row })
+                        }
+                        onSupport={() => support(item.row)}
+                      />
+                    ) : item.kind === "hotel" ? (
+                      <HotelCard
+                        key={item.row.booking_id}
+                        row={item.row}
+                        busy={busyId === `hotel-${item.row.booking_id}`}
+                        onCancel={() =>
+                          setPending({ kind: "cancel_hotel", row: item.row })
+                        }
+                        onSupport={()=>hotelSupport(item.row)}
+                        onOpen={()=>setActiveHotel(item.row)}
+                      />
+                    ) : (
+                      <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={()=>setActiveService({conversationId:item.row.conversation_id,bookingId:item.row.booking_id})}/>
+                    ),
+                  )}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </main>
@@ -299,10 +360,54 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   );
 }
 
+function bookingGroup(item: BookingItem): BookingGroup {
+  if (item.kind === "housing") {
+    const status = String(item.row.status || "");
+    const rentPaid = ["paid", "upfront_paid"].includes(String(item.row.rent_payment_status || ""));
+    if (status === "payment_pending" || status === "payment_conflict" || (status === "ready_for_move_in" && !rentPaid)) return "action";
+    if (["completed", "cancelled", "expired", "refunded"].includes(status)) return "history";
+    return "active";
+  }
+  if (item.kind === "hotel") {
+    const status = String(item.row.status || "");
+    const payment = String(item.row.payment_status || "");
+    if (status === "payment_conflict" || (status === "pending" && ["unpaid", "payment_pending", "failed"].includes(payment))) return "action";
+    if (["checked_out", "completed", "cancelled", "expired", "refunded"].includes(status)) return "history";
+    return "active";
+  }
+  const status = String(item.row.booking_status || "");
+  if (["waiting_payment", "completed_pending_approval"].includes(status)) return "action";
+  if (["approved_released", "cancelled", "refunded"].includes(status)) return "history";
+  return "active";
+}
+
+function BookingSourceNotice({ errors, retry }: { errors: BookingSourceErrors; retry: () => void }) {
+  const labels = [
+    errors.housing && "apartments",
+    errors.hotels && "hotels",
+    errors.services && "WeHouse Services",
+  ].filter(Boolean);
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.045] p-3" role="status">
+      <div>
+        <p className="text-[10px] font-semibold text-amber-200">
+          {labels.join(", ")} {labels.length === 1 ? "needs" : "need"} a refresh
+        </p>
+        <p className="mt-1 text-[9px] text-[#8E8375]">
+          Any booking already loaded stays visible.
+        </p>
+      </div>
+      <button type="button" onClick={retry} className="min-h-9 shrink-0 rounded-full border border-amber-400/20 px-3 text-[9px] font-semibold text-amber-200">
+        Try again
+      </button>
+    </div>
+  );
+}
+
 function ServiceCard({row,onOpen}:{row:any;onOpen:()=>void}){
   const status=BOOKING_STATUS_LABELS[row.booking_status];
   const amount=Number(row.negotiated_amount||0);
-  return <article className="border-b border-white/[.065] py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse service worker"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||"Status unavailable"}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3">{!["approved_released","cancelled","refunded"].includes(row.booking_status)&&<p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p>}<span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
+  return <article className="py-4"><button type="button" onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.09] text-xl text-violet-300">⌁</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">WeHouse Service</p><h2 className="mt-1 truncate text-sm font-semibold">{row.service_type||"Service request"}</h2><p className="mt-1 truncate text-[10px] text-[#676C7D]">{row.other_person_name||"WeHouse professional"} · #{row.booking_code}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color||"bg-white/[.05] text-[#A2A6B3]"}`}>{status?.label||"Status unavailable"}</span></div>{amount>0&&<p className="mt-3 text-xs font-semibold text-emerald-300">{money(amount)}</p>}<div className="mt-3 flex items-end justify-between gap-3 border-t border-white/[.05] pt-3">{!["approved_released","cancelled","refunded"].includes(row.booking_status)&&<p className="text-[9px] text-[#626879]">{serviceNextAction(row.booking_status)}</p>}<span className="text-[9px] font-semibold text-violet-300">Open booking →</span></div></div></div></button></article>
 }
 function serviceNextAction(status:string){const labels:Record<string,string>={booking_requested:"Waiting for the professional to respond",negotiating:"Agree the work, date and price",waiting_payment:"Approve and pay the agreed price",confirmed:"Payment secured · waiting to start",in_progress:"Work is in progress",completed_pending_approval:"Review the completed work",approved_released:"Completed",disputed:"WeHouse review in progress",cancelled:"Cancelled",refunded:"Refunded"};return labels[status]||"Open for the next action"}
 
@@ -348,7 +453,7 @@ function HousingCard({
                 : "Rent payment required"
               : null;
   return (
-    <article className="border-b border-white/[.065] py-4">
+    <article className="py-4">
       <div className="flex items-start gap-3">
         {row.listing_image ? (
           <button
@@ -484,7 +589,7 @@ function HotelCard({
 }) {
   const visibleStatus = HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
   return (
-    <article className="rounded-2xl border border-white/[.06] bg-[#12151D] p-4">
+    <article className="py-4">
       <div className="flex justify-between gap-3">
         <div>
           <p className="text-[9px] font-semibold uppercase text-amber-300">
@@ -570,12 +675,19 @@ function Loading() {
     </div>
   );
 }
-function Empty() {
+function Empty({ view }: { view: View }) {
+  const label = view === "housing"
+    ? "apartment bookings"
+    : view === "hotels"
+      ? "hotel stays"
+      : view === "services"
+        ? "WeHouse Services bookings"
+        : "bookings";
   return (
     <div className="border-y border-white/[.07] px-5 py-14 text-center">
-      <p className="text-sm font-semibold">No bookings yet</p>
+      <p className="text-sm font-semibold">No {label} yet</p>
       <p className="mt-2 text-[10px] text-[#707788]">
-        Apartment reservations, hotel stays and service jobs you start will appear here with their current status.
+        New records appear here automatically with their current next step.
       </p>
     </div>
   );

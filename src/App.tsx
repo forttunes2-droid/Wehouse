@@ -33,7 +33,15 @@ import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
-import { currentActivityRows, resolveActivityDestination } from "@/lib/activityFeed";
+import {
+  getAnnouncementsForUser,
+  markAnnouncementRead,
+} from "@/lib/supabase/announcements";
+import {
+  activityIsCurrent,
+  currentActivityRows,
+  resolveActivityDestination,
+} from "@/lib/activityFeed";
 
 type ConversationUnreadRow = {
   id: string;
@@ -44,7 +52,9 @@ type ConversationUnreadRow = {
 };
 type IncomingMessageRow = {
   sender_id?: string;
+  conversation_id?: string;
   content?: string | null;
+  legacy_content?: string | null;
   attachments?: unknown[] | null;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
@@ -525,6 +535,7 @@ export default function App() {
   useEffect(() => {
     if (!profile?.user_id || !isUserRole) {
       queueMicrotask(() => setUnreadCount(0));
+      queueMicrotask(() => setNotificationCount(0));
       seenMessagesRef.current.clear();
       return;
     }
@@ -536,7 +547,7 @@ export default function App() {
         supportResult,
         hotelChatResult,
         { data: activityRows },
-        { count: announcements },
+        announcementResult,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -548,15 +559,12 @@ export default function App() {
         supabase
           .from("notifications")
           .select(
-            "id,type,read,created_at,source_type,source_id,destination_route",
+            "id,type,title,message,read,created_at,source_type,source_id,destination_route",
           )
           .eq("recipient_id", uid)
+          .in("workspace_scope", ["personal", "account"])
           .eq("read", false),
-        supabase
-          .from("announcement_recipients")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", uid)
-          .eq("read_status", false),
+        getAnnouncementsForUser(uid),
       ]);
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
@@ -584,6 +592,8 @@ export default function App() {
         (activityRows || []) as Array<{
           id: string;
           type: string;
+          title?: string | null;
+          message?: string | null;
           read: boolean;
           created_at: string;
           source_type?: string | null;
@@ -591,11 +601,29 @@ export default function App() {
           destination_route?: string | null;
         }>,
       ).length;
+      const announcementUnread = (announcementResult.messages || []).filter(
+        (delivery: any) => {
+          const announcement = Array.isArray(delivery.announcements)
+            ? delivery.announcements[0]
+            : delivery.announcement || delivery.message;
+          return (
+            !delivery.read_status &&
+            activityIsCurrent({
+              type: "announcement",
+              source: "announcement",
+              created_at: announcement?.created_at || delivery.delivered_at,
+            })
+          );
+        },
+      ).length;
       setUnreadCount(roommate + worker + hotel + support);
-      setNotificationCount(activity + Number(announcements || 0));
+      setNotificationCount(activity + announcementUnread);
     }
     void count();
-    const openMessages = () => handleSetNavPage("conversation");
+    const openMessages = (conversationId?: string) => {
+      setChatConvId(conversationId || null);
+      handleSetNavPage("conversation");
+    };
     const openNotifications = () => handleSetNavPage("notifications");
     const refreshUnread = () => void count();
     window.addEventListener("wehouse:unread-changed", refreshUnread);
@@ -616,7 +644,10 @@ export default function App() {
                   ? "New attachment"
                   : "Open Inbox to read it."),
             ).slice(0, 110),
-            action: { label: "View", onClick: openMessages },
+            action: {
+              label: "View",
+              onClick: () => openMessages(message.conversation_id),
+            },
             classNames: {
               toast:
                 "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
@@ -624,6 +655,27 @@ export default function App() {
               description: "!text-[10px] !text-[#9AA1B2]",
               actionButton:
                 "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
+            },
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "booking_messages" },
+        (payload) => {
+          const message = payload.new as IncomingMessageRow;
+          if (String(message.sender_id || "") === uid) return;
+          void count();
+          if (profile.pref_push_notif === false) return;
+          toast("New service message", {
+            description: String(
+              message.content ||
+                message.legacy_content ||
+                "Open the conversation to read it.",
+            ).slice(0, 110),
+            action: {
+              label: "View",
+              onClick: () => openMessages(message.conversation_id),
             },
           });
         },
@@ -638,7 +690,10 @@ export default function App() {
           if (profile.pref_push_notif === false) return;
           toast("New hotel message", {
             description: String(message.content || "Open Inbox to read it.").slice(0, 110),
-            action: { label: "View", onClick: openMessages },
+            action: {
+              label: "View",
+              onClick: () => openMessages(message.conversation_id),
+            },
           });
         },
       )
@@ -657,6 +712,7 @@ export default function App() {
           void count();
           if (payload.eventType !== "INSERT") return;
           const notification = payload.new as {
+            id?: string;
             title?: string;
             message?: string;
             type?: string;
@@ -676,12 +732,25 @@ export default function App() {
           )
             return;
           if (profile.pref_push_notif === false) return;
+          const viewNotification = () => {
+            if (notification.id)
+              void supabase
+                .rpc("mark_my_notification_read", {
+                  p_notification_id: notification.id,
+                })
+                .then((result) => {
+                  if (!result.error)
+                    window.dispatchEvent(new Event("wehouse:unread-changed"));
+                });
+            if (opensInbox) openMessages(destination.id);
+            else openNotifications();
+          };
           toast(notification.title || "WeHouse update", {
             description:
               notification.message || "Open WeHouse to view the update.",
             action: {
               label: "View",
-              onClick: opensInbox ? openMessages : openNotifications,
+              onClick: viewNotification,
             },
             classNames: {
               toast:
@@ -718,7 +787,20 @@ export default function App() {
               description: data?.content
                 ? String(data.content).slice(0, 140)
                 : "Open Inbox to read the official update.",
-              action: { label: "Read", onClick: openNotifications },
+              action: {
+                label: "Read",
+                onClick: () => {
+                  void markAnnouncementRead(Number(announcementId), uid).then(
+                    (result) => {
+                      if (!result.error)
+                        window.dispatchEvent(
+                          new Event("wehouse:unread-changed"),
+                        );
+                    },
+                  );
+                  openNotifications();
+                },
+              },
               classNames: {
                 toast:
                   "!rounded-2xl !border !border-blue-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
@@ -1212,7 +1294,10 @@ export default function App() {
         );
     }
   };
-  const desktopNavItems = getNavForRole(userRole, unreadCount);
+  const desktopNavItems = getNavForRole(
+    userRole,
+    unreadCount + notificationCount,
+  );
   const hide = [
     "profile",
     "account",
@@ -1306,9 +1391,9 @@ export default function App() {
                       )}
                       {tab.id === "conversation" &&
                         unreadCount + notificationCount > 0 && (
-                          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
-                            {unreadCount + notificationCount > 9
-                              ? "9+"
+                          <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+                            {unreadCount + notificationCount > 99
+                              ? "99+"
                               : unreadCount + notificationCount}
                           </span>
                         )}

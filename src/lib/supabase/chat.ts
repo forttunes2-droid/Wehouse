@@ -93,5 +93,6 @@ export async function setRoommateBlock(userId:string,blocked:boolean,reason?:str
 
 export async function markMessagesSeen(conversationId:string){
   const{error}=await supabase.rpc('mark_my_conversation_seen',{p_conversation_id:conversationId});
+  if(!error&&typeof window!=='undefined')window.dispatchEvent(new Event('wehouse:unread-changed'));
   return{error};
 }

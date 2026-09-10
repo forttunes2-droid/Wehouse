@@ -96,6 +96,8 @@ export async function markHotelMessagesRead(conversationId: string) {
   const { error } = await supabase.rpc("mark_hotel_booking_messages_read", {
     p_conversation_id: conversationId,
   });
+  if (!error && typeof window !== "undefined")
+    window.dispatchEvent(new Event("wehouse:unread-changed"));
   return { error };
 }
 

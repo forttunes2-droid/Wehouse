@@ -178,10 +178,9 @@ export function WorkerInboxPanel({
     }
     onNavigate(page, id);
   }
-  const conversationUnread = rows.reduce(
-    (sum, row) => sum + Number(row.unread_count || 0),
-    0,
-  );
+  const conversationUnread = rows.filter(
+    (row) => Number(row.unread_count || 0) > 0,
+  ).length;
   const totalUnread = conversationUnread + supportUnread + activityUnread;
   useEffect(() => onUnreadChange?.(totalUnread), [onUnreadChange, totalUnread]);
   if (selected)

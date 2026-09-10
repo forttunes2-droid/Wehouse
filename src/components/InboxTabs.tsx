@@ -9,31 +9,33 @@ type Props = {
 
 export default function InboxTabs({ value, onChange, chatCount = 0, activityCount = 0 }: Props) {
   const tabs: Array<{ id: InboxView; label: string; count: number }> = [
-    { id: "chats", label: "Chats", count: chatCount },
+    { id: "chats", label: "Messages", count: chatCount },
     { id: "activity", label: "Activity", count: activityCount },
   ];
 
   return (
-    <div
-      className="grid grid-cols-2 gap-1 rounded-2xl border border-white/[.06] bg-[#0D1017] p-1"
+    <nav
+      className="grid grid-cols-2 border-b border-white/[.07]"
       aria-label="Inbox views"
+      role="tablist"
     >
       {tabs.map(({ id, label, count }) => (
         <button
           key={id}
           type="button"
           onClick={() => onChange(id)}
-          aria-current={value === id ? "page" : undefined}
-          className={`relative min-h-11 rounded-xl text-xs font-semibold transition ${value === id ? "bg-violet-500 text-white shadow-[0_8px_24px_rgba(139,92,246,.18)]" : "text-[#747A8B] active:bg-white/[.035]"}`}
+          role="tab"
+          aria-selected={value === id}
+          className={`relative min-h-12 text-xs font-semibold transition ${value === id ? "text-white after:absolute after:inset-x-8 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-400" : "text-[#747A8B] active:text-[#A8ADBA]"}`}
         >
           <span>{label}</span>
           {count > 0 && (
-            <span className={`ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full px-1 text-[8px] font-bold ${value === id ? "bg-white/[.18] text-white" : "bg-violet-500 text-white"}`}>
+            <span className="ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">
               {count > 99 ? "99+" : count}
             </span>
           )}
         </button>
       ))}
-    </div>
+    </nav>
   );
 }

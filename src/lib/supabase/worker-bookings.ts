@@ -19,6 +19,7 @@ export async function getCommunicationBookingConversations(userId:string){
 
 export async function markBookingMessagesRead(conversationId:string){
   const{error}=await supabase.rpc('mark_my_booking_messages_read',{p_conversation_id:conversationId});
+  if(!error&&typeof window!=='undefined')window.dispatchEvent(new Event('wehouse:unread-changed'));
   return{error};
 }
 

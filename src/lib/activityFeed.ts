@@ -1,6 +1,8 @@
 export type ActivityFeedRow = {
   id?: string;
   type?: string | null;
+  title?: string | null;
+  message?: string | null;
   source_type?: string | null;
   source_id?: string | null;
   destination_route?: string | null;
@@ -14,9 +16,10 @@ const FINANCIAL_ACTIVITY = /payment|payout|earning|dispute|refund/i;
 const ACCOUNT_ACTIVITY = /security|password|verification/i;
 const BOOKING_ACTIVITY = /booking|reservation|inspection|listing|property|hotel|job|worker|status/i;
 const ROOMMATE_ACTIVITY = /roommate|match|invite|interest/i;
-const ACTIONABLE_ACTIVITY = /action_required|payment_conflict|dispute|changes_requested|escalat|verification_required|refund_due|failed/i;
+const ACTIONABLE_ACTIVITY = /action_required|payment_conflict|dispute|changes_requested|escalat|verification_required|refund_due|failed|service_price_ready|service_completion_review_required|service_request_received|service_payment_confirmed|work_post_confirmation_requested|roommate_interest|waiting_payment|payment_required|approval_required/i;
+const ACTIONABLE_COPY = /needs? (?:your|my) action|price ready for approval|review completed work|waiting for (?:your|my) (?:approval|payment|response)|requires? (?:your|my) (?:approval|payment|response)|new roommate interest|new service request|needs verification/i;
 const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/i;
-const TRANSIENT_ACTIVITY = /device_confirmation_pending|new_device_login|typing|message_seen|message_viewed|reaction|draft_saved|sync_(started|finished)/i;
+const TRANSIENT_ACTIVITY = /device_confirmation_pending|typing|message_seen|message_viewed|reaction|draft_saved|sync_(started|finished)/i;
 
 export function isTransientActivityEvent(row: Pick<ActivityFeedRow, "type">) {
   return TRANSIENT_ACTIVITY.test(String(row.type || ""));
@@ -28,6 +31,21 @@ export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "sour
   if (MESSAGE_LIFECYCLE.test(type)) return false;
   if (/(^|_)(message|reply|replied|chat)(_|$)/.test(type)) return true;
   return row.destination_route === "conversation" && /conversation|message|chat/.test(String(row.source_type || "").toLowerCase());
+}
+
+export function activityNeedsAction(
+  row: Pick<ActivityFeedRow, "type" | "title" | "message" | "source_type" | "destination_route">,
+) {
+  const value = [
+    row.type,
+    row.title,
+    row.message,
+    row.source_type,
+    row.destination_route,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return ACTIONABLE_ACTIVITY.test(value) || ACTIONABLE_COPY.test(value);
 }
 
 export type ActivityDestination = {
@@ -179,7 +197,7 @@ export function activityIsCurrent(row: ActivityFeedRow, now = Date.now()) {
   const created = new Date(row.created_at).getTime();
   if (!Number.isFinite(created)) return false;
   const type = String(row.type || "");
-  const retentionDays = ACTIONABLE_ACTIVITY.test(type)
+  const retentionDays = activityNeedsAction(row)
     ? 180
     : row.read
       ? FINANCIAL_ACTIVITY.test(type) ? 90 : BOOKING_ACTIVITY.test(type) ? 30 : ROOMMATE_ACTIVITY.test(type) ? 14 : ACCOUNT_ACTIVITY.test(type) ? 30 : 14
@@ -208,7 +226,7 @@ export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = 
       const isLifecycle = FINANCIAL_ACTIVITY.test(type) || BOOKING_ACTIVITY.test(type) || ROOMMATE_ACTIVITY.test(type);
       // An action stays visible until the workflow records its resolution. Merely
       // reading it, or receiving a different lifecycle event, must not erase it.
-      const key = isLifecycle && !ACTIONABLE_ACTIVITY.test(type) && row.source_type && row.source_id
+      const key = isLifecycle && !activityNeedsAction(row) && row.source_type && row.source_id
         ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
         : "";
       if (!key) return true;

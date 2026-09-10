@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   activityIsCurrent,
-  isOrdinaryMessageEvent,
-  isTransientActivityEvent,
+  currentActivityRows,
   longestActivityCutoff,
 } from "@/lib/activityFeed";
 import { supabase } from "@/lib/supabase";
@@ -38,18 +37,14 @@ export function useOperationsInboxSummary(
 
     if (!support.error) {
       setMessageUnread(
-        (support.conversations || []).reduce(
-          (total: number, row: any) => total + Number(row.unread_count || 0),
-          0,
-        ),
+        (support.conversations || []).filter(
+          (row: any) => Number(row.unread_count || 0) > 0,
+        ).length,
       );
     }
 
-    const currentEvents = (events.data || []).filter(
-      (row) =>
-        !isTransientActivityEvent(row) &&
-        !isOrdinaryMessageEvent(row) &&
-        activityIsCurrent({ ...row, source: "event" }),
+    const currentEvents = currentActivityRows(
+      (events.data || []).map((row) => ({ ...row, source: "event" as const })),
     );
     const currentAnnouncements = (announcements.messages || []).filter(
       (delivery: any) => {

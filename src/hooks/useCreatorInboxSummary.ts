@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   activityIsCurrent,
-  isOrdinaryMessageEvent,
+  currentActivityRows,
   longestActivityCutoff,
 } from "@/lib/activityFeed";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +21,7 @@ export function useCreatorInboxSummary(
       getSupportInbox("all"),
       supabase
         .from("notifications")
-        .select("type,source_type,destination_route,created_at,read")
+        .select("type,title,message,source_type,destination_route,created_at,read")
         .eq("recipient_id", userId)
         .eq("read", false)
         .eq("workspace_scope", activityScope)
@@ -31,17 +31,14 @@ export function useCreatorInboxSummary(
 
     if (!support.error) {
       setMessageUnread(
-        (support.conversations || []).reduce(
-          (total: number, row: any) => total + Number(row.unread_count || 0),
-          0,
-        ),
+        (support.conversations || []).filter(
+          (row: any) => Number(row.unread_count || 0) > 0,
+        ).length,
       );
     }
     if (!events.error || !announcements.error) {
-      const eventUnread = (events.data || []).filter(
-        (row) =>
-          !isOrdinaryMessageEvent(row) &&
-          activityIsCurrent({ ...row, source: "event" }),
+      const eventUnread = currentActivityRows(
+        (events.data || []).map((row) => ({ ...row, source: "event" as const })),
       ).length;
       const announcementUnread = (announcements.messages || []).filter(
         (delivery: any) => {

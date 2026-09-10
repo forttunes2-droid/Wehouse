@@ -9,6 +9,7 @@ import { toast, Toaster } from "sonner";
 import {
   activityDestinationLabel,
   activityIsCurrent,
+  activityNeedsAction,
   currentActivityRows,
   longestActivityCutoff,
   resolveActivityDestination,
@@ -314,8 +315,16 @@ export default function Notifications({
             <WeHouseSelect
               value={activityFilter}
               options={[
-                { value: "all", label: "All updates" },
-                { value: "action", label: "Needs my action" },
+                {
+                  value: "all",
+                  label: "All updates",
+                  description: "Bookings, money, security and official WeHouse updates",
+                },
+                {
+                  value: "action",
+                  label: "Needs my action",
+                  description: "Only updates waiting for you to respond, approve or pay",
+                },
               ]}
               onChange={(value) => setActivityFilter(value as ActivityFilter)}
               eyebrow="Activity"
@@ -585,8 +594,7 @@ function ErrorState({ text, retry }: { text: string; retry: () => void }) {
 }
 function matchesActivityFilter(row: Activity, filter: ActivityFilter) {
   if (filter === "all") return true;
-  const value = `${row.type} ${row.source_type} ${row.destination_route}`.toLowerCase();
-  return /action_required|changes_requested|waiting_for_user|escalat|failed|dispute|verification_required|approval_required|payment_conflict/.test(value);
+  return activityNeedsAction(row);
 }
 function activityKind(row: Activity) {
   const value = `${row.type} ${row.source_type}`.toLowerCase();
