@@ -26,7 +26,10 @@ import BackButton from "@/components/BackButton";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
-import { getPropertyBookingJourney } from "@/lib/propertyBookingLifecycle";
+import {
+  getPropertyBookingJourney,
+  propertyBookingStatusLabel,
+} from "@/lib/propertyBookingLifecycle";
 import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
 
 type Props = { profile: Profile; initialBookingId?:string|null; onInitialBookingConsumed?:()=>void; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
@@ -50,18 +53,6 @@ const isUnpaidHotelDraft = (row: any) =>
   ["cancelled", "expired"].includes(String(row.status || "")) &&
   !row.paid_at &&
   String(row.payment_status || "") !== "paid";
-const HOUSING_STATUS: Record<string, string> = {
-  payment_pending: "Payment pending",
-  reserved: "Reserved",
-  inspection_pending: "Inspection in progress",
-  ready_for_move_in: "Ready for move-in",
-  occupied: "Occupied",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  expired: "Expired",
-  refunded: "Refunded",
-  payment_conflict: "Payment review",
-};
 const HOTEL_STATUS: Record<string, string> = {
   pending: "Awaiting payment",
   confirmed: "Stay confirmed",
@@ -458,7 +449,7 @@ function bookingGroup(item: BookingItem): BookingGroup {
   if (item.kind === "housing") {
     const status = String(item.row.status || "");
     const rentPaid = ["paid", "upfront_paid"].includes(String(item.row.rent_payment_status || ""));
-    if (status === "payment_pending" || status === "payment_conflict" || (status === "reserved" && !rentPaid) || (status === "ready_for_move_in" && !rentPaid)) return "action";
+    if (status === "payment_pending" || status === "payment_conflict" || (status === "reserved" && !rentPaid) || (status === "ready_for_move_in" && (!rentPaid || !item.row.requested_move_in_at))) return "action";
     if (["completed", "cancelled", "expired", "refunded"].includes(status)) return "history";
     return "active";
   }
@@ -524,12 +515,8 @@ function HousingCard({
   const rentPaid = ["paid", "upfront_paid"].includes(
     String(row.rent_payment_status || ""),
   );
-  const visibleStatus =
-    row.status === "occupied"
-      ? short
-        ? "Checked in"
-        : "Tenancy active"
-      : HOUSING_STATUS[row.status] || "Status unavailable";
+  const journey = getPropertyBookingJourney(row);
+  const visibleStatus = propertyBookingStatusLabel(row);
   const nextSummary =
     row.status === "occupied"
       ? short
@@ -548,7 +535,9 @@ function HousingCard({
         : row.status === "inspection_pending"
           ? "WeHouse is reviewing the apartment"
           : row.status === "ready_for_move_in" && rentPaid
-            ? "Confirm after you move in"
+            ? row.requested_move_in_at
+              ? `Meet WeHouse ${new Date(row.requested_move_in_at).toLocaleString()} for handover`
+              : journey.title
             : row.status === "ready_for_move_in"
               ? short
                 ? "Stay payment required"
@@ -684,7 +673,7 @@ function HotelCard({
 }
 function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onInspect,onRent,onMoveIn}:{row:any;inspection:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void;onInspect:()=>void;onRent:()=>void;onMoveIn:(requestedAt:string)=>void}) {
   const short=row.stay_type==='short_let';
-  const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
+  const status=propertyBookingStatusLabel(row);
   const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Apartment stay':'Apartment reservation');
   const journey=getPropertyBookingJourney(row,inspection);
   const recordCode=Boolean(row.booking_code)&&journey.rentPaid&&['handover','tenancy','completed'].includes(journey.action);
@@ -711,7 +700,7 @@ function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onIns
             <Info label={short?'Stay payment':'Year 1 rent'} value={journey.rentPaid?'Paid':row.rent_payment_status==='payment_pending'?'Payment started':'Not paid'}/>
             {short?<><Info label="Check-in" value={date(row.stay_check_in)}/><Info label="Check-out" value={date(row.stay_check_out)}/></>:<><Info label="Tenure" value={`${Number(row.rental_plan_years||1)} year${Number(row.rental_plan_years||1)===1?'':'s'}`}/><Info label="Year 1 rent" value={money(rentAmount)}/></>}
           </div>
-          {row.hold_expires_at&&!['occupied','completed'].includes(row.status)&&<p className="mt-3 text-[9px] text-amber-300">Reservation hold until {new Date(row.hold_expires_at).toLocaleString()}</p>}
+          {row.hold_expires_at&&!journey.rentPaid&&!['occupied','completed'].includes(row.status)&&<p className="mt-3 text-[9px] text-amber-300">Reservation hold until {new Date(row.hold_expires_at).toLocaleString()}</p>}
           <PropertyBookingJourney row={row} inspection={inspection}/>
           {journey.action==='reservation_payment'&&(
             <button type="button" disabled={busy} onClick={onResume} className="mt-5 min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Opening secure payment…':'Pay reservation fee'}</button>
