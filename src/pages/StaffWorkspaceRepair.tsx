@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
@@ -280,13 +280,21 @@ function Workspace({
     );
   const activeLabel =
     items.find((item) => item.id === tab)?.label || copy.title;
+  const activeDescription =
+    tab === "bookings"
+      ? "Continue exact reservations through arrival, verified handover, active tenancy and completion."
+      : tab === "conversations"
+        ? "Messages are conversations. Activity contains official updates and work that needs action."
+        : tab === "home"
+          ? `See today’s ${copy.title.toLowerCase()} work and priorities.`
+          : copy.description;
   return (
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
         label={`WEHOUSE TEAM · ${copy.title}`}
         title={activeLabel}
-        description={`${copy.description} · ${branch}`}
+        description={`${activeDescription} · ${branch}`}
         items={items}
         active={tab}
         setActive={(id) => setTab(id as MainTab)}
@@ -488,44 +496,6 @@ function ActivityOnlyInbox({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-function InboxDetail({
-  title,
-  badge = 0,
-  back,
-  children,
-}: {
-  title: string;
-  badge?: number;
-  back: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-4">
-      <header className="flex items-center gap-3 border-b border-white/[.07] pb-3">
-        <button
-          type="button"
-          onClick={back}
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg"
-          aria-label="Back to Inbox"
-        >
-          ‹
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
-            Inbox
-          </p>
-          <h2 className="mt-0.5 text-base font-bold">{title}</h2>
-        </div>
-        {badge > 0 && (
-          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-[8px] font-bold">
-            {badge > 99 ? "99+" : badge}
-          </span>
-        )}
-      </header>
-      {children}
     </div>
   );
 }
