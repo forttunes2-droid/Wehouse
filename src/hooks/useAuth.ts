@@ -279,32 +279,37 @@ export function useAuth() {
     logoutBusyRef = useRef(false),
     profileLoadRef = useRef<{ authId: string; promise: Promise<void> } | null>(null),
     profileRequestRef = useRef(0),
+    restoreRequestRef = useRef(0),
     confirmedAuthIdRef = useRef<string | null>(null),
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
   const determinePage = useCallback(pageForProfile, []);
   useEffect(() => {
-    if (!state.isLoading || state.profile) return;
+    if (!state.isLoading) return;
     let verificationActive = false;
     try {
       verificationActive = Boolean(readGoogleVerification());
     } catch {}
-    if (!verificationActive) return;
     const timer = window.setTimeout(() => {
+      profileRequestRef.current += 1;
+      restoreRequestRef.current += 1;
+      profileLoadRef.current = null;
       setState((current) =>
-        current.isLoading && !current.profile
+        current.isLoading
           ? {
               page: "login",
               profile: null,
               isLoading: false,
-              error: "Google verification did not finish. Choose the matching account and try again.",
+              error: verificationActive
+                ? "Google verification did not finish. Choose the matching account and try again."
+                : "WeHouse took too long to open. Check your connection and try again; you will not be left on a loading screen.",
               kickedOut: false,
             }
           : current,
       );
     }, 12000);
     return () => window.clearTimeout(timer);
-  }, [state.isLoading, state.profile]);
+  }, [state.isLoading]);
   const allowEntry = useCallback(async (p: Profile, maintenanceEnabled?: boolean) => {
     if (p.banned || p.suspended || p.deleted) {
       explicitSignOutRef.current = true;
@@ -473,11 +478,14 @@ export function useAuth() {
     let alive = true;
     let authEventTimer: number | undefined;
     async function restore() {
+      const restoreRequest = ++restoreRequestRef.current;
+      const isCurrentRestore = () =>
+        alive && restoreRequestRef.current === restoreRequest;
       setState((s) => (s.profile ? s : { ...s, page: "loading", isLoading: true }));
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
-        if (!alive) return;
+        if (!isCurrentRestore()) return;
         if (passwordRecoveryRequested() || googlePasswordRecoveryRequested() || googleVerificationCallbackFailed()) {
           setState({
             page: "login",
@@ -514,7 +522,7 @@ export function useAuth() {
           kickedOut: false,
         });
       } catch (e: any) {
-        if (alive)
+        if (isCurrentRestore())
           setState({
             page: "login",
             profile: null,

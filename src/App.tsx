@@ -91,9 +91,14 @@ const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
 
 function PageTransitionFallback() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 6000);
+    return () => window.clearTimeout(timer);
+  }, []);
   return (
     <div
-      className="grid min-h-[100dvh] place-items-center bg-[#08090D]"
+      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#08090D] px-6 text-center text-white"
       role="status"
       aria-label="Loading WeHouse"
     >
@@ -102,6 +107,13 @@ function PageTransitionFallback() {
         alt=""
         className="h-9 w-9 rounded-[10px] opacity-90"
       />
+      {slow && (
+        <div className="mt-5 max-w-xs">
+          <p className="text-sm font-semibold">WeHouse is taking longer than expected</p>
+          <p className="mt-2 text-[10px] leading-5 text-[#74798A]">Your session or connection has not answered yet. This screen will recover automatically.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl border border-violet-500/25 bg-violet-500/[.08] px-5 text-xs font-semibold text-violet-200">Try again now</button>
+        </div>
+      )}
     </div>
   );
 }

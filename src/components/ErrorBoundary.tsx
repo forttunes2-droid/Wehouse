@@ -27,11 +27,12 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.isChunkError) {
-      setTimeout(function() { window.location.reload(); }, 2000);
       return (
         <div className="min-h-screen bg-[#0A0A0F] flex flex-col items-center justify-center gap-4 px-6">
-          <div className="w-10 h-10 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-[#5C5E72]">Loading fresh code...</p>
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/10 text-lg font-black text-violet-300">WH</div>
+          <h2 className="text-lg font-bold text-white">A fresh app version is ready</h2>
+          <p className="max-w-xs text-center text-sm text-[#777B8B]">Refresh once to load the current WeHouse code. The app will not reload repeatedly.</p>
+          <button onClick={() => window.location.reload()} className="h-11 rounded-xl bg-[#8B5CF6] px-6 text-sm font-semibold text-white">Refresh WeHouse</button>
         </div>
       );
     }

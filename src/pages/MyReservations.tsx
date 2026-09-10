@@ -2,9 +2,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import {
   cancelReservation,
+  createInspectionRequest,
+  getInspectionRequestsForUser,
   getReservationsForUser,
   initializeReservationPayment,
 } from "@/lib/supabase/reservations";
+import {
+  initializeApartmentRentPayment,
+  initializeShortStayPayment,
+} from "@/lib/supabase/housing-payments";
 import {
   getHotelBookingsForUser,
   initializeHotelBookingPayment,
@@ -18,6 +24,8 @@ import { BOOKING_STATUS_LABELS, getMyBookingConversations } from "@/lib/supabase
 import BackButton from "@/components/BackButton";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import WeHouseSelect from "@/components/WeHouseSelect";
+import PropertyBookingJourney from "@/components/PropertyBookingJourney";
+import { getPropertyBookingJourney } from "@/lib/propertyBookingLifecycle";
 
 type Props = { profile: Profile; initialBookingId?:string|null; onInitialBookingConsumed?:()=>void; onOpenConversation?:(id:string)=>void; onOpenListing?:(id:string)=>void };
 type View = "all" | "housing" | "hotels" | "services";
@@ -69,6 +77,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   const [housing, setHousing] = useState<any[]>([]),
     [hotels, setHotels] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
+    [inspections, setInspections] = useState<any[]>([]),
     [view, setView] = useState<View>("all"),
     [sourceErrors, setSourceErrors] = useState<BookingSourceErrors>({}),
     [loading, setLoading] = useState(true),
@@ -84,15 +93,21 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
     try {
-      const [housingResult, hotelResult, serviceResult] = await Promise.allSettled([
+      const [housingResult, hotelResult, serviceResult, inspectionResult] = await Promise.allSettled([
         getReservationsForUser(profile.user_id),
         getHotelBookingsForUser(profile.user_id),
         getMyBookingConversations(profile.user_id),
+        getInspectionRequestsForUser(profile.user_id),
       ]);
       const nextErrors: BookingSourceErrors = {};
       if (housingResult.status === "fulfilled") {
-        if (housingResult.value.reservations)
-          setHousing(housingResult.value.reservations.filter((row: any) => !isUnpaidHousingDraft(row)));
+        if (housingResult.value.reservations) {
+          const nextHousing = housingResult.value.reservations.filter((row: any) => !isUnpaidHousingDraft(row));
+          setHousing(nextHousing);
+          setActiveHousing((current: any) => current
+            ? nextHousing.find((row: any) => String(row.id) === String(current.id)) || current
+            : current);
+        }
         if (housingResult.value.error)
           nextErrors.housing = "Apartment bookings could not be fully refreshed.";
       } else nextErrors.housing = "Apartment bookings could not be refreshed.";
@@ -106,6 +121,11 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
           setServices(serviceResult.value.conversations || []);
         else nextErrors.services = "WeHouse Services could not be refreshed.";
       } else nextErrors.services = "WeHouse Services could not be refreshed.";
+      if (inspectionResult.status === "fulfilled") {
+        if (!inspectionResult.value.error)
+          setInspections(inspectionResult.value.inspections || []);
+        else nextErrors.housing ||= "Apartment inspection updates could not be refreshed.";
+      } else nextErrors.housing ||= "Apartment inspection updates could not be refreshed.";
       setSourceErrors(nextErrors);
     } finally {
       setBusyId(null);
@@ -218,6 +238,39 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
     }
     window.location.assign(String(result.authorization_url));
   }
+  async function inspectHousing(row: any) {
+    setBusyId(row.id);
+    const { error } = await createInspectionRequest(
+      row.id,
+      row.listing_id,
+      profile.user_id,
+      `Inspection requested for ${row.listing_title || "apartment"}`,
+    );
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success("Apartment inspection requested");
+    await load();
+  }
+  async function payHousingRent(row: any) {
+    setBusyId(row.id);
+    const { result, error } = row.stay_type === "short_let"
+      ? await initializeShortStayPayment(row.id)
+      : await initializeApartmentRentPayment(row.id);
+    if (error || !result?.success) {
+      setBusyId(null);
+      return toast.error(error?.message || result?.error || "Could not open secure payment");
+    }
+    if (result.already_paid) {
+      toast.success(row.stay_type === "short_let" ? "Stay payment already confirmed" : "Year 1 rent already confirmed");
+      await load();
+      return;
+    }
+    if (!result.authorization_url) {
+      setBusyId(null);
+      return toast.error("Secure checkout link is missing");
+    }
+    window.location.assign(String(result.authorization_url));
+  }
   async function runPending() {
     const action = pending;
     setPending(null);
@@ -258,7 +311,7 @@ export default function MyReservations({ profile, initialBookingId, onInitialBoo
   }
   if(activeService)return <BookingNegotiationChat conversationId={activeService.conversationId} bookingId={activeService.bookingId} profile={profile} isWorker={false} onClose={()=>{setActiveService(null);void load()}}/>;
   if(activeHotelChat)return <HotelBookingChat bookingId={Number(activeHotelChat.booking_id)} profile={profile} title={activeHotelChat.hotels?.name||activeHotelChat.hotel?.name||activeHotelChat.hotel_name||"Hotel"} subtitle={`${activeHotelChat.hotel_rooms?.room_type||activeHotelChat.room_name||"Room"} · ${activeHotelChat.booking_code||"Paid stay"}`} onClose={()=>{setActiveHotelChat(null);void load(true)}}/>;
-  if(activeHousing)return <PropertyBookingDetail row={activeHousing} busy={busyId===activeHousing.id} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)} onResume={()=>void continueHousing(activeHousing)}/>;
+  if(activeHousing)return <PropertyBookingDetail row={activeHousing} inspection={inspections.find(item=>String(item.reservation_id)===String(activeHousing.id))||null} busy={busyId===activeHousing.id} onBack={()=>setActiveHousing(null)} onDesk={()=>support(activeHousing)} onResume={()=>void continueHousing(activeHousing)} onInspect={()=>void inspectHousing(activeHousing)} onRent={()=>void payHousingRent(activeHousing)}/>;
   if(activeHotel)return <HotelBookingDetail row={activeHotel} busy={busyId===`hotel-${activeHotel.booking_id}`} onBack={()=>setActiveHotel(null)} onDesk={()=>hotelSupport(activeHotel)} onHotel={()=>setActiveHotelChat(activeHotel)} onPay={()=>void payHotel(activeHotel)}/>;
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
@@ -364,7 +417,7 @@ function bookingGroup(item: BookingItem): BookingGroup {
   if (item.kind === "housing") {
     const status = String(item.row.status || "");
     const rentPaid = ["paid", "upfront_paid"].includes(String(item.row.rent_payment_status || ""));
-    if (status === "payment_pending" || status === "payment_conflict" || (status === "ready_for_move_in" && !rentPaid)) return "action";
+    if (status === "payment_pending" || status === "payment_conflict" || (status === "reserved" && !rentPaid) || (status === "ready_for_move_in" && !rentPaid)) return "action";
     if (["completed", "cancelled", "expired", "refunded"].includes(status)) return "history";
     return "active";
   }
@@ -443,6 +496,14 @@ function HousingCard({
         : `Ends ${date(row.tenancy_end_date)}`
       : row.status === "payment_pending"
         ? "Finish your reservation"
+        : row.status === "reserved" && !rentPaid
+          ? row.rent_payment_status === "payment_pending"
+            ? short
+              ? "Finish stay payment"
+              : "Finish Year 1 rent payment"
+            : short
+              ? "Pay for your stay"
+              : "Choose inspection or Year 1 rent"
         : row.status === "inspection_pending"
           ? "WeHouse is reviewing the apartment"
           : row.status === "ready_for_move_in" && rentPaid
@@ -524,56 +585,6 @@ function HousingCard({
     </article>
   );
 }
-function ShortFacts({ row }: { row: any }) {
-  return (
-    <div className="mt-4 space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        <Info label="Check-in" value={date(row.stay_check_in)} />
-        <Info label="Check-out" value={date(row.stay_check_out)} />
-        <Info label="Nights" value={String(row.stay_nights || "—")} />
-        <Info
-          label="Nightly rate"
-          value={money(row.nightly_rate_snapshot || row.listing_price)}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Info label="Stay rent" value={money(row.stay_rent_total)} />
-        <Info
-          label="Refundable deposit"
-          value={money(row.security_deposit_snapshot)}
-        />
-      </div>
-    </div>
-  );
-}
-function LongFacts({ row }: { row: any }) {
-  const years = Number(row.rental_plan_years || 1);
-  return (
-    <div className="mt-4 grid grid-cols-2 gap-2">
-      <Info label="Tenure" value={`${years} year${years === 1 ? "" : "s"}`} />
-      <Info
-        label="Year 1 rent"
-        value={money(
-          row.upfront_rent_required ||
-            row.annual_rent_snapshot ||
-            row.listing_price,
-        )}
-      />
-      {row.tenancy_start_date && <Info label="Tenancy started" value={date(row.tenancy_start_date)} />}
-      {row.tenancy_end_date && <Info label="Tenancy ends" value={date(row.tenancy_end_date)} />}
-      <Info label="Rent" value={String(row.rent_payment_status || "Not recorded").replace(/_/g, " ")} />
-      {years > 1 && (
-        <>
-          <Info label="Future balance" value={money(row.installment_balance)} />
-          <Info
-            label="Monthly contributions"
-            value={String(row.installment_count || 0)}
-          />
-        </>
-      )}
-    </div>
-  );
-}
 function HotelCard({
   row,
   busy,
@@ -630,12 +641,60 @@ function HotelCard({
     </article>
   );
 }
-function PropertyBookingDetail({row,busy,onBack,onDesk,onResume}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void}) {
+function PropertyBookingDetail({row,inspection,busy,onBack,onDesk,onResume,onInspect,onRent}:{row:any;inspection:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onResume:()=>void;onInspect:()=>void;onRent:()=>void}) {
   const short=row.stay_type==='short_let';
   const status=row.status==='occupied'?(short?'Checked in':'Tenancy active'):(HOUSING_STATUS[row.status]||'Status unavailable');
   const title=row.status==='occupied'?(short?'Current stay':'Your tenancy'):(short?'Apartment stay':'Apartment booking');
-  const showCode=Boolean(row.booking_code)&&row.status!=="payment_pending"&&!isUnpaidHousingDraft(row);
-  return <BookingDetailShell title={title} onBack={onBack}><section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">{row.listing_image&&<img src={row.listing_image} alt="" loading="lazy" decoding="async" className="aspect-[16/9] w-full object-cover"/>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p><h1 className="mt-1 text-xl font-bold">{row.listing_title||'Apartment booking'}</h1><p className="mt-1 text-[10px] text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Location unavailable'}</p></div><span className="rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span></div>{showCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking code <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}{row.status==="payment_pending"&&<div className="mt-4 border-y border-amber-500/15 py-4"><p className="text-sm font-semibold">Complete your reservation</p><p className="mt-1 text-[10px] leading-5 text-[#858A99]">Complete the reservation payment to submit this booking.</p><button type="button" disabled={busy} onClick={onResume} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Opening payment…':'Continue reservation'}</button></div>}<div className="mt-4">{short?<ShortFacts row={row}/>:<LongFacts row={row}/>}</div><div className="mt-5"><button type="button" onClick={onDesk} className="min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Message WeHouse</button></div></div></section></BookingDetailShell>;
+  const journey=getPropertyBookingJourney(row,inspection);
+  const recordCode=Boolean(row.booking_code)&&row.status!=="payment_pending"&&!isUnpaidHousingDraft(row);
+  const rentAmount=Number(short?Number(row.stay_rent_total||0)+Number(row.security_deposit_snapshot||0):row.upfront_rent_required||row.annual_rent_snapshot||row.listing_price||0);
+  return (
+    <BookingDetailShell title={title} onBack={onBack}>
+      <section className="overflow-hidden rounded-3xl border border-white/[.07] bg-[#11141C]">
+        {row.listing_image&&<img src={row.listing_image} alt={row.listing_title||"Apartment"} loading="lazy" decoding="async" className="aspect-[16/9] w-full object-cover"/>}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">{short?'Short Let':'Long Let'}</p>
+              <h1 className="mt-1 break-words text-xl font-bold">{row.listing_title||'Apartment booking'}</h1>
+              <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">{row.listing_location||row.listing_address||[row.listing_city,row.listing_state].filter(Boolean).join(', ')||'Area unavailable'}</p>
+            </div>
+            <span className="shrink-0 rounded-full border border-violet-500/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{status}</span>
+          </div>
+          {recordCode&&<p className="mt-4 text-[9px] text-[#777D8E]">Booking record <span className="font-bold tracking-wide text-violet-300">{row.booking_code}</span></p>}
+          <div className="mt-4 grid grid-cols-2 gap-x-3">
+            <Info label="Reservation fee" value={journey.feePaid?`Paid · ${money(row.amount)}`:money(row.amount)}/>
+            <Info label={short?'Stay payment':'Year 1 rent'} value={journey.rentPaid?'Paid':row.rent_payment_status==='payment_pending'?'Payment started':'Not paid'}/>
+            {short?<><Info label="Check-in" value={date(row.stay_check_in)}/><Info label="Check-out" value={date(row.stay_check_out)}/></>:<><Info label="Tenure" value={`${Number(row.rental_plan_years||1)} year${Number(row.rental_plan_years||1)===1?'':'s'}`}/><Info label="Year 1 rent" value={money(rentAmount)}/></>}
+          </div>
+          {row.hold_expires_at&&!['occupied','completed'].includes(row.status)&&<p className="mt-3 text-[9px] text-amber-300">Reservation hold until {new Date(row.hold_expires_at).toLocaleString()}</p>}
+          <PropertyBookingJourney row={row} inspection={inspection}/>
+          {journey.action==='reservation_payment'&&(
+            <button type="button" disabled={busy} onClick={onResume} className="mt-5 min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Opening secure payment…':'Pay reservation fee'}</button>
+          )}
+          {journey.action==='choose_inspection_or_rent'&&(
+            <section className="mt-5">
+              <p className="text-xs font-semibold">Choose one next step</p>
+              <p className="mt-1 text-[9px] leading-4 text-[#727889]">An inspection is optional. If you request it, rent waits until the visit is completed.</p>
+              <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{busy?'Sending request…':'Request apartment inspection'}</button>
+              <button type="button" disabled={busy} onClick={onRent} className="mt-2 min-h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.06] text-xs font-semibold text-emerald-300 disabled:opacity-50">{busy?'Opening secure payment…':`Proceed with Year 1 rent · ${money(rentAmount)}`}</button>
+            </section>
+          )}
+          {journey.action==='rent_payment'&&(
+            <button type="button" disabled={busy} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">{busy?'Opening secure payment…':row.rent_payment_status==='payment_pending'?(short?'Continue stay payment':'Continue Year 1 rent payment'):(short?`Pay stay and deposit · ${money(rentAmount)}`:`Pay Year 1 rent · ${money(rentAmount)}`)}</button>
+          )}
+          {journey.action==='handover'&&row.booking_code&&(
+            <div className="mt-5 border-y border-emerald-500/20 bg-emerald-500/[.035] py-4 text-center">
+              <p className="text-[8px] uppercase tracking-[.16em] text-emerald-300">Show Property Operations</p>
+              <p className="mt-2 text-xl font-bold tracking-[.14em]">{row.booking_code}</p>
+              <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#7C887F]">Access is handed over only after the code, property, identity and payment match.</p>
+            </div>
+          )}
+          <button type="button" onClick={onDesk} className="mt-4 min-h-11 w-full rounded-xl border border-white/[.09] text-xs font-semibold">Message WeHouse Property Operations</button>
+        </div>
+      </section>
+    </BookingDetailShell>
+  );
 }
 function HotelBookingDetail({row,busy,onBack,onDesk,onHotel,onPay}:{row:any;busy:boolean;onBack:()=>void;onDesk:()=>void;onHotel:()=>void;onPay:()=>void}) {
   const name=row.hotels?.name||row.hotel?.name||row.hotel_name||'Hotel stay';

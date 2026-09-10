@@ -10,6 +10,7 @@ import {
 import WeHouseSelect from "@/components/WeHouseSelect";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
+import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 
 type Filter =
   "reserved" | "occupied" | "available" | "maintenance" | "closed" | "all";
@@ -605,6 +606,15 @@ function ShortStayCase({
         <h4 className="mt-2 text-sm font-semibold">
           {row.customer_name || "Customer"}
         </h4>
+        <PropertyBookingJourney
+          audience="operations"
+          row={{
+            ...row,
+            status: row.reservation_status,
+            stay_type: "short_let",
+            paid_at: row.reservation_fee_paid ? row.created_at || true : null,
+          }}
+        />
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Info
             label="Booking"
@@ -854,6 +864,15 @@ function HousingCase({
               @{row.customer_username}
             </p>
           )}
+          <PropertyBookingJourney
+            audience="operations"
+            row={{
+              ...row,
+              status: row.reservation_status,
+              stay_type: "long_stay",
+              paid_at: row.reservation_fee_paid ? row.created_at || true : null,
+            }}
+          />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Info
               label="Tenure"

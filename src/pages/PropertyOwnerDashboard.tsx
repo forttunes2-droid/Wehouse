@@ -213,7 +213,8 @@ function PropertiesTab({
               .or(
                 `owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`,
               )
-              .eq("status", "available")
+              .in("status", ["available", "reserved", "occupied", "maintenance", "closed"])
+              .not("approved_at", "is", null)
               .is("deleted_at", null)
               .order("created_at", { ascending: false })
           : await supabase
@@ -322,7 +323,7 @@ function PropertiesTab({
                         .join(", ")}
                     </p>
                   </div>
-                  <Status value={"live"} />
+                  <Status value={property.availability_status || property.status || "available"} />
                 </div>
                 <p className="mt-2 text-xs font-bold">
                   {property._assetKind === "hotel"
@@ -445,6 +446,15 @@ function PropertyDetails({
             <Info label="Bedrooms" value={property.bedrooms ?? "—"} />
             <Info label="Bathrooms" value={property.bathrooms ?? "—"} />
           </div>
+          <div className="mt-4 border-y border-white/[.06] py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">Published home status</p>
+                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property)}</p>
+              </div>
+              <Status value={property.availability_status || property.status || "available"} />
+            </div>
+          </div>
           <button
             onClick={contact}
             className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-4 py-3 text-xs font-semibold text-violet-300"
@@ -473,9 +483,15 @@ function PropertyDetails({
           <Loading />
         ) : stays.length === 0 ? (
           <div className="mt-4 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
-            <p className="text-xs font-semibold">No active booking yet</p>
+            <p className="text-xs font-semibold">
+              {(property.availability_status || property.status) === "reserved"
+                ? "Reserved through WeHouse"
+                : "No active booking yet"}
+            </p>
             <p className="mt-2 text-[9px] text-[#666C7C]">
-              {property.sub_type === "short_let"
+              {(property.availability_status || property.status) === "reserved"
+                ? "A customer has completed the reservation fee and the home is held. They are choosing inspection or rent; you do not need to act yet. Customer details remain with Property Operations."
+                : property.sub_type === "short_let"
                 ? "A stay appears after the guest completes payment."
                 : "WeHouse will update this page after a tenant is found and the rent is confirmed."}
             </p>
@@ -582,8 +598,11 @@ function Status({ value }: { value: string }) {
     style =
       normalized === "available" ||
       normalized === "approved" ||
+      normalized === "live" ||
       normalized === "completed"
         ? "bg-emerald-500/10 text-emerald-300"
+        : normalized === "occupied"
+          ? "bg-violet-500/10 text-violet-300"
         : normalized === "rejected" || normalized === "reversed"
           ? "bg-red-500/10 text-red-300"
           : normalized === "held"
@@ -618,6 +637,18 @@ function partnerDate(value?: string | null) {
   return value
     ? new Date(`${value}T00:00:00`).toLocaleDateString()
     : "Not started";
+}
+function partnerPropertyStateMessage(property: any) {
+  const state = String(property.availability_status || property.status || "available");
+  if (state === "reserved")
+    return "A reservation fee is confirmed and WeHouse is holding this home while the customer chooses inspection or rent.";
+  if (state === "occupied")
+    return "WeHouse completed the verified handover and the home is currently occupied.";
+  if (state === "maintenance")
+    return "The published home is temporarily unavailable while operational checks or maintenance are completed.";
+  if (state === "closed")
+    return "This published home is closed and is not available in discovery.";
+  return "This property is published and currently available for a new reservation.";
 }
 function partnerStayMessage(stay: any) {
   if (stay.stay_type === "short_let") {
