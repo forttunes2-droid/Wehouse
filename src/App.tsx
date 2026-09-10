@@ -117,6 +117,21 @@ function PageTransitionFallback() {
     </div>
   );
 }
+
+function RouteTransitionFallback() {
+  return (
+    <div
+      className="grid min-h-[45vh] place-items-center bg-[#08090D] px-6 text-white"
+      role="status"
+      aria-label="Opening page"
+    >
+      <div className="text-center">
+        <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+        <p className="mt-3 text-[10px] text-[#777D8D]">Opening page…</p>
+      </div>
+    </div>
+  );
+}
 function ErrorFallback({ reset }: { reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0A0A0F] px-5 text-white">
@@ -1337,7 +1352,7 @@ export default function App() {
     );
   return (
     <CreatorAuthProvider>
-      <Suspense fallback={<PageTransitionFallback />}>
+      <Suspense fallback={<RouteTransitionFallback />}>
         <PrivateCallCenter />
         {profile && <NewLoginAlert profile={profile} />}
         <DesktopLayout
