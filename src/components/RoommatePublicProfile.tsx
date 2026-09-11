@@ -1,6 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import MediaViewer from "@/components/MediaViewer";
+import type { ReactNode } from "react";
+import PublicProfileSurface from "@/components/PublicProfileSurface";
 
 export type RoommatePublicProfileData = {
   name: string;
@@ -23,6 +22,7 @@ type Props = {
   presence?: string;
   actions?: ReactNode;
   footer?: ReactNode;
+  primaryAction?: ReactNode;
 };
 
 export default function RoommatePublicProfile({
@@ -35,90 +35,24 @@ export default function RoommatePublicProfile({
   presence,
   actions,
   footer,
+  primaryAction,
 }: Props) {
   const hasScore = Number.isFinite(score);
-  const [avatarOpen, setAvatarOpen] = useState(false);
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100100] overflow-y-auto bg-[#090B10] text-white"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${person.name} roommate profile`}
+  return (
+    <PublicProfileSurface
+      name={person.name}
+      username={person.username}
+      avatar={person.avatar}
+      subtitle={person.occupation || (context === "discovery" ? "Roommate profile" : "WeHouse member")}
+      location={person.location}
+      presence={presence}
+      about={person.bio}
+      onClose={onClose}
+      ariaLabel={`${person.name} profile`}
+      actions={actions}
+      badges={<><span className="rounded-full border border-white/[.08] bg-white/[.04] px-2.5 py-1 text-[9px] font-semibold text-[#B7BBC6]">WeHouse account</span>{hasScore && context === "discovery" ? <><strong className="text-xl text-violet-300">{score}%</strong><span className="text-[9px] font-semibold text-[#A5AABA]">{matchLabel || "Roommate match"}</span></> : null}</>}
+      bottomAction={primaryAction}
     >
-      <header className="sticky top-0 z-10 border-b border-white/[.06] bg-[#090B10]/95 px-3 py-2.5 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-xl items-center gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-11 w-11 place-items-center rounded-full text-xl text-[#A6ABB9]"
-            aria-label="Close profile"
-          >
-            ←
-          </button>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">{person.name}</h2>
-            {[presence, person.location].filter(Boolean).length ? <p className="mt-0.5 truncate text-[9px] text-[#73798A]">{[presence, person.location].filter(Boolean).join(" · ")}</p> : null}
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-xl px-5 pb-12 pt-6">
-        <section className="relative overflow-hidden border-b border-white/[.07] pb-6">
-          <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-violet-600/10 blur-3xl" />
-          <div className="relative flex items-center gap-4">
-            <button
-              type="button"
-              disabled={!person.avatar}
-              onClick={() => person.avatar && setAvatarOpen(true)}
-              aria-label={person.avatar ? "Preview profile photo" : "No profile photo"}
-              className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[28px] border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default"
-            >
-              {person.avatar ? (
-                <img
-                  src={person.avatar}
-                  alt={`${person.name} profile`}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                person.name[0]?.toUpperCase() || "W"
-              )}
-            </button>
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-2xl font-bold">{person.name}</h3>
-              {person.username && (
-                <p className="mt-1 truncate text-[10px] text-[#767C8C]">
-                  @{person.username.replace(/^@/, "")}
-                </p>
-              )}
-              {person.location ? <p className="mt-2 text-[10px] leading-5 text-[#8A90A0]">
-                {person.location}
-              </p> : null}
-              {hasScore && context === "discovery" ? (
-                <div className="mt-3 flex items-center gap-2">
-                  <strong className="text-xl text-violet-300">{score}%</strong>
-                  <span className="text-[9px] font-semibold text-[#A5AABA]">
-                    {matchLabel || "Roommate match"}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div className="relative mt-5 border-t border-white/[.06] pt-4">
-            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
-            <p className="mt-2 text-[12px] leading-6 text-[#A9AEBA]">{person.bio || "No introduction added yet."}</p>
-          </div>
-          {actions && (
-            <div className="mt-4 border-t border-white/[.06] pt-4">
-              {actions}
-            </div>
-          )}
-        </section>
         {hasScore && context === "discovery" && (
           <section className="border-b border-white/[.07] py-5">
             <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#666D7E]">
@@ -155,13 +89,8 @@ export default function RoommatePublicProfile({
             <Detail label="Occupation" value={person.occupation} />
           )}
         </section>
-        {footer}
-      </main>
-      {avatarOpen && person.avatar ? (
-        <MediaViewer src={person.avatar} kind="image" title={`${person.name} profile photo`} avatarUrl={person.avatar} onClose={() => setAvatarOpen(false)} />
-      ) : null}
-    </div>,
-    document.body,
+      {footer}
+    </PublicProfileSurface>
   );
 }
 

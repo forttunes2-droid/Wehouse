@@ -1,6 +1,6 @@
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
-import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, type EncryptedAttachment } from '@/lib/e2ee';
+import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
 
 export async function createBookingRequest(workerId:string,serviceType:string,description:string,address:string,scheduledDate:string,customerMessage?:string){
   const{data,error}=await supabase.rpc('create_booking_request',{p_worker_id:workerId,p_service_type:serviceType,p_description:description,p_address:address,p_scheduled_date:scheduledDate,p_customer_message:customerMessage||null});
@@ -37,6 +37,7 @@ export async function getUserActiveBookings(userId:string){
 }
 
 export async function getBookingMessages(conversationId:string,peerUserId?:string|null){
+  if(peerUserId)preparePrivateConversation('worker',conversationId,peerUserId);
   const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'worker',p_conversation_id:conversationId});
   if(error||!data)return{messages:data||[],error};
   const messages=await Promise.all((data as any[]).map(async msg=>{

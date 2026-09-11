@@ -38,8 +38,10 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
+import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import {
   privateConversationReadiness,
+  rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
 
@@ -98,6 +100,9 @@ export default function BookingNegotiationChat({
   isWorker,
   onClose,
 }: Props) {
+  useEffect(() => {
+    rememberPrivateMessagingProfile(profile.user_id);
+  }, [profile.user_id]);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
     [messageError, setMessageError] = useState<string | null>(null),
     [booking, setBooking] = useState<Booking | null>(null),
@@ -116,6 +121,9 @@ export default function BookingNegotiationChat({
     [menuOpen, setMenuOpen] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
+    [peerBlocked, setPeerBlocked] = useState(false),
+    [blockBusy, setBlockBusy] = useState(false),
+    [blockPrompt, setBlockPrompt] = useState(false),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
     [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions"),
     [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null),
@@ -369,13 +377,38 @@ export default function BookingNegotiationChat({
     }
   }
   async function openPeerProfile() {
-    const { data, error } = await supabase.rpc(
-      "get_allowed_conversation_profile",
-      { p_context_type: "worker_booking", p_context_id: bookingId },
-    );
+    const [{ data, error }, blockResult] = await Promise.all([
+      supabase.rpc("get_allowed_conversation_profile", {
+        p_context_type: "worker_booking",
+        p_context_id: bookingId,
+      }),
+      peerId
+        ? supabase.rpc("get_my_worker_block_state", { p_user_id: peerId })
+        : Promise.resolve({ data: null, error: null }),
+    ]);
     if (error) return toast.error("Profile could not be opened");
     setPeerProfile(data || null);
+    if (!blockResult.error)
+      setPeerBlocked(Boolean(blockResult.data?.blocked_by_me));
     setProfileOpen(true);
+  }
+  async function togglePeerBlock() {
+    if (!peerId || blockBusy) return;
+    setBlockBusy(true);
+    const next = !peerBlocked;
+    const { data, error } = await supabase.rpc("set_my_worker_block", {
+      p_user_id: peerId,
+      p_blocked: next,
+      p_reason: next ? "Blocked from the service conversation" : null,
+    });
+    setBlockBusy(false);
+    setBlockPrompt(false);
+    if (error) return toast.error(error.message || "Safety setting could not be changed");
+    setPeerBlocked(next);
+    toast.success(next ? "Person blocked" : "Person unblocked");
+    if (data?.booking_action === "review_required")
+      toast.info("WeHouse will review the secured booking payment.");
+    await loadAll(true);
   }
   async function deleteFromMessages() {
     const { hidden, error } = await hideBookingConversation(conversationId);
@@ -1251,6 +1284,12 @@ export default function BookingNegotiationChat({
             setProfileOpen(false);
             void startCall("video");
           }}
+          blocked={peerBlocked}
+          blockBusy={blockBusy}
+          onToggleBlock={() => {
+            if (peerBlocked) void togglePeerBlock();
+            else setBlockPrompt(true);
+          }}
         />
       ) : null}
       {detailsOpen && booking ? (
@@ -1304,6 +1343,15 @@ export default function BookingNegotiationChat({
         onCancel={() => setMessageToRemove(null)}
         onConfirm={() => void deleteMessageForMe()}
       />
+      <ConfirmDialog
+        isOpen={blockPrompt}
+        title={`Block ${peerProfile?.full_name || peerName}?`}
+        description="Messages and private calls will stop. If money is secured for an active job, WeHouse will move it to review instead of silently cancelling it."
+        confirmLabel="Block person"
+        variant="danger"
+        onCancel={() => setBlockPrompt(false)}
+        onConfirm={() => void togglePeerBlock()}
+      />
       {confirmDelete && (
         <DeleteSheet
           onCancel={() => setConfirmDelete(false)}
@@ -1335,6 +1383,9 @@ function ConversationIdentitySheet({
   onClose,
   onAudioCall,
   onVideoCall,
+  blocked,
+  blockBusy,
+  onToggleBlock,
 }: {
   profile: ConversationProfile | null;
   booking: Booking | null;
@@ -1345,27 +1396,33 @@ function ConversationIdentitySheet({
   onClose: () => void;
   onAudioCall: () => void;
   onVideoCall: () => void;
+  blocked: boolean;
+  blockBusy: boolean;
+  onToggleBlock: () => void;
 }) {
   const viewingWorker = !isWorker;
   const displayName = profile?.full_name || name;
   const avatarUrl = profile?.avatar_url || avatar || null;
-  const location = [profile?.city, profile?.state].filter(Boolean).join(", ");
+  const location = [profile?.lga || profile?.local_government || profile?.city, profile?.state]
+    .filter(Boolean)
+    .join(", ");
   const reviewed = ["approved", "verified", "live"].includes(
     String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
   if (viewingWorker && profile?.user_id) {
     return (
       <WorkerPublicProfile
-        worker={profile as Profile}
+        worker={{ ...profile, local_government: profile.lga || profile.local_government } as Profile}
         onBack={onClose}
         onBook={() => undefined}
         showBookingAction={false}
         communicationActions={
           <>
-            <ProfileCallAction label="Audio" onClick={onAudioCall}><Phone /></ProfileCallAction>
-            <ProfileCallAction label="Video" onClick={onVideoCall}><VideoCall /></ProfileCallAction>
+            <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
+            <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
           </>
         }
+        safetyAction={<ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />}
       />
     );
   }
@@ -1390,12 +1447,13 @@ function ConversationIdentitySheet({
       onClose={onClose}
       actions={
         <div className="flex gap-5">
-          <ProfileCallAction label="Audio" onClick={onAudioCall}><Phone /></ProfileCallAction>
-          <ProfileCallAction label="Video" onClick={onVideoCall}><VideoCall /></ProfileCallAction>
+          <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
+          <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
         </div>
       }
       footer={
-        isWorker && booking ? (
+        <>
+        {isWorker && booking ? (
           <div className="mt-5 border-t border-white/[.07] pt-4">
             <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">
               This booking
@@ -1425,7 +1483,9 @@ function ConversationIdentitySheet({
               </div>
             ) : null}
           </div>
-        ) : undefined
+        ) : null}
+        <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        </>
       }
     />
   );
@@ -1644,13 +1704,8 @@ function VideoCall() {
     </svg>
   );
 }
-function ProfileCallAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} className="flex flex-col items-center gap-2 text-[10px] font-medium text-[#B9BDC8]">
-      <span className="grid h-12 w-12 place-items-center rounded-full bg-white/[.055] text-[#D8DAE1]">{children}</span>
-      {label}
-    </button>
-  );
+function ProfileBlockAction({ blocked, busy, onClick }: { blocked: boolean; busy: boolean; onClick: () => void }) {
+  return <button type="button" disabled={busy} onClick={onClick} className="mt-6 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Unblock person" : "Block person"}</button>;
 }
 function TrashIcon() {
   return (

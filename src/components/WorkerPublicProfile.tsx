@@ -1,20 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import GoldTickBadge from "@/components/GoldTickBadge";
 import { supabase } from "@/lib/supabase";
 import { workerServiceNames } from "@/lib/workerTaxonomy";
 import {
   workerAvatarUrl,
   workerDisplayName,
-  workerInitial,
   workerRoleLabel,
 } from "@/lib/workerIdentity";
 import type { Profile } from "@/types";
-import MediaViewer from "@/components/MediaViewer";
 import { toast } from "sonner";
-import BackButton from "@/components/BackButton";
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import WorkerShowcasePostViewer from "@/components/WorkerShowcasePostViewer";
+import PublicProfileSurface from "@/components/PublicProfileSurface";
 
 type Post = {
   id: string;
@@ -60,6 +57,7 @@ type Props = {
   onOpenBooking?: () => void;
   showBookingAction?: boolean;
   communicationActions?: ReactNode;
+  safetyAction?: ReactNode;
 };
 
 export default function WorkerPublicProfileV2({
@@ -70,10 +68,10 @@ export default function WorkerPublicProfileV2({
   onOpenBooking,
   showBookingAction = true,
   communicationActions,
+  safetyAction,
 }: Props) {
   const [posts, setPosts] = useState<Post[]>([]),
     [viewer, setViewer] = useState<Post | null>(null),
-    [avatarOpen, setAvatarOpen] = useState(false),
     [loading, setLoading] = useState(true),
     [trust, setTrust] = useState<Trust | null>(null),
     [reviews, setReviews] = useState<PublicReview[]>([]),
@@ -96,11 +94,6 @@ export default function WorkerPublicProfileV2({
     setViewer(readyPost);
   }
   useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("wehouse:nested-screen", { detail: { open: true } }),
-    );
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     let active = true;
     void (async () => {
       const [
@@ -163,10 +156,6 @@ export default function WorkerPublicProfileV2({
     })();
     return () => {
       active = false;
-      document.body.style.overflow = previousOverflow;
-      window.dispatchEvent(
-        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
-      );
     };
   }, [worker.user_id]);
   const skills = workerServiceNames(worker),
@@ -176,104 +165,20 @@ export default function WorkerPublicProfileV2({
     workPosts = posts.filter((post) => post.kind === "work_post"),
     rating = Number(trust?.rating ?? 0) || 0,
     reviewCount = Number(trust?.review_count ?? 0) || 0;
-  return createPortal(
-    <div
-      className={`fixed inset-0 z-[100100] isolate overflow-y-auto bg-[#0A0A0F] text-white ${showBookingAction ? "pb-24" : "pb-8"}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${displayName} profile`}
+  return (
+    <PublicProfileSurface
+      name={displayName}
+      username={worker.username}
+      avatar={avatarUrl}
+      subtitle={occupation}
+      location={[worker.city || worker.local_government, worker.state].filter(Boolean).join(", ") || "Location not shown"}
+      about={worker.worker_bio ? cleanBio(worker.worker_bio) : "This professional has not added an introduction yet."}
+      onClose={onBack}
+      maxWidth="4xl"
+      actions={communicationActions}
+      badges={<>{trust?.reviewed ? <><GoldTickBadge title="Gold Tick · WeHouse reviewed service worker" /><span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">{trust.trusted ? "WeHouse Trusted" : "WeHouse Reviewed"}</span></> : <span className="rounded-full bg-white/[.05] px-2.5 py-1 text-[9px] text-[#8C92A1]">Verification pending</span>}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
+      bottomAction={showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-xs font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-4xl items-center gap-3">
-          <BackButton onClick={onBack} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{displayName}</p>
-            <p className="mt-0.5 truncate text-[9px] text-[#777D8D]">
-              {occupation}
-            </p>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-5">
-        <section className="py-2">
-          <div className="flex items-start gap-4">
-            <button
-              type="button"
-              onClick={() => avatarUrl && setAvatarOpen(true)}
-              className="shrink-0 rounded-full"
-              aria-label={
-                avatarUrl ? `Preview ${displayName}'s profile photo` : undefined
-              }
-            >
-              <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-violet-600 text-2xl font-bold">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  workerInitial(worker)
-                )}
-              </div>
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <h1 className="truncate text-xl font-bold">{displayName}</h1>
-                {trust?.reviewed && (
-                  <GoldTickBadge title="Gold Tick · WeHouse reviewed service worker" />
-                )}
-              </div>
-              <p className="mt-1 text-xs text-[#A5ABB8]">{occupation}</p>
-              <p className="mt-1 text-[10px] text-[#72798A]">
-                {[worker.city || worker.local_government, worker.state]
-                  .filter(Boolean)
-                  .join(", ") || "Location not shown"}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {trust?.reviewed && (
-                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">
-                    {trust.trusted
-                      ? "WeHouse Trusted · earned performance tier"
-                      : "WeHouse Reviewed · Gold Tick"}
-                  </span>
-                )}
-                {worker.worker_price && (
-                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">
-                    From ₦{Number(worker.worker_price).toLocaleString()}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="mt-5 border-t border-white/[.06] pt-4">
-            <h2 className="text-[9px] font-bold uppercase tracking-[.14em] text-[#73798A]">
-              About
-            </h2>
-            <p className="mt-2 whitespace-pre-line text-xs leading-6 text-[#A6ABB8]">
-              {worker.worker_bio
-                ? cleanBio(worker.worker_bio)
-                : "This professional has not added an introduction yet."}
-            </p>
-            {skills.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-full bg-white/[.045] px-2.5 py-1.5 text-[9px] text-[#BCC0CA]"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          {communicationActions ? (
-            <div className="mt-5 flex gap-5 border-t border-white/[.06] pt-4">
-              {communicationActions}
-            </div>
-          ) : null}
-        </section>
         <section className="grid grid-cols-3 border-y border-white/[.06]">
           <ProfileFact
             label="Verification"
@@ -288,6 +193,12 @@ export default function WorkerPublicProfileV2({
             value={String(Number(trust?.completed_jobs || 0))}
           />
         </section>
+        {skills.length ? (
+          <section className="border-b border-white/[.06] py-5">
+            <h2 className="text-[9px] font-bold uppercase tracking-[.14em] text-[#73798A]">Services</h2>
+            <div className="mt-3 flex flex-wrap gap-2">{skills.map((skill) => <span key={skill} className="rounded-full bg-white/[.045] px-2.5 py-1.5 text-[9px] text-[#BCC0CA]">{skill}</span>)}</div>
+          </section>
+        ) : null}
         <section>
           <div className="mb-3">
             <h2 className="text-sm font-bold">Showcase</h2>
@@ -372,19 +283,7 @@ export default function WorkerPublicProfileV2({
             <Empty text="No customer reviews yet. Reviews appear only after completed WeHouse jobs." />
           )}
         </section>
-      </main>
-      {showBookingAction ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
-          <div className="mx-auto max-w-4xl">
-            <button
-              onClick={bookingActive ? onOpenBooking : onBook}
-              className={`h-12 w-full rounded-2xl text-xs font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}
-            >
-              {bookingActive ? "Open service booking" : "Request service"}
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {safetyAction ? <section className="mt-7 border-t border-white/[.07] pt-5">{safetyAction}</section> : null}
       {viewer && (
         <WorkerShowcasePostViewer
           post={viewer}
@@ -393,6 +292,7 @@ export default function WorkerPublicProfileV2({
           liked={Boolean(postReactions[viewer.id]?.mine)}
           likeCount={reactionTotal(postReactions[viewer.id]?.counts)}
           onClose={() => setViewer(null)}
+          onOpenProfile={() => setViewer(null)}
           onLike={async () => {
             const previous = postReactions[viewer.id]?.mine;
             const next = previous ? null : "♥";
@@ -414,17 +314,7 @@ export default function WorkerPublicProfileV2({
           }}
         />
       )}
-      {avatarOpen && avatarUrl ? (
-        <MediaViewer
-          src={avatarUrl}
-          kind="image"
-          title={displayName}
-          subtitle={occupation}
-          onClose={() => setAvatarOpen(false)}
-        />
-      ) : null}
-    </div>,
-    document.body,
+    </PublicProfileSurface>
   );
 }
 function Media({ post, className }: { post: Post; className: string }) {

@@ -41,9 +41,11 @@ import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import {
   privateConversationReadiness,
+  rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
+import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import MediaViewer from "@/components/MediaViewer";
 import HotelBookingChat from "@/components/HotelBookingChat";
@@ -68,7 +70,8 @@ type Props = {
   activityUnreadCount?: number;
   onActivityUnreadChange?: (count: number) => void;
 };
-type Person = Pick<RoommatePeer, "name" | "avatar"> & Partial<RoommatePeer>;
+type Person = Pick<RoommatePeer, "name" | "avatar"> &
+  Partial<RoommatePeer> & { username?: string | null; lga?: string | null };
 type RoommateMessage = Message & {
   attachments?: string[];
   attachment_types?: string[];
@@ -167,6 +170,7 @@ export default function Chat({
     [menuOpen, setMenuOpen] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false),
     [profileOpen, setProfileOpen] = useState(false),
+    [profilePerson, setProfilePerson] = useState<Person | null>(null),
     [blockBusy, setBlockBusy] = useState(false),
     [blockPrompt, setBlockPrompt] = useState(false),
     [blockReason, setBlockReason] = useState(""),
@@ -216,6 +220,9 @@ export default function Chat({
   const presence = useChatPresence(peerId);
   const presenceText = chatPresenceLabel(presence);
 
+  useEffect(() => {
+    rememberPrivateMessagingProfile(profile.user_id);
+  }, [profile.user_id]);
   useEffect(() => {
     activeRef.current = active;
   }, [active]);
@@ -360,15 +367,6 @@ export default function Chat({
   useEffect(() => {
     if (!conversationId) return;
     void (async () => {
-      const direct = await getConversationById(conversationId);
-      if (
-        !direct.error &&
-        direct.conversation?.conversation_type === "roommate"
-      ) {
-        setActive(direct.conversation);
-        void loadInbox(true);
-        return;
-      }
       if (peerUserId) {
         const now = new Date().toISOString();
         setActive({
@@ -385,6 +383,17 @@ export default function Chat({
           conversation_type: "roommate",
           subject: "Roommate Match",
         });
+      }
+      const direct = await getConversationById(conversationId);
+      if (
+        !direct.error &&
+        direct.conversation?.conversation_type === "roommate"
+      ) {
+        setActive(direct.conversation);
+        void loadInbox(true);
+        return;
+      }
+      if (peerUserId) {
         void loadInbox(true);
         return;
       }
@@ -668,6 +677,9 @@ export default function Chat({
       ...current,
       [peerId]: { ...current[peerId], isBlocked: nextBlocked },
     }));
+    setProfilePerson((current) =>
+      current ? { ...current, isBlocked: nextBlocked } : current,
+    );
     setMenuOpen(false);
     setBlockPrompt(false);
     setBlockReason("");
@@ -680,6 +692,32 @@ export default function Chat({
             : "Person blocked and removed from discovery."
         : "Person unblocked",
     );
+  }
+  async function openActiveProfile() {
+    if (!active) return;
+    const id = otherId(active);
+    const known = people[id];
+    setProfilePerson(known || null);
+    setProfileOpen(true);
+    const { data, error } = await supabase.rpc(
+      "get_allowed_conversation_profile",
+      { p_context_type: "roommate", p_context_id: active.id },
+    );
+    if (error || !data) return;
+    setProfilePerson({
+      user_id: String(data.user_id || id),
+      name: data.full_name || data.username || known?.name || "WeHouse member",
+      username: data.username || null,
+      avatar: data.avatar_url || known?.avatar || null,
+      bio: data.bio || "",
+      city: data.city || data.lga || "",
+      lga: data.lga || null,
+      state: data.state || "",
+      school: data.school || "",
+      occupation: data.occupation || "",
+      isStudent: Boolean(known?.isStudent),
+      isBlocked: Boolean(known?.isBlocked),
+    });
   }
   async function startCall(kind: "audio" | "video") {
     if (!active) return;
@@ -891,7 +929,7 @@ export default function Chat({
             </button>
             <button
               type="button"
-              onClick={() => setProfileOpen(true)}
+              onClick={() => void openActiveProfile()}
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
               aria-label="View roommate profile"
             >
@@ -928,7 +966,7 @@ export default function Chat({
               <button
                 onClick={() => {
                   setMenuOpen(false);
-                  setProfileOpen(true);
+                  void openActiveProfile();
                 }}
                 className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] hover:bg-white/[.04]"
               >
@@ -1196,9 +1234,12 @@ export default function Chat({
         )}
         {profileOpen && (
           <PeerProfileSheet
-            person={person}
+            person={profilePerson || person}
             presenceText={presenceText || ""}
-            onClose={() => setProfileOpen(false)}
+            onClose={() => {
+              setProfileOpen(false);
+              setProfilePerson(null);
+            }}
             onToggleBlock={() => {
               if (person?.isBlocked) void toggleBlock();
               else {
@@ -1971,12 +2012,15 @@ function PeerProfileSheet({
   onVideoCall: () => void;
   busy: boolean;
 }) {
-  const location = [person?.city, person?.state].filter(Boolean).join(", ");
+  const location = [person?.lga || person?.city, person?.state]
+    .filter(Boolean)
+    .join(", ");
   return (
     <RoommatePublicProfile
       context="conversation"
       person={{
         name: person?.name || "Roommate",
+        username: person?.username,
         avatar: person?.avatar,
         location,
         bio: person?.bio,
@@ -1989,12 +2033,12 @@ function PeerProfileSheet({
       onClose={onClose}
       actions={
         <div className="flex justify-start gap-5">
-          <ProfileAction label="Audio" onClick={onAudioCall}>
+          <PublicProfileAction label="Audio" onClick={onAudioCall}>
             <PhoneIcon />
-          </ProfileAction>
-          <ProfileAction label="Video" onClick={onVideoCall}>
+          </PublicProfileAction>
+          <PublicProfileAction label="Video" onClick={onVideoCall}>
             <VideoCallIcon />
-          </ProfileAction>
+          </PublicProfileAction>
         </div>
       }
       footer={
@@ -2007,28 +2051,6 @@ function PeerProfileSheet({
         </button>
       }
     />
-  );
-}
-function ProfileAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 text-[10px] font-medium text-[#B9BDC8]"
-    >
-      <span className="grid h-14 w-14 place-items-center rounded-full bg-white/[.055] text-[#D8DAE1]">
-        {children}
-      </span>
-      {label}
-    </button>
   );
 }
 function HeaderAction({

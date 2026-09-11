@@ -239,7 +239,7 @@ export default function Search({
   }
   async function followSearch() {
     setSavingSearch(true);
-    const name = `${stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "All apartments"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
+    const name = `${stayType === "short_let" ? "Short stays" : stayType === "long_stay" ? "Long-term homes" : "All homes"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
     const { error } = await supabase.rpc("save_my_property_search", {
       p_name: name,
       p_search_kind: "homes",
@@ -260,15 +260,17 @@ export default function Search({
       "Search followed. New matching apartments will appear in Activity.",
     );
   }
-  const modeLabel = stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "All stays";
+  const modeLabel = stayType === "short_let" ? "Short-stay" : stayType === "long_stay" ? "Long-term" : "All";
   const locationSummary = filterCity
     ? `${filterCity}, ${filterState}`
     : filterState
       ? filterState
       : `${modeLabel} apartments`;
   const emptyTitle = priceActive
-    ? `No ${modeLabel.toLowerCase()} apartments match this ${stayType === "short_let" ? "nightly" : "annual"} price range`
-    : `No ${modeLabel} apartments match these filters`;
+    ? `No ${modeLabel.toLowerCase()} apartments match this ${stayType === "short_let" ? "nightly" : "yearly"} price range`
+    : stayType === "all"
+      ? "No apartments match these filters"
+      : `No ${modeLabel.toLowerCase()} apartments match these filters`;
 
   return (
     <DiscoveryShell active="homes" onNavigate={onNavigate}>
@@ -360,7 +362,7 @@ export default function Search({
 
       {showFilters && (
         <DiscoveryFilterSheet
-          title="Filter apartments"
+          title="Apartment filters"
           onClose={() => setShowFilters(false)}
           onClear={clearFilters}
           resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
@@ -368,9 +370,9 @@ export default function Search({
           <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
             {(
               [
-                ["all", "All apartments"],
-                ["long_stay", "Long Let"],
-                ["short_let", "Short Let"],
+                ["all", "All"],
+                ["long_stay", "Long-term"],
+                ["short_let", "Short stays"],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -402,13 +404,9 @@ export default function Search({
               disabled={!filterState}
             />
           </div>
-          {stayType === "all" ? (
-            <p className="rounded-2xl border border-white/[.06] bg-white/[.02] px-4 py-3 text-[9px] leading-5 text-[#737A8B]">
-              See every apartment type, or select Long Let or Short Let to use its matching annual or nightly price range.
-            </p>
-          ) : (
+          {stayType !== "all" ? (
             <DiscoveryPriceRangeSlider
-              label={stayType === "short_let" ? "Nightly price" : "Annual rent"}
+              label={stayType === "short_let" ? "Price per night" : "Yearly rent"}
               floor={priceScale.floor}
               ceiling={priceScale.ceiling}
               step={priceScale.step}
@@ -417,7 +415,7 @@ export default function Search({
               onMinChange={setPriceMin}
               onMaxChange={setPriceMax}
             />
-          )}
+          ) : null}
           <section>
             <p className="mb-2 text-[10px] font-medium text-[#7B8190]">
               Bedrooms

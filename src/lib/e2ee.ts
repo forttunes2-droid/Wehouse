@@ -29,11 +29,32 @@ const decoder = new TextDecoder();
 const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
 const readinessTimeoutMs = 10_000;
 const conversationKeyCache = new Map<string, Promise<CryptoKey>>();
+let activeProfileId: string | null = null;
+let activeProfileIdRequest: Promise<string> | null = null;
 
-async function currentProfileId(){
-  const {data,error}=await supabase.rpc("current_profile_user_id");
-  if(error||!data)throw error||new Error("Active WeHouse profile required");
-  return String(data);
+export function rememberPrivateMessagingProfile(profileId: string) {
+  if (!profileId || activeProfileId === profileId) return;
+  activeProfileId = profileId;
+  activeProfileIdRequest = null;
+  conversationKeyCache.clear();
+}
+
+async function currentProfileId() {
+  if (activeProfileId) return activeProfileId;
+  if (activeProfileIdRequest) return activeProfileIdRequest;
+  activeProfileIdRequest = (async () => {
+    try {
+      const { data, error } = await supabase.rpc("current_profile_user_id");
+      if (error || !data)
+        throw error || new Error("Active WeHouse profile required");
+      const profileId = String(data);
+      activeProfileId = profileId;
+      return profileId;
+    } finally {
+      activeProfileIdRequest = null;
+    }
+  })();
+  return activeProfileIdRequest;
 }
 function sessionKey(profileId:string){return `${SESSION_KEY_PREFIX}${profileId}`}
 
@@ -207,15 +228,25 @@ async function checkPrivateConversationReadiness(
   conversationId: string,
   peerUserId: string,
 ): Promise<PrivateConversationReadiness> {
-  const [mine, peerResult] = await Promise.all([
-    encryptionIdentityStatus(),
-    peerPublicKey(kind, conversationId, peerUserId)
-      .then(() => ({ ready: true, error: null as unknown }))
-      .catch((error: unknown) => ({ ready: false, error })),
-  ]);
+  const mine = await encryptionIdentityStatus();
   if (mine.error) return { state: "unavailable", message: mine.error.message || "Secure chat could not be checked" };
   if (!mine.enabled) return { state: "setup_required", message: "Create your recovery passcode before sending private messages." };
   if (!mine.unlocked) return { state: "unlock_required", message: "Unlock private messages with your recovery passcode on this device." };
+  const profileId = await currentProfileId();
+  const { data: existingEnvelope, error: envelopeError } = await supabase
+    .from("conversation_key_envelopes")
+    .select("recipient_user_id")
+    .eq("conversation_kind", kind)
+    .eq("conversation_id", conversationId)
+    .eq("recipient_user_id", profileId)
+    .limit(1)
+    .maybeSingle();
+  if (envelopeError)
+    return { state: "unavailable", message: envelopeError.message || "Secure chat could not be checked" };
+  if (existingEnvelope) return { state: "ready", message: "End-to-end encrypted" };
+  const peerResult = await peerPublicKey(kind, conversationId, peerUserId)
+    .then(() => ({ ready: true, error: null as unknown }))
+    .catch((error: unknown) => ({ ready: false, error }));
   if (peerResult.ready) return { state: "ready", message: "End-to-end encrypted" };
   const message = peerResult.error instanceof Error ? peerResult.error.message : "Secure chat is not ready";
   if (/other person.*enable secure messages/i.test(message)) {
@@ -319,6 +350,16 @@ function conversationKey(kind: PrivateConversationKind, conversationId: string, 
   });
   conversationKeyCache.set(cacheKey, pending);
   return pending;
+}
+
+export function preparePrivateConversation(
+  kind: PrivateConversationKind,
+  conversationId: string,
+  peerUserId: string,
+) {
+  // Warm the key while the message request is in flight. The actual decrypt
+  // still awaits the same cached promise and surfaces its own readable state.
+  void conversationKey(kind, conversationId, peerUserId).catch(() => undefined);
 }
 
 export async function encryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, content: string) {

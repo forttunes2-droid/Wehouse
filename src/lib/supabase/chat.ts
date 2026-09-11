@@ -1,7 +1,7 @@
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
-import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, type EncryptedAttachment } from '@/lib/e2ee';
+import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
 
 export type RoommatePeer={user_id:string;name:string;avatar:string|null;bio:string;city:string;state:string;school:string;occupation:string;isStudent:boolean;isBlocked:boolean};
 
@@ -26,6 +26,7 @@ export async function getRoommateConversationPeople(){
 }
 
 export async function getMessages(conversationId:string,peerUserId?:string|null){
+  if(peerUserId)preparePrivateConversation('roommate',conversationId,peerUserId);
   const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'roommate',p_conversation_id:conversationId});
   if(error||!data)return{messages:(data||[]) as Message[],error};
   const messages=await Promise.all((data as any[]).map(async row=>{

@@ -258,7 +258,7 @@ export default function HousingOperationsWorkspace({
         </p>
       </header>
 
-      <section className="rounded-2xl border border-violet-500/10 bg-violet-500/[.03] p-4">
+      <section className="border-y border-violet-500/10 py-4">
         <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
           Exact booking verification
         </p>
@@ -461,7 +461,7 @@ export default function HousingOperationsWorkspace({
       ) : filtered.length === 0 ? (
         <Empty />
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {filtered.map((row) => (
             <button
               key={`${row._stayKind}:${row.current_reservation_id || row.listing_id}`}
@@ -469,7 +469,7 @@ export default function HousingOperationsWorkspace({
                 setVerifiedMoveInCode(null);
                 setSelected(row);
               }}
-              className="w-full rounded-2xl border border-white/[.06] bg-[#10131B] p-4 text-left hover:border-violet-500/20"
+              className="w-full px-1 py-4 text-left transition hover:bg-white/[.025]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

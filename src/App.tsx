@@ -19,10 +19,7 @@ import {
   unsaveListing,
   supabase,
 } from "@/lib/supabase";
-import CreatorAuthModal from "@/components/CreatorAuthModal";
-import SupportChat from "@/components/SupportChat";
 import DesktopLayout from "@/components/DesktopLayout";
-import PrivateCallCenter from "@/components/PrivateCallCenter";
 import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
@@ -89,6 +86,9 @@ const MyReservations = lazy(() => import("@/pages/MyReservations"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
+const CreatorAuthModal = lazy(() => import("@/components/CreatorAuthModal"));
+const SupportChat = lazy(() => import("@/components/SupportChat"));
+const PrivateCallCenter = lazy(() => import("@/components/PrivateCallCenter"));
 
 function PageTransitionFallback() {
   const [slow, setSlow] = useState(false);
@@ -1401,7 +1401,9 @@ export default function App() {
   return (
     <CreatorAuthProvider>
       <Suspense fallback={<RouteTransitionFallback />}>
-        <PrivateCallCenter />
+        <Suspense fallback={null}>
+          <PrivateCallCenter />
+        </Suspense>
         {profile && <NewLoginAlert profile={profile} />}
         <DesktopLayout
           navItems={desktopNavItems}
@@ -1419,26 +1421,32 @@ export default function App() {
             {renderPage()}
           </div>
         </DesktopLayout>
-        {isCreator && <CreatorAuthModal />}
+        {isCreator && (
+          <Suspense fallback={null}>
+            <CreatorAuthModal />
+          </Suspense>
+        )}
         {supportRole && profile && (
-          <SupportChat
-            onOpenListing={goToDetail}
-            onOpenBooking={
-              isUserRole
-                ? (id) => {
-                    setBookingContextId(null);
-                    goTo("my_reservations");
-                    window.setTimeout(() => setBookingContextId(id), 0);
-                  }
-                : undefined
-            }
-            profile={{
-              user_id: profile.user_id,
-              username: profile.username,
-              email: profile.email,
-              role: profile.role,
-            }}
-          />
+          <Suspense fallback={null}>
+            <SupportChat
+              onOpenListing={goToDetail}
+              onOpenBooking={
+                isUserRole
+                  ? (id) => {
+                      setBookingContextId(null);
+                      goTo("my_reservations");
+                      window.setTimeout(() => setBookingContextId(id), 0);
+                    }
+                  : undefined
+              }
+              profile={{
+                user_id: profile.user_id,
+                username: profile.username,
+                email: profile.email,
+                role: profile.role,
+              }}
+            />
+          </Suspense>
         )}
         <div className="lg:hidden">
           {showBottomNav && (

@@ -29,6 +29,7 @@ type Props = {
   onClose: () => void;
   onLike?: () => Promise<void>;
   ownerActions?: ReactNode;
+  onOpenProfile?: () => void;
 };
 
 export default function WorkerShowcasePostViewer({
@@ -40,6 +41,7 @@ export default function WorkerShowcasePostViewer({
   onClose,
   onLike,
   ownerActions,
+  onOpenProfile,
 }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -126,12 +128,18 @@ export default function WorkerShowcasePostViewer({
           </button>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-4 pb-5 pr-20 pt-20">
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!onOpenProfile}
+            onClick={onOpenProfile}
+            className="pointer-events-auto flex max-w-full items-center gap-2 text-left disabled:cursor-default"
+            aria-label={onOpenProfile ? `Open ${workerName}'s profile` : undefined}
+          >
             <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xs font-bold">
               {workerAvatar ? <img src={workerAvatar} alt="" className="h-full w-full object-cover" /> : workerName[0]?.toUpperCase()}
             </span>
             <p className="text-xs font-semibold">{workerName}</p>
-          </div>
+          </button>
           {post.caption ? <p className="mt-2 line-clamp-3 text-[11px] leading-5 text-white/90">{post.caption}</p> : null}
         </div>
       </div>
