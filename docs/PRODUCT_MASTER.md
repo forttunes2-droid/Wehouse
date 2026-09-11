@@ -1,12 +1,18 @@
 # WeHouse Product Master
 
-Status: proposed canonical product contract
+Status: proposed canonical product contract, ready for owner decision lock
 
-Audit baseline: `baf8d529fb4ef659d4f0059f9d5d44cf6da9729c` on `main`
+Product-code audit baseline: `baf8d529fb4ef659d4f0059f9d5d44cf6da9729c` on `main` (descended from the requested `2d875578` checkpoint)
 
 Audit date: 2026-09-11
 
 This document is the entry point for the WeHouse product contract. It records what the repository and live Supabase schema do, where different product generations conflict, and the model future work should converge on. “Canonical” means proposed unless a decision is marked approved in [DECISION_LOG.md](./DECISION_LOG.md).
+
+## Canonical authority
+
+This file and the documents it links under `/docs` supersede the July `FULL_AUDIT.md`, `FULL_TEST_CHECKLIST.md`, and later root-level phase reports as product authority. Those files remain useful historical evidence but must not be used to settle a current product rule when they disagree with this contract. The runtime audit was performed after the application changes descended from `2d875578`; later documentation-only commits do not change the audited runtime.
+
+The 17 remote `codex/*` branch heads were also compared with `main`. All 17 are already integrated by patch equivalence or exact squash-result tree equivalence; no unique effective work was found. No branch was deleted. See [BRANCH_CLEANUP_AUDIT.md](./BRANCH_CLEANUP_AUDIT.md).
 
 ## Evidence and limits
 
