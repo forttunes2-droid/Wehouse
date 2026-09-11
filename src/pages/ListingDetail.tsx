@@ -24,7 +24,7 @@ export default function ListingDetail(props: Props) {
       <button
         type="button"
         onClick={props.onToggleSave}
-        aria-label={props.isSaved ? "Remove apartment from Saved" : "Save apartment"}
+        aria-label={props.isSaved ? "Remove apartment from Saved" : "Add apartment to Saved"}
         aria-pressed={props.isSaved}
         className="fixed right-4 top-[max(.75rem,env(safe-area-inset-top))] z-[55] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur"
       >
