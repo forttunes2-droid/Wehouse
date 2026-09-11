@@ -142,16 +142,18 @@ begin
     raise exception 'Active WeHouse account required';
   end if;
 
-  select booking.*,hotel.owner_id
-  into v_booking,v_owner_id
+  select booking.* into v_booking
   from public.hotel_bookings booking
-  join public.hotels hotel on hotel.hotel_id=booking.hotel_id
   where booking.booking_id=p_booking_id
-  for share of booking;
+  for share;
 
   if v_booking.booking_id is null then
     raise exception 'Hotel booking not found';
   end if;
+
+  select hotel.owner_id into v_owner_id
+  from public.hotels hotel
+  where hotel.hotel_id=v_booking.hotel_id;
 
   v_allowed:=v_booking.user_id=v_actor
     or v_owner_id=v_actor
