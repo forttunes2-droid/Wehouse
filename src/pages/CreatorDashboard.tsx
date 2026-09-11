@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
+import BackButton from "@/components/BackButton";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
-import InboxTabs from "@/components/InboxTabs";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
@@ -11,6 +11,7 @@ import ServiceBookingOversight from "@/components/ServiceBookingOversight";
 import UserProfileModal from "@/components/UserProfileModal";
 import ServiceCategoryManager from "@/components/ServiceCategoryManager";
 import PropertyTypeManager from "@/components/PropertyTypeManager";
+import WeHouseSelect from "@/components/WeHouseSelect";
 import StaffListTab from "./StaffListTab";
 import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
@@ -19,7 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import type { Profile } from "@/types";
 
-type Tab = "home" | "operations" | "inbox";
+type Tab = "overview" | "operations" | "inbox";
 type Operation =
   | "people"
   | "team"
@@ -40,13 +41,13 @@ type Props = {
 type OperationTarget = { operation: Operation; id?: string } | null;
 
 const NAV = [
-  { id: "home", label: "Home" },
+  { id: "overview", label: "Overview" },
   { id: "operations", label: "Operations" },
   { id: "inbox", label: "Inbox" },
 ];
 
 const NOTES: Record<Tab, string> = {
-  home: "A single overview of live inventory, people and work needing attention.",
+  overview: "Live inventory, people and work needing attention.",
   operations:
     "People, properties, bookings, finance and platform control in one workspace.",
   inbox: "Chats and Activity linked to their authoritative records.",
@@ -114,6 +115,14 @@ const OPS: Array<{
   },
 ];
 const OP_GROUPS = ["Accounts", "Marketplace", "Platform"] as const;
+const PEOPLE_OPTIONS = [
+  { value: "user", label: "Users", description: "People using WeHouse to find homes and services." },
+  { value: "property_partner", label: "Property partners", description: "People and businesses supplying property inventory." },
+] as const;
+const FINANCE_OPTIONS = [
+  { value: "payouts", label: "Payout requests", description: "Review money waiting to be released." },
+  { value: "commissions", label: "Commission ledger", description: "Inspect settled platform commission records." },
+] as const;
 
 export default function CreatorDashboard({
   profile,
@@ -121,7 +130,7 @@ export default function CreatorDashboard({
   onNavigate,
   onGoToChat,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>("overview");
   const [operation, setOperation] = useState<Operation | null>(null);
   const [operationTarget, setOperationTarget] = useState<OperationTarget>(null);
   const [inboxTargetId, setInboxTargetId] = useState<string | undefined>();
@@ -201,12 +210,7 @@ export default function CreatorDashboard({
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
-        {tab === "home" && (
-          <Overview
-            openOperation={openOperation}
-            openInbox={() => setTab("inbox")}
-          />
-        )}
+        {tab === "overview" && <Overview openOperation={openOperation} />}
         {tab === "operations" && (
           <Operations
             profile={profile}
@@ -244,10 +248,8 @@ export default function CreatorDashboard({
 
 function Overview({
   openOperation,
-  openInbox,
 }: {
   openOperation: (tab: Operation) => void;
-  openInbox: () => void;
 }) {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -330,21 +332,13 @@ function Overview({
 
   return (
     <div className="space-y-5">
-      <section className="border-b border-white/[.07] pb-5">
+      <section className="border-b border-white/[.07] pb-4">
         <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-          Creator workspace
+          Platform at a glance
         </p>
-        <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-          Platform overview
-        </h2>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Quick
-            label="Open property review"
-            onClick={() => openOperation("properties")}
-            primary
-          />
-          <Quick label="Open Inbox" onClick={openInbox} />
-        </div>
+        <p className="mt-2 max-w-2xl text-[10px] leading-5 text-[#747A8B]">
+          Open a row to continue in its one authoritative Operations workspace.
+        </p>
       </section>
       <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
         {groups.map((group) => (
@@ -421,14 +415,7 @@ function Operations({
     );
   return (
     <div className="space-y-5">
-      <button
-        onClick={() => setActive(null)}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/[.07] px-3 text-[10px] font-semibold text-[#A2A7B5]"
-        aria-label="Back to all Operations work areas"
-      >
-        <span className="text-lg">‹</span>
-        <span>All work areas</span>
-      </button>
+      <div className="flex items-center gap-1 border-b border-white/[.06] pb-2"><BackButton onClick={() => setActive(null)} /><span className="text-[10px] font-semibold text-[#A2A7B5]">All work areas</span></div>
       {active === "people" && <People onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
       {active === "properties" && (
@@ -468,13 +455,13 @@ function CreatorInbox({
   initialConversationId?: string;
   summary: ReturnType<typeof useCreatorInboxSummary>;
 }) {
-  const [view, setView] = useState<"chats" | "activity" | "compose">("chats");
+  const [composing, setComposing] = useState(false);
   useEffect(() => {
-    if (initialConversationId) setView("chats");
+    if (initialConversationId) setComposing(false);
   }, [initialConversationId]);
-  if (view === "compose")
+  if (composing)
     return (
-      <Nested title="New update" back={() => setView("activity")}>
+      <Nested title="New update" back={() => setComposing(false)}>
         <CommunicationsWorkspace
           profile={profile}
           scope="all"
@@ -484,14 +471,41 @@ function CreatorInbox({
       </Nested>
     );
   return (
-    <div className="space-y-4">
-      <InboxTabs
-        value={view}
-        onChange={setView}
-        chatCount={summary.messageUnread}
-        activityCount={summary.activityUnread}
-      />
-      {view === "chats" ? (
+    <div className="space-y-8">
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+          <div>
+            <h2 className="text-xs font-semibold">Activity</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">Platform updates linked to the record that caused them.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {summary.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.activityUnread} new</span> : null}
+            <button
+              onClick={() => setComposing(true)}
+              className="px-2 py-2 text-[9px] font-semibold text-violet-300"
+            >
+              Post update
+            </button>
+          </div>
+        </div>
+        <Notifications
+          profile={profile}
+          scope="creator"
+          embedded
+          compact
+          previewLimit={3}
+          onUnreadChange={summary.setActivityUnread}
+          onNavigate={(page, id) => onNavigate?.(page, id)}
+        />
+      </section>
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div>
+            <h2 className="text-xs font-semibold">Messages</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">Customer, partner and Operations conversations in one queue.</p>
+          </div>
+          {summary.messageUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.messageUnread} new</span> : null}
+        </div>
         <CommunicationsWorkspace
           profile={profile}
           scope="all"
@@ -503,25 +517,7 @@ function CreatorInbox({
           onOpenContext={(page,id)=>onNavigate?.(page,id)}
           onUnreadChange={summary.setMessageUnread}
         />
-      ) : (
-        <>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setView("compose")}
-              className="rounded-xl border border-violet-500/20 bg-violet-500/[.08] px-3 py-2 text-[10px] font-semibold text-violet-200"
-            >
-              Post update
-            </button>
-          </div>
-          <Notifications
-            profile={profile}
-            scope="creator"
-            embedded
-            onUnreadChange={summary.setActivityUnread}
-            onNavigate={(page, id) => onNavigate?.(page, id)}
-          />
-        </>
-      )}
+      </section>
     </div>
   );
 }
@@ -538,13 +534,7 @@ function Nested({
   return (
     <div className="space-y-5">
       <header className="flex items-center gap-3 border-b border-white/[.07] pb-3">
-        <button
-          onClick={back}
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/[.04] text-lg"
-          aria-label="Back"
-        >
-          ‹
-        </button>
+        <BackButton onClick={back} />
         <h2 className="text-lg font-bold">{title}</h2>
       </header>
       {children}
@@ -611,17 +601,14 @@ function People({ onView }: { onView: (profile: Profile) => void }) {
       title="People"
       note="Regular Users and Property Partners. Team members and Workers have dedicated workspaces."
     >
-      <div className="flex gap-2">
-        <Chip active={role === "user"} onClick={() => setRole("user")}>
-          Users
-        </Chip>
-        <Chip
-          active={role === "property_partner"}
-          onClick={() => setRole("property_partner")}
-        >
-          Property Partners
-        </Chip>
-      </div>
+      <WeHouseSelect
+        value={role}
+        options={PEOPLE_OPTIONS}
+        onChange={setRole}
+        eyebrow="People"
+        title="Account type"
+        ariaLabel="Filter people by account type"
+      />
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
@@ -824,33 +811,10 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
           customer, property and booking code.
         </p>
       </div>
-      <nav
-        className="grid grid-cols-3 border-y border-white/[.07]"
-        aria-label="Booking types"
-      >
-        {(
-          [
-            ["worker", "Worker services"],
-            ["apartments", "Apartments"],
-            ["hotels", "Hotels"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => {
-              setView(id);
-              setSearch("");
-              setSelected(null);
-            }}
-            className={`relative min-h-12 px-1 text-[9px] font-semibold ${view === id ? "text-violet-300" : "text-[#73798A]"}`}
-          >
-            {label}
-            {view === id && (
-              <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-violet-400" />
-            )}
-          </button>
-        ))}
-      </nav>
+      <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
+        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One workspace, one active filter</p></div>
+        <WeHouseSelect value={view} options={[{ value: "worker", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
+      </div>
       {view === "worker" ? (
         <ServiceBookingOversight
           title="Worker service bookings"
@@ -1006,13 +970,7 @@ function BookingRecord({
   return (
     <section className="space-y-5">
       <header className="flex items-start gap-3 border-b border-white/[.07] pb-4">
-        <button
-          onClick={onBack}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.04] text-lg"
-          aria-label="Back to booking records"
-        >
-          ‹
-        </button>
+        <BackButton onClick={onBack} />
         <div className="min-w-0 flex-1">
           <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
             {kind === "hotel" ? "Hotel booking" : "Apartment reservation"}
@@ -1083,17 +1041,14 @@ function Finance() {
       title="Platform finance"
       note="Review payout requests, monitor Paystack settlement and inspect commission records. Product rules are managed in Operations → Platform settings."
     >
-      <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-        <Chip active={view === "payouts"} onClick={() => setView("payouts")}>
-          Payout requests
-        </Chip>
-        <Chip
-          active={view === "commissions"}
-          onClick={() => setView("commissions")}
-        >
-          Commission ledger
-        </Chip>
-      </div>
+      <WeHouseSelect
+        value={view}
+        options={FINANCE_OPTIONS}
+        onChange={setView}
+        eyebrow="Finance"
+        title="Finance record"
+        ariaLabel="Choose finance records"
+      />
       {view === "payouts" ? (
         <StaffFinanceRecords view="payouts" />
       ) : loading ? (
@@ -1192,14 +1147,7 @@ function PlatformControl({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-5">
       <header className="flex items-center gap-3 border-b border-white/[.07] pb-3">
-        <button
-          type="button"
-          onClick={() => setSection(null)}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.04] text-lg"
-          aria-label="Back to Platform settings"
-        >
-          ‹
-        </button>
+        <BackButton onClick={() => setSection(null)} />
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
             Platform settings
@@ -1283,42 +1231,6 @@ function Section({
       </div>
       {children}
     </div>
-  );
-}
-function Quick({
-  label,
-  onClick,
-  primary = false,
-}: {
-  label: string;
-  onClick: () => void;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-xl px-4 py-3 text-[10px] font-semibold ${primary ? "bg-violet-500" : "border border-white/[.08] bg-white/[.03]"}`}
-    >
-      {label}
-    </button>
-  );
-}
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`shrink-0 rounded-xl px-3 py-2 text-[9px] font-semibold ${active ? "bg-violet-500 text-white" : "border border-white/[.06] bg-[#10131B] text-[#777D8D]"}`}
-    >
-      {children}
-    </button>
   );
 }
 function Card({ children }: { children: React.ReactNode }) {

@@ -68,6 +68,11 @@ export default function WorkerDiscovery({
       worker: Profile;
     } | null>(null),
     [active, setActive] = useState<Set<string>>(new Set()),
+    [profileBlock, setProfileBlock] = useState({
+      blockedByMe: false,
+      blockedMe: false,
+      busy: false,
+    }),
     [chat, setChat] = useState<{
       conversationId: string;
       bookingId: string;
@@ -136,6 +141,26 @@ export default function WorkerDiscovery({
       setActive(new Set(((bookings || []) as ActiveBooking[]).map((row) => row.worker_id).filter((id): id is string => Boolean(id)))),
     );
   }, [profile?.user_id]);
+  useEffect(() => {
+    if (!viewWorker || !active.has(viewWorker.user_id)) {
+      setProfileBlock({ blockedByMe: false, blockedMe: false, busy: false });
+      return;
+    }
+    let current = true;
+    void supabase
+      .rpc("get_my_worker_block_state", { p_user_id: viewWorker.user_id })
+      .then(({ data, error }) => {
+        if (!current || error) return;
+        setProfileBlock({
+          blockedByMe: Boolean(data?.blocked_by_me),
+          blockedMe: Boolean(data?.blocked_me),
+          busy: false,
+        });
+      });
+    return () => {
+      current = false;
+    };
+  }, [active, viewWorker]);
   useEffect(() => {
     if (!preSelectedCategory || !categories.length) return;
     const direct = categories.find((item) => item.name === preSelectedCategory);
@@ -305,6 +330,28 @@ export default function WorkerDiscovery({
     setActive((current) => new Set(current).add(workerId));
     setChat({ conversationId, bookingId });
   }
+  async function toggleProfileBlock() {
+    if (!viewWorker || profileBlock.busy) return;
+    const next = !profileBlock.blockedByMe;
+    setProfileBlock((value) => ({ ...value, busy: true }));
+    const { data, error } = await supabase.rpc("set_my_worker_block", {
+      p_user_id: viewWorker.user_id,
+      p_blocked: next,
+      p_reason: next ? "Blocked from the Worker profile" : null,
+    });
+    if (error) {
+      setProfileBlock((value) => ({ ...value, busy: false }));
+      return toast.error(error.message || "Safety setting could not be changed");
+    }
+    setProfileBlock((value) => ({
+      ...value,
+      blockedByMe: next,
+      busy: false,
+    }));
+    toast.success(next ? "Worker blocked" : "Worker unblocked");
+    if (data?.booking_action === "review_required")
+      toast.info("The job and protected payment are now with WeHouse for review.");
+  }
   if (chat && profile)
     return (
       <BookingNegotiationChat
@@ -328,6 +375,27 @@ export default function WorkerDiscovery({
               ? setBookingWorker(viewWorker)
               : toast.info("Please sign in to request this service worker")
           }
+          safetyAction={active.has(viewWorker.user_id) ? (
+            <div>
+              {profileBlock.blockedMe && (
+                <p className="mb-3 text-[9px] leading-4 text-amber-200">
+                  This Worker has stopped direct messages and private calls.
+                </p>
+              )}
+              <button
+                type="button"
+                disabled={profileBlock.busy}
+                onClick={() => void toggleProfileBlock()}
+                className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45"
+              >
+                {profileBlock.busy
+                  ? "Updating…"
+                  : profileBlock.blockedByMe
+                    ? "Unblock Worker"
+                    : "Block Worker"}
+              </button>
+            </div>
+          ) : undefined}
         />
         {bookingWorker && profile && (
           <WorkerBookingRequestSheetV2

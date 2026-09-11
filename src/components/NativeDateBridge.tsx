@@ -33,11 +33,13 @@ function formatDate(value: Date) {
 export default function NativeDateBridge() {
   const [active, setActive] = useState<HTMLInputElement | null>(null);
   const [version, setVersion] = useState(0);
+  const [pendingDate, setPendingDate] = useState<Date | undefined>();
+  const [pendingTime, setPendingTime] = useState("09:00");
 
   useEffect(() => {
-    function open(event: PointerEvent) {
+    function open(event: Event) {
       const input = (event.target as Element | null)?.closest?.(
-        'input[type="date"]',
+        'input[type="date"],input[type="datetime-local"]',
       ) as HTMLInputElement | null;
       if (
         !input ||
@@ -48,6 +50,11 @@ export default function NativeDateBridge() {
         return;
       event.preventDefault();
       event.stopPropagation();
+      if ("stopImmediatePropagation" in event) event.stopImmediatePropagation();
+      input.blur();
+      const [dateValue, timeValue] = input.value.split("T");
+      setPendingDate(parseDate(dateValue));
+      setPendingTime(timeValue?.slice(0, 5) || "09:00");
       setActive(input);
       setVersion((value) => value + 1);
     }
@@ -56,6 +63,7 @@ export default function NativeDateBridge() {
     }
     const close = () => setActive(null);
     document.addEventListener("pointerdown", open, true);
+    document.addEventListener("click", open, true);
     document.addEventListener("keydown", escape);
     document.addEventListener("submit", close, true);
     document.addEventListener("reset", close, true);
@@ -65,6 +73,7 @@ export default function NativeDateBridge() {
     window.addEventListener("pagehide", close);
     return () => {
       document.removeEventListener("pointerdown", open, true);
+      document.removeEventListener("click", open, true);
       document.removeEventListener("keydown", escape);
       document.removeEventListener("submit", close, true);
       document.removeEventListener("reset", close, true);
@@ -92,14 +101,15 @@ export default function NativeDateBridge() {
   const values = useMemo(() => {
     if (!active) return { selected: undefined, min: undefined, max: undefined };
     return {
-      selected: parseDate(active.value),
-      min: parseDate(active.min),
-      max: parseDate(active.max),
+      selected: pendingDate || parseDate(active.value.split("T")[0]),
+      min: parseDate(active.min.split("T")[0]),
+      max: parseDate(active.max.split("T")[0]),
     };
-  }, [active, version]);
+  }, [active, pendingDate, version]);
 
   if (!active || typeof document === "undefined") return null;
   const title = dateTitle(active);
+  const includesTime = active.type === "datetime-local";
   const disabled = [
     ...(values.min ? [{ before: values.min }] : []),
     ...(values.max ? [{ after: values.max }] : []),
@@ -107,17 +117,38 @@ export default function NativeDateBridge() {
 
   function choose(date: Date | undefined) {
     if (!active || !date) return;
+    if (includesTime) {
+      setPendingDate(date);
+      return;
+    }
+    commit(formatDate(date));
+  }
+
+  function commit(value: string) {
+    if (!active) return;
     const setter = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       "value",
     )?.set;
-    const value = formatDate(date);
     if (setter) setter.call(active, value);
     else active.value = value;
     active.dispatchEvent(new Event("input", { bubbles: true }));
     active.dispatchEvent(new Event("change", { bubbles: true }));
     setActive(null);
   }
+
+  const dateTimeValue = pendingDate ? `${formatDate(pendingDate)}T${pendingTime}` : "";
+  const dateTimeInvalid = includesTime && (!dateTimeValue || Boolean(active.min && dateTimeValue < active.min) || Boolean(active.max && dateTimeValue > active.max));
+  const timeOptions = Array.from(
+    new Set([
+      pendingTime,
+      ...Array.from({ length: 96 }, (_, index) => {
+        const hour = Math.floor(index / 4);
+        const minute = (index % 4) * 15;
+        return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      }),
+    ]),
+  ).sort();
 
   return createPortal(
     <div
@@ -174,8 +205,24 @@ export default function NativeDateBridge() {
             }}
           />
         </div>
+        {includesTime ? (
+          <div className="border-t border-white/[.06] px-5 py-4">
+            <label className="block text-[9px] font-semibold text-[#9EA4B2]">
+              Time
+              <select value={pendingTime} onChange={(event) => setPendingTime(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs text-white outline-none">
+                {timeOptions.map((value) => {
+                  const [hour, minute] = value.split(":").map(Number);
+                  const label = new Date(2000, 0, 1, hour, minute).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+                  return <option key={value} value={value}>{label}</option>;
+                })}
+              </select>
+            </label>
+            <button type="button" disabled={dateTimeInvalid} onClick={() => commit(dateTimeValue)} className="mt-3 h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-35">Use this date and time</button>
+            {dateTimeInvalid ? <p className="mt-2 text-[9px] text-amber-300">Choose a date and time inside the allowed window.</p> : null}
+          </div>
+        ) : null}
         <footer className="border-t border-white/[.06] px-5 py-3 pb-[max(.85rem,env(safe-area-inset-bottom))] text-[9px] text-[#646B7B]">
-          Dates outside this booking window are unavailable.
+          {includesTime ? "The selected time uses your device time zone." : "Dates outside this booking window are unavailable."}
         </footer>
       </section>
     </div>,

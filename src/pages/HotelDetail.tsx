@@ -319,6 +319,11 @@ export default function HotelDetail({
           </section>
         )}
 
+        <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/[.06] bg-white/[.06]">
+          <div className="bg-[#10141C] p-4"><p className="text-[8px] uppercase tracking-wide text-[#686F80]">Check-in</p><p className="mt-1 text-xs font-semibold">From {formatHotelTime(hotel.check_in_time, "14:00")}</p></div>
+          <div className="bg-[#10141C] p-4"><p className="text-[8px] uppercase tracking-wide text-[#686F80]">Check-out</p><p className="mt-1 text-xs font-semibold">By {formatHotelTime(hotel.check_out_time, "12:00")}</p></div>
+        </section>
+
         <section>
           <div className="mb-3">
             <h2 className="text-base font-bold">Rooms and rates</h2>
@@ -633,6 +638,12 @@ export default function HotelDetail({
       </div>
     </div>
   );
+}
+
+function formatHotelTime(value: unknown, fallback: string) {
+  const match = String(value || fallback).match(/^(\d{2}):(\d{2})/);
+  const hour = Number(match?.[1] || 0), minute = match?.[2] || "00";
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
 function DateField({

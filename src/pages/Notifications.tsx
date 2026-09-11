@@ -22,6 +22,8 @@ type Props = {
   profile: Profile;
   onNavigate: (page: string, id?: string) => void;
   embedded?: boolean;
+  previewLimit?: number;
+  compact?: boolean;
   onUnreadChange?: (count: number) => void;
   scope?: string;
 };
@@ -54,6 +56,8 @@ export default function Notifications({
   profile,
   onNavigate,
   embedded = false,
+  previewLimit,
+  compact = false,
   onUnreadChange,
   scope = "personal",
 }: Props) {
@@ -162,14 +166,21 @@ export default function Notifications({
     () => rows.filter((row) => matchesActivityFilter(row, activityFilter)),
     [activityFilter, rows],
   );
+  const visibleRows = useMemo(
+    () =>
+      typeof previewLimit === "number"
+        ? filteredRows.slice(0, previewLimit)
+        : filteredRows,
+    [filteredRows, previewLimit],
+  );
   const groups = useMemo(() => {
     const result = new Map<string, Activity[]>();
-    for (const row of filteredRows) {
+    for (const row of visibleRows) {
       const day = !row.read ? "New" : dayLabel(row.created_at);
       result.set(day, [...(result.get(day) || []), row]);
     }
     return [...result];
-  }, [filteredRows]);
+  }, [visibleRows]);
 
   async function markRead(row: Activity) {
     if (row.read) return true;
@@ -309,7 +320,7 @@ export default function Notifications({
         <Empty />
       ) : (
         <div className="space-y-5">
-          <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+          {!compact && <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
                 Activity
@@ -337,8 +348,8 @@ export default function Notifications({
               title="Filter updates"
               ariaLabel="Filter activity updates"
             />
-          </div>
-          {unread > 0 && (
+          </div>}
+          {!compact && unread > 0 && (
             <div className="flex items-center justify-end">
               <button
                 onClick={() => void markAll()}

@@ -28,6 +28,7 @@ type Props = {
   profile: Profile;
   title: string;
   subtitle?: string;
+  readOnly?: boolean;
   onClose: () => void;
   onUpdated?: () => void;
 };
@@ -40,6 +41,7 @@ export default function HotelBookingChat({
   profile,
   title,
   subtitle = "Private booking conversation",
+  readOnly = false,
   onClose,
   onUpdated,
 }: Props) {
@@ -236,7 +238,7 @@ export default function HotelBookingChat({
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <button
             onClick={onClose}
-            aria-label="Back to Inbox"
+            aria-label="Back"
             className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#A1A7B5]"
           >
             ←
@@ -256,8 +258,9 @@ export default function HotelBookingChat({
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
           <div className="mx-auto mb-4 max-w-sm border-y border-white/[.06] py-3 text-center text-[9px] leading-4 text-[#717788]">
-            This chat is tied to the paid stay. Booking or payment problems
-            still go to WeHouse Property Operations.
+            Use this conversation for arrival, the room and the stay. For
+            payment or booking changes, open the booking and choose Get help
+            from WeHouse.
           </div>
           {loading ? (
             <div
@@ -399,6 +402,11 @@ export default function HotelBookingChat({
 
       <footer className="shrink-0 border-t border-white/[.07] bg-[#0E1118] px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5">
         <div className="mx-auto max-w-3xl">
+          {readOnly ? (
+            <p className="py-2 text-center text-[10px] text-[#73798A]">
+              This stay has ended. Its conversation is kept as read-only history.
+            </p>
+          ) : <>
           {files.length > 0 && (
             <div className="mb-2 flex gap-2 overflow-x-auto">
               {files.map((file, index) => (
@@ -503,6 +511,7 @@ export default function HotelBookingChat({
               )}
             </div>
           )}
+          </>}
         </div>
       </footer>
       {messageMenu && (

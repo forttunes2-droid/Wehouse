@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 import { getAllListings } from '@/lib/supabase';
 import ListingCard from '@/components/ListingCard';
 import type { Listing, Profile } from '@/types';
+import { Toaster, toast } from 'sonner';
+import BackButton from '@/components/BackButton';
+import {
+  getMySavedSearches,
+  removeSavedSearch,
+  setSavedSearchAlerts,
+  type SavedSearch,
+} from '@/lib/supabase/saved-searches';
 
 interface SavedProps {
   profile: Profile;
@@ -11,37 +19,63 @@ interface SavedProps {
   onBack: () => void;
 }
 
-export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: SavedProps) {
+export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onBack }: SavedProps) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busySearch, setBusySearch] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
-      const { listings: available } = savedIds.size ? await getAllListings() : { listings: [] };
+      const [{ listings: available }, followed] = await Promise.all([
+        savedIds.size ? getAllListings() : Promise.resolve({ listings: [] }),
+        getMySavedSearches(),
+      ]);
       if (!active) return;
       setListings((available || []).filter(listing => savedIds.has(listing.id)));
+      setSearches(followed.searches);
       setLoading(false);
     }
     void load();
     return () => { active = false; };
-  }, [savedIds]);
+  }, [profile.user_id, savedIds]);
+
+  async function toggleAlerts(search: SavedSearch) {
+    setBusySearch(search.id);
+    const { error } = await setSavedSearchAlerts(search.id, !search.notifications_enabled);
+    setBusySearch(null);
+    if (error) return toast.error(error.message);
+    setSearches(current => current.map(item => item.id === search.id ? { ...item, notifications_enabled: !item.notifications_enabled } : item));
+    toast.success(search.notifications_enabled ? 'Search alerts paused' : 'Search alerts resumed');
+  }
+
+  async function removeSearch(search: SavedSearch) {
+    setBusySearch(search.id);
+    const { error } = await removeSavedSearch(search.id);
+    setBusySearch(null);
+    if (error) return toast.error(error.message);
+    setSearches(current => current.filter(item => item.id !== search.id));
+    toast.success('Followed search removed');
+  }
 
   return (
     <div className="min-h-screen bg-[#090B10] pb-24 text-white">
+      <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-30 border-b border-white/[0.055] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto flex max-w-5xl items-start gap-3">
-          <button type="button" onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.08] text-[#A1A6B5]" aria-label="Back to Account">←</button>
+          <BackButton onClick={onBack} />
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · ACCOUNT</p>
             <h1 className="mt-1 text-xl font-bold">Saved</h1>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Apartments you want to find again.</p>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Saved apartments and followed-search alerts.</p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-5 sm:px-5 lg:px-8">
+      <main className="mx-auto max-w-5xl space-y-8 px-4 py-5 sm:px-5 lg:px-8">
+        <section>
         <div className="mb-3"><h2 className="text-sm font-semibold">Saved apartments</h2><p className="mt-1 text-[9px] text-[#707687]">Saving keeps an apartment here. It does not start a booking.</p></div>
         {loading ? (
           <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
@@ -61,7 +95,22 @@ export default function Saved({ onNavigate, savedIds, onToggleSave, onBack }: Sa
             ))}
           </div>
         )}
+        </section>
+        {!loading ? <section>
+          <div className="mb-3"><h2 className="text-sm font-semibold">Followed searches</h2><p className="mt-1 text-[9px] text-[#707687]">Alerts appear in Inbox Activity when a newly published property matches.</p></div>
+          {searches.length ? <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{searches.map(search => <article key={search.id} className="py-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="truncate text-xs font-semibold">{search.name}</p><p className="mt-1 text-[9px] text-[#707687]">{search.search_kind === 'hotels' ? 'Hotels' : 'Apartments'} · {searchCriteriaSummary(search.criteria)}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${search.notifications_enabled ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/[.05] text-[#777D8D]'}`}>{search.notifications_enabled ? 'Alerts on' : 'Paused'}</span></div><div className="mt-3 flex gap-2"><button disabled={busySearch === search.id} onClick={() => void toggleAlerts(search)} className="h-9 rounded-xl border border-violet-500/20 px-3 text-[9px] font-semibold text-violet-300 disabled:opacity-40">{search.notifications_enabled ? 'Pause alerts' : 'Resume alerts'}</button><button disabled={busySearch === search.id} onClick={() => void removeSearch(search)} className="h-9 rounded-xl border border-red-500/15 px-3 text-[9px] font-semibold text-red-300 disabled:opacity-40">Remove</button></div></article>)}</div> : <div className="border-y border-dashed border-white/[.07] py-10 text-center"><p className="text-xs font-semibold">No followed searches</p><p className="mt-2 text-[9px] text-[#707687]">Set filters in Explore, then choose Follow search.</p></div>}
+        </section> : null}
       </main>
     </div>
   );
+}
+
+function searchCriteriaSummary(criteria: Record<string, unknown>) {
+  const parts = [criteria.query ? `“${criteria.query}”` : null, criteria.city, criteria.state, criteria.sub_type === 'short_let' ? 'Short stay' : criteria.sub_type === 'long_stay' ? 'Long term' : null].filter(Boolean).map(String);
+  const min = Number(criteria.min_price || 0), max = Number(criteria.max_price || 0);
+  if (min || max) parts.push(`${min ? `from ₦${min.toLocaleString()}` : ''}${min && max ? ' ' : ''}${max ? `to ₦${max.toLocaleString()}` : ''}`);
+  const amenities = Array.isArray(criteria.amenities) ? criteria.amenities.length : 0;
+  if (amenities) parts.push(`${amenities} amenit${amenities === 1 ? 'y' : 'ies'}`);
+  if (Number(criteria.radius_km || 0)) parts.push(`within ${Number(criteria.radius_km).toLocaleString()} km`);
+  return parts.join(' · ') || 'Any location';
 }

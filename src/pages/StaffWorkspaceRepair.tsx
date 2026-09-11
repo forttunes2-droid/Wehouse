@@ -11,7 +11,6 @@ import StaffFinanceSummary from "@/components/StaffFinanceSummary";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import StaffSecurityOverviewV2 from "@/components/StaffSecurityOverviewV2";
 import StaffActivityTrailV2 from "@/components/StaffActivityTrailV2";
-import InboxTabs from "@/components/InboxTabs";
 import { useStaffPermissions } from "@/hooks/useStaffPermissions";
 import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
 import type { Profile } from "@/types";
@@ -32,7 +31,6 @@ type WorkView =
   | "ledger"
   | "signals"
   | "trail";
-type InboxView = "chats" | "activity";
 type Props = {
   profile: Profile;
   onLogout: () => void;
@@ -386,29 +384,33 @@ function OperationsInbox({
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
-  const [view, setView] = useState<InboxView>("chats");
   function navigate(page: string, id?: string) {
     if (/operations_properties|staff_inspections|inspection|propert/.test(page))
       return openProperties(id);
     onNavigate?.(page, id);
   }
   return (
-    <div className="space-y-4">
-      <InboxTabs
-        value={view}
-        onChange={setView}
-        chatCount={summary.messageUnread}
-        activityCount={summary.activityUnread}
-      />
-      {view === "activity" ? (
+    <div className="space-y-8">
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Branch work updates linked to their records.</p></div>
+          {summary.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.activityUnread} new</span> : null}
+        </div>
         <Notifications
           profile={profile}
           scope="staff"
           embedded
+          compact
+          previewLimit={3}
           onUnreadChange={summary.refresh}
           onNavigate={navigate}
         />
-      ) : (
+      </section>
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div><h2 className="text-xs font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Assigned property and Operations conversations.</p></div>
+          {summary.messageUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.messageUnread} new</span> : null}
+        </div>
         <CommunicationsWorkspace
           profile={profile}
           scope={scope}
@@ -419,7 +421,7 @@ function OperationsInbox({
           onOpenContext={navigate}
           onUnreadChange={summary.refresh}
         />
-      )}
+      </section>
     </div>
   );
 }
@@ -436,19 +438,21 @@ function SupportInbox({
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
-  const [view, setView] = useState<"chats" | "activity">("chats");
   return (
-    <div className="space-y-4">
-      <InboxTabs value={view} onChange={setView} />
-      {view === "activity" ? (
+    <div className="space-y-8">
+      <section>
+        <div className="mb-3 border-b border-white/[.06] pb-3"><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Official updates for this work area.</p></div>
         <Notifications
           profile={profile}
           scope="staff"
           embedded
+          compact
+          previewLimit={3}
           onNavigate={(page, id) => onNavigate?.(page, id)}
         />
-      ) : (
-        <>
+      </section>
+      <section>
+        <div className="mb-3 border-b border-white/[.06] pb-3"><h2 className="text-xs font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Assigned conversations in one queue.</p></div>
           <CommunicationsWorkspace
             profile={profile}
             scope={scope}
@@ -458,8 +462,7 @@ function SupportInbox({
             initialConversationId={initialConversationId}
             onOpenContext={(page, id)=>onNavigate?.(page, id)}
           />
-        </>
-      )}
+      </section>
     </div>
   );
 }
@@ -474,11 +477,12 @@ function ActivityOnlyInbox({
   onUnreadChange: () => void;
   onNavigate: (page: string, id?: string) => void;
 }) {
-  const [view, setView] = useState<"chats" | "activity">("activity");
   return (
     <div className="space-y-4">
-      <InboxTabs value={view} onChange={setView} activityCount={unread} />
-      {view === "activity" ? (
+      <div className="flex items-center justify-between border-b border-white/[.06] pb-3">
+        <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Updates for this authorized work area.</p></div>
+        {unread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{unread} new</span> : null}
+      </div>
         <Notifications
           profile={profile}
           scope="staff"
@@ -486,16 +490,6 @@ function ActivityOnlyInbox({
           onUnreadChange={onUnreadChange}
           onNavigate={onNavigate}
         />
-      ) : (
-        <div className="grid min-h-48 place-items-center border-y border-white/[.06] text-center">
-          <div>
-            <p className="text-sm font-semibold">No conversations assigned</p>
-            <p className="mt-2 max-w-xs text-[10px] leading-5 text-[#686F80]">
-              Messages appear here only when this work area is authorized for a conversation.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

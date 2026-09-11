@@ -232,6 +232,7 @@ export default function PropertyInspectionRequestPanel({
     >("loading"),
     [saveRevision, setSaveRevision] = useState(0);
   const revisionRef = useRef(0);
+  const batchCreateRef = useRef<Promise<string | null> | null>(null);
   const current = drafts[active] || drafts[0];
   const previewUrl = useObjectUrl(previewFile);
   useEffect(() => {
@@ -271,6 +272,66 @@ export default function PropertyInspectionRequestPanel({
         challengeIsCurrent(draft.accessChallenge) &&
         draft.accessVideo,
     );
+  const draftHasProgress = (draft: Draft) => Boolean(
+    draft.propertyAddress.trim() ||
+    draft.propertyDisplayName.trim() ||
+    draft.propertyCity.trim() !== String(profile.city || profile.local_government || "").trim() ||
+    draft.propertyState.trim() !== String(profile.state || "").trim() ||
+    draft.propertyType !== "apartment" ||
+    draft.subType !== "long_stay" ||
+    draft.relationship !== "owner" ||
+    draft.bedrooms !== "1" ||
+    draft.bathrooms !== "1" ||
+    draft.expectedRent.trim() ||
+    draft.securityDeposit.trim() ||
+    draft.maxGuests.trim() ||
+    draft.description.trim() ||
+    draft.ownerPhone.trim() !== String(profile.phone || "").trim() ||
+    draft.latitude.trim() ||
+    draft.longitude.trim() ||
+    draft.hotelName.trim() ||
+    draft.hotelAmenities.trim() ||
+    draft.files.length ||
+    draft.accessVideo ||
+    draft.location ||
+    draft.accessChallenge ||
+    draft.hotelRooms.length > 1 ||
+    draft.hotelRooms.some((room) =>
+      room.name.trim() ||
+      room.description.trim() ||
+      room.rate.trim() ||
+      room.maxGuests !== "2" ||
+      room.inventory !== "1" ||
+      room.bedType.trim() ||
+      room.amenities.trim() ||
+      room.files.length
+    )
+  );
+  async function ensureBatch() {
+    if (batchId) return batchId;
+    if (batchCreateRef.current) return batchCreateRef.current;
+    batchCreateRef.current = (async () => {
+      const auth = await supabase.auth.getUser();
+      if (!auth.data.user) {
+        toast.error("Authentication required");
+        return null;
+      }
+      const created = await supabase
+        .from("property_submission_batches")
+        .insert({ partner_user_id: auth.data.user.id })
+        .select("id")
+        .single();
+      if (created.error) {
+        toast.error(created.error.message);
+        return null;
+      }
+      setBatchId(created.data.id);
+      return String(created.data.id);
+    })();
+    const result = await batchCreateRef.current;
+    batchCreateRef.current = null;
+    return result;
+  }
   useEffect(() => {
     void (async () => {
       const auth = await supabase.auth.getUser();
@@ -296,7 +357,7 @@ export default function PropertyInspectionRequestPanel({
         const items = (existing.data.property_submission_items || []).sort(
           (a: any, b: any) => a.position - b.position,
         );
-        if (items.length) {
+        if (items.length && items.some((item: any) => draftHasProgress({ ...fresh(profile), ...item.draft_payload } as Draft))) {
           let mediaRestoreFailed = false;
           const restored = await Promise.all(
             items.map(async (item: any) => {
@@ -333,14 +394,12 @@ export default function PropertyInspectionRequestPanel({
           );
           setDrafts(restored);
           setSaveState(mediaRestoreFailed ? "error" : "saved");
-        } else setSaveState("idle");
+        } else {
+          await supabase.from("property_submission_batches").delete().eq("id", savedBatchId);
+          setBatchId(null);
+          setSaveState("idle");
+        }
       } else {
-        const created = await supabase
-          .from("property_submission_batches")
-          .insert({ partner_user_id: auth.data.user.id })
-          .select("id")
-          .single();
-        if (created.data) setBatchId(created.data.id);
         setSaveState("idle");
       }
       setHydrated(true);
@@ -418,6 +477,7 @@ export default function PropertyInspectionRequestPanel({
   function changed() {
     revisionRef.current += 1;
     setSaveRevision(revisionRef.current);
+    void ensureBatch();
   }
   function patch(index: number, next: Partial<Draft>) {
     changed();
@@ -457,17 +517,6 @@ export default function PropertyInspectionRequestPanel({
     patch(index, { accessChallenge: challenge, accessVideo: null });
   }
   async function openForm() {
-    if (!batchId) {
-      const auth = await supabase.auth.getUser();
-      if (!auth.data.user) return toast.error("Authentication required");
-      const created = await supabase
-        .from("property_submission_batches")
-        .insert({ partner_user_id: auth.data.user.id })
-        .select("id")
-        .single();
-      if (created.error) return toast.error(created.error.message);
-      setBatchId(created.data.id);
-    }
     setOpen((value) => !value);
   }
   function add() {
@@ -732,6 +781,7 @@ export default function PropertyInspectionRequestPanel({
       );
       setDrafts([fresh(profile)]);
       setBatchId(null);
+      batchCreateRef.current = null;
       setActive(0);
       setOpen(false);
     } catch (err: unknown) {

@@ -6,7 +6,6 @@ import {
 } from "@/lib/supabase/worker-bookings";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import Notifications from "@/pages/Notifications";
-import InboxTabs from "@/components/InboxTabs";
 import SupportEntryCard from "@/components/SupportEntryCard";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { supabase } from "@/lib/supabase";
@@ -119,7 +118,6 @@ export function WorkerInboxPanel({
     initialConversation || null,
   );
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"chats" | "activity">("chats");
   const [activityUnread, setActivityUnread] = useState(0);
   const [supportUnread, setSupportUnread] = useState(0);
   const [supportAvailable, setSupportAvailable] = useState(false);
@@ -210,23 +208,27 @@ export function WorkerInboxPanel({
       />
     );
   return (
-    <div className="space-y-5">
-      <InboxTabs
-        value={view}
-        onChange={setView}
-        chatCount={displayedChatUnread}
-        activityCount={displayedActivityUnread}
-      />
-      {view === "activity" ? (
+    <div className="space-y-8">
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Job and payment changes linked to the work.</p></div>
+          {displayedActivityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{displayedActivityUnread} new</span> : null}
+        </div>
         <Notifications
           profile={profile}
           scope="worker"
           embedded
+          compact
+          previewLimit={3}
           onNavigate={openActivitySource}
           onUnreadChange={reportActivityUnread}
         />
-      ) : (
-        <>
+      </section>
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div><h2 className="text-xs font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Customers and WeHouse support in one inbox.</p></div>
+          {displayedChatUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{displayedChatUnread} new</span> : null}
+        </div>
           {loading ? (
             <Empty text="Loading conversations…" />
           ) : rows.length > 0 ? (
@@ -244,8 +246,7 @@ export function WorkerInboxPanel({
             <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />
           </section>
           {!loading && rows.length === 0 && !supportAvailable ? <div className="grid min-h-48 place-items-center text-center"><div><p className="text-sm font-semibold">No conversations yet</p><p className="mt-2 text-[10px] text-[#686F7F]">New job conversations will appear here.</p></div></div> : null}
-        </>
-      )}
+      </section>
     </div>
   );
 }

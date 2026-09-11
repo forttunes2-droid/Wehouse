@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getHotels, supabase } from "@/lib/supabase";
+import { getHotels } from "@/lib/supabase";
 import { toast } from "sonner";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import { HOTEL_AMENITIES } from "@/types";
@@ -15,6 +15,12 @@ import {
   distanceBetweenKm,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
+import {
+  followPropertySearch,
+  getMySavedSearches,
+  savedSearchKey,
+  type SavedSearch,
+} from "@/lib/supabase/saved-searches";
 
 type HotelRoomPreview = {
   room_id: number;
@@ -52,7 +58,8 @@ export default function HotelsHome({ onNavigate }: Props) {
     [maxPrice, setMaxPrice] = useState<number | "">(""),
     [filtersOpen, setFiltersOpen] = useState(false),
     [radius, setRadius] = useState<number | "">(""),
-    [savingSearch, setSavingSearch] = useState(false);
+    [savingSearch, setSavingSearch] = useState(false),
+    [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const {
     location: userLocation,
     locating,
@@ -72,6 +79,9 @@ export default function HotelsHome({ onNavigate }: Props) {
     return () => {
       live = false;
     };
+  }, []);
+  useEffect(() => {
+    void getMySavedSearches().then(({ searches }) => setFollowedSearches(searches));
   }, []);
   const cities = useMemo(() => getCitiesForState(state), [state]);
   const stateOptions = useMemo(
@@ -170,6 +180,19 @@ export default function HotelsHome({ onNavigate }: Props) {
     [state, city, radius].filter(Boolean).length +
     amenities.length +
     (priceActive ? 1 : 0);
+  const currentSearchCriteria = useMemo(() => ({
+    query: query.trim(),
+    state,
+    city,
+    min_price: minPrice === "" ? null : minPrice,
+    max_price: maxPrice === "" ? null : maxPrice,
+    amenities,
+    radius_km: radius === "" ? null : radius,
+    latitude: radius === "" ? null : userLocation?.lat,
+    longitude: radius === "" ? null : userLocation?.lng,
+  }), [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng]);
+  const currentSearchKey = savedSearchKey("hotels", currentSearchCriteria);
+  const followedSearch = followedSearches.find((item) => savedSearchKey(item.search_kind, item.criteria || {}) === currentSearchKey);
   function clearFilters() {
     setQuery("");
     setState("");
@@ -193,24 +216,14 @@ export default function HotelsHome({ onNavigate }: Props) {
   }
   async function followSearch() {
     setSavingSearch(true);
-    const name = `Hotels${city ? ` · ${city}` : state ? ` · ${state}` : ""}`;
-    const { error } = await supabase.rpc("save_my_property_search", {
-      p_name: name,
-      p_search_kind: "hotels",
-      p_criteria: {
-        state,
-        city,
-        min_price: minPrice === "" ? null : minPrice,
-        max_price: maxPrice === "" ? null : maxPrice,
-        amenities,
-      },
-    });
+    const name = `${query.trim() ? `Hotels matching “${query.trim()}”` : "Hotels"}${city ? ` · ${city}` : state ? ` · ${state}` : ""}`;
+    const { error } = await followPropertySearch(name, "hotels", currentSearchCriteria);
     setSavingSearch(false);
     if (error)
       return toast.error(error.message || "Search could not be followed");
-    toast.success(
-      "Search followed. New matching hotels will appear in Inbox Activity.",
-    );
+    const refreshed = await getMySavedSearches();
+    if (!refreshed.error) setFollowedSearches(refreshed.searches);
+    toast.success(followedSearch ? "Hotel alerts resumed" : "Search followed. New matches will appear in Inbox Activity.");
   }
   function toggleAmenity(item: string) {
     setAmenities((current) =>
@@ -247,14 +260,14 @@ export default function HotelsHome({ onNavigate }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {Boolean(filterCount) && (
+            {Boolean(query || filterCount) && (
               <button
                 type="button"
-                disabled={savingSearch}
+                disabled={savingSearch || Boolean(followedSearch?.notifications_enabled)}
                 onClick={() => void followSearch()}
                 className="rounded-full border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-40"
               >
-                {savingSearch ? "Saving…" : "Follow search"}
+                {savingSearch ? "Saving…" : followedSearch?.notifications_enabled ? "Following" : followedSearch ? "Resume alerts" : "Follow search"}
               </button>
             )}
             {Boolean(query || filterCount) && (

@@ -125,12 +125,12 @@ export function conversationPresentation(
         place ||
         safeSubject ||
         (contextType === "hotel_booking" ? "Hotel stay" : stay),
-      operator: "WeHouse Property Operations",
+      operator: "WeHouse Support",
       meta: [
         contextType === "hotel_booking"
           ? "Hotel booking"
           : "Property reservation",
-        code,
+        audience === "customer" ? "" : code,
         lifecycleStatus === "Status unavailable"
           ? reservationStatusLabel(status, contextType)
           : lifecycleStatus,
@@ -156,14 +156,14 @@ export function conversationPresentation(
           rawSubject ||
           "Property",
       ).replace(/^(question about|inspection help)\s*·\s*/i, ""),
-      operator: "WeHouse Property Operations",
+      operator: "WeHouse Support",
       meta: [
         contextType === "property_inspection"
           ? "Property inspection"
           : contextType.startsWith("hotel_")
             ? "Hotel operations"
             : "Property enquiry",
-        code,
+        audience === "customer" ? "" : code,
         status,
       ]
         .filter(Boolean)

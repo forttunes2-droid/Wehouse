@@ -208,6 +208,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
     return "Open inspection request";
   if (route === "conversation") return "Open conversation";
   if (route === "devices" || route === "security") return "Review security activity";
+  if (/hotel/.test(type) && /booking|reservation/.test(route)) return "Open hotel stay";
   if (/propert|listing|inspection/.test(route)) return "Open property record";
   if (/booking|reservation/.test(route)) return "Open booking record";
   if (/worker|service|job/.test(route)) return "Open worker record";

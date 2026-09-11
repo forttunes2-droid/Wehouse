@@ -284,6 +284,7 @@ export default function App() {
     [workerCategory, setWorkerCategory] = useState<string | null>(null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
+    [supportUnreadCount, setSupportUnreadCount] = useState(0),
     [notificationCount, setNotificationCount] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null),
@@ -563,6 +564,7 @@ export default function App() {
   useEffect(() => {
     if (!profile?.user_id || !isUserRole) {
       queueMicrotask(() => setUnreadCount(0));
+      queueMicrotask(() => setSupportUnreadCount(0));
       queueMicrotask(() => setNotificationCount(0));
       seenMessagesRef.current.clear();
       return;
@@ -644,7 +646,8 @@ export default function App() {
           );
         },
       ).length;
-      setUnreadCount(roommate + worker + hotel + support);
+      setUnreadCount(roommate + worker + hotel);
+      setSupportUnreadCount(support);
       setNotificationCount(activity + announcementUnread);
     }
     void count();
@@ -671,7 +674,7 @@ export default function App() {
               message.content ||
                 ((message.attachments || []).length
                   ? "New attachment"
-                  : "Open Inbox to read it."),
+                  : "Open Conversation to read it."),
             ).slice(0, 110),
             action: {
               label: "View",
@@ -718,7 +721,7 @@ export default function App() {
           void count();
           if (profile.pref_push_notif === false) return;
           toast("New hotel message", {
-            description: String(message.content || "Open Inbox to read it.").slice(0, 110),
+            description: String(message.content || "Open Conversation to read it.").slice(0, 110),
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -1145,8 +1148,6 @@ export default function App() {
         return isUserRole ? (
           <Chat
             profile={profile}
-            initialMode="activity"
-            chatUnreadCount={unreadCount}
             activityUnreadCount={notificationCount}
             onNavigate={openUserDestination}
             onActivityUnreadChange={setNotificationCount}
@@ -1371,7 +1372,8 @@ export default function App() {
   };
   const desktopNavItems = getNavForRole(
     userRole,
-    unreadCount + notificationCount,
+    unreadCount,
+    supportUnreadCount + notificationCount,
   );
   const hide = [
     "profile",
@@ -1407,7 +1409,7 @@ export default function App() {
         {profile && <NewLoginAlert profile={profile} />}
         <DesktopLayout
           navItems={desktopNavItems}
-          activePage={navPage === "notifications" ? "conversation" : navPage}
+          activePage={navPage}
           onNavigate={goTo}
           userName={profile?.full_name || profile?.username || undefined}
           userRole={profile?.role || undefined}
@@ -1453,9 +1455,7 @@ export default function App() {
             <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
               <div className="mx-auto flex max-w-lg items-center justify-around py-1">
                 {tabs.map((tab) => {
-                  const active =
-                    navPage === tab.id ||
-                    (navPage === "notifications" && tab.id === "conversation");
+                  const active = navPage === tab.id;
                   return (
                     <button
                       key={tab.id}
@@ -1472,12 +1472,11 @@ export default function App() {
                       {active && (
                         <span className="h-1 w-1 rounded-full bg-violet-400" />
                       )}
-                      {tab.id === "conversation" &&
-                        unreadCount + notificationCount > 0 && (
+                      {tab.id === "conversation" && unreadCount + supportUnreadCount + notificationCount > 0 && (
                           <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
-                            {unreadCount + notificationCount > 99
+                            {unreadCount + supportUnreadCount + notificationCount > 99
                               ? "99+"
-                              : unreadCount + notificationCount}
+                              : unreadCount + supportUnreadCount + notificationCount}
                           </span>
                         )}
                     </button>

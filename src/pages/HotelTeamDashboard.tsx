@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 import AccountShell from "@/components/AccountShell";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import HotelBookingChat from "@/components/HotelBookingChat";
-import InboxTabs from "@/components/InboxTabs";
 import Notifications from "@/pages/Notifications";
 import {
   getMyHotelConversations,
@@ -34,7 +33,6 @@ export default function HotelTeamDashboard({
   const [selected, setSelected] = useState<Hotel | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"hotels" | "inbox">("hotels");
-  const [inboxView, setInboxView] = useState<"chats" | "activity">("chats");
   const [conversations, setConversations] = useState<HotelConversation[]>([]);
   const [activeConversation, setActiveConversation] =
     useState<HotelConversation | null>(null);
@@ -143,7 +141,8 @@ export default function HotelTeamDashboard({
         conversationId={activeConversation.conversation_id}
         profile={profile}
         title={activeConversation.guest_name || "Guest"}
-        subtitle={`${activeConversation.hotel_name} · ${activeConversation.booking_code || "Paid stay"}`}
+        subtitle={`${activeConversation.hotel_name} · Paid stay`}
+        readOnly={!['confirmed','checked_in'].includes(activeConversation.booking_status)}
         onClose={() => setActiveConversation(null)}
         onUpdated={loadConversations}
       />
@@ -164,17 +163,25 @@ export default function HotelTeamDashboard({
         </div>
       ) : null}
       {tab === "inbox" && hasFrontDeskAccess ? (
-        <section className="space-y-4">
-          <InboxTabs value={inboxView} onChange={setInboxView} chatCount={chatUnread} activityCount={activity.activityUnread} />
-          {inboxView === "activity" ? (
-            <Notifications profile={profile} scope="hotel_staff" embedded onUnreadChange={activity.refresh} onNavigate={openActivityDestination} />
-          ) : (
+        <section className="space-y-8">
+          <section>
+            <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+              <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Stay updates linked to their reservation.</p></div>
+              {activity.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{activity.activityUnread} new</span> : null}
+            </div>
+            <Notifications profile={profile} scope="hotel_staff" embedded compact previewLimit={3} onUnreadChange={activity.refresh} onNavigate={openActivityDestination} />
+          </section>
+          <section>
+            <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+              <div><h2 className="text-xs font-semibold">Guest messages</h2><p className="mt-1 text-[9px] text-[#707687]">Current paid stays for your assigned hotels.</p></div>
+              {chatUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{chatUnread} new</span> : null}
+            </div>
             <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
               {visibleConversations.map((row) => (
                 <button key={row.conversation_id} type="button" onClick={() => setActiveConversation(row)} className="flex w-full items-center gap-3 py-4 text-left">
                   <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-200">{(row.guest_name || "G").slice(0, 1).toUpperCase()}</div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-xs font-semibold">{row.guest_name || "Guest"}</p><span className="text-[8px] text-[#73798A]">{row.booking_code}</span></div>
+                    <p className="truncate text-xs font-semibold">{row.guest_name || "Guest"}</p>
                     <p className={`mt-1 truncate text-[10px] ${row.unread_count ? "text-white" : "text-[#73798A]"}`}>{row.last_message || "Paid stay conversation"}</p>
                     <p className="mt-1 truncate text-[8px] text-[#565D6E]">{row.hotel_name} · {row.room_name}</p>
                   </div>
@@ -183,7 +190,7 @@ export default function HotelTeamDashboard({
               ))}
               {!visibleConversations.length ? <p className="py-12 text-center text-[10px] text-[#6D7485]">No guest conversations yet.</p> : null}
             </div>
-          )}
+          </section>
         </section>
       ) : (
         <section>

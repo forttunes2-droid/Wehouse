@@ -19,6 +19,7 @@ function icon(path: string) {
 const DASHBOARD = icon('M4 5h6v6H4z M14 5h6v6h-6z M4 15h6v4H4z M14 15h6v4h-6z');
 const SEARCH = icon('M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M20 20l-4-4');
 const MESSAGES = icon('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z');
+const INBOX = icon('M4 4h16v12H4z M4 13h4l2 3h4l2-3h4');
 const ACCOUNT = icon('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 0 1 0 8 4 4 0 0 1 0-8z');
 const RESERVATIONS = icon('M3 5h18v16H3z M8 3v4 M16 3v4 M3 10h18 M8 15l2 2 5-5');
 const account = (): DesktopNavItem => ({ id: 'profile', label: 'Account', icon: ACCOUNT });
@@ -30,16 +31,17 @@ export function getStaffNav(): DesktopNavItem[] { return [{ id: 'staff_dashboard
 export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }, account()]; }
 export function getHotelTeamNav(): DesktopNavItem[] { return [{ id: 'hotel_operations', label: 'Hotel Operations', icon: DASHBOARD }, account()]; }
 
-export function getUserNav(unreadCount = 0): DesktopNavItem[] {
+export function getUserNav(conversationUnread = 0, inboxUnread = 0): DesktopNavItem[] {
   return [
     { id: 'search', label: 'Explore', icon: SEARCH },
     { id: 'my_reservations', label: 'Bookings', icon: RESERVATIONS },
-    { id: 'conversation', label: 'Inbox', icon: MESSAGES, badge: unreadCount > 0 ? unreadCount : undefined },
+    { id: 'conversation', label: 'Conversation', icon: MESSAGES, badge: conversationUnread > 0 ? conversationUnread : undefined },
+    { id: 'notifications', label: 'Inbox', icon: INBOX, badge: inboxUnread > 0 ? inboxUnread : undefined },
     account(),
   ];
 }
 
-export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
+export function getNavForRole(role: string, conversationUnread = 0, inboxUnread = 0): DesktopNavItem[] {
   switch (role) {
     case 'creator': return getCreatorNav();
     case 'admin': return getAdminNav();
@@ -47,6 +49,6 @@ export function getNavForRole(role: string, unreadCount = 0): DesktopNavItem[] {
     case 'worker': return getWorkerNav();
     case 'property_partner': return getPartnerNav();
     case 'hotel_staff': return getHotelTeamNav();
-    default: return getUserNav(unreadCount);
+    default: return getUserNav(conversationUnread, inboxUnread);
   }
 }

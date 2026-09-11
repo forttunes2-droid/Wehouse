@@ -122,15 +122,6 @@ function friendlyError(raw: string) {
     return "Too many attempts. Please wait a moment and try again.";
   return "We couldn’t complete that. Please try again.";
 }
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout")), ms),
-    ),
-  ]);
-}
-
 export default function Login({
   onLoginSuccess,
   serverError,
@@ -232,7 +223,7 @@ export default function Login({
       const expectedIdentifier = transaction?.identifier || expectedEmail;
       let sessionResult;
       try {
-        sessionResult = await withTimeout(supabase.auth.getSession(), 12000);
+        sessionResult = await supabase.auth.getSession();
       } catch {
         if (!alive) return;
         setMode("forgot");
@@ -254,10 +245,7 @@ export default function Login({
         const callbackCode = oauthCallbackCode();
         if (callbackCode) {
           try {
-            const exchanged = await withTimeout(
-              supabase.auth.exchangeCodeForSession(callbackCode),
-              12000,
-            );
+            const exchanged = await supabase.auth.exchangeCodeForSession(callbackCode);
             clearOauthCallbackCode();
             data = exchanged.data;
             sessionError = exchanged.error;
@@ -300,10 +288,7 @@ export default function Login({
       let verified: unknown = null;
       let verifyError: { message?: string } | null = null;
       try {
-        const verification = await withTimeout(
-          Promise.resolve(supabase.rpc("verify_google_password_recovery")),
-          12000,
-        );
+        const verification = await supabase.rpc("verify_google_password_recovery");
         verified = verification.data;
         verifyError = verification.error;
       } catch {
@@ -443,10 +428,7 @@ export default function Login({
           role: signupRole,
         });
         sessionStorage.setItem("wh_login_method", "signup");
-        const { data, error: err } = await withTimeout(
-          signUpWithEmail(clean, password, signupRole),
-          15000,
-        );
+        const { data, error: err } = await signUpWithEmail(clean, password, signupRole);
         if (err) {
           if (err.message.toLowerCase().includes("email not confirmed"))
             setMode("verify_email");
@@ -467,10 +449,7 @@ export default function Login({
         setError("Signup incomplete. Please try again.");
       } else {
         sessionStorage.setItem("wh_login_method", "password");
-        const { data, error: err } = await withTimeout(
-          signInWithIdentifier(clean, password),
-          15000,
-        );
+        const { data, error: err } = await signInWithIdentifier(clean, password);
         if (err) {
           sessionStorage.removeItem("wh_login_method");
           return setError(friendlyError(err.message));

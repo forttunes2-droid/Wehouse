@@ -14,8 +14,13 @@ import {
 } from "@/lib/housing-discovery";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import type { Listing } from "@/types";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import {
+  followPropertySearch,
+  getMySavedSearches,
+  savedSearchKey,
+  type SavedSearch,
+} from "@/lib/supabase/saved-searches";
 import {
   distanceBetweenKm,
   useDiscoveryLocation,
@@ -81,6 +86,7 @@ export default function Search({
     [filterCity, setFilterCity] = useState(() => searchState.filterCity),
     [showFilters, setShowFilters] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
+  const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const {
     location,
     locating,
@@ -93,6 +99,9 @@ export default function Search({
     const saved = sessionStorage.getItem("search_property_type");
     if (saved === "short_let" || saved === "long_stay") setStayType(saved);
     sessionStorage.removeItem("search_property_type");
+  }, []);
+  useEffect(() => {
+    void getMySavedSearches().then(({ searches }) => setFollowedSearches(searches));
   }, []);
   useEffect(() => {
     searchState = {
@@ -218,6 +227,17 @@ export default function Search({
     [bedrooms, bathrooms, filterState, filterCity].filter(Boolean).length +
     (priceActive ? 1 : 0);
   const hasFilters = Boolean(filterCount || stayType !== "all");
+  const currentSearchCriteria = useMemo(() => ({
+    sub_type: stayType === "all" ? null : stayType,
+    state: filterState,
+    city: filterCity,
+    min_price: priceMin === "" ? null : priceMin,
+    max_price: priceMax === "" ? null : priceMax,
+    bedrooms: bedrooms === "" ? null : bedrooms,
+    bathrooms: bathrooms === "" ? null : bathrooms,
+  }), [bathrooms, bedrooms, filterCity, filterState, priceMax, priceMin, stayType]);
+  const currentSearchKey = savedSearchKey("homes", currentSearchCriteria);
+  const followedSearch = followedSearches.find((item) => savedSearchKey(item.search_kind, item.criteria || {}) === currentSearchKey);
   function clearFilters() {
     setStayType("all");
     setPriceMin("");
@@ -240,25 +260,13 @@ export default function Search({
   async function followSearch() {
     setSavingSearch(true);
     const name = `${stayType === "short_let" ? "Short stays" : stayType === "long_stay" ? "Long-term homes" : "All homes"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
-    const { error } = await supabase.rpc("save_my_property_search", {
-      p_name: name,
-      p_search_kind: "homes",
-      p_criteria: {
-        sub_type: stayType === "all" ? null : stayType,
-        state: filterState,
-        city: filterCity,
-        min_price: priceMin === "" ? null : priceMin,
-        max_price: priceMax === "" ? null : priceMax,
-        bedrooms: bedrooms === "" ? null : bedrooms,
-        bathrooms: bathrooms === "" ? null : bathrooms,
-      },
-    });
+    const { error } = await followPropertySearch(name, "homes", currentSearchCriteria);
     setSavingSearch(false);
     if (error)
       return toast.error(error.message || "Search could not be followed");
-    toast.success(
-      "Search followed. New matching apartments will appear in Activity.",
-    );
+    const refreshed = await getMySavedSearches();
+    if (!refreshed.error) setFollowedSearches(refreshed.searches);
+    toast.success(followedSearch ? "Apartment alerts resumed" : "Search followed. New matches will appear in Inbox Activity.");
   }
   const modeLabel = stayType === "short_let" ? "Short-stay" : stayType === "long_stay" ? "Long-term" : "All";
   const locationSummary = filterCity
@@ -300,11 +308,11 @@ export default function Search({
             {hasFilters && (
               <button
                 type="button"
-                disabled={savingSearch}
+                disabled={savingSearch || Boolean(followedSearch?.notifications_enabled)}
                 onClick={() => void followSearch()}
                 className="rounded-full border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-40"
               >
-                {savingSearch ? "Saving…" : "Follow search"}
+                {savingSearch ? "Saving…" : followedSearch?.notifications_enabled ? "Following" : followedSearch ? "Resume alerts" : "Follow search"}
               </button>
             )}
             {hasFilters && (

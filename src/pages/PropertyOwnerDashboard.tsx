@@ -70,6 +70,17 @@ export default function PropertyOwnerDashboard({
         setTab("properties");
         return;
       }
+      const hotelBooking = await supabase
+        .from("hotel_bookings")
+        .select("booking_id,hotel_id")
+        .eq("booking_id", id)
+        .maybeSingle();
+      if (!hotelBooking.error && hotelBooking.data?.hotel_id) {
+        setPropertyTargetId(`hotel:${hotelBooking.data.hotel_id}`);
+        setPropertyReservationId(undefined);
+        setTab("properties");
+        return;
+      }
       toast.error("The linked reservation could not be opened.");
       return;
     }
@@ -160,39 +171,18 @@ function PropertiesWorkspace({
   return (
     <div className="space-y-5">
       {!viewingDetail && !creating && (
-        <div className="space-y-4 border-b border-white/[.06] pb-4">
-          <div
-            className="grid grid-cols-2 rounded-2xl border border-white/[.07] bg-[#0E1118] p-1"
-            role="group"
-            aria-label="Property type"
-          >
-            {(["apartment", "hotel"] as PartnerAssetKind[]).map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                aria-pressed={assetKind === kind}
-                onClick={() => setAssetKind(kind)}
-                className={`h-11 rounded-xl text-xs font-semibold transition ${assetKind === kind ? "bg-violet-500 text-white shadow-lg shadow-violet-500/10" : "text-[#7C8292]"}`}
-              >
-                {kind === "apartment" ? "Apartments" : "Hotels"}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center justify-between gap-3">
+        <div className="border-b border-white/[.06] pb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[#666C7C]">
-                Filter
+                Property workspace
               </p>
-              <p className="mt-1 text-xs text-[#AEB3C1]">Property status</p>
+              <p className="mt-1 text-xs text-[#AEB3C1]">One list, filtered by type and lifecycle</p>
             </div>
-            <WeHouseSelect
-              value={filter}
-              options={filters}
-              onChange={setFilter}
-              eyebrow="Properties"
-              title="Filter by status"
-              ariaLabel="Filter properties by status"
-            />
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
+              <WeHouseSelect value={assetKind} options={[{ value: "apartment", label: "Apartments" }, { value: "hotel", label: "Hotels" }]} onChange={setAssetKind} eyebrow="Properties" title="Property type" ariaLabel="Filter by property type" className="w-full !min-w-0" />
+              <WeHouseSelect value={filter} options={filters} onChange={setFilter} eyebrow="Properties" title="Lifecycle status" ariaLabel="Filter properties by status" className="w-full !min-w-0" />
+            </div>
           </div>
         </div>
       )}

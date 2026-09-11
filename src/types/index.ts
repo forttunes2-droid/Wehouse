@@ -559,6 +559,8 @@ export interface Hotel {
   rating: number;
   review_count: number;
   featured: boolean;
+  check_in_time: string;
+  check_out_time: string;
   created_at: string;
   updated_at: string;
 }
@@ -575,6 +577,25 @@ export interface HotelRoom {
   amenities: string[];
   rate_plans?: HotelRatePlan[];
   total_rooms: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type HotelRoomUnitStatus =
+  | "ready"
+  | "occupied"
+  | "cleaning"
+  | "maintenance"
+  | "out_of_service";
+
+export interface HotelRoomUnit {
+  unit_id: number;
+  hotel_id: number;
+  room_id: number;
+  unit_label: string;
+  floor_label: string | null;
+  status: HotelRoomUnitStatus;
+  current_booking_id: number | null;
   created_at: string;
   updated_at: string;
 }

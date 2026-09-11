@@ -374,3 +374,8 @@ article:has(button[aria-label="Preview reservation property photos"]) button {
   font-size: 10px !important;
 }
 .leaflet-tooltip::before { display: none; }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  pointer-events: none;
+}

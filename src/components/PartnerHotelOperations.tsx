@@ -16,6 +16,8 @@ import {
 import type {
   HotelRatePlan,
   HotelRoom,
+  HotelRoomUnit,
+  HotelRoomUnitStatus,
   HotelVenue,
   Profile,
 } from "@/types";
@@ -45,6 +47,7 @@ type Booking = {
   payment_expires_at?: string | null;
   total_price: number;
   special_requests: string | null;
+  assigned_room_unit_id?: number | null;
   profiles?: { username?: string | null } | null;
   hotel_rooms?: { room_type?: string | null } | null;
 };
@@ -52,7 +55,7 @@ type ActiveHotelChat = {
   booking_id: number;
   conversation_id?: string | null;
   guest_name?: string | null;
-  booking_code?: string | null;
+  booking_status: string;
 };
 type Inventory = {
   room_id: number;
@@ -86,7 +89,16 @@ const HOTEL_STATUS: Record<string, string> = {
   expired: "Hold expired",
   payment_conflict: "Payment review",
 };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Lagos",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+};
 const money = (value: number) =>
   `₦${Number(value || 0).toLocaleString("en-NG")}`;
 const words = (value: string) =>
@@ -104,6 +116,7 @@ export default function PartnerHotelOperations({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
+  const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [venues, setVenues] = useState<HotelVenue[]>([]);
   const [hotelChats, setHotelChats] = useState<HotelConversation[]>([]);
   const [activeChat, setActiveChat] = useState<ActiveHotelChat | null>(null);
@@ -124,7 +137,7 @@ export default function PartnerHotelOperations({
     async (quiet = false) => {
       if (!quiet) setLoading(true);
       const date = today();
-      const [roomResult, bookingResult, inventoryResult, venueResult, chatResult] =
+      const [roomResult, bookingResult, inventoryResult, unitResult, venueResult, chatResult] =
         await Promise.all([
           supabase
             .from("hotel_rooms")
@@ -135,7 +148,7 @@ export default function PartnerHotelOperations({
             ? supabase
                 .from("hotel_bookings")
                 .select(
-                  "booking_id,room_id,rate_plan_id,rate_plan_name,check_in,check_out,guest_count,guest_name,booking_code,status,payment_status,payment_expires_at,total_price,special_requests,profiles(username),hotel_rooms(room_type)",
+                  "booking_id,room_id,rate_plan_id,rate_plan_name,check_in,check_out,guest_count,guest_name,booking_code,status,payment_status,payment_expires_at,total_price,special_requests,assigned_room_unit_id,profiles(username),hotel_rooms(room_type)",
                 )
                 .eq("hotel_id", hotel.hotel_id)
                 .order("created_at", { ascending: false })
@@ -148,6 +161,11 @@ export default function PartnerHotelOperations({
             )
             .eq("hotel_id", hotel.hotel_id)
             .eq("inventory_date", date),
+          supabase
+            .from("hotel_room_units")
+            .select("*")
+            .eq("hotel_id", hotel.hotel_id)
+            .order("unit_label"),
           supabase
             .from("hotel_venues")
             .select("*")
@@ -162,6 +180,7 @@ export default function PartnerHotelOperations({
         roomResult.error ||
         bookingResult.error ||
         inventoryResult.error ||
+        unitResult.error ||
         venueResult.error ||
         chatResult.error;
       if (loadError && !quiet)
@@ -169,6 +188,7 @@ export default function PartnerHotelOperations({
       setRooms((roomResult.data || []) as unknown as Room[]);
       setBookings((bookingResult.data || []) as unknown as Booking[]);
       setInventory((inventoryResult.data || []) as Inventory[]);
+      setRoomUnits((unitResult.data || []) as HotelRoomUnit[]);
       setVenues((venueResult.data || []) as HotelVenue[]);
       setHotelChats(
         (chatResult.conversations || []).filter(
@@ -190,6 +210,16 @@ export default function PartnerHotelOperations({
           event: "*",
           schema: "public",
           table: "hotel_bookings",
+          filter: `hotel_id=eq.${hotel.hotel_id}`,
+        },
+        () => void load(true),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "hotel_room_units",
           filter: `hotel_id=eq.${hotel.hotel_id}`,
         },
         () => void load(true),
@@ -357,19 +387,7 @@ export default function PartnerHotelOperations({
         </section>
       ) : null}
 
-      <section>
-        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">ONE HOTEL RECORD</p>
-        <h3 className="mt-2 text-lg font-bold">From room sale to guest stay</h3>
-        <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#747A8B]">Rooms, packages, dated inventory, payment, guest messages, check-in and checkout remain attached to this hotel. The status below comes from the live booking and inventory records.</p>
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {(hotel.status === "active"
-            ? ["Approved hotel", "Rooms + packages", "Live availability", "Paid reservation", "Stay + checkout"]
-            : ["Hotel record", "Rooms + packages", "Final review", "Public availability", "Reservations + stays"]
-          ).map((label, index) => (
-            <div key={label} className="flex min-w-32 items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2.5"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet-500/15 text-[8px] font-bold text-violet-200">{index + 1}</span><span className="text-[9px] font-medium text-[#B7BCC8]">{label}</span></div>
-          ))}
-        </div>
-      </section>
+      <HotelStayPolicy hotel={hotel} editable={canManageInventory} />
 
       {loading ? (
         <div className="min-h-44" role="status" aria-label="Loading hotel operation" />
@@ -389,8 +407,10 @@ export default function PartnerHotelOperations({
                 ["Needs action", metrics.attention],
               ].map(([label, value]) => <div key={String(label)} className="bg-[#0A0A0F] p-4"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-[8px] text-[#72798A]">{label}</p></div>)}
             </div>
-            <TodayRooms rooms={rooms} bookings={bookings} inventory={inventory} />
+            <TodayRooms rooms={rooms} bookings={bookings} inventory={inventory} roomUnits={roomUnits} />
           </section>
+
+          <RoomUnitBoard units={roomUnits} rooms={rooms} onSaved={() => load(true)} />
 
           {canManageInventory ? (
             <section id="rooms-and-rates" className="scroll-mt-20">
@@ -429,7 +449,7 @@ export default function PartnerHotelOperations({
               <div className="mb-4"><h3 className="text-base font-bold">Reservations and guests</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Every row identifies the hotel, room, package, dates, guest, verified payment and next valid action.</p></div>
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]"><input value={reservationQuery} onChange={(event) => setReservationQuery(event.target.value)} placeholder="Search guest, room, package or booking code" className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/35" /><WeHouseSelect value={reservationFilter} options={[{ value: "all", label: "All reservations" },{ value: "pending", label: "Payment holds" },{ value: "confirmed", label: "Confirmed stays" },{ value: "checked_in", label: "Checked in" },{ value: "checked_out", label: "Checked out" },{ value: "payment_conflict", label: "Payment review" },{ value: "cancelled", label: "Cancelled" }]} onChange={setReservationFilter} eyebrow="Reservations" title="Filter reservations" ariaLabel="Filter hotel reservations" /></div>
               <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
-                {filteredBookings.map((row) => <ReservationRow key={row.booking_id} hotelName={hotel.name} row={row} busy={busy} chat={hotelChats.find((item) => Number(item.booking_id) === Number(row.booking_id))} onChat={setActiveChat} transition={transition} />)}
+                {filteredBookings.map((row) => <ReservationRow key={row.booking_id} hotelName={hotel.name} hotel={hotel} row={row} busy={busy} readyRoomAvailable={roomUnits.some((unit) => unit.room_id === row.room_id && unit.status === "ready" && !unit.current_booking_id)} chat={hotelChats.find((item) => Number(item.booking_id) === Number(row.booking_id))} onChat={setActiveChat} transition={transition} />)}
                 {filteredBookings.length === 0 ? <Empty text={bookings.length ? "No reservations match this search." : "No hotel reservations yet."} /> : null}
               </div>
             </section>
@@ -442,14 +462,140 @@ export default function PartnerHotelOperations({
       {editingRoom ? <RoomEditor hotelId={hotel.hotel_id} room={editingRoom === "new" ? undefined : editingRoom} close={() => setEditingRoom(null)} saved={async () => { setEditingRoom(null); await load(true); }} /> : null}
       {editingRate ? <RatePlanEditor room={editingRate.room} plan={editingRate.plan} close={() => setEditingRate(null)} saved={async () => { setEditingRate(null); await load(true); }} /> : null}
       {editingVenue ? <VenueEditor hotelId={hotel.hotel_id} venue={editingVenue === "new" ? undefined : editingVenue} close={() => setEditingVenue(null)} saved={async () => { setEditingVenue(null); await load(true); }} /> : null}
-      {activeChat && profile ? <HotelBookingChat bookingId={activeChat.booking_id} conversationId={activeChat.conversation_id} profile={profile} title={activeChat.guest_name || "Guest"} subtitle={`${hotel.name} · ${activeChat.booking_code || "Paid stay"}`} onClose={() => setActiveChat(null)} onUpdated={() => void load(true)} /> : null}
+      {activeChat && profile ? <HotelBookingChat bookingId={activeChat.booking_id} conversationId={activeChat.conversation_id} profile={profile} title={activeChat.guest_name || "Guest"} subtitle={`${hotel.name} · Paid stay`} readOnly={!['confirmed','checked_in'].includes(activeChat.booking_status)} onClose={() => setActiveChat(null)} onUpdated={() => void load(true)} /> : null}
     </div>
   );
 }
 
-function TodayRooms({ rooms, bookings, inventory }: { rooms: Room[]; bookings: Booking[]; inventory: Inventory[] }) {
+const HOTEL_TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const hour = Math.floor(index / 2);
+  const minute = index % 2 ? "30" : "00";
+  const value = `${String(hour).padStart(2, "0")}:${minute}`;
+  return { value, label: formatHotelTime(value) };
+});
+
+function normalizedHotelTime(value: unknown, fallback: string) {
+  const match = String(value || "").match(/^(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : fallback;
+}
+
+function formatHotelTime(value: unknown) {
+  const normalized = normalizedHotelTime(value, "00:00");
+  const [hour, minute] = normalized.split(":").map(Number);
+  const period = hour >= 12 ? "PM" : "AM";
+  return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+function hotelMoment(dateValue: string, timeValue: unknown) {
+  const time = normalizedHotelTime(timeValue, "00:00");
+  return new Date(`${dateValue}T${time}:00+01:00`).getTime();
+}
+
+function HotelStayPolicy({ hotel, editable }: { hotel: any; editable: boolean }) {
+  const initialCheckIn = normalizedHotelTime(hotel.check_in_time, "14:00");
+  const initialCheckOut = normalizedHotelTime(hotel.check_out_time, "12:00");
+  const [checkIn, setCheckIn] = useState(initialCheckIn);
+  const [checkOut, setCheckOut] = useState(initialCheckOut);
+  const [savedValues, setSavedValues] = useState([initialCheckIn, initialCheckOut]);
+  const [saving, setSaving] = useState(false);
+  const dirty = checkIn !== savedValues[0] || checkOut !== savedValues[1];
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase.rpc("partner_update_hotel_stay_policy", {
+      p_hotel_id: hotel.hotel_id,
+      p_check_in_time: checkIn,
+      p_check_out_time: checkOut,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    setSavedValues([checkIn, checkOut]);
+    toast.success("Hotel arrival times updated");
+  }
+  return (
+    <section className="border-y border-white/[.07] py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold">Arrival and departure</h3>
+          <p className="mt-1 text-[9px] leading-4 text-[#707687]">
+            These local hotel times appear throughout booking and control when check-in becomes available.
+          </p>
+        </div>
+        {!editable ? (
+          <span className="shrink-0 text-right text-[9px] text-[#B9BECA]">
+            From {formatHotelTime(checkIn)}<br />By {formatHotelTime(checkOut)}
+          </span>
+        ) : null}
+      </div>
+      {editable ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:max-w-lg">
+          <label className="text-[8px] text-[#747B8C]">
+            Check-in from
+            <select value={checkIn} onChange={(event) => setCheckIn(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs text-white">
+              {HOTEL_TIME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="text-[8px] text-[#747B8C]">
+            Check-out by
+            <select value={checkOut} onChange={(event) => setCheckOut(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs text-white">
+              {HOTEL_TIME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          {dirty ? <button type="button" disabled={saving} onClick={() => void save()} className="col-span-2 h-11 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{saving ? "Saving times…" : "Save arrival times"}</button> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function RoomUnitBoard({ units, rooms, onSaved }: { units: HotelRoomUnit[]; rooms: Room[]; onSaved: () => Promise<void> }) {
+  const counts = units.reduce<Record<HotelRoomUnitStatus, number>>((result, unit) => {
+    result[unit.status] += 1;
+    return result;
+  }, { ready: 0, occupied: 0, cleaning: 0, maintenance: 0, out_of_service: 0 });
+  return (
+    <section id="room-board" className="scroll-mt-20">
+      <div className="flex items-end justify-between gap-4">
+        <div><h3 className="text-base font-bold">Physical room board</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Check-in assigns a ready room. Checkout moves that room to cleaning; it cannot be sold as ready again until staff confirms it.</p></div>
+        <span className="shrink-0 text-[9px] font-semibold text-emerald-300">{counts.ready} ready</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/[.06] bg-white/[.06] sm:grid-cols-4">
+        {([["Occupied", counts.occupied], ["Cleaning", counts.cleaning], ["Maintenance", counts.maintenance], ["Out of service", counts.out_of_service]] as const).map(([label, value]) => <div key={label} className="bg-[#0A0A0F] p-3"><p className="text-sm font-bold">{value}</p><p className="mt-1 text-[8px] text-[#707687]">{label}</p></div>)}
+      </div>
+      <div className="mt-3 divide-y divide-white/[.06] border-y border-white/[.06]">
+        {units.map((unit) => <RoomUnitRow key={unit.unit_id} unit={unit} roomName={rooms.find((room) => room.room_id === unit.room_id)?.room_type || "Room"} onSaved={onSaved} />)}
+        {!units.length ? <Empty text={rooms.length ? "Physical rooms are being prepared from the room counts." : "Add a room type to create its physical room board."} /> : null}
+      </div>
+    </section>
+  );
+}
+
+function RoomUnitRow({ unit, roomName, onSaved }: { unit: HotelRoomUnit; roomName: string; onSaved: () => Promise<void> }) {
+  const [label, setLabel] = useState(unit.unit_label);
+  const [floor, setFloor] = useState(unit.floor_label || "");
+  const [status, setStatus] = useState<HotelRoomUnitStatus>(unit.status);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setLabel(unit.unit_label); setFloor(unit.floor_label || ""); setStatus(unit.status); }, [unit]);
+  const dirty = label.trim() !== unit.unit_label || floor.trim() !== (unit.floor_label || "") || status !== unit.status;
+  const occupied = unit.status === "occupied";
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase.rpc("partner_update_hotel_room_unit", { p_unit_id: unit.unit_id, p_unit_label: label.trim(), p_floor_label: floor.trim() || null, p_status: status });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Room state updated");
+    await onSaved();
+  }
+  return (
+    <div className="py-3">
+      <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{unit.unit_label}</p><p className="mt-1 text-[8px] text-[#6C7282]">{roomName}{unit.floor_label ? ` · ${unit.floor_label}` : ""}</p></div><Status value={unit.status} /></div>
+      {!occupied ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_160px_auto]"><input aria-label="Room number or label" value={label} onChange={(event) => setLabel(event.target.value)} className="h-10 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-[10px]" /><input aria-label="Floor" value={floor} onChange={(event) => setFloor(event.target.value)} placeholder="Floor (optional)" className="h-10 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-[10px]" /><select value={status} onChange={(event) => setStatus(event.target.value as HotelRoomUnitStatus)} className="h-10 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-[10px]"><option value="ready">Ready</option><option value="cleaning">Cleaning</option><option value="maintenance">Maintenance</option><option value="out_of_service">Out of service</option></select>{dirty ? <button disabled={saving || !label.trim()} onClick={() => void save()} className="col-span-2 h-10 rounded-xl bg-violet-500 px-4 text-[9px] font-semibold disabled:opacity-40 sm:col-span-1">{saving ? "Saving…" : "Save"}</button> : null}</div> : <p className="mt-2 text-[9px] text-[#747B8C]">Assigned to the current checked-in stay. Checkout will move it to cleaning.</p>}
+    </div>
+  );
+}
+
+function TodayRooms({ rooms, bookings, inventory, roomUnits }: { rooms: Room[]; bookings: Booking[]; inventory: Inventory[]; roomUnits: HotelRoomUnit[] }) {
   const date = today();
-  return <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rooms.map((room) => { const override = inventory.find((row) => row.room_id === room.room_id); const liveHolds = bookings.filter((row) => row.room_id === room.room_id && row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() > Date.now() && row.check_in <= date && row.check_out > date).length; const occupied = bookings.filter((row) => row.room_id === room.room_id && ["confirmed", "checked_in"].includes(row.status) && row.check_in <= date && row.check_out > date).length; const sellable = override?.closed ? 0 : (override?.available_quantity ?? room.total_rooms); return <div key={room.room_id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#686F80]">{occupied} confirmed/staying · {liveHolds} active hold · {room.total_rooms} physical units</p></div><div className="text-right"><p className="text-sm font-bold">{Math.max(0, sellable - occupied - liveHolds)} sellable</p>{override?.closed ? <p className="text-[8px] text-amber-300">Sales closed today</p> : null}</div></div>; })}{rooms.length === 0 ? <Empty text="No room inventory has been added." /> : null}</div>;
+  return <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rooms.map((room) => { const override = inventory.find((row) => row.room_id === room.room_id); const liveHolds = bookings.filter((row) => row.room_id === room.room_id && row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() > Date.now() && row.check_in <= date && row.check_out > date).length; const occupied = bookings.filter((row) => row.room_id === room.room_id && ["confirmed", "checked_in"].includes(row.status) && row.check_in <= date && row.check_out > date).length; const operationalUnits = roomUnits.filter((unit) => unit.room_id === room.room_id && !["maintenance", "out_of_service"].includes(unit.status)).length; const offered = override?.closed ? 0 : (override?.available_quantity ?? room.total_rooms); const sellable = Math.min(offered, operationalUnits); return <div key={room.room_id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#686F80]">{occupied} confirmed/staying · {liveHolds} active hold · {operationalUnits}/{room.total_rooms} operational</p></div><div className="text-right"><p className="text-sm font-bold">{Math.max(0, sellable - occupied - liveHolds)} sellable</p>{override?.closed ? <p className="text-[8px] text-amber-300">Sales closed today</p> : operationalUnits < room.total_rooms ? <p className="text-[8px] text-amber-300">Maintenance reduces capacity</p> : null}</div></div>; })}{rooms.length === 0 ? <Empty text="No room inventory has been added." /> : null}</div>;
 }
 
 function RoomRow({ room, onEdit, onRate }: { room: Room; onEdit: () => void; onRate: (plan?: HotelRatePlan) => void }) {
@@ -483,9 +629,49 @@ function VenueEditor({ hotelId, venue, close, saved }: { hotelId: number; venue?
   return <Sheet title={venue ? "Edit hotel place" : "Add hotel place"} subtitle="Restaurants and facilities are separate named parts of the hotel." close={close}><div className="grid gap-3 sm:grid-cols-2"><Field label="Name" value={form.name} set={(value) => setForm({ ...form, name: value })} placeholder="Jamo-Afrique Restaurant" /><label><span className="mb-1 block text-[8px] text-[#686E7E]">Type</span><select value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as HotelVenue["kind"] })} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs">{["restaurant", "bar", "cafe", "spa", "lounge", "pool", "gym", "other"].map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</select></label><Field label="Opening hours" value={form.hours} set={(value) => setForm({ ...form, hours: value })} placeholder="06:30–22:00 daily" /><Field label="Included package access" value={form.packageNotes} set={(value) => setForm({ ...form, packageNotes: value })} placeholder="Breakfast and VIP packages" /><label className="sm:col-span-2"><span className="mb-1 block text-[8px] text-[#686E7E]">Description</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none" /></label>{venue ? <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.08] px-3 text-[9px]"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="accent-violet-500" />Show to guests</label> : null}</div><button type="button" onClick={() => void save()} disabled={busy} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy ? "Saving…" : "Save hotel place"}</button></Sheet>;
 }
 
-function ReservationRow({ hotelName, row, busy, chat, onChat, transition }: { hotelName: string; row: Booking; busy: boolean; chat?: HotelConversation; onChat: (chat: ActiveHotelChat) => void; transition: (row: Booking, status: "checked_in" | "checked_out") => Promise<void> }) {
-  const holdExpired = row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() <= Date.now(); const effectiveStatus = holdExpired ? "expired" : row.status; const next = effectiveStatus === "pending" ? "Room is held only while secure payment is live" : effectiveStatus === "confirmed" ? "Ready for front-desk check-in" : effectiveStatus === "checked_in" ? "Guest is staying; complete checkout after departure" : ["completed", "checked_out"].includes(effectiveStatus) ? "Stay finished; guest can leave a verified review" : effectiveStatus === "payment_conflict" ? "Payment was received but inventory needs WeHouse review" : "No guest action is available"; const guestChatAllowed = row.payment_status === "paid" && ["confirmed", "checked_in", "checked_out", "completed"].includes(row.status);
-  return <article className="py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{row.guest_name || row.profiles?.username || "Guest"}</p><p className="mt-1 text-[9px] text-[#6C7282]">{hotelName} · {row.hotel_rooms?.room_type || "Room"} · {row.rate_plan_name || "Room package"}</p><p className="mt-1 text-[9px] text-[#6C7282]">{row.booking_code || `Payment hold #${row.booking_id}`} · {row.guest_count} guest{row.guest_count === 1 ? "" : "s"}</p><p className="mt-1 text-[9px] text-[#6C7282]">{new Date(`${row.check_in}T00:00:00`).toLocaleDateString()} → {new Date(`${row.check_out}T00:00:00`).toLocaleDateString()}</p></div><div className="text-right"><Status value={effectiveStatus} /><p className="mt-2 text-xs font-bold">{money(row.total_price)}</p><p className={`mt-1 text-[8px] ${row.payment_status === "paid" ? "text-emerald-300" : "text-amber-200"}`}>{row.payment_status === "paid" ? "Payment verified" : holdExpired ? "No active payment" : "Awaiting payment"}</p></div></div><p className="mt-3 text-[9px] text-[#858B9A]">{next}</p>{row.special_requests ? <div className="mt-3 rounded-xl bg-white/[.025] p-3"><p className="text-[8px] font-bold uppercase tracking-wide text-[#666D7E]">Guest request</p><p className="mt-1 text-[9px] leading-4 text-[#9AA0AF]">{row.special_requests}</p></div> : null}<div className="mt-3 flex flex-wrap gap-2">{guestChatAllowed ? <button onClick={() => onChat(chat || { booking_id: row.booking_id, guest_name: row.guest_name || row.profiles?.username || "Guest", booking_code: row.booking_code })} className="h-10 flex-1 rounded-xl border border-violet-500/20 bg-violet-500/[.07] px-3 text-[10px] font-semibold text-violet-200">{chat ? `Guest messages${chat.unread_count > 0 ? ` · ${chat.unread_count} new` : ""}` : "Message guest"}</button> : null}{row.status === "confirmed" && row.booking_code ? <button disabled={busy} onClick={() => void transition(row, "checked_in")} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Check in guest</button> : null}{row.status === "checked_in" ? <button disabled={busy} onClick={() => void transition(row, "checked_out")} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Complete checkout</button> : null}</div></article>;
+function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat, onChat, transition }: { hotelName: string; hotel: any; row: Booking; busy: boolean; readyRoomAvailable: boolean; chat?: HotelConversation; onChat: (chat: ActiveHotelChat) => void; transition: (row: Booking, status: "checked_in" | "checked_out") => Promise<void> }) {
+  const holdExpired = row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() <= Date.now();
+  const effectiveStatus = holdExpired ? "expired" : row.status;
+  const arrivalTime = hotelMoment(row.check_in, hotel.check_in_time || "14:00");
+  const departureTime = hotelMoment(row.check_out, hotel.check_out_time || "12:00");
+  const canCheckIn = effectiveStatus === "confirmed" && row.payment_status === "paid" && Date.now() >= arrivalTime && Date.now() < departureTime && readyRoomAvailable;
+  const canCheckOut = effectiveStatus === "checked_in" && row.payment_status === "paid";
+  const guestChatAllowed = row.payment_status === "paid" && ["confirmed", "checked_in", "checked_out", "completed"].includes(row.status);
+  const next = effectiveStatus === "pending"
+    ? "Room is held only while secure payment is live"
+    : effectiveStatus === "confirmed" && Date.now() < arrivalTime
+      ? `Check-in opens ${new Date(arrivalTime).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}`
+      : effectiveStatus === "confirmed" && !readyRoomAvailable
+        ? "Mark a cleaned room ready before check-in"
+        : canCheckIn
+          ? "Guest and a ready room are eligible for check-in"
+          : effectiveStatus === "checked_in"
+            ? "Guest is staying; checkout is available when they depart"
+            : ["completed", "checked_out"].includes(effectiveStatus)
+              ? "Stay finished; the assigned room is now in cleaning"
+              : effectiveStatus === "payment_conflict"
+                ? "Payment was received but inventory needs WeHouse review"
+                : "No guest action is available";
+  return (
+    <article className="py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{row.guest_name || row.profiles?.username || "Guest"}</p>
+          <p className="mt-1 text-[9px] text-[#6C7282]">{hotelName} · {row.hotel_rooms?.room_type || "Room"} · {row.rate_plan_name || "Room package"}</p>
+          <p className="mt-1 text-[9px] text-[#6C7282]">{row.guest_count} guest{row.guest_count === 1 ? "" : "s"} · {new Date(`${row.check_in}T00:00:00`).toLocaleDateString()} from {formatHotelTime(hotel.check_in_time || "14:00")}</p>
+          <p className="mt-1 text-[9px] text-[#6C7282]">Checkout {new Date(`${row.check_out}T00:00:00`).toLocaleDateString()} by {formatHotelTime(hotel.check_out_time || "12:00")}</p>
+        </div>
+        <div className="shrink-0 text-right"><Status value={effectiveStatus} /><p className="mt-2 text-xs font-bold">{money(row.total_price)}</p><p className={`mt-1 text-[8px] ${row.payment_status === "paid" ? "text-emerald-300" : "text-amber-200"}`}>{row.payment_status === "paid" ? "Payment verified" : holdExpired ? "No active payment" : "Awaiting payment"}</p></div>
+      </div>
+      <p className="mt-3 text-[9px] text-[#858B9A]">{next}</p>
+      {row.special_requests ? <div className="mt-3 rounded-xl bg-white/[.025] p-3"><p className="text-[8px] font-bold uppercase tracking-wide text-[#666D7E]">Guest request</p><p className="mt-1 text-[9px] leading-4 text-[#9AA0AF]">{row.special_requests}</p></div> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {guestChatAllowed ? <button onClick={() => onChat({ ...(chat || { booking_id: row.booking_id }), guest_name: row.guest_name || row.profiles?.username || "Guest", booking_status: row.status })} className="h-10 flex-1 rounded-xl border border-violet-500/20 bg-violet-500/[.07] px-3 text-[10px] font-semibold text-violet-200">{chat ? `Guest messages${chat.unread_count > 0 ? ` · ${chat.unread_count} new` : ""}` : "Message guest"}</button> : null}
+        {canCheckIn ? <button disabled={busy} onClick={() => void transition(row, "checked_in")} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Check in guest</button> : null}
+        {canCheckOut ? <button disabled={busy} onClick={() => void transition(row, "checked_out")} className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Complete checkout</button> : null}
+      </div>
+    </article>
+  );
 }
 
 type HotelTeamRow = { id: string; member_user_id: string; hotel_role: "manager" | "staff"; status: "invited" | "active"; name: string; username?: string | null };
@@ -500,6 +686,16 @@ function HotelTeam({ hotelId }: { hotelId: number }) {
 
 function Sheet({ title, subtitle, close, children }: { title: string; subtitle: string; close: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[100030] flex items-end bg-black/75 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={close}><section className="max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#11151D] p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-w-2xl sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-bold">{title}</h3><p className="mt-1 text-[9px] leading-4 text-[#707687]">{subtitle}</p></div><button type="button" onClick={close} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close">×</button></div><div className="mt-5">{children}</div></section></div>; }
 function Field({ label, value, set, type = "text", placeholder }: { label: string; value: string; set: (value: string) => void; type?: string; placeholder?: string }) { return <label><span className="mb-1 block text-[8px] text-[#686E7E]">{label}</span><input type={type} min={type === "date" ? today() : type === "number" ? "0" : undefined} value={value} placeholder={placeholder} onChange={(event) => set(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none" /></label>; }
-function Status({ value }: { value: string }) { return <span className={`inline-flex rounded-full px-2 py-1 text-[8px] font-semibold ${value === "payment_conflict" ? "bg-red-500/10 text-red-300" : value === "confirmed" || value === "checked_in" ? "bg-emerald-500/10 text-emerald-300" : value === "pending" ? "bg-amber-500/10 text-amber-200" : "bg-white/[.05] text-[#858B9A]"}`}>{HOTEL_STATUS[value] || "Status unavailable"}</span>; }
+function Status({ value }: { value: string }) {
+  const unitLabels: Record<string, string> = { ready: "Ready", occupied: "Occupied", cleaning: "Cleaning", maintenance: "Maintenance", out_of_service: "Out of service" };
+  const tone = value === "payment_conflict" || value === "out_of_service"
+    ? "bg-red-500/10 text-red-300"
+    : ["confirmed", "checked_in", "ready"].includes(value)
+      ? "bg-emerald-500/10 text-emerald-300"
+      : ["pending", "cleaning", "maintenance"].includes(value)
+        ? "bg-amber-500/10 text-amber-200"
+        : "bg-white/[.05] text-[#858B9A]";
+  return <span className={`inline-flex rounded-full px-2 py-1 text-[8px] font-semibold ${tone}`}>{HOTEL_STATUS[value] || unitLabels[value] || "Status unavailable"}</span>;
+}
 function Empty({ text }: { text: string }) { return <p className="py-10 text-center text-[10px] text-[#686F80]">{text}</p>; }
 function mealLabel(value: HotelRatePlan["meal_plan"]) { return { room_only: "Room only", breakfast: "Breakfast included", half_board: "Breakfast + one meal", full_board: "All daily meals", all_inclusive: "All inclusive" }[value]; }

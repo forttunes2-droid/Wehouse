@@ -10,14 +10,15 @@ import { canonicalStatusOptions } from "@/lib/status";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import StaffListTab from "./StaffListTab";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
-import InboxTabs from "@/components/InboxTabs";
+import BackButton from "@/components/BackButton";
 import Notifications from "./Notifications";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import HousingOperationsWorkspace from "@/components/HousingOperationsWorkspace";
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
+import WeHouseSelect from "@/components/WeHouseSelect";
 
-type AdminTab = "home" | "operations" | "inbox";
+type AdminTab = "overview" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings";
 type OperationTarget = { operation: Operation; id?: string } | null;
 type PersonFilter = "user" | "property_partner";
@@ -28,12 +29,12 @@ type Props = {
   onGoToChat?: (convId?: string) => void;
 };
 const NAV = [
-  { id: "home", label: "Home" },
+  { id: "overview", label: "Overview" },
   { id: "operations", label: "Operations" },
   { id: "inbox", label: "Inbox" },
 ];
 const NOTES: Record<AdminTab, string> = {
-  home: "Branch health and work that needs attention.",
+  overview: "Branch health and work that needs attention.",
   operations:
     "People, team, properties, workers and bookings in one branch workspace.",
   inbox: "Assigned branch conversations and Activity that require awareness.",
@@ -59,7 +60,7 @@ export default function AdminDashboard({
   onNavigate,
   onGoToChat,
 }: Props) {
-  const [tab, setTab] = useState<AdminTab>("home"),
+  const [tab, setTab] = useState<AdminTab>("overview"),
     [operation, setOperation] = useState<Operation | null>(null),
     [operationTarget, setOperationTarget] = useState<OperationTarget>(null),
     [inboxTargetId, setInboxTargetId] = useState<string | undefined>(),
@@ -140,7 +141,7 @@ export default function AdminDashboard({
           <BranchMissing />
         ) : (
           <>
-            {tab === "home" && (
+            {tab === "overview" && (
               <Overview
                 stats={stats}
                 profile={profile}
@@ -201,16 +202,34 @@ function AdminInbox({
   onNavigate: (page: string, id?: string) => void;
   initialConversationId?: string;
 }) {
-  const [view, setView] = useState<"chats" | "activity">("chats");
   return (
-    <div className="space-y-4">
-      <InboxTabs
-        value={view}
-        onChange={setView}
-        chatCount={summary.messageUnread}
-        activityCount={summary.activityUnread}
-      />
-      {view === "chats" ? (
+    <div className="space-y-8">
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div>
+            <h2 className="text-xs font-semibold">Activity</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">Branch updates linked to the record that caused them.</p>
+          </div>
+          {summary.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.activityUnread} new</span> : null}
+        </div>
+        <Notifications
+          profile={profile}
+          scope="admin"
+          embedded
+          compact
+          previewLimit={3}
+          onUnreadChange={summary.setActivityUnread}
+          onNavigate={onNavigate}
+        />
+      </section>
+      <section>
+        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+          <div>
+            <h2 className="text-xs font-semibold">Messages</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">Every assigned branch conversation, in one queue.</p>
+          </div>
+          {summary.messageUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.messageUnread} new</span> : null}
+        </div>
         <CommunicationsWorkspace
           profile={profile}
           scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }}
@@ -221,15 +240,7 @@ function AdminInbox({
           onOpenContext={onNavigate}
           onUnreadChange={summary.setMessageUnread}
         />
-      ) : (
-        <Notifications
-          profile={profile}
-          scope="admin"
-          embedded
-          onUnreadChange={summary.setActivityUnread}
-          onNavigate={onNavigate}
-        />
-      )}
+      </section>
     </div>
   );
 }
@@ -316,7 +327,7 @@ function Operations({
   if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose a branch work area. Each opens its canonical records here.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
   return (
     <div className="space-y-5">
-      <button onClick={() => setActive(null)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/[.07] px-3 text-[10px] font-semibold text-[#A2A7B5]" aria-label="Back to all branch work areas"><span className="text-lg">‹</span><span>All work areas</span></button>
+      <div className="flex items-center gap-1 border-b border-white/[.06] pb-2"><BackButton onClick={() => setActive(null)} /><span className="text-[10px] font-semibold text-[#A2A7B5]">All work areas</span></div>
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
@@ -584,29 +595,10 @@ function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
   }, [initialRecordId]);
   return (
     <div className="space-y-4">
-      <nav
-        className="grid grid-cols-3 border-y border-white/[.07]"
-        aria-label="Booking types"
-      >
-        {(
-          [
-            ["services", "Worker services"],
-            ["apartments", "Apartments"],
-            ["hotels", "Hotels"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setDomain(id)}
-            className={`relative min-h-12 px-1 text-[9px] font-semibold ${domain === id ? "text-violet-300" : "text-[#73798A]"}`}
-          >
-            {label}
-            {domain === id && (
-              <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-violet-400" />
-            )}
-          </button>
-        ))}
-      </nav>
+      <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
+        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One branch workspace, one active filter</p></div>
+        <WeHouseSelect value={domain} options={[{ value: "services", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={setDomain} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
+      </div>
       {domain === "services" ? (
         <ServiceBookings />
       ) : domain === "apartments" ? (

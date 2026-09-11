@@ -216,6 +216,7 @@ export default function HotelBooking({
 
         <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
           <h2 className="text-sm font-semibold">Stay dates</h2>
+          <p className="mt-1 text-[9px] text-[#6E7585]">Check-in from {formatHotelTime(room.hotels.check_in_time, "14:00")} · Check-out by {formatHotelTime(room.hotels.check_out_time, "12:00")}</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <DateField label="Check-in" value={checkIn} min={tomorrowString} max={windowEndString} onChange={(value) => { setCheckIn(value); if (checkOut && checkOut <= value) setCheckOut(""); }} />
             <DateField label="Check-out" value={checkOut} min={minimumCheckout} max={windowEndString} onChange={setCheckOut} />
@@ -260,4 +261,10 @@ function DateField({ label, value, min, max, onChange }: { label: string; value:
 
 function Field({ label, value, onChange, type = "text", autoComplete }: { label: string; value: string; onChange: (value: string) => void; type?: string; autoComplete?: string }) {
   return <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span><input type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40" /></label>;
+}
+
+function formatHotelTime(value: unknown, fallback: string) {
+  const match = String(value || fallback).match(/^(\d{2}):(\d{2})/);
+  const hour = Number(match?.[1] || 0), minute = match?.[2] || "00";
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
 }

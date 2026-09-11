@@ -35,7 +35,6 @@ import {
 import { toast } from "sonner";
 import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
-import InboxTabs from "@/components/InboxTabs";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
@@ -57,7 +56,6 @@ import {
   getMyHotelConversations,
   type HotelConversation,
 } from "@/lib/supabase/hotel-chat";
-import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
   profile: Profile;
@@ -65,7 +63,6 @@ type Props = {
   conversationId?: string | null;
   peerUserId?: string | null;
   onConversationClose?: () => void;
-  initialMode?: "chats" | "activity";
   chatUnreadCount?: number;
   activityUnreadCount?: number;
   onActivityUnreadChange?: (count: number) => void;
@@ -143,8 +140,6 @@ export default function Chat({
   peerUserId,
   onConversationClose,
   onNavigate,
-  initialMode = "chats",
-  chatUnreadCount = 0,
   activityUnreadCount = 0,
   onActivityUnreadChange,
 }: Props) {
@@ -176,9 +171,6 @@ export default function Chat({
     [blockReason, setBlockReason] = useState(""),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [bulkDelete, setBulkDelete] = useState(false),
-    [inboxFilter, setInboxFilter] = useState<"all" | "people" | "wehouse">(
-      "all",
-    ),
     [inboxQuery, setInboxQuery] = useState("");
   const [secureChat, setSecureChat] =
     useState<PrivateConversationReadiness | null>(null);
@@ -193,7 +185,7 @@ export default function Chat({
   const [messageActionMode, setMessageActionMode] = useState<"reactions" | "actions">("reactions");
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
-  const [inboxMode, setInboxMode] = useState<"chats" | "activity">(initialMode);
+  const [activityExpanded, setActivityExpanded] = useState(false);
   const activeRef = useRef<Conversation | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -229,10 +221,6 @@ export default function Chat({
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
-
-  useEffect(() => {
-    if (!conversationId) setInboxMode(initialMode);
-  }, [conversationId, initialMode]);
 
   useEffect(() => {
     const open = Boolean(active || activeBooking || activeHotel);
@@ -813,8 +801,6 @@ export default function Chat({
   const visibleInboxItems = useMemo(() => {
     const query = inboxQuery.trim().toLowerCase();
     return inboxItems.filter((item) => {
-      if (inboxFilter === "people" && item.kind === "support") return false;
-      if (inboxFilter === "wehouse" && item.kind !== "support") return false;
       if (!query) return true;
       const searchable =
         item.kind === "roommate"
@@ -845,7 +831,7 @@ export default function Chat({
                 })();
       return searchable.filter(Boolean).join(" ").toLowerCase().includes(query);
     });
-  }, [inboxFilter, inboxItems, inboxQuery, otherId, people]);
+  }, [inboxItems, inboxQuery, otherId, people]);
 
   if (activeBooking)
     return (
@@ -871,7 +857,8 @@ export default function Chat({
           activeHotel.conversation.other_party_label ||
           activeHotel.conversation.hotel_name
         }
-        subtitle={`${activeHotel.conversation.room_name} · ${activeHotel.conversation.booking_code || "Paid stay"}`}
+        subtitle={`${activeHotel.conversation.room_name} · Paid stay`}
+        readOnly={!['confirmed','checked_in'].includes(activeHotel.conversation.booking_status)}
         onClose={() => {
           setActiveHotel(null);
           onConversationClose?.();
@@ -997,7 +984,7 @@ export default function Chat({
                 className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
               >
                 <TrashIcon />
-                <span>Remove from my Inbox</span>
+                <span>Remove from Inbox</span>
               </button>
             </div>
           )}
@@ -1226,8 +1213,8 @@ export default function Chat({
         />
         {confirmDelete && (
           <DeleteSheet
-            title="Remove this conversation from your Inbox?"
-            text="This only removes it from your inbox. It does not erase the other person's copy. A new message can make it appear again."
+            title="Remove this conversation?"
+            text="This only removes it from your list. It does not erase the other person's copy. A new message can make it appear again."
             onCancel={() => setConfirmDelete(false)}
             onDelete={() => void deleteFromMessages()}
           />
@@ -1361,7 +1348,9 @@ export default function Chat({
           ) : null}
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold sm:text-xl">
-              {selected.size ? `${selected.size} selected` : "Inbox"}
+              {selected.size
+                ? `${selected.size} selected`
+                : "Inbox"}
             </h1>
           </div>
           {selected.size ? (
@@ -1376,24 +1365,46 @@ export default function Chat({
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
-        <div className="mb-2.5">
-          <InboxTabs
-            value={inboxMode}
-            onChange={setInboxMode}
-            chatCount={chatUnreadCount}
-            activityCount={activityUnreadCount}
-          />
-        </div>
-        {inboxMode === "activity" ? (
+        <section className="border-b border-white/[.06] pb-4">
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-semibold">Activity</h2>
+                {activityUnreadCount > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">
+                    {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[9px] text-[#6F7586]">
+                Updates and actions that affect you
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActivityExpanded((value) => !value)}
+              className="shrink-0 px-1 py-2 text-[9px] font-semibold text-violet-300"
+            >
+              {activityExpanded ? "Show less" : "See all"}
+            </button>
+          </div>
           <Notifications
             profile={profile}
             scope="personal"
             embedded
+            compact={!activityExpanded}
+            previewLimit={activityExpanded ? undefined : 3}
             onNavigate={onNavigate}
             onUnreadChange={onActivityUnreadChange}
           />
-        ) : (
-          <section>
+        </section>
+        <section className="pt-4">
+            <div className="mb-3">
+              <h2 className="text-xs font-semibold">Messages</h2>
+              <p className="mt-1 text-[9px] text-[#6F7586]">
+                People, stays, services and WeHouse help in one list
+              </p>
+            </div>
             <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
               <SearchIcon />
               <input
@@ -1406,36 +1417,12 @@ export default function Chat({
             <div className="mt-3 flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
               <div className="min-w-0">
                 <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
-                  Conversations
+                  All messages
                 </p>
                 <p className="mt-1 truncate text-[10px] text-[#8A909F]">
-                  Private messages and WeHouse help
+                  Most recent first
                 </p>
               </div>
-              <WeHouseSelect
-                value={inboxFilter}
-                options={[
-                  {
-                    value: "all",
-                    label: "All messages",
-                    description: "People, bookings, hotels and WeHouse help",
-                  },
-                  {
-                    value: "people",
-                    label: "People & bookings",
-                    description: "Roommates, professionals and paid hotel chats",
-                  },
-                  {
-                    value: "wehouse",
-                    label: "WeHouse help",
-                    description: "Your support and operations conversations",
-                  },
-                ]}
-                onChange={setInboxFilter}
-                eyebrow="Messages"
-                title="Filter conversations"
-                ariaLabel="Filter conversations"
-              />
             </div>
             {loading ? (
               <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
@@ -1446,16 +1433,12 @@ export default function Chat({
                 <p className="text-sm font-semibold">
                   {inboxQuery.trim()
                     ? "No matching conversations"
-                    : inboxFilter === "wehouse"
-                      ? "No WeHouse conversations"
-                      : inboxFilter === "people"
-                        ? "No private conversations"
-                        : "No conversations yet"}
+                    : "No messages yet"}
                 </p>
                 <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
                   {inboxQuery.trim()
                     ? "Try a person, service, property or reservation name."
-                    : "Conversations appear after someone sends the first message in a roommate chat, service booking, reservation or WeHouse help case."}
+                    : "Messages appear here after a roommate match, service booking, paid hotel stay or WeHouse help request."}
                 </p>
               </div>
             ) : (
@@ -1514,8 +1497,7 @@ export default function Chat({
                 ))}
               </div>
             )}
-          </section>
-        )}
+        </section>
       </main>
     </div>
   );
@@ -1675,7 +1657,6 @@ function HotelInboxRow({
         <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
           {[
             row.room_name,
-            row.booking_code,
             formatListTime(row.last_message_time || row.updated_at),
           ]
             .filter(Boolean)
@@ -1712,7 +1693,7 @@ function SupportInboxRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {p.operator}
+            {p.title}
           </p>
           <span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">
             {badge}
@@ -1725,10 +1706,10 @@ function SupportInboxRow({
         </p>
         <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
           {[
+            p.operator,
             String(thread.context_snapshot?.case_number || "")
               ? `Case ${String(thread.context_snapshot?.case_number)}`
               : "",
-            p.title,
             thread.assigned_staff_name
               ? `Assigned to ${thread.assigned_staff_name} · WeHouse`
               : "",

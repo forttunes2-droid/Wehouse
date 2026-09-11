@@ -284,32 +284,6 @@ export function useAuth() {
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
   const determinePage = useCallback(pageForProfile, []);
-  useEffect(() => {
-    if (!state.isLoading) return;
-    let verificationActive = false;
-    try {
-      verificationActive = Boolean(readGoogleVerification());
-    } catch {}
-    const timer = window.setTimeout(() => {
-      profileRequestRef.current += 1;
-      restoreRequestRef.current += 1;
-      profileLoadRef.current = null;
-      setState((current) =>
-        current.isLoading
-          ? {
-              page: "login",
-              profile: null,
-              isLoading: false,
-              error: verificationActive
-                ? "Google verification did not finish. Choose the matching account and try again."
-                : "WeHouse took too long to open. Check your connection and try again; you will not be left on a loading screen.",
-              kickedOut: false,
-            }
-          : current,
-      );
-    }, 12000);
-    return () => window.clearTimeout(timer);
-  }, [state.isLoading]);
   const allowEntry = useCallback(async (p: Profile, maintenanceEnabled?: boolean) => {
     if (p.banned || p.suspended || p.deleted) {
       explicitSignOutRef.current = true;

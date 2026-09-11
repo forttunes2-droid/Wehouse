@@ -82,6 +82,9 @@ type Booking = {
   user_avatar?: string | null;
   worker_avatar?: string | null;
   payment_review_required?: boolean | null;
+  payment_protected?: boolean | null;
+  blocked_by_me?: boolean | null;
+  blocked_me?: boolean | null;
   payment_status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -122,6 +125,7 @@ export default function BookingNegotiationChat({
     [profileOpen, setProfileOpen] = useState(false),
     [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
     [peerBlocked, setPeerBlocked] = useState(false),
+    [blockedByPeer, setBlockedByPeer] = useState(false),
     [blockBusy, setBlockBusy] = useState(false),
     [blockPrompt, setBlockPrompt] = useState(false),
     [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
@@ -162,7 +166,11 @@ export default function BookingNegotiationChat({
       if (!quiet) setLoading(true);
       const bookingRes = await getBookingDetails(bookingId);
       const loadedBooking = (bookingRes.booking || null) as Booking | null;
-      if (!bookingRes.error) setBooking(loadedBooking);
+      if (!bookingRes.error) {
+        setBooking(loadedBooking);
+        setPeerBlocked(Boolean(loadedBooking?.blocked_by_me));
+        setBlockedByPeer(Boolean(loadedBooking?.blocked_me));
+      }
       const loadedPeerId = loadedBooking
         ? isWorker
           ? loadedBooking.user_id
@@ -237,6 +245,16 @@ export default function BookingNegotiationChat({
         },
         () => void loadAll(true),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "worker_bookings",
+          filter: `id=eq.${bookingId}`,
+        },
+        () => void loadAll(true),
+      )
       .subscribe();
     const refresh = () => {
       if (document.visibilityState === "visible") void loadAll(true);
@@ -248,7 +266,7 @@ export default function BookingNegotiationChat({
       document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
     };
-  }, [conversationId, loadAll]);
+  }, [bookingId, conversationId, loadAll]);
   function openSupport() {
     setMenuOpen(false);
     window.dispatchEvent(
@@ -293,6 +311,8 @@ export default function BookingNegotiationChat({
   }
   async function handleSend() {
     if (sending || (!input.trim() && !files.length)) return;
+    if (peerBlocked || blockedByPeer)
+      return toast.error("Messages are stopped for this blocked connection");
     if (secureChat?.state !== "ready" || !peerId)
       return toast.error("Secure chat is not ready yet");
     const content = input.trim(),
@@ -389,7 +409,10 @@ export default function BookingNegotiationChat({
     if (error) return toast.error("Profile could not be opened");
     setPeerProfile(data || null);
     if (!blockResult.error)
-      setPeerBlocked(Boolean(blockResult.data?.blocked_by_me));
+      {
+        setPeerBlocked(Boolean(blockResult.data?.blocked_by_me));
+        setBlockedByPeer(Boolean(blockResult.data?.blocked_me));
+      }
     setProfileOpen(true);
   }
   async function togglePeerBlock() {
@@ -431,6 +454,8 @@ export default function BookingNegotiationChat({
     await loadAll(true);
   }
   async function startCall(kind: "audio" | "video") {
+    if (peerBlocked || blockedByPeer)
+      return toast.error("Private calls are stopped for this blocked connection");
     const { capabilities, error } = await getCallCapabilities(
       "worker_booking",
       conversationId,
@@ -570,6 +595,7 @@ export default function BookingNegotiationChat({
       ? BOOKING_STATUS_LABELS[booking.status]
       : null,
     paymentReview = booking?.payment_review_required === true,
+    contactBlocked = peerBlocked || blockedByPeer,
     openConversation = [
       "booking_requested",
       "negotiating",
@@ -623,7 +649,7 @@ export default function BookingNegotiationChat({
               </p>
             </div>
           </button>
-          {openConversation && (
+          {openConversation && !contactBlocked && (
             <>
               <button
                 onClick={() => void startCall("audio")}
@@ -1035,7 +1061,7 @@ export default function BookingNegotiationChat({
         </div>
       </main>
       <footer className="chat-input-container shrink-0 border-t border-white/[.06] bg-[#11131A]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
-        {openConversation ? (
+        {openConversation && !contactBlocked ? (
           <div className="mx-auto max-w-4xl">
             {!secureChat ? (
               <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]">
@@ -1171,6 +1197,29 @@ export default function BookingNegotiationChat({
               </>
             )}
           </div>
+        ) : contactBlocked ? (
+          <div className="mx-auto max-w-4xl py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold text-amber-200">
+                  Messages and private calls are stopped
+                </p>
+                <p className="mt-1 text-[9px] text-[#6F7586]">
+                  {peerBlocked
+                    ? "You blocked this person. Unblock them from their profile to restore contact."
+                    : "This person blocked contact. The conversation history remains available."}
+                </p>
+              </div>
+              {paymentReview && (
+                <button
+                  onClick={openSupport}
+                  className="shrink-0 text-[9px] font-semibold text-violet-300"
+                >
+                  Open review
+                </button>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="mx-auto max-w-4xl py-2">
             <div className="flex items-center justify-between gap-3">
@@ -1285,6 +1334,7 @@ export default function BookingNegotiationChat({
             void startCall("video");
           }}
           blocked={peerBlocked}
+          blockedByPeer={blockedByPeer}
           blockBusy={blockBusy}
           onToggleBlock={() => {
             if (peerBlocked) void togglePeerBlock();
@@ -1384,6 +1434,7 @@ function ConversationIdentitySheet({
   onAudioCall,
   onVideoCall,
   blocked,
+  blockedByPeer,
   blockBusy,
   onToggleBlock,
 }: {
@@ -1397,6 +1448,7 @@ function ConversationIdentitySheet({
   onAudioCall: () => void;
   onVideoCall: () => void;
   blocked: boolean;
+  blockedByPeer: boolean;
   blockBusy: boolean;
   onToggleBlock: () => void;
 }) {
@@ -1416,12 +1468,12 @@ function ConversationIdentitySheet({
         onBack={onClose}
         onBook={() => undefined}
         showBookingAction={false}
-        communicationActions={
+          communicationActions={!blocked && !blockedByPeer ? (
           <>
             <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
             <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
           </>
-        }
+        ) : undefined}
         safetyAction={<ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />}
       />
     );
@@ -1445,12 +1497,12 @@ function ConversationIdentitySheet({
       }}
       presence={presence}
       onClose={onClose}
-      actions={
+      actions={!blocked && !blockedByPeer ? (
         <div className="flex gap-5">
           <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
           <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
         </div>
-      }
+      ) : undefined}
       footer={
         <>
         {isWorker && booking ? (
