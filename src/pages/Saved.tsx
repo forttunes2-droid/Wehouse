@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react';
-import { getAllListings } from '@/lib/supabase';
+import { getAllListings, getHotels } from '@/lib/supabase';
 import ListingCard from '@/components/ListingCard';
-import type { Listing, Profile } from '@/types';
+import type { Hotel, Listing, Profile } from '@/types';
 import { Toaster, toast } from 'sonner';
 import BackButton from '@/components/BackButton';
-import {
-  getMySavedSearches,
-  removeSavedSearch,
-  setSavedSearchAlerts,
-  type SavedSearch,
-} from '@/lib/supabase/saved-searches';
+import { getMySavedHotelIds, unsaveHotel } from '@/lib/supabase/saved-hotels';
 
 interface SavedProps {
   profile: Profile;
@@ -19,45 +14,50 @@ interface SavedProps {
   onBack: () => void;
 }
 
+type SavedHotel = Hotel & {
+  hotel_rooms?: Array<{ room_id: number; price_per_night: number; room_type: string }>;
+};
+
 export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onBack }: SavedProps) {
   const [listings, setListings] = useState<Listing[]>([]);
-  const [searches, setSearches] = useState<SavedSearch[]>([]);
+  const [hotels, setHotels] = useState<SavedHotel[]>([]);
+  const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [busySearch, setBusySearch] = useState<string | null>(null);
+  const [busyHotel, setBusyHotel] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
-      const [{ listings: available }, followed] = await Promise.all([
-        savedIds.size ? getAllListings() : Promise.resolve({ listings: [] }),
-        getMySavedSearches(),
+      const [listingResult, hotelIdsResult, hotelResult] = await Promise.all([
+        savedIds.size ? getAllListings() : Promise.resolve({ listings: [] as Listing[] }),
+        getMySavedHotelIds(),
+        getHotels(),
       ]);
       if (!active) return;
-      setListings((available || []).filter(listing => savedIds.has(listing.id)));
-      setSearches(followed.searches);
+      const ids = new Set(hotelIdsResult.hotelIds);
+      setListings((listingResult.listings || []).filter((listing) => savedIds.has(listing.id)));
+      setSavedHotelIds(ids);
+      setHotels(((hotelResult.hotels || []) as SavedHotel[]).filter((hotel) => ids.has(Number(hotel.hotel_id))));
       setLoading(false);
     }
     void load();
     return () => { active = false; };
   }, [profile.user_id, savedIds]);
 
-  async function toggleAlerts(search: SavedSearch) {
-    setBusySearch(search.id);
-    const { error } = await setSavedSearchAlerts(search.id, !search.notifications_enabled);
-    setBusySearch(null);
-    if (error) return toast.error(error.message);
-    setSearches(current => current.map(item => item.id === search.id ? { ...item, notifications_enabled: !item.notifications_enabled } : item));
-    toast.success(search.notifications_enabled ? 'Search alerts paused' : 'Search alerts resumed');
-  }
-
-  async function removeSearch(search: SavedSearch) {
-    setBusySearch(search.id);
-    const { error } = await removeSavedSearch(search.id);
-    setBusySearch(null);
-    if (error) return toast.error(error.message);
-    setSearches(current => current.filter(item => item.id !== search.id));
-    toast.success('Followed search removed');
+  async function removeHotel(hotelId: number) {
+    if (busyHotel) return;
+    setBusyHotel(hotelId);
+    const { error } = await unsaveHotel(hotelId);
+    setBusyHotel(null);
+    if (error) return toast.error(error.message || 'Hotel could not be removed from Saved');
+    setSavedHotelIds((current) => {
+      const next = new Set(current);
+      next.delete(hotelId);
+      return next;
+    });
+    setHotels((current) => current.filter((hotel) => Number(hotel.hotel_id) !== hotelId));
+    toast.success('Hotel removed from Saved');
   }
 
   return (
@@ -69,48 +69,80 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · ACCOUNT</p>
             <h1 className="mt-1 text-xl font-bold">Saved</h1>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Saved apartments and followed-search alerts.</p>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Homes and hotels you bookmarked for later.</p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-8 px-4 py-5 sm:px-5 lg:px-8">
-        <section>
-        <div className="mb-3"><h2 className="text-sm font-semibold">Saved apartments</h2><p className="mt-1 text-[9px] text-[#707687]">Saving keeps an apartment here. It does not start a booking.</p></div>
+      <main className="mx-auto max-w-5xl space-y-9 px-4 py-5 sm:px-5 lg:px-8">
         {loading ? (
           <div className="grid min-h-56 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
-        ) : listings.length === 0 ? (
-          <section className="border-y border-white/[0.07] px-6 py-16 text-center">
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/[0.08]">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#66687B" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-            </div>
-            <h2 className="mt-4 text-sm font-semibold">No saved apartments yet</h2>
-            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#66687B]">Tap the heart on an apartment to keep it here for later.</p>
-            <button onClick={() => onNavigate('search')} className="mt-5 rounded-full bg-violet-500 px-5 py-3 text-xs font-semibold">Browse apartments</button>
-          </section>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {listings.map(listing => (
-              <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved onToggleSave={event => { event.stopPropagation(); onToggleSave(listing.id); }} />
-            ))}
-          </div>
+          <>
+            <section>
+              <div className="mb-3"><h2 className="text-sm font-semibold">Saved apartments</h2><p className="mt-1 text-[9px] text-[#707687]">A bookmark only. Saving never starts a booking.</p></div>
+              {listings.length === 0 ? (
+                <Empty title="No saved apartments" text="Use the bookmark on an apartment to keep it here." action="Browse apartments" onAction={() => onNavigate('search')} />
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {listings.map((listing) => (
+                    <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved onToggleSave={(event) => { event.stopPropagation(); onToggleSave(listing.id); }} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="mb-3"><h2 className="text-sm font-semibold">Saved hotels</h2><p className="mt-1 text-[9px] text-[#707687]">Hotels you bookmarked. This is separate from following a search.</p></div>
+              {hotels.length === 0 ? (
+                <Empty title="No saved hotels" text="Use the bookmark on a hotel to keep it here." action="Browse hotels" onAction={() => onNavigate('hotels')} />
+              ) : (
+                <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+                  {hotels.map((hotel) => (
+                    <SavedHotelRow
+                      key={hotel.hotel_id}
+                      hotel={hotel}
+                      busy={busyHotel === Number(hotel.hotel_id)}
+                      onOpen={() => onNavigate('hotel_detail', String(hotel.hotel_id))}
+                      onRemove={() => void removeHotel(Number(hotel.hotel_id))}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
-        </section>
-        {!loading ? <section>
-          <div className="mb-3"><h2 className="text-sm font-semibold">Followed searches</h2><p className="mt-1 text-[9px] text-[#707687]">Alerts appear in Inbox Activity when a newly published property matches.</p></div>
-          {searches.length ? <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{searches.map(search => <article key={search.id} className="py-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="truncate text-xs font-semibold">{search.name}</p><p className="mt-1 text-[9px] text-[#707687]">{search.search_kind === 'hotels' ? 'Hotels' : 'Apartments'} · {searchCriteriaSummary(search.criteria)}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold ${search.notifications_enabled ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/[.05] text-[#777D8D]'}`}>{search.notifications_enabled ? 'Alerts on' : 'Paused'}</span></div><div className="mt-3 flex gap-2"><button disabled={busySearch === search.id} onClick={() => void toggleAlerts(search)} className="h-9 rounded-xl border border-violet-500/20 px-3 text-[9px] font-semibold text-violet-300 disabled:opacity-40">{search.notifications_enabled ? 'Pause alerts' : 'Resume alerts'}</button><button disabled={busySearch === search.id} onClick={() => void removeSearch(search)} className="h-9 rounded-xl border border-red-500/15 px-3 text-[9px] font-semibold text-red-300 disabled:opacity-40">Remove</button></div></article>)}</div> : <div className="border-y border-dashed border-white/[.07] py-10 text-center"><p className="text-xs font-semibold">No followed searches</p><p className="mt-2 text-[9px] text-[#707687]">Set filters in Explore, then choose Follow search.</p></div>}
-        </section> : null}
       </main>
     </div>
   );
 }
 
-function searchCriteriaSummary(criteria: Record<string, unknown>) {
-  const parts = [criteria.query ? `“${criteria.query}”` : null, criteria.city, criteria.state, criteria.sub_type === 'short_let' ? 'Short stay' : criteria.sub_type === 'long_stay' ? 'Long term' : null].filter(Boolean).map(String);
-  const min = Number(criteria.min_price || 0), max = Number(criteria.max_price || 0);
-  if (min || max) parts.push(`${min ? `from ₦${min.toLocaleString()}` : ''}${min && max ? ' ' : ''}${max ? `to ₦${max.toLocaleString()}` : ''}`);
-  const amenities = Array.isArray(criteria.amenities) ? criteria.amenities.length : 0;
-  if (amenities) parts.push(`${amenities} amenit${amenities === 1 ? 'y' : 'ies'}`);
-  if (Number(criteria.radius_km || 0)) parts.push(`within ${Number(criteria.radius_km).toLocaleString()} km`);
-  return parts.join(' · ') || 'Any location';
+function SavedHotelRow({ hotel, busy, onOpen, onRemove }: { hotel: SavedHotel; busy: boolean; onOpen: () => void; onRemove: () => void }) {
+  const prices = (hotel.hotel_rooms || []).map((room) => Number(room.price_per_night || 0)).filter((price) => price > 0);
+  const from = prices.length ? Math.min(...prices) : 0;
+  return (
+    <article className="flex items-center gap-3 py-4">
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">
+          {hotel.images?.[0] ? <img src={hotel.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-[8px] text-[#666D7E]">No photo</div>}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold">{hotel.name}</h3>
+          <p className="mt-1 truncate text-[9px] text-[#707687]">{[hotel.area, hotel.city, hotel.state].filter(Boolean).join(', ')}</p>
+          {from > 0 ? <p className="mt-2 text-[10px] font-semibold text-violet-200">From ₦{from.toLocaleString()} / night</p> : null}
+        </div>
+      </button>
+      <button type="button" disabled={busy} onClick={onRemove} aria-label={`Remove ${hotel.name} from Saved`} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-violet-500/20 text-violet-300 disabled:opacity-40">
+        <Bookmark filled />
+      </button>
+    </article>
+  );
+}
+
+function Empty({ title, text, action, onAction }: { title: string; text: string; action: string; onAction: () => void }) {
+  return <div className="border-y border-dashed border-white/[.07] py-10 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-2 text-[9px] text-[#707687]">{text}</p><button type="button" onClick={onAction} className="mt-4 rounded-full border border-violet-500/20 px-4 py-2.5 text-[10px] font-semibold text-violet-300">{action}</button></div>;
+}
+
+function Bookmark({ filled = false }: { filled?: boolean }) {
+  return <svg width="17" height="17" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3.75A1.75 1.75 0 0 1 7.75 2h8.5A1.75 1.75 0 0 1 18 3.75V22l-6-3.75L6 22V3.75Z"/></svg>;
 }
