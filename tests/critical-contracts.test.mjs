@@ -59,7 +59,9 @@ test('Payout account mutation is idempotent and reconcilable',()=>{
 test('Personal navigation remains the locked four destinations',()=>{
   const nav=read('src/lib/nav2.tsx');
   const userBlock=nav.slice(nav.indexOf('export function getUserNav'),nav.indexOf('export function getNavForRole'));
-  for(const label of ['Explore','Bookings','Inbox','Account'])assert.match(userBlock,new RegExp(`label: '${label}'|label: \\"${label}\\"`));
+  for(const label of ['Explore','Bookings','Inbox'])assert.match(userBlock,new RegExp(`label: '${label}'|label: \\"${label}\\"`));
+  assert.match(userBlock,/account\(\)/,'Account must remain the fourth personal destination');
+  assert.match(nav,/label: 'Account'/);
   assert.doesNotMatch(userBlock,/label: ['"]Saved['"]/);
   assert.doesNotMatch(userBlock,/label: ['"]Activity['"]/);
 });
