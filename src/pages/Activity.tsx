@@ -66,10 +66,14 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
     return (
       <Chat
         profile={profile}
-        onNavigate={onNavigate}
-        showActivityEntry
         activityUnreadCount={activityUnread}
-        onOpenActivity={() => setActivityOpen(true)}
+        onNavigate={(page, id) => {
+          if (page === 'activity' || page === 'notifications') {
+            setActivityOpen(true);
+            return;
+          }
+          onNavigate(page, id);
+        }}
       />
     );
   }
