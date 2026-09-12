@@ -30,19 +30,17 @@ export function getStaffNav(): DesktopNavItem[] { return [{ id: 'staff_dashboard
 export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_partner', label: 'Property Partner', icon: DASHBOARD }, account()]; }
 export function getHotelTeamNav(): DesktopNavItem[] { return [{ id: 'hotel_operations', label: 'Hotel Operations', icon: DASHBOARD }, account()]; }
 
-// Inbox is the single customer communication destination. It opens to messages;
-// Activity is a compact entry inside Inbox and opens its own nested history view.
-export function getUserNav(conversationUnread = 0, activityUnread = 0): DesktopNavItem[] {
-  const inboxUnread = conversationUnread + activityUnread;
+export function getUserNav(conversationUnread = 0, inboxUnread = 0): DesktopNavItem[] {
+  const totalInboxUnread = conversationUnread + inboxUnread;
   return [
     { id: 'search', label: 'Explore', icon: SEARCH },
     { id: 'my_reservations', label: 'Bookings', icon: RESERVATIONS },
-    { id: 'activity', label: 'Inbox', icon: INBOX, badge: inboxUnread > 0 ? inboxUnread : undefined },
+    { id: 'conversation', label: 'Inbox', icon: INBOX, badge: totalInboxUnread > 0 ? totalInboxUnread : undefined },
     account(),
   ];
 }
 
-export function getNavForRole(role: string, conversationUnread = 0, activityUnread = 0): DesktopNavItem[] {
+export function getNavForRole(role: string, conversationUnread = 0, inboxUnread = 0): DesktopNavItem[] {
   switch (role) {
     case 'creator': return getCreatorNav();
     case 'admin': return getAdminNav();
@@ -50,6 +48,6 @@ export function getNavForRole(role: string, conversationUnread = 0, activityUnre
     case 'worker': return getWorkerNav();
     case 'property_partner': return getPartnerNav();
     case 'hotel_staff': return getHotelTeamNav();
-    default: return getUserNav(conversationUnread, activityUnread);
+    default: return getUserNav(conversationUnread, inboxUnread);
   }
 }

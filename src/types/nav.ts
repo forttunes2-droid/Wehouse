@@ -4,11 +4,11 @@ export type NavPage =
   | 'saved'
   | 'conversation'
   | 'messages' // legacy route alias; App normalizes this to Conversation
-  | 'activity' // customer Inbox: product/account updates, not chat threads
-  | 'notifications' // legacy route alias; App normalizes this to Activity Inbox
+  | 'notifications'
   | 'profile'
   // ── Internal customer routes ──
   | 'roommate'
+  | 'activity'
   | 'detail'
   | 'chat'
   | 'profile_edit'
