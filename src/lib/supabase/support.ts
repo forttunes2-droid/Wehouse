@@ -51,6 +51,30 @@ export type SupportOpenContext = {
   priority?: string;
 };
 
+const SUPPORT_SECRET_KEYS = new Set([
+  "booking_code",
+  "check_in_code",
+  "access_code",
+  "verification_code",
+  "handover_code",
+  "recovery_code",
+]);
+
+/**
+ * Support needs enough record context to identify the booking/property, but
+ * handover and check-in credentials are not case metadata. They stay on the
+ * protected booking/arrival surface and must never leak into thread previews,
+ * Activity, action metadata or newly-created support records.
+ */
+export function sanitizeSupportSnapshot(
+  snapshot: Record<string, unknown> | null | undefined,
+) {
+  const source = snapshot || {};
+  return Object.fromEntries(
+    Object.entries(source).filter(([key]) => !SUPPORT_SECRET_KEYS.has(key)),
+  ) as Record<string, unknown>;
+}
+
 export function supportContextType(
   value:
     | Pick<SupportThread, "context_type" | "context_snapshot">
@@ -60,10 +84,11 @@ export function supportContextType(
     "context_type" in value
       ? value.context_type
       : value.contextType || "general";
-  const snapshot =
+  const snapshot = sanitizeSupportSnapshot(
     ("context_snapshot" in value
       ? value.context_snapshot
-      : value.contextSnapshot) || {};
+      : value.contextSnapshot) || {},
+  );
   const source = String(snapshot.source_type || "");
   if (stored === "support_case" && source) return source;
   if (stored === "listing") return "property_listing";
@@ -79,10 +104,11 @@ export function conversationPresentation(
     | SupportOpenContext,
   audience: PropertyJourneyAudience = "customer",
 ): ConversationPresentation {
-  const snapshot =
+  const snapshot = sanitizeSupportSnapshot(
     ("context_snapshot" in value
       ? value.context_snapshot
-      : value.contextSnapshot) || {};
+      : value.contextSnapshot) || {},
+  );
   const contextType = supportContextType(value);
   const rawSubject = String(
     "subject" in value ? value.subject || "" : value.subject || "",
@@ -92,8 +118,9 @@ export function conversationPresentation(
     /_/g,
     " ",
   );
-  const code = String(
-    snapshot.booking_code || snapshot.reference || snapshot.request_code || "",
+  // Only non-secret support references may be used for internal context.
+  const reference = String(
+    snapshot.reference || snapshot.request_code || "",
   ).trim();
   const reservation = [
     "apartment_reservation",
@@ -130,7 +157,7 @@ export function conversationPresentation(
         contextType === "hotel_booking"
           ? "Hotel booking"
           : "Property reservation",
-        audience === "customer" ? "" : code,
+        audience === "customer" ? "" : reference,
         lifecycleStatus === "Status unavailable"
           ? reservationStatusLabel(status, contextType)
           : lifecycleStatus,
@@ -163,7 +190,7 @@ export function conversationPresentation(
           : contextType.startsWith("hotel_")
             ? "Hotel operations"
             : "Property enquiry",
-        audience === "customer" ? "" : code,
+        audience === "customer" ? "" : reference,
         status,
       ]
         .filter(Boolean)
@@ -175,7 +202,9 @@ export function conversationPresentation(
       kind: "service_help",
       title: rawSubject || String(snapshot.service_type || "Service booking"),
       operator: "WeHouse Service Support",
-      meta: ["Service booking", code, status].filter(Boolean).join(" · "),
+      meta: ["Service booking", audience === "customer" ? "" : reference, status]
+        .filter(Boolean)
+        .join(" · "),
       operational: true,
     };
   return {
@@ -224,7 +253,7 @@ export async function createSupportConversation(
     );
     return { conversationId: data as string | null, error };
   }
-  const snapshot = input.contextSnapshot || {};
+  const snapshot = sanitizeSupportSnapshot(input.contextSnapshot);
   const { data, error } = await supabase.rpc("create_my_support_case", {
     p_subject: input.subject || "WeHouse",
     p_category: input.category || "general",
@@ -370,15 +399,15 @@ export async function sendSupportMessage(
   context?: SupportOpenContext | null,
   visibility: "customer" | "internal" = "customer",
 ) {
-  // Context belongs in metadata. The message action remains a normal message;
-  // reservation and booking names are not workflow actions in the database.
+  // Context belongs in metadata. Sensitive arrival/handover codes are stripped
+  // even if an older UI passes them in its context snapshot.
   const actionType = context ? "message" : null;
   const actionMetadata = context
     ? {
         category: context.category || "general",
         context_type: context.contextType || "general",
         context_id: context.contextId || null,
-        context_snapshot: context.contextSnapshot || {},
+        context_snapshot: sanitizeSupportSnapshot(context.contextSnapshot),
         subject: context.subject || null,
       }
     : {};
