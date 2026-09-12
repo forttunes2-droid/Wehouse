@@ -21,7 +21,8 @@ export type WorkerMoneyState =
   | 'refunded'
   | 'review';
 
-export const BOOKING_STATUS_LABELS: Record<WorkerJobStatus,{label:string;color:string;description:string}> = {
+type WorkerStatusLabel={label:string;color:string;description:string};
+export const BOOKING_STATUS_LABELS: Record<string,WorkerStatusLabel> = {
   booking_requested:{label:'Booking requested',color:'bg-amber-500/10 text-amber-400',description:'Waiting for the Worker to respond'},
   negotiating:{label:'Negotiating',color:'bg-blue-500/10 text-blue-400',description:'Discussing the job, schedule and price'},
   waiting_payment:{label:'Waiting for payment',color:'bg-purple-500/10 text-purple-400',description:'The job terms are agreed and payment is required'},
@@ -48,9 +49,6 @@ const canonicalStatuses = new Set<string>(WORKER_JOB_STATUSES);
 
 export function normalizeWorkerJobStatus(raw:unknown,paymentProtected=false):WorkerJobStatus{
   const value=String(raw||'');
-  // A short-lived legacy client used payment_protected as if it were a job
-  // status. Protection is money state; the corresponding valid job state is
-  // confirmed until work actually starts.
   if(value==='payment_protected')return 'confirmed';
   if(canonicalStatuses.has(value))return value as WorkerJobStatus;
   if(paymentProtected)return 'confirmed';
