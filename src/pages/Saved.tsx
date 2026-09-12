@@ -21,7 +21,6 @@ type SavedHotel = Hotel & {
 export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onBack }: SavedProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [hotels, setHotels] = useState<SavedHotel[]>([]);
-  const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busyHotel, setBusyHotel] = useState<number | null>(null);
 
@@ -37,7 +36,6 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
       if (!active) return;
       const ids = new Set(hotelIdsResult.hotelIds);
       setListings((listingResult.listings || []).filter((listing) => savedIds.has(listing.id)));
-      setSavedHotelIds(ids);
       setHotels(((hotelResult.hotels || []) as SavedHotel[]).filter((hotel) => ids.has(Number(hotel.hotel_id))));
       setLoading(false);
     }
@@ -46,16 +44,11 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
   }, [profile.user_id, savedIds]);
 
   async function removeHotel(hotelId: number) {
-    if (busyHotel) return;
+    if (busyHotel !== null) return;
     setBusyHotel(hotelId);
     const { error } = await unsaveHotel(hotelId);
     setBusyHotel(null);
     if (error) return toast.error(error.message || 'Hotel could not be removed from Saved');
-    setSavedHotelIds((current) => {
-      const next = new Set(current);
-      next.delete(hotelId);
-      return next;
-    });
     setHotels((current) => current.filter((hotel) => Number(hotel.hotel_id) !== hotelId));
     toast.success('Hotel removed from Saved');
   }
@@ -69,7 +62,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · ACCOUNT</p>
             <h1 className="mt-1 text-xl font-bold">Saved</h1>
-            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Homes and hotels you bookmarked for later.</p>
+            <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#777A8C]">Homes and hotels you saved for later. Saving is private and never starts a booking.</p>
           </div>
         </div>
       </header>
@@ -80,22 +73,22 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
         ) : (
           <>
             <section>
-              <div className="mb-3"><h2 className="text-sm font-semibold">Saved apartments</h2><p className="mt-1 text-[9px] text-[#707687]">A bookmark only. Saving never starts a booking.</p></div>
+              <div className="mb-3"><h2 className="text-sm font-semibold">Saved apartments</h2><p className="mt-1 text-[9px] text-[#707687]">Tap the heart again to remove an apartment from Saved.</p></div>
               {listings.length === 0 ? (
-                <Empty title="No saved apartments" text="Use the bookmark on an apartment to keep it here." action="Browse apartments" onAction={() => onNavigate('search')} />
+                <Empty title="No saved apartments" text="Use the heart on an apartment to keep it here." action="Browse apartments" onAction={() => onNavigate('search')} />
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {listings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved onToggleSave={(event) => { event.stopPropagation(); onToggleSave(listing.id); }} />
+                    <ListingCard key={listing.id} listing={listing} onClick={() => onNavigate('detail', listing.id)} isSaved onToggleSave={(event) => { event.preventDefault(); event.stopPropagation(); onToggleSave(listing.id); }} />
                   ))}
                 </div>
               )}
             </section>
 
             <section>
-              <div className="mb-3"><h2 className="text-sm font-semibold">Saved hotels</h2><p className="mt-1 text-[9px] text-[#707687]">Hotels you bookmarked. This is separate from following a search.</p></div>
+              <div className="mb-3"><h2 className="text-sm font-semibold">Saved hotels</h2><p className="mt-1 text-[9px] text-[#707687]">Saved hotels are separate from Follow Search alerts.</p></div>
               {hotels.length === 0 ? (
-                <Empty title="No saved hotels" text="Use the bookmark on a hotel to keep it here." action="Browse hotels" onAction={() => onNavigate('hotels')} />
+                <Empty title="No saved hotels" text="Use the heart on a hotel to keep it here." action="Browse hotels" onAction={() => onNavigate('hotels')} />
               ) : (
                 <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
                   {hotels.map((hotel) => (
@@ -118,8 +111,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
 }
 
 function SavedHotelRow({ hotel, busy, onOpen, onRemove }: { hotel: SavedHotel; busy: boolean; onOpen: () => void; onRemove: () => void }) {
-  const prices = (hotel.hotel_rooms || []).map((room) => Number(room.price_per_night || 0)).filter((price) => price > 0);
-  const from = prices.length ? Math.min(...prices) : 0;
+  const roomTypes = hotel.hotel_rooms?.length || 0;
   return (
     <article className="flex items-center gap-3 py-4">
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
@@ -129,11 +121,11 @@ function SavedHotelRow({ hotel, busy, onOpen, onRemove }: { hotel: SavedHotel; b
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold">{hotel.name}</h3>
           <p className="mt-1 truncate text-[9px] text-[#707687]">{[hotel.area, hotel.city, hotel.state].filter(Boolean).join(', ')}</p>
-          {from > 0 ? <p className="mt-2 text-[10px] font-semibold text-violet-200">From ₦{from.toLocaleString()} / night</p> : null}
+          <p className="mt-2 text-[9px] text-violet-300">{roomTypes ? `${roomTypes} room ${roomTypes === 1 ? 'type' : 'types'} · choose inside` : 'View hotel details'}</p>
         </div>
       </button>
-      <button type="button" disabled={busy} onClick={onRemove} aria-label={`Remove ${hotel.name} from Saved`} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-violet-500/20 text-violet-300 disabled:opacity-40">
-        <Bookmark filled />
+      <button type="button" disabled={busy} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onRemove(); }} aria-label={`Remove ${hotel.name} from Saved`} className="grid h-10 w-10 shrink-0 place-items-center text-violet-300 active:scale-95 disabled:opacity-40">
+        <Heart filled />
       </button>
     </article>
   );
@@ -143,6 +135,6 @@ function Empty({ title, text, action, onAction }: { title: string; text: string;
   return <div className="border-y border-dashed border-white/[.07] py-10 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-2 text-[9px] text-[#707687]">{text}</p><button type="button" onClick={onAction} className="mt-4 rounded-full border border-violet-500/20 px-4 py-2.5 text-[10px] font-semibold text-violet-300">{action}</button></div>;
 }
 
-function Bookmark({ filled = false }: { filled?: boolean }) {
-  return <svg width="17" height="17" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3.75A1.75 1.75 0 0 1 7.75 2h8.5A1.75 1.75 0 0 1 18 3.75V22l-6-3.75L6 22V3.75Z"/></svg>;
+function Heart({ filled = false }: { filled?: boolean }) {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>;
 }
