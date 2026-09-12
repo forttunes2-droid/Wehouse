@@ -28,8 +28,6 @@ type Props = {
   chatUnreadCount?: number;
   activityUnreadCount?: number;
   onActivityUnreadChange?: (count: number) => void;
-  showActivityEntry?: boolean;
-  onOpenActivity?: () => void;
 };
 
 type BookingConversation = {
@@ -66,8 +64,6 @@ export default function Chat({
   peerUserId,
   onConversationClose,
   activityUnreadCount = 0,
-  showActivityEntry = false,
-  onOpenActivity,
 }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [bookingConversations, setBookingConversations] = useState<BookingConversation[]>([]);
@@ -105,7 +101,7 @@ export default function Chat({
     if (conversationId || activeTarget) return;
     void load();
     const channel = supabase
-      .channel(`conversation-list:${profile.user_id}`)
+      .channel(`inbox-list:${profile.user_id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => void load(true))
       .on("postgres_changes", { event: "*", schema: "public", table: "booking_messages" }, () => void load(true))
       .on("postgres_changes", { event: "*", schema: "public", table: "hotel_booking_messages" }, () => void load(true))
@@ -178,57 +174,51 @@ export default function Chat({
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-lg font-bold sm:text-xl">Inbox</h1>
+          <h1 className="text-xl font-bold">Inbox</h1>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
-        {showActivityEntry && onOpenActivity ? (
-          <button
-            type="button"
-            onClick={onOpenActivity}
-            className="flex w-full items-center gap-3 border-b border-white/[.07] py-3.5 text-left active:bg-white/[.025]"
-            aria-label="Open Activity"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-fuchsia-500 text-white shadow-[0_8px_30px_rgba(217,70,239,.18)]">
-              <ActivityBellIcon />
+      <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+        <button
+          type="button"
+          onClick={() => onNavigate("activity")}
+          className="mb-3 flex w-full items-center gap-3 border-b border-white/[.06] py-3 text-left active:bg-white/[.025]"
+          aria-label="Open Activity"
+        >
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/15 text-violet-200">
+            <ActivityIcon />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-semibold">Activity</span>
+            <span className="mt-0.5 block truncate text-[10px] text-[#777C8D]">
+              Updates, followed-search matches and actions for you
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-semibold">Activity</span>
-              <span className="mt-0.5 block truncate text-[10px] text-[#747A8A]">
-                {activityUnreadCount > 0
-                  ? `${activityUnreadCount > 99 ? "99+" : activityUnreadCount} new update${activityUnreadCount === 1 ? "" : "s"}`
-                  : "Updates and actions that affect you"}
-              </span>
+          </span>
+          {activityUnreadCount > 0 ? (
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">
+              {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
             </span>
-            {activityUnreadCount > 0 ? (
-              <span className="grid h-6 min-w-6 place-items-center rounded-full bg-violet-500 px-1.5 text-[9px] font-bold">
-                {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
-              </span>
-            ) : null}
-            <span className="text-xl text-[#6F7584]" aria-hidden="true">›</span>
-          </button>
-        ) : null}
+          ) : (
+            <span className="text-lg text-[#666C7A]">›</span>
+          )}
+        </button>
 
-        <div className="pb-2 pt-5">
-          <h2 className="text-sm font-bold">Messages</h2>
-        </div>
         <label className="flex h-11 items-center gap-3 border-b border-white/[.08] px-1 focus-within:border-violet-500/45">
           <SearchIcon />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search conversations"
+            placeholder="Search messages"
             className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
           />
         </label>
 
         {loading ? (
-          <div className="min-h-48" role="status" aria-label="Loading conversations" />
+          <div className="min-h-48" role="status" aria-label="Loading messages" />
         ) : visible.length === 0 ? (
           <div className="border-b border-dashed border-white/[.08] py-14 text-center">
-            <p className="text-sm font-semibold">{query.trim() ? "No matching conversations" : "No conversations yet"}</p>
+            <p className="text-sm font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p>
             <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
-              {query.trim() ? "Try a person, hotel, service or WeHouse case name." : "Conversations appear after a roommate match, service booking, paid hotel stay or WeHouse help request."}
+              {query.trim() ? "Try a person, hotel, service or WeHouse case name." : "Messages appear after a roommate match, service booking, paid hotel stay or WeHouse help request."}
             </p>
           </div>
         ) : (
@@ -383,11 +373,6 @@ function statusLabel(value?: string | null) {
 function SearchIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
 }
-function ActivityBellIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-      <path d="M10 21h4" />
-    </svg>
-  );
+function ActivityIcon() {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>;
 }
