@@ -4,17 +4,15 @@ import type { GoogleVerificationContext } from '@/lib/googleVerification';
 import { verificationRedirectUrl } from '@/lib/googleVerification';
 
 // ─── AUTH HELPERS ──────────────────────────────────
-
-type PublicSignupRole = 'user' | 'worker' | 'property_partner';
-
-export async function signUpWithEmail(email: string, password: string, role: PublicSignupRole = 'user') {
-  const safeRole: PublicSignupRole = ['user','worker','property_partner'].includes(role) ? role : 'user';
+// Public signup always creates one Personal identity. Worker and Property Partner
+// access are activated later as additive workspaces from Account.
+export async function signUpWithEmail(email: string, password: string, _legacyRole: 'user' | 'worker' | 'property_partner' = 'user') {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/`,
-      data: { source: 'wehouse', signup_role: safeRole },
+      data: { source: 'wehouse', signup_role: 'user' },
     },
   });
   return { data, error };
