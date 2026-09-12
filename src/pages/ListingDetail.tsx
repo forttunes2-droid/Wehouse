@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Profile } from "@/types";
 import ListingDetailCore from "@/pages/ListingDetailCore";
 
@@ -12,8 +13,41 @@ type Props = {
 };
 
 export default function ListingDetail(props: Props) {
+  const surfaceRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+
+    // Legacy ListingDetailCore appended a generic "Message WeHouse" action to
+    // nearly every normal reservation state. Support is not a lifecycle step.
+    // Hide those inherited CTAs until the core is decomposed; actual issue/help
+    // entry remains available from the contextual booking/support surfaces.
+    const pruneRoutineSupport = () => {
+      const buttons = Array.from(surface.querySelectorAll("button"));
+      for (const button of buttons) {
+        const label = String(button.textContent || "").replace(/\s+/g, " ").trim();
+        if (!/^Message WeHouse(?:\s*→)?$/i.test(label)) continue;
+        const section = button.closest("section");
+        const sectionText = String(section?.textContent || "").replace(/\s+/g, " ");
+        if (section && /Questions about this apartment\?/i.test(sectionText)) {
+          section.style.display = "none";
+        } else {
+          button.style.display = "none";
+          button.setAttribute("aria-hidden", "true");
+          button.tabIndex = -1;
+        }
+      }
+    };
+
+    pruneRoutineSupport();
+    const observer = new MutationObserver(pruneRoutineSupport);
+    observer.observe(surface, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [props.listingId]);
+
   return (
-    <div className="listing-detail-save-surface relative">
+    <div ref={surfaceRef} className="listing-detail-save-surface relative">
       <style>{`
         .listing-detail-save-surface button[aria-label="Save apartment"],
         .listing-detail-save-surface button[aria-label="Remove from saved apartments"] {
