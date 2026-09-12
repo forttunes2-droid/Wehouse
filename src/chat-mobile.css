@@ -13,6 +13,15 @@
   z-index: 180 !important;
 }
 
+/* The legacy Conversation route remains available for old/deep links, but it
+   is not a second top-level product. Customer mobile navigation exposes only
+   Explore · Bookings · Inbox · Account. */
+@media (max-width: 1023px) {
+  .bottom-nav button[aria-label="Conversation"] {
+    display: none !important;
+  }
+}
+
 @supports (height: 100svh) {
   @media (max-width: 640px) {
     .fixed.inset-0.z-50.flex.h-\[100dvh\] {
