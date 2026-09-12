@@ -42,12 +42,12 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
 }
 
 function successMessage(purpose?: string) {
-  if (purpose === 'apartment_reservation') return 'Reservation payment confirmed. This property is now held for you and the housing workflow is unlocked.';
-  if (purpose === 'apartment_rent') return 'Year 1 apartment rent confirmed. Choose your move-in time next; the tenancy starts only after Property Operations verifies handover.';
-  if (purpose === 'worker_booking') return 'Service payment confirmed. Your job is now in the protected paid stage and remains attached to the service booking.';
-  if (purpose === 'hotel_booking') return 'Hotel stay payment confirmed. Your selected room, package and stay dates are now attached to the hotel booking.';
-  if (purpose === 'worker_verification') return 'Worker verification payment confirmed. Continue your Worker verification setup.';
-  return 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.';
+  if (purpose === 'apartment_reservation') return 'Your reservation payment is confirmed.';
+  if (purpose === 'apartment_rent') return 'Your rent payment is confirmed.';
+  if (purpose === 'worker_booking') return 'Your service payment is confirmed and protected.';
+  if (purpose === 'hotel_booking') return 'Your hotel payment is confirmed.';
+  if (purpose === 'worker_verification') return 'Your Worker verification payment is confirmed.';
+  return 'Your payment is confirmed.';
 }
 
 function successActionLabel(purpose?: string) {
