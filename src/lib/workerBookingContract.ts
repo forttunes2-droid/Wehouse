@@ -63,6 +63,10 @@ export function workerMoneyState(row:any):WorkerMoneyState{
   if(rawJob==='approved_released'||['released','paid_out'].includes(rawMoney))return 'released';
   if(['release_pending','releasing'].includes(rawMoney))return 'release_pending';
   if(rawJob==='payment_protected'||row?.payment_protected===true||['protected','payment_protected','secured'].includes(rawMoney))return 'protected';
+  // The database can only enter these job states after verified protected money
+  // exists, so summary RPCs that omit the payment row still have an unambiguous
+  // money state.
+  if(['confirmed','in_progress','completed_pending_approval'].includes(rawJob))return 'protected';
   if(rawJob==='waiting_payment'||['pending','payment_pending','processing'].includes(rawMoney))return 'payment_pending';
   return 'unpaid';
 }
