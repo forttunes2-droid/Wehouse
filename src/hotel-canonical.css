@@ -1,8 +1,0 @@
-/* Hotel restaurants/bars/cafes/spas are not a separate WeHouse product module.
-   Ordinary hotel facilities belong to hotel/room amenities unless a future
-   approved product requirement introduces a dedicated venue product. Keep the
-   legacy data table untouched for compatibility, but remove its management
-   surface from the active hotel workspace. */
-#hotel-venues {
-  display: none !important;
-}
