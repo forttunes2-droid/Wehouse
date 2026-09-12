@@ -56,6 +56,15 @@ type Thread =
   | { kind: "support"; id: string; time: string; row: SupportThread };
 
 type ActiveTarget = { conversationId: string; peerUserId?: string | null } | null;
+type InboxSnapshot = {
+  conversations: Conversation[];
+  bookingConversations: BookingConversation[];
+  hotelConversations: HotelConversation[];
+  supportThreads: SupportThread[];
+  people: Record<string, Person>;
+};
+
+const inboxCache = new Map<string, InboxSnapshot>();
 
 export default function Chat({
   profile,
@@ -65,12 +74,13 @@ export default function Chat({
   onConversationClose,
   activityUnreadCount = 0,
 }: Props) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [bookingConversations, setBookingConversations] = useState<BookingConversation[]>([]);
-  const [hotelConversations, setHotelConversations] = useState<HotelConversation[]>([]);
-  const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
-  const [people, setPeople] = useState<Record<string, Person>>({});
-  const [loading, setLoading] = useState(!conversationId);
+  const cachedInbox = inboxCache.get(profile.user_id);
+  const [conversations, setConversations] = useState<Conversation[]>(() => cachedInbox?.conversations || []);
+  const [bookingConversations, setBookingConversations] = useState<BookingConversation[]>(() => cachedInbox?.bookingConversations || []);
+  const [hotelConversations, setHotelConversations] = useState<HotelConversation[]>(() => cachedInbox?.hotelConversations || []);
+  const [supportThreads, setSupportThreads] = useState<SupportThread[]>(() => cachedInbox?.supportThreads || []);
+  const [people, setPeople] = useState<Record<string, Person>>(() => cachedInbox?.people || {});
+  const [loading, setLoading] = useState(() => !conversationId && !cachedInbox);
   const [query, setQuery] = useState("");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
 
@@ -89,17 +99,29 @@ export default function Chat({
       getMyHotelConversations(),
       getMySupportConversations(),
     ]);
-    setConversations((roommateResult.conversations || []).filter((row) => row.conversation_type === "roommate"));
-    setPeople(peopleResult.people || {});
-    setBookingConversations((bookingResult.conversations || []) as BookingConversation[]);
-    setHotelConversations(hotelResult.conversations || []);
-    setSupportThreads(supportResult.conversations || []);
-    if (!quiet) setLoading(false);
+    const nextConversations = (roommateResult.conversations || []).filter((row) => row.conversation_type === "roommate");
+    const nextPeople = peopleResult.people || {};
+    const nextBookings = (bookingResult.conversations || []) as BookingConversation[];
+    const nextHotels = hotelResult.conversations || [];
+    const nextSupport = supportResult.conversations || [];
+    setConversations(nextConversations);
+    setPeople(nextPeople);
+    setBookingConversations(nextBookings);
+    setHotelConversations(nextHotels);
+    setSupportThreads(nextSupport);
+    inboxCache.set(profile.user_id, {
+      conversations: nextConversations,
+      bookingConversations: nextBookings,
+      hotelConversations: nextHotels,
+      supportThreads: nextSupport,
+      people: nextPeople,
+    });
+    setLoading(false);
   }, [profile.user_id]);
 
   useEffect(() => {
     if (conversationId || activeTarget) return;
-    void load();
+    void load(Boolean(inboxCache.get(profile.user_id)));
     const channel = supabase
       .channel(`inbox-list:${profile.user_id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => void load(true))
@@ -181,7 +203,7 @@ export default function Chat({
         <button
           type="button"
           onClick={() => onNavigate("activity")}
-          className="mb-3 flex w-full items-center gap-3 border-b border-white/[.06] py-3 text-left active:bg-white/[.025]"
+          className="mb-4 flex w-full items-center gap-3 border-b border-white/[.06] py-3 text-left active:bg-white/[.025]"
           aria-label="Open Activity"
         >
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/15 text-violet-200">
@@ -202,12 +224,16 @@ export default function Chat({
           )}
         </button>
 
-        <label className="flex h-11 items-center gap-3 border-b border-white/[.08] px-1 focus-within:border-violet-500/45">
+        <div className="mb-3">
+          <h2 className="text-xs font-semibold">Messages</h2>
+          <p className="mt-1 text-[9px] text-[#6F7586]">People, stays, services and WeHouse cases in one list</p>
+        </div>
+        <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
           <SearchIcon />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search messages"
+            placeholder="Search conversations"
             className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
           />
         </label>
@@ -215,14 +241,14 @@ export default function Chat({
         {loading ? (
           <div className="min-h-48" role="status" aria-label="Loading messages" />
         ) : visible.length === 0 ? (
-          <div className="border-b border-dashed border-white/[.08] py-14 text-center">
+          <div className="mt-3 border-y border-dashed border-white/[.08] py-14 text-center">
             <p className="text-sm font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p>
             <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
-              {query.trim() ? "Try a person, hotel, service or WeHouse case name." : "Messages appear after a roommate match, service booking, paid hotel stay or WeHouse help request."}
+              {query.trim() ? "Try a person, hotel, service or WeHouse case name." : "Messages appear after a roommate match, service booking, paid hotel stay or an active WeHouse case."}
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-white/[.06] border-b border-white/[.06]">
+          <div className="mt-3 divide-y divide-white/[.06] border-y border-white/[.06]">
             {visible.map((thread) => (
               <ThreadRow
                 key={thread.id}
@@ -271,15 +297,18 @@ function ThreadRow({
 }) {
   const view = threadPresentation(thread, people, me);
   return (
-    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-4 text-left active:bg-white/[.025]">
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]">
       <Avatar src={view.avatar} fallback={view.title} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{view.title}</p>
-          <span className="shrink-0 text-[7px] font-semibold uppercase tracking-wide text-violet-300">{view.kind}</span>
+          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-0.5 text-[7px] font-semibold uppercase tracking-wide text-violet-300">{view.kind}</span>
         </div>
-        <p className={`mt-1 truncate text-[10px] ${view.unread ? "font-medium text-white" : "text-[#777C8D]"}`}>{view.preview}</p>
-        {view.context ? <p className="mt-1 truncate text-[8px] text-[#5F6474]">{view.context}</p> : null}
+        <p className={`mt-1 truncate text-[11px] ${view.unread ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}>{view.preview}</p>
+        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[9px] text-[#5F6474]">
+          {view.context ? <span className="min-w-0 truncate">{view.context}</span> : null}
+          <span className="shrink-0">{formatListTime(thread.time)}</span>
+        </div>
       </div>
       {view.unread > 0 ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{view.unread > 99 ? "99+" : view.unread}</span> : null}
     </button>
@@ -326,7 +355,7 @@ function threadPresentation(thread: Thread, people: Record<string, Person>, me: 
     avatar: null,
     kind: "WeHouse",
     preview: thread.row.last_message || presentation.operator,
-    context: presentation.meta || "WeHouse support",
+    context: presentation.meta || "WeHouse case",
     unread: Number(thread.row.unread_count || 0),
   };
 }
@@ -363,6 +392,18 @@ function compactDate(value?: string | null) {
   if (!value) return "";
   const date = new Date(`${value}T12:00:00`);
   if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+function formatListTime(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  if (sameDay) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 function statusLabel(value?: string | null) {
