@@ -19,11 +19,11 @@ The customer navigation is exactly:
 
 ### Saved
 
-Saved is a private bookmark/favourite intent. It contains homes and hotels only.
+Saved is a private favourite/bookmark intent. It contains homes and hotels only.
 
 - Apartment saves use `saved_listings`.
 - Hotel saves use `saved_hotels`.
-- A home/hotel Save control may use a heart or bookmark visual as long as it clearly means **Save**, not a public/social Like.
+- A home/hotel Save control may use a **heart** because property-booking products commonly use a heart for a private favourite. Its label/state must still clearly mean **Saved**, not a public/social Like.
 - Saving never starts a booking and never changes a Showcase reaction.
 
 ### Followed Search
@@ -52,6 +52,15 @@ Public discovery profiles and private chat identity are intentionally different.
 - Roommate discovery may show approved match information.
 - Roommate identity opened from chat omits school/matching-preference/discovery details.
 
+## Hotel booking product
+
+- The booking model is **Hotel → Room type → Rate/package choices → Date availability → Booking → Stay**.
+- One room type can have several active rate/package choices with different prices and rules, for example Room only, Breakfast included, Flexible/refundable, Non-refundable, Pay now, Pay before arrival, Pay at property, Executive/VIP benefits, lounge access or other hotel-defined inclusions.
+- A package belongs to a room/rate plan; it does not become a separate hotel listing.
+- Restaurants, bars, cafes, spa, lounge, pool and similar named facilities may be shown under **Facilities & dining / At the hotel** when the hotel actually offers them.
+- Those facilities are descriptive hotel records with details such as name, type, opening hours and package access. They are not separate WeHouse booking products unless a future approved requirement explicitly makes one bookable.
+- Room availability remains date/inventory based and independent of the hotel's publication state.
+
 ## Hotel communication
 
 - One deterministic conversation exists per paid confirmed hotel stay.
@@ -59,7 +68,6 @@ Public discovery profiles and private chat identity are intentionally different.
 - After checkout, permitted history remains read-only.
 - Hotel/Front Desk communication is presented as the hotel business context, not as a staff member's private identity.
 - Conversation context uses hotel/room/stay dates. Booking/check-in credentials never appear in thread titles/subtitles/previews.
-- Customer hotel detail is focused on hotel facts, rooms, rates, amenities, arrival/departure and availability. Restaurant/bar/cafe/spa/lounge records are not a separate WeHouse public product module; ordinary hotel facilities belong in the hotel's amenities/facilities model unless a future approved product requirement says otherwise.
 
 ## Service block and Payment Protection
 
@@ -76,8 +84,9 @@ Public discovery profiles and private chat identity are intentionally different.
 3. Back from Activity or a thread returns to the Inbox context rather than a detached extra page.
 4. Followed-search matches appear in Inbox Activity only.
 5. Homes and hotels can both be saved independently of Showcase reactions.
-6. A Save heart/bookmark is private saved state; a Showcase heart/reaction is social state. Their storage and behavior never cross.
+6. A property Save heart is private saved state; a Showcase heart/reaction is social state. Their storage and behavior never cross.
 7. Private chat profiles do not reuse full public discovery profiles.
-8. One hotel-stay thread exists per paid confirmed stay.
-9. Closed hotel stays have no writable composer.
-10. Blocking stops every service message/call path while protected value remains protected.
+8. Hotel room types can expose multiple rate/package choices with different prices/rules.
+9. Named hotel facilities/dining appear as hotel information, not as a competing booking product.
+10. One hotel-stay thread exists per paid confirmed stay and closed stays have no writable composer.
+11. Blocking stops every service message/call path while protected value remains protected.
