@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { Profile } from '@/types';
 import Notifications from '@/pages/Notifications';
 
@@ -11,6 +12,13 @@ type ActivityProps = {
 // Inbox itself opens to messages; this screen is reached only after tapping
 // the compact Activity entry, similar to TikTok's Inbox pattern.
 export default function Activity({ profile, onNavigate }: ActivityProps) {
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: true } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('wehouse:nested-screen', { detail: { open: false } }));
+    };
+  }, []);
+
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">

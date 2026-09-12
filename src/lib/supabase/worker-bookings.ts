@@ -1,20 +1,26 @@
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
+import { normalizeWorkerBookingRow } from '@/lib/workerBookingContract';
 
 export async function createBookingRequest(workerId:string,serviceType:string,description:string,address:string,scheduledDate:string,customerMessage?:string){
   const{data,error}=await supabase.rpc('create_booking_request',{p_worker_id:workerId,p_service_type:serviceType,p_description:description,p_address:address,p_scheduled_date:scheduledDate,p_customer_message:customerMessage||null});
   return{booking:error?null:data||null,error};
 }
 
+function normalizeConversation(row:any){
+  const normalized=normalizeWorkerBookingRow(row);
+  return{...normalized,negotiated_amount:Number(normalized.negotiated_amount||0),unread_count:Number(normalized.unread_count||0)};
+}
+
 export async function getMyBookingConversations(userId:string){
   const{data,error}=await supabase.rpc('get_my_booking_conversations_v2',{p_user_id:userId});
-  return{conversations:(data||[]).map((row:any)=>({...row,negotiated_amount:Number(row.negotiated_amount||0),unread_count:Number(row.unread_count||0)})),error};
+  return{conversations:(data||[]).map(normalizeConversation),error};
 }
 
 export async function getCommunicationBookingConversations(userId:string){
   const{data,error}=await supabase.rpc('get_my_booking_conversations_v2',{p_user_id:userId});
-  return{conversations:(data||[]).map((row:any)=>({...row,negotiated_amount:Number(row.negotiated_amount||0),unread_count:Number(row.unread_count||0)})),error};
+  return{conversations:(data||[]).map(normalizeConversation),error};
 }
 
 export async function markBookingMessagesRead(conversationId:string){
@@ -32,7 +38,7 @@ export async function getUserActiveBookings(userId:string){
   const{conversations,error}=await getMyBookingConversations(userId);
   if(error)return{bookings:[],error};
   const terminal=new Set(['cancelled','refunded','approved_released']);
-  const bookings=(conversations||[]).filter((row:any)=>!terminal.has(row.booking_status)).map((row:any)=>({id:row.booking_id,worker_id:row.other_person_id,status:row.booking_status}));
+  const bookings=(conversations||[]).filter((row:any)=>!terminal.has(row.booking_status)).map((row:any)=>({id:row.booking_id,worker_id:row.other_person_id,status:row.booking_status,money_state:row.money_state}));
   return{bookings,error:null};
 }
 
@@ -106,18 +112,7 @@ export async function cancelBooking(bookingId:string,reason:string){const{data,e
 
 export async function getBookingDetails(bookingId:string){
   const{data,error}=await supabase.rpc('get_my_worker_booking_details',{p_booking_id:bookingId});
-  return{booking:error?null:data||null,error};
+  return{booking:error||!data?null:normalizeWorkerBookingRow(data as any),error};
 }
 
-export const BOOKING_STATUS_LABELS:Record<string,{label:string;color:string;description:string}>={
-  booking_requested:{label:'Booking Requested',color:'bg-amber-500/10 text-amber-400',description:'Waiting for the Worker to respond'},
-  negotiating:{label:'Negotiating',color:'bg-blue-500/10 text-blue-400',description:'Discussing the job, schedule and price'},
-  waiting_payment:{label:'Waiting for Payment',color:'bg-purple-500/10 text-purple-400',description:'Worker accepted; customer needs to pay'},
-  confirmed:{label:'Confirmed',color:'bg-emerald-500/10 text-emerald-400',description:'Payment received; ready to start'},
-  in_progress:{label:'In Progress',color:'bg-indigo-500/10 text-indigo-400',description:'The job is underway'},
-  completed_pending_approval:{label:'Completed pending approval',color:'bg-orange-500/10 text-orange-400',description:'Worker marked complete; customer confirmation is pending'},
-  approved_released:{label:'Approved released',color:'bg-emerald-500/10 text-emerald-400',description:'Job completed and payment released'},
-  disputed:{label:'Disputed',color:'bg-red-500/10 text-red-400',description:'WeHouse is reviewing the dispute'},
-  cancelled:{label:'Cancelled',color:'bg-gray-500/10 text-gray-400',description:'Booking cancelled'},
-  refunded:{label:'Refunded',color:'bg-gray-500/10 text-gray-400',description:'Payment refunded'},
-};
+export { BOOKING_STATUS_LABELS } from '@/lib/workerBookingContract';

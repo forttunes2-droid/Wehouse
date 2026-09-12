@@ -269,7 +269,7 @@ export default function Search({
       toast.success("Search unfollowed. New matches will no longer create Activity updates.");
       return;
     }
-    const name = `${stayType === "short_let" ? "Short stays" : stayType === "long_stay" ? "Long-term homes" : "All homes"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
+    const name = `${stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "All homes"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
     const { error } = await followPropertySearch(name, "homes", currentSearchCriteria);
     setSavingSearch(false);
     if (error)
@@ -278,7 +278,7 @@ export default function Search({
     if (!refreshed.error) setFollowedSearches(refreshed.searches);
     toast.success(followedSearch ? "Apartment alerts resumed" : "Search followed. New matches will appear in Inbox Activity.");
   }
-  const modeLabel = stayType === "short_let" ? "Short-stay" : stayType === "long_stay" ? "Long-term" : "All";
+  const modeLabel = stayType === "short_let" ? "Short Let" : stayType === "long_stay" ? "Long Let" : "All";
   const locationSummary = filterCity
     ? `${filterCity}, ${filterState}`
     : filterState
@@ -389,8 +389,8 @@ export default function Search({
             {(
               [
                 ["all", "All"],
-                ["long_stay", "Long-term"],
-                ["short_let", "Short stays"],
+                ["long_stay", "Long Let"],
+                ["short_let", "Short Let"],
               ] as const
             ).map(([value, label]) => (
               <button
