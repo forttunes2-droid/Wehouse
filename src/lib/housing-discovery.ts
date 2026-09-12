@@ -6,12 +6,15 @@ export type HomeStayType = 'long_stay' | 'short_let';
 export async function getDiscoverableHomes() {
   const { data, error } = await supabase.rpc('get_discoverable_listings');
 
+  // The server RPC is the publication/operational boundary. Short Let date
+  // occupancy is checked separately for the requested interval; the client must
+  // never re-introduce globally reserved/occupied rows just because they are
+  // Short Lets.
   const homes = ((data || []) as Listing[]).filter((listing) => {
     const type = String(listing.property_type || 'apartment').toLowerCase();
     if (type === 'hotel') return false;
-    if (listing.status === 'available') return true;
-    // A currently occupied Short Let can still have free future dates.
-    return listing.sub_type === 'short_let';
+    return listing.status === 'available' &&
+      String(listing.availability_status || 'available') === 'available';
   });
 
   return { homes, error };

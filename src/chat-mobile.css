@@ -13,6 +13,22 @@
   z-index: 180 !important;
 }
 
+/* Customer navigation has one Inbox only. Legacy Conversation routes may still
+   resolve deep links, but they must not become a second primary destination. */
+@media (max-width: 1023px) {
+  .bottom-nav button[aria-label="Conversation"] {
+    display: none !important;
+  }
+}
+
+/* Restaurant/bar/cafe/spa/lounge records were introduced as a separate hotel
+   product module without an approved product rule. Keep existing database rows
+   intact for compatibility, but do not expose that editor in the Partner UI.
+   Hotel/room amenities remain the supported customer-facing facility model. */
+#hotel-venues {
+  display: none !important;
+}
+
 @supports (height: 100svh) {
   @media (max-width: 640px) {
     .fixed.inset-0.z-50.flex.h-\[100dvh\] {

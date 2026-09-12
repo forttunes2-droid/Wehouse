@@ -1,0 +1,2263 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import {
+  deleteRoommateChatAttachment,
+  getConversationById,
+  getConversations,
+  getMessages,
+  getRoommateConversationPeople,
+  hideRoommateConversation,
+  markMessagesSeen,
+  reactToMessage,
+  sendMessage,
+  setRoommateBlock,
+  uploadRoommateChatAttachment,
+} from "@/lib/supabase/chat";
+import type { RoommatePeer } from "@/lib/supabase/chat";
+import {
+  BOOKING_STATUS_LABELS,
+  getCommunicationBookingConversations,
+  hideBookingConversation,
+} from "@/lib/supabase/worker-bookings";
+import {
+  getCallCapabilities,
+  launchPrivateCall,
+  type PrivateCall,
+} from "@/lib/private-calls";
+import { chatPresenceLabel } from "@/lib/supabase/presence";
+import useChatPresence from "@/hooks/useChatPresence";
+import BookingNegotiationChat from "@/components/BookingNegotiationChat";
+import {
+  conversationPresentation,
+  getMySupportConversations,
+  type SupportThread,
+} from "@/lib/supabase/support";
+import { toast } from "sonner";
+import type { Conversation, Message, Profile } from "@/types";
+import Notifications from "@/pages/Notifications";
+import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
+import useVoiceRecorder from "@/hooks/useVoiceRecorder";
+import VoiceNotePlayer from "@/components/VoiceNotePlayer";
+import {
+  privateConversationReadiness,
+  rememberPrivateMessagingProfile,
+  type PrivateConversationReadiness,
+} from "@/lib/e2ee";
+import RoommatePublicProfile from "@/components/RoommatePublicProfile";
+import { PublicProfileAction } from "@/components/PublicProfileSurface";
+import SecureChatOnboarding from "@/components/SecureChatOnboarding";
+import MediaViewer from "@/components/MediaViewer";
+import HotelBookingChat from "@/components/HotelBookingChat";
+import MessagePress from "@/components/MessagePress";
+import MessageActionSheet from "@/components/MessageActionSheet";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
+import {
+  getMyHotelConversations,
+  type HotelConversation,
+} from "@/lib/supabase/hotel-chat";
+
+type Props = {
+  profile: Profile;
+  onNavigate: (page: string, id?: string) => void;
+  conversationId?: string | null;
+  peerUserId?: string | null;
+  onConversationClose?: () => void;
+  chatUnreadCount?: number;
+  activityUnreadCount?: number;
+  onActivityUnreadChange?: (count: number) => void;
+};
+type Person = Pick<RoommatePeer, "name" | "avatar"> &
+  Partial<RoommatePeer> & { username?: string | null; lga?: string | null };
+type RoommateMessage = Message & {
+  attachments?: string[];
+  attachment_types?: string[];
+  reply_to_id?: string | null;
+  reactions?: Record<string, string>;
+};
+type BookingConversation = {
+  conversation_id: string;
+  booking_id: string;
+  booking_code: string;
+  booking_status: string;
+  service_type: string;
+  negotiated_amount: number;
+  other_person_id: string | null;
+  other_person_name: string;
+  other_person_avatar: string | null;
+  last_message: string | null;
+  last_message_time: string | null;
+  unread_count: number;
+  updated_at: string;
+};
+type ActiveBooking = { conversationId: string; bookingId: string } | null;
+type ActiveHotel = { conversation: HotelConversation } | null;
+type InboxItem =
+  | { kind: "roommate"; id: string; time: string; roommate: Conversation }
+  | { kind: "worker"; id: string; time: string; booking: BookingConversation }
+  | { kind: "hotel"; id: string; time: string; hotel: HotelConversation }
+  | { kind: "support"; id: string; time: string; support: SupportThread };
+type InboxSnapshot = {
+  conversations: Conversation[];
+  bookingConversations: BookingConversation[];
+  supportThreads: SupportThread[];
+  hotelConversations: HotelConversation[];
+  people: Record<string, Person>;
+  recentRoommateCalls: Record<string, PrivateCall>;
+};
+const inboxCache = new Map<string, InboxSnapshot>();
+const MAX_FILES = 6,
+  MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+function latestTime(...values: (string | null | undefined)[]) {
+  return (
+    values
+      .filter(Boolean)
+      .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0] || ""
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="shrink-0 text-[#747A8B]"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+export default function Chat({
+  profile,
+  conversationId,
+  peerUserId,
+  onConversationClose,
+  onNavigate,
+  activityUnreadCount = 0,
+  onActivityUnreadChange,
+}: Props) {
+  const cachedInbox = inboxCache.get(profile.user_id);
+  const [conversations, setConversations] = useState<Conversation[]>(() => cachedInbox?.conversations || []),
+    [bookingConversations, setBookingConversations] = useState<
+      BookingConversation[]
+    >(() => cachedInbox?.bookingConversations || []),
+    [supportThreads, setSupportThreads] = useState<SupportThread[]>(() => cachedInbox?.supportThreads || []),
+    [hotelConversations, setHotelConversations] = useState<HotelConversation[]>(
+      () => cachedInbox?.hotelConversations || [],
+    ),
+    [active, setActive] = useState<Conversation | null>(null),
+    [activeBooking, setActiveBooking] = useState<ActiveBooking>(null),
+    [activeHotel, setActiveHotel] = useState<ActiveHotel>(null),
+    [messages, setMessages] = useState<RoommateMessage[]>([]),
+    [people, setPeople] = useState<Record<string, Person>>(() => cachedInbox?.people || {}),
+    [input, setInput] = useState(""),
+    [loading, setLoading] = useState(() => !cachedInbox),
+    [loadingMessages, setLoadingMessages] = useState(false),
+    [sending, setSending] = useState(false),
+    [files, setFiles] = useState<File[]>([]),
+    [menuOpen, setMenuOpen] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(false),
+    [profileOpen, setProfileOpen] = useState(false),
+    [profilePerson, setProfilePerson] = useState<Person | null>(null),
+    [blockBusy, setBlockBusy] = useState(false),
+    [blockPrompt, setBlockPrompt] = useState(false),
+    [blockReason, setBlockReason] = useState(""),
+    [selected, setSelected] = useState<Set<string>>(new Set()),
+    [bulkDelete, setBulkDelete] = useState(false),
+    [inboxQuery, setInboxQuery] = useState("");
+  const [secureChat, setSecureChat] =
+    useState<PrivateConversationReadiness | null>(null);
+  const [recentRoommateCalls, setRecentRoommateCalls] = useState<
+    Record<string, PrivateCall>
+  >(() => cachedInbox?.recentRoommateCalls || {});
+  const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
+  const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
+  const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
+    null,
+  );
+  const [messageActionMode, setMessageActionMode] = useState<"reactions" | "actions">("reactions");
+  const [messageToRemove, setMessageToRemove] =
+    useState<RoommateMessage | null>(null);
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const activeRef = useRef<Conversation | null>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const voice = useVoiceRecorder();
+  const messageById = useMemo(
+    () => new Map(messages.map((message) => [message.id, message])),
+    [messages],
+  );
+  const otherId = useCallback(
+    (conv: Conversation) =>
+      conv.participant_a === profile.user_id
+        ? conv.participant_b
+        : conv.participant_a,
+    [profile.user_id],
+  );
+  const unread = useCallback(
+    (conv: Conversation) =>
+      Number(
+        conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b,
+      ) || 0,
+    [profile.user_id],
+  );
+  const peerId = active ? otherId(active) : null;
+  const presence = useChatPresence(peerId);
+  const presenceText = chatPresenceLabel(presence);
+
+  useEffect(() => {
+    rememberPrivateMessagingProfile(profile.user_id);
+  }, [profile.user_id]);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    const open = Boolean(active || activeBooking || activeHotel);
+    window.dispatchEvent(
+      new CustomEvent("wehouse:nested-screen", { detail: { open } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
+      );
+    };
+  }, [active, activeBooking, activeHotel]);
+
+  const loadInbox = useCallback(
+    async (quiet = false) => {
+      if (!quiet) setLoading(true);
+      const conversationsRequest = getConversations(profile.user_id),
+        peopleRequest = getRoommateConversationPeople();
+      const bookingRequest = getCommunicationBookingConversations(
+          profile.user_id,
+        ),
+        supportRequest = getMySupportConversations(),
+        hotelRequest = getMyHotelConversations();
+      const callsRequest = supabase
+        .from("private_calls")
+        .select("*")
+        .eq("context_type", "roommate")
+        .or(`caller_id.eq.${profile.user_id},callee_id.eq.${profile.user_id}`)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      const [
+        convResult,
+        peerResult,
+        bookingResult,
+        supportResult,
+        hotelResult,
+        callResult,
+      ] = await Promise.all([
+        conversationsRequest,
+        peopleRequest,
+        bookingRequest,
+        supportRequest,
+        hotelRequest,
+        callsRequest,
+      ]);
+      if (convResult.error && !quiet)
+        toast.error(
+          convResult.error.message || "Unable to load roommate conversations",
+        );
+      if (peerResult.error && !quiet)
+        toast.error(
+          peerResult.error.message || "Unable to load roommate names",
+        );
+      const allRoommateRows = (convResult.conversations || []).filter(
+        (row) => row.conversation_type === "roommate",
+      );
+      // The database returns only threads with at least one sent message.
+      // A match may open an empty composer from Roommates, but an untouched
+      // composer must never become an Inbox row.
+      setConversations(allRoommateRows);
+      setPeople(peerResult.people || {});
+      if (bookingResult.error && !quiet)
+        toast.error(
+          bookingResult.error.message || "Unable to load Worker conversations",
+        );
+      const calls: Record<string, PrivateCall> = {};
+      for (const row of callResult.data || [])
+        if (!calls[row.context_id]) calls[row.context_id] = row as PrivateCall;
+      setRecentRoommateCalls(calls);
+      const nextBookingConversations = (bookingResult.conversations || []) as BookingConversation[];
+      const nextSupportThreads = supportResult.conversations || [];
+      const nextHotelConversations = hotelResult.conversations || [];
+      setBookingConversations(nextBookingConversations);
+      setSupportThreads(nextSupportThreads);
+      setHotelConversations(nextHotelConversations);
+      inboxCache.set(profile.user_id, {
+        conversations: allRoommateRows,
+        bookingConversations: nextBookingConversations,
+        supportThreads: nextSupportThreads,
+        hotelConversations: nextHotelConversations,
+        people: peerResult.people || {},
+        recentRoommateCalls: calls,
+      });
+      setLoading(false);
+      return allRoommateRows;
+    },
+    [profile.user_id],
+  );
+
+  const loadRoommateMessages = useCallback(
+    async (id: string, quiet = false) => {
+      if (!quiet) setLoadingMessages(true);
+      const currentActive = activeRef.current;
+      const conversation =
+        (currentActive?.id === id ? currentActive : null) ||
+        conversationsRef.current.find((row) => row.id === id);
+      const peer = conversation ? otherId(conversation) : null;
+      const [result, callResult] = await Promise.all([
+        getMessages(id, peer),
+        supabase
+          .from("private_calls")
+          .select("*")
+          .eq("context_type", "roommate")
+          .eq("context_id", id)
+          .order("created_at", { ascending: true })
+          .limit(100),
+      ]);
+      if (result.error) {
+        if (!quiet)
+          toast.error(result.error.message || "Unable to open conversation");
+        setLoadingMessages(false);
+        return;
+      }
+      setMessages((result.messages || []) as RoommateMessage[]);
+      setActiveCalls((callResult.data || []) as PrivateCall[]);
+      await Promise.all([
+        markMessagesSeen(id),
+        supabase
+          .from("notifications")
+          .update({ read: true })
+          .eq("recipient_id", profile.user_id)
+          .eq("related_id", id),
+      ]);
+      setLoadingMessages(false);
+    },
+    [profile.user_id, otherId],
+  );
+
+  useEffect(() => {
+    if (!conversationId) void loadInbox(Boolean(inboxCache.get(profile.user_id)));
+  }, [conversationId, loadInbox, profile.user_id]);
+  useEffect(() => {
+    if (!conversationId) return;
+    void (async () => {
+      if (peerUserId) {
+        const now = new Date().toISOString();
+        setActive({
+          id: conversationId,
+          participant_a: profile.user_id,
+          participant_b: peerUserId,
+          listing_id: null,
+          status: "active",
+          last_message: null,
+          last_message_at: now,
+          unread_a: 0,
+          unread_b: 0,
+          created_at: now,
+          conversation_type: "roommate",
+          subject: "Roommate Match",
+        });
+      }
+      const direct = await getConversationById(conversationId);
+      if (
+        !direct.error &&
+        direct.conversation?.conversation_type === "roommate"
+      ) {
+        setActive(direct.conversation);
+        void loadInbox(true);
+        return;
+      }
+      if (peerUserId) {
+        void loadInbox(true);
+        return;
+      }
+      const rows = await loadInbox(true);
+      const found = rows.find((row) => row.id === conversationId);
+      if (found) {
+        setActive(found);
+        return;
+      }
+      const bookingResult = await getCommunicationBookingConversations(
+        profile.user_id,
+      );
+      const booking = (
+        (bookingResult.conversations || []) as BookingConversation[]
+      ).find((row) => row.conversation_id === conversationId);
+      if (booking)
+        setActiveBooking({
+          conversationId: booking.conversation_id,
+          bookingId: booking.booking_id,
+        });
+      else {
+        const hotelResult = await getMyHotelConversations();
+        const hotel = hotelResult.conversations.find(
+          (row) => row.conversation_id === conversationId,
+        );
+        if (hotel) {
+          setActiveHotel({ conversation: hotel });
+          return;
+        }
+        toast.error(
+          "This conversation is not available. Return to Roommates and reconnect.",
+        );
+      }
+    })();
+  }, [conversationId, loadInbox, peerUserId, profile.user_id]);
+  useEffect(() => {
+    if (!active) {
+      setMessages([]);
+      setFiles([]);
+      setMenuOpen(false);
+      setConfirmDelete(false);
+      setReplyingTo(null);
+      setMessageActions(null);
+      setActiveCalls([]);
+      return;
+    }
+    void loadRoommateMessages(active.id);
+    const channel = supabase
+      .channel(`roommate-chat-${active.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${active.id}`,
+        },
+        () => {
+          void loadRoommateMessages(active.id, true);
+          void loadInbox(true);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${active.id}`,
+        },
+        () => void loadRoommateMessages(active.id, true),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [active, loadRoommateMessages, loadInbox]);
+  useEffect(() => {
+    if (!active) {
+      setSecureChat(null);
+      return;
+    }
+    let cancelled = false;
+    const peer = otherId(active);
+    const refresh = () =>
+      void privateConversationReadiness("roommate", active.id, peer).then(
+        (result) => {
+          if (!cancelled) setSecureChat(result);
+        },
+      );
+    setSecureChat(null);
+    refresh();
+    const identityChannel = supabase
+      .channel(`roommate-security-${active.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "user_encryption_identities",
+          filter: `user_id=eq.${peer}`,
+        },
+        refresh,
+      )
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(identityChannel);
+    };
+  }, [active, otherId]);
+  useEffect(() => {
+    if (active || activeBooking || activeHotel) return;
+    const channel = supabase
+      .channel(`message-inbox:${profile.user_id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        () => void loadInbox(true),
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "booking_messages" },
+        () => void loadInbox(true),
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
+        () => void loadInbox(true),
+      )
+      .subscribe();
+    const timer = window.setInterval(() => void loadInbox(true), 20000);
+    return () => {
+      window.clearInterval(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [active, activeBooking, activeHotel, profile.user_id, loadInbox]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, files.length]);
+
+  async function openConversation(conv: Conversation) {
+    setActive(conv);
+    setInput("");
+    setFiles([]);
+    setMenuOpen(false);
+  }
+  function choosePhotos(list: FileList | null) {
+    if (!list) return;
+    const incoming = Array.from(list).filter((file) => {
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} is not a photo`);
+        return false;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} is larger than 25MB`);
+        return false;
+      }
+      return true;
+    });
+    setFiles((current) => {
+      const next = [...current, ...incoming].slice(0, MAX_FILES);
+      if (current.length + incoming.length > MAX_FILES)
+        toast.error("You can send up to 6 items at once");
+      return next;
+    });
+  }
+  async function toggleVoice() {
+    if (voice.recording) return voice.finish();
+    if (files.length >= MAX_FILES)
+      return toast.error("Remove an attachment before recording a voice note");
+    try {
+      await voice.start();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Microphone permission is required for voice notes",
+      );
+    }
+  }
+  async function submit() {
+    if (!active || sending || (!input.trim() && !files.length)) return;
+    if (secureChat?.state !== "ready")
+      return toast.error("Secure conversation must be ready before sending");
+    setSending(true);
+    const paths: string[] = [],
+      attachments: Array<{
+        path: string;
+        file_iv: string;
+        metadata_ciphertext: string;
+        metadata_iv: string;
+      }> = [];
+    try {
+      for (const file of files) {
+        const uploaded = await uploadRoommateChatAttachment(
+          file,
+          active.id,
+          otherId(active),
+        );
+        if (uploaded.error || !uploaded.path || !uploaded.attachment)
+          throw new Error(
+            uploaded.error?.message || `Could not upload ${file.name}`,
+          );
+        paths.push(uploaded.path);
+        if (uploaded.attachment) attachments.push(uploaded.attachment);
+      }
+      const result = await sendMessage(
+        active.id,
+        otherId(active),
+        input.trim(),
+        attachments,
+        replyingTo?.id || null,
+      );
+      if (result.error || !result.message)
+        throw new Error(result.error?.message || "Message could not be sent");
+      setInput("");
+      setFiles([]);
+      setReplyingTo(null);
+      await loadRoommateMessages(active.id);
+      void loadInbox(true);
+    } catch (error: unknown) {
+      for (const path of paths) await deleteRoommateChatAttachment(path);
+      const message =
+        error instanceof Error ? error.message : "Message could not be sent";
+      if (/encrypted chat is ready/i.test(message)) {
+        setSecureChat(null);
+        void privateConversationReadiness(
+          "roommate",
+          active.id,
+          otherId(active),
+        ).then(setSecureChat);
+        toast.error(
+          "Secure conversation is ready now. Send again to protect this message.",
+        );
+      } else toast.error(message);
+    } finally {
+      setSending(false);
+    }
+  }
+  async function deleteFromMessages() {
+    if (!active) return;
+    const { hidden, error } = await hideRoommateConversation(active.id);
+    if (error || !hidden)
+      return toast.error(error?.message || "Could not remove conversation");
+    toast.success("Conversation removed from your Inbox");
+    setConfirmDelete(false);
+    setMenuOpen(false);
+    setActive(null);
+    await loadInbox(true);
+  }
+  async function removeMessageForMe() {
+    if (!active || !messageToRemove) return;
+    const { error } = await supabase.rpc("delete_conversation_message_for_me", {
+      p_kind: "roommate",
+      p_message_id: messageToRemove.id,
+    });
+    if (error)
+      return toast.error(error.message || "Message could not be removed");
+    setMessageToRemove(null);
+    await loadRoommateMessages(active.id);
+  }
+  async function toggleBlock(reason?: string) {
+    if (!peerId || blockBusy) return;
+    const person = people[peerId];
+    setBlockBusy(true);
+    const nextBlocked = !person?.isBlocked;
+    const { error, cancellationState } = await setRoommateBlock(
+      peerId,
+      nextBlocked,
+      reason,
+    );
+    setBlockBusy(false);
+    if (error)
+      return toast.error(error.message || "Could not update this block");
+    setPeople((current) => ({
+      ...current,
+      [peerId]: { ...current[peerId], isBlocked: nextBlocked },
+    }));
+    setProfilePerson((current) =>
+      current ? { ...current, isBlocked: nextBlocked } : current,
+    );
+    setMenuOpen(false);
+    setBlockPrompt(false);
+    setBlockReason("");
+    toast.success(
+      nextBlocked
+        ? cancellationState === "review"
+          ? "Person blocked. The linked paid booking was sent to WeHouse for cancellation."
+          : cancellationState === "cancelled"
+            ? "Person blocked and the linked shared booking was cancelled."
+            : "Person blocked and removed from discovery."
+        : "Person unblocked",
+    );
+  }
+  async function openActiveProfile() {
+    if (!active) return;
+    const id = otherId(active);
+    const known = people[id];
+    setProfilePerson(known || null);
+    setProfileOpen(true);
+    const { data, error } = await supabase.rpc(
+      "get_allowed_conversation_profile",
+      { p_context_type: "roommate", p_context_id: active.id },
+    );
+    if (error || !data) return;
+    setProfilePerson({
+      user_id: String(data.user_id || id),
+      name: data.full_name || data.username || known?.name || "WeHouse member",
+      username: data.username || null,
+      avatar: data.avatar_url || known?.avatar || null,
+      bio: data.bio || "",
+      city: data.city || data.lga || "",
+      lga: data.lga || null,
+      state: data.state || "",
+      school: data.school || "",
+      occupation: data.occupation || "",
+      isStudent: Boolean(known?.isStudent),
+      isBlocked: Boolean(known?.isBlocked),
+    });
+  }
+  async function startCall(kind: "audio" | "video") {
+    if (!active) return;
+    const { capabilities, error } = await getCallCapabilities(
+      "roommate",
+      active.id,
+    );
+    if (error || !capabilities)
+      return toast.error(error?.message || "Call is not available");
+    const allowed =
+      kind === "video"
+        ? capabilities.allow_video_calls
+        : capabilities.allow_audio_calls;
+    if (!allowed)
+      return toast.error(
+        `This person is not accepting ${kind === "video" ? "video" : "audio"} calls`,
+      );
+    launchPrivateCall("roommate", active.id, kind);
+  }
+  function toggleSelected(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  async function deleteSelected() {
+    if (!selected.size) return;
+    setBulkDelete(true);
+    let failed = 0;
+    for (const id of selected) {
+      const [kind, value] = id.split(":");
+      const result =
+        kind === "roommate"
+          ? await hideRoommateConversation(value)
+          : await hideBookingConversation(value);
+      if (result.error || !result.hidden) failed++;
+    }
+    setBulkDelete(false);
+    setSelected(new Set());
+    await loadInbox(true);
+    if (failed)
+      toast.error(
+        `${failed} conversation${failed === 1 ? "" : "s"} could not be removed`,
+      );
+    else toast.success("Selected conversations removed from Inbox");
+  }
+
+  const inboxItems = useMemo<InboxItem[]>(
+    () =>
+      [
+        ...conversations.map((conv) => ({
+          kind: "roommate" as const,
+          id: `roommate:${conv.id}`,
+          time: latestTime(
+            recentRoommateCalls[conv.id]?.created_at,
+            conv.last_message_at,
+            conv.created_at,
+          ),
+          roommate: conv,
+        })),
+        ...bookingConversations.map((booking) => ({
+          kind: "worker" as const,
+          id: `worker:${booking.conversation_id}`,
+          time: booking.last_message_time || booking.updated_at,
+          booking,
+        })),
+        ...hotelConversations.map((hotel) => ({
+          kind: "hotel" as const,
+          id: `hotel:${hotel.conversation_id}`,
+          time: hotel.last_message_time || hotel.updated_at,
+          hotel,
+        })),
+        ...supportThreads.map((support) => ({
+          kind: "support" as const,
+          id: `support:${support.conversation_id}`,
+          time: support.last_message_time || support.created_at,
+          support,
+        })),
+      ].sort(
+        (a, b) =>
+          new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
+      ),
+    [
+      conversations,
+      bookingConversations,
+      hotelConversations,
+      supportThreads,
+      recentRoommateCalls,
+    ],
+  );
+  const visibleInboxItems = useMemo(() => {
+    const query = inboxQuery.trim().toLowerCase();
+    return inboxItems.filter((item) => {
+      if (!query) return true;
+      const searchable =
+        item.kind === "roommate"
+          ? [people[otherId(item.roommate)]?.name, item.roommate.last_message]
+          : item.kind === "worker"
+            ? [
+                item.booking.other_person_name,
+                item.booking.service_type,
+                item.booking.last_message,
+                item.booking.booking_code,
+              ]
+            : item.kind === "hotel"
+              ? [
+                  item.hotel.hotel_name,
+                  item.hotel.room_name,
+                  item.hotel.booking_code,
+                  item.hotel.last_message,
+                ]
+              : (() => {
+                  const view = conversationPresentation(item.support);
+                  return [
+                    view.title,
+                    view.operator,
+                    view.meta,
+                    item.support.subject,
+                    item.support.last_message,
+                  ];
+                })();
+      return searchable.filter(Boolean).join(" ").toLowerCase().includes(query);
+    });
+  }, [inboxItems, inboxQuery, otherId, people]);
+
+  if (activeBooking)
+    return (
+      <BookingNegotiationChat
+        conversationId={activeBooking.conversationId}
+        bookingId={activeBooking.bookingId}
+        profile={profile}
+        isWorker={profile.role === "worker"}
+        onClose={() => {
+          setActiveBooking(null);
+          onConversationClose?.();
+          void loadInbox(true);
+        }}
+      />
+    );
+  if (activeHotel)
+    return (
+      <HotelBookingChat
+        bookingId={activeHotel.conversation.booking_id}
+        conversationId={activeHotel.conversation.conversation_id}
+        profile={profile}
+        title={
+          activeHotel.conversation.other_party_label ||
+          activeHotel.conversation.hotel_name
+        }
+        subtitle={`${activeHotel.conversation.room_name} · Paid stay`}
+        readOnly={!['confirmed','checked_in'].includes(activeHotel.conversation.booking_status)}
+        onClose={() => {
+          setActiveHotel(null);
+          onConversationClose?.();
+          void loadInbox(true);
+        }}
+      />
+    );
+  if (active) {
+    const person = people[otherId(active)];
+    const canCompose = secureChat?.state === "ready";
+    const refreshSecurity = () => {
+      setSecureChat(null);
+      void privateConversationReadiness(
+        "roommate",
+        active.id,
+        otherId(active),
+      ).then((result) => {
+        setSecureChat(result);
+        if (result.state === "ready" || result.state === "peer_setup_required")
+          void loadRoommateMessages(active.id, true);
+      });
+    };
+    const timeline = [
+      ...messages.map((message) => ({
+        kind: "message" as const,
+        time: message.created_at,
+        id: `message:${message.id}`,
+        message,
+      })),
+      ...activeCalls.map((call) => ({
+        kind: "call" as const,
+        time: call.created_at,
+        id: `call:${call.id}`,
+        call,
+      })),
+    ].sort(
+      (a, b) =>
+        new Date(a.time).getTime() - new Date(b.time).getTime() ||
+        a.id.localeCompare(b.id),
+    );
+    return (
+      <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#090A0F] text-white">
+        <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+          <div className="mx-auto flex max-w-3xl items-center gap-1">
+            <button
+              onClick={() => {
+                setActive(null);
+                onConversationClose?.();
+                void loadInbox(true);
+              }}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9699A8] hover:bg-white/[.05]"
+              aria-label="Back to Inbox"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={() => void openActiveProfile()}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              aria-label="View roommate profile"
+            >
+              <Avatar person={person} />
+              <span className="min-w-0">
+                <span className="block truncate text-[14px] font-semibold">
+                  {person?.name || "Roommate"}
+                </span>
+                {presenceText ? (
+                  <span
+                    className={`mt-0.5 block truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
+                  >
+                    {presenceText}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+            <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
+              <PhoneIcon />
+            </HeaderAction>
+            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
+              <VideoCallIcon />
+            </HeaderAction>
+            <button
+              onClick={() => setMenuOpen((value) => !value)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xl text-[#8E93A3] hover:bg-white/[.05]"
+              aria-label="Conversation options"
+            >
+              ⋯
+            </button>
+          </div>
+          {menuOpen && (
+            <div className="absolute right-3 top-[3.65rem] z-20 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[#171B24] p-1.5 shadow-2xl">
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  void openActiveProfile();
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] hover:bg-white/[.04]"
+              >
+                <span>◉</span>
+                <span>View profile</span>
+              </button>
+              <button
+                disabled={blockBusy}
+                onClick={() => {
+                  if (person?.isBlocked) void toggleBlock();
+                  else {
+                    setMenuOpen(false);
+                    setBlockPrompt(true);
+                  }
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-amber-200"
+              >
+                <span>⊘</span>
+                <span>
+                  {person?.isBlocked ? "Unblock person" : "Block person"}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setConfirmDelete(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
+              >
+                <TrashIcon />
+                <span>Remove from Inbox</span>
+              </button>
+            </div>
+          )}
+        </header>
+        <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
+          <div className="mx-auto max-w-3xl space-y-2.5">
+            {loadingMessages && messages.length === 0 ? (
+              <MessageSkeleton />
+            ) : messages.length === 0 ? (
+              <Empty
+                title="Start your conversation"
+                text="You both accepted the roommate match. Share photos, voice notes or a message while you discuss living plans."
+              />
+            ) : null}
+            {timeline.map((event, index) => (
+              <div key={event.id}>
+                {index === 0 ||
+                dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
+                  <DateDivider value={event.time} />
+                ) : null}
+                {event.kind === "call" ? (
+                  <CallTimelineEvent call={event.call} me={profile.user_id} />
+                ) : (
+                  <RoommateBubble
+                    msg={event.message}
+                    mine={event.message.sender_id === profile.user_id}
+                    quoted={
+                      event.message.reply_to_id
+                        ? messageById.get(event.message.reply_to_id)
+                        : undefined
+                    }
+                    onOpenActions={() => {
+                      setMessageActionMode("actions");
+                      setMessageActions(event.message);
+                    }}
+                    onTapReaction={() => {
+                      setMessageActionMode("reactions");
+                      setMessageActions(event.message);
+                    }}
+                    onReply={() => setReplyingTo(event.message)}
+                  />
+                )}
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+        </main>
+        <footer className="shrink-0 border-t border-white/[.06] bg-[#10131B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+          <div className="mx-auto max-w-3xl">
+            {person?.isBlocked ? (
+              <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
+                <p className="text-[10px] text-amber-100">
+                  This person is blocked. Matching, messages and calls are off.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void toggleBlock()}
+                  className="shrink-0 text-[10px] font-semibold text-violet-300"
+                >
+                  Unblock
+                </button>
+              </div>
+            ) : !secureChat ? (
+              <div
+                className="flex items-end gap-2"
+                aria-label="Opening secure conversation"
+              >
+                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-[11px] text-[#666C7B]">
+                  Opening conversation…
+                </div>
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-white/[.05]">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+                </span>
+              </div>
+            ) : !canCompose ? (
+              <SecureChatOnboarding
+                status={secureChat}
+                personName={person?.name || "This person"}
+                onReady={refreshSecurity}
+              />
+            ) : (
+              <>
+                {files.length > 0 && (
+                  <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                    {files.map((file, index) => (
+                      <PendingMedia
+                        key={`${file.name}-${index}`}
+                        file={file}
+                        onRemove={() =>
+                          setFiles((current) =>
+                            current.filter((_, i) => i !== index),
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                <VoiceRecorderPanel
+                  recording={voice.recording}
+                  seconds={voice.seconds}
+                  level={voice.level}
+                  draft={voice.draft}
+                  onCancel={voice.cancel}
+                  onFinish={voice.finish}
+                  onDiscard={voice.discard}
+                  onUse={(file) => {
+                    setFiles((current) =>
+                      [...current, file].slice(0, MAX_FILES),
+                    );
+                    voice.discard();
+                  }}
+                />
+                {replyingTo && (
+                  <div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[8px] font-semibold text-violet-300">
+                        Replying to{" "}
+                        {replyingTo.sender_id === profile.user_id
+                          ? "yourself"
+                          : person?.name || "message"}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
+                        {replyingTo.content ||
+                          ((replyingTo.attachments || []).length
+                            ? "Attachment"
+                            : "Message")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="grid h-8 w-8 place-items-center text-[#818797]"
+                      aria-label="Cancel reply"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <ChatAttachmentPicker onFiles={choosePhotos} />
+                  <button
+                    onClick={() => void toggleVoice()}
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500" : "border border-white/[.07] bg-white/[.035]"} text-white`}
+                    aria-label={
+                      voice.recording
+                        ? "Finish voice recording"
+                        : "Record voice note"
+                    }
+                  >
+                    <MicIcon />
+                  </button>
+                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.08] bg-[#181B24] px-3 py-1.5 focus-within:border-violet-500/40">
+                    <textarea
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void submit();
+                        }
+                      }}
+                      rows={1}
+                      placeholder="Message"
+                      className="max-h-28 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[#626879]"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void submit()}
+                    disabled={sending || (!input.trim() && !files.length)}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#636878]"
+                    aria-label="Send"
+                  >
+                    {sending ? "…" : "➤"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </footer>
+        {messageActions && active && (
+          <MessageActionSheet
+            mode={messageActionMode}
+            currentReaction={
+              messageActions.reactions?.[profile.user_id] || null
+            }
+            onClose={() => setMessageActions(null)}
+            onReply={() => {
+              setReplyingTo(messageActions);
+              setMessageActions(null);
+            }}
+            onRemove={() => {
+              setMessageToRemove(messageActions);
+              setMessageActions(null);
+            }}
+            onCopy={messageActions.content ? () => {
+              void navigator.clipboard.writeText(messageActions.content || "");
+              toast.success("Message copied");
+              setMessageActions(null);
+            } : undefined}
+            onReact={async (emoji) => {
+              const current = messageActions.reactions?.[profile.user_id];
+              const result = await reactToMessage(
+                active.id,
+                messageActions.id,
+                current === emoji ? null : emoji,
+              );
+              if (result.error) return toast.error(result.error.message);
+              setMessages((rows) =>
+                rows.map((row) =>
+                  row.id === messageActions.id
+                    ? { ...row, reactions: result.reactions }
+                    : row,
+                ),
+              );
+              setMessageActions(null);
+            }}
+          />
+        )}
+        <ConfirmDialog
+          isOpen={Boolean(messageToRemove)}
+          title="Remove this message?"
+          description="This removes the message only from your chat. The other person keeps their copy."
+          confirmLabel="Remove for me"
+          onCancel={() => setMessageToRemove(null)}
+          onConfirm={() => void removeMessageForMe()}
+        />
+        {confirmDelete && (
+          <DeleteSheet
+            title="Remove this conversation?"
+            text="This only removes it from your list. It does not erase the other person's copy. A new message can make it appear again."
+            onCancel={() => setConfirmDelete(false)}
+            onDelete={() => void deleteFromMessages()}
+          />
+        )}
+        {profileOpen && (
+          <PeerProfileSheet
+            person={profilePerson || person}
+            presenceText={presenceText || ""}
+            onClose={() => {
+              setProfileOpen(false);
+              setProfilePerson(null);
+            }}
+            onToggleBlock={() => {
+              if (person?.isBlocked) void toggleBlock();
+              else {
+                setProfileOpen(false);
+                setBlockPrompt(true);
+              }
+            }}
+            onAudioCall={() => {
+              setProfileOpen(false);
+              void startCall("audio");
+            }}
+            onVideoCall={() => {
+              setProfileOpen(false);
+              void startCall("video");
+            }}
+            busy={blockBusy}
+          />
+        )}
+        {blockPrompt && (
+          <div
+            className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm"
+            onClick={() => setBlockPrompt(false)}
+          >
+            <section
+              className="w-full max-w-md rounded-[26px] border border-white/[.08] bg-[#141821] p-4"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold">
+                    Block {person?.name || "this person"}?
+                  </h2>
+                  <p className="mt-1 text-[10px] leading-5 text-[#7B8292]">
+                    They will leave your discovery results. A linked shared
+                    booking will be cancelled, or sent to WeHouse first if
+                    payment must be reviewed.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBlockPrompt(false)}
+                  className="grid h-9 w-9 place-items-center text-xl text-[#818797]"
+                >
+                  ×
+                </button>
+              </div>
+              <textarea
+                value={blockReason}
+                onChange={(event) =>
+                  setBlockReason(event.target.value.slice(0, 500))
+                }
+                rows={3}
+                placeholder="Reason (optional)"
+                className="mt-4 w-full resize-none rounded-2xl border border-white/[.08] bg-[#0E1118] p-3 text-xs outline-none focus:border-violet-500/40"
+              />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setBlockReason("");
+                    void toggleBlock();
+                  }}
+                  disabled={blockBusy}
+                  className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold disabled:opacity-40"
+                >
+                  Skip reason
+                </button>
+                <button
+                  onClick={() => void toggleBlock(blockReason)}
+                  disabled={blockBusy}
+                  className="h-11 rounded-xl bg-red-500 text-[10px] font-semibold disabled:opacity-40"
+                >
+                  {blockBusy ? "Blocking…" : "Block and continue"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (conversationId && !active) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-[#090B10] px-6 text-center text-white">
+        <div>
+          {loading ? (
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+          ) : (
+            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-[#8B91A1]">!</div>
+          )}
+          <p className="mt-4 text-sm font-semibold">
+            {loading ? "Opening conversation…" : "Conversation unavailable"}
+          </p>
+          {!loading ? (
+            <button type="button" onClick={() => {
+              onConversationClose?.();
+              onNavigate("conversation");
+            }} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
+              Go to Inbox
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
+      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-2.5 backdrop-blur-xl sm:py-4">
+        <div className="mx-auto flex max-w-5xl items-start gap-3">
+          {selected.size ? (
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] text-lg"
+              aria-label="Cancel selection"
+            >
+              ×
+            </button>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold sm:text-xl">
+              {selected.size
+                ? `${selected.size} selected`
+                : "Inbox"}
+            </h1>
+          </div>
+          {selected.size ? (
+            <button
+              disabled={bulkDelete}
+              onClick={() => void deleteSelected()}
+              className="mt-1 h-10 rounded-full bg-red-500/12 px-4 text-[10px] font-semibold text-red-300 disabled:opacity-50"
+            >
+              {bulkDelete ? "Removing…" : "Remove"}
+            </button>
+          ) : null}
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
+        <section className="border-b border-white/[.06] pb-4">
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-semibold">Activity</h2>
+                {activityUnreadCount > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">
+                    {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[9px] text-[#6F7586]">
+                Updates and actions that affect you
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActivityExpanded((value) => !value)}
+              className="shrink-0 px-1 py-2 text-[9px] font-semibold text-violet-300"
+            >
+              {activityExpanded ? "Show less" : "See all"}
+            </button>
+          </div>
+          <Notifications
+            profile={profile}
+            scope="personal"
+            embedded
+            compact={!activityExpanded}
+            previewLimit={activityExpanded ? undefined : 3}
+            onNavigate={onNavigate}
+            onUnreadChange={onActivityUnreadChange}
+          />
+        </section>
+        <section className="pt-4">
+            <div className="mb-3">
+              <h2 className="text-xs font-semibold">Messages</h2>
+              <p className="mt-1 text-[9px] text-[#6F7586]">
+                People, stays, services and WeHouse help in one list
+              </p>
+            </div>
+            <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
+              <SearchIcon />
+              <input
+                value={inboxQuery}
+                onChange={(event) => setInboxQuery(event.target.value)}
+                placeholder="Search conversations"
+                className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
+              />
+            </label>
+            <div className="mt-3 flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+                  All messages
+                </p>
+                <p className="mt-1 truncate text-[10px] text-[#8A909F]">
+                  Most recent first
+                </p>
+              </div>
+            </div>
+            {loading ? (
+              <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
+                <Loading />
+              </div>
+            ) : visibleInboxItems.length === 0 ? (
+              <div className="mt-3 border-y border-dashed border-white/[.08] px-5 py-10 text-center">
+                <p className="text-sm font-semibold">
+                  {inboxQuery.trim()
+                    ? "No matching conversations"
+                    : "No messages yet"}
+                </p>
+                <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
+                  {inboxQuery.trim()
+                    ? "Try a person, service, property or reservation name."
+                    : "Messages appear here after a roommate match, service booking, paid hotel stay or WeHouse help request."}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 overflow-hidden border-y border-white/[.06]">
+                {visibleInboxItems.map((item, index) => (
+                  <div key={item.id}>
+                    {index > 0 && <Divider />}
+                    {item.kind === "roommate" ? (
+                      <RoommateInboxRow
+                        conv={item.roommate}
+                        person={people[otherId(item.roommate)]}
+                        count={unread(item.roommate) > 0 ? 1 : 0}
+                        recentCall={recentRoommateCalls[item.roommate.id]}
+                        selected={selected.has(item.id)}
+                        selectionMode={selected.size > 0}
+                        onSelect={() => toggleSelected(item.id)}
+                        onOpen={() => void openConversation(item.roommate)}
+                      />
+                    ) : item.kind === "worker" ? (
+                      <WorkerInboxRow
+                        row={item.booking}
+                        selected={selected.has(item.id)}
+                        selectionMode={selected.size > 0}
+                        onSelect={() => toggleSelected(item.id)}
+                        onOpen={() =>
+                          setActiveBooking({
+                            conversationId: item.booking.conversation_id,
+                            bookingId: item.booking.booking_id,
+                          })
+                        }
+                      />
+                    ) : item.kind === "hotel" ? (
+                      <HotelInboxRow
+                        row={item.hotel}
+                        onOpen={() =>
+                          setActiveHotel({ conversation: item.hotel })
+                        }
+                      />
+                    ) : item.kind === "support" ? (
+                      <SupportInboxRow
+                        thread={item.support}
+                        onOpen={() =>
+                          window.dispatchEvent(
+                            new CustomEvent("openSupportChat", {
+                              detail: {
+                                conversationId: item.support.conversation_id,
+                                contextType: item.support.context_type,
+                                contextId: item.support.context_id,
+                              },
+                            }),
+                          )
+                        }
+                      />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function RoommateInboxRow({
+  conv,
+  person,
+  count,
+  recentCall,
+  onOpen,
+  onSelect,
+  selected,
+  selectionMode,
+}: {
+  conv: Conversation;
+  person?: Person;
+  count: number;
+  recentCall?: PrivateCall;
+  onOpen: () => void;
+  onSelect: () => void;
+  selected: boolean;
+  selectionMode: boolean;
+}) {
+  return (
+    <SelectableRow
+      onOpen={onOpen}
+      onSelect={onSelect}
+      selectionMode={selectionMode}
+      selected={selected}
+    >
+      <Avatar person={person} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            {person?.name || "Roommate"}
+          </p>
+          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-violet-300">
+            ROOMMATE
+          </span>
+        </div>
+        <p
+          className={`mt-1 truncate text-[11px] ${count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+        >
+          {conv.last_message ||
+            (recentCall
+              ? `${recentCall.status === "missed" ? "Missed" : "Recent"} ${recentCall.call_type} call`
+              : "Start the conversation")}
+        </p>
+        <p className="mt-0.5 text-[9px] text-[#5F6474]">
+          {formatListTime(
+            recentCall?.created_at || conv.last_message_at || conv.created_at,
+          )}
+        </p>
+      </div>
+      {count > 0 && <Unread value={count} />}
+    </SelectableRow>
+  );
+}
+function WorkerInboxRow({
+  row,
+  onOpen,
+  onSelect,
+  selected,
+  selectionMode,
+}: {
+  row: BookingConversation;
+  onOpen: () => void;
+  onSelect: () => void;
+  selected: boolean;
+  selectionMode: boolean;
+}) {
+  const status = BOOKING_STATUS_LABELS[row.booking_status];
+  return (
+    <SelectableRow
+      onOpen={onOpen}
+      onSelect={onSelect}
+      selectionMode={selectionMode}
+      selected={selected}
+    >
+      <Avatar
+        person={{
+          name: row.other_person_name,
+          avatar: row.other_person_avatar,
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            {row.other_person_name || "Worker chat"}
+          </p>
+          <span className="shrink-0 rounded-full bg-violet-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-violet-300">
+            WORKER
+          </span>
+        </div>
+        <p
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+        >
+          {row.last_message || row.service_type || "Worker booking"}
+        </p>
+        <div className="mt-0.5 flex items-center gap-2 text-[9px] text-[#5F6474]">
+          <span>{row.service_type || "Service"}</span>
+          {status && (
+            <>
+              <span>·</span>
+              <span>{status.label}</span>
+            </>
+          )}
+          <span>·</span>
+          <span>{formatListTime(row.last_message_time || row.updated_at)}</span>
+        </div>
+      </div>
+      {row.unread_count > 0 && <Unread value={1} />}
+    </SelectableRow>
+  );
+}
+function HotelInboxRow({
+  row,
+  onOpen,
+}: {
+  row: HotelConversation;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
+    >
+      {row.hotel_image ? (
+        <img
+          src={row.hotel_image}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-12 w-12 shrink-0 rounded-xl object-cover"
+        />
+      ) : (
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-sm font-bold text-amber-200">
+          H
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            {row.other_party_label || row.hotel_name}
+          </p>
+          <span className="shrink-0 rounded-full bg-amber-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-amber-200">
+            HOTEL
+          </span>
+        </div>
+        <p
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+        >
+          {row.last_message || "Paid stay conversation"}
+        </p>
+        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
+          {[
+            row.room_name,
+            formatListTime(row.last_message_time || row.updated_at),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      {row.unread_count > 0 && <Unread value={1} />}
+    </button>
+  );
+}
+function SupportInboxRow({
+  thread,
+  onOpen,
+}: {
+  thread: SupportThread;
+  onOpen: () => void;
+}) {
+  const p = conversationPresentation(thread);
+  const badge =
+    p.kind === "reservation"
+      ? "RESERVATION"
+      : p.kind === "property_operations"
+        ? "PROPERTY"
+        : "WEHOUSE";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
+    >
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">
+        W
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            {p.title}
+          </p>
+          <span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-0.5 text-[7px] font-semibold text-emerald-300">
+            {badge}
+          </span>
+        </div>
+        <p
+          className={`mt-1 truncate text-[11px] ${thread.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+        >
+          {thread.last_message || p.title}
+        </p>
+        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
+          {[
+            p.operator,
+            String(thread.context_snapshot?.case_number || "")
+              ? `Case ${String(thread.context_snapshot?.case_number)}`
+              : "",
+            thread.assigned_staff_name
+              ? `Assigned to ${thread.assigned_staff_name} · WeHouse`
+              : "",
+            p.meta,
+            formatListTime(thread.last_message_time || thread.created_at),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      {thread.unread_count > 0 && <Unread value={1} />}
+    </button>
+  );
+}
+function SelectableRow({
+  onOpen,
+  onSelect,
+  selected,
+  selectionMode,
+  children,
+}: {
+  onOpen: () => void;
+  onSelect: () => void;
+  selected: boolean;
+  selectionMode: boolean;
+  children: React.ReactNode;
+}) {
+  const timer = useRef<number | null>(null),
+    held = useRef(false);
+  function begin() {
+    held.current = false;
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      held.current = true;
+      timer.current = null;
+      onSelect();
+      navigator.vibrate?.(25);
+    }, 420);
+  }
+  function cancel() {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  }
+  return (
+    <button
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        begin();
+      }}
+      onPointerUp={cancel}
+      onPointerCancel={cancel}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        if (!held.current) onSelect();
+      }}
+      onClick={() => {
+        if (held.current) {
+          held.current = false;
+          return;
+        }
+        if (selectionMode) onSelect();
+        else onOpen();
+      }}
+      className={`flex w-full touch-pan-y select-none items-center gap-3 px-4 py-3.5 text-left transition ${selected ? "bg-violet-500/10 ring-1 ring-inset ring-violet-400/20" : "hover:bg-white/[.025]"}`}
+    >
+      {selectionMode && (
+        <span
+          className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px] ${selected ? "border-violet-400 bg-violet-500" : "border-white/20"}`}
+        >
+          {selected ? "✓" : ""}
+        </span>
+      )}
+      {children}
+    </button>
+  );
+}
+function RoommateBubble({
+  msg,
+  mine,
+  quoted,
+  onOpenActions,
+  onTapReaction,
+  onReply,
+}: {
+  msg: RoommateMessage;
+  mine: boolean;
+  quoted?: RoommateMessage;
+  onOpenActions: () => void;
+  onTapReaction: () => void;
+  onReply: () => void;
+}) {
+  const reactions = Object.values(msg.reactions || {}).reduce<
+    Record<string, number>
+  >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
+  return (
+    <MessagePress
+      onOpen={onOpenActions}
+      onTap={onTapReaction}
+      onReply={onReply}
+      className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
+    >
+      <div
+        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
+      >
+        {quoted && (
+          <div
+            className={`mb-2 rounded-xl border-l-2 px-2.5 py-2 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
+          >
+            <p className="text-[8px] font-semibold opacity-75">
+              {quoted.sender_id === msg.sender_id ? "Earlier message" : "Reply"}
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-[10px] opacity-80">
+              {quoted.content ||
+                ((quoted.attachments || []).length ? "Attachment" : "Message")}
+            </p>
+          </div>
+        )}
+        {(msg.attachments || []).map((url, index) => (
+          <PrivateAttachment
+            key={`${msg.id}-${index}`}
+            url={url}
+            type={msg.attachment_types?.[index] || ""}
+          />
+        ))}
+        {msg.content && (
+          <p className="whitespace-pre-wrap text-[12px] leading-5">
+            {msg.content}
+          </p>
+        )}
+        <p
+          className={`mt-1 text-right text-[8px] ${mine ? "text-violet-100/70" : "text-[#626677]"}`}
+        >
+          {time(msg.created_at)}
+          {mine ? (msg.seen ? " · Seen" : " · Sent") : ""}
+        </p>
+        {Object.keys(reactions).length > 0 && (
+          <div
+            className={`absolute -bottom-3 ${mine ? "right-2" : "left-2"} flex gap-1 rounded-full border border-white/[.08] bg-[#171A22] px-2 py-0.5 text-[10px] shadow-lg`}
+          >
+            {Object.entries(reactions).map(([emoji, count]) => (
+              <span key={emoji}>
+                {emoji}
+                {count > 1 ? (
+                  <small className="ml-0.5 text-[7px] text-[#A6AAB6]">
+                    {count}
+                  </small>
+                ) : null}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </MessagePress>
+  );
+}
+function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
+  const outgoing = call.caller_id === me,
+    ended = call.ended_at ? new Date(call.ended_at).getTime() : 0,
+    answered = call.answered_at ? new Date(call.answered_at).getTime() : 0;
+  const duration =
+    ended && answered ? Math.max(0, Math.round((ended - answered) / 1000)) : 0;
+  return (
+    <div className="my-2 flex justify-center">
+      <div className="flex max-w-[88%] items-center gap-2 rounded-full border border-white/[.06] bg-[#141720] px-3 py-2 text-[9px]">
+        <span
+          className={
+            call.status === "missed" || call.status === "failed"
+              ? "text-red-300"
+              : "text-violet-300"
+          }
+        >
+          {call.call_type === "video" ? "▣" : "☎"}
+        </span>
+        <span className="font-medium text-[#B8BCC7]">
+          {outgoing ? "Outgoing" : "Incoming"} {call.call_type} call
+        </span>
+        <span
+          className={
+            call.status === "missed" || call.status === "failed"
+              ? "text-red-300"
+              : "text-[#747A8A]"
+          }
+        >
+          {call.status}
+          {duration
+            ? ` · ${Math.floor(duration / 60) ? `${Math.floor(duration / 60)}m ` : ""}${duration % 60}s`
+            : ""}{" "}
+          · {time(call.created_at)}
+        </span>
+      </div>
+    </div>
+  );
+}
+function PrivateAttachment({ url, type }: { url: string; type: string }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const image =
+    type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+  const video =
+    type.startsWith("video/") ||
+    /\.(mp4|mov)(\?|$)/i.test(url) ||
+    (!type && /\.webm(\?|$)/i.test(url));
+  if (image)
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black"
+          aria-label="Open shared photo in WeHouse viewer"
+        >
+          <img
+            src={url}
+            alt="Shared photo"
+            className="max-h-80 w-auto max-w-full object-contain"
+          />
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={url}
+            kind="image"
+            title="Shared photo"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  if (video)
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black"
+          aria-label="Open shared video in WeHouse viewer"
+        >
+          <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]">
+            <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">
+              ▶
+            </span>
+          </span>
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={url}
+            kind="video"
+            title="Shared video"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  if (type.startsWith("audio/") || /\.(webm|m4a|mp3|wav|ogg)(\?|$)/i.test(url))
+    return <VoiceNotePlayer url={url} />;
+  return null;
+}
+function DateDivider({ value }: { value: string }) {
+  return (
+    <div className="my-4 flex items-center gap-3">
+      <span className="h-px flex-1 bg-white/[.055]" />
+      <span className="rounded-full bg-white/[.045] px-3 py-1 text-[8px] font-semibold text-[#858A99]">
+        {dayLabel(value)}
+      </span>
+      <span className="h-px flex-1 bg-white/[.055]" />
+    </div>
+  );
+}
+function PeerProfileSheet({
+  person,
+  presenceText,
+  onClose,
+  onToggleBlock,
+  onAudioCall,
+  onVideoCall,
+  busy,
+}: {
+  person?: Person;
+  presenceText: string;
+  onClose: () => void;
+  onToggleBlock: () => void;
+  onAudioCall: () => void;
+  onVideoCall: () => void;
+  busy: boolean;
+}) {
+  const location = [person?.lga || person?.city, person?.state]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <RoommatePublicProfile
+      context="conversation"
+      person={{
+        name: person?.name || "Roommate",
+        username: person?.username,
+        avatar: person?.avatar,
+        location,
+        bio: person?.bio,
+        // School is a matching constraint, not general profile information.
+        // Conversation profiles must not disclose it outside a same-school result.
+        school: null,
+        occupation: person?.occupation,
+      }}
+      presence={presenceText}
+      onClose={onClose}
+      actions={
+        <div className="flex justify-start gap-5">
+          <PublicProfileAction label="Audio" onClick={onAudioCall}>
+            <PhoneIcon />
+          </PublicProfileAction>
+          <PublicProfileAction label="Video" onClick={onVideoCall}>
+            <VideoCallIcon />
+          </PublicProfileAction>
+        </div>
+      }
+      footer={
+        <button
+          disabled={busy}
+          onClick={onToggleBlock}
+          className="mt-8 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200"
+        >
+          {person?.isBlocked ? "Unblock person" : "Block person"}
+        </button>
+      }
+    />
+  );
+}
+function HeaderAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#A4A9B7] hover:bg-white/[.05]"
+      aria-label={label}
+    >
+      {children}
+    </button>
+  );
+}
+function PhoneIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.9Z" />
+    </svg>
+  );
+}
+function VideoCallIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
+    </svg>
+  );
+}
+function PendingMedia({
+  file,
+  onRemove,
+}: {
+  file: File;
+  onRemove: () => void;
+}) {
+  const isVoice = file.type.startsWith("audio/");
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2">
+      <span className="text-sm">{isVoice ? "🎤" : "▧"}</span>
+      <p className="max-w-36 truncate text-[9px] text-violet-200">
+        {isVoice ? "Voice note" : file.name}
+      </p>
+      <button onClick={onRemove} className="text-[#8D91A1]">
+        ×
+      </button>
+    </div>
+  );
+}
+function DeleteSheet({
+  title,
+  text,
+  onCancel,
+  onDelete,
+}: {
+  title: string;
+  text: string;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end bg-black/70 p-3 sm:items-center sm:justify-center"
+      onClick={onCancel}
+    >
+      <section
+        className="w-full rounded-3xl border border-white/[.08] bg-[#151922] p-5 sm:max-w-sm"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300">
+          <TrashIcon />
+        </div>
+        <h2 className="text-base font-bold">{title}</h2>
+        <p className="mt-2 text-[10px] leading-5 text-[#767C8C]">{text}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            onClick={onCancel}
+            className="h-11 rounded-xl border border-white/[.08] text-[11px] font-semibold text-[#A4A9B7]"
+          >
+            Keep
+          </button>
+          <button
+            onClick={onDelete}
+            className="h-11 rounded-xl border border-red-500/20 bg-red-500/10 text-[11px] font-semibold text-red-200"
+          >
+            Remove
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="m9 7 .6-2h4.8l.6 2" />
+      <path d="m6.5 7 .8 13h9.4l.8-13" />
+      <path d="M10 11v5M14 11v5" />
+    </svg>
+  );
+}
+function Avatar({ person }: { person?: Person }) {
+  return (
+    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 font-semibold text-violet-300">
+      {person?.avatar ? (
+        <img
+          src={person.avatar}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        (person?.name || "W")[0].toUpperCase()
+      )}
+    </div>
+  );
+}
+function Unread({ value }: { value: number }) {
+  return (
+    <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">
+      {value > 99 ? "99+" : value}
+    </span>
+  );
+}
+function Divider() {
+  return <div className="ml-[4.5rem] h-px bg-white/[.05]" />;
+}
+function Loading() {
+  return (
+    <div className="grid min-h-24 place-items-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+    </div>
+  );
+}
+function MessageSkeleton() {
+  return (
+    <div className="min-h-24" role="status" aria-label="Loading messages" />
+  );
+}
+function Empty({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="mx-auto mt-12 max-w-sm rounded-2xl border border-dashed border-white/[.08] px-5 py-10 text-center">
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mt-2 text-[10px] leading-relaxed text-[#666A7A]">{text}</p>
+    </div>
+  );
+}
+function time(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+function dayKey(value: string) {
+  return new Date(value).toDateString();
+}
+function dayLabel(value: string) {
+  const date = new Date(value),
+    now = new Date();
+  if (date.toDateString() === now.toDateString()) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+function formatListTime(value: string) {
+  const date = new Date(value),
+    now = new Date();
+  if (date.toDateString() === now.toDateString())
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+function MicIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8" />
+    </svg>
+  );
+}

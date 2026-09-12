@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   followPropertySearch,
   getMySavedSearches,
+  removeSavedSearch,
   savedSearchKey,
   type SavedSearch,
 } from "@/lib/supabase/saved-searches";
@@ -257,8 +258,17 @@ export default function Search({
     setFilterState(value);
     setFilterCity("");
   }
-  async function followSearch() {
+  async function toggleFollowSearch() {
+    if (savingSearch) return;
     setSavingSearch(true);
+    if (followedSearch?.notifications_enabled) {
+      const { error } = await removeSavedSearch(followedSearch.id);
+      setSavingSearch(false);
+      if (error) return toast.error(error.message || "Search could not be unfollowed");
+      setFollowedSearches((current) => current.filter((item) => item.id !== followedSearch.id));
+      toast.success("Search unfollowed. New matches will no longer create Activity updates.");
+      return;
+    }
     const name = `${stayType === "short_let" ? "Short stays" : stayType === "long_stay" ? "Long-term homes" : "All homes"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
     const { error } = await followPropertySearch(name, "homes", currentSearchCriteria);
     setSavingSearch(false);
@@ -308,11 +318,11 @@ export default function Search({
             {hasFilters && (
               <button
                 type="button"
-                disabled={savingSearch || Boolean(followedSearch?.notifications_enabled)}
-                onClick={() => void followSearch()}
-                className="rounded-full border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-40"
+                disabled={savingSearch}
+                onClick={() => void toggleFollowSearch()}
+                className={`rounded-full border px-3 py-2 text-[9px] font-semibold disabled:opacity-40 ${followedSearch?.notifications_enabled ? "border-emerald-500/25 text-emerald-300" : "border-violet-500/20 text-violet-300"}`}
               >
-                {savingSearch ? "Saving…" : followedSearch?.notifications_enabled ? "Following" : followedSearch ? "Resume alerts" : "Follow search"}
+                {savingSearch ? "Updating…" : followedSearch?.notifications_enabled ? "Following" : followedSearch ? "Resume alerts" : "Follow search"}
               </button>
             )}
             {hasFilters && (
