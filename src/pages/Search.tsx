@@ -57,10 +57,9 @@ let searchState: PropertySearchState = {
   filterState: "",
   filterCity: "",
 };
+
 function normalize(value: unknown) {
-  return String(value || "")
-    .trim()
-    .toLowerCase();
+  return String(value || "").trim().toLowerCase();
 }
 
 export default function Search({
@@ -69,23 +68,17 @@ export default function Search({
   onToggleSave,
 }: SearchProps) {
   const { getNumber } = usePlatformSettings();
-  const [listings, setListings] = useState<Listing[]>(
-      () => propertyCache || [],
-    ),
-    [loading, setLoading] = useState(() => !propertyCache),
-    [loadError, setLoadError] = useState("");
-  const [stayType, setStayType] = useState<StayFilter>(
-    () => searchState.stayType,
-  );
-  const [priceMin, setPriceMin] = useState<number | "">(
-      () => searchState.priceMin,
-    ),
-    [priceMax, setPriceMax] = useState<number | "">(() => searchState.priceMax),
-    [bedrooms, setBedrooms] = useState<number | "">(() => searchState.bedrooms),
-    [bathrooms, setBathrooms] = useState<number | "">(() => searchState.bathrooms);
-  const [filterState, setFilterState] = useState(() => searchState.filterState),
-    [filterCity, setFilterCity] = useState(() => searchState.filterCity),
-    [showFilters, setShowFilters] = useState(false);
+  const [listings, setListings] = useState<Listing[]>(() => propertyCache || []);
+  const [loading, setLoading] = useState(() => !propertyCache);
+  const [loadError, setLoadError] = useState("");
+  const [stayType, setStayType] = useState<StayFilter>(() => searchState.stayType);
+  const [priceMin, setPriceMin] = useState<number | "">(() => searchState.priceMin);
+  const [priceMax, setPriceMax] = useState<number | "">(() => searchState.priceMax);
+  const [bedrooms, setBedrooms] = useState<number | "">(() => searchState.bedrooms);
+  const [bathrooms, setBathrooms] = useState<number | "">(() => searchState.bathrooms);
+  const [filterState, setFilterState] = useState(() => searchState.filterState);
+  const [filterCity, setFilterCity] = useState(() => searchState.filterCity);
+  const [showFilters, setShowFilters] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const {
@@ -101,9 +94,11 @@ export default function Search({
     if (saved === "short_let" || saved === "long_stay") setStayType(saved);
     sessionStorage.removeItem("search_property_type");
   }, []);
+
   useEffect(() => {
     void getMySavedSearches().then(({ searches }) => setFollowedSearches(searches));
   }, []);
+
   useEffect(() => {
     searchState = {
       stayType,
@@ -115,29 +110,27 @@ export default function Search({
       filterCity,
     };
   }, [stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
+
   const loadProperties = useCallback(async (quiet = false) => {
     if (!quiet && !propertyCache) setLoading(true);
     setLoadError("");
     const { homes, error } = await getDiscoverableHomes();
     if (error) {
-      setLoadError(
-        "Apartments could not be loaded. Check your connection and try again.",
-      );
+      setLoadError("Apartments could not be loaded. Check your connection and try again.");
     } else {
       propertyCache = homes || [];
       setListings(propertyCache);
     }
     setLoading(false);
   }, []);
+
   useEffect(() => {
     let live = true;
     void getDiscoverableHomes().then(({ homes, error }) => {
       if (!live) return;
-      if (error)
-        setLoadError(
-          "Apartments could not be loaded. Check your connection and try again.",
-        );
-      else {
+      if (error) {
+        setLoadError("Apartments could not be loaded. Check your connection and try again.");
+      } else {
         propertyCache = homes || [];
         setListings(propertyCache);
       }
@@ -148,13 +141,9 @@ export default function Search({
     };
   }, []);
 
-  const citiesForState = useMemo(
-    () => getCitiesForState(filterState),
-    [filterState],
-  );
+  const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
   const stateOptions = useMemo(
-    () =>
-      NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
+    () => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
     [],
   );
   const cityOptions = useMemo(
@@ -181,8 +170,8 @@ export default function Search({
     () =>
       listings
         .map((listing) => {
-          const lat = Number(listing.gps_latitude),
-            lng = Number(listing.gps_longitude);
+          const lat = Number(listing.gps_latitude);
+          const lng = Number(listing.gps_longitude);
           const distance =
             location && Number.isFinite(lat) && Number.isFinite(lng)
               ? distanceBetweenKm(location, { lat, lng })
@@ -194,17 +183,10 @@ export default function Search({
           const price = Number(listing.price || 0);
           if (priceMin !== "" && (price <= 0 || price < priceMin)) return false;
           if (priceMax !== "" && (price <= 0 || price > priceMax)) return false;
-          if (bedrooms && Number(listing.bedrooms || 0) < bedrooms)
-            return false;
-          if (bathrooms && Number(listing.bathrooms || 0) < bathrooms)
-            return false;
-          if (
-            filterState &&
-            normalize(listing.state) !== normalize(filterState)
-          )
-            return false;
-          if (filterCity && normalize(listing.city) !== normalize(filterCity))
-            return false;
+          if (bedrooms && Number(listing.bedrooms || 0) < bedrooms) return false;
+          if (bathrooms && Number(listing.bathrooms || 0) < bathrooms) return false;
+          if (filterState && normalize(listing.state) !== normalize(filterState)) return false;
+          if (filterCity && normalize(listing.city) !== normalize(filterCity)) return false;
           return true;
         })
         .sort((a, b) =>
@@ -228,17 +210,23 @@ export default function Search({
     [bedrooms, bathrooms, filterState, filterCity].filter(Boolean).length +
     (priceActive ? 1 : 0);
   const hasFilters = Boolean(filterCount || stayType !== "all");
-  const currentSearchCriteria = useMemo(() => ({
-    sub_type: stayType === "all" ? null : stayType,
-    state: filterState,
-    city: filterCity,
-    min_price: priceMin === "" ? null : priceMin,
-    max_price: priceMax === "" ? null : priceMax,
-    bedrooms: bedrooms === "" ? null : bedrooms,
-    bathrooms: bathrooms === "" ? null : bathrooms,
-  }), [bathrooms, bedrooms, filterCity, filterState, priceMax, priceMin, stayType]);
+  const currentSearchCriteria = useMemo(
+    () => ({
+      sub_type: stayType === "all" ? null : stayType,
+      state: filterState,
+      city: filterCity,
+      min_price: priceMin === "" ? null : priceMin,
+      max_price: priceMax === "" ? null : priceMax,
+      bedrooms: bedrooms === "" ? null : bedrooms,
+      bathrooms: bathrooms === "" ? null : bathrooms,
+    }),
+    [bathrooms, bedrooms, filterCity, filterState, priceMax, priceMin, stayType],
+  );
   const currentSearchKey = savedSearchKey("homes", currentSearchCriteria);
-  const followedSearch = followedSearches.find((item) => savedSearchKey(item.search_kind, item.criteria || {}) === currentSearchKey);
+  const followedSearch = followedSearches.find(
+    (item) => savedSearchKey(item.search_kind, item.criteria || {}) === currentSearchKey,
+  );
+
   function clearFilters() {
     setStayType("all");
     setPriceMin("");
@@ -248,16 +236,19 @@ export default function Search({
     setFilterState("");
     setFilterCity("");
   }
+
   function chooseStay(next: StayFilter) {
     if (next === stayType) return;
     setStayType(next);
     setPriceMin("");
     setPriceMax("");
   }
+
   function chooseState(value: string) {
     setFilterState(value);
     setFilterCity("");
   }
+
   async function toggleFollowSearch() {
     if (savingSearch) return;
     setSavingSearch(true);
@@ -265,27 +256,50 @@ export default function Search({
       const { error } = await removeSavedSearch(followedSearch.id);
       setSavingSearch(false);
       if (error) return toast.error(error.message || "Search could not be unfollowed");
-      setFollowedSearches((current) => current.filter((item) => item.id !== followedSearch.id));
+      setFollowedSearches((current) =>
+        current.filter((item) => item.id !== followedSearch.id),
+      );
       toast.success("Search unfollowed. New matches will no longer create Activity updates.");
       return;
     }
-    const name = `${stayType === "short_let" ? "Short stays" : stayType === "long_stay" ? "Long-term homes" : "All homes"}${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
-    const { error } = await followPropertySearch(name, "homes", currentSearchCriteria);
+    const name = `${
+      stayType === "short_let"
+        ? "Short Let"
+        : stayType === "long_stay"
+          ? "Long Let"
+          : "All homes"
+    }${filterCity ? ` · ${filterCity}` : filterState ? ` · ${filterState}` : ""}`;
+    const { error } = await followPropertySearch(
+      name,
+      "homes",
+      currentSearchCriteria,
+    );
     setSavingSearch(false);
-    if (error)
-      return toast.error(error.message || "Search could not be followed");
+    if (error) return toast.error(error.message || "Search could not be followed");
     const refreshed = await getMySavedSearches();
     if (!refreshed.error) setFollowedSearches(refreshed.searches);
-    toast.success(followedSearch ? "Apartment alerts resumed" : "Search followed. New matches will appear in Inbox Activity.");
+    toast.success(
+      followedSearch
+        ? "Apartment alerts resumed"
+        : "Search followed. New matches will appear in Inbox Activity.",
+    );
   }
-  const modeLabel = stayType === "short_let" ? "Short-stay" : stayType === "long_stay" ? "Long-term" : "All";
+
+  const modeLabel =
+    stayType === "short_let"
+      ? "Short Let"
+      : stayType === "long_stay"
+        ? "Long Let"
+        : "All homes";
   const locationSummary = filterCity
     ? `${filterCity}, ${filterState}`
     : filterState
       ? filterState
       : `${modeLabel} apartments`;
   const emptyTitle = priceActive
-    ? `No ${modeLabel.toLowerCase()} apartments match this ${stayType === "short_let" ? "nightly" : "yearly"} price range`
+    ? `No ${modeLabel.toLowerCase()} apartments match this ${
+        stayType === "short_let" ? "nightly" : "yearly"
+      } price range`
     : stayType === "all"
       ? "No apartments match these filters"
       : `No ${modeLabel.toLowerCase()} apartments match these filters`;
@@ -305,6 +319,7 @@ export default function Search({
           onClearLocation={clearLocation}
           locationDetail={locationError || undefined}
         />
+
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold">
@@ -315,17 +330,27 @@ export default function Search({
             <p className="mt-1 text-[9px] text-[#666D7E]">{modeLabel}</p>
           </div>
           <div className="flex items-center gap-3">
-            {hasFilters && (
+            {hasFilters ? (
               <button
                 type="button"
                 disabled={savingSearch}
                 onClick={() => void toggleFollowSearch()}
-                className={`rounded-full border px-3 py-2 text-[9px] font-semibold disabled:opacity-40 ${followedSearch?.notifications_enabled ? "border-emerald-500/25 text-emerald-300" : "border-violet-500/20 text-violet-300"}`}
+                className={`rounded-full border px-3 py-2 text-[9px] font-semibold disabled:opacity-40 ${
+                  followedSearch?.notifications_enabled
+                    ? "border-emerald-500/25 text-emerald-300"
+                    : "border-violet-500/20 text-violet-300"
+                }`}
               >
-                {savingSearch ? "Updating…" : followedSearch?.notifications_enabled ? "Following" : followedSearch ? "Resume alerts" : "Follow search"}
+                {savingSearch
+                  ? "Updating…"
+                  : followedSearch?.notifications_enabled
+                    ? "Following"
+                    : followedSearch
+                      ? "Resume alerts"
+                      : "Follow search"}
               </button>
-            )}
-            {hasFilters && (
+            ) : null}
+            {hasFilters ? (
               <button
                 type="button"
                 onClick={clearFilters}
@@ -333,14 +358,13 @@ export default function Search({
               >
                 Clear
               </button>
-            )}
+            ) : null}
           </div>
         </div>
+
         {loadError && !listings.length ? (
           <section className="border-y border-red-500/15 px-5 py-12 text-center">
-            <p className="text-sm font-semibold">
-              Apartments could not be loaded
-            </p>
+            <p className="text-sm font-semibold">Apartments could not be loaded</p>
             <p className="mt-2 text-[10px] text-[#777D8D]">{loadError}</p>
             <button
               type="button"
@@ -369,6 +393,7 @@ export default function Search({
                 onClick={() => onNavigate("detail", listing.id)}
                 isSaved={savedIds.has(listing.id)}
                 onToggleSave={(event) => {
+                  event.preventDefault();
                   event.stopPropagation();
                   onToggleSave(listing.id);
                 }}
@@ -378,7 +403,7 @@ export default function Search({
         )}
       </main>
 
-      {showFilters && (
+      {showFilters ? (
         <DiscoveryFilterSheet
           title="Apartment filters"
           onClose={() => setShowFilters(false)}
@@ -389,20 +414,25 @@ export default function Search({
             {(
               [
                 ["all", "All"],
-                ["long_stay", "Long-term"],
-                ["short_let", "Short stays"],
+                ["long_stay", "Long Let"],
+                ["short_let", "Short Let"],
               ] as const
             ).map(([value, label]) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => chooseStay(value)}
-                className={`rounded-xl px-2 py-2.5 text-[10px] font-semibold ${stayType === value ? "bg-violet-500 text-white" : "text-[#7E8494]"}`}
+                className={`rounded-xl px-2 py-2.5 text-[10px] font-semibold ${
+                  stayType === value
+                    ? "bg-violet-500 text-white"
+                    : "text-[#7E8494]"
+                }`}
               >
                 {label}
               </button>
             ))}
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <SearchableSelect
               label="State"
@@ -422,6 +452,7 @@ export default function Search({
               disabled={!filterState}
             />
           </div>
+
           {stayType !== "all" ? (
             <DiscoveryPriceRangeSlider
               label={stayType === "short_let" ? "Price per night" : "Yearly rent"}
@@ -434,10 +465,9 @@ export default function Search({
               onMaxChange={setPriceMax}
             />
           ) : null}
+
           <section>
-            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">
-              Bedrooms
-            </p>
+            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">Bedrooms</p>
             <div className="grid grid-cols-5 gap-2">
               {(
                 [
@@ -453,17 +483,20 @@ export default function Search({
                   type="button"
                   onClick={() => setBedrooms(value ? Number(value) : "")}
                   aria-pressed={String(bedrooms) === value}
-                  className={`h-11 rounded-xl text-[10px] font-semibold ${String(bedrooms) === value ? "bg-violet-500 text-white" : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"}`}
+                  className={`h-11 rounded-xl text-[10px] font-semibold ${
+                    String(bedrooms) === value
+                      ? "bg-violet-500 text-white"
+                      : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"
+                  }`}
                 >
                   {label}
                 </button>
               ))}
             </div>
           </section>
+
           <section>
-            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">
-              Bathrooms
-            </p>
+            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">Bathrooms</p>
             <div className="grid grid-cols-4 gap-2">
               {(
                 [
@@ -478,7 +511,11 @@ export default function Search({
                   type="button"
                   onClick={() => setBathrooms(value ? Number(value) : "")}
                   aria-pressed={String(bathrooms) === value}
-                  className={`h-11 rounded-xl text-[10px] font-semibold ${String(bathrooms) === value ? "bg-violet-500 text-white" : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"}`}
+                  className={`h-11 rounded-xl text-[10px] font-semibold ${
+                    String(bathrooms) === value
+                      ? "bg-violet-500 text-white"
+                      : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"
+                  }`}
                 >
                   {label}
                 </button>
@@ -486,7 +523,7 @@ export default function Search({
             </div>
           </section>
         </DiscoveryFilterSheet>
-      )}
+      ) : null}
     </DiscoveryShell>
   );
 }
