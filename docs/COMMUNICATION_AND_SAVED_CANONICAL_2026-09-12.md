@@ -1,29 +1,30 @@
 # WeHouse Communication, Activity, Saved and Followed Search Contract
 
-This correction supersedes any older document that treated Conversation and Inbox as one top-level customer destination.
+This correction supersedes any branch or document that creates separate top-level Conversation and Inbox destinations.
 
 ## Customer navigation
 
 The customer navigation is exactly:
 
-`Explore · Bookings · Conversation · Inbox · Account`
+`Explore · Bookings · Inbox · Account`
 
-- **Conversation** contains direct and operational conversation threads: roommate, service job, paid hotel stay and WeHouse cases that genuinely require dialogue.
-- **Inbox** contains Activity: booking/lifecycle events, followed-search matches, security/account updates, announcements and other product events.
-- Activity is never stacked above or below the Conversation thread list.
-- Legacy `messages`/`chat` routes normalize to Conversation. Legacy `notifications` routes normalize to Inbox Activity.
-- Conversation unread and Activity unread are counted separately.
+- **Inbox is the one communication destination.** It opens to the message/conversation list.
+- Near the top of Inbox is one compact **Activity** entry, similar to the TikTok Inbox pattern. It can show an unread indicator/latest-update summary, but it does not dump Activity history above messages.
+- Tapping **Activity** opens the Activity history inside the Inbox flow. Back returns to the same Inbox/message context.
+- Roommate, service-job, paid hotel-stay and relevant WeHouse threads remain typed conversations inside Inbox; they are not separate top-level products.
+- Legacy `conversation`, `messages` and `chat` routes may remain for deep-link compatibility, but they must never create another visible primary-navigation destination.
+- The Inbox navigation badge may combine unread messages and unread Activity. Inside Inbox, message unread and Activity unread remain independently understandable.
 
 ## Saved, Followed Search and Showcase Like are different intentions
 
 ### Saved
 
-Saved is a private bookmark. It contains homes and hotels only.
+Saved is a private bookmark/favourite intent. It contains homes and hotels only.
 
-- Apartment bookmarks use `saved_listings`.
-- Hotel bookmarks use `saved_hotels`.
-- The UI uses a bookmark icon.
-- Saving never starts a booking and never changes a social reaction.
+- Apartment saves use `saved_listings`.
+- Hotel saves use `saved_hotels`.
+- A home/hotel Save control may use a heart or bookmark visual as long as it clearly means **Save**, not a public/social Like.
+- Saving never starts a booking and never changes a Showcase reaction.
 
 ### Followed Search
 
@@ -31,14 +32,14 @@ Follow Search is a subscription to search criteria, not a saved item and not a s
 
 - Follow/unfollow/resume is managed from the current discovery search.
 - Duplicate semantic criteria are prevented by canonical saved-search identity.
-- A newly published matching home/hotel creates Inbox Activity.
+- A newly published matching home/hotel creates Activity inside Inbox.
 - A followed search does not appear inside Saved.
 
 ### Showcase Like
 
 Worker Showcase is a social/work-media surface.
 
-- Heart means Like.
+- Showcase heart/reaction means a social Like/reaction on that post.
 - Comments belong to the Showcase post.
 - Showcase reactions use Showcase reaction storage and never use `saved_listings` or `saved_hotels`.
 
@@ -58,7 +59,7 @@ Public discovery profiles and private chat identity are intentionally different.
 - After checkout, permitted history remains read-only.
 - Hotel/Front Desk communication is presented as the hotel business context, not as a staff member's private identity.
 - Conversation context uses hotel/room/stay dates. Booking/check-in credentials never appear in thread titles/subtitles/previews.
-- Customer hotel detail is focused on hotel facts, rooms, rates, amenities, arrival/departure and availability. Internal venue/restaurant records are not a separate public WeHouse product surface.
+- Customer hotel detail is focused on hotel facts, rooms, rates, amenities, arrival/departure and availability. Restaurant/bar/cafe/spa/lounge records are not a separate WeHouse public product module; ordinary hotel facilities belong in the hotel's amenities/facilities model unless a future approved product requirement says otherwise.
 
 ## Service block and Payment Protection
 
@@ -70,13 +71,13 @@ Public discovery profiles and private chat identity are intentionally different.
 
 ## Regression checks
 
-1. Mobile and desktop both expose Conversation and Inbox separately.
-2. Activity never renders inside the Conversation list.
-3. Followed-search matches appear in Inbox Activity only.
-4. Homes and hotels can both be bookmarked.
-5. Heart remains Showcase Like; bookmark remains Saved.
-6. Private chat profiles do not reuse full public discovery profiles.
-7. One hotel-stay thread exists per paid confirmed stay.
-8. Closed hotel stays have no writable composer.
-9. Blocking stops every service message/call path while protected value remains protected.
-10. Back from a thread returns to the Conversation context rather than a detached extra destination.
+1. Mobile and desktop expose one top-level Inbox, never a separate Conversation destination.
+2. Opening Inbox shows messages by default with one compact Activity entry; full Activity history appears only after tapping Activity.
+3. Back from Activity or a thread returns to the Inbox context rather than a detached extra page.
+4. Followed-search matches appear in Inbox Activity only.
+5. Homes and hotels can both be saved independently of Showcase reactions.
+6. A Save heart/bookmark is private saved state; a Showcase heart/reaction is social state. Their storage and behavior never cross.
+7. Private chat profiles do not reuse full public discovery profiles.
+8. One hotel-stay thread exists per paid confirmed stay.
+9. Closed hotel stays have no writable composer.
+10. Blocking stops every service message/call path while protected value remains protected.
