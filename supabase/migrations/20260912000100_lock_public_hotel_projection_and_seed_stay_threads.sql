@@ -16,9 +16,10 @@ drop policy if exists hotels_public_active_select on public.hotels;
 -- retain their table grant, but RLS now limits them to hotels_internal_select.
 revoke select on table public.hotels from anon;
 
--- Public detail is deliberately about the stay product: hotel facts, rooms and
--- bookable rate plans. Internal venue/restaurant records are not a separate
--- customer product surface and are therefore omitted from this projection.
+-- Public hotel detail follows a mature booking model:
+-- Hotel -> Room type -> Rate/package choices -> dated availability.
+-- Optional restaurants/bars/spa/lounge facilities are informative hotel facts;
+-- they do not become a second booking product and do not replace room rate plans.
 create or replace function public.get_public_hotel_detail(p_hotel_id integer)
 returns jsonb
 language plpgsql
@@ -32,6 +33,7 @@ declare
   v_internal boolean := false;
   v_current_paid_stay boolean := false;
   v_rooms jsonb;
+  v_facilities jsonb;
 begin
   select * into v_hotel
   from public.hotels
@@ -68,8 +70,8 @@ begin
       );
 
     -- Exact location remains available while the paid stay is live. Completed
-    -- guests keep the address in their booking history/receipt, not as perpetual
-    -- access to the broader hotel record.
+    -- guests keep the address in booking history/receipt, not as perpetual
+    -- access to the broader live hotel record.
     v_current_paid_stay := exists(
       select 1
       from public.hotel_bookings booking
@@ -99,10 +101,17 @@ begin
   from public.hotel_rooms room
   where room.hotel_id = v_hotel.hotel_id;
 
+  select coalesce(jsonb_agg(to_jsonb(venue) order by venue.kind,venue.name),'[]'::jsonb)
+  into v_facilities
+  from public.hotel_venues venue
+  where venue.hotel_id = v_hotel.hotel_id
+    and (venue.active or v_internal);
+
   if v_internal then
     return to_jsonb(v_hotel)
       || jsonb_build_object(
         'hotel_rooms',v_rooms,
+        'venues',v_facilities,
         'location_exact',true
       );
   end if;
@@ -128,6 +137,7 @@ begin
       else round(v_hotel.gps_longitude,2)
     end,
     'hotel_rooms',v_rooms,
+    'venues',v_facilities,
     'location_exact',v_current_paid_stay
   );
 end;
@@ -144,7 +154,7 @@ grant execute on function public.get_public_hotel_detail(integer)
 comment on function public.get_discoverable_hotels()
   is 'Column-safe public hotel discovery projection. Anonymous and authenticated callers use this instead of selecting public.hotels directly.';
 comment on function public.get_public_hotel_detail(integer)
-  is 'Column-safe hotel detail projection for hotel facts, rooms and rates. Internal venue records are excluded; exact location is limited to internal actors or a live paid stay.';
+  is 'Column-safe hotel detail projection for hotel facts, room types, rate/package choices and active facilities/dining. Exact location is limited to internal actors or a live paid stay.';
 
 -- ---------------------------------------------------------------------------
 -- 2. One deterministic conversation per paid hotel stay.
