@@ -31,7 +31,7 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave, d
       <img src={primary} alt={displayTitle} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" decoding="async"/>
       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10"/>
       <div className="absolute left-2.5 top-2.5 z-10"><span className={`rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase backdrop-blur-md ${statusBg} ${statusText} ${statusBorder}`}>{statusLabel}</span></div>
-      {onToggleSave ? <button onClick={onToggleSave} aria-label={isSaved ? 'Remove from saved apartments' : 'Save apartment'} aria-pressed={isSaved} className="absolute right-2.5 top-2.5 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/45 backdrop-blur-md"><svg width="17" height="17" viewBox="0 0 24 24" fill={isSaved ? '#A78BFA' : 'none'} stroke={isSaved ? '#A78BFA' : 'white'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3.75A1.75 1.75 0 0 1 7.75 2h8.5A1.75 1.75 0 0 1 18 3.75V22l-6-3.75L6 22V3.75Z"/></svg></button> : null}
+      {onToggleSave ? <button onClick={onToggleSave} aria-label={isSaved ? 'Remove apartment from Saved' : 'Save apartment'} aria-pressed={isSaved} className="absolute right-2.5 top-2.5 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/45 backdrop-blur-md"><Heart filled={Boolean(isSaved)} /></button> : null}
       <div className="absolute bottom-2.5 left-2.5 z-10"><span className="text-base font-bold">{priceDisplay}</span><span className="ml-1 text-[9px] text-white/65">{priceUnit}</span></div>
       {media.length + Number(listing.videos?.length || 0) > 1 ? <span className="absolute bottom-2.5 right-2.5 z-10 rounded-full bg-black/55 px-2 py-1 text-[8px] font-semibold">{media.length} photos{listing.videos?.length ? ` · ${listing.videos.length} video${listing.videos.length === 1 ? '' : 's'}` : ''}</span> : null}
     </div>
@@ -43,4 +43,8 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave, d
       <div className="mt-3 flex items-center gap-2 text-[8px]">{rawStatus === 'available' ? <span className="text-emerald-300">● Verified and available</span> : null}{listing.videos?.length > 0 ? <span className="text-[#747B8C]">▶ Video preview</span> : null}</div>
     </div>
   </article>;
+}
+
+function Heart({ filled }: { filled: boolean }) {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? '#A78BFA' : 'none'} stroke={filled ? '#A78BFA' : 'white'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>;
 }
