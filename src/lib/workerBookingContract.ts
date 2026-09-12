@@ -69,7 +69,7 @@ export function workerMoneyState(row:any):WorkerMoneyState{
   return 'unpaid';
 }
 
-export function normalizeWorkerBookingRow<T extends Record<string,any>>(row:T):T & {booking_status:WorkerJobStatus;status:WorkerJobStatus;money_state:WorkerMoneyState;money_label:string;payment_protected:boolean}{
+export function normalizeWorkerBookingRow<T extends Record<string,any>>(row:T):T & {booking_status:WorkerJobStatus;status:WorkerJobStatus;money_state:WorkerMoneyState;money_label:string;payment_status:string;payment_protected:boolean}{
   const moneyState=workerMoneyState(row);
   const status=normalizeWorkerJobStatus(row.booking_status??row.status,moneyState==='protected');
   return {
@@ -78,6 +78,7 @@ export function normalizeWorkerBookingRow<T extends Record<string,any>>(row:T):T
     status,
     money_state:moneyState,
     money_label:WORKER_MONEY_LABELS[moneyState],
+    payment_status:moneyState==='protected'?'payment_protected':String(row.payment_status||moneyState),
     payment_protected:moneyState==='protected'||Boolean(row.payment_protected),
   };
 }
