@@ -60,21 +60,16 @@ export default function PublicProfileSurface({
       aria-modal="true"
       aria-label={ariaLabel || `${name} profile`}
     >
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#090B10]/95 px-3 py-2.5 backdrop-blur-xl">
-        <div className={`mx-auto flex ${width} items-center gap-2.5`}>
-          <BackButton onClick={onClose} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{name}</p>
-            {[presence, subtitle].filter(Boolean).length ? (
-              <p className="mt-0.5 truncate text-[9px] text-[#777D8D]">
-                {[presence, subtitle].filter(Boolean).join(" · ")}
-              </p>
-            ) : null}
-          </div>
+      <header className="pointer-events-none sticky top-0 z-30 h-14 px-3 pt-2.5">
+        <div className={`mx-auto flex ${width} items-center`}>
+          <BackButton
+            onClick={onClose}
+            className="pointer-events-auto !rounded-full !border-white/[.08] !bg-black/55 !text-white shadow-lg backdrop-blur-xl"
+          />
         </div>
       </header>
 
-      <main className={`mx-auto ${width} px-5 pb-10 pt-6`}>
+      <main className={`mx-auto -mt-14 ${width} px-5 pb-10 pt-20`}>
         <section className="relative overflow-hidden border-b border-white/[.07] pb-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-violet-600/10 blur-3xl" />
           <div className="relative flex items-center gap-4">
@@ -98,6 +93,7 @@ export default function PublicProfileSurface({
                   @{username.replace(/^@/, "")}
                 </p>
               ) : null}
+              {presence ? <p className="mt-1 text-[9px] text-[#777D8D]">{presence}</p> : null}
               {subtitle ? <p className="mt-2 text-xs text-[#A5ABB8]">{subtitle}</p> : null}
               {location ? <p className="mt-1 text-[10px] leading-5 text-[#7D8494]">{location}</p> : null}
               {badges ? <div className="mt-3 flex flex-wrap items-center gap-2">{badges}</div> : null}
