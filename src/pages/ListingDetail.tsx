@@ -16,6 +16,17 @@ export default function ListingDetail(props: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("wehouse:nested-screen", { detail: { open: true } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     const surface = surfaceRef.current;
     if (!surface) return;
     const pruneRoutineSupport = () => {
@@ -25,8 +36,13 @@ export default function ListingDetail(props: Props) {
         if (!/^Message WeHouse(?:\s*→)?$/i.test(label)) continue;
         const section = button.closest("section");
         const sectionText = String(section?.textContent || "").replace(/\s+/g, " ");
-        if (section && /Questions about this apartment\?/i.test(sectionText)) section.style.display = "none";
-        else { button.style.display = "none"; button.setAttribute("aria-hidden", "true"); button.tabIndex = -1; }
+        if (section && /Questions about this apartment\?/i.test(sectionText)) {
+          section.style.display = "none";
+        } else {
+          button.style.display = "none";
+          button.setAttribute("aria-hidden", "true");
+          button.tabIndex = -1;
+        }
       }
     };
     pruneRoutineSupport();
@@ -42,7 +58,17 @@ export default function ListingDetail(props: Props) {
         .listing-detail-save-surface button[aria-label="Remove from saved apartments"] { display: none !important; }
       `}</style>
       <ListingDetailCore {...props} />
-      <button type="button" onClick={props.onToggleSave} aria-label={props.isSaved ? "Remove apartment from Saved" : "Add apartment to Saved"} aria-pressed={props.isSaved} className="fixed right-4 top-[max(.75rem,env(safe-area-inset-top))] z-[55] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur">
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          props.onToggleSave();
+        }}
+        aria-label={props.isSaved ? "Remove apartment from Saved" : "Add apartment to Saved"}
+        aria-pressed={props.isSaved}
+        className="absolute right-4 top-[4.75rem] z-[45] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur active:scale-95"
+      >
         <Heart filled={props.isSaved} />
       </button>
     </div>
