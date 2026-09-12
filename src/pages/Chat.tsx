@@ -28,6 +28,8 @@ type Props = {
   chatUnreadCount?: number;
   activityUnreadCount?: number;
   onActivityUnreadChange?: (count: number) => void;
+  showActivityEntry?: boolean;
+  onOpenActivity?: () => void;
 };
 
 type BookingConversation = {
@@ -63,6 +65,9 @@ export default function Chat({
   conversationId,
   peerUserId,
   onConversationClose,
+  activityUnreadCount = 0,
+  showActivityEntry = false,
+  onOpenActivity,
 }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [bookingConversations, setBookingConversations] = useState<BookingConversation[]>([]);
@@ -173,11 +178,40 @@ export default function Chat({
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-lg font-bold sm:text-xl">Conversation</h1>
-          <p className="mt-1 text-[9px] text-[#707687]">People, stays, services and WeHouse conversations.</p>
+          <h1 className="text-lg font-bold sm:text-xl">Inbox</h1>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
+        {showActivityEntry && onOpenActivity ? (
+          <button
+            type="button"
+            onClick={onOpenActivity}
+            className="flex w-full items-center gap-3 border-b border-white/[.07] py-3.5 text-left active:bg-white/[.025]"
+            aria-label="Open Activity"
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-fuchsia-500 text-white shadow-[0_8px_30px_rgba(217,70,239,.18)]">
+              <ActivityBellIcon />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-semibold">Activity</span>
+              <span className="mt-0.5 block truncate text-[10px] text-[#747A8A]">
+                {activityUnreadCount > 0
+                  ? `${activityUnreadCount > 99 ? "99+" : activityUnreadCount} new update${activityUnreadCount === 1 ? "" : "s"}`
+                  : "Updates and actions that affect you"}
+              </span>
+            </span>
+            {activityUnreadCount > 0 ? (
+              <span className="grid h-6 min-w-6 place-items-center rounded-full bg-violet-500 px-1.5 text-[9px] font-bold">
+                {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
+              </span>
+            ) : null}
+            <span className="text-xl text-[#6F7584]" aria-hidden="true">›</span>
+          </button>
+        ) : null}
+
+        <div className="pb-2 pt-5">
+          <h2 className="text-sm font-bold">Messages</h2>
+        </div>
         <label className="flex h-11 items-center gap-3 border-b border-white/[.08] px-1 focus-within:border-violet-500/45">
           <SearchIcon />
           <input
@@ -348,4 +382,12 @@ function statusLabel(value?: string | null) {
 }
 function SearchIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
+}
+function ActivityBellIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+      <path d="M10 21h4" />
+    </svg>
+  );
 }
