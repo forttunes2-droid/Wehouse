@@ -10,7 +10,11 @@ alter table public.workspace_role_assignments
   drop constraint if exists workspace_role_assignments_workspace_role_check;
 alter table public.workspace_role_assignments
   add constraint workspace_role_assignments_workspace_role_check
-  check (workspace_role = any(array['worker','property_partner','staff','admin','creator']::text[]));
+  check (workspace_role = any(array[
+    'worker','property_partner','staff','admin','creator',
+    'property_operations','field_operations','worker_operations',
+    'finance_operations','security_operations','support'
+  ]::text[]));
 
 insert into public.workspace_role_assignments(
   user_id,workspace_role,scope_type,scope_state,scope_lga,status,granted_by,granted_at,created_at,updated_at

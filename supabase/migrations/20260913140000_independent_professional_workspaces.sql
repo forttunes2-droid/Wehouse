@@ -7,7 +7,11 @@ alter table public.workspace_role_assignments
   drop constraint if exists workspace_role_assignments_workspace_role_check;
 alter table public.workspace_role_assignments
   add constraint workspace_role_assignments_workspace_role_check
-  check(workspace_role in ('worker','property_partner','staff','admin','creator'));
+  check(workspace_role in (
+    'worker','property_partner','staff','admin','creator',
+    'property_operations','field_operations','worker_operations',
+    'finance_operations','security_operations','support'
+  ));
 
 update public.profiles
 set account_kind='consumer',updated_at=now()

@@ -118,7 +118,12 @@ test('Validation workflow runs regression tests before build',()=>{
 });
 
 test('Internal lifecycle transition helper closes the execution review queue',()=>{
+  const preflight=read('supabase/migrations/20260913051251_close_invoker_registry_and_projection_rls.sql');
   const migration=read('supabase/migrations/20260913055204_close_internal_transition_registry_drift.sql');
+  assert.match(preflight,/record_my_user_activity/);
+  assert.match(preflight,/revoke all on function public\.canonical_product_transition_allowed\(text,text,text\)/);
+  assert.match(preflight,/revoke all on function public\.hotel_allowed_capabilities\(\)/);
+  assert.match(preflight,/where authenticated_allowed and review_state='requires_review'/);
   assert.match(migration,/revoke all on function public\.canonical_product_transition_allowed\(text,text,text\)/);
   assert.match(migration,/from public,anon,authenticated,service_role/);
   assert.match(migration,/public_allowed=false/);
@@ -211,4 +216,27 @@ test('Worker onboarding stays free and Pro stays an optional entitlement',()=>{
   assert.doesNotMatch(workers,/export async function createBlueBadgeSubscription/);
   assert.doesNotMatch(workers,/export async function cancelBlueBadgeSubscription/);
   assert.doesNotMatch(exports,/createBlueBadgeSubscription|cancelBlueBadgeSubscription/);
+});
+
+test('Independent workspaces preserve scoped Staff operations access',()=>{
+  const foundation=read('supabase/migrations/20260912094000_canonical_personal_and_workspaces.sql');
+  const independent=read('supabase/migrations/20260913140000_independent_professional_workspaces.sql');
+  for(const migration of [foundation,independent]){
+    assert.match(migration,/property_operations/);
+    assert.match(migration,/field_operations/);
+    assert.match(migration,/worker_operations/);
+    assert.match(migration,/finance_operations/);
+    assert.match(migration,/security_operations/);
+    assert.match(migration,/support/);
+  }
+});
+
+test('Privileged production Edge Functions remain reproducible and fail closed',()=>{
+  const creator=read('supabase/functions/creator-step-up/index.ts');
+  const processor=read('supabase/functions/financial-action-processor/index.ts');
+  assert.match(creator,/issue_creator_elevation_from_service/);
+  assert.match(creator,/password_mfa/);
+  assert.match(processor,/x-wehouse-cron-secret/);
+  assert.match(processor,/sameSecret/);
+  assert.match(processor,/mark_financial_action_manual_review/);
 });
