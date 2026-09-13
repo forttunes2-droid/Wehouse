@@ -154,6 +154,7 @@ test('PMS mode is named, certified and fail-closed',()=>{
   assert.match(foundation,/integration_id uuid primary key/);
   assert.match(foundation,/integration_event_id uuid primary key/);
   assert.match(foundation,/connection_name text not null/);
+  assert.match(foundation,/owner_set_hotel_integration_status\(p_integration_id uuid,p_status text\)\s*returns jsonb/);
   assert.doesNotMatch(foundation,/hotel_integrations\(id\)/);
   assert.match(recoveredFoundation,/drop policy if exists hotel_integrations_owner_read/);
   assert.match(recoveredFoundation,/drop policy if exists hotel_integration_events_owner_read/);

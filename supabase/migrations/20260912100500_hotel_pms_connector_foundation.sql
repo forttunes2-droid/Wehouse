@@ -147,7 +147,7 @@ end;
 $$;
 
 create or replace function public.owner_set_hotel_integration_status(p_integration_id uuid,p_status text)
-returns boolean
+returns jsonb
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public'
@@ -160,8 +160,9 @@ begin
   select i.* into row from public.hotel_integrations i join public.hotels h on h.hotel_id=i.hotel_id
   where i.integration_id=p_integration_id and h.owner_id=actor.user_id for update;
   if row.integration_id is null then raise exception 'Hotel owner access required'; end if;
-  update public.hotel_integrations set status=p_status,revoked_at=case when p_status='revoked' then now() else null end,updated_at=now() where integration_id=row.integration_id;
-  return true;
+  update public.hotel_integrations set status=p_status,revoked_at=case when p_status='revoked' then now() else null end,updated_at=now()
+  where integration_id=row.integration_id returning * into row;
+  return to_jsonb(row)-'token_hash';
 end;
 $$;
 
