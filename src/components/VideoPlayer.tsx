@@ -25,26 +25,44 @@ export default function VideoPlayer({
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(durationHint || durationFromSource(src));
-  const [silent, setSilent] = useState(muted);
+  // Mobile browsers normally allow autoplay only when muted. Showcase should
+  // begin reliably, then the viewer can explicitly unmute it.
+  const [silent, setSilent] = useState(muted || autoPlay);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setCurrent(0);
     setDuration(durationHint || durationFromSource(src));
     setFailed(false);
-  }, [durationHint, src]);
+    setSilent(muted || autoPlay);
+  }, [autoPlay, durationHint, muted, src]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !autoPlay) return;
+    video.muted = true;
+    void video.play().catch(() => {
+      // Do not call this a playback failure merely because a browser requires
+      // one user gesture. The visible play control remains available.
+      setPlaying(false);
+    });
+  }, [autoPlay, src]);
 
   async function toggle() {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) await video.play().catch(() => setFailed(true));
-    else video.pause();
+    if (video.paused) {
+      await video.play().catch(() => setFailed(true));
+    } else {
+      video.pause();
+    }
   }
 
   function updateDuration(video: HTMLVideoElement) {
-    const next = Number.isFinite(video.duration) && video.duration > 0
-      ? video.duration
-      : durationHint || durationFromSource(src);
+    const next =
+      Number.isFinite(video.duration) && video.duration > 0
+        ? video.duration
+        : durationHint || durationFromSource(src);
     if (next > 0) {
       setDuration(next);
       onDuration?.(next);
@@ -86,6 +104,11 @@ export default function VideoPlayer({
         controls={false}
         onLoadedMetadata={(event) => readMetadata(event.currentTarget)}
         onDurationChange={(event) => updateDuration(event.currentTarget)}
+        onCanPlay={(event) => {
+          if (!autoPlay) return;
+          event.currentTarget.muted = true;
+          void event.currentTarget.play().catch(() => undefined);
+        }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onTimeUpdate={(event) => {
@@ -106,15 +129,22 @@ export default function VideoPlayer({
         <div className="absolute inset-0 grid place-items-center bg-[#0D1016] px-6 text-center">
           <div>
             <p className="text-xs font-semibold text-white">Video cannot play on this device</p>
-            <p className="mt-1 text-[9px] leading-4 text-[#858B9A]">Record or upload MP4 (H.264) or WebM (VP8), then try again.</p>
+            <p className="mt-1 text-[9px] leading-4 text-[#858B9A]">Use MP4 (H.264) or WebM (VP8), then try again.</p>
           </div>
         </div>
       ) : (
-        <button type="button" onClick={() => void toggle()} className="absolute inset-0 grid place-items-center" aria-label={playing ? "Pause video" : "Play video"}>
-          {!playing && <span className="grid h-14 w-14 place-items-center rounded-full bg-black/65 text-lg text-white backdrop-blur">▶</span>}
+        <button
+          type="button"
+          onClick={() => void toggle()}
+          className="absolute inset-0 grid place-items-center"
+          aria-label={playing ? "Pause video" : "Play video"}
+        >
+          {!playing ? (
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-black/65 text-lg text-white backdrop-blur">▶</span>
+          ) : null}
         </button>
       )}
-      {!failed && (
+      {!failed ? (
         <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-8">
           <button type="button" onClick={() => void toggle()} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label={playing ? "Pause video" : "Play video"}>{playing ? "Ⅱ" : "▶"}</button>
           <span className="w-9 shrink-0 font-mono text-[8px] text-white/75">{formatDuration(current)}</span>
@@ -123,7 +153,7 @@ export default function VideoPlayer({
           <button type="button" onClick={() => { const next = !silent; setSilent(next); if (videoRef.current) videoRef.current.muted = next; }} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label={silent ? "Unmute video" : "Mute video"}>{silent ? "⌁" : "◖"}</button>
           <button type="button" onClick={() => void openFullscreen()} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label="View video full screen">⛶</button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -9,7 +9,8 @@ import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import GoldTickBadge from "@/components/GoldTickBadge";
+import WorkerProBadge from "@/components/WorkerProBadge";
+import WorkerTrustBadge from "@/components/WorkerTrustBadge";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryShell, {
@@ -688,7 +689,8 @@ function WorkerCard({
             <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
               {displayName}
             </h2>
-            <GoldTickBadge size="sm" title="WeHouse reviewed professional" />
+            {worker.pro_active ? <WorkerProBadge compact /> : null}
+            <WorkerTrustBadge />
           </div>
           <p className="mt-1 truncate text-[10px] text-[#8A8F9E]">
             {occupation}

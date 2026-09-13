@@ -1,130 +1,110 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
-import { supabase } from '@/lib/supabase';
 
 export default function CreatorAuthModal() {
-  const { showModal, verifyPassword, setPassword, dismissRequest, error, isLoading } = useCreatorAuth();
-  const [mode, setMode] = useState<'enter' | 'setup' | 'change'>('enter');
-  const [password, setPasswordInput] = useState('');
-  const [oldPassword, setOldPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [localError, setLocalError] = useState('');
+  const {
+    showModal,
+    needsMfa,
+    isLoading,
+    error,
+    verifyPassword,
+    verifyMfa,
+    dismissRequest,
+  } = useCreatorAuth();
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Check if password already set on mount — localStorage first, SQL fallback
   useEffect(() => {
-    if (!showModal) return;
-    async function check() {
-      // Check localStorage (app-first password)
-      try {
-        const hasLocalPw = !!localStorage.getItem('wh_creator_pw_hash');
-        if (hasLocalPw) { setMode('enter'); setPasswordInput(''); setOldPassword(''); setConfirmPassword(''); setLocalError(''); return; }
-      } catch { /* ignore */ }
-
-      // Fallback: check SQL
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setMode('setup'); return; }
-      try {
-        const { data } = await supabase.rpc('creator_auth_status_v3', { p_auth_id: user.id });
-        setMode(data?.has_password ? 'enter' : 'setup');
-      } catch {
-        setMode('setup'); // SQL function may not exist
-      }
-      setPasswordInput(''); setOldPassword(''); setConfirmPassword(''); setLocalError('');
+    if (!showModal) {
+      setPassword('');
+      setCode('');
+      setShowPassword(false);
     }
-    check();
   }, [showModal]);
 
-  if (!showModal) return null;
-  const displayError = localError || error;
+  useEffect(() => {
+    if (needsMfa) setCode('');
+  }, [needsMfa]);
 
-  async function handleEnter(e: React.FormEvent) {
-    e.preventDefault(); setLocalError('');
-    if (!password.trim()) { setLocalError('Enter your password'); return; }
+  if (!showModal) return null;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (needsMfa) {
+      if (!/^\d{6}$/.test(code.trim())) return;
+      await verifyMfa(code.trim());
+      return;
+    }
+    if (!password) return;
     await verifyPassword(password);
-  }
-  async function handleSetup(e: React.FormEvent) {
-    e.preventDefault(); setLocalError('');
-    if (!password.trim()) { setLocalError('Enter a password'); return; }
-    if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
-    if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
-    await setPassword(password);
-  }
-  async function handleChange(e: React.FormEvent) {
-    e.preventDefault(); setLocalError('');
-    if (!oldPassword.trim()) { setLocalError('Enter current password'); return; }
-    if (!password.trim()) { setLocalError('Enter new password'); return; }
-    if (password.length < 6) { setLocalError('Minimum 6 characters'); return; }
-    if (password !== confirmPassword) { setLocalError('Passwords do not match'); return; }
-    await setPassword(password, oldPassword);
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) dismissRequest(); }}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
-      <div className="relative w-full max-w-sm mx-4 bg-[#12121A] border border-white/[0.06] rounded-3xl overflow-hidden shadow-2xl animate-fadeIn">
-        <button onClick={dismissRequest} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-[#8A8B9C] hover:text-white z-10">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-        </button>
+    <div className="fixed inset-0 z-[100100] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="w-full max-w-md rounded-t-3xl border border-white/[.08] bg-[#10131B] p-5 text-white shadow-2xl sm:rounded-3xl sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">Creator protection</p>
+            <h2 className="mt-2 text-lg font-bold">{needsMfa ? 'Confirm authenticator' : 'Confirm your WeHouse account'}</h2>
+            <p className="mt-2 text-[10px] leading-5 text-[#777E8F]">
+              {needsMfa
+                ? 'This Creator account has two-step verification enabled. Enter the current 6-digit authenticator code.'
+                : 'Sensitive Creator actions require a fresh server-backed confirmation of the account that is currently signed in.'}
+            </p>
+          </div>
+          <button type="button" onClick={dismissRequest} disabled={isLoading} aria-label="Close Creator confirmation" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-[#7B8191] hover:bg-white/[.05]">×</button>
+        </div>
 
-        {mode === 'enter' && (
-          <>
-            <div className="px-6 pt-8 pb-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-[#7C3AED] flex items-center justify-center mx-auto mb-3 shadow-lg shadow-purple-500/20">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+        <form onSubmit={submit} className="mt-6 space-y-4">
+          {needsMfa ? (
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-medium text-[#A0A6B5]">Authenticator code</span>
+              <input
+                autoFocus
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="h-12 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-4 text-center text-lg font-semibold tracking-[.3em] outline-none focus:border-violet-500/50"
+              />
+            </label>
+          ) : (
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-medium text-[#A0A6B5]">Current WeHouse password</span>
+              <div className="relative">
+                <input
+                  autoFocus
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-12 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-4 pr-16 text-sm outline-none focus:border-violet-500/50"
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-3 text-[9px] font-semibold text-violet-300">
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
               </div>
-              <h2 className="text-lg font-bold text-white">Enter Password</h2>
-              <p className="text-xs text-[#5C5E72] mt-1">Required for this action</p>
-            </div>
-            <form onSubmit={handleEnter} className="px-6 pb-6 space-y-3">
-              <input type="password" value={password} onChange={(e) => setPasswordInput(e.target.value)} placeholder="Authorization password" autoFocus className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none" />
-              {displayError && <p className="text-xs text-red-400">{displayError}</p>}
-              <button type="submit" disabled={isLoading} className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-[#7C3AED] text-white text-sm font-semibold disabled:opacity-40">{isLoading ? 'Verifying...' : 'Continue'}</button>
-              <button type="button" onClick={() => { setMode('change'); setLocalError(''); setPasswordInput(''); }} className="w-full h-9 rounded-xl text-[11px] text-[#5C5E72] hover:text-white">Change Password</button>
-            </form>
-          </>
-        )}
+            </label>
+          )}
 
-        {mode === 'setup' && (
-          <>
-            <div className="px-6 pt-8 pb-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-[#7C3AED] flex items-center justify-center mx-auto mb-3">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-              </div>
-              <h2 className="text-lg font-bold text-white">Set Your Password</h2>
-              <p className="text-xs text-[#5C5E72] mt-1">Protect critical platform actions</p>
-            </div>
-            <form onSubmit={handleSetup} className="px-6 pb-6 space-y-3">
-              <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3">
-                <p className="text-[11px] text-amber-400/80">This password protects settings changes, role management, and user actions. You will only enter it when doing these actions.</p>
-              </div>
-              <input type="password" value={password} onChange={(e) => setPasswordInput(e.target.value)} placeholder="New password (min 6 characters)" autoFocus className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none" />
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none" />
-              {displayError && <p className="text-xs text-red-400">{displayError}</p>}
-              <button type="submit" disabled={isLoading} className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-[#7C3AED] text-white text-sm font-semibold disabled:opacity-40">{isLoading ? 'Saving...' : 'Set Password'}</button>
-            </form>
-          </>
-        )}
+          {error ? <p className="rounded-xl border border-red-500/15 bg-red-500/[.06] p-3 text-[10px] text-red-300">{error}</p> : null}
 
-        {mode === 'change' && (
-          <>
-            <div className="px-6 pt-8 pb-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-[#7C3AED] flex items-center justify-center mx-auto mb-3">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-              </div>
-              <h2 className="text-lg font-bold text-white">Change Password</h2>
-            </div>
-            <form onSubmit={handleChange} className="px-6 pb-6 space-y-3">
-              <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder="Current password" autoFocus className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none" />
-              <input type="password" value={password} onChange={(e) => setPasswordInput(e.target.value)} placeholder="New password (min 6 characters)" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none" />
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="w-full h-11 rounded-xl bg-[#1A1A24] border border-[#232330] text-white text-sm px-4 placeholder-[#5C5E72] focus:border-purple-500/50 focus:outline-none" />
-              {displayError && <p className="text-xs text-red-400">{displayError}</p>}
-              <button type="submit" disabled={isLoading} className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-[#7C3AED] text-white text-sm font-semibold disabled:opacity-40">{isLoading ? 'Changing...' : 'Change Password'}</button>
-              <button type="button" onClick={() => { setMode('enter'); setLocalError(''); setPasswordInput(''); setOldPassword(''); setConfirmPassword(''); }} className="w-full h-9 rounded-xl text-[11px] text-[#5C5E72] hover:text-white">Back</button>
-            </form>
-          </>
-        )}
+          <button
+            type="submit"
+            disabled={isLoading || (needsMfa ? code.length !== 6 : !password)}
+            className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-45"
+          >
+            {isLoading ? 'Confirming…' : needsMfa ? 'Verify and continue' : 'Confirm and continue'}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-[8px] leading-4 text-[#565D6D]">
+          No Creator password or hash is stored in this browser. A successful confirmation expires after 10 minutes.
+        </p>
       </div>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}.animate-fadeIn{animation:fadeIn .2s ease-out}`}</style>
     </div>
   );
 }

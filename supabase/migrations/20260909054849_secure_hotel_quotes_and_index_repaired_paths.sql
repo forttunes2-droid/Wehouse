@@ -1,8 +1,15 @@
 -- Hotel prices are available only inside an authenticated WeHouse session.
-revoke all on function public.quote_hotel_room(integer,integer,date,date)
-  from public,anon;
-grant execute on function public.quote_hotel_room(integer,integer,date,date)
-  to authenticated,service_role;
+-- Production once had this legacy signature, but a clean replay does not.
+-- Guard the ACL change so both histories converge instead of making preview
+-- databases fail before the current quote_hotel_room_rate RPC is created.
+do $$
+begin
+  if to_regprocedure('public.quote_hotel_room(integer,integer,date,date)') is not null then
+    execute 'revoke all on function public.quote_hotel_room(integer,integer,date,date) from public,anon';
+    execute 'grant execute on function public.quote_hotel_room(integer,integer,date,date) to authenticated,service_role';
+  end if;
+end;
+$$;
 
 -- Index the ownership and lookup paths used by the repaired production flows.
 create index if not exists partner_support_field_inbox_idx

@@ -306,7 +306,7 @@ export default function App() {
     if (!baseProfile?.user_id) return;
     let cancelled = false;
     setWorkspaceAccess(null);
-    void supabase
+    const loadWorkspaceAccess=()=>void supabase
       .rpc("get_my_workspace_access")
       .then(({ data, error: accessError }) => {
         if (cancelled || accessError || !data) return;
@@ -322,7 +322,7 @@ export default function App() {
             `wh_workspace_${baseProfile.user_id}`,
           ) as WorkspaceChoice | null;
         } catch {}
-        const legacy = ["staff", "admin", "creator"].includes(baseProfile.role)
+        const legacy = ["worker", "property_partner", "staff", "admin", "creator"].includes(baseProfile.role)
           ? (baseProfile.role as WorkspaceChoice)
           : "personal";
         setActiveWorkspace(
@@ -330,17 +330,18 @@ export default function App() {
             ? preferred
             : allowed.has(legacy)
               ? legacy
-              : allowed.values().next().value || "personal",
+            : allowed.values().next().value || "personal",
         );
       });
+    loadWorkspaceAccess();
+    window.addEventListener("wehouse:workspace-access-changed",loadWorkspaceAccess);
     return () => {
       cancelled = true;
+      window.removeEventListener("wehouse:workspace-access-changed",loadWorkspaceAccess);
     };
   }, [baseProfile?.user_id, baseProfile?.role]);
   const effectiveRole = useMemo(() => {
     if (!baseProfile) return "";
-    if (["worker", "property_partner"].includes(baseProfile.role))
-      return baseProfile.role;
     // Never render the personal/user workspace while privileged workspace access
     // is still being restored. That caused the user bottom bar and user pages to
     // flash inside Creator, Admin, Staff and Hotel sessions on refresh.

@@ -8,7 +8,8 @@
 export type UserRole =
   "user" | "creator" | "admin" | "staff" | "worker" | "property_partner";
 
-// Constitution: Pending → Verification Paid → Profile Under Review → Verified (public)
+// Free Worker lifecycle: Pending → Profile Under Review → Verified (Reviewed/public).
+// verification_paid remains only as a legacy database value during migration.
 // Rejected and Suspended are terminal non-public states.
 export type WorkerStatus =
   | "pending"
@@ -117,6 +118,7 @@ export interface Profile {
   worker_price: number | null; // price worker charges (in NGN)
   worker_verified: boolean; // approved by platform (ONLY set by admin/creator)
   available: boolean; // worker toggle: true = accepting new bookings
+  pro_active?: boolean; // server-verified monthly WeHouse Pro entitlement
   worker_bio: string | null; // service description
   worker_experience: string | null; // years of experience
   worker_gov_id_url: string | null; // government ID document URL
@@ -843,8 +845,6 @@ export const WEHOUSE_FEES = {
   SECURITY_DEPOSIT_DEFAULT_PERCENT: 10,
   SECURITY_DEPOSIT_MIN_NGN: 10000,
 
-  // Blue Badge: only subscription on WeHouse — monthly worker verification
-  BLUE_BADGE_PRICE_NGN: 1000, // N1,000 per month
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -1496,6 +1496,43 @@ export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
   expired: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
 };
+
+// ─── WEHOUSE PRO SUBSCRIPTION ───────────────────────────────
+
+export type WorkerProStatus =
+  | "inactive"
+  | "pending"
+  | "active"
+  | "grace_period"
+  | "paused"
+  | "cancelled"
+  | "expired"
+  | "revoked";
+
+export type WorkerProProvider = "apple" | "google" | "paystack";
+
+export interface WorkerProEntitlement {
+  plan: "worker_pro_monthly";
+  period: "P1M";
+  sales_enabled: boolean;
+  monthly_price_ngn: number;
+  apple_product_id: string;
+  google_product_id: string;
+  web_paystack_plan_code: string;
+  terms_version: string;
+  terms_content: string;
+  terms_accepted: boolean;
+  support_response_hours: number;
+  active: boolean;
+  status: WorkerProStatus;
+  provider: WorkerProProvider | null;
+  product_id: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  auto_renews: boolean;
+  features: string[];
+}
 
 // ─── WALLETS ────────────────────────────────────────────────
 

@@ -299,53 +299,17 @@ export async function reviewWorkerVerification(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BLUE BADGE SUBSCRIPTION
+// RETIRED BLUE-BADGE HISTORY
 // ═══════════════════════════════════════════════════════════════
 
+// Read compatibility only. Historical rows remain financial records, but they
+// never grant Reviewed, Trusted or the gold PRO entitlement.
 export async function getBlueBadgeSubscription(workerId: string) {
   const { data, error } = await supabase
     .from('blue_badge_subscriptions')
     .select('*')
     .eq('worker_id', workerId)
     .maybeSingle();
-  return { subscription: data as BlueBadgeSubscription | null, error };
-}
-
-export async function createBlueBadgeSubscription(
-  workerId: string,
-  paystackReference: string,
-  amountPaid: number
-) {
-  const now = new Date();
-  const expiresAt = new Date(now);
-  expiresAt.setMonth(expiresAt.getMonth() + 1); // Monthly subscription
-
-  const { data, error } = await supabase
-    .from('blue_badge_subscriptions')
-    .upsert(
-      {
-        worker_id: workerId,
-        status: 'active',
-        started_at: now.toISOString(),
-        expires_at: expiresAt.toISOString(),
-        paystack_reference: paystackReference,
-        amount_paid: amountPaid,
-        updated_at: now.toISOString(),
-      },
-      { onConflict: 'worker_id' }
-    )
-    .select()
-    .single();
-  return { subscription: data as BlueBadgeSubscription | null, error };
-}
-
-export async function cancelBlueBadgeSubscription(workerId: string) {
-  const { data, error } = await supabase
-    .from('blue_badge_subscriptions')
-    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-    .eq('worker_id', workerId)
-    .select()
-    .single();
   return { subscription: data as BlueBadgeSubscription | null, error };
 }
 
@@ -500,7 +464,7 @@ export async function getWorkerDashboardData(workerId: string) {
   // Get verification
   const { verification } = await getWorkerVerification(workerId);
 
-  // Get blue badge
+  // Historical compatibility only; current Pro comes from get_my_worker_pro.
   const { subscription: blueBadge } = await getBlueBadgeSubscription(workerId);
 
   // Get recent transactions

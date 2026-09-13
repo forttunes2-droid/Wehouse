@@ -155,8 +155,6 @@ export {
   getVerificationsByStatus,
   reviewWorkerVerification,
   getBlueBadgeSubscription,
-  createBlueBadgeSubscription,
-  cancelBlueBadgeSubscription,
   getOrCreateWallet,
   getWallet,
   getWalletTransactions,
