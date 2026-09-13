@@ -16,13 +16,18 @@ set public_allowed=false,
 where function_signature='canonical_product_transition_allowed(text,text,text)';
 
 do $$
+declare v_unresolved text;
 begin
-  if exists(
-    select 1
-    from public.function_execution_registry
-    where review_state='requires_review'
-  ) then
-    raise exception 'Function execution review queue is not closed';
+  select string_agg(
+    format('%s [%s public=%s anon=%s authenticated=%s service=%s]',
+      function_signature,security_mode,public_allowed,anon_allowed,
+      authenticated_allowed,service_role_allowed),
+    ', ' order by function_signature
+  ) into v_unresolved
+  from public.function_execution_registry
+  where review_state='requires_review';
+  if v_unresolved is not null then
+    raise exception 'Function execution review queue is not closed: %',v_unresolved;
   end if;
 end
 $$;
