@@ -1,6 +1,11 @@
 -- Canonical hotel operations: explicit capabilities, configurable stay completion,
 -- turnover readiness, and exactly-once release of protected partner earnings.
 
+-- Supabase production already provides pg_cron, but an empty local database does
+-- not expose cron.job until the extension is enabled. The scheduled completion
+-- worker below depends on this schema, so make the dependency explicit.
+create extension if not exists pg_cron with schema pg_catalog;
+
 alter table public.hotel_team_members
   add column if not exists capabilities text[] not null default '{}'::text[];
 

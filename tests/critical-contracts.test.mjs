@@ -147,6 +147,12 @@ test('PMS mode is named, certified and fail-closed',()=>{
   assert.match(launch,/Manual WeHouse hotel operations are the supported default/);
 });
 
+test('Hotel completion scheduling declares its pg_cron dependency',()=>{
+  const migration=read('supabase/migrations/20260912095000_hotel_capabilities_completion_turnover.sql');
+  assert.match(migration,/create extension if not exists pg_cron with schema pg_catalog/);
+  assert.match(migration,/cron\.schedule\('wehouse-hotel-completion-v1'/);
+});
+
 test('Worker onboarding stays free and Pro stays an optional entitlement',()=>{
   const foundation=read('supabase/migrations/20260913113221_free_worker_and_wehouse_pro_foundation.sql');
   const billing=read('supabase/migrations/20260913114644_worker_pro_web_billing.sql');
