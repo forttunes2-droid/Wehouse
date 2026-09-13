@@ -251,7 +251,8 @@ export default function WorkerVerificationPhase9({
           <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
             WeHouse never charges you to register, submit professional evidence,
             become Reviewed, appear in discovery or receive eligible jobs.
-            WeHouse Pro is an optional monthly toolkit and does not buy trust.
+            The paid Worker plan is optional work software and does not
+            buy review status, marketplace trust or better dispute treatment.
           </p>
         </section>
         {identityExpired ? (

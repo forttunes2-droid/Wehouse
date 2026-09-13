@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       .select('id,user_id,payer_user_id,amount,amount_total,currency,status,purpose,paystack_reference,metadata')
       .eq('paystack_reference', reference).eq('purpose', 'worker_pro_subscription').maybeSingle();
     if (paymentError) return json({ success: false, error: paymentError.message }, 500);
-    if (!payment) return json({ success: false, error: 'WeHouse Pro checkout was not found' }, 404);
+    if (!payment) return json({ success: false, error: 'Paid Worker plan checkout was not found' }, 404);
     if ((payment.payer_user_id || payment.user_id) !== profile.user_id) return json({ success: false, error: 'Checkout does not belong to this Worker' }, 403);
     if (payment.status === 'paid' || payment.status === 'completed') return json({ success: true, already_paid: true, reference });
     if (payment.status !== 'pending') return json({ success: false, error: 'This checkout can no longer be initialized' }, 409);
@@ -46,14 +46,19 @@ Deno.serve(async (req) => {
     const amount = Number(payment.amount_total ?? payment.amount ?? 0);
     const metadata = payment.metadata && typeof payment.metadata === 'object' ? payment.metadata as Record<string, unknown> : {};
     const planCode = String(metadata.plan_code || '');
-    if (!/^PLN_[A-Za-z0-9]+$/.test(planCode) || !Number.isFinite(amount) || amount <= 0 || payment.currency !== 'NGN') return json({ success: false, error: 'Invalid monthly plan configuration' }, 409);
+    const billingPeriod = String(metadata.billing_period || 'monthly').toLowerCase();
+    const expectedInterval = billingPeriod === 'yearly' ? 'annually' : billingPeriod === 'monthly' ? 'monthly' : '';
+    const expectedIsoPeriod = billingPeriod === 'yearly' ? 'P1Y' : 'P1M';
+    if (!expectedInterval || !/^PLN_[A-Za-z0-9]+$/.test(planCode) || !Number.isFinite(amount) || amount <= 0 || payment.currency !== 'NGN') {
+      return json({ success: false, error: 'Invalid paid plan configuration' }, 409);
+    }
 
     const planResponse = await fetch(`https://api.paystack.co/plan/${encodeURIComponent(planCode)}`, { headers: { Authorization: `Bearer ${paystackSecret}` } });
     const planPayload = await planResponse.json().catch(() => null);
     const plan = planPayload?.data;
-    if (!planResponse.ok || !planPayload?.status || !plan) return json({ success: false, error: planPayload?.message || 'Paystack monthly plan could not be verified' }, 502);
-    if (String(plan.interval || '').toLowerCase() !== 'monthly' || String(plan.currency || 'NGN').toUpperCase() !== 'NGN' || Math.round(Number(plan.amount || 0)) !== Math.round(amount * 100)) {
-      return json({ success: false, error: 'Creator price and Paystack monthly plan do not match' }, 409);
+    if (!planResponse.ok || !planPayload?.status || !plan) return json({ success: false, error: planPayload?.message || 'Paystack paid plan could not be verified' }, 502);
+    if (String(plan.interval || '').toLowerCase() !== expectedInterval || String(plan.currency || 'NGN').toUpperCase() !== 'NGN' || Math.round(Number(plan.amount || 0)) !== Math.round(amount * 100)) {
+      return json({ success: false, error: `Creator price and Paystack ${billingPeriod} plan do not match` }, 409);
     }
 
     const existingUrl = typeof metadata.paystack_authorization_url === 'string' ? metadata.paystack_authorization_url : '';
@@ -72,14 +77,15 @@ Deno.serve(async (req) => {
           purpose: 'worker_pro_subscription',
           worker_id: profile.user_id,
           payment_id: payment.id,
-          plan: 'worker_pro_monthly',
-          period: 'P1M',
+          plan: 'worker_pro',
+          billing_period: billingPeriod,
+          period: expectedIsoPeriod,
           terms_version: metadata.terms_version,
         },
       }),
     });
     const initialized = await response.json().catch(() => null);
-    if (!response.ok || !initialized?.status || !initialized?.data?.authorization_url || !initialized?.data?.access_code) return json({ success: false, error: initialized?.message || 'Paystack could not initialize Pro checkout' }, response.status >= 500 ? 502 : 400);
+    if (!response.ok || !initialized?.status || !initialized?.data?.authorization_url || !initialized?.data?.access_code) return json({ success: false, error: initialized?.message || 'Paystack could not initialize paid plan checkout' }, response.status >= 500 ? 502 : 400);
     const nextMetadata = {
       ...metadata,
       paystack_access_code: String(initialized.data.access_code),
@@ -91,6 +97,6 @@ Deno.serve(async (req) => {
     if (updateError) return json({ success: false, error: 'Checkout was initialized but could not be recorded safely' }, 500);
     return json({ success: true, reference, authorization_url: initialized.data.authorization_url, access_code: initialized.data.access_code, existing: false });
   } catch (error) {
-    return json({ success: false, error: error instanceof Error ? error.message : 'Pro checkout initialization failed' }, 500);
+    return json({ success: false, error: error instanceof Error ? error.message : 'Paid plan checkout initialization failed' }, 500);
   }
 });

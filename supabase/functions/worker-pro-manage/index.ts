@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const { data: profile } = await admin.from('profiles').select('user_id,role,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
     if (!profile || profile.role !== 'worker' || profile.deleted || profile.suspended || profile.banned) return json({ success: false, error: 'Active Worker account required' }, 403);
     const { data: subscription } = await admin.from('worker_pro_subscriptions').select('provider,provider_subscription_id').eq('worker_id', profile.user_id).maybeSingle();
-    if (!subscription || subscription.provider !== 'paystack' || !subscription.provider_subscription_id) return json({ success: false, error: 'A Paystack Pro subscription was not found' }, 404);
+    if (!subscription || subscription.provider !== 'paystack' || !subscription.provider_subscription_id) return json({ success: false, error: 'A Paystack paid Worker subscription was not found' }, 404);
     const response = await fetch(`https://api.paystack.co/subscription/${encodeURIComponent(subscription.provider_subscription_id)}/manage/link`, { headers: { Authorization: `Bearer ${paystackSecret}` } });
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.status || !payload?.data?.link) return json({ success: false, error: payload?.message || 'Paystack subscription management could not open' }, 502);

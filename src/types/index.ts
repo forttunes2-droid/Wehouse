@@ -118,7 +118,8 @@ export interface Profile {
   worker_price: number | null; // price worker charges (in NGN)
   worker_verified: boolean; // approved by platform (ONLY set by admin/creator)
   available: boolean; // worker toggle: true = accepting new bookings
-  pro_active?: boolean; // server-verified monthly WeHouse Pro entitlement
+  pro_active?: boolean; // server-verified paid Worker plan entitlement
+  featured_placement_id?: string; // server-issued Sponsored placement record
   worker_bio: string | null; // service description
   worker_experience: string | null; // years of experience
   worker_gov_id_url: string | null; // government ID document URL
@@ -1497,7 +1498,7 @@ export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
   cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
-// ─── WEHOUSE PRO SUBSCRIPTION ───────────────────────────────
+// ─── PAID WORKER PLAN ───────────────────────────────────────
 
 export type WorkerProStatus =
   | "inactive"
@@ -1510,12 +1511,33 @@ export type WorkerProStatus =
   | "revoked";
 
 export type WorkerProProvider = "apple" | "google" | "paystack";
+export type WorkerProBillingPeriod = "monthly" | "yearly";
+
+export interface WorkerProPlanOption {
+  billing_period: WorkerProBillingPeriod;
+  period: "P1M" | "P1Y";
+  label: string;
+  price_ngn: number;
+  web_plan_code: string;
+  apple_product_id: string;
+  google_product_id: string;
+  web_available: boolean;
+  saving_ngn: number;
+  discount_percent: number;
+}
 
 export interface WorkerProEntitlement {
-  plan: "worker_pro_monthly";
-  period: "P1M";
+  product_name: string;
+  product_tagline: string;
+  plan: "worker_pro";
+  plans: WorkerProPlanOption[];
   sales_enabled: boolean;
+  native_sales: {
+    ios_enabled: boolean;
+    android_enabled: boolean;
+  };
   monthly_price_ngn: number;
+  yearly_price_ngn: number;
   apple_product_id: string;
   google_product_id: string;
   web_paystack_plan_code: string;
@@ -1523,15 +1545,80 @@ export interface WorkerProEntitlement {
   terms_content: string;
   terms_accepted: boolean;
   support_response_hours: number;
+  payment_grace_days: number;
   active: boolean;
   status: WorkerProStatus;
   provider: WorkerProProvider | null;
   product_id: string | null;
+  billing_period: WorkerProBillingPeriod;
   current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   auto_renews: boolean;
   features: string[];
+}
+
+export interface WorkerWorkInsights {
+  range_days: 30 | 90 | 365;
+  from: string;
+  generated_at: string;
+  completed_jobs: number;
+  released_earnings_ngn: number;
+  active_jobs: number;
+  rating: number;
+  review_count: number;
+  repeat_customers: number;
+  worker_cancelled_jobs: number;
+  featured: {
+    signed_in_unique_impressions: number;
+    unique_profile_opens: number;
+    booking_requests: number;
+  };
+  definitions: Record<string, string>;
+}
+
+export type WorkerDocumentType = "quote" | "invoice";
+export type WorkerDocumentStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "declined"
+  | "void";
+
+export interface WorkerWorkDocumentItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+}
+
+export interface WorkerWorkDocument {
+  id: string;
+  document_number: string;
+  worker_id: string;
+  customer_id: string;
+  booking_id: string;
+  booking_code: string | null;
+  service_type: string | null;
+  document_type: WorkerDocumentType;
+  title: string;
+  items: WorkerWorkDocumentItem[];
+  subtotal: number;
+  total: number;
+  currency: "NGN";
+  document_status: WorkerDocumentStatus;
+  payment_status:
+    | "not_applicable"
+    | "unpaid"
+    | "marked_paid_by_worker"
+    | "paid_through_wehouse";
+  payment_label: string;
+  note: string | null;
+  sent_at: string | null;
+  responded_at: string | null;
+  marked_paid_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── WALLETS ────────────────────────────────────────────────

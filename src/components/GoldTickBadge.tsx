@@ -4,7 +4,7 @@ type Props = {
   className?: string;
 };
 
-export default function GoldTickBadge({ size = 'md', title = 'WeHouse Pro', className = '' }: Props) {
+export default function GoldTickBadge({ size = 'md', title = 'Paid plan PRO mark', className = '' }: Props) {
   const dimensions = size === 'sm' ? 'h-[15px] w-[15px]' : 'h-[18px] w-[18px]';
 
   return (

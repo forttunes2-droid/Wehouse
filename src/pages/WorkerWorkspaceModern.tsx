@@ -26,7 +26,7 @@ const LIVE_NAV = [
   { id: "inbox", label: "Inbox" },
   { id: "showcase", label: "Showcase" },
   { id: "earnings", label: "Earnings" },
-  { id: "pro", label: "Pro" },
+  { id: "pro", label: "Works" },
   { id: "account", label: "Account" },
 ];
 
@@ -108,7 +108,7 @@ export default function WorkerWorkspaceModern({
   } else if (live && safeTab === "earnings") {
     content = <div className="space-y-5"><WorkerWallet profile={profile}/><PayoutAccountManager profile={profile}/></div>;
   } else if (live && safeTab === "pro") {
-    content = <WorkerProPanel pro={workerPro.pro} loading={workerPro.loading} error={workerPro.error} onRefresh={workerPro.refresh} />;
+    content = <WorkerProPanel profile={profile} pro={workerPro.pro} loading={workerPro.loading} error={workerPro.error} onRefresh={workerPro.refresh} />;
   } else if (live) {
     content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab("inbox"); }}/>
   } else {
@@ -129,7 +129,7 @@ export default function WorkerWorkspaceModern({
         : safeTab === "showcase"
           ? "Publish and manage the work customers see on your profile."
           : safeTab === "pro"
-            ? "Optional monthly professional tools, separate from review and trust."
+            ? "Optional monthly or yearly work tools, separate from review and trust."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
             : live

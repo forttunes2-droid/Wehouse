@@ -218,6 +218,31 @@ test('Worker onboarding stays free and Pro stays an optional entitlement',()=>{
   assert.doesNotMatch(exports,/createBlueBadgeSubscription|cancelBlueBadgeSubscription/);
 });
 
+test('Paid Worker tools stay separate from trust, organic ranking and payment truth',()=>{
+  const migration=read('supabase/migrations/20260913170000_worker_paid_plan_options.sql');
+  const discovery=read('src/pages/WorkerDiscovery.tsx');
+  const proPanel=read('src/components/WorkerProPanel.tsx');
+  const bookingChat=read('src/components/BookingNegotiationChat.tsx');
+  const webhook=read('supabase/functions/paystack-webhook/index.ts');
+
+  assert.match(migration,/\('worker_featured_sales_enabled','false'/);
+  assert.match(migration,/_legal_launch_gate_is_approved\('worker_featured_placement'\)/);
+  assert.match(migration,/worker_pro_is_active\(profile\.user_id\)/);
+  assert.match(migration,/order by profile\.rating desc nulls last,profile\.review_count desc nulls last/);
+  assert.match(discovery,/Featured Workers/);
+  assert.match(discovery,/Paid placement among matching, available and Reviewed Workers\. It does not mean more trusted\./);
+  assert.match(migration,/signed_in_unique_impressions/);
+  assert.match(migration,/status='approved_released'/);
+  assert.match(migration,/Marked paid by Worker — not verified by WeHouse/);
+  assert.match(migration,/Paid through WeHouse/);
+  assert.match(migration,/paid_plan_ordinary_support/);
+  assert.match(migration,/safety_risk/);
+  assert.match(proPanel,/monthly or yearly|selectedBillingPeriod/);
+  assert.match(webhook,/invoice\.payment_failed/);
+  assert.match(webhook,/subscription\.not_renew/);
+  assert.match(bookingChat,/Original service request/);
+});
+
 test('Independent workspaces preserve scoped Staff operations access',()=>{
   const foundation=read('supabase/migrations/20260912094000_canonical_personal_and_workspaces.sql');
   const independent=read('supabase/migrations/20260913140000_independent_professional_workspaces.sql');

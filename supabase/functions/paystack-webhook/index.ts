@@ -32,9 +32,10 @@ function dateOr(value: unknown, fallback: Date) {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
-function addMonth(value: Date) {
+function addBillingPeriod(value: Date, billingPeriod: 'monthly' | 'yearly') {
   const next = new Date(value);
-  next.setUTCMonth(next.getUTCMonth() + 1);
+  if (billingPeriod === 'yearly') next.setUTCFullYear(next.getUTCFullYear() + 1);
+  else next.setUTCMonth(next.getUTCMonth() + 1);
   return next;
 }
 
@@ -104,6 +105,7 @@ async function recordProLifecycleEvent(
       subscription = existingResult.data || {
         worker_id: paymentResult.data.user_id,
         product_id: incomingPlanCode,
+        billing_period: text(paymentResult.data.metadata?.billing_period) || 'monthly',
         price_amount: Number(paymentResult.data.amount_total ?? paymentResult.data.amount ?? 0),
         currency: paymentResult.data.currency || 'NGN',
         current_period_start: paymentResult.data.paid_at,
@@ -117,17 +119,28 @@ async function recordProLifecycleEvent(
 
   if (!subscription) {
     if (text(event?.event) === 'subscription.create' && incomingPlanCode) {
-      const setting = await db.from('platform_settings').select('value')
-        .eq('key', 'worker_pro_web_paystack_plan_code').maybeSingle();
-      if (setting.error) return new Response('Plan lookup error', { status: 500 });
-      if (setting.data?.value === incomingPlanCode) return new Response('Subscription mapping is not ready', { status: 500 });
+      const settings = await db.from('platform_settings').select('value')
+        .in('key', ['worker_pro_web_paystack_plan_code', 'worker_pro_web_paystack_yearly_plan_code']);
+      if (settings.error) return new Response('Plan lookup error', { status: 500 });
+      if ((settings.data || []).some((setting) => setting.value === incomingPlanCode)) {
+        return new Response('Subscription mapping is not ready', { status: 500 });
+      }
     }
     return null;
   }
 
+  let billingPeriod: 'monthly' | 'yearly' = subscription.billing_period === 'yearly' ? 'yearly' : 'monthly';
+  if (incomingPlanCode) {
+    const resolved = await db.rpc('worker_pro_billing_period_for_product', {
+      p_provider: 'paystack',
+      p_product_id: incomingPlanCode,
+    });
+    if (resolved.error) return new Response('Plan period lookup error', { status: 500 });
+    if (resolved.data === 'yearly' || resolved.data === 'monthly') billingPeriod = resolved.data;
+  }
   const occurredAt = eventTime(event);
   let periodStart = dateOr(subscription.current_period_start, occurredAt);
-  let periodEnd = dateOr(subscription.current_period_end, addMonth(periodStart));
+  let periodEnd = dateOr(subscription.current_period_end, addBillingPeriod(periodStart, billingPeriod));
   let status = text(subscription.status) || 'pending';
   let cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
   let autoRenews = Boolean(subscription.auto_renews);
@@ -137,27 +150,44 @@ async function recordProLifecycleEvent(
   if (kind === 'subscription.create') {
     const providerNextPayment = dateOr(data?.next_payment_date, periodEnd);
     if (providerNextPayment > occurredAt) periodEnd = providerNextPayment;
-    if (periodEnd <= occurredAt) periodEnd = addMonth(occurredAt);
+    if (periodEnd <= occurredAt) periodEnd = addBillingPeriod(occurredAt, billingPeriod);
     if (!['active', 'grace_period'].includes(status)) status = 'active';
     cancelAtPeriodEnd = false;
     autoRenews = true;
   } else if (kind === 'charge.success' || (kind === 'invoice.update' && paid)) {
     periodStart = occurredAt;
-    const providerNextPayment = dateOr(data?.next_payment_date || data?.subscription?.next_payment_date, addMonth(occurredAt));
-    periodEnd = providerNextPayment > occurredAt ? providerNextPayment : addMonth(occurredAt);
+    const providerNextPayment = dateOr(
+      data?.next_payment_date || data?.subscription?.next_payment_date,
+      addBillingPeriod(occurredAt, billingPeriod),
+    );
+    periodEnd = providerNextPayment > occurredAt
+      ? providerNextPayment
+      : addBillingPeriod(occurredAt, billingPeriod);
     status = 'active';
     cancelAtPeriodEnd = false;
     autoRenews = true;
   } else if (kind === 'invoice.update') {
     return null;
   } else if (kind === 'invoice.payment_failed') {
+    const graceSetting = await db.from('platform_settings').select('value')
+      .eq('key', 'worker_pro_payment_grace_days').maybeSingle();
+    if (graceSetting.error) return new Response('Grace period lookup error', { status: 500 });
+    const rawGraceDays = Number(graceSetting.data?.value || 0);
+    const configuredGraceDays = Number.isFinite(rawGraceDays)
+      ? Math.max(0, Math.min(14, Math.trunc(rawGraceDays)))
+      : 0;
+    const graceEnd = new Date(occurredAt);
+    graceEnd.setUTCDate(graceEnd.getUTCDate() + configuredGraceDays);
+    if (graceEnd > periodEnd) periodEnd = graceEnd;
     status = periodEnd > occurredAt ? 'grace_period' : 'paused';
   } else if (kind === 'subscription.not_renew') {
     status = periodEnd > occurredAt ? (status === 'grace_period' ? 'grace_period' : 'active') : 'expired';
     cancelAtPeriodEnd = true;
     autoRenews = false;
   } else if (kind === 'subscription.disable') {
-    status = 'cancelled';
+    status = periodEnd > occurredAt
+      ? (status === 'grace_period' ? 'grace_period' : 'active')
+      : 'expired';
     cancelAtPeriodEnd = true;
     autoRenews = false;
   }
@@ -186,6 +216,7 @@ async function recordProLifecycleEvent(
       paystack_transaction_id: text(data?.id || data?.transaction?.id) || null,
       paystack_invoice_code: text(data?.invoice_code) || null,
       paystack_customer_code: incomingCustomerCode || null,
+      billing_period: billingPeriod,
     },
   });
   if (result.error) return new Response('Subscription event processing error', { status: 500 });
@@ -243,6 +274,9 @@ Deno.serve(async (req) => {
       return (await recordProLifecycleEvent(db, event, payloadHash, environment)) || new Response('Payment not found', { status: 200 });
     }
     if (payment.status === 'paid' || payment.status === 'completed') return new Response('Already processed', { status: 200 });
+    if (payment.purpose === 'worker_pro_subscription' && payment.status === 'review_required') {
+      return new Response('Subscription payment review already recorded', { status: 200 });
+    }
     const expected = Number(payment.amount_total ?? payment.amount ?? 0);
     if (Math.round(expected * 100) !== Math.round(amount * 100)) return new Response('Amount mismatch', { status: 400 });
 
@@ -263,6 +297,7 @@ Deno.serve(async (req) => {
         p_safe_metadata: { paystack_customer_code: customer || null, paystack_transaction_id: transactionId || null },
       });
       if (error) return new Response('Subscription activation error', { status: 500 });
+      if (data?.conflict) return new Response('Subscription payment conflict recorded for review', { status: 200 });
       if (!data?.success) return new Response('Subscription activation rejected', { status: 409 });
       return new Response('OK', { status: 200 });
     }
