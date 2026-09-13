@@ -35,17 +35,27 @@ before insert or update of payment_status,status,hotel_id on public.hotel_bookin
 for each row execute function public.queue_hotel_booking_for_pms();
 
 update public.hotel_bookings b
-set integration_id=i.id,
+set integration_id=(
+      select x.id
+      from public.hotel_integrations x
+      where x.hotel_id=b.hotel_id
+        and x.status='active'
+        and 'reservations.read'=any(x.scopes)
+      order by x.created_at
+      limit 1
+    ),
     pms_sync_status=case when b.pms_external_reservation_id is null then 'pending' else b.pms_sync_status end,
     updated_at=b.updated_at
-from lateral (
-  select x.id from public.hotel_integrations x
-  where x.hotel_id=b.hotel_id and x.status='active' and 'reservations.read'=any(x.scopes)
-  order by x.created_at limit 1
-) i
 where b.payment_status='paid'
   and b.status in ('confirmed','checked_in','checked_out','completed')
-  and b.integration_id is null;
+  and b.integration_id is null
+  and exists(
+    select 1
+    from public.hotel_integrations x
+    where x.hotel_id=b.hotel_id
+      and x.status='active'
+      and 'reservations.read'=any(x.scopes)
+  );
 
 revoke all on function public.queue_hotel_booking_for_pms() from public,anon,authenticated;
 grant execute on function public.queue_hotel_booking_for_pms() to service_role;

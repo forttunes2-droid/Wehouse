@@ -138,11 +138,14 @@ test('Short Let caution never awards the Partner from silence',()=>{
 
 test('PMS mode is named, certified and fail-closed',()=>{
   const migration=read('supabase/migrations/20260913152000_certified_hotel_pms_foundation.sql');
+  const queueMigration=read('supabase/migrations/20260912101500_queue_connected_hotel_reservations.sql');
   const launch=read('docs/HOTEL_PMS_CERTIFICATION_AND_LAUNCH.md');
   assert.match(migration,/hotel_pms_providers/);
   assert.match(migration,/pending_certification/);
   assert.match(migration,/The named PMS adapter is not certified/);
   assert.match(migration,/hotel_pms_connected_mode/);
+  assert.doesNotMatch(queueMigration,/from lateral/i,'PMS backfill must not reference the UPDATE target from a LATERAL subquery');
+  assert.match(queueMigration,/and exists\(/);
   assert.match(launch,/There are no certified PMS providers/);
   assert.match(launch,/Manual WeHouse hotel operations are the supported default/);
 });
