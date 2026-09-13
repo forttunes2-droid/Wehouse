@@ -82,13 +82,21 @@ test('PR71 safety migrations stay present',()=>{
   assert.match(read(required[4]),/short_let/i,'Short Let date-scoped availability hardening must remain in migration history');
 });
 
-test('Production-recorded support case prerequisite stays in migration history',()=>{
-  const prerequisite='supabase/migrations/20260904183557_support_case_lifecycle_and_review_rls.sql';
-  assert.equal(fs.existsSync(path.join(root,prerequisite)),true,`${prerequisite} is missing`);
-  assert.match(read(prerequisite),/create table if not exists public\.support_case_events/);
+test('Production-recorded prerequisites stay in migration history',()=>{
+  const supportPrerequisite='supabase/migrations/20260904183557_support_case_lifecycle_and_review_rls.sql';
+  assert.equal(fs.existsSync(path.join(root,supportPrerequisite)),true,`${supportPrerequisite} is missing`);
+  assert.match(read(supportPrerequisite),/create table if not exists public\.support_case_events/);
   assert.ok(
-    path.basename(prerequisite).localeCompare('20260909104005_make_wehouse_requests_operational.sql')<0,
+    path.basename(supportPrerequisite).localeCompare('20260909104005_make_wehouse_requests_operational.sql')<0,
     'support_case_events must exist before later operational support migrations alter it',
+  );
+
+  const locationPrerequisite='supabase/migrations/20260910053045_complete_gallery_location_activity_booking_payout_contract.sql';
+  assert.equal(fs.existsSync(path.join(root,locationPrerequisite)),true,`${locationPrerequisite} is missing`);
+  assert.match(read(locationPrerequisite),/get_discoverable_homes/);
+  assert.ok(
+    path.basename(locationPrerequisite).localeCompare('20260910065000_remove_legacy_location_rpc_access.sql')<0,
+    'legacy location RPC must exist before its access is revoked',
   );
 });
 
