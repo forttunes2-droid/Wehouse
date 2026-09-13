@@ -2,15 +2,18 @@
 -- reviewed lifecycle functions. It has no direct execution grant, so classify
 -- it explicitly and keep the registry's all-function review queue closed.
 
+revoke all on function public.canonical_product_transition_allowed(text,text,text)
+from public,anon,authenticated,service_role;
+
 update public.function_execution_registry
-set review_state='approved_service_only',
+set public_allowed=false,
+    anon_allowed=false,
+    authenticated_allowed=false,
+    service_role_allowed=false,
+    review_state='approved_service_only',
     rationale='Internal immutable lifecycle transition validator; no direct role execution grant',
     captured_at=now()
-where function_signature='canonical_product_transition_allowed(text,text,text)'
-  and not public_allowed
-  and not anon_allowed
-  and not authenticated_allowed
-  and not service_role_allowed;
+where function_signature='canonical_product_transition_allowed(text,text,text)';
 
 do $$
 begin

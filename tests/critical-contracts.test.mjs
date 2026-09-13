@@ -117,6 +117,15 @@ test('Validation workflow runs regression tests before build',()=>{
   assert.match(workflow,/Reject duplicate migration versions/);
 });
 
+test('Internal lifecycle transition helper closes the execution review queue',()=>{
+  const migration=read('supabase/migrations/20260913055204_close_internal_transition_registry_drift.sql');
+  assert.match(migration,/revoke all on function public\.canonical_product_transition_allowed\(text,text,text\)/);
+  assert.match(migration,/from public,anon,authenticated,service_role/);
+  assert.match(migration,/public_allowed=false/);
+  assert.match(migration,/service_role_allowed=false/);
+  assert.match(migration,/where review_state='requires_review'/);
+});
+
 test('Accommodation arrival issues preserve the agreed money window',()=>{
   const migration=read('supabase/migrations/20260913154000_accommodation_arrival_issue_and_release_window.sql');
   const client=read('src/lib/supabase/accommodation-protection.ts');
