@@ -298,11 +298,15 @@ test('Short Let checkout follows reservation occupancy, not global listing state
 
 test('Worker ratings and reviews render only after verified job reviews exist',()=>{
   const profile=read('src/components/WorkerPublicProfile.tsx');
+  const discovery=read('src/pages/WorkerDiscovery.tsx');
+  const workerWorkspace=read('src/components/WorkerProfilePanelV2.tsx');
   const booking=read('src/components/BookingNegotiationChat.tsx');
   const schema=read('supabase/migrations/20250525000000_remote_schema.sql');
   assert.match(profile,/reviewCount > 0 \? <ProfileFact label="Customer rating"/);
   assert.match(profile,/reviews\.length > 0 \? <section>/);
   assert.doesNotMatch(profile,/value=\{rating > 0 \?[^:]+: "New"\}/);
+  assert.match(discovery,/Number\(worker\.review_count \|\| 0\) > 0 && Number\(worker\.rating \|\| 0\) > 0/);
+  assert.match(workerWorkspace,/Number\(trust\?\.review_count\|\|0\)>0\?<Fact label="Customer rating"/);
   assert.match(booking,/booking\?\.status === "approved_released"/);
   assert.match(schema,/if booking\.status<>'approved_released' then raise exception 'Review becomes available after the job is completed'/);
 });

@@ -768,7 +768,7 @@ function WorkerCard({
               .filter(Boolean)
               .join(", ") || "Location not shown"}
           </p>
-          {Number(worker.rating || 0) > 0 && (
+          {Number(worker.review_count || 0) > 0 && Number(worker.rating || 0) > 0 && (
             <p className="mt-2 text-[9px] font-semibold text-amber-300">
               ★ {Number(worker.rating).toFixed(1)} ·{" "}
               {Number(worker.review_count || 0)} reviews
