@@ -1,3 +1,1 @@
-create index if not exists worker_user_blocks_blocked_user_idx
-  on public.worker_user_blocks(blocked_user_id,blocker_user_id);
-
+-- Historical production migration; schema is included in 20250525000000_remote_schema.sql.
