@@ -123,6 +123,8 @@ test('Internal lifecycle transition helper closes the execution review queue',()
   assert.match(migration,/from public,anon,authenticated,service_role/);
   assert.match(migration,/public_allowed=false/);
   assert.match(migration,/service_role_allowed=false/);
+  assert.match(migration,/function_signature='hotel_allowed_capabilities\(\)'/);
+  assert.match(migration,/review_state='approved_policy_helper'/);
   assert.match(migration,/where review_state='requires_review'/);
   assert.match(migration,/Function execution review queue is not closed: %/);
 });

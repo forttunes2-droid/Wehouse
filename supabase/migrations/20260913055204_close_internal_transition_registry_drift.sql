@@ -15,6 +15,17 @@ set public_allowed=false,
     captured_at=now()
 where function_signature='canonical_product_transition_allowed(text,text,text)';
 
+update public.function_execution_registry
+set review_state='approved_policy_helper',
+    rationale='Immutable hotel capability allowlist used only by reviewed capability predicates and commands',
+    captured_at=now()
+where function_signature='hotel_allowed_capabilities()'
+  and security_mode='invoker'
+  and not public_allowed
+  and not anon_allowed
+  and not authenticated_allowed
+  and not service_role_allowed;
+
 do $$
 declare v_unresolved text;
 begin
