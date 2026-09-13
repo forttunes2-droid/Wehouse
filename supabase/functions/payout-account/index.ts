@@ -145,10 +145,12 @@ serve(async req=>{
     if(action!=='save')return json({success:false,error:'Unknown action'},400);
     if(replacing&&profileTokens.length<2)return json({success:false,error:'Complete your full name in Personal Details before changing your payout account.',code:'FULL_NAME_REQUIRED'},409);
     if(replacing&&matched<2)return json({success:false,error:'The verified bank account name must match at least two names from your WeHouse full name.',code:'NAME_MISMATCH'},409);
+    if(replacing)return json({success:false,error:'Changing an existing payout account requires fresh sign-in and OTP verification. This security step is not available yet.',code:'PAYOUT_REPLACEMENT_STEP_UP_REQUIRED'},409);
 
     const requestId=String(body?.request_id||'').trim();
     if(!REQUEST_ID.test(requestId))return json({success:false,error:'Valid payout change request id required'},400);
-    const target={request_id:requestId,user_id:profile.user_id,bank_code:bankCode,bank_name:String(bank.name),account_number:accountNumber,account_name:accountName,status:'processing'};
+    const confirmedAt=new Date().toISOString();
+    const target={request_id:requestId,idempotency_key:requestId,user_id:profile.user_id,auth_session_id:`edge:${requestId}`,bank_code:bankCode,bank_name:String(bank.name),account_number:accountNumber,account_name:accountName,replacement:false,account_name_confirmed_at:confirmedAt,cooling_ends_at:confirmedAt,status:'processing'};
     const{data:known,error:knownError}=await admin.from('payout_account_change_requests').select('*').eq('request_id',requestId).eq('user_id',profile.user_id).maybeSingle();
     if(knownError)return json({success:false,error:'Could not begin payout-account reconciliation',stage:'request_read'},500);
     if(known){

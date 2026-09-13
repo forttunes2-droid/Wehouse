@@ -42,6 +42,8 @@ test('Payout account mutation is idempotent and reconcilable',()=>{
   const client=read('src/components/PayoutAccountManager.tsx');
   const edge=read('supabase/functions/payout-account/index.ts');
   const migration=read('supabase/migrations/20260912190000_reconcile_payout_account_changes.sql');
+  const security=read('supabase/migrations/20260913031716_security_and_payout_account_controls.sql');
+  const statuses=read('supabase/migrations/20260913157000_reconcile_payout_change_request_statuses.sql');
   assert.doesNotMatch(client,/Promise\.race\s*\(/,'uncancelled mutation must not be raced against a client failure timeout');
   assert.match(client,/request_id/);
   assert.match(client,/get_change_status/);
@@ -50,10 +52,16 @@ test('Payout account mutation is idempotent and reconcilable',()=>{
   assert.match(edge,/get_change_status/);
   assert.match(edge,/set_default_payout_account_for_user/);
   assert.match(edge,/Read-before-retry/);
+  assert.match(edge,/PAYOUT_REPLACEMENT_STEP_UP_REQUIRED/);
+  assert.match(edge,/idempotency_key:requestId/);
+  assert.match(edge,/replacement:false/);
   assert.match(migration,/request_id uuid primary key/);
   assert.match(migration,/status in \('processing','uncertain','succeeded','failed'\)/);
   assert.match(migration,/is_default = \(id = p_account_id\)/);
   assert.match(migration,/revoke all on table public\.payout_account_change_requests from anon, authenticated/);
+  assert.match(security,/add column if not exists idempotency_key/);
+  assert.match(security,/payout_account_change_requests_replacement_step_up_check/);
+  assert.match(statuses,/'succeeded'/);
 });
 
 test('Personal navigation remains the locked four destinations',()=>{

@@ -103,6 +103,70 @@ create table if not exists public.payout_account_change_requests(
   check(cooling_ends_at>=account_name_confirmed_at)
 );
 
+-- The production-hardening branch introduced an earlier, deliberately small
+-- reconciliation ledger. Upgrade that existing shape instead of assuming the
+-- CREATE TABLE above created every security-control column.
+alter table public.payout_account_change_requests
+  add column if not exists idempotency_key text,
+  add column if not exists auth_session_id text,
+  add column if not exists replacement boolean,
+  add column if not exists fresh_sign_in_verified_at timestamptz,
+  add column if not exists otp_verified_at timestamptz,
+  add column if not exists account_name_confirmed_at timestamptz,
+  add column if not exists cooling_ends_at timestamptz,
+  add column if not exists initiated_ip_hash text,
+  add column if not exists activated_at timestamptz;
+
+update public.payout_account_change_requests
+set idempotency_key=coalesce(idempotency_key,request_id::text),
+    auth_session_id=coalesce(auth_session_id,'legacy:'||request_id::text),
+    replacement=coalesce(replacement,false),
+    account_name_confirmed_at=coalesce(account_name_confirmed_at,created_at,now()),
+    cooling_ends_at=coalesce(cooling_ends_at,created_at,now());
+
+alter table public.payout_account_change_requests
+  alter column idempotency_key set not null,
+  alter column auth_session_id set not null,
+  alter column replacement set not null,
+  alter column account_name_confirmed_at set not null,
+  alter column cooling_ends_at set not null;
+
+create unique index if not exists payout_account_change_requests_idempotency_key_idx
+  on public.payout_account_change_requests(idempotency_key);
+
+alter table public.payout_account_change_requests
+  drop constraint if exists payout_account_change_requests_status_check;
+alter table public.payout_account_change_requests
+  add constraint payout_account_change_requests_status_check check(status in(
+    'processing','uncertain','cooling','activation_pending','active',
+    'succeeded','failed','cancelled'
+  ));
+
+alter table public.payout_account_change_requests
+  drop constraint if exists payout_account_change_requests_bank_account_id_fkey;
+alter table public.payout_account_change_requests
+  add constraint payout_account_change_requests_bank_account_id_fkey
+  foreign key(bank_account_id) references public.bank_accounts(id) on delete restrict;
+
+alter table public.payout_account_change_requests
+  drop constraint if exists payout_account_change_requests_replacement_step_up_check,
+  drop constraint if exists payout_account_change_requests_otp_order_check,
+  drop constraint if exists payout_account_change_requests_confirmation_order_check,
+  drop constraint if exists payout_account_change_requests_cooling_order_check;
+alter table public.payout_account_change_requests
+  add constraint payout_account_change_requests_replacement_step_up_check
+    check(not replacement or (
+      fresh_sign_in_verified_at is not null and otp_verified_at is not null
+    )),
+  add constraint payout_account_change_requests_otp_order_check
+    check(otp_verified_at is null or fresh_sign_in_verified_at is null
+      or otp_verified_at>=fresh_sign_in_verified_at),
+  add constraint payout_account_change_requests_confirmation_order_check
+    check(fresh_sign_in_verified_at is null
+      or account_name_confirmed_at>=fresh_sign_in_verified_at),
+  add constraint payout_account_change_requests_cooling_order_check
+    check(cooling_ends_at>=account_name_confirmed_at);
+
 create index if not exists payout_account_change_requests_user_status_idx
   on public.payout_account_change_requests(user_id,status,updated_at desc);
 create unique index if not exists payout_account_one_open_change
