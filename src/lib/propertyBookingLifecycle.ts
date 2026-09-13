@@ -298,7 +298,7 @@ function shortStayCopy(
   rentStatus: string,
 ) {
   const operations = audience === "operations";
-  if (action === "reservation_payment") return { title: "Complete the reservation", detail: "The preliminary reservation fee must be confirmed before the stay payment." };
+  if (action === "reservation_payment") return { title: "Reserve your dates", detail: "Pay the reservation fee to hold these dates before completing the stay payment." };
   if (action === "rent_payment") return {
     title: operations ? "Waiting for full stay payment" : rentStatus === "payment_pending" ? "Finish stay payment" : "Pay for the Short Let",
     detail: operations ? "Do not check the guest in until stay rent and the refundable deposit are verified." : "Pay the stay rent and refundable deposit before arrival.",
@@ -307,6 +307,6 @@ function shortStayCopy(
     title: operations ? "Verify code and check the guest in" : "Ready for check-in",
     detail: operations ? "Confirm the booking code and reserved dates before handing over access." : "Show the booking code to Property Operations during the reserved check-in period.",
   };
-  if (action === "tenancy") return { title: "Stay in progress", detail: "The Short Let is active until the recorded checkout date." };
+  if (action === "tenancy") return { title: "Stay in progress", detail: "You are checked in until the booked checkout date." };
   return { title: "Stay completed", detail: "The booking and any refundable-deposit review remain attached to this record." };
 }

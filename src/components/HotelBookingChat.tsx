@@ -21,6 +21,7 @@ import MessagePress from "@/components/MessagePress";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import type { Profile } from "@/types";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
+import BackButton from "@/components/BackButton";
 
 type Props = {
   bookingId: number;
@@ -34,6 +35,7 @@ type Props = {
 };
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
+type LocalHotelMessage = HotelMessage & { delivery_state?: "sending" };
 
 export default function HotelBookingChat({
   bookingId,
@@ -48,7 +50,7 @@ export default function HotelBookingChat({
   const [conversationId, setConversationId] = useState(
     initialConversationId || "",
   );
-  const [messages, setMessages] = useState<HotelMessage[]>([]);
+  const [messages, setMessages] = useState<LocalHotelMessage[]>([]);
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,9 +157,25 @@ export default function HotelBookingChat({
     const text = input.trim();
     const queuedFiles = [...files];
     const replyTarget = replyingTo;
+    const optimisticId = `pending-${Date.now()}`;
+    const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
     setInput("");
     setFiles([]);
     setReplyingTo(null);
+    setMessages((current) => [...current, {
+      id: optimisticId,
+      sender_id: profile.user_id,
+      sender_name: profile.full_name || profile.username || "You",
+      sender_role: profile.role === "user" ? "guest" : "hotel",
+      content: text,
+      attachments: optimisticUrls,
+      attachment_types: queuedFiles.map((file) => file.type),
+      reactions: {},
+      is_read: false,
+      reply_to_id: replyTarget?.id || null,
+      created_at: new Date().toISOString(),
+      delivery_state: "sending",
+    }]);
     try {
       for (const file of queuedFiles) {
         const uploaded = await uploadHotelChatAttachment(
@@ -181,9 +199,11 @@ export default function HotelBookingChat({
       );
       if (result.error)
         throw new Error(result.error.message || "Message could not be sent");
+      setSending(false);
       await load(conversationId, true);
       onUpdated?.();
     } catch (error) {
+      setMessages((current) => current.filter((message) => message.id !== optimisticId));
       await Promise.all(paths.map((path) => deleteHotelChatAttachment(path)));
       setInput(text);
       setFiles(queuedFiles);
@@ -192,6 +212,7 @@ export default function HotelBookingChat({
         error instanceof Error ? error.message : "Message could not be sent",
       );
     } finally {
+      optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
       setSending(false);
     }
   }
@@ -236,13 +257,7 @@ export default function HotelBookingChat({
     <div className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
       <header className="shrink-0 border-b border-white/[.07] bg-[#0E1118]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
-          <button
-            onClick={onClose}
-            aria-label="Back"
-            className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#A1A7B5]"
-          >
-            ←
-          </button>
+          <BackButton onClick={onClose} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
             H
           </div>
@@ -293,10 +308,12 @@ export default function HotelBookingChat({
                 <MessagePress
                   key={message.id}
                   onOpen={() => {
+                    if (message.delivery_state) return;
                     setMessageMenuMode("actions");
                     setMessageMenu(message);
                   }}
                   onTap={() => {
+                    if (message.delivery_state) return;
                     setMessageMenuMode("reactions");
                     setMessageMenu(message);
                   }}
@@ -373,7 +390,7 @@ export default function HotelBookingChat({
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
-                        {mine ? (message.is_read ? " · Read" : " · Sent") : ""}
+                        {mine ? message.delivery_state === "sending" ? " · Sending…" : message.is_read ? " · Read" : " · Sent" : ""}
                       </span>
                     </div>
                     {Object.keys(counts).length > 0 && (

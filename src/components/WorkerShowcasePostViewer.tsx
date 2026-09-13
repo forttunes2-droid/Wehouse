@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import VideoPlayer from "@/components/VideoPlayer";
+import BackButton from "@/components/BackButton";
 
 type Post = {
   id: string;
@@ -129,14 +130,10 @@ export default function WorkerShowcasePostViewer({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/25 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[42%] bg-gradient-to-t from-black/95 via-black/48 to-transparent" />
 
-      <button
-        type="button"
+      <BackButton
         onClick={onClose}
-        className="absolute left-3 top-[max(.75rem,env(safe-area-inset-top))] z-10 grid h-11 w-11 place-items-center rounded-full bg-black/45 text-xl backdrop-blur-md"
-        aria-label="Close work post"
-      >
-        ×
-      </button>
+        className="!absolute !left-3 !top-[max(.75rem,env(safe-area-inset-top))] !ml-0 !h-11 !w-11 !rounded-full !bg-black/45 !text-white backdrop-blur-md"
+      />
       {ownerActions ? (
         <div className="absolute right-3 top-[max(.75rem,env(safe-area-inset-top))] z-10 flex items-center gap-2 rounded-full bg-black/45 px-2 py-1 backdrop-blur-md">
           {ownerActions}
@@ -188,20 +185,15 @@ export default function WorkerShowcasePostViewer({
       </div>
 
       {commentsOpen ? (
-        <div className="absolute inset-0 z-20 flex items-end bg-black/45 backdrop-blur-[1px]" onClick={() => setCommentsOpen(false)}>
-          <section
-            className="flex h-[min(82dvh,760px)] w-full flex-col rounded-t-[24px] border-t border-white/[.1] bg-[#10131A] pb-[env(safe-area-inset-bottom)] shadow-[0_-20px_70px_rgba(0,0,0,.45)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/20" />
-            <header className="flex items-center justify-between px-4 pb-3 pt-2">
-              <div>
+        <section className="absolute inset-0 z-20 flex w-full flex-col bg-[#10131A] pb-[env(safe-area-inset-bottom)] shadow-2xl sm:left-auto sm:w-[min(28rem,46vw)] sm:border-l sm:border-white/[.1]">
+            <header className="flex min-h-16 items-center gap-2 border-b border-white/[.06] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
+              <BackButton onClick={() => setCommentsOpen(false)} className="!ml-0 !h-11 !w-11" />
+              <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-bold">Comments</h2>
                 <p className="mt-0.5 text-[9px] text-[#72798A]">{comments.length ? `${comments.length} ${comments.length === 1 ? "comment" : "comments"}` : "Work discussion"}</p>
               </div>
-              <button type="button" onClick={() => setCommentsOpen(false)} className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#A2A8B7]" aria-label="Close comments">×</button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto border-t border-white/[.06] px-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4">
               {commentsLoading ? (
                 <p className="py-12 text-center text-[10px] text-[#747B8B]">Loading comments…</p>
               ) : comments.length ? (
@@ -238,8 +230,7 @@ export default function WorkerShowcasePostViewer({
                 {commentBusy ? "…" : "Post"}
               </button>
             </form>
-          </section>
-        </div>
+        </section>
       ) : null}
     </div>,
     document.body,

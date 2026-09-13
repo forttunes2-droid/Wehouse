@@ -653,25 +653,19 @@ function ShortStayCase({
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Info
             label="Booking"
-            value={String(row.reservation_status || "—").replace(/_/g, " ")}
+            value={propertyBookingStatusLabel({ ...row, status: row.reservation_status, stay_type: "short_let" }, "operations")}
           />
           <Info
             label="Stay payment"
-            value={String(row.rent_payment_status || "not started").replace(
-              /_/g,
-              " ",
-            )}
+            value={paymentStateLabel(row.rent_payment_status)}
           />
           <Info
             label="Stay rent"
             value={`₦${Number(row.stay_rent_total || 0).toLocaleString()}`}
           />
           <Info
-            label="Deposit"
-            value={String(row.security_deposit_status || "pending").replace(
-              /_/g,
-              " ",
-            )}
+            label="Refundable deposit"
+            value={paymentStateLabel(row.security_deposit_status)}
           />
         </div>
       </section>
@@ -704,7 +698,7 @@ function ShortStayCase({
             onClick={() => void checkIn()}
             className="mt-3 h-11 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50"
           >
-            {busy ? "Updating…" : "Confirm check-in → Occupied"}
+            {busy ? "Confirming…" : "Confirm guest check-in"}
           </button>
         </section>
       ) : row.reservation_status === "ready_for_move_in" ? (
@@ -722,7 +716,7 @@ function ShortStayCase({
         </section>
       ) : null}
 
-      {row.listing_status === "occupied" ? (
+      {row.reservation_status === "occupied" ? (
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
           <h4 className="text-sm font-semibold text-violet-300">
             Confirm checkout
@@ -1307,6 +1301,20 @@ function Info({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+function paymentStateLabel(value: unknown) {
+  const labels: Record<string, string> = {
+    not_started: "Not paid",
+    pending: "Pending",
+    payment_pending: "Payment started",
+    paid: "Paid",
+    upfront_paid: "Paid",
+    refund_due: "Refund due",
+    refunded: "Refunded",
+    not_required: "Not required",
+    payment_conflict: "Needs WeHouse review",
+  };
+  return labels[String(value || "not_started")] || "Needs review";
 }
 function SmallRow({ label, value }: { label: string; value: string }) {
   return (

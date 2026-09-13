@@ -478,7 +478,7 @@ export default function ListingDetail({
     ),
   );
   const locationExact = reservationPaid && listing.location_exact === true;
-  const visibleAddress = locationExact
+  const visibleAddress = shortStay || locationExact
     ? [listing.address, listing.city, listing.state].filter(Boolean).join(", ")
     : [listing.city, listing.state].filter(Boolean).join(", ");
   const mapPoint = Number.isFinite(Number(listing.gps_latitude)) &&
@@ -504,7 +504,7 @@ export default function ListingDetail({
         >
           <BackButton
             onClick={onNavigate}
-            className="!absolute !left-4 !top-4 !rounded-full !border-transparent !bg-black/50 !text-white backdrop-blur"
+            className="!absolute !left-4 !top-4 !ml-0 !h-10 !w-10 !rounded-full !border-transparent !bg-black/55 !text-white shadow-lg backdrop-blur"
           />
           {!hasOwnActiveReservation && (
             <button
@@ -513,7 +513,7 @@ export default function ListingDetail({
                 isSaved ? "Remove from saved apartments" : "Save apartment"
               }
               aria-pressed={isSaved}
-              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
+              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/55 shadow-lg backdrop-blur active:scale-95"
             >
               <Heart filled={isSaved} />
             </button>
@@ -586,8 +586,9 @@ export default function ListingDetail({
                     </p>
                     {!locationExact && (
                       <p className="mt-1 text-[9px] text-[#5F6575]">
-                        Approximate area and distance only. The exact entrance
-                        and road directions unlock after confirmed payment.
+                        {shortStay
+                          ? "The public street or area is shown before booking. Exact entrance instructions, access codes and private directions unlock only for a confirmed stay."
+                          : "Approximate area and distance only. The exact entrance and road directions unlock after confirmed payment."}
                       </p>
                     )}
                   </div>

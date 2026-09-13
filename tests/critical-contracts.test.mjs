@@ -5,7 +5,17 @@ import path from 'node:path';
 import ts from 'typescript';
 
 const root=process.cwd();
-const read=(relative)=>fs.readFileSync(path.join(root,relative),'utf8');
+function resolveContractFile(relative){
+  const active=path.join(root,relative);
+  if(!relative.startsWith('supabase/migrations/'))return active;
+  const archived=path.join(root,relative.replace('supabase/migrations/','supabase/migrations_legacy/'));
+  if(!fs.existsSync(archived))return active;
+  if(!fs.existsSync(active))return archived;
+  const activeSource=fs.readFileSync(active,'utf8');
+  return activeSource.startsWith('-- Historical production migration;')?archived:active;
+}
+const read=(relative)=>fs.readFileSync(resolveContractFile(relative),'utf8');
+const exists=(relative)=>fs.existsSync(resolveContractFile(relative));
 
 async function loadTsModule(relative){
   const source=read(relative);
@@ -84,7 +94,7 @@ test('PR71 safety migrations stay present',()=>{
     'supabase/migrations/20260912001400_decouple_short_let_checkout_from_property_status.sql',
     'supabase/migrations/20260912001500_harden_short_let_operations_read_model.sql',
   ];
-  for(const file of required)assert.equal(fs.existsSync(path.join(root,file)),true,`${file} is missing`);
+  for(const file of required)assert.equal(exists(file),true,`${file} is missing`);
   assert.match(read(required[2]),/booking_code/i,'hotel conversation payload hardening must keep the booking-code regression guard');
   assert.match(read(required[3]),/block/i,'private-message block enforcement must remain in migration history');
   assert.match(read(required[4]),/short_let/i,'Short Let date-scoped availability hardening must remain in migration history');
@@ -92,7 +102,7 @@ test('PR71 safety migrations stay present',()=>{
 
 test('Production-recorded prerequisites stay in migration history',()=>{
   const supportPrerequisite='supabase/migrations/20260904183557_support_case_lifecycle_and_review_rls.sql';
-  assert.equal(fs.existsSync(path.join(root,supportPrerequisite)),true,`${supportPrerequisite} is missing`);
+  assert.equal(exists(supportPrerequisite),true,`${supportPrerequisite} is missing`);
   assert.match(read(supportPrerequisite),/create table if not exists public\.support_case_events/);
   assert.ok(
     path.basename(supportPrerequisite).localeCompare('20260909104005_make_wehouse_requests_operational.sql')<0,
@@ -100,7 +110,7 @@ test('Production-recorded prerequisites stay in migration history',()=>{
   );
 
   const locationPrerequisite='supabase/migrations/20260910053045_complete_gallery_location_activity_booking_payout_contract.sql';
-  assert.equal(fs.existsSync(path.join(root,locationPrerequisite)),true,`${locationPrerequisite} is missing`);
+  assert.equal(exists(locationPrerequisite),true,`${locationPrerequisite} is missing`);
   assert.match(read(locationPrerequisite),/get_discoverable_homes/);
   assert.ok(
     path.basename(locationPrerequisite).localeCompare('20260910065000_remove_legacy_location_rpc_access.sql')<0,
@@ -264,4 +274,43 @@ test('Privileged production Edge Functions remain reproducible and fail closed',
   assert.match(processor,/x-wehouse-cron-secret/);
   assert.match(processor,/sameSecret/);
   assert.match(processor,/mark_financial_action_manual_review/);
+});
+
+test('Adult eligibility is private and enforced before new profile completion',()=>{
+  const migration=read('supabase/migrations/20260913180000_private_adult_account_gate.sql');
+  const setup=read('src/pages/Setup.tsx');
+  assert.match(migration,/create table if not exists public\.profile_age_eligibility/);
+  assert.match(migration,/revoke all on table public\.profile_age_eligibility from public, anon, authenticated/);
+  assert.match(migration,/current_date - interval '18 years'/);
+  assert.match(migration,/profiles_require_adult_before_completion/);
+  assert.match(setup,/set_my_date_of_birth/);
+  assert.match(setup,/You must be 18 or older to use WeHouse/);
+});
+
+test('Short Let checkout follows reservation occupancy, not global listing state',()=>{
+  const operations=read('src/components/HousingOperationsWorkspace.tsx');
+  const migration=read('supabase/migrations/20260912001300_separate_short_let_publication_from_date_occupancy.sql');
+  assert.match(operations,/row\.reservation_status === "occupied"/);
+  assert.doesNotMatch(operations,/row\.listing_status === "occupied" \? \(\s*<section[^]*Confirm checkout/);
+  assert.match(migration,/set status='occupied',tenancy_start_date=p_actual_check_in/);
+  assert.match(migration,/set status='available',availability_status='available'/);
+});
+
+test('Worker ratings and reviews render only after verified job reviews exist',()=>{
+  const profile=read('src/components/WorkerPublicProfile.tsx');
+  const booking=read('src/components/BookingNegotiationChat.tsx');
+  const schema=read('supabase/migrations/20250525000000_remote_schema.sql');
+  assert.match(profile,/reviewCount > 0 \? <ProfileFact label="Customer rating"/);
+  assert.match(profile,/reviews\.length > 0 \? <section>/);
+  assert.doesNotMatch(profile,/value=\{rating > 0 \?[^:]+: "New"\}/);
+  assert.match(booking,/booking\?\.status === "approved_released"/);
+  assert.match(schema,/if booking\.status<>'approved_released' then raise exception 'Review becomes available after the job is completed'/);
+});
+
+test('Listing detail controls render with loaded media instead of floating during load',()=>{
+  const wrapper=read('src/pages/ListingDetail.tsx');
+  const detail=read('src/pages/ListingDetailCore.tsx');
+  assert.doesNotMatch(wrapper,/Add apartment to Saved/);
+  assert.match(detail,/PropertyMediaCarousel/);
+  assert.match(detail,/!ml-0 !h-10 !w-10 !rounded-full/);
 });

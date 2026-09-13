@@ -191,12 +191,11 @@ export default function WorkerPublicProfileV2({
       onClose={onBack}
       maxWidth="4xl"
       actions={communicationActions}
-      badges={<>{trust?.pro_active ? <WorkerProBadge /> : null}{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : <span className="rounded-full bg-white/[.05] px-2.5 py-1 text-[9px] text-[#8C92A1]">Review pending</span>}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
+      badges={<>{trust?.pro_active ? <WorkerProBadge /> : null}{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
       bottomAction={showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-xs font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
-      <section className="grid grid-cols-3 border-y border-white/[.06]">
-        <ProfileFact label="Verification" value={trust?.reviewed ? "Reviewed" : "Pending"} />
-        <ProfileFact label="Rating" value={rating > 0 ? `${rating.toFixed(1)} · ${reviewCount}` : "New"} />
+      <section className={`grid border-y border-white/[.06] ${reviewCount > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+        {reviewCount > 0 ? <ProfileFact label="Customer rating" value={`${rating.toFixed(1)} · ${reviewCount} verified`} /> : null}
         <ProfileFact label="Jobs" value={String(Number(trust?.completed_jobs || 0))} />
       </section>
       {skills.length ? (
@@ -230,13 +229,12 @@ export default function WorkerPublicProfileV2({
           </div>
         )}
       </section>
-      <section>
+      {reviews.length > 0 ? <section>
         <div className="mb-3 flex items-end justify-between gap-3">
           <div><h2 className="text-sm font-bold">Customer reviews</h2><p className="mt-1 text-[9px] text-[#666D7E]">Verified reviews from completed WeHouse jobs.</p></div>
-          {reviewCount > 0 && <p className="text-xs font-semibold text-amber-300">★ {rating.toFixed(1)} · {reviewCount}</p>}
+          <p className="text-xs font-semibold text-amber-300">★ {rating.toFixed(1)} · {reviewCount}</p>
         </div>
-        {reviews.length ? (
-          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
             {reviews.map((review) => (
               <article key={review.id} className="py-4">
                 <div className="flex items-start justify-between gap-3">
@@ -246,9 +244,8 @@ export default function WorkerPublicProfileV2({
                 {review.comment && <p className="mt-3 whitespace-pre-wrap text-[11px] leading-5 text-[#A5AAB7]">{review.comment}</p>}
               </article>
             ))}
-          </div>
-        ) : <Empty text="No customer reviews yet. Reviews appear only after completed WeHouse jobs." />}
-      </section>
+        </div>
+      </section> : null}
       {safetyAction ? <section className="mt-7 border-t border-white/[.07] pt-5">{safetyAction}</section> : null}
       {viewer && (
         <WorkerShowcasePostViewer

@@ -12,6 +12,7 @@ export default function Setup({ profile, onSetupComplete }: Props) {
   const [username, setUsername] = useState('');
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [privacy, setPrivacy] = useState('');
@@ -54,6 +55,8 @@ export default function Setup({ profile, onSetupComplete }: Props) {
     if (!/^[a-z0-9_]+$/.test(trimmed)) return setError('Only letters, numbers, and underscores');
     if (!state) return setError('Choose your current State');
     if (!city) return setError('Choose your Local Government');
+    if (!dateOfBirth) return setError('Enter your date of birth');
+    if (dateOfBirth > adultCutoff()) return setError('You must be 18 or older to use WeHouse');
     if (!legalReady) return setError('Read and accept each published WeHouse legal document to continue');
 
     setWorking(true);
@@ -72,6 +75,8 @@ export default function Setup({ profile, onSetupComplete }: Props) {
         const result = await supabase.rpc('accept_current_legal', { p_document: 'terms' });
         if (result.error) { setError(result.error.message); setWorking(false); return; }
       }
+      const ageResult = await supabase.rpc('set_my_date_of_birth', { p_date_of_birth: dateOfBirth });
+      if (ageResult.error) { setError(ageResult.error.message); setWorking(false); return; }
       const { profile: updated, error: saveError } = await updateProfile(profile.user_id, {
         username: trimmed,
         state,
@@ -110,6 +115,11 @@ export default function Setup({ profile, onSetupComplete }: Props) {
           <SearchableSelect label="State *" value={state} onChange={(next) => { setState(next); setCity(''); }} options={stateOptions} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
           <SearchableSelect label="Local Government *" value={city} onChange={setCity} options={cityOptions} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
 
+          <FieldLabel label="Date of birth">
+            <Input type="date" value={dateOfBirth} max={adultCutoff()} onChange={(event) => setDateOfBirth(event.target.value)} className="h-11 rounded-xl border-[#2A2A3A] bg-[#1A1A24] text-sm text-white" />
+            <span className="mt-1.5 block text-[9px] leading-4 text-[#6F7484]">WeHouse is for people aged 18 or older. Your date of birth is private and is used only to confirm eligibility.</span>
+          </FieldLabel>
+
           <div className="rounded-2xl border border-white/[.06] bg-[#11131B] p-4 text-[10px] leading-relaxed text-[#7D8291]">{content.info}</div>
 
           {(privacyPublished || termsPublished) && (
@@ -146,3 +156,4 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-medium text-[#8A8B9C]">{label} *</span>{children}</label>; }
 function Consent({ checked, onChange, title, onRead }: { checked: boolean; onChange: (value: boolean) => void; title: string; onRead: () => void }) { return <div className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><button type="button" onClick={() => onChange(!checked)} className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border text-xs ${checked ? 'border-violet-500 bg-violet-500' : 'border-white/[.15]'}`}>{checked ? '✓' : ''}</button><div className="min-w-0 flex-1"><p className="text-xs">I accept the {title}</p><button type="button" onClick={onRead} className="mt-1 text-[10px] font-semibold text-violet-300">Read {title}</button></div></div>; }
 function render(text: string) { return text.split('\n').map((line, index) => { const trimmed = line.trim(); if (!trimmed) return <div key={index} className="h-3" />; if (trimmed.startsWith('**') && trimmed.endsWith('**')) return <h3 key={index} className="mt-5 text-sm font-semibold text-white first:mt-0">{trimmed.replace(/\*\*/g, '')}</h3>; return <p key={index}>{line}</p>; }); }
+function adultCutoff() { const date = new Date(); date.setFullYear(date.getFullYear() - 18); return date.toISOString().slice(0, 10); }

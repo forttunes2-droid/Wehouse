@@ -56,6 +56,7 @@ import {
   getMyHotelConversations,
   type HotelConversation,
 } from "@/lib/supabase/hotel-chat";
+import BackButton from "@/components/BackButton";
 
 type Props = {
   profile: Profile;
@@ -74,6 +75,7 @@ type RoommateMessage = Message & {
   attachment_types?: string[];
   reply_to_id?: string | null;
   reactions?: Record<string, string>;
+  delivery_state?: "sending" | "failed";
 };
 type BookingConversation = {
   conversation_id: string;
@@ -571,7 +573,30 @@ export default function Chat({
     if (!active || sending || (!input.trim() && !files.length)) return;
     if (secureChat?.state !== "ready")
       return toast.error("Secure conversation must be ready before sending");
+    const content = input.trim();
+    const queuedFiles = [...files];
+    const replyTarget = replyingTo;
+    const optimisticId = `pending-${Date.now()}`;
+    const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
     setSending(true);
+    setInput("");
+    setFiles([]);
+    setReplyingTo(null);
+    setMessages((current) => [
+      ...current,
+      {
+        id: optimisticId,
+        conversation_id: active.id,
+        sender_id: profile.user_id,
+        content,
+        seen: false,
+        created_at: new Date().toISOString(),
+        attachments: optimisticUrls,
+        attachment_types: queuedFiles.map((file) => file.type),
+        reply_to_id: replyTarget?.id || null,
+        delivery_state: "sending",
+      },
+    ]);
     const paths: string[] = [],
       attachments: Array<{
         path: string;
@@ -580,7 +605,7 @@ export default function Chat({
         metadata_iv: string;
       }> = [];
     try {
-      for (const file of files) {
+      for (const file of queuedFiles) {
         const uploaded = await uploadRoommateChatAttachment(
           file,
           active.id,
@@ -596,18 +621,20 @@ export default function Chat({
       const result = await sendMessage(
         active.id,
         otherId(active),
-        input.trim(),
+        content,
         attachments,
-        replyingTo?.id || null,
+        replyTarget?.id || null,
       );
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
-      setInput("");
-      setFiles([]);
-      setReplyingTo(null);
+      setSending(false);
       await loadRoommateMessages(active.id);
       void loadInbox(true);
     } catch (error: unknown) {
+      setMessages((current) => current.filter((message) => message.id !== optimisticId));
+      setInput(content);
+      setFiles(queuedFiles);
+      setReplyingTo(replyTarget);
       for (const path of paths) await deleteRoommateChatAttachment(path);
       const message =
         error instanceof Error ? error.message : "Message could not be sent";
@@ -623,6 +650,7 @@ export default function Chat({
         );
       } else toast.error(message);
     } finally {
+      optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
       setSending(false);
     }
   }
@@ -903,17 +931,15 @@ export default function Chat({
       <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#090A0F] text-white">
         <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center gap-1">
-            <button
+            <BackButton
               onClick={() => {
                 setActive(null);
                 onConversationClose?.();
                 void loadInbox(true);
               }}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9699A8] hover:bg-white/[.05]"
-              aria-label="Back to Inbox"
-            >
-              ←
-            </button>
+              className="!ml-0 !w-10 rounded-full hover:bg-white/[.05]"
+              ariaLabel="Back to Inbox"
+            />
             <button
               type="button"
               onClick={() => void openActiveProfile()}
@@ -1017,10 +1043,12 @@ export default function Chat({
                         : undefined
                     }
                     onOpenActions={() => {
+                      if (event.message.delivery_state) return;
                       setMessageActionMode("actions");
                       setMessageActions(event.message);
                     }}
                     onTapReaction={() => {
+                      if (event.message.delivery_state) return;
                       setMessageActionMode("reactions");
                       setMessageActions(event.message);
                     }}
@@ -1843,7 +1871,7 @@ function RoommateBubble({
           className={`mt-1 text-right text-[8px] ${mine ? "text-violet-100/70" : "text-[#626677]"}`}
         >
           {time(msg.created_at)}
-          {mine ? (msg.seen ? " · Seen" : " · Sent") : ""}
+          {mine ? msg.delivery_state === "sending" ? " · Sending…" : msg.delivery_state === "failed" ? " · Not sent" : msg.seen ? " · Seen" : " · Sent" : ""}
         </p>
         {Object.keys(reactions).length > 0 && (
           <div

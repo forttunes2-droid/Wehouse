@@ -1,14 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Plus, Reply, Trash2 } from "lucide-react";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
-const MORE_EMOJIS = [
-  "😀", "😁", "🥰", "😍", "🤩", "😘", "😊", "🥹",
-  "😎", "🤔", "🙄", "😬", "😭", "😡", "🤯", "🥳",
-  "👏", "🙌", "🤝", "💪", "👌", "✌️", "🤞", "🫶",
-  "🔥", "✨", "💯", "🎉", "✅", "❌", "👀", "💜",
-];
-
 type Props = {
   mode?: "reactions" | "actions";
   currentReaction?: string | null;
@@ -40,12 +33,17 @@ export default function MessageActionSheet({
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
+  const customEmojiRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [onClose]);
+
+  useEffect(() => {
+    if (moreOpen) customEmojiRef.current?.focus();
+  }, [moreOpen]);
 
   function choose(emoji: string) {
     const reaction = firstGrapheme(emoji);
@@ -83,7 +81,7 @@ export default function MessageActionSheet({
               <button
                 type="button"
                 onClick={() => setMoreOpen((value) => !value)}
-                aria-label="Show more reactions"
+                aria-label="Use an emoji from your keyboard"
                 className={"grid h-10 w-10 place-items-center rounded-full transition " + (moreOpen ? "bg-violet-500/20 text-violet-200" : "text-[#AEB4C0] hover:bg-white/[.07]")}
               >
                 <Plus className="h-4 w-4" />
@@ -91,22 +89,12 @@ export default function MessageActionSheet({
             </div>
             {moreOpen ? (
               <div className="mt-2 rounded-[22px] border border-white/[.09] bg-[#171A22] p-2.5 shadow-2xl">
-                <div className="grid grid-cols-8 gap-1">
-                  {MORE_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => choose(emoji)}
-                      aria-label={currentReaction === emoji ? "Remove " + emoji + " reaction" : "React " + emoji}
-                      aria-pressed={currentReaction === emoji}
-                      className={"grid aspect-square place-items-center rounded-lg text-lg active:scale-90 " + (currentReaction === emoji ? "bg-violet-500/25 ring-1 ring-violet-400/50" : "hover:bg-white/[.06]")}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2 flex items-center gap-2 border-t border-white/[.07] pt-2">
+                <p className="px-1 pb-2 text-[9px] leading-4 text-[#858B9B]">
+                  Open your phone keyboard, choose any emoji, then tap React.
+                </p>
+                <div className="flex items-center gap-2">
                   <input
+                    ref={customEmojiRef}
                     value={customEmoji}
                     onChange={(event) => setCustomEmoji(event.target.value)}
                     onKeyDown={(event) => {
@@ -118,7 +106,7 @@ export default function MessageActionSheet({
                     inputMode="text"
                     autoComplete="off"
                     aria-label="Emoji from keyboard"
-                    placeholder="Choose any emoji from your keyboard"
+                    placeholder="Choose an emoji"
                     className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#0E1118] px-3 text-[11px] outline-none placeholder:text-[#626879] focus:border-violet-500/35"
                   />
                   <button

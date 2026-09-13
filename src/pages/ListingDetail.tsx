@@ -52,29 +52,8 @@ export default function ListingDetail(props: Props) {
   }, [props.listingId]);
 
   return (
-    <div ref={surfaceRef} className="listing-detail-save-surface relative">
-      <style>{`
-        .listing-detail-save-surface button[aria-label="Save apartment"],
-        .listing-detail-save-surface button[aria-label="Remove from saved apartments"] { display: none !important; }
-      `}</style>
+    <div ref={surfaceRef} className="relative">
       <ListingDetailCore {...props} />
-      <button
-        type="button"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          props.onToggleSave();
-        }}
-        aria-label={props.isSaved ? "Remove apartment from Saved" : "Add apartment to Saved"}
-        aria-pressed={props.isSaved}
-        className="absolute right-4 top-[4.75rem] z-[45] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur active:scale-95"
-      >
-        <Heart filled={props.isSaved} />
-      </button>
     </div>
   );
-}
-
-function Heart({ filled }: { filled: boolean }) {
-  return <svg width="19" height="19" viewBox="0 0 24 24" fill={filled ? "#A78BFA" : "none"} stroke={filled ? "#A78BFA" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>;
 }

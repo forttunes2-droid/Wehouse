@@ -717,25 +717,21 @@ export default function BookingNegotiationChat({
                 View request ›
               </span>
             </button>
-            <div className="mb-2 mt-3 flex items-center justify-between border-t border-white/[.055] pt-3">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-[#656A7A]">
-                Job progress
-              </p>
+            <div className="mb-2 mt-3 flex items-start justify-between gap-3 border-t border-white/[.055] pt-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-[#656A7A]">
+                  What happens next
+                </p>
+                <p className="mt-1 text-[10px] leading-5 text-[#B5BAC7]">
+                  {workerNextStep(booking.status, isWorker)}
+                </p>
+              </div>
               {Number(booking.negotiated_amount || 0) > 0 && (
-                <p className="text-xs font-bold">
+                <p className="shrink-0 text-xs font-bold">
                   ₦{Number(booking.negotiated_amount).toLocaleString()}
                 </p>
               )}
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/[.06]">
-              <div
-                className="h-full rounded-full bg-violet-500"
-                style={{ width: getProgressWidth(booking.status) }}
-              />
-            </div>
-            <p className="mt-1 text-[9px] leading-relaxed text-[#686C7D]">
-              {statusInfo?.description}
-            </p>
             {!isWorker &&
               [
                 "confirmed",
@@ -1883,14 +1879,7 @@ function JobRequestDetailsSheet({
       aria-label="Service request details"
     >
       <header className="flex min-h-14 items-center gap-3 border-b border-white/[.07] px-3 pt-[env(safe-area-inset-top)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#9BA0AE]"
-          aria-label="Back to chat"
-        >
-          ←
-        </button>
+        <BackButton onClick={onClose} className="!ml-0 !w-10" ariaLabel="Back to chat" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">
             {booking.service_type || "Service request"}
@@ -1908,19 +1897,19 @@ function JobRequestDetailsSheet({
     </div>
   );
 }
-function getProgressWidth(status: string) {
-  const progress: Record<string, string> = {
-    booking_requested: "15%",
-    negotiating: "30%",
-    waiting_payment: "45%",
-    confirmed: "60%",
-    in_progress: "75%",
-    completed_pending_approval: "85%",
-    approved_released: "100%",
-    completed: "100%",
-    disputed: "90%",
-    cancelled: "0%",
-    refunded: "0%",
+function workerNextStep(status: string, isWorker: boolean) {
+  const copy: Record<string, [string, string]> = {
+    booking_requested: ["Review the request, set the full price and confirm the work date.", "The professional is reviewing your request and will set the full price and work date."],
+    negotiating: ["Agree the work details, full price and date with the customer.", "Agree the work details, full price and date with the professional."],
+    waiting_payment: ["Wait for the customer to approve the agreement and pay through WeHouse.", "Review the final price and date, then pay through WeHouse to confirm the job."],
+    confirmed: ["Payment is secured. Start the job only when you arrive and begin the agreed work.", "Payment is secured. The professional can start the job when the agreed work begins."],
+    in_progress: ["Complete the agreed work, then mark it ready for the customer to review.", "The work is in progress. Do not confirm completion until you have checked the result."],
+    completed_pending_approval: ["Wait for the customer to confirm the work or open a problem report.", "Check the finished work. Confirm it only if the agreed work is complete, or report a problem."],
+    approved_released: ["The customer confirmed the work and your earnings are available under the payout rules.", "The work is complete and payment has been released under the booking rules."],
+    disputed: ["Do not make a new payment or private settlement while WeHouse reviews the problem.", "Do not confirm or pay again while WeHouse reviews the problem."],
+    cancelled: ["This job is cancelled. No work should begin.", "This job is cancelled. No further booking action is needed."],
+    refunded: ["This job is closed and the customer refund has been recorded.", "The refund has been recorded. Open WeHouse support if the record is incorrect."],
   };
-  return progress[status] || "0%";
+  const item = copy[status] || ["Open the request to see the next available action.", "Open the request to see the next available action."];
+  return item[isWorker ? 0 : 1];
 }

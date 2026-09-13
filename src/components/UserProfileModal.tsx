@@ -344,7 +344,7 @@ function UserProfileContent({
 
           <div className="space-y-0 px-5 pb-10">
             {user.role === "worker" && workerStats && (
-              <div className="grid grid-cols-4 divide-x divide-white/[.06] border-b border-white/[.06] py-4 text-center">
+              <div className={`grid divide-x divide-white/[.06] border-b border-white/[.06] py-4 text-center ${workerStats.reviewCount > 0 ? "grid-cols-4" : "grid-cols-3"}`}>
                 <div>
                   <p className="text-lg font-bold text-white">
                     {workerStats.totalBookings}
@@ -363,16 +363,16 @@ function UserProfileContent({
                   </p>
                   <p className="text-[10px] text-[#5C5E72]">Earnings</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold text-amber-400">
-                    {workerStats.avgRating > 0
-                      ? workerStats.avgRating.toFixed(1)
-                      : "—"}
-                  </p>
-                  <p className="text-[10px] text-[#5C5E72]">
-                    {workerStats.reviewCount} Reviews
-                  </p>
-                </div>
+                {workerStats.reviewCount > 0 ? (
+                  <div>
+                    <p className="text-lg font-bold text-amber-400">
+                      {workerStats.avgRating.toFixed(1)}
+                    </p>
+                    <p className="text-[10px] text-[#5C5E72]">
+                      {workerStats.reviewCount} {workerStats.reviewCount === 1 ? "Review" : "Reviews"}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             )}
 

@@ -44,6 +44,6 @@ hotel.
 ## Current launch state
 
 There are no certified PMS providers. The certification registry and runtime
-gates exist on preview, and manual hotel operations remain available. The first
+gates are merged fail-closed, and manual hotel operations remain available. The first
 connected launch requires one specifically named provider to complete the full
 checklist and end-to-end pilot; later providers repeat the same process.

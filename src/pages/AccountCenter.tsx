@@ -52,6 +52,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [activatingWorkspace, setActivatingWorkspace] = useState<'worker' | 'property_partner' | null>(null);
+  const [workspaceToAdd, setWorkspaceToAdd] = useState<'worker' | 'property_partner' | null>(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
   const role = profile.role;
@@ -239,8 +240,8 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
           <div className="px-4 py-4 sm:px-5">
             <p className="text-[12px] font-semibold">Choose where you are working</p>
             <p className="mt-1 text-[9px] leading-relaxed text-[#6F7585]">Your personal bookings and conversations remain separate from WeHouse team activity.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <WorkspaceButton label="Personal" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <WorkspaceButton label="Personal" detail="Bookings, roommate matches and personal messages" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
               {privilegedWorkspaces.map((workspace) => (
                 <WorkspaceButton key={workspace.role} label={workspace.role === 'worker' ? 'Worker' : workspace.role === 'property_partner' ? 'Property Partner' : workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Team'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
               ))}
@@ -251,8 +252,8 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
       {workspaceAccess?.personal_workspace && (!hasWorkerWorkspace || !hasPartnerWorkspace) && (
         <AccountSection title="Add a professional workspace">
-          {!hasWorkerWorkspace && <AccountRow title="Offer services" detail="Create a free Worker profile; Reviewed and Trusted are earned, not purchased" onClick={() => void activateProfessionalWorkspace('worker')} disabled={activatingWorkspace!==null} icon={<PersonIcon />} />}
-          {!hasPartnerWorkspace && <AccountRow title="List or manage property" detail="Add a separate Property Partner workspace to this Personal identity" onClick={() => void activateProfessionalWorkspace('property_partner')} disabled={activatingWorkspace!==null} icon={<HomeIcon />} />}
+          {!hasWorkerWorkspace && <AccountRow title="Offer services" detail="Review what is added before creating a free Worker workspace" onClick={() => setWorkspaceToAdd('worker')} disabled={activatingWorkspace!==null} icon={<PersonIcon />} />}
+          {!hasPartnerWorkspace && <AccountRow title="List or manage property" detail="Review what is added before creating a Property Partner workspace" onClick={() => setWorkspaceToAdd('property_partner')} disabled={activatingWorkspace!==null} icon={<HomeIcon />} />}
         </AccountSection>
       )}
 
@@ -283,6 +284,29 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         <p className="text-[12px] font-semibold text-red-300">{signingOut ? 'Logging out…' : 'Log out'}</p>
         <p className="mt-1 text-[9px] text-red-300/60">{signingOut ? 'Closing this session securely' : 'Sign out of this device'}</p>
       </button>
+
+      {workspaceToAdd ? (
+        <div className="fixed inset-0 z-[100100] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center" onClick={() => setWorkspaceToAdd(null)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="workspace-review-title" className="w-full max-w-md rounded-[26px] border border-white/[.09] bg-[#11141C] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Review workspace</p>
+                <h2 id="workspace-review-title" className="mt-1 text-lg font-bold">{workspaceToAdd === 'worker' ? 'Worker' : 'Property Partner'}</h2>
+              </div>
+              <button type="button" onClick={() => setWorkspaceToAdd(null)} className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#949AAA]" aria-label="Go back without adding workspace">×</button>
+            </div>
+            <div className="mt-4 space-y-3 rounded-2xl border border-white/[.07] bg-black/10 p-4 text-[10px] leading-5 text-[#A8ADBA]">
+              <p>Your Personal identity, bookings and conversations remain unchanged.</p>
+              <p>{workspaceToAdd === 'worker' ? 'Worker onboarding is free. Reviewed and Trusted are earned through WeHouse checks and completed work; they cannot be bought.' : 'This adds tools to submit and manage properties. Publishing still follows WeHouse review and authority checks.'}</p>
+              <p>You can cancel now and return without changing your account.</p>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setWorkspaceToAdd(null)} className="h-12 rounded-2xl border border-white/[.08] text-[11px] font-semibold">Back</button>
+              <button type="button" disabled={activatingWorkspace!==null} onClick={() => { const workspace=workspaceToAdd; setWorkspaceToAdd(null); void activateProfessionalWorkspace(workspace); }} className="h-12 rounded-2xl bg-violet-500 text-[11px] font-semibold disabled:opacity-45">{activatingWorkspace ? 'Adding…' : 'Add workspace'}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </AccountShell>
   );
 }
@@ -293,7 +317,7 @@ function Toggle({ label, detail, value, onChange, disabled=false }: { label: str
 function Check({ label, value, set }: { label: string; value: boolean; set: (value: boolean) => void }) { return <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5"><input type="checkbox" checked={value} onChange={(event) => set(event.target.checked)} className="h-4 w-4 accent-violet-500" /><span className="text-[10px] leading-relaxed text-[#B3B8C4]">{label}</span></label>; }
 function LegalCard({ title, published, accepted, onClick }: { title: string; published: boolean; accepted: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} disabled={!published} className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"><p className="text-[11px] font-semibold">{title}</p><p className={`mt-2 text-[9px] ${accepted ? 'text-emerald-300' : 'text-[#6E7484]'}`}>{!published ? 'Not published' : accepted ? 'Accepted' : 'Review document'}</p></button>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center"><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] text-[#666D7E]">{text}</p></div>; }
-function WorkspaceButton({ label, detail, active, onClick }: { label: string; detail?: string; active: boolean; onClick: () => void }) { return <button type="button" aria-pressed={active} onClick={onClick} className={`rounded-2xl border px-4 py-3 text-left transition ${active ? 'border-violet-500/35 bg-violet-500/[.12] text-violet-200' : 'border-white/[.07] bg-white/[.025] text-[#A1A6B5]'}`}><span className="block text-[11px] font-semibold">{label}</span>{detail ? <span className="mt-0.5 block text-[8px] opacity-65">{detail}</span> : null}</button>; }
+function WorkspaceButton({ label, detail, active, onClick }: { label: string; detail?: string; active: boolean; onClick: () => void }) { return <button type="button" aria-pressed={active} onClick={onClick} className={`min-h-[4.5rem] w-full rounded-2xl border px-4 py-3 text-left transition ${active ? 'border-violet-500/35 bg-violet-500/[.12] text-violet-200' : 'border-white/[.07] bg-white/[.025] text-[#A1A6B5]'}`}><span className="flex items-center justify-between gap-3 text-[11px] font-semibold"><span>{label}</span><span className={`h-2 w-2 rounded-full ${active ? 'bg-violet-300' : 'bg-white/15'}`} /></span>{detail ? <span className="mt-1 block text-[8px] leading-4 opacity-65">{detail}</span> : null}</button>; }
 
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
 function HeartIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}

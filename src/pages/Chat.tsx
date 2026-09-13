@@ -62,6 +62,7 @@ type ThreadView = {
   kind: string;
   preview: string;
   context: string;
+  status: string;
   time: string;
   unread: number;
   tone: "violet" | "amber" | "emerald" | "blue";
@@ -244,7 +245,15 @@ export default function Chat({
           )}
         </button>
 
-        <label className="flex h-12 items-center gap-3 border-b border-white/[.08] px-1 focus-within:border-violet-500/45">
+        <div className="flex items-end justify-between gap-4 pb-2 pt-4">
+          <div>
+            <h2 className="text-[15px] font-bold">Messages</h2>
+            <p className="mt-1 text-[9px] text-[#6D7383]">Every conversation, ordered by the latest message.</p>
+          </div>
+          <span className="text-[9px] font-semibold text-[#767C8C]">{visible.length}</span>
+        </div>
+
+        <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
           <SearchIcon />
           <input
             value={query}
@@ -268,7 +277,7 @@ export default function Chat({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-white/[.055] border-b border-white/[.06]">
+          <div className="mt-3 divide-y divide-white/[.055] border-y border-white/[.06]">
             {visible.map((thread) => (
               <ThreadRow
                 key={thread.id}
@@ -362,6 +371,9 @@ function ThreadRow({
           }`}>
             {view.kind}
           </span>
+          <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.025] px-2 py-0.5 text-[7px] font-semibold text-[#9298A7]">
+            {view.status}
+          </span>
           {view.context ? (
             <>
               <span className="text-[7px] text-[#3F4553]">·</span>
@@ -402,9 +414,10 @@ function threadPresentation(
       title: peer?.name || peer?.username || "Roommate",
       avatar: peer?.avatar || null,
       fallback: (peer?.name || peer?.username || "R").slice(0, 1),
-      kind: "Roommate",
+      kind: "Roommate match",
       preview: cleanEncryptedPreview(thread.row.last_message || "Start the conversation"),
       context: "Matched roommate",
+      status: "Matched",
       time: formatListTime(thread.time),
       unread,
       tone: "violet",
@@ -415,13 +428,14 @@ function threadPresentation(
       title: thread.row.other_person_name || "WeHouse service worker",
       avatar: thread.row.other_person_avatar,
       fallback: (thread.row.other_person_name || "S").slice(0, 1),
-      kind: "Service",
+      kind: "Service booking",
       preview: cleanEncryptedPreview(
         thread.row.last_message || thread.row.service_type || "Service conversation",
       ),
       context: [thread.row.service_type, statusLabel(thread.row.booking_status)]
         .filter(Boolean)
         .join(" · "),
+      status: statusLabel(thread.row.booking_status) || "Requested",
       time: formatListTime(thread.row.last_message_time || thread.row.updated_at),
       unread: Number(thread.row.unread_count || 0),
       tone: "emerald",
@@ -432,7 +446,7 @@ function threadPresentation(
       title: thread.row.other_party_label || thread.row.hotel_name || "Hotel",
       avatar: thread.row.hotel_image,
       fallback: "H",
-      kind: "Hotel",
+      kind: "Hotel stay",
       preview: thread.row.last_message || "Stay conversation ready",
       context: [
         thread.row.room_name,
@@ -440,6 +454,7 @@ function threadPresentation(
       ]
         .filter(Boolean)
         .join(" · "),
+      status: statusLabel(thread.row.booking_status) || "Stay",
       time: formatListTime(thread.row.last_message_time || thread.row.updated_at),
       unread: Number(thread.row.unread_count || 0),
       tone: "amber",
@@ -450,9 +465,10 @@ function threadPresentation(
     title: presentation.title,
     avatar: null,
     fallback: "W",
-    kind: "WeHouse",
+    kind: "WeHouse help",
     preview: thread.row.last_message || presentation.operator,
     context: presentation.meta || "Support case",
+    status: statusLabel(thread.row.status) || "Open",
     time: formatListTime(thread.row.last_message_time || thread.row.created_at),
     unread: Number(thread.row.unread_count || 0),
     tone: "blue",
@@ -565,12 +581,24 @@ function statusLabel(value?: string | null) {
     negotiating: "Agreeing details",
     waiting_payment: "Waiting payment",
     confirmed: "Paid",
+    pending: "Waiting confirmation",
+    payment_pending: "Waiting payment",
+    paid: "Paid",
+    checked_in: "Checked in",
+    checked_out: "Checked out",
+    expired: "Expired",
+    payment_conflict: "Payment review",
     in_progress: "In progress",
     completed_pending_approval: "Review work",
     approved_released: "Completed",
     disputed: "WeHouse review",
     cancelled: "Cancelled",
     refunded: "Refunded",
+    open: "Open",
+    waiting_for_user: "Your reply needed",
+    waiting_for_staff: "WeHouse reviewing",
+    resolved: "Resolved",
+    closed: "Closed",
   };
   return labels[String(value || "")] ||
     String(value || "")
