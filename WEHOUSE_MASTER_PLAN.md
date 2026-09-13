@@ -1,369 +1,176 @@
-# WEHOUSE NIGERIA — COMPLETE MASTER PLAN
-
-## 1. ROLES & DASHBOARDS (7 Total)
-
-Every user who logs in gets ONE of these experiences based on their `role` in the `profiles` table:
-
-| Role | Account Type | Dashboard | Bottom Nav Tabs |
-|------|-------------|-----------|-----------------|
-| **creator** | You (owner) | Creator Dashboard | Home, Hotels, Messages, Workers, Creator |
-| **admin** | Your appointee | Admin Dashboard | Home, Hotels, Messages, Workers, Admin |
-| **staff** | Field officer | Staff Dashboard | Home, Hotels, Messages, Workers, Staff |
-| **worker** | Service provider | Worker Dashboard | Home, Hotels, Messages, Profile |
-| **property_partner** | Property owner | Partner Dashboard | Home, Hotels, Messages, Workers, Partner |
-| **user** | Regular tenant | User Profile | Home, Search, Saved, Hotels, Messages, Wallet, Roommates, Workers, Profile |
-
-**If someone logs in and sees no dashboard** — their `role` field in the `profiles` table is either NULL, empty, or contains a value that doesn't match any of the 7 roles above. Fix: Set their `role` to `'user'`.
-
----
-
-## 2. CREATOR DASHBOARD (You)
-
-**Tabs:** Overview, Users, Workers, Partners, Staff, Listings, Bookings, Reports, Support, Verification, Announcements, Settings
-
-### Settings Tab — What You Can Configure:
-
-**Company Info:**
-- Company Name, Short Name, Slogan
-- Support Email, Phone, Office Address
-- WhatsApp Number, Website URL, CAC Number
-
-**Legal:**
-- Privacy Policy (full text — shows to all users)
-- Terms of Service (full text — shows to all users)
-- Refund Policy (full text — shows to all users)
-- Cookie Notice text, Minimum Age
-
-**Financial:**
-- Commission rates (worker, partner, hotel)
-- Minimum withdrawal amount, withdrawal fee
-- Inspection fee, Blue badge price
-- Currency symbol
-
-**Payment:**
-- Paystack public key
-- Test mode ON/OFF
-- Auto payout ON/OFF
-
-**Property:**
-- Listing approval (manual/auto)
-- Max listings per partner
-- Min/max photos per listing
-
-**Workers:**
-- Worker approval (manual/auto)
-- Video intro required ON/OFF
-- Max skills per worker
-
-**Features:**
-- Hotels module ON/OFF
-- Workers module ON/OFF
-- Roommate matching ON/OFF
-- Price negotiation ON/OFF
-- Maintenance mode ON/OFF
-- Registration open/closed
-
----
-
-## 3. ADMIN DASHBOARD (Your Appointee)
-
-**Tabs:** Overview, Users, Workers, Partners, Staff, Listings, Bookings, Reports, Support, Verification, Announcements
-
-**What Admin Can Do:**
-- View ALL users, workers, partners, staff
-- Click any user to see their full profile
-- Grant blue tick access to pending workers
-- Approve/reject workers who are "under review"
-- View and delete listings
-- View reports
-- Send announcements to all users
-- Cannot: Edit platform settings (only Creator can), demote/promote staff (not built yet)
-
----
-
-## 4. STAFF DASHBOARD (Field Officer)
-
-**Tabs:** Overview, Inspections, Verifications, Listings, Bookings, Support, Analytics, Settings
-
-**What Staff Can Do:**
-- View assigned inspections
-- Verify worker documents
-- View listings in their assigned area
-- Respond to support tickets
-- Cannot: Access financial settings, approve workers, manage users
-
----
-
-## 5. WORKER DASHBOARD (Service Provider)
-
-**Status Flow (the correct flow):**
-```
-1. User signs up → role = 'worker', status = 'pending'
-2. Worker sees "Pending" on dashboard
-3. Admin clicks "Grant Access" → status = 'approved_for_verification' (BLUE TICK)
-4. Worker fills profile info, pays via Paystack
-5. Status = 'profile_under_review'
-6. Admin reviews, clicks "Approve & Publish" → status = 'verified' (PUBLIC)
-7. OR Admin clicks "Reject" → status = 'rejected'
-```
-
-**Worker Tabs:** Overview, Bookings, Calendar, Wallet, Services, Verification Status, Profile, Settings
-
-**What Worker Can Do:**
-- View their own bookings
-- Manage availability calendar
-- View wallet balance and transactions
-- Request withdrawals
-- Edit their profile and services
-- View verification status
-
----
-
-## 6. PROPERTY PARTNER DASHBOARD
-
-**Tabs:** Overview, My Listings, Bookings, Analytics, Profile, Settings
-
-**What Partner Can Do:**
-- Create property listings
-- View booking requests for their properties
-- Manage their profile
-- View earnings
-
----
-
-## 7. REGULAR USER (Tenant)
-
-**What User Can Do:**
-- Browse/search properties and hotels
-- Save/bookmark listings
-- Book properties and hotel rooms
-- Hire workers
-- Use roommate matching
-- Chat with landlords/workers
-- View wallet and transaction history
-- Edit their profile
-
----
-
-## 8. AUTHENTICATION FLOW
-
-```
-1. User opens wehouse.com.ng
-2. Clicks "Get Started" → Google OAuth popup
-3. Google returns user info to Supabase
-4. Supabase creates auth record
-5. Frontend checks if user has a profile
-   - NO profile → Show Setup page (name, username, role selection)
-   - HAS profile → Go to their dashboard
-6. Role selection:
-   - "I want to rent" → role = 'user'
-   - "I want to list properties" → role = 'property_partner'
-   - "I offer services" → role = 'worker'
-7. Profile created → Go to their role-specific dashboard
-```
-
-**One Email = One Account.** If someone signs up with Google then tries again, they get logged into their existing account.
-
----
-
-## 9. WORKER VERIFICATION FLOW (Detailed)
-
-```
-Step 1: SIGNUP
-- User selects "I offer services" during setup
-- Profile created with: role='worker', worker_status='pending'
-- Worker sees "Pending" banner on dashboard
-
-Step 2: ADMIN GRANTS ACCESS
-- Admin goes to Verification tab
-- Sees worker with status "Pending"
-- Clicks "Grant Access" button
-- Worker's status becomes: 'approved_for_verification'
-- Worker sees BLUE TICK on their dashboard
-
-Step 3: WORKER FILLS INFO
-- Worker clicks "Complete Profile" or goes to Profile tab
-- Fills: full name, bio, service category, skills, price, location
-- Uploads avatar
-- Submits → status stays 'approved_for_verification'
-
-Step 4: PAYMENT (Paystack)
-- Worker pays verification fee (set in Settings)
-- On successful payment → status = 'profile_under_review'
-- Worker sees "Under Review" banner
-
-Step 5: ADMIN REVIEWS
-- Admin goes to Verification tab
-- Sees worker with status "Under Review"
-- Reviews worker's info and video
-- Clicks "Approve & Publish" → status = 'verified', worker is now PUBLIC
-- OR clicks "Reject" → status = 'rejected'
-
-Step 6: WORKER IS PUBLIC
-- Worker appears in worker search results
-- Users can find and book them
-- Worker can receive booking requests
-```
-
----
-
-## 10. BOOKING FLOW
-
-```
-1. User browses properties/workers/hotels
-2. Clicks "Book" or "Hire"
-3. Selects dates/time
-4. Negotiates price (if enabled in settings)
-5. Clicks "Confirm Booking"
-6. Payment via Paystack
-7. Money goes to escrow
-8. Service provider gets notified
-9. After service completion:
-   - Both parties confirm
-   - Money released from escrow to provider
-   - WeHouse commission deducted (set in Settings)
-```
-
----
-
-## 11. PAYMENT FLOW (Paystack)
-
-```
-1. Creator sets Paystack public key in Settings
-2. User clicks "Pay" on any booking
-3. Frontend initializes Paystack popup with:
-   - Amount (from booking)
-   - Email (user's email)
-   - Public key (from settings)
-4. User enters card details in Paystack popup
-5. Paystack returns transaction reference
-6. Backend verifies payment via Paystack API
-7. On success: booking confirmed, money in escrow
-```
-
----
-
-## 12. DATABASE TABLES
-
-| Table | What It Stores |
-|-------|---------------|
-| `profiles` | All users (7 roles). Key columns: user_id (WHU-XXXXX), role, worker_status, auth_id |
-| `listings` | Property listings with photos, price, location |
-| `bookings` | All bookings (property, worker, hotel) |
-| `conversations` | Chat between two users |
-| `messages` | Individual chat messages |
-| `service_categories` | Worker service categories (manageable in Settings) |
-| `service_subcategories` | Sub-categories under each category |
-| `platform_settings` | ALL platform configuration (editable by Creator) |
-| `hotels` | Hotel listings |
-| `hotel_rooms` | Rooms within each hotel |
-| `hotel_bookings` | Hotel room bookings |
-| `announcements` | Platform-wide announcements |
-| `announcement_recipients` | Who received which announcement |
-| `reports` | User reports/complaints |
-| `audit_log` | Record of admin actions |
-
----
-
-## 13. IMPORTANT: SQL YOU MUST RUN
-
-### SQL File 1: ULTIMATE_FIX.sql
-This ONE file fixes EVERYTHING:
-1. Creator auth password (pgcrypto + functions)
-2. Settings system (table + functions + defaults)
-3. Worker status flow (new constraint)
-
-**Run this in Supabase SQL Editor → New Query → Paste → Run:**
-```sql
--- (Full SQL is in the file supabase/migrations/ULTIMATE_FIX.sql)
--- Key commands: CREATE EXTENSION pgcrypto, create functions, create settings table
-```
-
-**After running, test:**
-1. Go to Creator Settings → set a password → should save without error
-2. Go to Company Info tab → should show all fields with defaults
-3. Edit any field → click away → should say "Saved"
-
----
-
-## 14. WHAT'S WORKING vs WHAT NEEDS THE SQL
-
-| Feature | Status | Needs SQL? |
-|---------|--------|-----------|
-| Google Login | WORKING | No |
-| User signup/setup | WORKING | No |
-| Property search | WORKING | No |
-| Hotel browsing | WORKING | No |
-| Worker search | WORKING | No |
-| Chat/messaging | WORKING | No |
-| Save listings | WORKING | No |
-| Creator Dashboard UI | WORKING | No |
-| Admin Dashboard UI | WORKING | No |
-| **Creator Auth Password** | **BROKEN** | **YES — run ULTIMATE_FIX.sql** |
-| **Platform Settings** | **BROKEN** | **YES — run ULTIMATE_FIX.sql** |
-| **Worker status flow** | **NEEDS UPDATE** | **YES — run ULTIMATE_FIX.sql** |
-| Announcements | WORKING | No |
-| Category manager | WORKING | No |
-| Paystack payments | NEEDS TEST KEY | Set key in Settings |
-
----
-
-## 15. DEPLOYMENT STATUS
-
-**Latest commit:** `46885de` (build fix)
-**Previous commits:**
-- `f688b5e` — Settings rewrite
-- `7e66785` — Admin cleanup + worker flow
-- `cadacd3` — Creator Auth fix + Announcements
-
-**If Vercel shows failed:**
-1. Go to vercel.com → your project
-2. Check the latest deployment
-3. If it shows the old commit, redeploy
-4. The build passes locally — the issue is Vercel hasn't pulled the latest code
-
----
-
-## 16. QUICK TROUBLESHOOTING
-
-**"Failed to set password: function gen_salt does not exist"**
-→ Run ULTIMATE_FIX.sql in Supabase SQL Editor. The `pgcrypto` extension isn't enabled.
-
-**"No settings in Company tab"**
-→ Run ULTIMATE_FIX.sql. The `platform_settings` table doesn't exist yet.
-
-**"Worker stuck on pending"**
-→ Admin must click "Grant Access" in Verification tab. Worker cannot proceed without this.
-
-**"User logs in but sees no dashboard"**
-→ Check their `role` in the `profiles` table. Must be one of: creator, admin, staff, worker, property_partner, user.
-
-**"I changed a setting but it doesn't reflect"**
-→ Settings save to the database immediately. The frontend reads from the database on load. Some settings (like toggles) need a page refresh to take effect.
-
----
-
-## 17. FILE STRUCTURE (Key Files)
-
-```
-src/
-├── App.tsx                    — Main router, nav, auth
-├── pages/
-│   ├── CreatorDashboard.tsx   — Your dashboard (12 tabs)
-│   ├── AdminDashboard.tsx     — Admin dashboard (11 tabs)
-│   ├── StaffDashboard.tsx     — Staff dashboard
-│   ├── WorkerDashboard.tsx    — Worker dashboard
-│   ├── PropertyOwnerDashboard.tsx — Partner dashboard
-│   ├── CreatorSettingsTab.tsx — Settings (Company, Legal, Financial, etc.)
-│   └── ... (30+ other pages)
-├── hooks/
-│   ├── useAuth.tsx            — Login/auth state
-│   └── useCreatorAuth.tsx     — Creator password protection
-├── components/
-│   └── CreatorAuthModal.tsx   — Password modal
-└── lib/supabase/
-    └── ... (database functions)
-
-supabase/migrations/
-└── ULTIMATE_FIX.sql           — RUN THIS FIRST
-```
+# WeHouse Nigeria — Canonical Master Plan
+
+Status: active integration contract  
+Canonical product source: [`docs/PRODUCT_MASTER.md`](docs/PRODUCT_MASTER.md)  
+Decision register: [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md)
+
+This file is the repository entry point for the current WeHouse master plan. It
+replaces the July 2026 plan that described one permanent role per account,
+paid Worker verification, a purchasable blue tick, browser-authoritative
+payments and an `ULTIMATE_FIX.sql` deployment process. Those rules are retired
+and must not be restored.
+
+## Locked product rules
+
+### Identity and workspaces
+
+- One person has one durable Personal identity.
+- Consumer access remains available to that person.
+- Worker and Property Partner are independently granted professional
+  workspaces; hotel membership, Staff, Admin and Creator authority are scoped,
+  revocable grants.
+- A workspace changes available capabilities. It does not create a second
+  person or overwrite the Personal identity.
+
+### Workers, trust and WeHouse Pro
+
+- Worker registration, professional profile completion, evidence submission,
+  WeHouse review, ordinary approved profile, eligible discovery and job access
+  are free.
+- `WeHouse Reviewed` means the professional profile/evidence passed the WeHouse
+  review process. It is not sold.
+- `WeHouse Trusted` is earned later from real WeHouse performance and safety
+  signals. It is not sold.
+- The gold tick is labelled `PRO`. It appears only while a server-verified paid
+  WeHouse Pro entitlement is active.
+- Pro never changes review, trust, ranking, discovery, job allocation, dispute
+  treatment or licensing status.
+- Cancelling or losing Pro removes only Pro software entitlements at the end of
+  the paid period. It does not remove the Worker profile, Reviewed or Trusted.
+
+### Pro billing authority
+
+- Pro is an optional monthly software subscription with useful professional
+  tools beyond the gold PRO mark.
+- Web checkout uses a verified Paystack monthly plan. The Creator Dashboard
+  controls the web price; price changes apply to new subscriptions and must not
+  silently rewrite existing subscription contracts.
+- iOS checkout uses an Apple auto-renewable in-app subscription and the price
+  returned by the App Store.
+- Android checkout uses a Google Play subscription and the price returned by
+  Google Play.
+- Native sales stay disabled until store products, server receipt verification,
+  renewal/cancellation notifications and restore-purchase flows are deployed.
+- A browser redirect never grants Pro. Only a verified provider event/receipt
+  creates or changes the entitlement.
+
+### Money
+
+- The server, provider webhooks and canonical ledger are authoritative. The UI
+  never infers payment, protection, release, refund or payout success.
+- Worker job lifecycle is separate from Payment Protection state.
+- Hotel and Short Let accommodation money remains protected after authorized
+  check-in for the booking's disclosed arrival-issue window. Check-in alone and
+  checkout are not payout instructions.
+- The default and minimum arrival-issue window is two hours. A property or rate
+  package may extend it up to four hours; the chosen duration is snapshotted on
+  the booking and shown before payment.
+- A timely formal arrival issue freezes only the affected accommodation money
+  for review. Ordinary support chat does not silently create a financial
+  dispute.
+- A Short Let caution fee is refundable by default. A Partner has 24 hours
+  after effective checkout to submit an itemized claim with evidence; after
+  successful notice, the guest has 48 hours to accept, counter or dispute.
+  Silence never awards the Partner, and any undisputed remainder is refunded.
+- Cancellation uses Creator-approved Flexible, Standard or Non-refundable
+  templates. Their exact percentages and deadlines remain a separately
+  approved commercial/legal configuration; provider inability or overbooking
+  produces a full refund, and a caution fee is never a cancellation penalty.
+- The canonical current money authority is locked in
+  [`docs/DECISION_D010_MONEY_AUTHORITY_2026-09-12.md`](docs/DECISION_D010_MONEY_AUTHORITY_2026-09-12.md).
+- Legacy money tables remain compatibility/read candidates until writer
+  inventory and parity evidence are complete. No speculative production data
+  rewrite is allowed.
+
+### Hotels and PMS
+
+- Manual WeHouse hotel operations are a complete supported mode and remain the
+  canonical fallback.
+- Hotel actions are authorized by explicit capabilities, not guessed from a
+  role label. The locked model is in
+  [`docs/DECISION_D002_HOTEL_CAPABILITY_AUTHORITY_2026-09-12.md`](docs/DECISION_D002_HOTEL_CAPABILITY_AUTHORITY_2026-09-12.md).
+- A generic “all PMS systems work perfectly” claim is prohibited. Each external
+  PMS requires a named adapter, credentials, sandbox/partner certification,
+  mapping rules, idempotent delivery, reconciliation, monitoring and rollback.
+- Certified connected mode may become the inventory authority for that hotel;
+  unconnected hotels continue in manual WeHouse mode.
+- The certification and launch checklist is maintained in
+  [`docs/HOTEL_PMS_CERTIFICATION_AND_LAUNCH.md`](docs/HOTEL_PMS_CERTIFICATION_AND_LAUNCH.md).
+
+### Property publication
+
+- Verified physical, identity, access, location, capacity and approved-public-
+  media facts return through review when changed.
+- Authorized Partners may change future commercial/operational terms through
+  narrow audited commands. Existing booking snapshots never change.
+- The locked boundary is in
+  [`docs/DECISION_D014_POST_PUBLICATION_EDIT_BOUNDARY_2026-09-12.md`](docs/DECISION_D014_POST_PUBLICATION_EDIT_BOUNDARY_2026-09-12.md).
+
+### Legal and safety gates
+
+- Nigeria-only v1 is the current product scope unless a later recorded decision
+  changes it.
+- The Worker marketplace launch stays off until the required labour/recruiter
+  classification, contracts and operational approvals are recorded.
+- Private biometric/identity checks stay off until lawful basis, DPIA,
+  processor and cross-border terms, retention/deletion, security, a manual
+  alternative and an appeal path are approved.
+- Paid Pro is software access, never proof of identity, professional licensing,
+  safety or endorsement.
+- This repository records product controls and evidence requirements; qualified
+  Nigerian counsel must approve the legal conclusions and launch gates.
+- The cross-product issue and evidence matrix is maintained in
+  [`docs/LEGAL_LAUNCH_REGISTER_NIGERIA_2026-09-13.md`](docs/LEGAL_LAUNCH_REGISTER_NIGERIA_2026-09-13.md).
+  A Creator toggle alone cannot authorize a regulated launch.
+
+## Integration order
+
+1. Freeze source heads and repair clean migration replay.
+2. Remove paid Worker onboarding and separate Reviewed, Trusted and Pro.
+3. Lock Creator-controlled Pro price, exact terms consent and provider-verified
+   subscription state.
+4. Reconcile Worker jobs, Payment Protection, wallets, refunds and payouts to
+   the locked money authority.
+5. Move access to one Personal identity plus independently granted workspaces.
+6. Apply biometric/legal gates, support availability and security hardening.
+7. Apply hotel capability authority and preserve manual operations.
+8. Certify one named PMS adapter end to end before advertising connected PMS
+   support; add other vendors one adapter at a time.
+9. Run migration replay, role/access matrices, lifecycle and money invariants,
+   webhook replay tests, production build, browser journeys and preview checks.
+10. Merge only after the evidence above passes; deploy production migrations and
+    functions separately with rollback and reconciliation monitoring.
+
+## Current integration status — 2026-09-13
+
+- Complete locally and on the isolated preview database: free Worker
+  onboarding/review; Reviewed/Trusted/Pro separation; server entitlement
+  ledger; exact Pro-terms receipts; Paystack monthly initialization, renewal,
+  failure, cancellation and management paths; Creator web-price/plan sync;
+  authoritative Worker payment/protection reads; idempotent payout-account
+  change reconciliation; one Personal identity with independently activatable
+  Worker and Property Partner workspace grants.
+- Complete locally and on preview: canonical hotel capability enforcement,
+  manual hotel operations, fail-closed named PMS certification/runtime gates,
+  two-to-four-hour snapshotted accommodation arrival protection, and a formal
+  arrival-issue action that freezes the affected money. Short Let caution
+  claims enforce the 24-hour Partner evidence window, 48-hour guest response
+  window, refund of the undisputed remainder and no award from silence.
+- Recovered into this branch: the exact canonical policy, ledger, lifecycle,
+  case, activity, staff, shared-payment and security migrations that had
+  previously existed only in preview migration history.
+- Fail-closed: Worker marketplace launch, private identity checks, Pro sales and
+  native store sales default off.
+- Legal register complete: Worker/recruitment, identity/biometric, payments,
+  subscriptions, properties, hotels/PMS, public trust claims, communications,
+  staff/field operations, corporate/tax and insurance dependencies now have
+  explicit evidence requirements. Regulated Worker marketplace and private
+  identity settings additionally require a current recorded approval.
+- In progress before merge: reconcile the outstanding application branch,
+  perform clean migration replay, close material security findings, verify
+  ledger writer/parity and webhook invariants, and run full browser journeys.
+
+The detailed system boundaries, inconsistencies, specifications and regression
+rules remain in [`docs/PRODUCT_MASTER.md`](docs/PRODUCT_MASTER.md) and its linked
+documents. If a historical phase report conflicts with those documents or this
+file, this current contract wins.

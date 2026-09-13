@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import {
   getCategoryWithSubcategories,
+  getFeaturedWorkers,
   getWorkers,
+  recordFeaturedBookingRequest,
+  recordFeaturedProfileOpen,
   supabase,
 } from "@/lib/supabase";
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import GoldTickBadge from "@/components/GoldTickBadge";
+import WorkerProBadge from "@/components/WorkerProBadge";
+import WorkerTrustBadge from "@/components/WorkerTrustBadge";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryShell, {
@@ -43,6 +47,36 @@ type WorkStatus = {
   url?: string;
 };
 
+function workerMatchesFilters(worker: Profile, filters: {
+  search: string;
+  category: string;
+  specialty: string;
+  state: string;
+  city: string;
+}) {
+  const hay = [
+    workerDisplayName(worker),
+    worker.worker_occupation || "",
+    worker.worker_bio || "",
+    worker.city || "",
+    worker.local_government || "",
+    worker.state || "",
+    ...((worker.worker_skills as string[]) || []),
+  ].join(" ").toLowerCase();
+  const needle = filters.search.trim().toLowerCase();
+  if (needle && !hay.includes(needle)) return false;
+  if (filters.category && ![
+    worker.worker_occupation || "",
+    ...((worker.worker_skills as string[]) || []),
+  ].join(" ").toLowerCase().includes(filters.category.toLowerCase())) return false;
+  if (filters.specialty && !((worker.worker_skills as string[]) || []).some(
+    (skill) => skill.toLowerCase() === filters.specialty.toLowerCase(),
+  )) return false;
+  if (filters.state && String(worker.state || "").toLowerCase() !== filters.state.toLowerCase()) return false;
+  if (filters.city && String(worker.city || worker.local_government || "").toLowerCase() !== filters.city.toLowerCase()) return false;
+  return true;
+}
+
 export default function WorkerDiscovery({
   userCity,
   profile,
@@ -52,6 +86,7 @@ export default function WorkerDiscovery({
   const savedState = profile?.state || "",
     savedCity = profile?.local_government || profile?.city || userCity || "";
   const [workers, setWorkers] = useState<Profile[]>([]),
+    [featuredWorkers, setFeaturedWorkers] = useState<Profile[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
     [statuses, setStatuses] = useState<WorkStatus[]>([]),
     [loading, setLoading] = useState(true),
@@ -107,6 +142,32 @@ export default function WorkerDiscovery({
       live = false;
     };
   }, []);
+  useEffect(() => {
+    if (!profile?.user_id) {
+      setFeaturedWorkers([]);
+      return;
+    }
+    let activeRequest = true;
+    const timer = window.setTimeout(() => {
+      void getFeaturedWorkers({
+        state: state || undefined,
+        city: city || undefined,
+        query: specialty || category || search || undefined,
+        limit: 6,
+      }).then(({ workers: rows, error }) => {
+        if (!activeRequest) return;
+        if (error) {
+          setFeaturedWorkers([]);
+          return;
+        }
+        setFeaturedWorkers(rows || []);
+      });
+    }, 250);
+    return () => {
+      activeRequest = false;
+      window.clearTimeout(timer);
+    };
+  }, [category, city, profile?.user_id, search, specialty, state]);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -243,52 +304,7 @@ export default function WorkerDiscovery({
   const shown = useMemo(
     () =>
       liveWorkers
-        .filter((worker) => {
-          const hay = [
-              workerDisplayName(worker),
-              worker.worker_occupation || "",
-              worker.worker_bio || "",
-              worker.city || "",
-              worker.local_government || "",
-              worker.state || "",
-              ...((worker.worker_skills as string[]) || []),
-            ]
-              .join(" ")
-              .toLowerCase(),
-            needle = search.trim().toLowerCase();
-          if (needle && !hay.includes(needle)) return false;
-          if (
-            category &&
-            ![
-              worker.worker_occupation || "",
-              ...((worker.worker_skills as string[]) || []),
-            ]
-              .join(" ")
-              .toLowerCase()
-              .includes(category.toLowerCase())
-          )
-            return false;
-          if (
-            specialty &&
-            !((worker.worker_skills as string[]) || []).some(
-              (skill) => skill.toLowerCase() === specialty.toLowerCase(),
-            )
-          )
-            return false;
-          if (
-            state &&
-            String(worker.state || "").toLowerCase() !== state.toLowerCase()
-          )
-            return false;
-          if (
-            city &&
-            String(
-              worker.city || worker.local_government || "",
-            ).toLowerCase() !== city.toLowerCase()
-          )
-            return false;
-          return true;
-        })
+        .filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city }))
         .sort((a, b) => {
           const aLocal =
               city &&
@@ -306,6 +322,10 @@ export default function WorkerDiscovery({
           );
         }),
     [liveWorkers, search, category, specialty, state, city],
+  );
+  const visibleFeaturedWorkers = useMemo(
+    () => featuredWorkers.filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city })),
+    [featuredWorkers, search, category, specialty, state, city],
   );
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
   function clear() {
@@ -326,9 +346,19 @@ export default function WorkerDiscovery({
     conversationId: string,
     bookingId: string,
   ) {
+    const placementId = bookingWorker?.featured_placement_id;
+    if (placementId) {
+      void recordFeaturedBookingRequest(placementId, bookingId);
+    }
     setBookingWorker(null);
     setActive((current) => new Set(current).add(workerId));
     setChat({ conversationId, bookingId });
+  }
+  function openWorker(worker: Profile) {
+    if (worker.featured_placement_id) {
+      void recordFeaturedProfileOpen(worker.featured_placement_id);
+    }
+    setViewWorker(worker);
   }
   async function toggleProfileBlock() {
     if (!viewWorker || profileBlock.busy) return;
@@ -460,6 +490,38 @@ export default function WorkerDiscovery({
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
         />
+        {visibleFeaturedWorkers.length > 0 && (
+          <section
+            aria-labelledby="featured-workers-title"
+            className="overflow-hidden rounded-3xl border border-amber-300/15 bg-[radial-gradient(circle_at_top_right,rgba(245,190,48,.09),transparent_42%),#10131B] px-4 py-4"
+          >
+            <div className="mb-2">
+              <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-300">
+                SPONSORED
+              </p>
+              <h2 id="featured-workers-title" className="mt-1 text-sm font-bold">
+                Featured Workers
+              </h2>
+              <p className="mt-1 text-[9px] leading-4 text-[#777D8D]">
+                Paid placement among matching, available and Reviewed Workers. It does not mean more trusted.
+              </p>
+            </div>
+            <div className="divide-y divide-amber-300/10">
+              {visibleFeaturedWorkers.map((worker) => (
+                <WorkerCard
+                  key={worker.featured_placement_id || worker.user_id}
+                  worker={worker}
+                  active={active.has(worker.user_id)}
+                  sponsored
+                  onStatus={() => openWorker(worker)}
+                  onProfile={() => openWorker(worker)}
+                  onBook={() => setBookingWorker(worker)}
+                  onOpen={() => onNavigate("my_reservations")}
+                />
+              ))}
+            </div>
+          </section>
+        )}
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold">
@@ -501,7 +563,7 @@ export default function WorkerDiscovery({
                 status={latestStatusByWorker.get(worker.user_id)}
                 active={active.has(worker.user_id)}
                 onStatus={(status) => setStory({ worker, status })}
-                onProfile={() => setViewWorker(worker)}
+                onProfile={() => openWorker(worker)}
                 onBook={() =>
                   profile
                     ? setBookingWorker(worker)
@@ -651,6 +713,7 @@ function WorkerCard({
   onProfile,
   onBook,
   onOpen,
+  sponsored = false,
 }: {
   worker: Profile;
   status?: WorkStatus;
@@ -659,6 +722,7 @@ function WorkerCard({
   onProfile: () => void;
   onBook: () => void;
   onOpen: () => void;
+  sponsored?: boolean;
 }) {
   const occupation = workerRoleLabel(worker),
     displayName = workerDisplayName(worker),
@@ -666,6 +730,11 @@ function WorkerCard({
     skills = workerServiceNames(worker);
   return (
     <article className="py-4">
+      {sponsored && (
+        <p className="mb-2 text-[8px] font-bold uppercase tracking-[.16em] text-amber-300">
+          Sponsored
+        </p>
+      )}
       <div className="flex items-start gap-3">
         <button
           onClick={() => (status ? onStatus(status) : onProfile())}
@@ -688,7 +757,8 @@ function WorkerCard({
             <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
               {displayName}
             </h2>
-            <GoldTickBadge size="sm" title="WeHouse reviewed professional" />
+            {worker.pro_active ? <WorkerProBadge compact /> : null}
+            <WorkerTrustBadge />
           </div>
           <p className="mt-1 truncate text-[10px] text-[#8A8F9E]">
             {occupation}

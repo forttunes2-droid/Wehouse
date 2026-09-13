@@ -1,75 +1,87 @@
 /* Canonical mobile chat viewport.
-   Private chat screens must own the viewport instead of competing with the
-   app bottom navigation or browser-safe-area overlays. */
-.fixed.inset-0.z-50.flex.h-\[100dvh\] {
-  z-index: 180 !important;
-  height: 100dvh !important;
-  max-height: 100dvh !important;
+   Full-screen chat surfaces use the visual viewport so Android/iOS keyboards
+   resize the conversation instead of covering the composer or pushing the page. */
+:root {
+  --wh-visual-viewport-height: 100dvh;
+  --wh-visual-viewport-top: 0px;
+}
+
+.fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) {
+  top: var(--wh-visual-viewport-top) !important;
+  bottom: auto !important;
+  height: var(--wh-visual-viewport-height) !important;
+  max-height: var(--wh-visual-viewport-height) !important;
   overflow: hidden !important;
   overscroll-behavior: none;
 }
 
-.fixed.inset-0.z-\[100\] {
+/* Keep every full-screen communication surface above the app navigation,
+   regardless of the historical z-index token used by that component. */
+.fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) {
   z-index: 180 !important;
 }
 
 /* Customer navigation has one Inbox only. Legacy Conversation routes may still
-   resolve deep links, but they must not become a second primary destination. */
+   resolve deep links, but they must never become a second primary destination. */
 @media (max-width: 1023px) {
   .bottom-nav button[aria-label="Conversation"] {
     display: none !important;
   }
 }
 
-/* Restaurant/bar/cafe/spa/lounge records were introduced as a separate hotel
-   product module without an approved product rule. Keep existing database rows
-   intact for compatibility, but do not expose that editor in the Partner UI.
-   Hotel/room amenities remain the supported customer-facing facility model. */
-#hotel-venues {
-  display: none !important;
+/* Modern chat composer: grow with text instead of turning into a tiny internal
+   scrolling box. 16px on phones also prevents browser focus zoom. */
+textarea[placeholder="Message"] {
+  field-sizing: content;
+  min-height: 2.5rem;
+  max-height: 7rem;
+  overflow-y: auto;
+  line-height: 1.35;
 }
 
-@supports (height: 100svh) {
-  @media (max-width: 640px) {
-    .fixed.inset-0.z-50.flex.h-\[100dvh\] {
-      height: 100svh !important;
-      max-height: 100svh !important;
-    }
+@media (pointer: coarse) {
+  textarea[placeholder="Message"] {
+    font-size: 16px !important;
   }
 }
 
 @media (max-width: 640px) {
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > header,
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer {
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > header,
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > footer {
     position: relative;
     z-index: 2;
     min-width: 0;
   }
 
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > main {
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > main {
     position: relative;
     z-index: 1;
     min-height: 0 !important;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: 6rem;
   }
 
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer {
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > footer {
     padding-bottom: max(.6rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  body.wh-keyboard-open .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > footer {
+    padding-bottom: .45rem !important;
   }
 }
 
 @media (max-width: 390px) {
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer {
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > footer {
     padding-left: .4rem !important;
     padding-right: .4rem !important;
   }
 
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer .flex.items-end {
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > footer .flex.items-end {
     gap: .35rem !important;
   }
 
-  .fixed.inset-0.z-50.flex.h-\[100dvh\] > footer button.h-11.w-11 {
+  .fixed.inset-0.flex.h-\[100dvh\]:has(textarea[placeholder="Message"]) > footer button.h-11.w-11 {
     width: 2.5rem !important;
     height: 2.5rem !important;
   }

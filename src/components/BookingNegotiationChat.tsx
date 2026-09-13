@@ -38,6 +38,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
+import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import {
   privateConversationReadiness,
@@ -959,6 +960,12 @@ export default function BookingNegotiationChat({
             contextType="worker_booking"
             contextId={conversationId}
           />
+          {booking ? (
+            <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-3">
+              <JobRequestDetails booking={booking} />
+              <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
+            </div>
+          ) : null}
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
               reactions = Object.values(msg.reactions || {}).reduce<
@@ -1785,27 +1792,15 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
   );
   const facts = [
     ["Service", booking.service_type || "Service request"],
-    ["Location", booking.address || "Not supplied"],
-    [
-      "Requested",
-      booking.created_at
-        ? new Date(booking.created_at).toLocaleString()
-        : "Not available",
-    ],
     [
       "Schedule",
       booking.scheduled_date
         ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString()
         : "To be agreed",
     ],
+    ["Job state", BOOKING_STATUS_LABELS[booking.status]?.label || booking.status.replaceAll("_", " ")],
     [
-      "Price",
-      amount > 0
-        ? `₦${amount.toLocaleString("en-NG")}`
-        : "Worker has not supplied a price",
-    ],
-    [
-      "Payment",
+      "Payment state",
       booking.payment_status && booking.payment_status !== "not_started"
         ? booking.payment_status.replace(/_/g, " ")
         : booking.status === "waiting_payment"
@@ -1819,9 +1814,23 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
             ? "Secured"
             : "Not started",
     ],
+    [
+      "Price",
+      amount > 0
+        ? `₦${amount.toLocaleString("en-NG")}`
+        : "Worker has not supplied a price",
+    ],
+    ["Location", booking.address || "Not supplied"],
   ];
   return (
-    <div className="mb-3 space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
+    <div className="space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
+      <div className="flex items-start justify-between gap-3 border-b border-white/[.055] pb-3">
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">Original service request</p>
+          <p className="mt-1 text-[10px] font-semibold text-[#E2E4EA]">#{booking.booking_code || "—"} · {booking.service_type || "Service request"}</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-white/[.055] px-2 py-1 text-[8px] font-semibold text-[#B6BAC5]">{BOOKING_STATUS_LABELS[booking.status]?.label || "Booking"}</span>
+      </div>
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {facts.map(([label, value]) => (
           <div key={label}>

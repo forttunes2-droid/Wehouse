@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import GoldTickBadge from "@/components/GoldTickBadge";
+import WorkerProBadge from "@/components/WorkerProBadge";
+import WorkerTrustBadge from "@/components/WorkerTrustBadge";
 import { supabase } from "@/lib/supabase";
 import { workerServiceNames } from "@/lib/workerTaxonomy";
 import {
@@ -28,6 +29,7 @@ type Trust = {
   reviewed?: boolean;
   trusted?: boolean;
   trusted_enabled?: boolean;
+  pro_active?: boolean;
   completed_jobs?: number;
   rating?: number;
   review_count?: number;
@@ -165,8 +167,7 @@ export default function WorkerPublicProfileV2({
         actions={communicationActions}
         badges={
           <>
-            {verified ? <GoldTickBadge title="WeHouse service worker" /> : null}
-            <span className="rounded-full border border-violet-500/15 bg-violet-500/[.06] px-2.5 py-1 text-[9px] font-semibold text-violet-200">WeHouse service worker</span>
+            {verified ? <WorkerTrustBadge /> : null}
           </>
         }
       >
@@ -190,7 +191,7 @@ export default function WorkerPublicProfileV2({
       onClose={onBack}
       maxWidth="4xl"
       actions={communicationActions}
-      badges={<>{trust?.reviewed ? <><GoldTickBadge title="Gold Tick · WeHouse reviewed service worker" /><span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">{trust.trusted ? "WeHouse Trusted" : "WeHouse Reviewed"}</span></> : <span className="rounded-full bg-white/[.05] px-2.5 py-1 text-[9px] text-[#8C92A1]">Verification pending</span>}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
+      badges={<>{trust?.pro_active ? <WorkerProBadge /> : null}{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : <span className="rounded-full bg-white/[.05] px-2.5 py-1 text-[9px] text-[#8C92A1]">Review pending</span>}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
       bottomAction={showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-xs font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
       <section className="grid grid-cols-3 border-y border-white/[.06]">

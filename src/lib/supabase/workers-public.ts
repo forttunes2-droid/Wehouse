@@ -26,6 +26,53 @@ export async function getWorkers(filters?: { city?: string; occupation?: string;
   return { workers, error };
 }
 
+export async function getFeaturedWorkers(filters?: {
+  state?: string;
+  city?: string;
+  query?: string;
+  limit?: number;
+}) {
+  const { data, error } = await supabase.rpc('get_featured_workers', {
+    p_state: filters?.state || null,
+    p_city: filters?.city || null,
+    p_query: filters?.query || null,
+    p_limit: filters?.limit || 3,
+  });
+  const workers = (data || []).map((row: any) => ({
+    ...row,
+    role: 'worker',
+    profile_complete: true,
+    worker_status: 'verified',
+    worker_verified: true,
+    available: true,
+    deleted: false,
+    suspended: false,
+    banned: false,
+    pro_active: true,
+  })) as Profile[];
+  return { workers, error };
+}
+
+export async function recordFeaturedProfileOpen(placementId?: string) {
+  if (!placementId) return { recorded: false, error: null };
+  const { data, error } = await supabase.rpc('record_my_featured_profile_open', {
+    p_placement_id: placementId,
+  });
+  return { recorded: data === true, error };
+}
+
+export async function recordFeaturedBookingRequest(
+  placementId: string | undefined,
+  bookingId: string,
+) {
+  if (!placementId) return { recorded: false, error: null };
+  const { data, error } = await supabase.rpc('record_my_featured_booking_request', {
+    p_placement_id: placementId,
+    p_booking_id: bookingId,
+  });
+  return { recorded: data === true, error };
+}
+
 // A worker may only change their own availability. The backend derives the
 // worker identity from auth.uid() and rejects unavailable/unverified accounts.
 export async function setWorkerAvailability(_workerId: string, isAvailable: boolean) {

@@ -133,7 +133,13 @@ export type {
 } from "./roommate";
 
 // Workers — public discovery/availability use dedicated scoped RPC wrappers.
-export { getWorkers, setWorkerAvailability } from "./workers-public";
+export {
+  getWorkers,
+  getFeaturedWorkers,
+  recordFeaturedProfileOpen,
+  recordFeaturedBookingRequest,
+  setWorkerAvailability,
+} from "./workers-public";
 export {
   parseWorkerStatus,
   getAllWorkers,
@@ -155,8 +161,6 @@ export {
   getVerificationsByStatus,
   reviewWorkerVerification,
   getBlueBadgeSubscription,
-  createBlueBadgeSubscription,
-  cancelBlueBadgeSubscription,
   getOrCreateWallet,
   getWallet,
   getWalletTransactions,

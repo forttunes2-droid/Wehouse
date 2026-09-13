@@ -52,12 +52,14 @@ export function AccountRow({
   title,
   detail,
   onClick,
+  disabled = false,
   icon,
   trailing,
 }: {
   title: string;
   detail?: string;
   onClick?: () => void;
+  disabled?: boolean;
   icon?: React.ReactNode;
   trailing?: React.ReactNode;
 }) {
@@ -66,7 +68,8 @@ export function AccountRow({
     <Wrapper
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className="flex min-h-[4.25rem] w-full items-center gap-3 border-b border-white/[.05] px-4 py-3.5 text-left last:border-b-0 transition hover:bg-white/[.025] sm:px-5"
+      disabled={onClick ? disabled : undefined}
+      className="flex min-h-[4.25rem] w-full items-center gap-3 border-b border-white/[.05] px-4 py-3.5 text-left last:border-b-0 transition hover:bg-white/[.025] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
     >
       {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">{icon}</span> : null}
       <span className="min-w-0 flex-1">

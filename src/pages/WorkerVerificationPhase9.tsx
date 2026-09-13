@@ -3,7 +3,6 @@ import { Toaster, toast } from "sonner";
 import WorkerIdentityCheck from "@/components/WorkerIdentityCheck";
 import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklist";
 import { supabase } from "@/lib/supabase";
-import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 
@@ -15,11 +14,10 @@ type Props = {
 type Activation = {
   worker_status: string;
   live: boolean;
+  reviewed?: boolean;
+  marketplace_enabled?: boolean;
   profile_complete: boolean;
-  payment_confirmed?: boolean;
-  payment_required?: boolean;
-  fee_waived?: boolean;
-  gold_badge?: boolean;
+  identity_required?: boolean;
   identity_status: string;
   identity_passed: boolean;
   identity_current?: boolean;
@@ -41,11 +39,10 @@ type UploadState = {
 const EMPTY: Activation = {
   worker_status: "pending",
   live: false,
+  reviewed: false,
+  marketplace_enabled: false,
   profile_complete: false,
-  payment_confirmed: false,
-  payment_required: true,
-  fee_waived: false,
-  gold_badge: false,
+  identity_required: false,
   identity_status: "not_started",
   identity_passed: false,
   identity_current: false,
@@ -57,8 +54,6 @@ const EMPTY: Activation = {
   submitted: false,
   rejection_reason: null,
 };
-const REF_KEY = "wh_worker_verification_payment_ref";
-
 export default function WorkerVerificationPhase9({
   profile,
   onBack,
@@ -67,7 +62,6 @@ export default function WorkerVerificationPhase9({
   const videoInput = useRef<HTMLInputElement>(null),
     certificateInput = useRef<HTMLInputElement>(null);
   const [a, setA] = useState<Activation>(EMPTY),
-    [fee, setFee] = useState(0),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [videoPath, setVideoPath] = useState(""),
@@ -75,16 +69,9 @@ export default function WorkerVerificationPhase9({
     [preview, setPreview] = useState(""),
     [uploadState, setUploadState] = useState<UploadState>(null);
   async function refresh() {
-    const [activation, setting] = await Promise.all([
-      supabase.rpc("get_my_worker_activation"),
-      supabase.rpc("get_setting_v2", { p_key: "worker_verification_fee" }),
-    ]);
+    const activation = await supabase.rpc("get_my_worker_activation");
     if (activation.error) toast.error(activation.error.message);
     else setA({ ...EMPTY, ...(activation.data || {}) } as Activation);
-    const raw: any = setting.data;
-    setFee(
-      Number(Array.isArray(raw) ? raw[0]?.value : (raw?.value ?? raw ?? 0)),
-    );
     setLoading(false);
   }
   useEffect(() => {
@@ -96,33 +83,8 @@ export default function WorkerVerificationPhase9({
     },
     [preview],
   );
-  useEffect(() => {
-    let dead = false;
-    void (async () => {
-      let ref = "";
-      try {
-        ref = localStorage.getItem(REF_KEY) || "";
-      } catch {}
-      if (!ref) return;
-      const result = await verifyPaymentWithRetry(ref, {
-        purpose: "worker_verification",
-      });
-      if (dead) return;
-      if (result.success) {
-        try {
-          localStorage.removeItem(REF_KEY);
-        } catch {}
-        toast.success("Worker onboarding payment confirmed");
-        await refresh();
-      }
-    })();
-    return () => {
-      dead = true;
-    };
-  }, []);
-  const paid = Boolean(a.payment_confirmed ?? a.gold_badge),
-    paymentRequired = a.payment_required !== false,
-    complete = a.identity_passed && paid && a.evidence_saved,
+  const identityRequired = a.identity_required === true,
+    complete = (!identityRequired || a.identity_passed) && a.evidence_saved,
     reviewing =
       a.worker_status === "profile_under_review" ||
       (a.submitted && a.worker_status !== "verified"),
@@ -133,37 +95,6 @@ export default function WorkerVerificationPhase9({
     repeatDays = Number(a.identity_recheck_days || 14);
   function openProfile() {
     onEditProfile();
-  }
-  async function pay() {
-    if (fee <= 0) return toast.error("Worker onboarding fee is not configured");
-    setBusy(true);
-    try {
-      const boot = await supabase.rpc("create_worker_verification_payment");
-      if (boot.error || !boot.data?.success)
-        throw new Error(
-          boot.data?.error || boot.error?.message || "Payment could not start",
-        );
-      const reference = String(boot.data.reference || "");
-      const init = await supabase.functions.invoke(
-        "worker-verification-payment-init",
-        { body: { reference } },
-      );
-      if (init.error) throw init.error;
-      if (init.data?.already_paid) {
-        await refresh();
-        setBusy(false);
-        return;
-      }
-      if (!init.data?.authorization_url)
-        throw new Error(init.data?.error || "Paystack could not start");
-      try {
-        localStorage.setItem(REF_KEY, reference);
-      } catch {}
-      window.location.assign(String(init.data.authorization_url));
-    } catch (error: any) {
-      toast.error(error?.message || "Payment could not start");
-      setBusy(false);
-    }
   }
   async function upload(
     file: File,
@@ -315,12 +246,13 @@ export default function WorkerVerificationPhase9({
             ACCOUNT PROTECTION
           </p>
           <h2 className="mt-1 text-sm font-semibold">
-            Identity check repeats every {repeatDays} days
+            Worker onboarding and review are free
           </h2>
           <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
-            The quick private live-face check confirms that the approved
-            professional is still using this Worker account. Rechecks do not
-            repeat the onboarding payment or professional work review.
+            WeHouse never charges you to register, submit professional evidence,
+            become Reviewed, appear in discovery or receive eligible jobs.
+            The paid Worker plan is optional work software and does not
+            buy review status, marketplace trust or better dispute treatment.
           </p>
         </section>
         {identityExpired ? (
@@ -364,8 +296,7 @@ export default function WorkerVerificationPhase9({
             {a.profile_complete && !reviewing && !approvedProfile && (
               <WorkerVerificationChecklist
                 identityPassed={a.identity_passed}
-                paymentConfirmed={paid}
-                paymentRequired={paymentRequired}
+                identityRequired={identityRequired}
                 skillVideoSaved={a.evidence_saved}
               />
             )}{" "}
@@ -396,38 +327,19 @@ export default function WorkerVerificationPhase9({
                   onClick={openProfile}
                 />
               </Card>
-            ) : !a.identity_passed ? (
+            ) : identityRequired && !a.identity_passed ? (
               <WorkerIdentityCheck
                 profile={profile}
                 status={a.identity_status}
                 onSaved={refresh}
               />
-            ) : !paid ? (
-              <Card
-                eyebrow="2 · WORKER VERIFICATION"
-                title="Complete onboarding payment"
-                text="One-time Worker onboarding fee. Recurring identity checks never charge you again."
-              >
-                <Status text="Private face check complete" good />
-                <div className="flex items-center justify-between rounded-xl border border-white/[.07] bg-black/10 px-4 py-3">
-                  <span className="text-[10px] text-[#717888]">
-                    Onboarding fee
-                  </span>
-                  <strong>₦{fee.toLocaleString()}</strong>
-                </div>
-                <Button
-                  label={busy ? "Opening Paystack…" : "Continue to Paystack"}
-                  onClick={() => void pay()}
-                  disabled={busy || fee <= 0}
-                />
-              </Card>
             ) : !a.evidence_saved ? (
               <Card
                 eyebrow="2 · WORKER VERIFICATION"
                 title="Show your real work"
                 text="Upload one short skill or completed-work video for private WeHouse review."
               >
-                <Status text={paymentRequired ? "Identity and onboarding payment complete" : "Identity complete · onboarding fee waived"} good />
+                <Status text={identityRequired ? "Identity check complete · onboarding is free" : "Free onboarding · no payment required"} good />
                 <Upload
                   label={
                     certificatePath
@@ -473,7 +385,7 @@ export default function WorkerVerificationPhase9({
               <Card
                 eyebrow="3 · WEHOUSE REVIEW"
                 title="Ready for review"
-                text={paymentRequired ? "Your identity, onboarding payment and professional work evidence are complete." : "Your identity and professional work evidence are complete. Onboarding is currently free."}
+                text={identityRequired ? "Your approved identity step and professional work evidence are complete. No onboarding payment is required." : "Your professional work evidence is complete. Onboarding and review are free."}
               >
                 <Button
                   label={busy ? "Submitting…" : "Submit to WeHouse"}

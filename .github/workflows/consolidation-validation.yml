@@ -14,5 +14,36 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npx tsc --noEmit
       - run: npm run build
+
+  migration-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Reject duplicate migration versions
+        shell: bash
+        run: |
+          duplicate_versions="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | cut -d_ -f1 | sort | uniq -d)"
+          if [ -n "$duplicate_versions" ]; then
+            echo "Duplicate Supabase migration versions:"
+            echo "$duplicate_versions"
+            exit 1
+          fi
+      - name: Start local Supabase and apply migrations
+        run: npx --yes supabase@2.114.0 start
+      - name: Replay migrations from an empty database
+        run: npx --yes supabase@2.114.0 db reset --local
+      - name: Verify canonical schema exists
+        shell: bash
+        run: |
+          test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';")" -ge 90
+          test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup

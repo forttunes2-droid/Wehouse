@@ -20,11 +20,11 @@ type Props = {
   onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 };
 
-export type WorkspaceChoice = 'personal' | 'staff' | 'admin' | 'creator' | 'hotel';
+export type WorkspaceChoice = 'personal' | 'worker' | 'property_partner' | 'staff' | 'admin' | 'creator' | 'hotel';
 export type WorkspaceAccess = {
-  identity?: { user_id?: string; account_kind?: string };
+  identity?: { user_id?: string; account_kind?: string; compatibility_role?: string };
   personal_workspace?: boolean;
-  privileged_workspaces?: Array<{ role: 'staff' | 'admin' | 'creator' | 'hotel'; scope_type?: string; state?: string | null; lga?: string | null }>;
+  privileged_workspaces?: Array<{ role: 'worker' | 'property_partner' | 'staff' | 'admin' | 'creator' | 'hotel'; scope_type?: string; state?: string | null; lga?: string | null }>;
 };
 
 type Legal = {
@@ -51,6 +51,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [activatingWorkspace, setActivatingWorkspace] = useState<'worker' | 'property_partner' | null>(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
   const role = profile.role;
@@ -62,6 +63,8 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const initials = (profile.full_name || profile.username || profile.email || 'U')[0].toUpperCase();
   const privilegedWorkspaces = workspaceAccess?.privileged_workspaces || [];
   const canSwitchWorkspace = Boolean(onSwitchWorkspace && workspaceAccess?.personal_workspace && privilegedWorkspaces.length);
+  const hasWorkerWorkspace = privilegedWorkspaces.some(workspace => workspace.role === 'worker');
+  const hasPartnerWorkspace = privilegedWorkspaces.some(workspace => workspace.role === 'property_partner');
 
   useEffect(() => {
     void (async () => {
@@ -134,6 +137,16 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
   function openLegal(page: 'privacy_policy' | 'terms_of_service') {
     if (onNavigate) onNavigate(page);
+  }
+
+  async function activateProfessionalWorkspace(workspace:'worker'|'property_partner'){
+    setActivatingWorkspace(workspace);
+    const rpc=workspace==='worker'?'activate_my_worker_workspace':'activate_my_property_partner_workspace';
+    const{error}=await supabase.rpc(rpc);
+    setActivatingWorkspace(null);
+    if(error)return toast.error(error.message||'That workspace could not be added');
+    toast.success(workspace==='worker'?'Free Worker workspace added':'Property Partner workspace added');
+    window.dispatchEvent(new Event('wehouse:workspace-access-changed'));
   }
 
   if (panel === 'privacy_security') return <PrivacySecuritySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;
@@ -229,10 +242,17 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
             <div className="mt-3 flex flex-wrap gap-2">
               <WorkspaceButton label="Personal" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
               {privilegedWorkspaces.map((workspace) => (
-                <WorkspaceButton key={workspace.role} label={workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Team'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
+                <WorkspaceButton key={workspace.role} label={workspace.role === 'worker' ? 'Worker' : workspace.role === 'property_partner' ? 'Property Partner' : workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Team'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
               ))}
             </div>
           </div>
+        </AccountSection>
+      )}
+
+      {workspaceAccess?.personal_workspace && (!hasWorkerWorkspace || !hasPartnerWorkspace) && (
+        <AccountSection title="Add a professional workspace">
+          {!hasWorkerWorkspace && <AccountRow title="Offer services" detail="Create a free Worker profile; Reviewed and Trusted are earned, not purchased" onClick={() => void activateProfessionalWorkspace('worker')} disabled={activatingWorkspace!==null} icon={<PersonIcon />} />}
+          {!hasPartnerWorkspace && <AccountRow title="List or manage property" detail="Add a separate Property Partner workspace to this Personal identity" onClick={() => void activateProfessionalWorkspace('property_partner')} disabled={activatingWorkspace!==null} icon={<HomeIcon />} />}
         </AccountSection>
       )}
 
@@ -278,6 +298,7 @@ function WorkspaceButton({ label, detail, active, onClick }: { label: string; de
 const iconProps = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 };
 function HeartIcon(){return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
 function PersonIcon(){return <svg {...iconProps}><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"/></svg>}
+function HomeIcon(){return <svg {...iconProps}><path d="m3 11 9-7 9 7"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></svg>}
 function BellIcon(){return <svg {...iconProps}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 19h4"/></svg>}
 function ShieldIcon(){return <svg {...iconProps}><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3Z"/><path d="M9 12.5 11 14l4-4"/></svg>}
 function DocumentIcon(){return <svg {...iconProps}><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg>}

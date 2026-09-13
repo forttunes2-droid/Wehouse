@@ -16,13 +16,19 @@ export default function ListingDetail(props: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("wehouse:nested-screen", { detail: { open: true } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     const surface = surfaceRef.current;
     if (!surface) return;
-
-    // Legacy ListingDetailCore appended a generic "Message WeHouse" action to
-    // nearly every normal reservation state. Support is not a lifecycle step.
-    // Hide those inherited CTAs until the core is decomposed; actual issue/help
-    // entry remains available from the contextual booking/support surfaces.
     const pruneRoutineSupport = () => {
       const buttons = Array.from(surface.querySelectorAll("button"));
       for (const button of buttons) {
@@ -39,7 +45,6 @@ export default function ListingDetail(props: Props) {
         }
       }
     };
-
     pruneRoutineSupport();
     const observer = new MutationObserver(pruneRoutineSupport);
     observer.observe(surface, { childList: true, subtree: true });
@@ -50,38 +55,26 @@ export default function ListingDetail(props: Props) {
     <div ref={surfaceRef} className="listing-detail-save-surface relative">
       <style>{`
         .listing-detail-save-surface button[aria-label="Save apartment"],
-        .listing-detail-save-surface button[aria-label="Remove from saved apartments"] {
-          display: none !important;
-        }
+        .listing-detail-save-surface button[aria-label="Remove from saved apartments"] { display: none !important; }
       `}</style>
       <ListingDetailCore {...props} />
       <button
         type="button"
-        onClick={props.onToggleSave}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          props.onToggleSave();
+        }}
         aria-label={props.isSaved ? "Remove apartment from Saved" : "Add apartment to Saved"}
         aria-pressed={props.isSaved}
-        className="fixed right-4 top-[max(.75rem,env(safe-area-inset-top))] z-[55] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur"
+        className="absolute right-4 top-[4.75rem] z-[45] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur active:scale-95"
       >
-        <Bookmark filled={props.isSaved} />
+        <Heart filled={props.isSaved} />
       </button>
     </div>
   );
 }
 
-function Bookmark({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill={filled ? "#A78BFA" : "none"}
-      stroke={filled ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 3.75A1.75 1.75 0 0 1 7.75 2h8.5A1.75 1.75 0 0 1 18 3.75V22l-6-3.75L6 22V3.75Z" />
-    </svg>
-  );
+function Heart({ filled }: { filled: boolean }) {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill={filled ? "#A78BFA" : "none"} stroke={filled ? "#A78BFA" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg>;
 }
