@@ -145,15 +145,28 @@ test('Short Let caution never awards the Partner from silence',()=>{
 });
 
 test('PMS mode is named, certified and fail-closed',()=>{
+  const foundation=read('supabase/migrations/20260912100500_hotel_pms_connector_foundation.sql');
+  const recoveredFoundation=read('supabase/migrations/20260913031731_hotel_pms_connector_foundation.sql');
   const migration=read('supabase/migrations/20260913152000_certified_hotel_pms_foundation.sql');
   const queueMigration=read('supabase/migrations/20260912101500_queue_connected_hotel_reservations.sql');
+  const api=read('supabase/functions/hotel-pms-api/index.ts');
   const launch=read('docs/HOTEL_PMS_CERTIFICATION_AND_LAUNCH.md');
+  assert.match(foundation,/integration_id uuid primary key/);
+  assert.match(foundation,/integration_event_id uuid primary key/);
+  assert.match(foundation,/connection_name text not null/);
+  assert.doesNotMatch(foundation,/hotel_integrations\(id\)/);
+  assert.match(recoveredFoundation,/drop policy if exists hotel_integrations_owner_read/);
+  assert.match(recoveredFoundation,/drop policy if exists hotel_integration_events_owner_read/);
   assert.match(migration,/hotel_pms_providers/);
   assert.match(migration,/pending_certification/);
   assert.match(migration,/The named PMS adapter is not certified/);
   assert.match(migration,/hotel_pms_connected_mode/);
   assert.doesNotMatch(queueMigration,/from lateral/i,'PMS backfill must not reference the UPDATE target from a LATERAL subquery');
+  assert.doesNotMatch(queueMigration,/select (?:i|x)\.id/,'PMS queueing must use the canonical integration_id key');
   assert.match(queueMigration,/and exists\(/);
+  assert.match(api,/\.eq\("integration_id", integration\.integration_id\)/);
+  assert.match(api,/\.eq\("integration_event_id", id\)/);
+  assert.doesNotMatch(api,/integration\.id/);
   assert.match(launch,/There are no certified PMS providers/);
   assert.match(launch,/Manual WeHouse hotel operations are the supported default/);
 });

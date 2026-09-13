@@ -87,9 +87,11 @@ create index if not exists hotel_integration_events_status_idx
 
 alter table public.hotel_integrations enable row level security;
 alter table public.hotel_integration_events enable row level security;
+drop policy if exists hotel_integrations_owner_read on public.hotel_integrations;
 create policy hotel_integrations_owner_read
 on public.hotel_integrations for select to authenticated
 using(public.hotel_actor_has_capability(hotel_id,'hotel.integration.manage'));
+drop policy if exists hotel_integration_events_owner_read on public.hotel_integration_events;
 create policy hotel_integration_events_owner_read
 on public.hotel_integration_events for select to authenticated
 using(exists(

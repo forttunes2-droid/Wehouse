@@ -11,7 +11,7 @@ as $$
 declare integration uuid;
 begin
   if new.payment_status='paid' and new.status in ('confirmed','checked_in','checked_out','completed') then
-    select i.id into integration
+    select i.integration_id into integration
     from public.hotel_integrations i
     where i.hotel_id=new.hotel_id and i.status='active'
       and 'reservations.read'=any(i.scopes)
@@ -36,7 +36,7 @@ for each row execute function public.queue_hotel_booking_for_pms();
 
 update public.hotel_bookings b
 set integration_id=(
-      select x.id
+      select x.integration_id
       from public.hotel_integrations x
       where x.hotel_id=b.hotel_id
         and x.status='active'

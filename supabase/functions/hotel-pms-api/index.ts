@@ -6,10 +6,10 @@ const respond = (body: unknown, status = 200) => new Response(JSON.stringify(bod
 const allowedRoomStatuses = new Set(["ready", "cleaning", "maintenance", "out_of_service"]);
 
 type Integration = {
-  id: string;
+  integration_id: string;
   hotel_id: number;
   provider: string;
-  name: string;
+  connection_name: string;
   status: string;
   scopes: string[];
   authoritative_domains: string[];
@@ -52,7 +52,7 @@ async function authenticate(admin: ReturnType<typeof createClient>, req: Request
   const tokenHash = await sha256(token);
   const { data, error } = await admin
     .from("hotel_integrations")
-    .select("id,hotel_id,provider,name,status,scopes,authoritative_domains,external_hotel_id")
+    .select("integration_id,hotel_id,provider,connection_name,status,scopes,authoritative_domains,external_hotel_id")
     .eq("token_hash", tokenHash)
     .eq("status", "active")
     .maybeSingle();
@@ -65,8 +65,8 @@ async function beginEvent(admin: ReturnType<typeof createClient>, integration: I
   if (!key) return { error: respond({ success: false, error: "Idempotency-Key is required" }, 400) };
   const { data: existing } = await admin
     .from("hotel_integration_events")
-    .select("id,status,details,error_message")
-    .eq("integration_id", integration.id)
+    .select("integration_event_id,status,details,error_message")
+    .eq("integration_id", integration.integration_id)
     .eq("idempotency_key", key)
     .maybeSingle();
   if (existing) return { existing };
@@ -74,7 +74,7 @@ async function beginEvent(admin: ReturnType<typeof createClient>, integration: I
   const { data, error } = await admin
     .from("hotel_integration_events")
     .insert({
-      integration_id: integration.id,
+      integration_id: integration.integration_id,
       idempotency_key: key,
       direction: "inbound",
       event_type: eventType,
@@ -82,14 +82,14 @@ async function beginEvent(admin: ReturnType<typeof createClient>, integration: I
       status: "pending",
       details: {},
     })
-    .select("id")
+    .select("integration_event_id")
     .single();
   if (error || !data) return { error: respond({ success: false, error: "Could not reserve this idempotent request" }, 409) };
-  return { id: data.id as string };
+  return { id: data.integration_event_id as string };
 }
 
 async function finishEvent(admin: ReturnType<typeof createClient>, id: string, status: "processed" | "review_required" | "failed", details: Record<string, unknown>, errorMessage?: string) {
-  await admin.from("hotel_integration_events").update({ status, details, error_message: errorMessage || null, processed_at: new Date().toISOString() }).eq("id", id);
+  await admin.from("hotel_integration_events").update({ status, details, error_message: errorMessage || null, processed_at: new Date().toISOString() }).eq("integration_event_id", id);
 }
 
 serve(async (req) => {
@@ -104,8 +104,8 @@ serve(async (req) => {
   const route = routeFor(req);
   try {
     if (req.method === "GET" && route === "/v1/health") {
-      await admin.from("hotel_integrations").update({ last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", integration.id);
-      return respond({ success: true, api_version: "v1", integration: { id: integration.id, hotel_id: integration.hotel_id, provider: integration.provider, external_hotel_id: integration.external_hotel_id, authoritative_domains: integration.authoritative_domains } });
+      await admin.from("hotel_integrations").update({ last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("integration_id", integration.integration_id);
+      return respond({ success: true, api_version: "v1", integration: { id: integration.integration_id, hotel_id: integration.hotel_id, provider: integration.provider, external_hotel_id: integration.external_hotel_id, authoritative_domains: integration.authoritative_domains } });
     }
 
     if (req.method === "GET" && route === "/v1/reservations") {
@@ -145,9 +145,9 @@ serve(async (req) => {
         };
       });
       const ids = rows.map((r: any) => r.wehouse_reservation_id);
-      if (ids.length) await admin.from("hotel_bookings").update({ integration_id: integration.id, pms_sync_status: "delivered", pms_last_synced_at: new Date().toISOString() }).in("booking_id", ids).in("pms_sync_status", ["not_connected", "pending", "delivered"]);
+      if (ids.length) await admin.from("hotel_bookings").update({ integration_id: integration.integration_id, pms_sync_status: "delivered", pms_last_synced_at: new Date().toISOString() }).in("booking_id", ids).in("pms_sync_status", ["not_connected", "pending", "delivered"]);
       const nextCursor = rows.length ? rows[rows.length - 1].updated_at : cursor || null;
-      await admin.from("hotel_integrations").update({ last_cursor: nextCursor, last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", integration.id);
+      await admin.from("hotel_integrations").update({ last_cursor: nextCursor, last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("integration_id", integration.integration_id);
       return respond({ success: true, reservations: rows, next_cursor: nextCursor, count: rows.length });
     }
 
@@ -168,12 +168,12 @@ serve(async (req) => {
       const externalId = text(body?.external_reservation_id) || null;
       const reason = text(body?.reason);
       const syncStatus = accepted ? "acknowledged" : "review_required";
-      await admin.from("hotel_bookings").update({ integration_id: integration.id, pms_external_reservation_id: externalId, pms_sync_status: syncStatus, pms_last_synced_at: new Date().toISOString() }).eq("booking_id", bookingId);
+      await admin.from("hotel_bookings").update({ integration_id: integration.integration_id, pms_external_reservation_id: externalId, pms_sync_status: syncStatus, pms_last_synced_at: new Date().toISOString() }).eq("booking_id", bookingId);
       const details = { booking_id: bookingId, accepted, external_reservation_id: externalId, review_required: !accepted, reason: reason || null };
       await finishEvent(admin, event.id!, accepted ? "processed" : "review_required", details, accepted ? undefined : reason || "PMS rejected reservation");
       if (!accepted) {
         const { data: hotel } = await admin.from("hotels").select("owner_id,name").eq("hotel_id", integration.hotel_id).single();
-        if (hotel?.owner_id) await admin.from("notifications").insert({ recipient_id: hotel.owner_id, type: "hotel_pms_review", title: "Hotel connection needs review", message: `${hotel.name || "Hotel"} PMS rejected WeHouse reservation ${bookingId}. The paid booking was not cancelled.`, related_id: String(bookingId), source_type: "hotel_booking", source_id: String(bookingId), destination_route: "property-owner", destination_params: { hotel_id: integration.hotel_id, booking_id: bookingId }, event_key: `hotel-pms-reject:${integration.id}:${bookingId}:${event.id}`, workspace_scope: "property_partner" });
+        if (hotel?.owner_id) await admin.from("notifications").insert({ recipient_id: hotel.owner_id, type: "hotel_pms_review", title: "Hotel connection needs review", message: `${hotel.name || "Hotel"} PMS rejected WeHouse reservation ${bookingId}. The paid booking was not cancelled.`, related_id: String(bookingId), source_type: "hotel_booking", source_id: String(bookingId), destination_route: "property-owner", destination_params: { hotel_id: integration.hotel_id, booking_id: bookingId }, event_key: `hotel-pms-reject:${integration.integration_id}:${bookingId}:${event.id}`, workspace_scope: "property_partner" });
       }
       return respond({ success: true, ...details });
     }
@@ -184,7 +184,7 @@ serve(async (req) => {
       const event = await beginEvent(admin, integration, req, "catalog_sync", body);
       if (event.error) return event.error;
       if (event.existing) return respond({ success: true, idempotent: true, status: event.existing.status, ...(event.existing.details || {}) });
-      const sourceSystem = `pms:${integration.id}`;
+      const sourceSystem = `pms:${integration.integration_id}`;
       const roomMap = new Map<string, number>();
       let roomCount = 0, rateCount = 0, inventoryCount = 0;
 
@@ -274,7 +274,7 @@ serve(async (req) => {
       }
 
       const details = { rooms: roomCount, rates: rateCount, inventory: inventoryCount };
-      await admin.from("hotel_integrations").update({ last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", integration.id);
+      await admin.from("hotel_integrations").update({ last_sync_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("integration_id", integration.integration_id);
       await finishEvent(admin, event.id!, "processed", details);
       return respond({ success: true, ...details });
     }
@@ -293,7 +293,7 @@ serve(async (req) => {
         await finishEvent(admin, event.id!, "failed", {}, "room_external_reference, unit_label and a supported status are required");
         return respond({ success: false, error: "room_external_reference, unit_label and a supported status are required" }, 400);
       }
-      const sourceSystem = `pms:${integration.id}`;
+      const sourceSystem = `pms:${integration.integration_id}`;
       const { data: room } = await admin.from("hotel_rooms").select("room_id").eq("hotel_id", integration.hotel_id).eq("source_system", sourceSystem).eq("external_reference", roomReference).maybeSingle();
       if (!room) return respond({ success: false, error: "PMS room type not found" }, 404);
       const unitQuery = admin.from("hotel_room_units").select("unit_id,current_booking_id").eq("hotel_id", integration.hotel_id).eq("room_id", room.room_id).eq("unit_label", unitLabel);
@@ -316,8 +316,8 @@ serve(async (req) => {
     return respond({ success: false, error: "Unknown PMS API route" }, 404);
   } catch (error) {
     const message = error instanceof Error ? error.message : "PMS request failed";
-    console.error("hotel-pms-api", { integration_id: integration.id, route, error: message });
-    await admin.from("hotel_integrations").update({ last_error: message, updated_at: new Date().toISOString() }).eq("id", integration.id);
+    console.error("hotel-pms-api", { integration_id: integration.integration_id, route, error: message });
+    await admin.from("hotel_integrations").update({ last_error: message, updated_at: new Date().toISOString() }).eq("integration_id", integration.integration_id);
     return respond({ success: false, error: message }, 500);
   }
 });
