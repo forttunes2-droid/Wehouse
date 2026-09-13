@@ -82,6 +82,16 @@ test('PR71 safety migrations stay present',()=>{
   assert.match(read(required[4]),/short_let/i,'Short Let date-scoped availability hardening must remain in migration history');
 });
 
+test('Production-recorded support case prerequisite stays in migration history',()=>{
+  const prerequisite='supabase/migrations/20260904183557_support_case_lifecycle_and_review_rls.sql';
+  assert.equal(fs.existsSync(path.join(root,prerequisite)),true,`${prerequisite} is missing`);
+  assert.match(read(prerequisite),/create table if not exists public\.support_case_events/);
+  assert.ok(
+    path.basename(prerequisite).localeCompare('20260909104005_make_wehouse_requests_operational.sql')<0,
+    'support_case_events must exist before later operational support migrations alter it',
+  );
+});
+
 test('Validation workflow runs regression tests before build',()=>{
   const workflow=read('.github/workflows/consolidation-validation.yml');
   assert.match(workflow,/npm test/);
