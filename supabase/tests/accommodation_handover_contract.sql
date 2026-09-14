@@ -7,6 +7,11 @@ begin;
 -- authorization and reservation triggers run in normal mode below.
 set local session_replication_role=replica;
 
+insert into public.profiles(auth_id,email,user_id) values
+  ('test-auth-user','test-user@example.invalid','test-user'),
+  ('test-auth-peer','test-peer@example.invalid','test-peer'),
+  ('test-auth-payee','test-payee@example.invalid','test-payee');
+
 insert into public.ledger_transactions(
   ledger_transaction_id,idempotency_key,transaction_type,currency,
   reference_type,reference_id,payload_checksum
