@@ -8,6 +8,8 @@ import InboxActivityEntry from "@/components/InboxActivityEntry";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
+import SecureInboxLock from "@/components/SecureInboxLock";
+import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
 
 export type WorkerBookingConversation = {
   conversation_id: string;
@@ -84,6 +86,10 @@ export function WorkerInboxPanel({
   const [activityUnread, setActivityUnread] = useState(0);
   const [supportUnread, setSupportUnread] = useState(0);
   const [supportAvailable, setSupportAvailable] = useState(false);
+  const {
+    status: inboxSecurityStatus,
+    refresh: refreshInboxSecurity,
+  } = useSecureInboxAccess(profile.user_id);
 
   const load = useCallback(async () => {
     try {
@@ -96,6 +102,7 @@ export function WorkerInboxPanel({
   }, [profile.user_id]);
 
   useEffect(() => {
+    if (inboxSecurityStatus?.state !== "ready") return;
     void load();
     const channel = supabase
       .channel(`worker-inbox:${profile.user_id}`)
@@ -103,7 +110,7 @@ export function WorkerInboxPanel({
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, () => void load())
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [load, profile.user_id]);
+  }, [inboxSecurityStatus?.state, load, profile.user_id]);
   useEffect(() => { if (initialConversation) setSelected(initialConversation); }, [initialConversation]);
 
   function openActivitySource(page: string, id?: string) {
@@ -122,6 +129,15 @@ export function WorkerInboxPanel({
   const displayedChatUnread = chatUnread ?? conversationUnread + supportUnread;
   const displayedActivityUnread = summaryActivityUnread ?? activityUnread;
   const reportActivityUnread = useCallback((count: number) => { setActivityUnread(count); onUnreadRefresh?.(); }, [onUnreadRefresh]);
+
+  if (inboxSecurityStatus?.state !== "ready") {
+    return (
+      <SecureInboxLock
+        status={inboxSecurityStatus}
+        onReady={() => void refreshInboxSecurity()}
+      />
+    );
+  }
 
   if (selected) return (
     <BookingNegotiationChat conversationId={selected.conversation_id} bookingId={selected.booking_id} profile={profile} isWorker onClose={() => { setSelected(null); onConversationClosed?.(); void load(); onUnreadRefresh?.(); }} />

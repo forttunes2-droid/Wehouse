@@ -162,6 +162,22 @@ export default function BookingNegotiationChat({
       await privateConversationReadiness("worker", conversationId, peerId),
     );
   }, [conversationId, peerId]);
+  const loadMessages = useCallback(
+    async (loadedPeerId: string | null, quiet = false) => {
+      const msgRes = await getBookingMessages(conversationId, loadedPeerId);
+      if (!msgRes.error) {
+        setMessages((msgRes.messages || []) as ChatMessage[]);
+        setMessageError(null);
+        void markBookingMessagesRead(conversationId);
+      } else if (!quiet) {
+        setMessageError(
+          msgRes.error.message || "Conversation could not be loaded",
+        );
+        toast.error("Conversation could not be loaded");
+      }
+    },
+    [conversationId],
+  );
   const loadAll = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
@@ -177,18 +193,8 @@ export default function BookingNegotiationChat({
           ? loadedBooking.user_id
           : loadedBooking.worker_id
         : null;
-      const msgRes = await getBookingMessages(conversationId, loadedPeerId);
-      if (!msgRes.error) {
-        setMessages((msgRes.messages || []) as ChatMessage[]);
-        setMessageError(null);
-      } else if (!quiet) {
-        setMessageError(
-          msgRes.error.message || "Conversation could not be loaded",
-        );
-        toast.error("Conversation could not be loaded");
-      }
+      await loadMessages(loadedPeerId, quiet);
       if (!quiet) setLoading(false);
-      void markBookingMessagesRead(conversationId);
       if (loadedBooking?.status === "approved_released" && !isWorker)
         void getMyWorkerBookingReview(bookingId).then((reviewResult) => {
           if (!reviewResult.error && reviewResult.review) {
@@ -198,8 +204,19 @@ export default function BookingNegotiationChat({
           }
         });
     },
-    [conversationId, bookingId, isWorker],
+    [bookingId, isWorker, loadMessages],
   );
+  const finishSecureUnlock = useCallback(async () => {
+    if (!peerId) return;
+    setSecureChat(null);
+    const result = await privateConversationReadiness(
+      "worker",
+      conversationId,
+      peerId,
+    );
+    setSecureChat(result);
+    if (result.state === "ready") await loadMessages(peerId, true);
+  }, [conversationId, loadMessages, peerId]);
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
@@ -234,7 +251,10 @@ export default function BookingNegotiationChat({
           table: "booking_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => void loadAll(true),
+        () =>
+          void (peerId
+            ? loadMessages(peerId, true)
+            : loadAll(true)),
       )
       .on(
         "postgres_changes",
@@ -244,7 +264,10 @@ export default function BookingNegotiationChat({
           table: "booking_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => void loadAll(true),
+        () =>
+          void (peerId
+            ? loadMessages(peerId, true)
+            : loadAll(true)),
       )
       .on(
         "postgres_changes",
@@ -267,7 +290,7 @@ export default function BookingNegotiationChat({
       document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
     };
-  }, [bookingId, conversationId, loadAll]);
+  }, [bookingId, conversationId, loadAll, loadMessages, peerId]);
   function openSupport() {
     setMenuOpen(false);
     window.dispatchEvent(
@@ -956,12 +979,6 @@ export default function BookingNegotiationChat({
             contextType="worker_booking"
             contextId={conversationId}
           />
-          {booking ? (
-            <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-3">
-              <JobRequestDetails booking={booking} />
-              <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
-            </div>
-          ) : null}
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
               reactions = Object.values(msg.reactions || {}).reduce<
@@ -1075,17 +1092,7 @@ export default function BookingNegotiationChat({
               <SecureChatOnboarding
                 status={secureChat}
                 personName={peerName}
-                onReady={() => {
-                  setSecureChat(null);
-                  void privateConversationReadiness(
-                    "worker",
-                    conversationId,
-                    peerId || "",
-                  ).then((result) => {
-                    setSecureChat(result);
-                    if (result.state === "ready") void loadAll(true);
-                  });
-                }}
+                onReady={() => void finishSecureUnlock()}
               />
             ) : (
               <>
@@ -1319,6 +1326,16 @@ export default function BookingNegotiationChat({
           </div>
         )}
       </footer>
+      {(!openConversation || contactBlocked) &&
+      secureChat &&
+      (secureChat.state === "setup_required" ||
+        secureChat.state === "unlock_required") ? (
+        <SecureChatOnboarding
+          status={secureChat}
+          personName={peerName}
+          onReady={() => void finishSecureUnlock()}
+        />
+      ) : null}
       {profileOpen ? (
         <ConversationIdentitySheet
           profile={peerProfile}
@@ -1348,6 +1365,8 @@ export default function BookingNegotiationChat({
       {detailsOpen && booking ? (
         <JobRequestDetailsSheet
           booking={booking}
+          bookingId={bookingId}
+          isWorker={isWorker}
           onClose={() => setDetailsOpen(false)}
         />
       ) : null}
@@ -1783,49 +1802,22 @@ function TrashIcon() {
   );
 }
 function JobRequestDetails({ booking }: { booking: Booking }) {
-  const amount = Number(
-    booking.negotiated_amount || booking.agreed_amount || 0,
-  );
   const facts = [
-    ["Service", booking.service_type || "Service request"],
     [
-      "Schedule",
+      "Requested date",
       booking.scheduled_date
         ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString()
         : "To be agreed",
     ],
-    ["Job state", BOOKING_STATUS_LABELS[booking.status]?.label || booking.status.replaceAll("_", " ")],
-    [
-      "Payment state",
-      booking.payment_status && booking.payment_status !== "not_started"
-        ? booking.payment_status.replace(/_/g, " ")
-        : booking.status === "waiting_payment"
-          ? "Action needed"
-          : [
-                "confirmed",
-                "in_progress",
-                "completed_pending_approval",
-                "approved_released",
-              ].includes(booking.status)
-            ? "Secured"
-            : "Not started",
-    ],
-    [
-      "Price",
-      amount > 0
-        ? `₦${amount.toLocaleString("en-NG")}`
-        : "Worker has not supplied a price",
-    ],
-    ["Location", booking.address || "Not supplied"],
+    ["Service location", booking.address || "Not supplied"],
   ];
   return (
     <div className="space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
-      <div className="flex items-start justify-between gap-3 border-b border-white/[.055] pb-3">
+      <div className="border-b border-white/[.055] pb-3">
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">Original service request</p>
           <p className="mt-1 text-[10px] font-semibold text-[#E2E4EA]">#{booking.booking_code || "—"} · {booking.service_type || "Service request"}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-white/[.055] px-2 py-1 text-[8px] font-semibold text-[#B6BAC5]">{BOOKING_STATUS_LABELS[booking.status]?.label || "Booking"}</span>
       </div>
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {facts.map(([label, value]) => (
@@ -1841,7 +1833,7 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
       </div>
       <div className="border-t border-white/[.055] pt-3">
         <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">
-          Original description
+          What the customer requested
         </p>
         <p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">
           {booking.description ||
@@ -1866,9 +1858,13 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
 }
 function JobRequestDetailsSheet({
   booking,
+  bookingId,
+  isWorker,
   onClose,
 }: {
   booking: Booking;
+  bookingId: string;
+  isWorker: boolean;
   onClose: () => void;
 }) {
   return (
@@ -1890,8 +1886,9 @@ function JobRequestDetailsSheet({
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-xl space-y-4">
           <JobRequestDetails booking={booking} />
+          <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
         </div>
       </main>
     </div>

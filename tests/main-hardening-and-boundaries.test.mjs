@@ -56,3 +56,43 @@ test("paid Worker tools are not presented as a public trust badge", async () => 
   assert.doesNotMatch(profile, /WorkerProBadge/);
   assert.doesNotMatch(discovery, /WorkerProBadge/);
 });
+
+test("private Inbox unlock is independent from whether a job is still open", async () => {
+  const [personalInbox, workerInbox, bookingChat] = await Promise.all([
+    read("src/pages/ChatCore.tsx"),
+    read("src/components/WorkerJobsPanelV2.tsx"),
+    read("src/components/BookingNegotiationChat.tsx"),
+  ]);
+  assert.match(personalInbox, /useSecureInboxAccess/);
+  assert.match(workerInbox, /useSecureInboxAccess/);
+  assert.match(bookingChat, /!openConversation[\s\S]*secureChat\.state === "unlock_required"[\s\S]*<SecureChatOnboarding/);
+  assert.match(bookingChat, /This job conversation is closed/);
+});
+
+test("Worker paid tools live under Account and load only when opened", async () => {
+  const [workspace, account] = await Promise.all([
+    read("src/pages/WorkerWorkspaceModern.tsx"),
+    read("src/pages/AccountCenter.tsx"),
+  ]);
+  const nav = workspace.slice(workspace.indexOf("const LIVE_NAV"), workspace.indexOf("const ACTIVATION_NAV"));
+  assert.doesNotMatch(nav, /Works|paid_tools|\bpro\b/);
+  assert.match(workspace, /accountView === "paid_tools"/);
+  assert.match(workspace, /function WorkerPaidToolsAccount[\s\S]*useWorkerPro/);
+  assert.match(account, /Paid Worker tools/);
+});
+
+test("Worker chat does not repeat the full request card in the message timeline", async () => {
+  const chat = await read("src/components/BookingNegotiationChat.tsx");
+  const timeline = chat.slice(chat.indexOf("<main className="), chat.indexOf("</main>"));
+  assert.doesNotMatch(timeline, /<JobRequestDetails/);
+  assert.match(chat, /<JobRequestDetailsSheet/);
+  assert.match(chat, /Requested date/);
+  assert.doesNotMatch(chat, /\["Payment state"|\["Job state"/);
+});
+
+test("showcase comments stay a mobile sheet and video uses one playback stream", async () => {
+  const viewer = await read("src/components/WorkerShowcasePostViewer.tsx");
+  assert.match(viewer, /max-h-\[72dvh\]/);
+  assert.match(viewer, /containerClassName="h-full w-full bg-transparent"/);
+  assert.doesNotMatch(viewer, /<video src=\{src\} muted autoPlay loop/);
+});

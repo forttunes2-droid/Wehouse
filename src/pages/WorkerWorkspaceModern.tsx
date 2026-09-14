@@ -21,14 +21,13 @@ import WorkerAvailabilityControl from "@/components/WorkerAvailabilityControl";
 import { useWorkerInboxSummary } from "@/hooks/useWorkerInboxSummary";
 import { useWorkerPro } from "@/hooks/useWorkerPro";
 
-type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "pro" | "account";
+type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
 const LIVE_NAV = [
   { id: "jobs", label: "Jobs" },
   { id: "inbox", label: "Inbox" },
   { id: "showcase", label: "Showcase" },
   { id: "earnings", label: "Earnings" },
-  { id: "pro", label: "Works" },
   { id: "account", label: "Account" },
 ];
 
@@ -56,7 +55,6 @@ export default function WorkerWorkspaceModern({
   const live =
     profile.worker_status === "verified" && profile.worker_verified === true;
   const inbox = useWorkerInboxSummary(profile.user_id);
-  const workerPro = useWorkerPro(profile.user_id);
   const nav = live
     ? LIVE_NAV.map((item) => item.id === "inbox" ? { ...item, badge: inbox.totalUnread || undefined } : item)
     : ACTIVATION_NAV;
@@ -64,9 +62,9 @@ export default function WorkerWorkspaceModern({
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
   const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
-  const [accountView, setAccountView] = useState<"account" | "profile">("account");
+  const [accountView, setAccountView] = useState<"account" | "profile" | "paid_tools">("account");
   const safeTab =
-    !live && (tab === "jobs" || tab === "inbox" || tab === "showcase" || tab === "earnings" || tab === "pro")
+    !live && (tab === "jobs" || tab === "inbox" || tab === "showcase" || tab === "earnings")
       ? "home"
       : tab;
   function openActivityDestination(page: string, id?: string) {
@@ -81,7 +79,8 @@ export default function WorkerWorkspaceModern({
 
   if (safeTab === "account") {
     if (accountView === "profile") return <AccountShell profile={profile} title="Professional Profile" description="This is the professional profile customers see." onBack={() => setAccountView("account")}><WorkerProfilePanelV3 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/></AccountShell>;
-    return <AccountCenter profile={profile} onBack={() => setTab(live ? "jobs" : "home")} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={() => setAccountView("profile")} onNavigate={(page) => onNavigate?.(page)} onLogout={onLogout} workspaceAccess={workspaceAccess} activeWorkspace={activeWorkspace} onSwitchWorkspace={onSwitchWorkspace}/>;
+    if (accountView === "paid_tools") return <WorkerPaidToolsAccount profile={profile} onBack={() => setAccountView("account")} />;
+    return <AccountCenter profile={profile} onBack={() => setTab(live ? "jobs" : "home")} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={() => setAccountView("profile")} onGoToWorkerPaidTools={live ? () => setAccountView("paid_tools") : undefined} onNavigate={(page) => onNavigate?.(page)} onLogout={onLogout} workspaceAccess={workspaceAccess} activeWorkspace={activeWorkspace} onSwitchWorkspace={onSwitchWorkspace}/>;
   }
 
   let content: React.ReactNode;
@@ -115,8 +114,6 @@ export default function WorkerWorkspaceModern({
     content = <WorkerShowcaseManager profile={profile} initialPostId={showcaseTargetId} />;
   } else if (live && safeTab === "earnings") {
     content = <div className="space-y-5"><WorkerWallet profile={profile}/><PayoutAccountManager profile={profile}/></div>;
-  } else if (live && safeTab === "pro") {
-    content = <WorkerProPanel profile={profile} pro={workerPro.pro} loading={workerPro.loading} error={workerPro.error} onRefresh={workerPro.refresh} />;
   } else if (live) {
     content = <WorkerJobsPanelV2 profile={profile} onOpenConversation={(row) => { setConversation(row); setTab("inbox"); }}/>
   } else {
@@ -136,8 +133,6 @@ export default function WorkerWorkspaceModern({
           ? "See available earnings, withdrawals and your verified payout account."
         : safeTab === "showcase"
           ? "Publish and manage the work customers see on your profile."
-          : safeTab === "pro"
-            ? "Optional monthly or yearly work tools, separate from review and trust."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
             : live
@@ -158,4 +153,24 @@ export default function WorkerWorkspaceModern({
     </WorkspaceFrameV2>
   );
   return live ? <IdentityAccessGate profile={profile}>{workspace}</IdentityAccessGate> : workspace;
+}
+
+function WorkerPaidToolsAccount({ profile, onBack }: { profile: Profile; onBack: () => void }) {
+  const workerPro = useWorkerPro(profile.user_id);
+  return (
+    <AccountShell
+      profile={profile}
+      title="Paid Worker tools"
+      description="Optional business tools and subscription management. Trust and reviews are earned separately."
+      onBack={onBack}
+    >
+      <WorkerProPanel
+        profile={profile}
+        pro={workerPro.pro}
+        loading={workerPro.loading}
+        error={workerPro.error}
+        onRefresh={workerPro.refresh}
+      />
+    </AccountShell>
+  );
 }

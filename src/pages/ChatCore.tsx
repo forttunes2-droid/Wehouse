@@ -57,6 +57,8 @@ import {
   type HotelConversation,
 } from "@/lib/supabase/hotel-chat";
 import BackButton from "@/components/BackButton";
+import SecureInboxLock from "@/components/SecureInboxLock";
+import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
 
 type Props = {
   profile: Profile;
@@ -188,6 +190,10 @@ export default function Chat({
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const {
+    status: inboxSecurityStatus,
+    refresh: refreshInboxSecurity,
+  } = useSecureInboxAccess(profile.user_id);
   const activeRef = useRef<Conversation | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -352,10 +358,11 @@ export default function Chat({
   );
 
   useEffect(() => {
+    if (inboxSecurityStatus?.state !== "ready") return;
     if (!conversationId) void loadInbox(Boolean(inboxCache.get(profile.user_id)));
-  }, [conversationId, loadInbox, profile.user_id]);
+  }, [conversationId, inboxSecurityStatus?.state, loadInbox, profile.user_id]);
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || inboxSecurityStatus?.state !== "ready") return;
     void (async () => {
       if (peerUserId) {
         const now = new Date().toISOString();
@@ -418,7 +425,7 @@ export default function Chat({
         );
       }
     })();
-  }, [conversationId, loadInbox, peerUserId, profile.user_id]);
+  }, [conversationId, inboxSecurityStatus?.state, loadInbox, peerUserId, profile.user_id]);
   useEffect(() => {
     if (!active) {
       setMessages([]);
@@ -500,7 +507,13 @@ export default function Chat({
     };
   }, [active, otherId]);
   useEffect(() => {
-    if (active || activeBooking || activeHotel) return;
+    if (
+      inboxSecurityStatus?.state !== "ready" ||
+      active ||
+      activeBooking ||
+      activeHotel
+    )
+      return;
     const channel = supabase
       .channel(`message-inbox:${profile.user_id}`)
       .on(
@@ -524,7 +537,7 @@ export default function Chat({
       window.clearInterval(timer);
       void supabase.removeChannel(channel);
     };
-  }, [active, activeBooking, activeHotel, profile.user_id, loadInbox]);
+  }, [active, activeBooking, activeHotel, inboxSecurityStatus?.state, profile.user_id, loadInbox]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
@@ -860,6 +873,23 @@ export default function Chat({
       return searchable.filter(Boolean).join(" ").toLowerCase().includes(query);
     });
   }, [inboxItems, inboxQuery, otherId, people]);
+
+  const finishInboxUnlock = useCallback(async () => {
+    const result = await refreshInboxSecurity();
+    const current = activeRef.current;
+    if (result.state === "ready" && current) {
+      await loadRoommateMessages(current.id, true);
+    }
+  }, [loadRoommateMessages, refreshInboxSecurity]);
+
+  if (inboxSecurityStatus?.state !== "ready") {
+    return (
+      <SecureInboxLock
+        status={inboxSecurityStatus}
+        onReady={() => void finishInboxUnlock()}
+      />
+    );
+  }
 
   if (activeBooking)
     return (

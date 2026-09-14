@@ -13,6 +13,7 @@ type Props = {
   onGoToSaved: () => void;
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
+  onGoToWorkerPaidTools?: () => void;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
   workspaceAccess?: WorkspaceAccess | null;
@@ -38,7 +39,7 @@ type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'privacy_security' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
-export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onNavigate, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace }: Props) {
+export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onGoToWorkerPaidTools, onNavigate, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace }: Props) {
   void onGoToPrivacy;
   void onGoToSecurity;
   const p = profile as Profile & ProfilePreferences;
@@ -268,6 +269,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
       <AccountSection title="Account">
         {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
+        {onGoToWorkerPaidTools && <AccountRow title="Paid Worker tools" detail="View tools, billing period and subscription management" onClick={onGoToWorkerPaidTools} icon={<ToolsIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {isUser && <AccountRow title="Saved" detail="Saved apartments and search alerts" onClick={onGoToSaved} icon={<HeartIcon />} />}
       </AccountSection>
@@ -335,3 +337,4 @@ function HomeIcon(){return <svg {...iconProps}><path d="m3 11 9-7 9 7"/><path d=
 function BellIcon(){return <svg {...iconProps}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 19h4"/></svg>}
 function ShieldIcon(){return <svg {...iconProps}><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3Z"/><path d="M9 12.5 11 14l4-4"/></svg>}
 function DocumentIcon(){return <svg {...iconProps}><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg>}
+function ToolsIcon(){return <svg {...iconProps}><path d="M4 7h16M7 12h10M9 17h6"/><circle cx="8" cy="7" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/></svg>}
