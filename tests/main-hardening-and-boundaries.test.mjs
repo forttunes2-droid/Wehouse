@@ -93,9 +93,11 @@ test("new passwords use the single-factor minimum and legacy payment is not a ba
     read("supabase/functions/provider-password-recovery/index.ts"),
     read("src/types/index.ts"),
   ]);
-  assert.match(login, /New password must be at least 15 characters/);
-  assert.match(security, /newPassword\.length<15/);
-  assert.match(recovery, /newPassword\.length < 15/);
+  assert.match(login, /Password must be at least 8 characters/);
+  assert.match(login, /New password must be at least 8 characters/);
+  assert.match(security, /newPassword\.length<8/);
+  assert.match(recovery, /newPassword\.length < 8/);
+  assert.doesNotMatch(login, /15 characters/);
   assert.match(types, /verification_paid: "Legacy payment — Finance review"/);
   assert.doesNotMatch(types, /verification_paid: "Verification Paid"/);
   assert.doesNotMatch(types, /verification_paid: "bg-blue/);
