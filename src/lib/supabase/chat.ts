@@ -31,8 +31,9 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
   if(error||!data)return{messages:(data||[]) as Message[],error};
   const messages=await Promise.all((data as any[]).map(async row=>{
     let content=String(row.legacy_content||'');
+    let decryptionFailed=false;
     if(row.ciphertext&&row.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your recovery passcode'}
+      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
     const attachments:string[]=[];const attachmentTypes:string[]=[];
     const legacyPaths=Array.isArray(row.legacy_attachments)?row.legacy_attachments.filter(Boolean):[];
@@ -44,7 +45,7 @@ export async function getMessages(conversationId:string,peerUserId?:string|null)
       }
     }
     if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
-    return{...row,content,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes,reply_to_id:row.reply_to_id||null,reactions:row.reactions||{}} as Message;
+    return{...row,content,decryption_failed:decryptionFailed,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes,reply_to_id:row.reply_to_id||null,reactions:row.reactions||{}} as Message;
   }));
   return{messages,error};
 }

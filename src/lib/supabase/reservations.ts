@@ -117,11 +117,11 @@ export async function getReservationForListing(
   return { reservation: (data as ReservationRecord) || null, error };
 }
 
-export async function getReservationsForUser(userId?: string) {
-  void userId;
+export async function getReservationsForUser(userId: string) {
   const { data, error } = await supabase
     .from("reservations")
     .select("*")
+    .eq("user_id", userId)
     .eq("reservation_type", "apartment")
     .order("created_at", { ascending: false });
   const reservations = (data || []) as ReservationRecord[];
@@ -264,11 +264,11 @@ export async function getInspectionRequestForReservation(
   return { inspection: data as InspectionRecord | null, error };
 }
 
-export async function getInspectionRequestsForUser(userId?: string) {
-  void userId;
+export async function getInspectionRequestsForUser(userId: string) {
   const { data, error } = await supabase
     .from("user_inspection_requests")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
   return { inspections: data as InspectionRecord[] | null, error };
 }

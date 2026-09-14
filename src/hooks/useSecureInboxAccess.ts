@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   encryptionIdentityStatus,
+  onPrivateMessageAccessChange,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
@@ -41,6 +42,8 @@ export default function useSecureInboxAccess(profileId: string) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => onPrivateMessageAccessChange(() => void refresh()), [refresh]);
 
   return { status, refresh };
 }

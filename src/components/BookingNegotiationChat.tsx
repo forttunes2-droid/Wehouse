@@ -41,6 +41,7 @@ import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import {
+  lockEncryptionIdentity,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
@@ -61,6 +62,7 @@ type ChatMessage = {
   attachments?: string[] | null;
   is_read?: boolean | null;
   reactions?: Record<string, string>;
+  decryption_failed?: boolean;
   reply_to_id?: string | null;
   created_at: string;
 };
@@ -220,6 +222,11 @@ export default function BookingNegotiationChat({
     setSecureChat(result);
     if (result.state === "ready") await loadMessages(peerId, true);
   }, [conversationId, loadMessages, peerId]);
+  const retryLockedMessages = useCallback(async () => {
+    setSecureChat(null);
+    await lockEncryptionIdentity();
+    await refreshSecureChat();
+  }, [refreshSecureChat]);
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
@@ -960,6 +967,25 @@ export default function BookingNegotiationChat({
       </header>
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
+          {messages.some((message) => message.decryption_failed) ? (
+            <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+              <div>
+                <p className="text-[10px] font-semibold text-violet-100">
+                  Some messages are still locked
+                </p>
+                <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                  Re-enter your Inbox PIN to unlock this conversation on this device.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void retryLockedMessages()}
+                className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+              >
+                Enter PIN
+              </button>
+            </section>
+          ) : null}
           {messageError ? (
             <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center">
               <p className="text-xs font-semibold text-red-200">

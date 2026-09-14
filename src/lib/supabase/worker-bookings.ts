@@ -51,15 +51,16 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
   const legacyUrls=new Map((signed.data||[]).map(item=>[item.path,item.signedUrl||'']));
   const messages=await Promise.all((data as any[]).map(async msg=>{
     let content=String(msg.legacy_content||'');
+    let decryptionFailed=false;
     if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your recovery passcode'}
+      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
     const attachments=(Array.isArray(msg.legacy_attachments)?msg.legacy_attachments:[]).map((path:string)=>legacyUrls.get(path)||'').filter(Boolean);
     if(peerUserId){
       const decrypted=await Promise.all((Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]).map(async(item:any)=>{try{return(await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment)).url}catch{return''}}));
       attachments.push(...decrypted.filter(Boolean));
     }
-    return{...msg,content,attachments,is_read:Boolean(msg.is_read)};
+    return{...msg,content,decryption_failed:decryptionFailed,attachments,is_read:Boolean(msg.is_read)};
   }));
   return{messages,error};
 }

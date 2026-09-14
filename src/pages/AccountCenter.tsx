@@ -5,6 +5,7 @@ import AccountShell, { AccountRow, AccountSection } from '@/components/AccountSh
 import type { Profile } from '@/types';
 import PrivacySecuritySettings from '@/pages/PrivacySecuritySettings';
 import MediaViewer from '@/components/MediaViewer';
+import { getCurrentLegalDocuments } from '@/lib/supabase/legal';
 
 type Props = {
   profile: Profile;
@@ -80,17 +81,15 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
 
   useEffect(() => {
     void (async () => {
-      const [{ data: status }, { data: docs }] = await Promise.all([
+      const [{ data: status }, { documents }] = await Promise.all([
         supabase.rpc('get_my_legal_status'),
-        supabase.from('platform_settings').select('key,value').in('key', ['privacy_policy', 'terms_of_service']),
+        getCurrentLegalDocuments(),
       ]);
       if (status) setLegal(status as Legal);
-      const next = { privacy: false, terms: false };
-      for (const row of docs || []) {
-        if (row.key === 'privacy_policy') next.privacy = Boolean(row.value?.trim());
-        if (row.key === 'terms_of_service') next.terms = Boolean(row.value?.trim());
-      }
-      setPublished(next);
+      setPublished({
+        privacy: Boolean(documents.privacy?.body?.trim()),
+        terms: Boolean(documents.terms?.body?.trim()),
+      });
     })();
   }, []);
 

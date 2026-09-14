@@ -15,6 +15,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import StaffListTab from "./StaffListTab";
 import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
+import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
@@ -1203,12 +1204,7 @@ function PlatformControl({ profile }: { profile: Profile }) {
         </section>
       )}
       {section === "legal" && (
-        <CreatorSettingsTabV2
-          profile={profile}
-          groups={["legal"]}
-          title="Published legal documents"
-          description="The current documents shown when people create and use an account."
-        />
+        <CreatorLegalDocuments />
       )}
     </div>
   );

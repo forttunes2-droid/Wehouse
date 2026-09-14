@@ -39,6 +39,7 @@ import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import {
+  lockEncryptionIdentity,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
@@ -927,6 +928,9 @@ export default function Chat({
   if (active) {
     const person = people[otherId(active)];
     const canCompose = secureChat?.state === "ready";
+    const lockedMessages = messages.some(
+      (message) => message.decryption_failed === true,
+    );
     const refreshSecurity = () => {
       setSecureChat(null);
       void privateConversationReadiness(
@@ -938,6 +942,11 @@ export default function Chat({
         if (result.state === "ready" || result.state === "peer_setup_required")
           void loadRoommateMessages(active.id, true);
       });
+    };
+    const retryLockedMessages = async () => {
+      setSecureChat(null);
+      await lockEncryptionIdentity();
+      await refreshInboxSecurity();
     };
     const timeline = [
       ...messages.map((message) => ({
@@ -1047,6 +1056,25 @@ export default function Chat({
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
+            {lockedMessages ? (
+              <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+                <div>
+                  <p className="text-[10px] font-semibold text-violet-100">
+                    Some messages are still locked
+                  </p>
+                  <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                    Re-enter your Inbox PIN to unlock this conversation on this device.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void retryLockedMessages()}
+                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+                >
+                  Enter PIN
+                </button>
+              </section>
+            ) : null}
             {loadingMessages && messages.length === 0 ? (
               <MessageSkeleton />
             ) : messages.length === 0 ? (

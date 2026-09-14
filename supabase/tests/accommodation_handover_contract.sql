@@ -12,6 +12,29 @@ insert into public.profiles(auth_id,email,user_id) values
   ('test-auth-peer','test-peer@example.invalid','test-peer'),
   ('test-auth-payee','test-payee@example.invalid','test-payee');
 
+insert into public.reservations(
+  id,listing_id,user_id,status,manual_payment_status,paid_at,
+  rent_payment_status,rent_paid_at,rent_payment_reference,stay_type,
+  stay_check_in,stay_check_out,stay_nights,guest_count,occupant_count,
+  nightly_rate_snapshot,stay_rent_total,security_deposit_snapshot,
+  rental_plan_years,annual_rent_snapshot,contract_rent_total,
+  upfront_rent_required,installment_balance,installment_count,
+  shared_payment_group_id
+) values
+  ('test-short','test-listing','test-user','ready_for_move_in','paid',now(),
+   'paid',now(),'TEST-DIRECT','short_let',current_date+10,current_date+12,2,1,1,
+   50,100,0,1,null,null,null,0,0,null),
+  ('test-long','test-long-listing','test-user','ready_for_move_in','paid',now(),
+   'paid',now(),'TEST-LONG','long_stay',null,null,null,1,1,
+   null,null,0,2,200,400,200,200,8,null),
+  ('test-long-released','test-long-released-listing','test-user','occupied','paid',now(),
+   'paid',now(),'TEST-LONG-RELEASED','long_stay',null,null,null,1,1,
+   null,null,0,1,200,200,200,0,0,null),
+  ('test-shared','test-listing','test-user','reserved','paid',now(),
+   'paid',now(),null,'short_let',current_date+20,current_date+22,2,2,2,
+   50,100,0,1,null,null,null,0,0,
+   '40000000-0000-0000-0000-000000000001');
+
 insert into public.ledger_transactions(
   ledger_transaction_id,idempotency_key,transaction_type,currency,
   reference_type,reference_id,provider_event_id,payload_checksum
@@ -56,10 +79,12 @@ insert into public.payment_protection_transactions(
 
 insert into public.shared_payment_groups(
   shared_payment_group_id,product_type,listing_id,reservation_id,created_by,
-  total_amount,capacity,status
+  total_amount,capacity,status,payment_phase,stay_check_in,stay_check_out,
+  guest_count,checkout_attempt
 ) values(
   '40000000-0000-0000-0000-000000000001','short_let','test-listing',
-  'test-shared','test-user',100,2,'fully_paid'
+  'test-shared','test-user',100,2,'fully_paid','short_stay',
+  current_date+20,current_date+22,2,1
 );
 
 insert into public.shared_payment_members(
@@ -77,6 +102,46 @@ insert into public.shared_payment_protection_components(
   ('40000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000002','60000000-0000-0000-0000-000000000003','short_let_stay',50,'TEST-SHARED-2');
 
 set local session_replication_role=origin;
+
+do $$
+declare rejected boolean:=false;
+begin
+  begin
+    update public.reservations
+    set stay_check_out=stay_check_out+1,stay_nights=stay_nights+1,guest_count=2
+    where id='test-short';
+  exception when others then
+    rejected:=position('Paid accommodation terms are immutable' in sqlerrm)>0;
+  end;
+  if not rejected then
+    raise exception 'Paid Short Let dates or guests were mutable';
+  end if;
+
+  rejected:=false;
+  begin
+    update public.reservations
+    set rental_plan_years=3,contract_rent_total=600
+    where id='test-long';
+  exception when others then
+    rejected:=position('Paid accommodation terms are immutable' in sqlerrm)>0;
+  end;
+  if not rejected then
+    raise exception 'Paid Long Let tenure or contract total was mutable';
+  end if;
+
+  rejected:=false;
+  begin
+    update public.shared_payment_groups
+    set stay_check_out=stay_check_out+1,guest_count=3
+    where shared_payment_group_id='40000000-0000-0000-0000-000000000001';
+  exception when others then
+    rejected:=position('shared checkout terms are immutable' in lower(sqlerrm))>0;
+  end;
+  if not rejected then
+    raise exception 'Open shared Short Let dates or guests were mutable';
+  end if;
+end;
+$$;
 
 do $$
 declare decision jsonb;

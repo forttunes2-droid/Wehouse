@@ -52,6 +52,47 @@ test("accommodation UI and database fail closed without Payment Protection", asy
   assert.match(migration, /workspace_one_marketplace_role_guard/);
 });
 
+test("Personal apartment bookings cannot inherit Creator operations visibility", async () => {
+  const reservations = await read("src/lib/supabase/reservations.ts");
+  assert.match(
+    reservations,
+    /getReservationsForUser\(userId: string\)[\s\S]*\.eq\("user_id", userId\)[\s\S]*\.eq\("reservation_type", "apartment"\)/,
+  );
+  assert.match(
+    reservations,
+    /getInspectionRequestsForUser\(userId: string\)[\s\S]*\.eq\("user_id", userId\)/,
+  );
+});
+
+test("legal surfaces use reviewed versioned documents, never legacy settings", async () => {
+  const [account, setup, terms, privacy, creator, legalEditor, settings] =
+    await Promise.all([
+      read("src/pages/AccountCenter.tsx"),
+      read("src/pages/Setup.tsx"),
+      read("src/pages/TermsPage.tsx"),
+      read("src/pages/PrivacyPolicyPage.tsx"),
+      read("src/pages/CreatorDashboard.tsx"),
+      read("src/components/CreatorLegalDocuments.tsx"),
+      read("src/pages/CreatorSettingsTabV2.tsx"),
+    ]);
+
+  for (const source of [account, setup, terms, privacy])
+    assert.match(source, /getCurrentLegalDocuments/);
+  for (const source of [account, setup, terms, privacy, creator, legalEditor, settings])
+    assert.doesNotMatch(
+      source,
+      /from\(['"]platform_settings['"]\)[\s\S]{0,180}(privacy_policy|terms_of_service)/,
+    );
+  assert.match(creator, /<CreatorLegalDocuments\s*\/>/);
+  assert.match(legalEditor, /creator_save_legal_draft/);
+  assert.match(legalEditor, /creator-step-up/);
+  assert.match(legalEditor, /creator_publish_legal_document/);
+  assert.match(legalEditor, /p_review_reference/);
+  assert.match(legalEditor, /row\.policy_key === "legal_privacy"/);
+  assert.match(legalEditor, /row\.policy_key === "legal_terms"/);
+  assert.doesNotMatch(settings, /key:'privacy_policy'|key:'terms_of_service'/);
+});
+
 test("Short Let naming and public location copy match the product boundary", async () => {
   const [title, detail] = await Promise.all([
     read("src/lib/listingPresentation.ts"),
@@ -160,6 +201,34 @@ test("every accommodation arrival field and shared payer is guarded", async () =
   );
 });
 
+test("paid accommodation terms are bound to the checkout snapshot", async () => {
+  const [migration, contract] = await Promise.all([
+    read(
+      "supabase/migrations/20260914160000_bind_paid_accommodation_snapshots.sql",
+    ),
+    read("supabase/tests/accommodation_handover_contract.sql"),
+  ]);
+  assert.match(migration, /validate_paid_accommodation_snapshot/);
+  assert.match(migration, /Short Let payment does not match its dates, guests and price snapshot/);
+  assert.match(migration, /Long Let payment does not match its tenure and contract snapshot/);
+  assert.match(migration, /Shared Short Let payment does not match its dates, guests and split snapshot/);
+  assert.match(migration, /prevent_paid_accommodation_snapshot_change/);
+  for (const field of [
+    "stay_check_in",
+    "stay_check_out",
+    "stay_nights",
+    "guest_count",
+    "rental_plan_years",
+    "contract_rent_total",
+    "upfront_rent_required",
+    "security_deposit_snapshot",
+  ])
+    assert.match(migration, new RegExp(field));
+  assert.match(contract, /Paid Short Let dates or guests were mutable/);
+  assert.match(contract, /Paid Long Let tenure or contract total was mutable/);
+  assert.match(contract, /Open shared Short Let dates or guests were mutable/);
+});
+
 test("Worker review and booking have no onboarding-payment gate", async () => {
   const [migration, reviewStatus, oversight] = await Promise.all([
     read(
@@ -187,10 +256,13 @@ test("Worker review and booking have no onboarding-payment gate", async () => {
 });
 
 test("private Inbox unlock is independent from whether a job is still open", async () => {
-  const [personalInbox, workerInbox, bookingChat] = await Promise.all([
+  const [personalInbox, workerInbox, bookingChat, workerMessages, roommateMessages, e2ee] = await Promise.all([
     read("src/pages/ChatCore.tsx"),
     read("src/components/WorkerJobsPanelV2.tsx"),
     read("src/components/BookingNegotiationChat.tsx"),
+    read("src/lib/supabase/worker-bookings.ts"),
+    read("src/lib/supabase/chat.ts"),
+    read("src/lib/e2ee.ts"),
   ]);
   assert.match(personalInbox, /useSecureInboxAccess/);
   assert.match(workerInbox, /useSecureInboxAccess/);
@@ -199,6 +271,13 @@ test("private Inbox unlock is independent from whether a job is still open", asy
     /!openConversation[\s\S]*secureChat\.state === "unlock_required"[\s\S]*<SecureChatOnboarding/,
   );
   assert.match(bookingChat, /This job conversation is closed/);
+  assert.match(bookingChat, /Some messages are still locked/);
+  assert.match(bookingChat, /retryLockedMessages/);
+  assert.match(personalInbox, /Some messages are still locked/);
+  assert.match(personalInbox, /retryLockedMessages/);
+  assert.match(workerMessages, /decryption_failed:decryptionFailed/);
+  assert.match(roommateMessages, /decryption_failed:decryptionFailed/);
+  assert.match(e2ee, /wehouse:private-message-access/);
 });
 
 test("Worker paid tools live under Account and load only when opened", async () => {
