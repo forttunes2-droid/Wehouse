@@ -59,7 +59,9 @@ begin
         and protection.subject_type = 'hotel_stay'
         and protection.subject_id = booking.booking_id::text
         and protection.payer_user_id = booking.user_id
-        and protection.status in ('protected', 'released', 'disputed')
+        and protection.paystack_reference = booking.payment_reference
+        and protection.protected_ledger_transaction_id is not null
+        and protection.status = protection.protection_state
         and protection.protection_state in (
           'protected', 'release_eligible', 'release_pending', 'released',
           'disputed', 'risk_held', 'partially_released'
@@ -179,7 +181,9 @@ begin
       and protection.subject_type = 'hotel_stay'
       and protection.subject_id = booking.booking_id::text
       and protection.payer_user_id = booking.user_id
-      and protection.status in ('protected', 'released', 'disputed')
+      and protection.paystack_reference = booking.payment_reference
+      and protection.protected_ledger_transaction_id is not null
+      and protection.status = protection.protection_state
       and protection.protection_state in (
         'protected', 'release_eligible', 'release_pending', 'released',
         'disputed', 'risk_held', 'partially_released'
@@ -252,8 +256,20 @@ begin
         and reservation.paid_at is not null
         and reservation.rent_payment_status in ('paid', 'upfront_paid')
         and reservation.rent_paid_at is not null
-        and reservation.status in ('ready_for_move_in', 'occupied')
-        and protection.status in ('protected', 'released', 'disputed')
+        and reservation.status in (
+          'reserved', 'inspection_pending', 'ready_for_move_in',
+          'occupied', 'completed'
+        )
+        and protection.subject_type = case
+          when reservation.stay_type = 'short_let'
+            then 'short_let_stay'
+          else 'long_let_year_one'
+        end
+        and protection.subject_id = reservation.id::text
+        and protection.payer_user_id = reservation.user_id
+        and protection.paystack_reference = reservation.rent_payment_reference
+        and protection.protected_ledger_transaction_id is not null
+        and protection.status = protection.protection_state
         and protection.protection_state in (
           'protected', 'release_eligible', 'release_pending', 'released',
           'disputed', 'risk_held', 'partially_released'
@@ -262,6 +278,7 @@ begin
   end if;
 
   if not v_internal
+    and not v_paid
     and not (v_listing.status = 'available' and v_listing.availability_status = 'available')
   then return null; end if;
 

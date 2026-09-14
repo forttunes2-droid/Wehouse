@@ -24,7 +24,7 @@ type Worker = {
   review_count?: number | null;
 };
 type Checks = {
-  payment_confirmed?: boolean;
+  profile_ready?: boolean;
   identity_captured?: boolean;
   identity_passed?: boolean;
   readiness_passed?: boolean;
@@ -195,12 +195,12 @@ export default function CreatorWorkerOversight() {
                 good={!!checks?.identity_passed}
               />
               <Check
-                label="Payment"
-                value={checks?.payment_confirmed ? "Confirmed" : "Incomplete"}
-                good={!!checks?.payment_confirmed}
+                label="Profile"
+                value={checks?.profile_ready ? "Complete" : "Incomplete"}
+                good={!!checks?.profile_ready}
               />
               <Check
-                label="Profile"
+                label="Readiness"
                 value={
                   checks?.readiness_passed
                     ? `Ready · ${checks.readiness_percent || 100}%`
