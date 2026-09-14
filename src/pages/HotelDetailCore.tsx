@@ -15,6 +15,7 @@ import {
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
+import { locationLabel } from "@/lib/locationPresentation";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -249,9 +250,7 @@ export default function HotelDetail({
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
                 <p className="mt-1 text-[10px] text-[#747B8B]">
-                  {[hotel.area, hotel.city, hotel.state]
-                    .filter(Boolean)
-                    .join(", ")}
+                  {locationLabel(hotel.area, hotel.city, hotel.state)}
                   {distance !== null
                     ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
                     : ""}
@@ -270,7 +269,7 @@ export default function HotelDetail({
             )}
             {destination && hotel.address ? (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
-                <span>{hotel.address}</span>
+                <span>{locationLabel(hotel.address, hotel.city, hotel.state)}</span>
                 {destination && (
                   <a
                     href={directionsUrl(destination.lat, destination.lng)}

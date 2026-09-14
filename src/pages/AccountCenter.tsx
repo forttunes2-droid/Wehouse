@@ -66,6 +66,15 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const canSwitchWorkspace = Boolean(onSwitchWorkspace && workspaceAccess?.personal_workspace && privilegedWorkspaces.length);
   const hasWorkerWorkspace = privilegedWorkspaces.some(workspace => workspace.role === 'worker');
   const hasPartnerWorkspace = privilegedWorkspaces.some(workspace => workspace.role === 'property_partner');
+  const identityRole = workspaceAccess?.identity?.compatibility_role || role;
+  const canAddProfessionalWorkspace = Boolean(
+    activeWorkspace === 'personal' &&
+    workspaceAccess?.personal_workspace &&
+    workspaceAccess?.identity?.account_kind === 'consumer' &&
+    !['creator', 'admin', 'staff', 'hotel_staff'].includes(identityRole) &&
+    !hasWorkerWorkspace &&
+    !hasPartnerWorkspace,
+  );
 
   useEffect(() => {
     void (async () => {
@@ -250,10 +259,10 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
         </AccountSection>
       )}
 
-      {workspaceAccess?.personal_workspace && (!hasWorkerWorkspace || !hasPartnerWorkspace) && (
+      {canAddProfessionalWorkspace && (
         <AccountSection title="Add a professional workspace">
-          {!hasWorkerWorkspace && <AccountRow title="Offer services" detail="Review what is added before creating a free Worker workspace" onClick={() => setWorkspaceToAdd('worker')} disabled={activatingWorkspace!==null} icon={<PersonIcon />} />}
-          {!hasPartnerWorkspace && <AccountRow title="List or manage property" detail="Review what is added before creating a Property Partner workspace" onClick={() => setWorkspaceToAdd('property_partner')} disabled={activatingWorkspace!==null} icon={<HomeIcon />} />}
+          <AccountRow title="Offer services" detail="Review what is added before creating a free Worker workspace" onClick={() => setWorkspaceToAdd('worker')} disabled={activatingWorkspace!==null} icon={<PersonIcon />} />
+          <AccountRow title="List or manage property" detail="Review what is added before creating a Property Partner workspace" onClick={() => setWorkspaceToAdd('property_partner')} disabled={activatingWorkspace!==null} icon={<HomeIcon />} />
         </AccountSection>
       )}
 

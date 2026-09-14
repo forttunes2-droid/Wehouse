@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { locationLabel } from "@/lib/locationPresentation";
 
 type PaymentInitResult = {
   success?: boolean;
@@ -186,9 +187,7 @@ export async function getReservationsForUser(userId?: string) {
         listing_address: media.address,
         listing_city: media.city,
         listing_state: media.state,
-        listing_location: [media.address, media.city, media.state]
-          .filter(Boolean)
-          .join(", "),
+        listing_location: locationLabel(media.address, media.city, media.state),
         listing_image: media.images[0] || null,
         listing_images: media.images,
         listing_videos: media.videos,

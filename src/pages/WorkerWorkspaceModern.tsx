@@ -6,9 +6,11 @@ import WorkerJobsPanelV2, {
 } from "@/components/WorkerJobsPanelV2";
 import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
-import WorkerProBadge from "@/components/WorkerProBadge";
 import WorkerProPanel from "@/components/WorkerProPanel";
-import AccountCenter from "@/pages/AccountCenter";
+import AccountCenter, {
+  type WorkspaceAccess,
+  type WorkspaceChoice,
+} from "@/pages/AccountCenter";
 import AccountShell from "@/components/AccountShell";
 import WorkerProfilePanelV3 from "@/components/WorkerProfilePanelV2";
 import type { Profile } from "@/types";
@@ -39,11 +41,17 @@ export default function WorkerWorkspaceModern({
   onGoToSetup,
   onLogout,
   onNavigate,
+  workspaceAccess,
+  activeWorkspace,
+  onSwitchWorkspace,
 }: {
   profile: Profile;
   onGoToSetup: () => void;
   onLogout: () => void;
   onNavigate?: (page: string, id?: string) => void;
+  workspaceAccess?: WorkspaceAccess | null;
+  activeWorkspace?: WorkspaceChoice;
+  onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 }) {
   const live =
     profile.worker_status === "verified" && profile.worker_verified === true;
@@ -73,7 +81,7 @@ export default function WorkerWorkspaceModern({
 
   if (safeTab === "account") {
     if (accountView === "profile") return <AccountShell profile={profile} title="Professional Profile" description="This is the professional profile customers see." onBack={() => setAccountView("account")}><WorkerProfilePanelV3 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/></AccountShell>;
-    return <AccountCenter profile={profile} onBack={() => setTab(live ? "jobs" : "home")} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={() => setAccountView("profile")} onNavigate={(page) => onNavigate?.(page)} onLogout={onLogout}/>;
+    return <AccountCenter profile={profile} onBack={() => setTab(live ? "jobs" : "home")} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={() => setAccountView("profile")} onNavigate={(page) => onNavigate?.(page)} onLogout={onLogout} workspaceAccess={workspaceAccess} activeWorkspace={activeWorkspace} onSwitchWorkspace={onSwitchWorkspace}/>;
   }
 
   let content: React.ReactNode;
@@ -139,7 +147,6 @@ export default function WorkerWorkspaceModern({
   const workspace = (
     <WorkspaceFrameV2
       label="WEHOUSE · WORKER"
-      labelBadge={workerPro.pro?.active ? <WorkerProBadge /> : null}
       title={nav.find((item) => item.id === safeTab)?.label || "Worker"}
       description={description}
       items={nav}

@@ -205,12 +205,14 @@ test('Hotel completion scheduling declares its pg_cron dependency',()=>{
   assert.match(migration,/cron\.schedule\('wehouse-hotel-completion-v1'/);
 });
 
-test('Worker onboarding stays free and Pro stays an optional entitlement',()=>{
+test('Worker onboarding stays free and paid tools remain an optional entitlement',()=>{
   const foundation=read('supabase/migrations/20260913113221_free_worker_and_wehouse_pro_foundation.sql');
   const billing=read('supabase/migrations/20260913114644_worker_pro_web_billing.sql');
   const workers=read('src/lib/supabase/workers.ts');
   const exports=read('src/lib/supabase/index.ts');
-  const badge=read('src/components/WorkerProBadge.tsx');
+  const paidPanel=read('src/components/WorkerProPanel.tsx');
+  const publicProfile=read('src/components/WorkerPublicProfile.tsx');
+  const discovery=read('src/pages/WorkerDiscovery.tsx');
   const creator=read('src/pages/CreatorSettingsTabV2.tsx');
 
   assert.match(foundation,/\('worker_verification_fee_enabled','false'/);
@@ -221,8 +223,10 @@ test('Worker onboarding stays free and Pro stays an optional entitlement',()=>{
   assert.match(billing,/worker_pro_web_paystack_plan_code/);
   assert.match(creator,/creator_set_worker_pro_setting/);
   assert.match(creator,/worker-pro-plan-sync/);
-  assert.match(badge,/>PRO</);
-  assert.doesNotMatch(badge,/Reviewed|Trusted/,'Pro must not be presented as a trust or safety decision');
+  assert.match(paidPanel,/subscription pays for the business tools listed below/i);
+  assert.doesNotMatch(paidPanel,/gold PRO mark|<WorkerProBadge/);
+  assert.doesNotMatch(publicProfile,/WorkerProBadge/);
+  assert.doesNotMatch(discovery,/WorkerProBadge/);
   assert.doesNotMatch(workers,/export async function createBlueBadgeSubscription/);
   assert.doesNotMatch(workers,/export async function cancelBlueBadgeSubscription/);
   assert.doesNotMatch(exports,/createBlueBadgeSubscription|cancelBlueBadgeSubscription/);
@@ -317,4 +321,12 @@ test('Listing detail controls render with loaded media instead of floating durin
   assert.doesNotMatch(wrapper,/Add apartment to Saved/);
   assert.match(detail,/PropertyMediaCarousel/);
   assert.match(detail,/!ml-0 !h-10 !w-10 !rounded-full/);
+});
+
+test('Location labels remove repeated address segments',async()=>{
+  const location=await loadTsModule('src/lib/locationPresentation.ts');
+  assert.equal(
+    location.locationLabel('Ombi 1, Lafia, Nasarawa State, Lafia, Nasarawa State','Lafia','Nasarawa State'),
+    'Ombi 1, Lafia, Nasarawa State',
+  );
 });

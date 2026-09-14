@@ -1063,6 +1063,9 @@ export default function App() {
           onGoToSetup={() => goTo("worker_setup")}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isPropertyPartner)

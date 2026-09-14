@@ -4,9 +4,21 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: consolidation-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  tests-and-build:
+    name: Consolidation Tests and Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,6 +31,7 @@ jobs:
       - run: npm run build
 
   migration-replay:
+    name: Consolidation Migration Replay
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -47,3 +60,18 @@ jobs:
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
+
+  consolidation-gate:
+    name: Consolidation Validation
+    if: always()
+    needs: [tests-and-build, migration-replay]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require build and migration replay
+        env:
+          BUILD_RESULT: ${{ needs.tests-and-build.result }}
+          MIGRATION_RESULT: ${{ needs.migration-replay.result }}
+        run: |
+          test "$BUILD_RESULT" = "success"
+          test "$MIGRATION_RESULT" = "success"

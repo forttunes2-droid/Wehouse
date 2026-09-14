@@ -31,6 +31,8 @@ import {
 } from "@/hooks/useDiscoveryLocation";
 import { Toaster, toast } from "sonner";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
+import { locationLabel } from "@/lib/locationPresentation";
+import { hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
 import BackButton from "@/components/BackButton";
 
 type Props = {
@@ -471,16 +473,13 @@ export default function ListingDetail({
   );
   const canStartReservation =
     status === "available" && !hasOwnActiveReservation;
-  const reservationPaid = Boolean(
-    reservation?.paid_at ||
-    ["paid", "completed"].includes(
-      String(reservation?.manual_payment_status || ""),
-    ),
-  );
-  const locationExact = reservationPaid && listing.location_exact === true;
-  const visibleAddress = shortStay || locationExact
-    ? [listing.address, listing.city, listing.state].filter(Boolean).join(", ")
-    : [listing.city, listing.state].filter(Boolean).join(", ");
+  const accommodationPaid = reservation
+    ? hasProtectedAccommodationPayment(reservation)
+    : false;
+  const locationExact = accommodationPaid && listing.location_exact === true;
+  const visibleAddress = locationExact
+    ? locationLabel(listing.address, listing.city, listing.state)
+    : locationLabel(listing.city, listing.state);
   const mapPoint = Number.isFinite(Number(listing.gps_latitude)) &&
     Number.isFinite(Number(listing.gps_longitude))
       ? {
@@ -586,9 +585,9 @@ export default function ListingDetail({
                     </p>
                     {!locationExact && (
                       <p className="mt-1 text-[9px] text-[#5F6575]">
-                        {shortStay
-                          ? "The public street or area is shown before booking. Exact entrance instructions, access codes and private directions unlock only for a confirmed stay."
-                          : "Approximate area and distance only. The exact entrance and road directions unlock after confirmed payment."}
+                        Approximate area and distance only. The exact address,
+                        entrance and road directions unlock after the full
+                        accommodation payment is confirmed and protected.
                       </p>
                     )}
                   </div>
