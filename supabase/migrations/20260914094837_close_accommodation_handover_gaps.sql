@@ -237,6 +237,83 @@ grant execute on function public.accommodation_access_authorization(
   text,text,text,text,text,text,timestamptz,text,timestamptz,text,uuid,uuid,uuid,numeric,text
 ) to service_role;
 
+-- A trigger protects future writes, but it does not validate rows that already
+-- exist when this migration is installed. Refuse deployment if any legacy row
+-- has already started arrival/occupancy without the same authorization that
+-- the runtime guard and exact-location read model require.
+do $$
+declare
+  reservation_row public.reservations;
+  decision jsonb;
+  access_kind text;
+begin
+  for reservation_row in
+    select reservation.*
+    from public.reservations reservation
+    where reservation.status in ('occupied','completed')
+      or reservation.occupancy_started_at is not null
+      or reservation.tenancy_start_date is not null
+      or (
+        reservation.stay_type='short_let'
+        and (
+          reservation.checked_in_at is not null
+          or reservation.canonical_state in ('checked_in','checked_out','completed')
+        )
+      )
+      or (
+        coalesce(reservation.stay_type,'long_stay')<>'short_let'
+        and (
+          reservation.verified_handover_at is not null
+          or reservation.handover_confirmed_by_customer_at is not null
+          or reservation.canonical_state in ('handover_verified','active')
+        )
+      )
+      or (
+        reservation.requested_move_in_at is not null
+        and reservation.status not in (
+          'cancelled','expired','refunded','payment_conflict'
+        )
+      )
+  loop
+    access_kind:=case
+      when reservation_row.status in ('occupied','completed')
+        or reservation_row.occupancy_started_at is not null
+        or reservation_row.tenancy_start_date is not null
+        or reservation_row.checked_in_at is not null
+        or reservation_row.verified_handover_at is not null
+        or reservation_row.handover_confirmed_by_customer_at is not null
+        or reservation_row.canonical_state in (
+          'checked_in','checked_out','completed','handover_verified','active'
+        )
+      then 'location' else 'handover' end;
+
+    decision:=public.accommodation_access_authorization(
+      reservation_row.id,reservation_row.listing_id,reservation_row.user_id,
+      reservation_row.stay_type,reservation_row.status,
+      reservation_row.manual_payment_status,reservation_row.paid_at,
+      reservation_row.rent_payment_status,reservation_row.rent_paid_at,
+      reservation_row.rent_payment_reference,
+      reservation_row.stay_payment_protection_id,
+      reservation_row.year_one_rent_protection_id,
+      reservation_row.shared_payment_group_id,
+      case when reservation_row.stay_type='short_let'
+        then reservation_row.stay_rent_total
+        else coalesce(
+          reservation_row.upfront_rent_required,
+          reservation_row.annual_rent_snapshot
+        )
+      end,
+      access_kind
+    );
+    if not coalesce((decision->>'authorized')::boolean,false) then
+      raise exception
+        'Existing accommodation % must be reconciled before protected handover enforcement (%)',
+        reservation_row.id,coalesce(decision->>'reason','unknown');
+    end if;
+  end loop;
+end;
+$$;
+
 create or replace function public.enforce_protected_accommodation_handover()
 returns trigger
 language plpgsql

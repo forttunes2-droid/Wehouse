@@ -101,6 +101,10 @@ test("accommodation payment confirmation uses the canonical protected-funds gate
   assert.match(migration, /payment_component'=case when v_short/);
   assert.match(migration, /protected_ledger_transaction_id is not null/);
   assert.match(migration, /provider_event\.processing_status='processed'/);
+  assert.match(
+    migration,
+    /Existing accommodation % must be reconciled before protected handover enforcement/,
+  );
 });
 
 test("every accommodation arrival field and shared payer is guarded", async () => {
