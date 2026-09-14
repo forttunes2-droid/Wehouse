@@ -318,3 +318,8 @@ test("password recovery requires a one-use attempt bound to the linked OAuth ses
   assert.match(edge, /admin\.auth\.admin\.updateUserById/);
   assert.match(edge, /finish_identity_provider_password_recovery/);
   assert.match(edge, /admin\.auth\.admin\.signOut\(token, "global"\)/);
+  assert.doesNotMatch(edge, /console\.(?:log|error).*newPassword/);
+  assert.match(auth, /current_password: currentPassword/);
+  assert.match(useAuth, /googlePasswordRecoveryRequested/);
+  assert.doesNotMatch(useAuth, /PASSWORD_RECOVERY_AUTH_KEY/);
+});
