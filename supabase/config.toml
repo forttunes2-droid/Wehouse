@@ -3,3 +3,6 @@ project_id = "wehouse"
 
 [functions.provider-password-recovery]
 verify_jwt = true
+
+[functions.private-call-ice]
+verify_jwt = true

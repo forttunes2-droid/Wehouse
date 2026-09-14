@@ -60,6 +60,7 @@ import {
 import BackButton from "@/components/BackButton";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import SecureMessagesPanel from "@/components/SecureMessagesPanel";
 
 type Props = {
   profile: Profile;
@@ -191,6 +192,7 @@ export default function Chat({
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
   const {
     status: inboxSecurityStatus,
     refresh: refreshInboxSecurity,
@@ -1431,7 +1433,16 @@ export default function Chat({
             >
               ×
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              aria-expanded={pinSettingsOpen}
+              onClick={() => setPinSettingsOpen((value) => !value)}
+              className="mt-0.5 min-h-9 rounded-full border border-white/[.07] px-3 text-[9px] font-semibold text-violet-200"
+            >
+              Inbox PIN
+            </button>
+          )}
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold sm:text-xl">
               {selected.size
@@ -1451,6 +1462,11 @@ export default function Chat({
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
+        {pinSettingsOpen ? (
+          <div className="mb-4">
+            <SecureMessagesPanel />
+          </div>
+        ) : null}
         <section className="border-b border-white/[.06] pb-4">
           <div className="flex items-center justify-between gap-3 py-2">
             <div className="min-w-0">

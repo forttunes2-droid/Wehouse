@@ -16,28 +16,17 @@ export type GoogleVerificationTransaction = {
 };
 
 const TRANSACTION_KEY = "wh_google_verification";
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const PASSWORD_RECOVERY_MAX_AGE_MS = 10 * 60 * 1000;
+const OTHER_VERIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function maximumAge(context: GoogleVerificationContext) {
+  return context === "password_recovery"
+    ? PASSWORD_RECOVERY_MAX_AGE_MS
+    : OTHER_VERIFICATION_MAX_AGE_MS;
+}
 
 function isContext(value: unknown): value is GoogleVerificationContext {
   return value === "signup" || value === "password_recovery" || value === "new_device";
-}
-
-function syncLegacy(transaction: GoogleVerificationTransaction | null) {
-  try {
-    if (!transaction) {
-      sessionStorage.removeItem("wh_google_verify_context");
-      sessionStorage.removeItem("wh_google_verify_email");
-      sessionStorage.removeItem("wh_google_verify_role");
-      sessionStorage.removeItem("wh_pending_device_session");
-      return;
-    }
-    sessionStorage.setItem("wh_google_verify_context", transaction.context);
-    sessionStorage.setItem("wh_google_verify_email", transaction.email);
-    if (transaction.role) sessionStorage.setItem("wh_google_verify_role", transaction.role);
-    else sessionStorage.removeItem("wh_google_verify_role");
-    if (transaction.pendingDeviceSessionId)
-      sessionStorage.setItem("wh_pending_device_session", transaction.pendingDeviceSessionId);
-  } catch {}
 }
 
 export function saveGoogleVerification(
@@ -49,50 +38,37 @@ export function saveGoogleVerification(
     identifier: input.identifier?.trim().toLowerCase(),
     createdAt: input.createdAt || Date.now(),
   };
-  try { localStorage.setItem(TRANSACTION_KEY, JSON.stringify(transaction)); } catch {}
-  syncLegacy(transaction);
+  // Recovery state is deliberately tab-scoped. Persistent browser storage
+  // must not keep a reusable account-recovery transaction after the tab ends.
+  try { sessionStorage.setItem(TRANSACTION_KEY, JSON.stringify(transaction)); } catch {}
+  try { localStorage.removeItem(TRANSACTION_KEY); } catch {}
   return transaction;
 }
 
 export function readGoogleVerification(): GoogleVerificationTransaction | null {
   try {
-    const raw = localStorage.getItem(TRANSACTION_KEY);
+    // Remove transactions created by the former 24-hour localStorage flow.
+    try { localStorage.removeItem(TRANSACTION_KEY); } catch {}
+    const raw = sessionStorage.getItem(TRANSACTION_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<GoogleVerificationTransaction>;
       if (
         isContext(parsed.context) &&
         typeof parsed.email === "string" &&
         typeof parsed.createdAt === "number" &&
-        Date.now() - parsed.createdAt <= MAX_AGE_MS
+        Date.now() - parsed.createdAt <= maximumAge(parsed.context)
       ) {
-        const transaction = parsed as GoogleVerificationTransaction;
-        syncLegacy(transaction);
-        return transaction;
+        return parsed as GoogleVerificationTransaction;
       }
-      localStorage.removeItem(TRANSACTION_KEY);
+      sessionStorage.removeItem(TRANSACTION_KEY);
     }
   } catch {}
-
-  // One release of backward compatibility for verification attempts that began
-  // before the durable transaction was introduced.
-  try {
-    const context = sessionStorage.getItem("wh_google_verify_context");
-    const email = sessionStorage.getItem("wh_google_verify_email") || "";
-    if (!isContext(context) || !email) return null;
-    return saveGoogleVerification({
-      context,
-      email,
-      role: (sessionStorage.getItem("wh_google_verify_role") || undefined) as GoogleVerificationRole | undefined,
-      pendingDeviceSessionId: sessionStorage.getItem("wh_pending_device_session") || undefined,
-    });
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export function clearGoogleVerification() {
+  try { sessionStorage.removeItem(TRANSACTION_KEY); } catch {}
   try { localStorage.removeItem(TRANSACTION_KEY); } catch {}
-  syncLegacy(null);
   try {
     const url = new URL(window.location.href);
     if (url.searchParams.has("verify")) {

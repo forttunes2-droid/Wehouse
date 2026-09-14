@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import SecureMessagesPanel from "@/components/SecureMessagesPanel";
 
 export type WorkerBookingConversation = {
   conversation_id: string;
@@ -86,6 +87,7 @@ export function WorkerInboxPanel({
   const [activityUnread, setActivityUnread] = useState(0);
   const [supportUnread, setSupportUnread] = useState(0);
   const [supportAvailable, setSupportAvailable] = useState(false);
+  const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
   const {
     status: inboxSecurityStatus,
     refresh: refreshInboxSecurity,
@@ -155,6 +157,12 @@ export function WorkerInboxPanel({
 
   return (
     <div className="min-h-[60dvh]">
+      <div className="mb-3 flex justify-end">
+        <button type="button" aria-expanded={pinSettingsOpen} onClick={() => setPinSettingsOpen((value) => !value)} className="min-h-9 rounded-full border border-white/[.07] px-3 text-[9px] font-semibold text-violet-200">
+          Inbox PIN
+        </button>
+      </div>
+      {pinSettingsOpen ? <div className="mb-4"><SecureMessagesPanel /></div> : null}
       <InboxActivityEntry unread={displayedActivityUnread} detail="Job, payment, security and official updates" onOpen={() => setShowActivity(true)} />
       <section className="pt-4">
         <div className="mb-3 flex items-center justify-between">

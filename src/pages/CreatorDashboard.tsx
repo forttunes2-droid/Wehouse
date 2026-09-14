@@ -16,6 +16,7 @@ import StaffListTab from "./StaffListTab";
 import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
 import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
+import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
@@ -420,14 +421,17 @@ function Operations({
       {active === "people" && <People onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
       {active === "properties" && (
-        <PropertyPipelineWorkspace
-          profile={profile}
-          initialRecordId={
-            target?.operation === "properties" ? target.id : undefined
-          }
-        />
+        <div className="space-y-5">
+          <AccountIdentityReviewQueue accountRole="property_partner" />
+          <PropertyPipelineWorkspace
+            profile={profile}
+            initialRecordId={
+              target?.operation === "properties" ? target.id : undefined
+            }
+          />
+        </div>
       )}
-      {active === "workers" && <CreatorWorkerOversight />}
+      {active === "workers" && <div className="space-y-5"><AccountIdentityReviewQueue accountRole="worker"/><CreatorWorkerOversight /></div>}
       {active === "bookings" && (
         <Bookings
           initialRecordId={

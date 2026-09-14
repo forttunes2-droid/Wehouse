@@ -5,6 +5,7 @@ import {
   endPrivateCall,
   getActiveCalls,
   getCallDetails,
+  getPrivateCallIceServers,
   listCallSignals,
   respondPrivateCall,
   sendCallSignal,
@@ -216,9 +217,10 @@ function RtcCall({
         if (!live) return;
         stream.current = media;
         if (isVideo && localVideo.current) localVideo.current.srcObject = media;
-        const peer = new RTCPeerConnection({
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        });
+        const ice = await getPrivateCallIceServers(call.id);
+        if (!live) return;
+        if (!ice.relayReady) setConnectionLabel("Connecting… relay unavailable");
+        const peer = new RTCPeerConnection({ iceServers: ice.iceServers });
         pc.current = peer;
         media.getTracks().forEach((track) => peer.addTrack(track, media));
         peer.onicecandidate = (event) => {

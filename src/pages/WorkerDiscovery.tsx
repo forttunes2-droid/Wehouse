@@ -392,19 +392,22 @@ export default function WorkerDiscovery({
       />
     );
   if (viewWorker)
+    {
+    const viewingOwnWorker = Boolean(profile?.user_id && viewWorker.user_id === profile.user_id);
     return (
       <>
         <WorkerPublicProfile
           worker={viewWorker}
           onBack={() => setViewWorker(null)}
           bookingActive={active.has(viewWorker.user_id)}
+          showBookingAction={!viewingOwnWorker}
           onOpenBooking={() => onNavigate("my_reservations")}
           onBook={() =>
             profile
               ? setBookingWorker(viewWorker)
               : toast.info("Please sign in to request this service worker")
           }
-          safetyAction={active.has(viewWorker.user_id) ? (
+          safetyAction={!viewingOwnWorker && active.has(viewWorker.user_id) ? (
             <div>
               {profileBlock.blockedMe && (
                 <p className="mb-3 text-[9px] leading-4 text-amber-200">
@@ -438,6 +441,7 @@ export default function WorkerDiscovery({
         )}
       </>
     );
+    }
   return (
     <DiscoveryShell
       active="services"
@@ -511,6 +515,7 @@ export default function WorkerDiscovery({
                   key={worker.featured_placement_id || worker.user_id}
                   worker={worker}
                   active={active.has(worker.user_id)}
+                  bookable={worker.user_id !== profile?.user_id}
                   sponsored
                   onStatus={() => openWorker(worker)}
                   onProfile={() => openWorker(worker)}
@@ -561,6 +566,7 @@ export default function WorkerDiscovery({
                 worker={worker}
                 status={latestStatusByWorker.get(worker.user_id)}
                 active={active.has(worker.user_id)}
+                bookable={worker.user_id !== profile?.user_id}
                 onStatus={(status) => setStory({ worker, status })}
                 onProfile={() => openWorker(worker)}
                 onBook={() =>
@@ -708,6 +714,7 @@ function WorkerCard({
   worker,
   status,
   active,
+  bookable,
   onStatus,
   onProfile,
   onBook,
@@ -717,6 +724,7 @@ function WorkerCard({
   worker: Profile;
   status?: WorkStatus;
   active: boolean;
+  bookable: boolean;
   onStatus: (status: WorkStatus) => void;
   onProfile: () => void;
   onBook: () => void;
@@ -797,21 +805,21 @@ function WorkerCard({
             ? `From ₦${Number(worker.worker_price).toLocaleString()}`
             : "Discuss price"}
         </p>
-        {active ? (
+        {active && bookable ? (
           <button
             onClick={onOpen}
             className="rounded-xl border border-amber-500/20 bg-amber-500/[.06] px-3 py-2 text-[9px] font-semibold text-amber-300"
           >
             Open booking
           </button>
-        ) : (
+        ) : bookable ? (
           <button
             onClick={onBook}
             className="rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold text-white"
           >
             Request
           </button>
-        )}
+        ) : null}
       </div>
     </article>
   );

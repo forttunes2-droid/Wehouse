@@ -1229,15 +1229,6 @@ export default function App() {
             initialSection="devices"
           />
         );
-      case "encryption":
-        return (
-          <PrivacySecuritySettings
-            profile={profile}
-            onUpdate={(u) => auth.handleSetupComplete(u)}
-            onBack={subpageBack}
-            initialSection="encryption"
-          />
-        );
       case "profile_edit":
         return isWorkerRole ? (
           <WorkerSetup
