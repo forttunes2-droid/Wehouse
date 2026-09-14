@@ -6,8 +6,11 @@ import {
 } from "@/lib/e2ee";
 
 export default function useSecureInboxAccess(profileId: string) {
-  const [status, setStatus] =
-    useState<PrivateConversationReadiness | null>(null);
+  const [access, setAccess] = useState<{
+    profileId: string;
+    status: PrivateConversationReadiness;
+  } | null>(null);
+  const status = access?.profileId === profileId ? access.status : null;
 
   const refresh = useCallback(async () => {
     rememberPrivateMessagingProfile(profileId);
@@ -31,7 +34,7 @@ export default function useSecureInboxAccess(profileId: string) {
                 "Unlock private messages with your recovery passcode on this device.",
             }
           : { state: "ready", message: "Private messages unlocked" };
-    setStatus(next);
+    setAccess({ profileId, status: next });
     return next;
   }, [profileId]);
 
