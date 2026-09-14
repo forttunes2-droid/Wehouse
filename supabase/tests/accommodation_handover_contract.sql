@@ -23,7 +23,7 @@ insert into public.reservations(
 ) values
   ('test-short','test-listing','test-user','ready_for_move_in','paid',now(),
    'paid',now(),'TEST-DIRECT','short_let',current_date+10,current_date+12,2,1,1,
-   50,100,0,1,null,null,null,0,0,null),
+   50,100,10,1,null,null,null,0,0,null),
   ('test-long','test-long-listing','test-user','ready_for_move_in','paid',now(),
    'paid',now(),'TEST-LONG','long_stay',null,null,null,1,1,
    null,null,0,2,200,400,200,200,8,null),
@@ -63,7 +63,7 @@ insert into public.booking_payments(
   status,purpose,paystack_reference,listing_id,verified_amount,verified_at,
   verification_source,paid_at,webhook_processed,metadata
 ) values
-  ('30000000-0000-0000-0000-000000000001','TEST-DIRECT','test-user','test-user',100,100,'NGN','paid','apartment_rent','TEST-DIRECT','test-listing',100,now(),'webhook',now(),true,'{"reservation_id":"test-short","listing_id":"test-listing","payment_component":"short_stay_rent"}'::jsonb),
+  ('30000000-0000-0000-0000-000000000001','TEST-DIRECT','test-user','test-user',110,110,'NGN','paid','apartment_rent','TEST-DIRECT','test-listing',110,now(),'webhook',now(),true,'{"reservation_id":"test-short","listing_id":"test-listing","payment_component":"short_stay_rent"}'::jsonb),
   ('30000000-0000-0000-0000-000000000002','TEST-SHARED-1','test-user','test-user',50,50,'NGN','paid','shared_housing_share','TEST-SHARED-1','test-listing',50,now(),'webhook',now(),true,'{"canonical_shared_payment_group_id":"40000000-0000-0000-0000-000000000001","canonical_shared_payment_member_id":"50000000-0000-0000-0000-000000000001"}'::jsonb),
   ('30000000-0000-0000-0000-000000000003','TEST-SHARED-2','test-peer','test-peer',50,50,'NGN','paid','shared_housing_share','TEST-SHARED-2','test-listing',50,now(),'webhook',now(),true,'{"canonical_shared_payment_group_id":"40000000-0000-0000-0000-000000000001","canonical_shared_payment_member_id":"50000000-0000-0000-0000-000000000002"}'::jsonb),
   ('30000000-0000-0000-0000-000000000004','TEST-LONG','test-user','test-user',200,200,'NGN','paid','apartment_rent','TEST-LONG','test-long-listing',200,now(),'webhook',now(),true,'{"reservation_id":"test-long","listing_id":"test-long-listing","payment_component":"long_stay_rent"}'::jsonb),
@@ -74,7 +74,7 @@ insert into public.payment_protection_transactions(
   amount_payee,commission_rate,status,paystack_reference,protection_state,
   subject_type,subject_id,protected_ledger_transaction_id
 ) values
-  ('60000000-0000-0000-0000-000000000001','short_let_stay','test-user','test-payee',100,10,90,10,'protected','TEST-DIRECT','protected','short_let_stay','test-short','10000000-0000-0000-0000-000000000001'),
+  ('60000000-0000-0000-0000-000000000001','short_let_stay','test-user','test-payee',110,11,99,10,'protected','TEST-DIRECT','protected','short_let_stay','test-short','10000000-0000-0000-0000-000000000001'),
   ('60000000-0000-0000-0000-000000000002','short_let_stay','test-user','test-payee',50,5,45,10,'protected','TEST-SHARED-1','protected','short_let_stay','shared:50000000-0000-0000-0000-000000000001:stay:1','10000000-0000-0000-0000-000000000002'),
   ('60000000-0000-0000-0000-000000000003','short_let_stay','test-peer','test-payee',50,5,45,10,'protected','TEST-SHARED-2','protected','short_let_stay','shared:50000000-0000-0000-0000-000000000002:stay:1','10000000-0000-0000-0000-000000000003'),
   ('60000000-0000-0000-0000-000000000004','long_let_year_one','test-user','test-payee',200,20,180,10,'protected','TEST-LONG','protected','long_let_year_one','test-long','10000000-0000-0000-0000-000000000004'),
@@ -105,6 +105,47 @@ insert into public.shared_payment_protection_components(
   ('40000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000002','60000000-0000-0000-0000-000000000003','short_let_stay',50,'TEST-SHARED-2');
 
 set local session_replication_role=origin;
+
+-- A real Short Let caution amount must remain a valid paid snapshot. This
+-- probe executes the payment trigger without introducing another persistent
+-- booking-payment row.
+create temp table booking_snapshot_probe(
+  status text,
+  purpose text,
+  payer_user_id text,
+  user_id text,
+  verified_amount numeric,
+  amount_total numeric,
+  amount numeric,
+  metadata jsonb,
+  listing_id text,
+  paystack_reference text,
+  currency text
+);
+
+create trigger booking_snapshot_probe_trigger
+before insert or update of status on booking_snapshot_probe
+for each row execute function public.validate_paid_accommodation_snapshot();
+
+insert into booking_snapshot_probe(
+  status,purpose,payer_user_id,user_id,verified_amount,amount_total,amount,
+  metadata,listing_id,paystack_reference,currency
+) values(
+  'paid','apartment_rent','test-user','test-user',110,110,110,
+  jsonb_build_object(
+    'reservation_id','test-short',
+    'listing_id','test-listing',
+    'payment_component','short_stay_rent',
+    'check_in',(current_date+10)::text,
+    'check_out',(current_date+12)::text,
+    'nights',2,
+    'guest_count',1,
+    'nightly_rate',50,
+    'stay_rent_total',100,
+    'security_deposit_amount',10
+  ),
+  'test-listing','TEST-DIRECT','NGN'
+);
 
 do $$
 declare rejected boolean:=false;
@@ -163,7 +204,7 @@ begin
   decision:=public.accommodation_access_authorization(
     'test-short','test-listing','test-user','short_let','ready_for_move_in','paid',now(),
     'paid',now(),'TEST-DIRECT','60000000-0000-0000-0000-000000000001',
-    null,null,100,'handover'
+    null,null,110,'handover'
   );
   if not coalesce((decision->>'authorized')::boolean,false) then
     raise exception 'Expected canonical direct payment to authorize: %',decision;
@@ -172,7 +213,7 @@ begin
   decision:=public.accommodation_access_authorization(
     'test-short','test-listing','test-user','short_let','ready_for_move_in','paid',now(),
     'paid',now(),'WRONG-REFERENCE','60000000-0000-0000-0000-000000000001',
-    null,null,100,'handover'
+    null,null,110,'handover'
   );
   if coalesce((decision->>'authorized')::boolean,false) then
     raise exception 'A mismatched payment reference authorized handover';
@@ -181,7 +222,7 @@ begin
   decision:=public.accommodation_access_authorization(
     'test-short','wrong-listing','test-user','short_let','ready_for_move_in','paid',now(),
     'paid',now(),'TEST-DIRECT','60000000-0000-0000-0000-000000000001',
-    null,null,100,'handover'
+    null,null,110,'handover'
   );
   if coalesce((decision->>'authorized')::boolean,false) then
     raise exception 'A payment for another listing authorized handover';
@@ -275,7 +316,7 @@ insert into accommodation_guard_probe(
 ) values(
   'test-short','test-listing','test-user','short_let','ready_for_move_in',now(),
   'paid',now(),'paid',now(),'TEST-DIRECT',
-  '60000000-0000-0000-0000-000000000001',100
+  '60000000-0000-0000-0000-000000000001',110
 );
 
 insert into accommodation_guard_probe(
@@ -303,7 +344,7 @@ begin
 
   rejected:=false;
   begin
-    update accommodation_guard_probe set stay_rent_total=101
+    update accommodation_guard_probe set stay_rent_total=111
     where id='test-short';
   exception when others then
     rejected:=position('Current Payment Protection is required' in sqlerrm)>0;
@@ -320,7 +361,7 @@ begin
       rent_payment_reference,stay_rent_total
     ) values(
       'missing-protection','test-listing','test-user','short_let','reserved','checked_in',now(),
-      'paid',now(),'paid',now(),'TEST-DIRECT',100
+      'paid',now(),'paid',now(),'TEST-DIRECT',110
     );
   exception when others then
     rejected:=position('Current Payment Protection is required' in sqlerrm)>0;

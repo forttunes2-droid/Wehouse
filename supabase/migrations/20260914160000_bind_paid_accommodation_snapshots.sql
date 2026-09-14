@@ -54,8 +54,8 @@ begin
           is distinct from round(coalesce(v_reservation.nightly_rate_snapshot,-1),2)
         or round(coalesce(nullif(new.metadata->>'stay_rent_total','')::numeric,-1),2)
           is distinct from round(coalesce(v_reservation.stay_rent_total,-1),2)
-        or round(coalesce(nullif(new.metadata->>'security_deposit_amount','')::numeric,-1),2)<>0
-        or round(coalesce(v_reservation.security_deposit_snapshot,0),2)<>0
+        or round(coalesce(nullif(new.metadata->>'security_deposit_amount','')::numeric,-1),2)
+          is distinct from round(coalesce(v_reservation.security_deposit_snapshot,0),2)
       then
         raise exception 'Short Let payment does not match its dates, guests and price snapshot';
       end if;
@@ -75,8 +75,8 @@ begin
           is distinct from round(coalesce(v_reservation.installment_balance,0),2)
         or nullif(new.metadata->>'contribution_count','')::integer
           is distinct from v_reservation.installment_count
-        or round(coalesce(nullif(new.metadata->>'security_deposit_amount','')::numeric,-1),2)
-          is distinct from round(coalesce(v_reservation.security_deposit_snapshot,0),2)
+        or round(coalesce(nullif(new.metadata->>'security_deposit_amount','')::numeric,0),2)<>0
+        or round(coalesce(v_reservation.security_deposit_snapshot,0),2)<>0
       then
         raise exception 'Long Let payment does not match its tenure and contract snapshot';
       end if;

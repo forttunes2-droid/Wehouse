@@ -228,6 +228,7 @@ test("paid accommodation terms are bound to the checkout snapshot", async () => 
   ])
     assert.match(migration, new RegExp(field));
   assert.match(contract, /Paid Short Let dates or guests were mutable/);
+  assert.match(contract, /'security_deposit_amount',10/);
   assert.match(contract, /Paid Long Let tenure or contract total was mutable/);
   assert.match(contract, /Long Let accepted a security deposit/);
   assert.match(contract, /Open shared Short Let dates or guests were mutable/);
