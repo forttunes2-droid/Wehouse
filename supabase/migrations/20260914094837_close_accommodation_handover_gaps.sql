@@ -116,15 +116,24 @@ begin
             and upper(coalesce(payment.currency,'NGN'))='NGN'
             and round(coalesce(payment.verified_amount,0),2)
               =round(coalesce(payment.amount_total,payment.amount,0),2)
-        )
-        and exists(
-          select 1
-          from public.verified_provider_events provider_event
-          where provider_event.provider='paystack'
-            and provider_event.event_type='charge.success'
-            and provider_event.provider_reference=protection.paystack_reference
-            and provider_event.processing_status='processed'
-            and provider_event.processed_at is not null
+            and exists(
+              select 1
+              from public.ledger_transactions ledger
+              join public.verified_provider_events provider_event
+                on provider_event.provider_event_id=ledger.provider_event_id
+              where ledger.ledger_transaction_id=
+                    protection.protected_ledger_transaction_id
+                and ledger.transaction_type='provider_charge'
+                and ledger.currency='NGN'
+                and ledger.reference_type='booking_payment'
+                and ledger.reference_id=payment.id::text
+                and provider_event.provider='paystack'
+                and provider_event.event_type='charge.success'
+                and provider_event.provider_reference=
+                    protection.paystack_reference
+                and provider_event.processing_status='processed'
+                and provider_event.processed_at is not null
+            )
         )
     ) into v_direct_valid;
     return jsonb_build_object(
@@ -182,14 +191,24 @@ begin
             and upper(coalesce(payment.currency,'NGN'))='NGN'
             and round(coalesce(payment.verified_amount,0),2)
               =round(coalesce(payment.amount_total,payment.amount,0),2)
-        )
-        and exists(
-          select 1 from public.verified_provider_events provider_event
-          where provider_event.provider='paystack'
-            and provider_event.event_type='charge.success'
-            and provider_event.provider_reference=component.provider_reference
-            and provider_event.processing_status='processed'
-            and provider_event.processed_at is not null
+            and exists(
+              select 1
+              from public.ledger_transactions ledger
+              join public.verified_provider_events provider_event
+                on provider_event.provider_event_id=ledger.provider_event_id
+              where ledger.ledger_transaction_id=
+                    protection.protected_ledger_transaction_id
+                and ledger.transaction_type='provider_charge'
+                and ledger.currency='NGN'
+                and ledger.reference_type='booking_payment'
+                and ledger.reference_id=payment.id::text
+                and provider_event.provider='paystack'
+                and provider_event.event_type='charge.success'
+                and provider_event.provider_reference=
+                    component.provider_reference
+                and provider_event.processing_status='processed'
+                and provider_event.processed_at is not null
+            )
         )
     )::integer,
     round(coalesce(sum(component.amount) filter(

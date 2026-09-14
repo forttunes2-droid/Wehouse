@@ -14,13 +14,13 @@ insert into public.profiles(auth_id,email,user_id) values
 
 insert into public.ledger_transactions(
   ledger_transaction_id,idempotency_key,transaction_type,currency,
-  reference_type,reference_id,payload_checksum
+  reference_type,reference_id,provider_event_id,payload_checksum
 ) values
-  ('10000000-0000-0000-0000-000000000001','test-ledger-direct','provider_charge','NGN','test','direct','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-  ('10000000-0000-0000-0000-000000000002','test-ledger-shared-1','provider_charge','NGN','test','shared-1','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
-  ('10000000-0000-0000-0000-000000000003','test-ledger-shared-2','provider_charge','NGN','test','shared-2','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'),
-  ('10000000-0000-0000-0000-000000000004','test-ledger-long','provider_charge','NGN','test','long','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'),
-  ('10000000-0000-0000-0000-000000000005','test-ledger-long-released','provider_charge','NGN','test','long-released','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+  ('10000000-0000-0000-0000-000000000001','test-ledger-direct','provider_charge','NGN','booking_payment','30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+  ('10000000-0000-0000-0000-000000000002','test-ledger-shared-1','provider_charge','NGN','booking_payment','30000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000002','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+  ('10000000-0000-0000-0000-000000000003','test-ledger-shared-2','provider_charge','NGN','booking_payment','30000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000003','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'),
+  ('10000000-0000-0000-0000-000000000004','test-ledger-long','provider_charge','NGN','booking_payment','30000000-0000-0000-0000-000000000004','20000000-0000-0000-0000-000000000004','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'),
+  ('10000000-0000-0000-0000-000000000005','test-ledger-long-released','provider_charge','NGN','booking_payment','30000000-0000-0000-0000-000000000005','20000000-0000-0000-0000-000000000005','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
 
 insert into public.verified_provider_events(
   provider_event_id,provider,provider_event_key,event_type,provider_reference,

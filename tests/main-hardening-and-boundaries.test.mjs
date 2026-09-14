@@ -100,6 +100,12 @@ test("accommodation payment confirmation uses the canonical protected-funds gate
   assert.match(migration, /payment_group\.listing_id=p_listing_id/);
   assert.match(migration, /payment_component'=case when v_short/);
   assert.match(migration, /protected_ledger_transaction_id is not null/);
+  assert.match(migration, /ledger\.reference_type='booking_payment'/);
+  assert.match(migration, /ledger\.reference_id=payment\.id::text/);
+  assert.match(
+    migration,
+    /provider_event\.provider_event_id=ledger\.provider_event_id/,
+  );
   assert.match(migration, /provider_event\.processing_status='processed'/);
   assert.match(
     migration,
