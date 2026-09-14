@@ -27,6 +27,7 @@ import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import { workspaceLabel } from "@/lib/workspacePresentation";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -431,7 +432,7 @@ export default function App() {
       toast.success(
         workspace === "personal"
           ? "Personal WeHouse opened"
-          : `${workspace[0].toUpperCase()}${workspace.slice(1)} workspace opened`,
+          : `${workspaceLabel(workspace)} opened`,
       );
     },
     [baseProfile, workspaceAccess],

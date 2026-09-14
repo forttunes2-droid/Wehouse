@@ -21,6 +21,71 @@ test("GitHub exposes stable required check names and a dependent consolidation g
   assert.match(consolidation, /BUILD_RESULT[\s\S]*MIGRATION_RESULT/);
 });
 
+test("internal identities do not inherit Personal or repeated module workspaces", async () => {
+  const [migration, account, app, labels] = await Promise.all([
+    read(
+      "supabase/migrations/20260914185614_separate_internal_and_marketplace_workspaces.sql",
+    ),
+    read("src/pages/AccountCenter.tsx"),
+    read("src/App.tsx"),
+    read("src/lib/workspacePresentation.ts"),
+  ]);
+  assert.match(migration, /set account_kind='creator'/);
+  assert.match(
+    migration,
+    /'account_kind',profile\.account_kind[\s\S]*profile\.role not in\('creator','admin','staff','hotel_staff'\)/,
+  );
+  assert.match(
+    migration,
+    /assignment\.workspace_role in\([\s\S]*'worker','property_partner','staff','admin','creator'/,
+  );
+  assert.match(
+    migration,
+    /set role='creator',account_kind='creator'/,
+  );
+  assert.match(labels, /hotel: "Hotel Team"/);
+  assert.match(account, /workspaceLabel\(workspace\.role\)/);
+  assert.match(app, /workspaceLabel\(workspace\)/);
+  assert.doesNotMatch(app, /workspace\.slice\(1\).*workspace opened/);
+});
+
+test("public password login is throttled before the service-role identity lookup", async () => {
+  const [migration, login] = await Promise.all([
+    read(
+      "supabase/migrations/20260914185841_rate_limit_public_password_login.sql",
+    ),
+    read("supabase/functions/login-with-identifier/index.ts"),
+  ]);
+  assert.match(
+    migration,
+    /revoke all on table public\.public_login_rate_limits[\s\S]*from public,anon,authenticated/,
+  );
+  assert.match(migration, /v_window interval:=interval '15 minutes'/);
+  assert.match(migration, /v_max_attempts integer:=12/);
+  assert.match(
+    login,
+    /consume_public_password_login_attempt_from_service[\s\S]*if \(throttle\?\.allowed !== true\)/,
+  );
+  assert.match(login, /429/);
+});
+
+test("browser security headers and recovery function verification are explicit", async () => {
+  const [vercel, index, config] = await Promise.all([
+    read("vercel.json"),
+    read("index.html"),
+    read("supabase/config.toml"),
+  ]);
+  assert.match(vercel, /Content-Security-Policy/);
+  assert.match(vercel, /frame-ancestors 'none'/);
+  assert.match(vercel, /X-Content-Type-Options/);
+  assert.doesNotMatch(index, /<script>(?![\s\S]*type=)/);
+  assert.match(index, /src="\/src\/preflight\.ts"/);
+  assert.match(
+    config,
+    /\[functions\.provider-password-recovery\][\s\S]*verify_jwt = true/,
+  );
+});
+
 test("Activity owns one deterministic mobile back treatment", async () => {
   const layout = await read("src/components/DesktopLayout.tsx");
   assert.match(layout, /OWN_MOBILE_BACK[\s\S]*'activity'/);

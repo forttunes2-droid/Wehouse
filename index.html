@@ -6,31 +6,6 @@
     <meta name="theme-color" content="#0A0A0F" />
     <meta name="background-color" content="#0A0A0F" />
     <meta name="description" content="WeHouse - Find houses, connect with roommates, hire verified workers" />
-    <script>window.WH_VERSION='__WH_VERSION__';</script>
-    <script>
-      (function() {
-        // One-time compatibility cleanup: Property Partner is the only
-        // canonical Partner workspace. Never restore the retired owner alias.
-        try {
-          if (localStorage.getItem('wh_navpage') === 'property_owner') {
-            localStorage.setItem('wh_navpage', 'property_partner');
-          }
-          if (window.history.state && window.history.state.page === 'property_owner') {
-            window.history.replaceState({ page: 'property_partner' }, '', '#property_partner');
-          }
-        } catch (_) {}
-      })();
-    </script>
-    <script>
-      (function() {
-        if (!('serviceWorker' in navigator)) return;
-        // The build emits a new worker body for every Git commit. Existing
-        // installations therefore receive the current application shell.
-        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
-          .then(function(registration) { return registration.update(); })
-          .catch(function() {});
-      })();
-    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
@@ -59,6 +34,7 @@
   </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/src/preflight.ts"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

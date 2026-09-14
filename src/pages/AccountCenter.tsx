@@ -6,6 +6,7 @@ import type { Profile } from '@/types';
 import PrivacySecuritySettings from '@/pages/PrivacySecuritySettings';
 import MediaViewer from '@/components/MediaViewer';
 import { getCurrentLegalDocuments } from '@/lib/supabase/legal';
+import { workspaceLabel, type WorkspaceName } from '@/lib/workspacePresentation';
 
 type Props = {
   profile: Profile;
@@ -23,7 +24,7 @@ type Props = {
   onWorkspaceActivated?: (workspace: 'worker' | 'property_partner') => void;
 };
 
-export type WorkspaceChoice = 'personal' | 'worker' | 'property_partner' | 'staff' | 'admin' | 'creator' | 'hotel';
+export type WorkspaceChoice = WorkspaceName;
 export type WorkspaceAccess = {
   identity?: { user_id?: string; account_kind?: string; compatibility_role?: string };
   personal_workspace?: boolean;
@@ -254,7 +255,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <WorkspaceButton label="Personal" detail="Bookings, roommate matches and personal messages" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
               {privilegedWorkspaces.map((workspace) => (
-                <WorkspaceButton key={workspace.role} label={workspace.role === 'worker' ? 'Worker' : workspace.role === 'property_partner' ? 'Property Partner' : workspace.role === 'admin' ? 'Admin' : workspace.role === 'creator' ? 'Creator' : workspace.role === 'hotel' ? 'Hotel Operations' : 'Team'} detail={workspace.lga || workspace.state || undefined} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
+                <WorkspaceButton key={workspace.role} label={workspaceLabel(workspace.role)} detail={workspace.lga || workspace.state || (workspace.role === 'hotel' ? 'Assigned hotel access' : undefined)} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
               ))}
             </div>
           </div>
