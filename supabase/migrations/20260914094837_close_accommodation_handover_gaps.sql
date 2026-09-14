@@ -573,10 +573,9 @@ revoke all on function public.get_public_listing_detail(text) from public;
 grant execute on function public.get_public_listing_detail(text)
 to authenticated,service_role;
 
--- Long Let shared contract checkout currently combines partner rent and a
--- refundable deposit in each member's share, but no canonical splitter creates
--- separate protected liabilities. Stop before a Paystack reference is created;
--- charging first would leave a fully-paid group unable to pass handover safely.
+-- Shared Long Let contract checkout has no complete per-payer rent protection
+-- implementation. Stop before a Paystack reference is created; charging first
+-- would leave a fully-paid group unable to pass handover safely.
 create or replace function public.start_my_shared_contract_split(p_group_id uuid)
 returns jsonb
 language plpgsql
@@ -587,7 +586,7 @@ begin
   perform p_group_id;
   raise exception using
     message='Shared Long Let contract payment is temporarily unavailable',
-    detail='Rent and refundable-deposit Payment Protection must be split before checkout can reopen.',
-    hint='Use one payer for this Long Let or complete the shared protection implementation.';
+    detail='Each payer needs a canonical rent protection component before checkout can reopen.',
+    hint='Use one payer for this Long Let or complete the shared rent protection implementation.';
 end;
 $$;

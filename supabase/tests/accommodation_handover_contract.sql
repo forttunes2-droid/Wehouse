@@ -27,6 +27,9 @@ insert into public.reservations(
   ('test-long','test-long-listing','test-user','ready_for_move_in','paid',now(),
    'paid',now(),'TEST-LONG','long_stay',null,null,null,1,1,
    null,null,0,2,200,400,200,200,8,null),
+  ('test-long-unpaid','test-long-unpaid-listing','test-user','reserved','paid',now(),
+   'not_started',null,null,'long_stay',null,null,null,1,1,
+   null,null,0,1,200,200,200,0,0,null),
   ('test-long-released','test-long-released-listing','test-user','occupied','paid',now(),
    'paid',now(),'TEST-LONG-RELEASED','long_stay',null,null,null,1,1,
    null,null,0,1,200,200,200,0,0,null),
@@ -127,6 +130,17 @@ begin
   end;
   if not rejected then
     raise exception 'Paid Long Let tenure or contract total was mutable';
+  end if;
+
+  rejected:=false;
+  begin
+    update public.reservations set security_deposit_snapshot=1
+    where id='test-long-unpaid';
+  exception when check_violation then
+    rejected:=position('reservations_long_let_rent_only' in sqlerrm)>0;
+  end;
+  if not rejected then
+    raise exception 'Long Let accepted a security deposit';
   end if;
 
   rejected:=false;

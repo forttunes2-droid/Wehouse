@@ -54,8 +54,8 @@ begin
           is distinct from round(coalesce(v_reservation.nightly_rate_snapshot,-1),2)
         or round(coalesce(nullif(new.metadata->>'stay_rent_total','')::numeric,-1),2)
           is distinct from round(coalesce(v_reservation.stay_rent_total,-1),2)
-        or round(coalesce(nullif(new.metadata->>'security_deposit_amount','')::numeric,-1),2)
-          is distinct from round(coalesce(v_reservation.security_deposit_snapshot,0),2)
+        or round(coalesce(nullif(new.metadata->>'security_deposit_amount','')::numeric,-1),2)<>0
+        or round(coalesce(v_reservation.security_deposit_snapshot,0),2)<>0
       then
         raise exception 'Short Let payment does not match its dates, guests and price snapshot';
       end if;
@@ -80,10 +80,7 @@ begin
       then
         raise exception 'Long Let payment does not match its tenure and contract snapshot';
       end if;
-      v_expected:=round(
-        coalesce(v_reservation.upfront_rent_required,0)
-        +coalesce(v_reservation.security_deposit_snapshot,0),2
-      );
+      v_expected:=round(coalesce(v_reservation.upfront_rent_required,0),2);
     else
       raise exception 'Accommodation payment has no supported stay type';
     end if;
@@ -383,4 +380,3 @@ on conflict(function_signature) do update set
   review_state=excluded.review_state,
   rationale=excluded.rationale,
   captured_at=excluded.captured_at;
-

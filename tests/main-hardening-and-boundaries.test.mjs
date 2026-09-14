@@ -202,9 +202,12 @@ test("every accommodation arrival field and shared payer is guarded", async () =
 });
 
 test("paid accommodation terms are bound to the checkout snapshot", async () => {
-  const [migration, contract] = await Promise.all([
+  const [migration, rentOnly, contract] = await Promise.all([
     read(
       "supabase/migrations/20260914160000_bind_paid_accommodation_snapshots.sql",
+    ),
+    read(
+      "supabase/migrations/20260914170000_enforce_long_let_rent_only.sql",
     ),
     read("supabase/tests/accommodation_handover_contract.sql"),
   ]);
@@ -226,7 +229,15 @@ test("paid accommodation terms are bound to the checkout snapshot", async () => 
     assert.match(migration, new RegExp(field));
   assert.match(contract, /Paid Short Let dates or guests were mutable/);
   assert.match(contract, /Paid Long Let tenure or contract total was mutable/);
+  assert.match(contract, /Long Let accepted a security deposit/);
   assert.match(contract, /Open shared Short Let dates or guests were mutable/);
+  assert.match(rentOnly, /Long Let payment must contain rent only/);
+  assert.match(rentOnly, /listings_long_let_rent_only/);
+  assert.match(rentOnly, /reservations_long_let_rent_only/);
+  assert.doesNotMatch(
+    rentOnly,
+    /Long Let[\s\S]{0,80}(requires|includes|charges) (a )?(security )?deposit/i,
+  );
 });
 
 test("Worker review and booking have no onboarding-payment gate", async () => {
