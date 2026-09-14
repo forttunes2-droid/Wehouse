@@ -17,6 +17,7 @@ add constraint booking_payments_purpose_check check(purpose=any(array[
 
 create or replace function public.accommodation_access_authorization(
   p_reservation_id text,
+  p_listing_id text,
   p_user_id text,
   p_stay_type text,
   p_reservation_status text,
@@ -104,6 +105,10 @@ begin
           where payment.paystack_reference=protection.paystack_reference
             and payment.purpose='apartment_rent'
             and payment.metadata->>'reservation_id'=p_reservation_id
+            and payment.listing_id=p_listing_id
+            and payment.metadata->>'listing_id'=p_listing_id
+            and payment.metadata->>'payment_component'=case when v_short
+              then 'short_stay_rent' else 'long_stay_rent' end
             and payment.status in ('paid','completed')
             and payment.verified_at is not null
             and coalesce(payment.webhook_processed,false)
@@ -138,6 +143,7 @@ begin
       select 1 from public.shared_payment_groups payment_group
       where payment_group.shared_payment_group_id=p_shared_payment_group_id
         and payment_group.reservation_id=p_reservation_id
+        and payment_group.listing_id=p_listing_id
         and payment_group.product_type=case when v_short then 'short_let' else 'long_let' end
         and payment_group.status='fully_paid'
     ),
@@ -164,6 +170,7 @@ begin
           select 1 from public.booking_payments payment
           where payment.paystack_reference=component.provider_reference
             and payment.purpose='shared_housing_share'
+            and payment.listing_id=p_listing_id
             and payment.metadata->>'canonical_shared_payment_group_id'
               =p_shared_payment_group_id::text
             and payment.metadata->>'canonical_shared_payment_member_id'
@@ -224,10 +231,10 @@ end;
 $$;
 
 revoke all on function public.accommodation_access_authorization(
-  text,text,text,text,text,timestamptz,text,timestamptz,text,uuid,uuid,uuid,numeric,text
+  text,text,text,text,text,text,timestamptz,text,timestamptz,text,uuid,uuid,uuid,numeric,text
 ) from public,anon,authenticated;
 grant execute on function public.accommodation_access_authorization(
-  text,text,text,text,text,timestamptz,text,timestamptz,text,uuid,uuid,uuid,numeric,text
+  text,text,text,text,text,text,timestamptz,text,timestamptz,text,uuid,uuid,uuid,numeric,text
 ) to service_role;
 
 create or replace function public.enforce_protected_accommodation_handover()
@@ -307,7 +314,7 @@ begin
   if not v_access_active then return new; end if;
 
   v_authorization:=public.accommodation_access_authorization(
-    new.id,new.user_id,new.stay_type,new.status,
+    new.id,new.listing_id,new.user_id,new.stay_type,new.status,
     new.manual_payment_status,new.paid_at,
     new.rent_payment_status,new.rent_paid_at,new.rent_payment_reference,
     new.stay_payment_protection_id,new.year_one_rent_protection_id,
@@ -336,7 +343,8 @@ before insert or update of
   occupancy_started_at,checked_in_at,manual_payment_status,paid_at,
   rent_payment_status,rent_paid_at,rent_payment_reference,
   stay_payment_protection_id,year_one_rent_protection_id,
-  shared_payment_group_id,stay_type,user_id
+  shared_payment_group_id,stay_type,user_id,listing_id,
+  stay_rent_total,upfront_rent_required,annual_rent_snapshot
 on public.reservations
 for each row
 execute function public.enforce_protected_accommodation_handover();
@@ -411,7 +419,8 @@ begin
           )
         )
         and coalesce((public.accommodation_access_authorization(
-          reservation.id,reservation.user_id,reservation.stay_type,reservation.status,
+          reservation.id,reservation.listing_id,reservation.user_id,
+          reservation.stay_type,reservation.status,
           reservation.manual_payment_status,reservation.paid_at,
           reservation.rent_payment_status,reservation.rent_paid_at,
           reservation.rent_payment_reference,

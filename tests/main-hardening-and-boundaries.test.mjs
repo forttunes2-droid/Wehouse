@@ -96,6 +96,9 @@ test("accommodation payment confirmation uses the canonical protected-funds gate
     migration,
     /payment\.metadata->>'reservation_id'=p_reservation_id/,
   );
+  assert.match(migration, /payment\.listing_id=p_listing_id/);
+  assert.match(migration, /payment_group\.listing_id=p_listing_id/);
+  assert.match(migration, /payment_component'=case when v_short/);
   assert.match(migration, /protected_ledger_transaction_id is not null/);
   assert.match(migration, /provider_event\.processing_status='processed'/);
 });
@@ -117,6 +120,10 @@ test("every accommodation arrival field and shared payer is guarded", async () =
     "tenancy_start_date",
     "occupancy_started_at",
     "checked_in_at",
+    "listing_id",
+    "stay_rent_total",
+    "upfront_rent_required",
+    "annual_rent_snapshot",
   ])
     assert.match(migration, new RegExp(field));
   assert.match(migration, /v_paid_member_count=v_accepted_count/);
@@ -131,6 +138,12 @@ test("every accommodation arrival field and shared payer is guarded", async () =
     /supabase\/tests\/accommodation_handover_contract\.sql/,
   );
   assert.match(contract, /checked_in_at bypassed the Payment Protection guard/);
+  assert.match(
+    contract,
+    /verified_handover_at bypassed the Long Let Payment Protection guard/,
+  );
+  assert.match(contract, /A protected reservation was moved to an unpaid listing/);
+  assert.match(contract, /A valid occupied Long Let lost access after release/);
   assert.match(
     contract,
     /accepted but unpaid shared member authorized handover/,
